@@ -1,0 +1,139 @@
+rules_version = '2';
+
+// Default posture: everything is closed. Content (sessions, speakers, sponsors)
+// is readable by any signed-in attendee but only ever written by organizers via
+// the Admin SDK or an import script.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isOrganizer() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'organizer';
+    }
+
+    // The imported ticket list. Only the Admin SDK touches it.
+    match /registrations/{email} {
+      allow read, write: if false;
+    }
+
+    match /users/{uid} {
+      // Directory visibility is enforced at query time; the flag lives here.
+      allow read: if signedIn();
+      allow update: if isSelf(uid)
+        // An attendee must not be able to promote themselves.
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email;
+      allow create, delete: if false;
+
+      match /savedSessions/{sessionId} {
+        allow read, write: if isSelf(uid);
+      }
+      match /savedContacts/{contactUid} {
+        allow read, write: if isSelf(uid);
+      }
+      match /notifications/{id} {
+        allow read, update: if isSelf(uid);
+        allow create, delete: if false;
+      }
+      match /fcmTokens/{token} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+
+      match /questions/{id} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+        // Upvotes need a write from non-authors; organizers mark answered.
+        allow update: if signedIn();
+        allow delete: if isOrganizer()
+          || (signedIn() && resource.data.authorId == request.auth.uid);
+      }
+
+      match /polls/{id} {
+        allow read: if signedIn();
+        allow create, delete: if isOrganizer();
+        allow update: if signedIn();
+      }
+    }
+
+    match /speakers/{id} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+    }
+
+    match /tracks/{id} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+    }
+
+    match /sponsors/{sponsorId} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+
+      // An attendee may submit their own lead but must not read others'.
+      match /leads/{uid} {
+        allow create: if isSelf(uid);
+        allow read: if isOrganizer();
+        allow update, delete: if false;
+      }
+    }
+
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow write: if isOrganizer();
+    }
+
+    match /communityPosts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+      // Reactions and replyCount are written by other attendees.
+      allow update: if signedIn();
+      allow delete: if isOrganizer()
+        || (signedIn() && resource.data.authorId == request.auth.uid);
+
+      match /replies/{id} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update: if signedIn() && resource.data.authorId == request.auth.uid;
+        allow delete: if isOrganizer()
+          || (signedIn() && resource.data.authorId == request.auth.uid);
+      }
+    }
+
+    match /threads/{threadId} {
+      function isParticipant() {
+        return signedIn() && request.auth.uid in resource.data.participantIds;
+      }
+
+      allow read, update: if isParticipant();
+      allow create: if signedIn()
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.size() == 2;
+      allow delete: if false;
+
+      match /messages/{id} {
+        function inThread() {
+          return signedIn() && request.auth.uid in
+            get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
+        }
+
+        allow read: if inThread();
+        allow create: if inThread() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

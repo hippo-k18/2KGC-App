@@ -1,0 +1,30 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Profile photos — an attendee writes only their own, capped at 5 MB.
+    match /avatars/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Speaker slides and sponsor collateral — uploaded by organizers only.
+    match /sessions/{sessionId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /sponsors/{sponsorId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}
