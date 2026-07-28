@@ -3,6 +3,11 @@
 A cross-platform conference app (a Whova alternative) for KGC 2026, built with
 Expo and React Native. **Runs on both iPhone and Android** from one codebase.
 
+> **Working on this with an AI assistant?** Everything it needs — current
+> versions, architecture, conventions, and the version-specific traps that have
+> already caused bugs here — is in [`AGENTS.md`](./AGENTS.md). Claude Code loads
+> it automatically via `CLAUDE.md`. Keep it up to date when things change.
+
 ---
 
 ## Getting started from nothing
