@@ -90,8 +90,9 @@ src/app/
 ```
 
 The tab set mirrors Whova: **Home, Agenda, Attendees, Community, Messages**.
-Titles render inline in the nav bar rather than as iOS large titles, so the
-header is one line high and identical on every tab.
+Headers are hidden on every tab, so each screen is bare from the status bar
+down to the tab bar. Turn one back on with `headerShown: true` in that tab's
+`_layout.tsx`.
 
 `(tabs)` is a **route group** — the parentheses mean it does not appear in the
 URL.
@@ -163,13 +164,13 @@ The credentials are also printed on the login screen itself, so nobody
 demonstrating the app has to remember them.
 
 **This is not real authentication.** It is a string comparison against
-`src/config/demo.ts`, remembered in AsyncStorage so Fast Refresh does not sign
-you out. There is no server, no verification and no security — anyone can read
-the credentials straight out of the app bundle.
+`src/config/demo.ts`. There is no server, no verification and no security —
+anyone can read the credentials straight out of the app bundle.
 
-There is currently no sign-out control, so once you sign in the app stays
-signed in. To show the login screen again, delete the app and reinstall it, or
-ask for the session to stop persisting.
+The session is held in memory and **deliberately not persisted**, so every
+reload and every fresh launch returns to the login screen. That keeps the
+sign-in flow repeatable when demonstrating the app. There is no sign-out
+control; reloading is the way back.
 
 To remove the demo login once Firebase Auth is wired up, delete
 `src/config/demo.ts` and `src/lib/auth/demo-auth.tsx`, then point

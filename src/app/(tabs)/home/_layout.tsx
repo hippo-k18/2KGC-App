@@ -1,12 +1,13 @@
 import { Stack } from 'expo-router';
 
 /**
- * Titles render inline in the nav bar rather than as iOS large titles, so the
- * header sits on one line and reads the same on every tab.
+ * No header — the screen is intentionally bare. `title` is still set because
+ * it names the route for accessibility and for any screen pushed on top later;
+ * add `headerShown: true` to a child screen when it needs a nav bar.
  */
 export default function HomeLayout() {
   return (
-    <Stack>
+    <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" options={{ title: 'Home' }} />
     </Stack>
   );

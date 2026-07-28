@@ -23,20 +23,17 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  const canSubmit = username.trim().length > 0 && password.length > 0 && !busy;
+  const canSubmit = username.trim().length > 0 && password.length > 0;
 
-  async function handleSubmit() {
-    setBusy(true);
-    setError(null);
-    const message = await signIn(username, password);
-    setBusy(false);
+  function handleSubmit() {
+    const message = signIn(username, password);
 
     if (message) {
       setError(message);
       return;
     }
+    setError(null);
     router.replace('/home');
   }
 
@@ -120,7 +117,7 @@ export default function LoginScreen() {
             opacity: pressed ? 0.7 : 1,
           })}>
           <Text variant="heading" tone={canSubmit ? 'onAccent' : 'secondary'}>
-            {busy ? 'Signing in…' : 'Sign in'}
+            Sign in
           </Text>
         </Pressable>
 

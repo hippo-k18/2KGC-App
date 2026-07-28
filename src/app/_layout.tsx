@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
 import { AuthProvider, useAuth } from '@/lib/auth/auth-provider';
-import { DemoAuthProvider, useDemoAuth } from '@/lib/auth/demo-auth';
+import { DemoAuthProvider } from '@/lib/auth/demo-auth';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,16 +41,12 @@ const navThemes = {
 
 function RootNavigator() {
   const { loading } = useAuth();
-  const { loading: demoLoading } = useDemoAuth();
-  const busy = loading || demoLoading;
 
   useEffect(() => {
-    // Hold the splash screen until the stored session has been read, so the
-    // app never flashes the login screen at someone already signed in.
-    if (!busy) SplashScreen.hideAsync();
-  }, [busy]);
+    if (!loading) SplashScreen.hideAsync();
+  }, [loading]);
 
-  if (busy) return null;
+  if (loading) return null;
 
   return (
     <Stack>
