@@ -1,48 +1,104 @@
 # KGC — Knowledge Graph Conference app
 
-A native iOS conference app (a Whova alternative) for KGC 2026, built with Expo
-and React Native. Android comes along for free but iOS is the target.
+A cross-platform conference app (a Whova alternative) for KGC 2026, built with
+Expo and React Native. **Runs on both iPhone and Android** from one codebase.
 
 ---
 
-## Viewing the app on your iPhone
+## Getting started from nothing
 
-This is the fastest path and needs no Xcode, no simulator download, and no
-Apple Developer account.
+Everything below is free. No Apple Developer account, no Xcode, no Android
+Studio. Works on macOS, Windows or Linux. Budget about 15 minutes, most of it
+waiting on downloads.
 
-1. Install **Expo Go** from the App Store on your iPhone.
-2. Put the iPhone and this Mac on the **same Wi-Fi network**.
-3. In this folder, run:
+### 1. Install Node.js
 
-   ```bash
-   npm install     # first time only
-   npx expo start
-   ```
+Download the **LTS** build from <https://nodejs.org> and run the installer.
+Then check it worked:
 
-4. A QR code appears in the terminal. Scan it with the iPhone **Camera** app and
-   tap the banner. The app opens inside Expo Go.
+```bash
+node --version    # v20 or newer
+```
 
-Edit any file under `src/` and save — the phone updates in about a second. That
-live-reload loop is how you work on the GUI.
+### 2. Install Git
 
-If the QR code will not connect (common on corporate, guest, or locked-down
-Wi-Fi), run it through a tunnel instead:
+macOS: `xcode-select --install`
+Windows / Linux: <https://git-scm.com/downloads>
+
+```bash
+git --version
+```
+
+### 3. Get the code
+
+```bash
+git clone https://github.com/hippo-k18/2KGC-App.git
+cd 2KGC-App
+npm install
+```
+
+`npm install` takes a few minutes the first time.
+
+### 4. Install Expo Go on your phone
+
+| Phone | Where |
+| --- | --- |
+| iPhone | App Store → **Expo Go** |
+| Android | Play Store → **Expo Go** |
+
+### 5. Start the server
+
+```bash
+npx expo start
+```
+
+A QR code appears in the terminal.
+
+### 6. Open it on your phone
+
+Put the phone on the **same Wi-Fi network** as the computer, then:
+
+- **iPhone** — open the **Camera** app, point at the QR code, tap the banner.
+- **Android** — open **Expo Go**, tap *Scan QR code*, point at it.
+
+You should land on the login screen. Sign in with the demo credentials below.
+
+### If the QR code will not connect
+
+Common on corporate, university and guest Wi-Fi, which often block devices from
+talking to each other. Route it through Expo's servers instead:
 
 ```bash
 npx expo start --tunnel
 ```
 
+Slower, but it works across networks.
+
+### Editing
+
+Change any file under `src/`, save, and the phone reloads in about a second.
+That live-reload loop is how the app gets built.
+
 ### Other ways to run it
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `npx expo start` then scan | Real iPhone via Expo Go | Expo Go, same Wi-Fi |
-| `npm run ios` | iOS Simulator on this Mac | Xcode **plus a downloaded simulator runtime** |
+| `npx expo start` then scan | Real phone via Expo Go | Expo Go, same Wi-Fi |
 | `npm run web` | Opens in a browser — quickest for rough layout work | nothing |
+| `npm run ios` | iOS Simulator | Xcode **plus a downloaded simulator runtime** |
+| `npm run android` | Android emulator | Android Studio with an AVD |
 
-Xcode 26 no longer bundles simulator runtimes. To use `npm run ios` you must
-first open Xcode → Settings → Components and download an iOS runtime (several
-GB). Expo Go on a real device is quicker and shows the truer result.
+Xcode 26 no longer bundles simulator runtimes; `npm run ios` needs one
+downloaded first from Xcode → Settings → Components (several GB). Expo Go on a
+real device is quicker and truer.
+
+### Version note
+
+Expo Go supports exactly one SDK at a time — currently **54**, which is what
+this project targets. If you ever see *"Project is incompatible with this
+version of Expo Go"*, the project and the app have drifted apart; check
+`expo` in `package.json` against
+<https://expo.dev/go>. Do not "fix" it by upgrading the project blindly.
 
 ### Shipping to the App Store, later
 
@@ -141,13 +197,24 @@ import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 To add an unread badge, import `Badge` alongside `Icon` and `Label` and drop a
 `<Badge>12</Badge>` inside the Trigger.
 
-Browse names in Apple's free **SF Symbols** app. The `sf` prop is typed against
-a union of every valid symbol name, so a typo is a compile error rather than a
-blank icon.
+**Every icon must be given twice**, because the platforms use different icon
+systems. `sf` is SF Symbols and is iOS-only; `androidSrc` covers Android:
+
+```tsx
+<Icon
+  sf={{ default: 'house', selected: 'house.fill' }}
+  androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
+/>
+```
+
+Supplying only `sf` leaves Android with labels and no icons at all. Browse iOS
+names in Apple's free **SF Symbols** app, and Android names at
+<https://icons.expo.fyi>. The `sf` prop is typed against a union of every valid
+symbol name, so a typo is a compile error rather than a blank icon.
 
 Note this is the **SDK 54** API: `Icon` and `Label` are top-level imports. SDK
-55+ moves them to `NativeTabs.Trigger.Icon` / `.Label` and renames the Android
-prop from `drawable` to `md`. Worth knowing if you follow a newer tutorial.
+55+ moves them to `NativeTabs.Trigger.Icon` / `.Label`. Worth knowing if you
+follow a newer tutorial.
 
 ---
 
