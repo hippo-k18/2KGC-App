@@ -211,9 +211,16 @@ export interface NotificationDoc {
   createdAt: Timestamp;
 }
 
-/** `users/{uid}/fcmTokens/{token}` — web push registrations. */
-export interface FcmTokenDoc {
+/**
+ * `users/{uid}/fcmTokens/{token}` — one document per device the attendee has
+ * installed the app on. Collection name kept from the web build so the existing
+ * Firestore rules still apply.
+ */
+export interface PushTokenDoc {
+  /** Expo push token, e.g. `ExponentPushToken[...]`. */
   token: string;
-  userAgent?: string;
+  platform: 'ios' | 'android';
+  /** Human-readable device name, so a user can revoke the right one. */
+  deviceName?: string;
   createdAt: Timestamp;
 }
