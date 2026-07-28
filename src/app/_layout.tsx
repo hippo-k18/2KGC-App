@@ -48,6 +48,8 @@ function RootNavigator() {
 
   return (
     <Stack>
+      {/* Redirects straight to /agenda; no header, so it never flashes. */}
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="login"
