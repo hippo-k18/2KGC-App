@@ -18,15 +18,11 @@ export function DemoScreen() {
       style={{
         flex: 1,
         alignItems: 'center',
-        // Sits high on the screen rather than dead centre.
-        justifyContent: 'flex-start',
-        paddingTop: Spacing.xl,
+        justifyContent: 'center',
         backgroundColor: colors.background,
         paddingHorizontal: Spacing.lg,
       }}>
-      <Text
-        variant="title"
-        style={{ textAlign: 'center', letterSpacing: 1.5 }}>
+      <Text variant="title" style={{ textAlign: 'center', letterSpacing: 1.5 }}>
         KGC WHOVA DEMO
       </Text>
     </View>

@@ -1,4 +1,4 @@
-import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
@@ -12,8 +12,8 @@ import { useScheme } from '@/hooks/use-theme';
  * type is a strict union, so an invalid name is a compile error rather than a
  * blank icon.
  *
- * The badge counts are hard-coded for the demo. Drive them from Firestore
- * (unread message count, new community posts) when those features land.
+ * To add an unread badge to a tab, drop a `<Badge>` inside its Trigger and
+ * import it alongside Icon and Label.
  */
 export default function TabLayout() {
   const colors = Colors[useScheme()];
@@ -43,13 +43,11 @@ export default function TabLayout() {
           }}
         />
         <Label>Community</Label>
-        <Badge>1080</Badge>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="messages">
         <Icon sf={{ default: 'envelope', selected: 'envelope.fill' }} />
         <Label>Messages</Label>
-        <Badge>17</Badge>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

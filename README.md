@@ -73,7 +73,7 @@ src/app/
   (tabs)/
     _layout.tsx            The five native tabs live here
     home/
-      _layout.tsx          Stack; also hosts the Sign out header button
+      _layout.tsx
       index.tsx            blank
     agenda/
       _layout.tsx          Stack, so future detail screens keep the tab bar
@@ -90,8 +90,8 @@ src/app/
 ```
 
 The tab set mirrors Whova: **Home, Agenda, Attendees, Community, Messages**.
-Community and Messages carry badge counts, currently hard-coded in
-`(tabs)/_layout.tsx` — drive them from Firestore once those features exist.
+Titles render inline in the nav bar rather than as iOS large titles, so the
+header is one line high and identical on every tab.
 
 `(tabs)` is a **route group** — the parentheses mean it does not appear in the
 URL.
@@ -131,11 +131,14 @@ SF Symbols, set by name in `src/app/(tabs)/_layout.tsx`:
 ```tsx
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 
-<NativeTabs.Trigger name="speakers">
+<NativeTabs.Trigger name="attendees">
   <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-  <Label>Speakers</Label>
+  <Label>Attendees</Label>
 </NativeTabs.Trigger>
 ```
+
+To add an unread badge, import `Badge` alongside `Icon` and `Label` and drop a
+`<Badge>12</Badge>` inside the Trigger.
 
 Browse names in Apple's free **SF Symbols** app. The `sf` prop is typed against
 a union of every valid symbol name, so a typo is a compile error rather than a
@@ -164,9 +167,9 @@ demonstrating the app has to remember them.
 you out. There is no server, no verification and no security — anyone can read
 the credentials straight out of the app bundle.
 
-Sign out from the **Sign out** button in the Home tab's header. It lives there
-because every tab body is blank; without it there is no way back to the login
-screen.
+There is currently no sign-out control, so once you sign in the app stays
+signed in. To show the login screen again, delete the app and reinstall it, or
+ask for the session to stop persisting.
 
 To remove the demo login once Firebase Auth is wired up, delete
 `src/config/demo.ts` and `src/lib/auth/demo-auth.tsx`, then point
