@@ -10,6 +10,12 @@ rules_version = '2';
 // That costs one extra document lookup per rule evaluation. When you add Cloud
 // Functions, set a custom claim on the user at first sign-in and check
 // `request.auth.token.registered` instead — it is free and much faster.
+//
+// NOTE ON SHARED COUNTERS
+// `replyCount`, `reactionCount` and `upvoteCount` are maintained by clients.
+// Rules below constrain each write to a change of exactly +/-1, so a client
+// cannot set them arbitrarily, but a determined client could still call the
+// increment repeatedly. Move them to Cloud Function triggers when you can.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -37,6 +43,17 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'organizer';
     }
 
+    /** The set of top-level fields this write changes. */
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    /** True when `field` moves by exactly one, up or down. */
+    function stepsByOne(field) {
+      return request.resource.data[field] == resource.data[field] + 1
+        || request.resource.data[field] == resource.data[field] - 1;
+    }
+
     // The imported ticket list. An attendee may read only their own entry, so
     // the client can confirm eligibility; the list is never enumerable.
     match /registrations/{email} {
@@ -45,7 +62,13 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isRegistered();
+      // Honours the attendee's directory opt-out. Because rules are evaluated
+      // per document, a directory query must filter on visibleInDirectory or
+      // it will be rejected outright rather than silently leaking.
+      allow read: if isRegistered()
+        && (isSelf(uid)
+            || isOrganizer()
+            || resource.data.visibleInDirectory == true);
 
       // The profile is created client-side on first sign-in, so it must be
       // constrained: you may only create your own, and only as an attendee.
@@ -54,10 +77,14 @@ service cloud.firestore {
         && request.resource.data.email == request.auth.token.email.lower()
         && request.resource.data.role == 'attendee';
 
+      // An allowlist, so `role` and `email` cannot move and no unexpected
+      // field can be introduced.
       allow update: if isSelf(uid)
-        // An attendee must not be able to promote themselves.
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.email == resource.data.email;
+        && changed().hasOnly([
+          'name', 'photoURL', 'title', 'company', 'bio', 'interests',
+          'social', 'onboarded', 'visibleInDirectory', 'notificationPrefs',
+          'updatedAt',
+        ]);
       allow delete: if false;
 
       match /savedSessions/{sessionId} {
@@ -79,19 +106,47 @@ service cloud.firestore {
       allow read: if isRegistered();
       allow write: if isOrganizer();
 
-      match /questions/{id} {
+      match /questions/{questionId} {
         allow read: if isRegistered();
-        allow create: if isRegistered() && request.resource.data.authorId == request.auth.uid;
-        // Upvotes need a write from non-authors; organizers mark answered.
-        allow update: if isRegistered();
+        allow create: if isRegistered()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.upvoteCount == 0
+          && request.resource.data.answered == false;
+
+        // Authors may correct their own wording; anyone may move the upvote
+        // counter by one; organizers may mark a question answered.
+        allow update: if isOrganizer()
+          || (isRegistered() && changed().hasOnly(['upvoteCount'])
+              && stepsByOne('upvoteCount'))
+          || (isRegistered() && resource.data.authorId == request.auth.uid
+              && changed().hasOnly(['body']));
+
         allow delete: if isOrganizer()
           || (isRegistered() && resource.data.authorId == request.auth.uid);
+
+        // One document per upvoter, keyed by uid, so a user can only ever
+        // add or remove their own vote.
+        match /upvotes/{uid} {
+          allow read: if isRegistered();
+          allow create: if isSelf(uid) && isRegistered()
+            && request.resource.data.uid == request.auth.uid;
+          allow delete: if isSelf(uid);
+          allow update: if false;
+        }
       }
 
       match /polls/{id} {
         allow read: if isRegistered();
         allow create, delete: if isOrganizer();
-        allow update: if isRegistered();
+
+        // `votes` is a map keyed by uid, so a voter can be held to their own
+        // key. Everything else about the poll is the organizer's.
+        allow update: if isOrganizer()
+          || (isRegistered()
+              && resource.data.open == true
+              && changed().hasOnly(['votes'])
+              && request.resource.data.votes.diff(resource.data.votes)
+                   .affectedKeys().hasOnly([request.auth.uid]));
       }
     }
 
@@ -124,18 +179,40 @@ service cloud.firestore {
 
     match /communityPosts/{postId} {
       allow read: if isRegistered();
-      allow create: if isRegistered() && request.resource.data.authorId == request.auth.uid;
-      // Reactions and replyCount are written by other attendees.
-      allow update: if isRegistered();
+      allow create: if isRegistered()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.replyCount == 0
+        && request.resource.data.reactionCount == 0;
+
+      // Authors may edit their own text. Anyone may move a counter by one, so
+      // replying and reacting work without granting a licence to rewrite the
+      // post — which the previous `allow update: if isRegistered()` did.
+      allow update: if isOrganizer()
+        || (isRegistered() && changed().hasOnly(['replyCount'])
+            && stepsByOne('replyCount'))
+        || (isRegistered() && changed().hasOnly(['reactionCount'])
+            && stepsByOne('reactionCount'))
+        || (isRegistered() && resource.data.authorId == request.auth.uid
+            && changed().hasOnly(['title', 'body']));
+
       allow delete: if isOrganizer()
         || (isRegistered() && resource.data.authorId == request.auth.uid);
 
       match /replies/{id} {
         allow read: if isRegistered();
         allow create: if isRegistered() && request.resource.data.authorId == request.auth.uid;
-        allow update: if isRegistered() && resource.data.authorId == request.auth.uid;
+        allow update: if isRegistered() && resource.data.authorId == request.auth.uid
+          && changed().hasOnly(['body']);
         allow delete: if isOrganizer()
           || (isRegistered() && resource.data.authorId == request.auth.uid);
+      }
+
+      // One document per reacting user, keyed by uid.
+      match /reactions/{uid} {
+        allow read: if isRegistered();
+        allow create, update: if isSelf(uid) && isRegistered()
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if isSelf(uid);
       }
     }
 
@@ -144,10 +221,13 @@ service cloud.firestore {
         return isRegistered() && request.auth.uid in resource.data.participantIds;
       }
 
-      allow read, update: if isParticipant();
+      allow read: if isParticipant();
       allow create: if isRegistered()
         && request.auth.uid in request.resource.data.participantIds
         && request.resource.data.participantIds.size() == 2;
+      // Participants may not rewrite who is in the thread.
+      allow update: if isParticipant()
+        && changed().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'unread']);
       allow delete: if false;
 
       match /messages/{id} {

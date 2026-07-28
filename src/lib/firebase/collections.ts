@@ -21,7 +21,9 @@ export const SUBCOLLECTIONS = {
   fcmTokens: "fcmTokens",
   messages: "messages",
   replies: "replies",
+  reactions: "reactions",
   questions: "questions",
+  upvotes: "upvotes",
   polls: "polls",
   leads: "leads",
 } as const;

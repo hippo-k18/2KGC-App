@@ -160,8 +160,24 @@ export interface CommunityPostDoc {
     | "ice-breakers";
   title: string;
   body: string;
+  /** Maintained by clients; rules permit only +/-1 per write. */
   replyCount: number;
-  reactions: Record<string, string[]>;
+  /** Maintained by clients; rules permit only +/-1 per write. */
+  reactionCount: number;
+  createdAt: Timestamp;
+}
+
+/**
+ * `communityPosts/{postId}/reactions/{uid}` — one document per reacting user.
+ *
+ * A subcollection rather than a map on the post, because security rules cannot
+ * verify that a writer only touched their own entry inside an array or nested
+ * map. Keying by uid makes "you may only write your own reaction" trivially
+ * enforceable.
+ */
+export interface PostReactionDoc {
+  uid: string;
+  emoji: string;
   createdAt: Timestamp;
 }
 
@@ -176,8 +192,19 @@ export interface CommunityReplyDoc {
 export interface SessionQuestionDoc {
   authorId: string;
   body: string;
-  upvotes: string[];
+  /** Maintained by clients; rules permit only +/-1 per write. */
+  upvoteCount: number;
   answered: boolean;
+  createdAt: Timestamp;
+}
+
+/**
+ * `sessions/{sessionId}/questions/{questionId}/upvotes/{uid}` — one document
+ * per upvoter. A subcollection for the same reason as post reactions: an array
+ * of uids cannot be safely written by many users at once.
+ */
+export interface QuestionUpvoteDoc {
+  uid: string;
   createdAt: Timestamp;
 }
 
