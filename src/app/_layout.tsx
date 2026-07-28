@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
 import { AuthProvider, useAuth } from '@/lib/auth/auth-provider';
+import { DemoAuthProvider, useDemoAuth } from '@/lib/auth/demo-auth';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -40,24 +41,24 @@ const navThemes = {
 
 function RootNavigator() {
   const { loading } = useAuth();
+  const { loading: demoLoading } = useDemoAuth();
+  const busy = loading || demoLoading;
 
   useEffect(() => {
-    // Hold the splash screen until the first auth state resolves, so the app
-    // never flashes a signed-out screen before restoring the session.
-    if (!loading) SplashScreen.hideAsync();
-  }, [loading]);
+    // Hold the splash screen until the stored session has been read, so the
+    // app never flashes the login screen at someone already signed in.
+    if (!busy) SplashScreen.hideAsync();
+  }, [busy]);
 
-  if (loading) return null;
+  if (busy) return null;
 
   return (
     <Stack>
-      {/* Redirects straight to /agenda; no header, so it never flashes. */}
+      {/* Decides between /login and /home; no header, so it never flashes. */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="login"
-        options={{ title: 'Sign in', presentation: 'modal' }}
-      />
+      {/* Full screen rather than a modal — it gates the app. */}
+      <Stack.Screen name="login" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -67,10 +68,12 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ThemeProvider value={navThemes[scheme]}>
-        <StatusBar style="auto" />
-        <RootNavigator />
-      </ThemeProvider>
+      <DemoAuthProvider>
+        <ThemeProvider value={navThemes[scheme]}>
+          <StatusBar style="auto" />
+          <RootNavigator />
+        </ThemeProvider>
+      </DemoAuthProvider>
     </AuthProvider>
   );
 }

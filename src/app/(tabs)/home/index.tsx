@@ -1,5 +1,5 @@
 import { DemoScreen } from '@/components/demo-screen';
 
-export default function SpeakersScreen() {
+export default function HomeScreen() {
   return <DemoScreen />;
 }

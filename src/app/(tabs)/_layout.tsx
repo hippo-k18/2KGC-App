@@ -1,30 +1,38 @@
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
 
 /**
- * Native iOS tab bar. `NativeTabs` renders a real UITabBar rather than a
+ * Native iOS tab bar, laid out to match Whova: Home, Agenda, Attendees,
+ * Community, Messages. `NativeTabs` renders a real UITabBar rather than a
  * JavaScript imitation, so it inherits system behaviour and appearance.
  *
  * `sf` names are SF Symbols; browse them in Apple's free SF Symbols app. The
  * type is a strict union, so an invalid name is a compile error rather than a
- * blank icon. Android icons are omitted for now — they need `drawable`
- * resources that only exist once a native Android project is generated.
+ * blank icon.
+ *
+ * The badge counts are hard-coded for the demo. Drive them from Firestore
+ * (unread message count, new community posts) when those features land.
  */
 export default function TabLayout() {
   const colors = Colors[useScheme()];
 
   return (
     <NativeTabs tintColor={colors.tint} backgroundColor={colors.surface}>
+      <NativeTabs.Trigger name="home">
+        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
+        <Label>Home</Label>
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="agenda">
         <Icon sf="calendar" />
         <Label>Agenda</Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="speakers">
+      <NativeTabs.Trigger name="attendees">
         <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-        <Label>Speakers</Label>
+        <Label>Attendees</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="community">
@@ -35,18 +43,13 @@ export default function TabLayout() {
           }}
         />
         <Label>Community</Label>
+        <Badge>1080</Badge>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="messages">
-        <Icon sf={{ default: 'message', selected: 'message.fill' }} />
+        <Icon sf={{ default: 'envelope', selected: 'envelope.fill' }} />
         <Label>Messages</Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="profile">
-        <Icon
-          sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
-        />
-        <Label>Profile</Label>
+        <Badge>17</Badge>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

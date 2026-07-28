@@ -66,21 +66,32 @@ screen means adding a file.
 
 ```
 src/app/
-  _layout.tsx              Root stack, theme, auth provider, splash
-  login.tsx                Sign-in screen (presented as a modal)
+  _layout.tsx              Root stack, theme, auth providers, splash
+  index.tsx                Decides between /login and /home
+  login.tsx                Demo sign-in screen
   +not-found.tsx           Fallback for unknown routes
   (tabs)/
     _layout.tsx            The five native tabs live here
+    home/
+      _layout.tsx          Stack; also hosts the Sign out header button
+      index.tsx            blank
     agenda/
       _layout.tsx          Stack, so future detail screens keep the tab bar
       index.tsx            blank
-    speakers/
+    attendees/
       _layout.tsx
       index.tsx            blank
-    community/index.tsx    blank
-    messages/index.tsx     blank
-    profile/index.tsx      blank
+    community/
+      _layout.tsx
+      index.tsx            blank
+    messages/
+      _layout.tsx
+      index.tsx            blank
 ```
+
+The tab set mirrors Whova: **Home, Agenda, Attendees, Community, Messages**.
+Community and Messages carry badge counts, currently hard-coded in
+`(tabs)/_layout.tsx` — drive them from Firestore once those features exist.
 
 `(tabs)` is a **route group** — the parentheses mean it does not appear in the
 URL.
@@ -136,11 +147,39 @@ prop from `drawable` to `md`. Worth knowing if you follow a newer tutorial.
 
 ---
 
+## Demo login
+
+The app opens on a sign-in screen. Use:
+
+| | |
+| --- | --- |
+| Username | `demo@kgc.tech` |
+| Password | `kgc2026` |
+
+The credentials are also printed on the login screen itself, so nobody
+demonstrating the app has to remember them.
+
+**This is not real authentication.** It is a string comparison against
+`src/config/demo.ts`, remembered in AsyncStorage so Fast Refresh does not sign
+you out. There is no server, no verification and no security — anyone can read
+the credentials straight out of the app bundle.
+
+Sign out from the **Sign out** button in the Home tab's header. It lives there
+because every tab body is blank; without it there is no way back to the login
+screen.
+
+To remove the demo login once Firebase Auth is wired up, delete
+`src/config/demo.ts` and `src/lib/auth/demo-auth.tsx`, then point
+`src/app/index.tsx` at the real `useAuth()` from
+`src/lib/auth/auth-provider.tsx`.
+
+---
+
 ## Firebase setup
 
-The app runs without Firebase — it starts in "design mode" with sample data and
-sign-in disabled, which is why you can browse the GUI immediately. Connect it
-when you are ready for real data.
+The app runs without Firebase — it starts with the demo login and blank tabs,
+which is why you can browse the shell immediately. Connect it when you are
+ready for real data.
 
 1. Create a project at <https://console.firebase.google.com>.
 2. Add a **Web app** (yes, web — the Firebase JS SDK is what runs inside React

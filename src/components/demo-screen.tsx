@@ -18,9 +18,11 @@ export function DemoScreen() {
       style={{
         flex: 1,
         alignItems: 'center',
-        justifyContent: 'center',
+        // Sits high on the screen rather than dead centre.
+        justifyContent: 'flex-start',
+        paddingTop: Spacing.xl,
         backgroundColor: colors.background,
-        padding: Spacing.lg,
+        paddingHorizontal: Spacing.lg,
       }}>
       <Text
         variant="title"

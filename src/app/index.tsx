@@ -1,12 +1,17 @@
 import { Redirect } from 'expo-router';
 
+import { useDemoAuth } from '@/lib/auth/demo-auth';
+
 /**
- * The root URL has no screen of its own — the app opens on the Agenda tab.
+ * The root URL has no screen of its own — it decides where you land.
  * Without this file `/` matches nothing and falls through to +not-found.
- *
- * When auth is wired up this is the place to branch: signed-out users to
- * /login, users who have not finished onboarding to /onboarding.
  */
 export default function Index() {
-  return <Redirect href="/agenda" />;
+  const { signedIn, loading } = useDemoAuth();
+
+  // Render nothing until the stored session has been read, so we never
+  // flash the login screen at someone who is already signed in.
+  if (loading) return null;
+
+  return <Redirect href={signedIn ? '/home' : '/login'} />;
 }

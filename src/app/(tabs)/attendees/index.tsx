@@ -1,5 +1,5 @@
 import { DemoScreen } from '@/components/demo-screen';
 
-export default function ProfileScreen() {
+export default function AttendeesScreen() {
   return <DemoScreen />;
 }
