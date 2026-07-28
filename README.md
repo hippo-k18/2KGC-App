@@ -72,20 +72,28 @@ src/app/
   (tabs)/
     _layout.tsx            The five native tabs live here
     agenda/
-      _layout.tsx          Stack, so detail screens keep the tab bar
-      index.tsx            Agenda list + day selector
-      [id].tsx             Session detail
+      _layout.tsx          Stack, so future detail screens keep the tab bar
+      index.tsx            blank
     speakers/
       _layout.tsx
-      index.tsx            Speaker list
-      [id].tsx             Speaker detail
-    community/index.tsx    Community board
-    messages/index.tsx     Message inbox
-    profile/index.tsx      Profile and sign-out
+      index.tsx            blank
+    community/index.tsx    blank
+    messages/index.tsx     blank
+    profile/index.tsx      blank
 ```
 
 `(tabs)` is a **route group** — the parentheses mean it does not appear in the
-URL. `[id]` is a dynamic segment, read with `useLocalSearchParams()`.
+URL.
+
+**Every tab is intentionally blank.** Each renders only the words
+`KGC WHOVA DEMO`, from `src/components/demo-screen.tsx`. Navigation, theming,
+the data model and the security rules are all in place; no feature UI has been
+built yet. To start a screen, replace `<DemoScreen />` in that tab's
+`index.tsx`.
+
+To add a detail screen, drop an `[id].tsx` beside an `index.tsx` — the stack
+layout is already there for it, and `[id]` is a dynamic segment read with
+`useLocalSearchParams()`.
 
 ### Shared pieces
 
@@ -95,9 +103,10 @@ URL. `[id]` is a dynamic segment, read with `useLocalSearchParams()`.
 | `src/hooks/use-theme.ts` | `useTheme()` returns the palette for light or dark mode |
 | `src/components/text.tsx` | Typography. `<Text variant="title" tone="secondary">` |
 | `src/components/screen.tsx` | Standard screen wrapper with correct iOS insets |
-| `src/components/card.tsx` | The rounded container used across every list |
-| `src/components/avatar.tsx` | Initials circle, until real photos exist |
+| `src/components/card.tsx` | Rounded container for list rows. Unused while tabs are blank |
+| `src/components/avatar.tsx` | Initials circle, until real photos exist. Unused for now |
 | `src/components/empty-state.tsx` | Placeholder for screens with no data yet |
+| `src/components/demo-screen.tsx` | The blank `KGC WHOVA DEMO` screen every tab currently renders |
 
 Every screen uses `useTheme()` rather than hard-coded colours, so dark mode
 needs no per-screen work.
@@ -109,16 +118,21 @@ JavaScript imitation, so it inherits system behaviour and appearance. Icons are
 SF Symbols, set by name in `src/app/(tabs)/_layout.tsx`:
 
 ```tsx
-<NativeTabs.Trigger.Icon sf={{ default: 'calendar', selected: 'calendar' }} md="calendar_month" />
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+
+<NativeTabs.Trigger name="speakers">
+  <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
+  <Label>Speakers</Label>
+</NativeTabs.Trigger>
 ```
 
-Browse names in Apple's free **SF Symbols** app.
+Browse names in Apple's free **SF Symbols** app. The `sf` prop is typed against
+a union of every valid symbol name, so a typo is a compile error rather than a
+blank icon.
 
-### Sample data
-
-`src/lib/sample-data.ts` is placeholder content so the screens render something
-to design against. **Delete it once Firestore is connected.** Any screen showing
-it says so on the screen itself.
+Note this is the **SDK 54** API: `Icon` and `Label` are top-level imports. SDK
+55+ moves them to `NativeTabs.Trigger.Icon` / `.Label` and renames the Android
+prop from `drawable` to `md`. Worth knowing if you follow a newer tutorial.
 
 ---
 
@@ -208,7 +222,8 @@ Nine composite indexes are declared in `firestore.indexes.json`.
 ## Known gaps
 
 - **Auth is not wired.** See above.
-- **Sample data everywhere.** No screen reads from Firestore yet.
+- **No feature UI.** Every tab is a blank `KGC WHOVA DEMO` screen by design, and
+  nothing reads from Firestore yet.
 - **Push notifications not implemented.** `PushTokenDoc` and the `fcmTokens`
   subcollection exist, but nothing writes to them. Note that push cannot be
   tested in Expo Go — it needs a development build.
