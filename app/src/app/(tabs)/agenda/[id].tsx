@@ -7,6 +7,8 @@ import { COLLECTIONS, type SessionDoc, type SpeakerDoc, type WithId } from '@kgc
 
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { SessionPoll } from '@/components/session-poll';
+import { SessionQA } from '@/components/session-qa';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -142,6 +144,10 @@ export default function SessionDetailScreen() {
             <Text>{session.description}</Text>
           </View>
         ) : null}
+
+        {session.pollsEnabled ? <SessionPoll sessionId={session.id} /> : null}
+
+        {session.qaEnabled ? <SessionQA sessionId={session.id} /> : null}
 
         {speakers.length || session.speakerNames?.length ? (
           <View style={{ gap: Spacing.sm }}>
