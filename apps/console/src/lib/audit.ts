@@ -20,7 +20,17 @@ export interface AuditEntry {
   eventId: string;
   /** Allowlisted organizer email. Replaced by the SSO subject when SSO lands. */
   actor: string;
-  action: 'session.update' | 'announcement.create';
+  action:
+    | 'session.update'
+    | 'announcement.create'
+    /**
+     * Only the check-ins that actually wrote a document. A duplicate scan, an
+     * unknown code and a cancelled ticket all changed nothing, so they are
+     * recorded in `scanEvents` — the raw log — and not here. An audit trail
+     * that logs non-events is one nobody reads on the morning it matters.
+     */
+    | 'checkin.create'
+    | 'checkinList.create';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

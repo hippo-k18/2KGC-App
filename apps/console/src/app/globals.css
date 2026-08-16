@@ -336,3 +336,120 @@ code {
   background: #f5f5f5;
   padding: 1px 4px;
 }
+
+/*
+ * The check-in desk — the one place in this console where size is a
+ * requirement rather than a preference.
+ *
+ * Everything else here is read by an organizer sitting at a laptop. This is
+ * read across a table, at arm's length, by someone who is simultaneously
+ * talking to the next person in a queue of a thousand. The verdict is 40px and
+ * the colour carries the same information as the words, because a glance is all
+ * anyone gets. Still no component library.
+ */
+.scan-desk {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.scan-left {
+  flex: 1 1 320px;
+  min-width: 300px;
+}
+
+.scan-right {
+  flex: 1 1 380px;
+  min-width: 320px;
+}
+
+.scan-video {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  background: #000;
+}
+
+.scan-result {
+  border: 2px solid var(--line);
+  border-left-width: 10px;
+  padding: 16px 18px;
+  height: 100%;
+}
+
+.scan-verdict {
+  font-size: 40px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.scan-name {
+  font-size: 26px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.scan-sub {
+  font-size: 17px;
+  margin-top: 2px;
+  color: #333;
+}
+
+.scan-meta {
+  font-size: 14px;
+  margin-top: 12px;
+  max-width: 46ch;
+}
+
+.scan-foot {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.scan-ok {
+  border-color: var(--good);
+  background: #f0fdf4;
+}
+
+.scan-ok .scan-verdict {
+  color: var(--good);
+}
+
+/*
+ * Amber, not red. A second scan is not an error and staff must not read it as
+ * one — the person is a legitimate attendee who has already been through the
+ * door, and the correct action is to wave them through, not to investigate.
+ */
+.scan-duplicate {
+  border-color: #b45309;
+  background: #fffbeb;
+}
+
+.scan-duplicate .scan-verdict {
+  color: #b45309;
+}
+
+.scan-unknown,
+.scan-cancelled {
+  border-color: var(--bad);
+  background: #fef2f2;
+}
+
+.scan-unknown .scan-verdict,
+.scan-cancelled .scan-verdict {
+  color: var(--bad);
+}
+
+.scan-idle {
+  background: #fafafa;
+}
+
+.scan-idle .scan-verdict {
+  color: var(--muted);
+}

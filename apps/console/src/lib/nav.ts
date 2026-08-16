@@ -47,6 +47,7 @@ export const ROUTES = {
   speakerManager: '/content/speaker-center/speaker-manager',
   sponsorManager: '/content/sponsor-center/sponsor-manager',
   attendees: '/attendees/manage-attendees/attendees',
+  checkIn: '/attendees/attendee-check-in/check-in',
   announcements: '/engagement/announcements',
   warRoom: '/tools/war-room',
 } as const;
@@ -1123,14 +1124,9 @@ export const NAV: NavNode[] = [
           {
             slug: 'check-in',
             label: 'Check-in (Event / Day / Session)',
-            kind: 'placeholder',
-            whova:
-              'Scan a badge QR or search by name, at event scope, per day, or per session. Staff can be given check-in-only access.',
-            needs:
-              'The paths are already modelled and the modelling is the expensive part: `checkInLists/{listId}/checkIns/{registrationId}` is keyed by registration so a second scan is a `create` that fails with `already-exists` — that failure *is* the duplicate check, with no read-then-write race. `scanEvents/{deviceId}_{clientScanId}` makes an offline queue safe to replay. What is missing is the scanner UI, which §35.2 insists must be a real phone-first app, not a spreadsheet.',
-            size:
-              '§34: 7–10 days and flagged deceptive — camera reliability, sub-second lookup, concurrent stations, and it must not fail in front of a queue. Budget a rehearsal day; §37 risk 2 says rehearse in March with 200 test records.',
-            refs: '§14, §35.2, §36 E1',
+            kind: 'implemented',
+            note:
+              'Scan a badge QR or type the code, at event scope. Day and session scope are lists that do not exist yet. §14.',
           },
           {
             slug: 'self-check-in',
