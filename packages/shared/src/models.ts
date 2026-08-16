@@ -325,11 +325,22 @@ export interface PostReactionDoc {
   createdAt: Timestamp;
 }
 
-/** `communityPosts/{postId}/replies/{id}` */
+/**
+ * `communityPosts/{postId}/replies/{id}`
+ *
+ * `status` exists so an organizer can moderate. Without it a reply can only be
+ * edited by its own author and never removed, which means an abusive reply on a
+ * board read by 1,000 attendees has no remedy at all — posts and questions both
+ * have a moderation path and replies were the gap.
+ *
+ * Soft, like everything else here: hiding a reply must not orphan the counter a
+ * trigger derives from it.
+ */
 export interface CommunityReplyDoc {
   authorId: string;
   body: string;
   editedAt?: Timestamp;
+  status: 'visible' | 'hidden' | 'removed';
   createdAt: Timestamp;
 }
 

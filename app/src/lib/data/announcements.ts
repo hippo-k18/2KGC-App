@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { collection, orderBy, query, where } from 'firebase/firestore';
 
-import { COLLECTIONS, EVENT_ID, type AnnouncementDoc, type WithId } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, TIME_ZONE, type AnnouncementDoc, type WithId } from '@kgc/shared';
 
 import { getDb } from '@/lib/firebase/client';
 import { useCollection } from '@/lib/data/use-collection';
@@ -59,7 +59,10 @@ export function useNowNext(sessions: Session[] | null, reference?: Date) {
 /** `Date` → `YYYY-MM-DDTHH:mm` in the event's zone, for string comparison. */
 function toEventWallClock(d: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
+    // From @kgc/shared, not spelled out here: the importer derives `day` from
+    // the same constant, and two copies drifting would put "now" and the day
+    // tabs in different zones.
+    timeZone: TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

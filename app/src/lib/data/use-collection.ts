@@ -18,8 +18,11 @@ import { useAuth } from '@/lib/auth/auth-provider';
  *    claim, so a listener started before sign-in resolves is guaranteed to be
  *    denied. Subscribing eagerly does not race — it reliably fails.
  *
+ * 3. **A guarded success path.** The error callback covers the listener, not the
+ *    `map`/`sort` this hook runs inside it, so both are wrapped below.
+ *
  * Errors are surfaced to the caller so a screen can say something useful,
- * rather than swallowed.
+ * rather than swallowed. `use-document.ts` is the single-document sibling.
  */
 export function useCollection<T>(
   buildQuery: () => Query,
@@ -32,18 +35,34 @@ export function useCollection<T>(
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    // Cleared on every resubscribe, not only when signed out. `loading` is
+    // derived from `data === null`, so leaving the previous query's rows in
+    // place reported "loaded" while the screen was still showing the old
+    // category's posts under the new category's heading.
+    setData(null);
     if (authLoading || !user) {
       // Not an error state — just nothing to listen to yet.
-      setData(null);
       return;
     }
     setError(null);
     const unsub = onSnapshot(
       buildQuery(),
       (snap) => {
-        const rows = snap.docs.map((d) => map(d.id, d.data()));
-        if (sort) rows.sort(sort);
-        setData(rows);
+        try {
+          const rows = snap.docs.map((d) => map(d.id, d.data()));
+          if (sort) rows.sort(sort);
+          setData(rows);
+        } catch (e) {
+          // `map` and `sort` run inside the snapshot callback, which the error
+          // observer below does not cover: a throw from here escapes the SDK
+          // and unmounts the tree. One session missing `startsAtLocal` took the
+          // agenda, Home and My Schedule down together. Keep the last good rows
+          // and report the failure instead.
+          const err = e instanceof Error ? e : new Error(String(e));
+          console.warn('[firestore] snapshot mapping failed:', err.message);
+          setError(err);
+          setData((prev) => prev ?? []);
+        }
       },
       (e) => {
         // Logged rather than thrown. A denied or dropped listener should leave

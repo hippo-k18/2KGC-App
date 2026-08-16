@@ -15,7 +15,7 @@ import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useDirectory } from '@/lib/data/directory';
-import { useMessages, sendMessage } from '@/lib/data/messages';
+import { markThreadRead, sendMessage, useMessages, useThreads } from '@/lib/data/messages';
 
 /**
  * A conversation.
@@ -30,6 +30,7 @@ export default function ThreadScreen() {
   const colors = useTheme();
   const { user } = useAuth();
   const { people } = useDirectory();
+  const { threads } = useThreads(user?.uid);
   const messages = useMessages(threadId);
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList>(null);
@@ -44,11 +45,37 @@ export default function ThreadScreen() {
     }
   }, [messages.length]);
 
+  const uid = user?.uid;
+  const unreadForMe = threads?.find((t) => t.id === threadId)?.unread?.[uid ?? ''] ?? 0;
+
+  // Reading the conversation is what clears the badge. Nothing called
+  // `markThreadRead` before this, so the red count on the header icon survived
+  // an attendee's first DM for the rest of the week. Guarded on a non-zero
+  // count both to avoid a write on every render and because a thread reached
+  // from a profile may not exist yet, where an update is a `not-found`.
+  useEffect(() => {
+    if (!uid || !threadId || unreadForMe === 0) return;
+    void markThreadRead(threadId, uid);
+  }, [threadId, uid, unreadForMe]);
+
   async function send() {
     if (!user || !draft.trim() || !other) return;
     const body = draft.trim();
+    // Cleared optimistically — the message appears in the list from the local
+    // mutation — but put back if the send fails, because silently destroying
+    // what someone typed is worse than the failure itself.
     setDraft('');
-    await sendMessage(user.uid, other, body);
+    try {
+      const result = await sendMessage(user.uid, other, body);
+      if (!result.ok) restoreDraft(body);
+    } catch {
+      restoreDraft(body);
+    }
+  }
+
+  /** Only if nothing new has been typed in the meantime. */
+  function restoreDraft(body: string) {
+    setDraft((current) => current || body);
   }
 
   return (

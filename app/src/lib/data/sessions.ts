@@ -31,8 +31,10 @@ export function useSessions() {
     [],
     (id, d) => ({ id, ...d }) as Session,
     // Sorted client-side: ordering in the query would need another composite
-    // index for no benefit at this size.
-    (a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal),
+    // index for no benefit at this size. Coalesced because a session authored
+    // without a start time would otherwise throw out of `localeCompare` and
+    // cost the whole agenda, not just its own row.
+    (a, b) => (a.startsAtLocal ?? '').localeCompare(b.startsAtLocal ?? ''),
   );
 
   return { sessions: data, error, loading };
@@ -73,20 +75,33 @@ export function filterSessions(sessions: Session[], f: AgendaFilters): Session[]
   });
 }
 
-/** `2027-05-04` → `Tue 4 May`, without pulling in a formatter. */
+/**
+ * `2027-05-04` → `Tue 4 May`, without pulling in a formatter.
+ *
+ * A malformed day key yields `''` rather than a throw. Both formatters are
+ * called from inside list renderers, where throwing does not blank one label —
+ * it unmounts the screen. A missing time in one row is a cosmetic defect; an
+ * agenda that will not render is not.
+ */
 export function formatDayTab(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
+  const [y, m, d] = (day ?? '').split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return '';
   // Constructed and read back as UTC, so the label never shifts with the
   // device's own zone — the day key is already event-local.
   const date = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(date.getTime())) return '';
   const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getUTCDay()];
   const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
+  if (!weekday || !month) return '';
   return `${weekday} ${d} ${month}`;
 }
 
-/** `2027-05-04T14:30` → `2:30 PM`. */
+/** `2027-05-04T14:30` → `2:30 PM`, or `''` when the wall clock is missing. */
 export function formatTime(local: string): string {
-  const [h, min] = local.split('T')[1].split(':').map(Number);
+  const time = (local ?? '').split('T')[1];
+  if (!time) return '';
+  const [h, min] = time.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return '';
   const suffix = h < 12 ? 'AM' : 'PM';
   const hour = h % 12 === 0 ? 12 : h % 12;
   return `${hour}:${String(min).padStart(2, '0')} ${suffix}`;

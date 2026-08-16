@@ -23,6 +23,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   setDoc,
   updateDoc,
@@ -78,20 +79,45 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, `directory/${A}`), { uid: A, name: 'A' });
     await setDoc(doc(db, 'communityPosts/p1'), {
-      authorId: A, title: 'T', body: 'B', replyCount: 0, reactionCount: 0,
+      authorId: A, title: 'T', body: 'B', status: 'visible', replyCount: 0, reactionCount: 0,
     });
+    // Two replies with different authors, because most of what can go wrong
+    // with a reply is somebody acting on one that is not theirs.
+    await setDoc(doc(db, 'communityPosts/p1/replies/r1'), { authorId: A, body: 'mine' });
+    await setDoc(doc(db, 'communityPosts/p1/replies/r2'), { authorId: B, body: 'theirs' });
+    await setDoc(doc(db, 'communityPosts/p1/reactions/' + A), { uid: A, emoji: '👍' });
     await setDoc(doc(db, 'sessions/s1/questions/q1'), {
-      authorId: A, body: 'Q?', upvoteCount: 0, answered: false,
+      authorId: A, body: 'Q?', upvoteCount: 0, answered: false, state: 'pending',
     });
+    // `PollDoc.options` is `{id, label}[]` and `tallies` is `Record<id, number>`
+    // — the tally key set is what a ballot's `optionIds` are validated against,
+    // so a fixture shaped as two bare arrays tested a rule that cannot exist.
     await setDoc(doc(db, 'sessions/s1/polls/openPoll'), {
-      question: 'Pick', options: ['a', 'b'], open: true, tallies: [0, 0], totalVotes: 0,
+      question: 'Pick',
+      options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+      open: true, tallies: { a: 0, b: 0 }, totalVotes: 0,
     });
     await setDoc(doc(db, 'sessions/s1/polls/closedPoll'), {
-      question: 'Done', options: ['a', 'b'], open: false, tallies: [1, 1], totalVotes: 2,
+      question: 'Done',
+      options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+      open: false, tallies: { a: 1, b: 1 }, totalVotes: 2,
     });
-    // Thread id is the two uids sorted and joined with '_'.
+    await setDoc(doc(db, `sessions/s1/polls/openPoll/votes/${A}`), {
+      uid: A, optionIds: ['a'],
+    });
+    // The private per-user subcollections, so "another attendee cannot read
+    // this" is tested against a document that exists.
+    await setDoc(doc(db, `users/${A}/savedSessions/s1`), { sessionId: 's1', remind: true });
+    await setDoc(doc(db, `users/${A}/savedContacts/${B}`), { contactUid: B });
+    await setDoc(doc(db, `users/${A}/notifications/n1`), {
+      type: 'announcement', title: 'Room change', body: 'Keynote moved to Hall B', read: false,
+    });
+    await setDoc(doc(db, `users/${A}/fcmTokens/tok1`), { token: 'tok1', platform: 'ios' });
+    // Thread id is the two uids sorted and joined with '_'. Both sides start
+    // with something unread, so "you may not zero the OTHER person's badge" is
+    // testable at all — from zero it is indistinguishable from leaving it alone.
     await setDoc(doc(db, `threads/${A}_${B}`), {
-      participantIds: [A, B], unread: { [A]: 0, [B]: 0 },
+      participantIds: [A, B], unread: { [A]: 3, [B]: 2 },
     });
     await setDoc(doc(db, `threads/${A}_${B}/messages/m1`), { senderId: A, body: 'hi' });
   });
@@ -106,6 +132,11 @@ const asOrg = () =>
     registered: true, roles: ['attendee', 'organizer'],
     email: `${ORG}@kgc.test`, email_verified: true,
   }).firestore();
+/** An `organizer` role with no ticket behind it — a claim set that should never exist. */
+const asOrgNoTicket = () =>
+  env.authenticatedContext('orgNoTicket', {
+    roles: ['organizer'], email: 'orgNoTicket@kgc.test',
+  }).firestore();
 
 describe('the gate', () => {
   it('refuses an unauthenticated reader', async () => {
@@ -117,6 +148,17 @@ describe('the gate', () => {
     await assertFails(getDoc(doc(noClaim(), 'sessions/s1')));
     await assertFails(getDocs(collection(noClaim(), 'speakers')));
     await assertFails(getDoc(doc(noClaim(), 'announcements/a1')));
+  });
+
+  it('refuses an organizer role that has no ticket behind it', async () => {
+    // `registered` and `roles` are minted together by the sign-in function, so
+    // a token holding `organizer` without `registered` did not come from it.
+    // The prize for that combination was `/users` — the attendee table, with
+    // everybody's email address in it.
+    await assertFails(getDocs(collection(asOrgNoTicket(), 'users')));
+    await assertFails(getDoc(doc(asOrgNoTicket(), `users/${A}`)));
+    await assertFails(getDoc(doc(asOrgNoTicket(), 'sessions/draft1')));
+    await assertFails(updateDoc(doc(asOrgNoTicket(), 'sessions/s1'), { title: 'Cancelled' }));
   });
 
   it('admits a ticket holder to event content', async () => {
@@ -157,6 +199,37 @@ describe('profiles and the directory', () => {
   it('allows the profile fields onboarding actually edits', async () => {
     await assertSucceeds(
       updateDoc(doc(asA(), `users/${A}`), { name: 'A Real Name', company: 'Acme' }),
+    );
+  });
+
+  it('lets an attendee with no profile yet save a privacy switch', async () => {
+    // `me/index.tsx` writes this with `setDoc(..., {merge: true})`, and a merge
+    // onto a document that does not exist is a CREATE carrying two fields. The
+    // create rule demanded `email` and `roles`, so the privacy toggle failed
+    // outright for every attendee the seed had not written a profile for —
+    // which is every real attendee.
+    await assertSucceeds(
+      setDoc(
+        doc(env.authenticatedContext('newcomer', attendee('newcomer')).firestore(),
+          'users/newcomer'),
+        { visibleInDirectory: false, updatedAt: new Date() },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('still pins roles on a profile created client-side', async () => {
+    // The relaxation above must not become a way to arrive as an organizer.
+    const db = env.authenticatedContext('newcomer', attendee('newcomer')).firestore();
+    await assertFails(
+      setDoc(doc(db, 'users/newcomer'), {
+        email: 'newcomer@kgc.test', name: 'N', roles: ['organizer'],
+      }),
+    );
+    await assertFails(
+      setDoc(doc(db, 'users/newcomer'), {
+        email: 'someone.else@kgc.test', name: 'N', roles: ['attendee'],
+      }),
     );
   });
 
@@ -260,6 +333,98 @@ describe('profiles and the directory', () => {
   });
 });
 
+describe('private per-user storage', () => {
+  it('hides your personal agenda from another attendee', async () => {
+    // Which sessions you attend is a map of what you work on and who you are
+    // avoiding. It is nobody's but yours.
+    await assertFails(getDoc(doc(asB(), `users/${A}/savedSessions/s1`)));
+    await assertFails(getDocs(collection(asB(), `users/${A}/savedSessions`)));
+    await assertSucceeds(getDocs(collection(asA(), `users/${A}/savedSessions`)));
+  });
+
+  it('hides your saved contacts from another attendee', async () => {
+    await assertFails(getDoc(doc(asB(), `users/${A}/savedContacts/${B}`)));
+    await assertFails(getDocs(collection(asB(), `users/${A}/savedContacts`)));
+  });
+
+  it('hides your notifications from another attendee', async () => {
+    await assertFails(getDoc(doc(asB(), `users/${A}/notifications/n1`)));
+    await assertFails(getDocs(collection(asB(), `users/${A}/notifications`)));
+  });
+
+  it('hides your push tokens from another attendee', async () => {
+    // A device token is a handle for sending a notification to somebody's
+    // pocket, so leaking one is worse than leaking most of the profile.
+    await assertFails(getDoc(doc(asB(), `users/${A}/fcmTokens/tok1`)));
+    await assertFails(getDocs(collection(asB(), `users/${A}/fcmTokens`)));
+  });
+
+  it('refuses writes into another attendee’s private storage', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `users/${A}/savedSessions/draft1`), { sessionId: 'draft1' }),
+    );
+    await assertFails(
+      setDoc(doc(asB(), `users/${A}/fcmTokens/spoof`), { token: 'spoof', platform: 'ios' }),
+    );
+  });
+
+  it('lets marking a notification read do only that', async () => {
+    // "Read" is a one-bit acknowledgement. If it could carry the rest of the
+    // document with it, an attendee could rewrite the body of an announcement
+    // the server sent them and then screenshot it.
+    await assertSucceeds(
+      updateDoc(doc(asA(), `users/${A}/notifications/n1`), { read: true }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), `users/${A}/notifications/n1`), {
+        read: true, body: 'Keynote cancelled, go home',
+      }),
+    );
+    await assertFails(deleteDoc(doc(asA(), `users/${A}/notifications/n1`)));
+  });
+
+  it('refuses an unregistered account using it as free storage', async () => {
+    // These three paths gated on "is this your own uid" and nothing else, and
+    // anyone can create a Firebase account. Storage billed to the conference by
+    // people who never bought a ticket.
+    const db = noClaim();
+    await assertFails(
+      setDoc(doc(db, 'users/randomUser/savedSessions/s1'), { sessionId: 's1' }),
+    );
+    await assertFails(
+      setDoc(doc(db, 'users/randomUser/savedContacts/x'), { contactUid: 'x' }),
+    );
+    await assertFails(
+      setDoc(doc(db, 'users/randomUser/fcmTokens/t'), { token: 't', platform: 'ios' }),
+    );
+  });
+
+  it('still lets a ticket holder save a session and a contact', async () => {
+    await assertSucceeds(
+      setDoc(doc(asA(), 'users/' + A + '/savedSessions/s1'), {
+        sessionId: 's1', savedAt: new Date(), remind: true,
+      }),
+    );
+    await assertSucceeds(deleteDoc(doc(asA(), `users/${A}/savedSessions/s1`)));
+    await assertSucceeds(
+      setDoc(doc(asA(), `users/${A}/savedContacts/${B}`), {
+        contactUid: B, note: 'met at the poster session', savedAt: new Date(),
+      }),
+    );
+    // …but not as a place to keep a megabyte of unrelated data.
+    await assertFails(
+      setDoc(doc(asA(), `users/${A}/savedContacts/${B}`), {
+        contactUid: B, note: 'x'.repeat(2000), savedAt: new Date(),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), `users/${A}/savedSessions/s1`), {
+        sessionId: 's1', payload: 'x'.repeat(500),
+      }),
+    );
+  });
+});
+
 describe('the ticket list', () => {
   it('is not enumerable by anyone, including organizers', async () => {
     await assertFails(getDocs(collection(asA(), 'registrations')));
@@ -272,18 +437,27 @@ describe('the ticket list', () => {
 });
 
 describe('server-owned counters', () => {
+  // Each of these asserts the organizer branch as well as the attendee one. An
+  // organizer is a client with a role, not a server, and the organizer branch
+  // used to be an unlisted `if isOrganizer()` — so three tests that only ever
+  // tried the attendee path reported a guarantee the file did not make.
   it('refuses a client nudge to replyCount', async () => {
     await assertFails(updateDoc(doc(asA(), 'communityPosts/p1'), { replyCount: 1 }));
+    await assertFails(updateDoc(doc(asOrg(), 'communityPosts/p1'), { replyCount: 1 }));
   });
 
   it('refuses a client nudge to reactionCount', async () => {
     await assertFails(updateDoc(doc(asA(), 'communityPosts/p1'), { reactionCount: 1 }));
+    await assertFails(updateDoc(doc(asOrg(), 'communityPosts/p1'), { reactionCount: 1 }));
   });
 
   it('refuses a client nudge to upvoteCount', async () => {
     // 500 scripted calls would otherwise put your own question on the keynote screen.
     await assertFails(
       updateDoc(doc(asA(), 'sessions/s1/questions/q1'), { upvoteCount: 500 }),
+    );
+    await assertFails(
+      updateDoc(doc(asOrg(), 'sessions/s1/questions/q1'), { upvoteCount: 500 }),
     );
   });
 
@@ -307,6 +481,70 @@ describe('server-owned counters', () => {
   it('still lets an author edit their own words', async () => {
     await assertSucceeds(
       updateDoc(doc(asA(), 'communityPosts/p1'), { body: 'edited' }),
+    );
+  });
+});
+
+describe('the community board', () => {
+  it('refuses an attendee editing someone else’s post', async () => {
+    await assertFails(updateDoc(doc(asB(), 'communityPosts/p1'), { body: 'not what I said' }));
+    await assertFails(updateDoc(doc(asB(), 'communityPosts/p1'), { title: 'FREE IPADS' }));
+  });
+
+  it('refuses a post signed with someone else’s name', async () => {
+    await assertFails(
+      setDoc(doc(asB(), 'communityPosts/p2'), {
+        authorId: A, title: 'Ride share', body: 'Meet me at 2am',
+        replyCount: 0, reactionCount: 0,
+      }),
+    );
+  });
+
+  it('refuses a reply signed with someone else’s name', async () => {
+    await assertFails(
+      setDoc(doc(asB(), 'communityPosts/p1/replies/r3'), { authorId: A, body: 'forged' }),
+    );
+  });
+
+  it('refuses a reaction written as another user', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `communityPosts/p1/reactions/${A}`), { uid: A, emoji: '👎' }),
+    );
+    // Own path, someone else's name inside — the same lie, told the other way.
+    await assertFails(
+      setDoc(doc(asB(), `communityPosts/p1/reactions/${B}`), { uid: A, emoji: '👎' }),
+    );
+    await assertFails(deleteDoc(doc(asB(), `communityPosts/p1/reactions/${A}`)));
+  });
+
+  it('lets an organizer hide a post but not re-sign it', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asOrg(), 'communityPosts/p1'), { status: 'hidden' }),
+    );
+    // Putting an attendee's name above a post they did not write is the worst
+    // thing a moderation branch can be made to do, and an unlisted
+    // `if isOrganizer()` allowed exactly that.
+    await assertFails(updateDoc(doc(asOrg(), 'communityPosts/p1'), { authorId: B }));
+  });
+
+  it('lets an organizer moderate a reply', async () => {
+    // Nothing could touch a reply before this: an abusive one under a
+    // legitimate post had no answer short of the Admin SDK. `status` is not on
+    // `CommunityReplyDoc` yet, so the branch has to tolerate adding the field.
+    await assertSucceeds(
+      updateDoc(doc(asOrg(), 'communityPosts/p1/replies/r2'), { status: 'hidden' }),
+    );
+    await assertSucceeds(deleteDoc(doc(asOrg(), 'communityPosts/p1/replies/r2')));
+  });
+
+  it('lets an author retract their own reply and nobody else’s', async () => {
+    await assertFails(deleteDoc(doc(asB(), 'communityPosts/p1/replies/r1')));
+    await assertSucceeds(deleteDoc(doc(asA(), 'communityPosts/p1/replies/r1')));
+  });
+
+  it('refuses an attendee editing another author’s reply', async () => {
+    await assertFails(
+      updateDoc(doc(asB(), 'communityPosts/p1/replies/r1'), { body: 'changed' }),
     );
   });
 });
@@ -381,39 +619,298 @@ describe('private messages', () => {
       setDoc(doc(asA(), `threads/${A}_${ORG}`), { participantIds: [A, B] }),
     );
   });
+
+  it('refuses a thread minted between two other people', async () => {
+    // Nothing stops you computing somebody else's thread id — they are two
+    // uids and a underscore. Being in the path is what has to be checked.
+    await assertFails(
+      setDoc(doc(asA(), `threads/${B}_${ORG}`), {
+        participantIds: [B, ORG], unread: { [B]: 0, [ORG]: 0 },
+      }),
+    );
+  });
+
+  it('lets the first message in a conversation be sent at all', async () => {
+    // A thread that does not exist yet must read as "not found", not as
+    // "permission denied". `resource` is null on a missing document and the
+    // membership check dereferenced it, so reading a conversation before it
+    // existed threw — and `sendMessage()` read the thread before creating it,
+    // which made every FIRST message between two people impossible.
+    await assertSucceeds(getDoc(doc(asA(), `threads/${A}_${ORG}`)));
+    // The fallback is the path, so it still hides a stranger's empty thread.
+    await assertFails(getDoc(doc(asB(), `threads/${A}_${ORG}`)));
+    // …and the write that follows, in the shape `messages.ts` now sends it:
+    // one merged `setDoc` that creates the thread and its summary together.
+    await assertSucceeds(
+      setDoc(
+        doc(asA(), `threads/${A}_${ORG}`),
+        {
+          eventId: 'kgc-2027',
+          participantIds: [A, ORG].sort(),
+          lastMessage: 'hello',
+          lastSenderId: A,
+          unread: { [A]: 0, [ORG]: increment(1) },
+        },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('lets the same merge write update a thread that already exists', async () => {
+    // The second send down the same path is an update, not a create, and it
+    // rewrites `eventId` and `participantIds` to the values already there.
+    // `diff()` reports only the keys whose values actually change, so the
+    // allowlist still sees a summary write — and `increment` is resolved before
+    // the rule reads `unread`, which is what keeps the +1 bound honest.
+    await assertSucceeds(
+      setDoc(
+        doc(asA(), `threads/${thread}`),
+        {
+          participantIds: [A, B],
+          lastMessage: 'again', lastSenderId: A,
+          unread: { [A]: 0, [B]: increment(1) },
+        },
+        { merge: true },
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(asA(), `threads/${thread}`),
+        { unread: { [A]: 0, [B]: increment(900) } },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('lets a device clear its own side with a dot path', async () => {
+    // `markThreadRead` writes `unread.{uid}` rather than the whole map, so a
+    // stale copy of the other person's count cannot be written back. The rule
+    // sees one changed top-level key either way.
+    await assertSucceeds(
+      updateDoc(doc(asA(), `threads/${thread}`), { [`unread.${A}`]: 0 }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), { [`unread.${B}`]: 0 }),
+    );
+  });
+
+  it('lets a message move the other side’s unread by exactly one', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asA(), `threads/${thread}`), {
+        lastMessage: 'hi', lastSenderId: A, unread: { [A]: 0, [B]: 3 },
+      }),
+    );
+  });
+
+  it('lets you clear your own unread count', async () => {
+    // `markThreadRead` — your side to zero, the other side untouched.
+    await assertSucceeds(
+      updateDoc(doc(asA(), `threads/${thread}`), { unread: { [A]: 0, [B]: 2 } }),
+    );
+  });
+
+  it('refuses inflating the other side’s unread badge', async () => {
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), { unread: { [A]: 0, [B]: 999999 } }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), { unread: { [A]: 0, [B]: 5 } }),
+    );
+  });
+
+  it('refuses zeroing the other side to hide a message', async () => {
+    // The other half of the same field: clearing somebody's badge is how you
+    // make a message they have not read look like one they have.
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), { unread: { [A]: 0, [B]: 0 } }),
+    );
+    // Dropping their key entirely is the same thing with fewer characters.
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), { unread: { [A]: 0 } }),
+    );
+    // And no third party may be given a counter in a two-person thread.
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), {
+        unread: { [A]: 0, [B]: 2, [ORG]: 1 },
+      }),
+    );
+  });
+
+  it('refuses misattributing the last message to the other person', async () => {
+    // The inbox row renders `lastSenderId`. Setting it to the person you are
+    // talking to makes your own words appear to be theirs.
+    await assertFails(
+      updateDoc(doc(asA(), `threads/${thread}`), {
+        lastMessage: 'something regrettable', lastSenderId: B,
+      }),
+    );
+  });
 });
 
 describe('polls and Q&A', () => {
   it('refuses a vote cast in someone else’s name', async () => {
     await assertFails(
-      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${B}`), { uid: B, choice: 0 }),
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${B}`), {
+        uid: B, optionIds: ['a'],
+      }),
     );
   });
 
   it('accepts your own vote while the poll is open', async () => {
     await assertSucceeds(
-      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), { uid: A, choice: 0 }),
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), {
+        uid: A, optionIds: ['b'],
+      }),
     );
   });
 
   it('refuses a vote once the poll is closed', async () => {
     await assertFails(
-      setDoc(doc(asA(), `sessions/s1/polls/closedPoll/votes/${A}`), { uid: A, choice: 0 }),
+      setDoc(doc(asA(), `sessions/s1/polls/closedPoll/votes/${A}`), {
+        uid: A, optionIds: ['a'],
+      }),
     );
   });
 
+  it('keeps a ballot secret from other attendees', async () => {
+    // Secret by rule, not by nobody having written the test: a poll on "should
+    // we adopt X" is read by the room, and who voted which way is not theirs.
+    await assertFails(getDoc(doc(asB(), `sessions/s1/polls/openPoll/votes/${A}`)));
+    await assertFails(getDocs(collection(asB(), 'sessions/s1/polls/openPoll/votes')));
+    await assertSucceeds(getDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`)));
+    await assertSucceeds(getDoc(doc(asOrg(), `sessions/s1/polls/openPoll/votes/${A}`)));
+  });
+
+  it('refuses a ballot naming an option the poll does not have', async () => {
+    // `tallyPoll` counts what it is given, so a fabricated id invents a row on
+    // the live result screen that nobody was ever offered.
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), {
+        uid: A, optionIds: ['write-in'],
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), {
+        uid: A, optionIds: ['a', 'write-in'],
+      }),
+    );
+  });
+
+  it('refuses a ballot that is empty, absent or absurd', async () => {
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), { uid: A, optionIds: [] }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), { uid: A }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), {
+        uid: A, optionIds: Array.from({ length: 5000 }, (_, i) => `o${i}`),
+      }),
+    );
+    // Nor the same real option 200 times, which is the same attack in range.
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/polls/openPoll/votes/${A}`), {
+        uid: A, optionIds: Array.from({ length: 200 }, () => 'a'),
+      }),
+    );
+  });
+
+  it('refuses an attendee creating or deleting a poll', async () => {
+    await assertFails(
+      setDoc(doc(asA(), 'sessions/s1/polls/mine'), {
+        question: 'Who is best?',
+        options: [{ id: 'a', label: 'Me' }],
+        open: true, tallies: { a: 0 }, totalVotes: 0,
+      }),
+    );
+    await assertFails(deleteDoc(doc(asA(), 'sessions/s1/polls/openPoll')));
+  });
+
   it('refuses an upvote whose uid does not match the writer', async () => {
+    // Wrong uid inside the document…
     await assertFails(
       setDoc(doc(asA(), `sessions/s1/questions/q1/upvotes/${A}`), { uid: B }),
+    );
+    // …and wrong uid in the path, which is the same lie told the other way.
+    await assertFails(
+      setDoc(doc(asA(), `sessions/s1/questions/q1/upvotes/${B}`), { uid: B }),
     );
   });
 
   it('keeps one upvote per person, by construction', async () => {
+    // The invariant is that an upvote cannot be cast TWICE, which is `update:
+    // if false` on a uid-keyed document — a second `setDoc` at the same path is
+    // an update. Writing to someone else's path is a different guarantee and is
+    // already covered above.
     await assertSucceeds(
       setDoc(doc(asA(), `sessions/s1/questions/q1/upvotes/${A}`), { uid: A }),
     );
     await assertFails(
-      setDoc(doc(asA(), `sessions/s1/questions/q1/upvotes/${B}`), { uid: B }),
+      setDoc(doc(asA(), `sessions/s1/questions/q1/upvotes/${A}`), { uid: A, again: true }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), `sessions/s1/questions/q1/upvotes/${A}`), { weight: 500 }),
+    );
+  });
+
+  it('refuses a question that arrives pre-approved', async () => {
+    // Moderation state is not the author's to set. `approved` puts the question
+    // straight onto the keynote screen with no moderator in the loop.
+    await assertFails(
+      setDoc(doc(asA(), 'sessions/s1/questions/q2'), {
+        authorId: A, body: 'Plug for my startup', upvoteCount: 0, answered: false,
+        state: 'approved',
+      }),
+    );
+    // …and it is not omittable either, which would leave the field undefined.
+    await assertFails(
+      setDoc(doc(asA(), 'sessions/s1/questions/q3'), {
+        authorId: A, body: 'Q', upvoteCount: 0, answered: false,
+      }),
+    );
+  });
+
+  it('accepts a question asked the way the app asks one', async () => {
+    await assertSucceeds(
+      setDoc(doc(asA(), 'sessions/s1/questions/q4'), {
+        authorId: A, body: 'How does this scale?', upvoteCount: 0, answered: false,
+        state: 'pending',
+      }),
+    );
+  });
+
+  it('refuses a question posted in someone else’s name', async () => {
+    await assertFails(
+      setDoc(doc(asB(), 'sessions/s1/questions/q5'), {
+        authorId: A, body: 'Something regrettable', upvoteCount: 0, answered: false,
+        state: 'pending',
+      }),
+    );
+  });
+
+  it('refuses an attendee deleting another author’s question', async () => {
+    await assertFails(deleteDoc(doc(asB(), 'sessions/s1/questions/q1')));
+    // The author and the organizer may.
+    await assertSucceeds(deleteDoc(doc(asA(), 'sessions/s1/questions/q1')));
+  });
+
+  it('refuses an attendee editing another author’s question', async () => {
+    await assertFails(
+      updateDoc(doc(asB(), 'sessions/s1/questions/q1'), { body: 'something worse' }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asA(), 'sessions/s1/questions/q1'), { body: 'asked more clearly' }),
+    );
+  });
+
+  it('lets an organizer moderate a question but not re-sign it', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asOrg(), 'sessions/s1/questions/q1'), { state: 'approved' }),
+    );
+    // Framing an attendee as the author of a question they never asked.
+    await assertFails(
+      updateDoc(doc(asOrg(), 'sessions/s1/questions/q1'), { authorId: B }),
     );
   });
 });
@@ -453,7 +950,21 @@ describe('soft delete', () => {
 
 describe('sponsor leads', () => {
   it('hides one attendee’s lead from another', async () => {
+    // Both halves matter. Reading B's lead as A fails under an owner-only rule
+    // too, so on its own that assertion does not pin the rule that is actually
+    // written — leads are organizer-only, and not even the person who submitted
+    // one can read it back. The second line is what says so.
     await assertFails(getDoc(doc(asA(), `sponsors/sp/leads/${B}`)));
+    await assertFails(getDoc(doc(asB(), `sponsors/sp/leads/${B}`)));
+    await assertFails(
+      getDocs(query(collection(asA(), 'sponsors/sp/leads'), where('uid', '==', A))),
+    );
+  });
+
+  it('refuses a lead submitted under someone else’s uid', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `sponsors/sp/leads/${A}`), { uid: A, email: `${A}@kgc.test` }),
+    );
   });
 
   it('lets an attendee submit their own', async () => {
@@ -474,7 +985,29 @@ describe('event content is organizer-only', () => {
     await assertFails(setDoc(doc(asA(), 'announcements/a2'), { title: 'Free pizza' }));
   });
 
+  it('refuses an attendee editing the tracks', async () => {
+    await assertFails(updateDoc(doc(asA(), 'tracks/t1'), { name: 'Renamed' }));
+    await assertFails(setDoc(doc(asA(), 'tracks/t2'), { name: 'My track' }));
+    await assertFails(deleteDoc(doc(asA(), 'tracks/t1')));
+  });
+
+  it('refuses an attendee editing the sponsors', async () => {
+    // Sponsors paid for what this says about them, and `website` is rendered
+    // as a tappable link for every attendee.
+    await assertFails(
+      updateDoc(doc(asA(), 'sponsors/sp'), { website: 'https://attacker.example' }),
+    );
+    await assertFails(setDoc(doc(asA(), 'sponsors/sp2'), { name: 'Me', tier: 'gold' }));
+    await assertFails(deleteDoc(doc(asA(), 'sponsors/sp')));
+  });
+
   it('lets an organizer edit it', async () => {
-    await assertSucceeds(updateDoc(doc(asOrg(), 'sessions/s1'), { room: 'Bloomberg 165' }));
+    // `room` is not a field on `SessionDoc` — rooms are their own collection and
+    // the session caches `roomId`/`roomName`. Writing a field the model does not
+    // have proved the rule allows arbitrary keys, not that it allows the edit an
+    // organizer actually makes.
+    await assertSucceeds(
+      updateDoc(doc(asOrg(), 'sessions/s1'), { title: 'Keynote (moved)', roomId: 'r1' }),
+    );
   });
 });

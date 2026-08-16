@@ -165,6 +165,67 @@ async function main() {
     }
   }
 
+  // --- live Q&A and polls on the keynotes ---------------------------------
+  //
+  // Shapes matter here. A question is created `state: 'pending'` — the rules
+  // reject anything pre-approved, because otherwise an attendee puts their own
+  // question straight onto the keynote screen with no moderator. And a poll
+  // seeds `tallies` with one zeroed key per option: the rules validate a ballot
+  // by checking its choices against `tallies.keys()`, since the rules language
+  // has no way to project `id` out of an array of option objects.
+  const keynotes = sessions.filter((s) => s.format === 'keynote').slice(0, 3);
+  const QUESTIONS = [
+    'How do you keep the ontology from drifting once three teams depend on it?',
+    'What did you try before SHACL, and why did it not work?',
+    'Is any of this worth it below about a million triples?',
+    'How do you convince a CFO to fund a taxonomy?',
+    'What would you do differently if you started again tomorrow?',
+  ];
+
+  keynotes.forEach((k, ki) => {
+    const sid = sessionId(k.title, k.startsAtLocal);
+
+    QUESTIONS.slice(0, 3 + ki).forEach((body, qi) => {
+      const asker = `demo_${String((qi * 7 + ki * 3) % ATTENDEE_COUNT).padStart(3, '0')}`;
+      writes.push({
+        collection: `${COLLECTIONS.sessions}/${sid}/${SUBCOLLECTIONS.questions}`,
+        id: `seed-q-${ki}-${qi}`,
+        data: {
+          eventId: EVENT_ID,
+          authorId: asker,
+          body,
+          // Seeded already-approved so the board has something on it; a client
+          // may not do this, which is the point of the rule.
+          state: qi === 0 ? 'answered' : 'approved',
+          answered: qi === 0,
+          upvoteCount: 0, // owned by a trigger; seeded at rest
+          createdAt: now(),
+        },
+      });
+    });
+
+    const options = [
+      { id: 'opt-a', label: 'Already in production' },
+      { id: 'opt-b', label: 'Piloting this year' },
+      { id: 'opt-c', label: 'Still evaluating' },
+      { id: 'opt-d', label: 'Not on the roadmap' },
+    ];
+    writes.push({
+      collection: `${COLLECTIONS.sessions}/${sid}/${SUBCOLLECTIONS.polls}`,
+      id: `seed-poll-${ki}`,
+      data: {
+        eventId: EVENT_ID,
+        question: 'Where is your organisation with knowledge graphs?',
+        options,
+        // One key per option, zeroed. This is what the ballot rule checks against.
+        tallies: Object.fromEntries(options.map((o) => [o.id, 0])),
+        totalVotes: 0,
+        open: ki === 0,
+        createdAt: now(),
+      },
+    });
+  });
+
   // --- community, announcements ------------------------------------------
   COMMUNITY_POSTS.forEach((p, i) => {
     push(COLLECTIONS.communityPosts, `seed-post-${i}`, {
@@ -188,6 +249,7 @@ async function main() {
   console.log(`  ${SPONSORS.length} sponsors`);
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts, ${ANNOUNCEMENTS.length} announcements`);
+  console.log(`  Q&A and a poll on ${keynotes.length} keynotes`);
   console.log(`\n  ${count} documents written.\n`);
   console.log('  Tracks, rooms, ticket tiers and sponsor tiers are REAL.');
   console.log('  Session titles, abstracts and all people are PLACEHOLDERS.');
