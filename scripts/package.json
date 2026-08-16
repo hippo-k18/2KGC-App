@@ -1,0 +1,22 @@
+{
+  "name": "@kgc/scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx src/seed-demo.ts",
+    "import:whova": "tsx src/import-whova.ts",
+    "typecheck": "tsc --noEmit",
+    "claims": "tsx src/set-claims.ts"
+  },
+  "dependencies": {
+    "@kgc/shared": "*",
+    "csv-parse": "^5.5.6",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "firebase-admin": "^13.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "~6.0.3"
+  }
+}

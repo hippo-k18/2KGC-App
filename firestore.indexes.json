@@ -4,75 +4,313 @@
       "collectionGroup": "sessions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "day", "order": "ASCENDING" },
-        { "fieldPath": "startsAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "day",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startsAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "sessions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "trackId", "order": "ASCENDING" },
-        { "fieldPath": "day", "order": "ASCENDING" },
-        { "fieldPath": "startsAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "trackIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "day",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startsAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "sessions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "tags", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "startsAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tags",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "startsAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
-      "collectionGroup": "users",
+      "collectionGroup": "sessions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "visibleInDirectory", "order": "ASCENDING" },
-        { "fieldPath": "name", "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "speakerIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "startsAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
-      "collectionGroup": "users",
+      "collectionGroup": "directory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "visibleInDirectory", "order": "ASCENDING" },
-        { "fieldPath": "interests", "arrayConfig": "CONTAINS" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "directory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "interests",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "threads",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "participantIds", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "participantIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "communityPosts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "category", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "category",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "sponsors",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "tier", "order": "ASCENDING" },
-        { "fieldPath": "name", "order": "ASCENDING" }
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tier",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "speakers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "registrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "emailHash",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "read", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "read",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "upvoteCount",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "savedSessions",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "remind",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sessionId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "communityPosts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "votes",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "upvotes",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "reactions",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "scanEvents",
+      "fieldPath": "scannedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "sentAt",
+      "indexes": [
+        {
+          "queryScope": "COLLECTION",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ]
 }

@@ -1,0 +1,15 @@
+{
+  "name": "@kgc/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firestore document types and collection-name constants shared between the Expo app and Cloud Functions.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  }
+}

@@ -1,21 +1,27 @@
 rules_version = '2';
 
 // Default posture: everything is closed. Content (sessions, speakers, sponsors)
-// is readable only by attendees whose address is on the imported ticket list,
-// and is written only by organizers.
+// is readable only by registered attendees, and written only by organizers.
 //
-// NOTE ON THE REGISTRATION GATE
-// The web build checked the ticket list in a server route using the Admin SDK.
-// A native app has no server, so the check moved here into `isRegistered()`.
-// That costs one extra document lookup per rule evaluation. When you add Cloud
-// Functions, set a custom claim on the user at first sign-in and check
-// `request.auth.token.registered` instead — it is free and much faster.
+// THE GATE IS A CUSTOM CLAIM
+// `registered` and `roles` are minted by the OTP sign-in function and carried in
+// the ID token. Nothing here reads a document to decide who you are. That matters
+// for more than speed: a single-document request may make at most 10 access calls
+// and a query at most 20, and exceeding it is a hard error, not a slowdown. An
+// earlier version looked up `registrations` and `users` on every evaluation and
+// would have hit that ceiling as rules grew.
 //
-// NOTE ON SHARED COUNTERS
-// `replyCount`, `reactionCount` and `upvoteCount` are maintained by clients.
-// Rules below constrain each write to a change of exactly +/-1, so a client
-// cannot set them arbitrarily, but a determined client could still call the
-// increment repeatedly. Move them to Cloud Function triggers when you can.
+// COUNTERS AND TALLIES ARE SERVER-OWNED
+// `replyCount`, `reactionCount`, `upvoteCount`, poll `tallies` and `totalVotes`
+// are written only by Cloud Function triggers, which bypass rules entirely. No
+// client path can touch them. An earlier version let clients move a counter by
+// +/-1, which bounded a single write but not a loop of them.
+//
+// FIELDS CANNOT BE FILTERED, ONLY DOCUMENTS
+// Rules decide whether a whole document is readable. Anything that must be hidden
+// field-by-field has to live in a separate document written by a function — which
+// is why the attendee directory is a projection (`directory/{uid}`) rather than a
+// filtered view of `users/{uid}`.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -27,20 +33,20 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    // On the ticket list. This, not merely being signed in, is what grants
-    // access — anyone can create a Firebase account, but only ticket holders
-    // appear in `registrations`.
+    // Being signed in is not enough — anyone can create a Firebase account.
+    // `registered` is set by the sign-in function only for ticket holders.
     function isRegistered() {
+      return signedIn() && request.auth.token.registered == true;
+    }
+
+    function hasRole(role) {
       return signedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true
-        && exists(/databases/$(database)/documents/registrations/$(request.auth.token.email.lower()));
+        && request.auth.token.roles is list
+        && role in request.auth.token.roles;
     }
 
     function isOrganizer() {
-      return isRegistered()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'organizer';
+      return hasRole('organizer');
     }
 
     /** The set of top-level fields this write changes. */
@@ -48,42 +54,33 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    /** True when `field` moves by exactly one, up or down. */
-    function stepsByOne(field) {
-      return request.resource.data[field] == resource.data[field] + 1
-        || request.resource.data[field] == resource.data[field] - 1;
+    // The imported ticket list. Closed to clients entirely: the sign-in function
+    // reads it with the Admin SDK, and at $1,199 a seat the guest list is the
+    // commercially sensitive asset in this database.
+    match /registrations/{registrationId} {
+      allow read, write: if false;
     }
 
-    // The imported ticket list. An attendee may read only their own entry, so
-    // the client can confirm eligibility; the list is never enumerable.
-    match /registrations/{email} {
-      allow get: if signedIn() && request.auth.token.email.lower() == email;
-      allow list, write: if false;
-    }
-
+    // The full profile. Readable by its owner and by organizers only — other
+    // attendees see the `directory/{uid}` projection instead, so a hidden
+    // attendee's record never leaves the server at all.
     match /users/{uid} {
-      // Honours the attendee's directory opt-out. Because rules are evaluated
-      // per document, a directory query must filter on visibleInDirectory or
-      // it will be rejected outright rather than silently leaking.
-      allow read: if isRegistered()
-        && (isSelf(uid)
-            || isOrganizer()
-            || resource.data.visibleInDirectory == true);
+      allow read: if isSelf(uid) || isOrganizer();
 
-      // The profile is created client-side on first sign-in, so it must be
-      // constrained: you may only create your own, and only as an attendee.
+      // Created client-side on first sign-in, so it must be constrained: your
+      // own document, and you cannot grant yourself a role.
       allow create: if isSelf(uid)
         && isRegistered()
         && request.resource.data.email == request.auth.token.email.lower()
-        && request.resource.data.role == 'attendee';
+        && request.resource.data.roles == ['attendee'];
 
-      // An allowlist, so `role` and `email` cannot move and no unexpected
-      // field can be introduced.
+      // An allowlist, so `roles`, `email` and `eventId` cannot move and no
+      // unexpected field can be introduced.
       allow update: if isSelf(uid)
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
-          'social', 'onboarded', 'visibleInDirectory', 'notificationPrefs',
-          'updatedAt',
+          'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
+          'notificationPrefs', 'updatedAt',
         ]);
       allow delete: if false;
 
@@ -94,7 +91,9 @@ service cloud.firestore {
         allow read, write: if isSelf(uid);
       }
       match /notifications/{id} {
-        allow read, update: if isSelf(uid);
+        // Written only by functions; the owner may mark them read.
+        allow read: if isSelf(uid);
+        allow update: if isSelf(uid) && changed().hasOnly(['read']);
         allow create, delete: if false;
       }
       match /fcmTokens/{token} {
@@ -102,9 +101,56 @@ service cloud.firestore {
       }
     }
 
-    match /sessions/{sessionId} {
+    // The directory projection. Opting out means absent, not filtered — the
+    // document is deleted, so a hidden attendee's data never reaches another
+    // device at all.
+    //
+    // Eventually the `mirrorDirectory` trigger owns this. Until Cloud Functions
+    // exist, the owner maintains their own entry, because a privacy switch that
+    // silently does nothing is worse than having no switch. The write is
+    // constrained so it cannot become a channel for arbitrary data: the uid must
+    // match both the path and the caller, and the field set is closed.
+    match /directory/{uid} {
       allow read: if isRegistered();
-      allow write: if isOrganizer();
+      // `hasOnly` closes the key set but validates no VALUES — every field below
+      // is bounded deliberately. This document is fetched whole by all ~1,000
+      // attendees, so an unvalidated write here is not self-harm:
+      //   · a missing or non-string `name` throws inside the snapshot success
+      //     callback, which `use-collection.ts` does not guard, white-screening
+      //     the People tab for everyone;
+      //   · a 700 KB `name` blows a ~450 KB budget for every device;
+      //   · a free-text `title` impersonates "KGC Registration Desk".
+      // `photoURL` is deliberately NOT writable from a client: it would render
+      // an attacker-controlled URL in every attendee's `<Image>` — a beacon that
+      // collects 1,000 IP addresses. The mirror trigger sets it from the profile.
+      function validDirectoryEntry() {
+        let d = request.resource.data;
+        return d.uid == uid
+          && d.keys().hasAll(['eventId', 'uid', 'name'])
+          && d.keys().hasOnly(['eventId', 'uid', 'name', 'title', 'company', 'interests', 'updatedAt'])
+          && d.eventId is string
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 120
+          && (!('title' in d) || (d.title is string && d.title.size() <= 120))
+          && (!('company' in d) || (d.company is string && d.company.size() <= 120))
+          && (!('interests' in d) || (d.interests is list && d.interests.size() <= 20));
+      }
+
+      allow create, update: if isSelf(uid) && isRegistered() && validDirectoryEntry();
+      allow delete: if isSelf(uid);
+    }
+
+    match /sessions/{sessionId} {
+      // Only published sessions leave the server. `sessions.ts` also filters
+      // client-side, but that is cosmetic — without this predicate an embargoed
+      // keynote and its speaker are on the wire the moment they are drafted, and
+      // "unpublish" hides nothing. A list query must filter on `status` to be
+      // allowed at all, which the app already does.
+      allow read: if isRegistered()
+        && (resource.data.status == 'published' || isOrganizer());
+      allow create, update: if isOrganizer();
+      // Never hard-deleted: attendees have it saved, and Firestore has no
+      // server-side cascade. Unpublishing is a `status` transition.
+      allow delete: if false;
 
       match /questions/{questionId} {
         allow read: if isRegistered();
@@ -113,19 +159,17 @@ service cloud.firestore {
           && request.resource.data.upvoteCount == 0
           && request.resource.data.answered == false;
 
-        // Authors may correct their own wording; anyone may move the upvote
-        // counter by one; organizers may mark a question answered.
+        // Authors may correct their own wording; organizers may moderate.
+        // `upvoteCount` is absent from both branches by design.
         allow update: if isOrganizer()
-          || (isRegistered() && changed().hasOnly(['upvoteCount'])
-              && stepsByOne('upvoteCount'))
           || (isRegistered() && resource.data.authorId == request.auth.uid
-              && changed().hasOnly(['body']));
+              && changed().hasOnly(['body', 'editedAt']));
 
         allow delete: if isOrganizer()
           || (isRegistered() && resource.data.authorId == request.auth.uid);
 
-        // One document per upvoter, keyed by uid, so a user can only ever
-        // add or remove their own vote.
+        // One document per upvoter, keyed by uid, so a user can only ever add
+        // or remove their own vote. A trigger derives the count.
         match /upvotes/{uid} {
           allow read: if isRegistered();
           allow create: if isSelf(uid) && isRegistered()
@@ -135,18 +179,27 @@ service cloud.firestore {
         }
       }
 
-      match /polls/{id} {
+      match /polls/{pollId} {
         allow read: if isRegistered();
         allow create, delete: if isOrganizer();
-
-        // `votes` is a map keyed by uid, so a voter can be held to their own
-        // key. Everything else about the poll is the organizer's.
+        // Organizers control the question and whether it is open. `tallies` and
+        // `totalVotes` are function-owned and appear in no client allowlist.
         allow update: if isOrganizer()
-          || (isRegistered()
-              && resource.data.open == true
-              && changed().hasOnly(['votes'])
-              && request.resource.data.votes.diff(resource.data.votes)
-                   .affectedKeys().hasOnly([request.auth.uid]));
+          && changed().hasOnly(['question', 'options', 'open', 'updatedAt']);
+
+        // One document per voter. This is the fix for the original design, where
+        // every vote rewrote a single map on the poll document: 1,000 voters
+        // against a ~1 write/sec/document limit took over 16 minutes to drain.
+        match /votes/{uid} {
+          allow read: if isSelf(uid) || isOrganizer();
+          allow create, update: if isSelf(uid)
+            && isRegistered()
+            && request.resource.data.uid == request.auth.uid
+            // The one access call in this file. It is on a write path rather
+            // than every read, and closing a poll has to mean something.
+            && get(/databases/$(database)/documents/sessions/$(sessionId)/polls/$(pollId)).data.open == true;
+          allow delete: if false;
+        }
       }
     }
 
@@ -164,7 +217,7 @@ service cloud.firestore {
       allow read: if isRegistered();
       allow write: if isOrganizer();
 
-      // An attendee may submit their own lead but must not read others'.
+      // An attendee may submit their own lead but must never read another's.
       match /leads/{uid} {
         allow create: if isSelf(uid) && isRegistered();
         allow read: if isOrganizer();
@@ -184,27 +237,23 @@ service cloud.firestore {
         && request.resource.data.replyCount == 0
         && request.resource.data.reactionCount == 0;
 
-      // Authors may edit their own text. Anyone may move a counter by one, so
-      // replying and reacting work without granting a licence to rewrite the
-      // post — which the previous `allow update: if isRegistered()` did.
+      // Authors may edit their own text — which Whova does not allow, and which
+      // is one of the most common complaints about it. Counters are absent.
       allow update: if isOrganizer()
-        || (isRegistered() && changed().hasOnly(['replyCount'])
-            && stepsByOne('replyCount'))
-        || (isRegistered() && changed().hasOnly(['reactionCount'])
-            && stepsByOne('reactionCount'))
         || (isRegistered() && resource.data.authorId == request.auth.uid
-            && changed().hasOnly(['title', 'body']));
+            && changed().hasOnly(['title', 'body', 'editedAt']));
 
-      allow delete: if isOrganizer()
-        || (isRegistered() && resource.data.authorId == request.auth.uid);
+      // Soft delete via `status`, so replies and reactions do not orphan.
+      allow delete: if false;
 
       match /replies/{id} {
         allow read: if isRegistered();
-        allow create: if isRegistered() && request.resource.data.authorId == request.auth.uid;
-        allow update: if isRegistered() && resource.data.authorId == request.auth.uid
-          && changed().hasOnly(['body']);
-        allow delete: if isOrganizer()
-          || (isRegistered() && resource.data.authorId == request.auth.uid);
+        allow create: if isRegistered()
+          && request.resource.data.authorId == request.auth.uid;
+        allow update: if isRegistered()
+          && resource.data.authorId == request.auth.uid
+          && changed().hasOnly(['body', 'editedAt']);
+        allow delete: if false;
       }
 
       // One document per reacting user, keyed by uid.
@@ -216,14 +265,34 @@ service cloud.firestore {
       }
     }
 
+    // Thread ids are the two participant uids sorted and joined with '_', so
+    // membership is provable from the path alone. That is what lets the messages
+    // subcollection avoid a `get()` on its parent on every single read.
+    // Firebase uids are alphanumeric, so the separator is unambiguous.
     match /threads/{threadId} {
+      /**
+       * Membership from the document, for reads.
+       *
+       * NOT from the path: on a `list`, the `{threadId}` wildcard is not bound
+       * the way it is on a `get`, so `threadId.split('_')` evaluates against
+       * null and the whole inbox query fails. The client query filters on
+       * `participantIds array-contains uid`, which satisfies this.
+       */
       function isParticipant() {
         return isRegistered() && request.auth.uid in resource.data.participantIds;
       }
 
+      /** Membership from the path. Only safe where `threadId` is bound. */
+      function inThreadPath() {
+        return isRegistered() && request.auth.uid in threadId.split('_');
+      }
+
       allow read: if isParticipant();
-      allow create: if isRegistered()
-        && request.auth.uid in request.resource.data.participantIds
+      // On create there is no `resource`, so the path is the only thing to
+      // check — and checking it is what stops someone minting a thread id that
+      // does not match its participants.
+      allow create: if inThreadPath()
+        && request.resource.data.participantIds.toSet() == threadId.split('_').toSet()
         && request.resource.data.participantIds.size() == 2;
       // Participants may not rewrite who is in the thread.
       allow update: if isParticipant()
@@ -231,13 +300,10 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{id} {
-        function inThread() {
-          return isRegistered() && request.auth.uid in
-            get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
-        }
-
-        allow read: if inThread();
-        allow create: if inThread() && request.resource.data.senderId == request.auth.uid;
+        allow read: if inThreadPath();
+        allow create: if inThreadPath()
+          && request.resource.data.senderId == request.auth.uid;
+        // Immutable once sent. Moderation is a function's job.
         allow update, delete: if false;
       }
     }

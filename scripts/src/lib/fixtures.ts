@@ -1,0 +1,239 @@
+/**
+ * The demo programme.
+ *
+ * Tracks, rooms, ticket types and sponsor tiers here are the REAL KGC ones,
+ * taken from the public conference site. Session titles and speaker names are
+ * PLACEHOLDERS — plausible for the field, but invented.
+ *
+ * That split is deliberate. A demo dies on "Test Session 1", so the shape and
+ * vocabulary have to be right; but inventing quotes and job titles for named
+ * real people is worse than an obvious placeholder. Replace the whole lot with
+ * `npm run import:whova` the moment the export exists — the ids are derived
+ * from titles, so the real import overwrites cleanly.
+ */
+
+/** The real 11 tracks. */
+export const TRACKS: { name: string; color: string }[] = [
+  { name: 'Data Architecture', color: '#2563eb' },
+  { name: 'Natural Language Processing', color: '#7c3aed' },
+  { name: 'Graph Data Science', color: '#059669' },
+  { name: 'Business Use Cases', color: '#d97706' },
+  { name: 'Ontologies & Taxonomies', color: '#dc2626' },
+  { name: 'Content Knowledge Graphs', color: '#0891b2' },
+  { name: 'SEO', color: '#ca8a04' },
+  { name: 'Health Care', color: '#db2777' },
+  { name: 'Libraries', color: '#4f46e5' },
+  { name: 'Open Knowledge Networks', color: '#16a34a' },
+  { name: 'EU Projects', color: '#9333ea' },
+];
+
+/** Real Cornell Tech spaces. */
+export const ROOMS: { name: string; building: string; capacity: number }[] = [
+  { name: 'VEEC Banquet Hall', building: 'Verizon Executive Education Center', capacity: 400 },
+  { name: 'VEEC Classroom 1', building: 'Verizon Executive Education Center', capacity: 80 },
+  { name: 'VEEC Classroom 2', building: 'Verizon Executive Education Center', capacity: 80 },
+  { name: 'VEEC Classroom 3', building: 'Verizon Executive Education Center', capacity: 60 },
+  { name: 'VEEC Classroom 4', building: 'Verizon Executive Education Center', capacity: 60 },
+  { name: 'Bloomberg 165', building: 'Bloomberg Center', capacity: 120 },
+  { name: 'Bloomberg 271', building: 'Bloomberg Center', capacity: 90 },
+  { name: 'Tata Innovation Center Auditorium', building: 'Tata Innovation Center', capacity: 200 },
+];
+
+/** Real ticket tiers. */
+export const TICKET_TYPES = [
+  { name: 'All Access', priceCents: 119900, includesVideoLibrary: true, includesWorkshops: true },
+  { name: 'Main Conference', priceCents: 79900, includesVideoLibrary: true, includesWorkshops: false },
+  { name: 'Workshops Only', priceCents: 69900, includesVideoLibrary: false, includesWorkshops: true },
+  { name: 'Virtual', priceCents: 34900, includesVideoLibrary: true, includesWorkshops: false },
+];
+
+/** PLACEHOLDER sponsor names, real tier structure. */
+export const SPONSORS: { name: string; tier: string; booth: string }[] = [
+  { name: 'Graphwise', tier: 'diamond', booth: 'D1' },
+  { name: 'Stardog', tier: 'diamond', booth: 'D2' },
+  { name: 'Neo4j', tier: 'platinum', booth: 'P1' },
+  { name: 'TigerGraph', tier: 'platinum', booth: 'P2' },
+  { name: 'Metaphacts', tier: 'platinum', booth: 'P3' },
+  { name: 'data.world', tier: 'gold', booth: 'G1' },
+  { name: 'Cambridge Semantics', tier: 'gold', booth: 'G2' },
+  { name: 'Enterprise Knowledge', tier: 'gold', booth: 'G3' },
+  { name: 'Semantic Web Company', tier: 'gold', booth: 'G4' },
+  { name: 'AllegroGraph', tier: 'silver', booth: 'S1' },
+  { name: 'Ontotext', tier: 'silver', booth: 'S2' },
+  { name: 'Diffbot', tier: 'silver', booth: 'S3' },
+  { name: 'Kurrawong AI', tier: 'startup', booth: 'T1' },
+  { name: 'Cognee', tier: 'startup', booth: 'T2' },
+  { name: 'WhyHow.AI', tier: 'startup', booth: 'T3' },
+];
+
+/** PLACEHOLDER names. Deliberately fictional — see the header comment. */
+const FIRST = ['Amara', 'Devesh', 'Lena', 'Tomás', 'Ingrid', 'Kwame', 'Sofia', 'Rune', 'Priya', 'Mateo',
+  'Yuki', 'Nadia', 'Oskar', 'Chiara', 'Emeka', 'Hana', 'Lucas', 'Mira', 'Anton', 'Zara',
+  'Felix', 'Noor', 'Silas', 'Talia', 'Bram', 'Ines', 'Kai', 'Rosa', 'Levi', 'Ada'];
+const LAST = ['Okonkwo', 'Lindqvist', 'Nakamura', 'Vasquez', 'Hartmann', 'Adeyemi', 'Moreau', 'Dahl',
+  'Raghavan', 'Silva', 'Fontaine', 'Bergström', 'Kovač', 'Almeida', 'Novak', 'Haddad',
+  'Weiss', 'Petrova', 'Lindgren', 'Osei'];
+const ORGS = ['Cornell Tech', 'Elsevier', 'Springer Nature', 'AstraZeneca', 'Roche', 'Bloomberg',
+  'The New York Times', 'Wikimedia Foundation', 'EMBL-EBI', 'JPMorgan Chase', 'Siemens',
+  'Airbnb', 'Stanford University', 'TU Delft', 'Ordnance Survey', 'BBC', 'Mayo Clinic',
+  'European Commission', 'Library of Congress', 'Uber'];
+const TITLES = ['Principal Ontologist', 'Head of Knowledge Engineering', 'Staff Data Architect',
+  'Director of Data Science', 'Semantic Technology Lead', 'Research Scientist',
+  'VP of Data', 'Knowledge Graph Architect', 'Taxonomy Manager', 'Chief Data Officer'];
+
+/** PLACEHOLDER session titles, drawn from genuine topics in the field. */
+const TOPICS = [
+  'Modelling Provenance Without Drowning in Reification',
+  'SHACL in Production: Three Years of Lessons',
+  'From Relational to RDF Without a Big Bang Migration',
+  'Entity Resolution at Enterprise Scale',
+  'GraphRAG: What Actually Improved Retrieval',
+  'Ontology Governance When Nobody Wants to Govern',
+  'Property Graphs and RDF Can Be Friends',
+  'Vector Search Meets SPARQL',
+  'Building a Clinical Terminology Service',
+  'Knowledge Graphs for Regulatory Reporting',
+  'Federated Query Across Twelve Silos',
+  'Teaching an LLM Your Taxonomy',
+  'Schema.org at Newsroom Scale',
+  'Measuring Knowledge Graph Quality',
+  'The Cost of Getting URIs Wrong',
+  'Incremental Reasoning for Streaming Data',
+  'Mapping Legacy Codes to SNOMED CT',
+  'A Product Graph That Survived Black Friday',
+  'Semantic Layers for the Modern Data Stack',
+  'Wikidata as Reference Infrastructure',
+  'Explaining Recommendations With Graph Paths',
+  'Versioning Ontologies in a Monorepo',
+  'Text-to-SPARQL That Users Actually Trust',
+  'Digital Twins and Their Ontologies',
+  'Persistent Identifiers for Research Outputs',
+  'Graph Embeddings for Drug Repurposing',
+  'Data Contracts Backed by Shapes',
+  'Knowledge Graphs Behind Search Ranking',
+  'Curating a Materials Science Graph',
+  'When Not to Use a Knowledge Graph',
+];
+
+const FORMATS = ['talk', 'talk', 'talk', 'panel', 'workshop', 'keynote'] as const;
+
+export interface SeedSpeaker {
+  name: string; title: string; company: string; bio: string;
+}
+
+export function makeSpeakers(n: number): SeedSpeaker[] {
+  const out: SeedSpeaker[] = [];
+  for (let i = 0; i < n; i++) {
+    const name = `${FIRST[i % FIRST.length]} ${LAST[Math.floor(i / FIRST.length) % LAST.length + (i % 3)]}`;
+    const company = ORGS[i % ORGS.length];
+    const title = TITLES[i % TITLES.length];
+    out.push({
+      name,
+      title,
+      company,
+      bio: `${name} is ${/^[aeiou]/i.test(title) ? 'an' : 'a'} ${title} at ${company}, ` +
+        `working on knowledge representation, data integration and the unglamorous parts of ` +
+        `making graphs useful in production. [Placeholder bio — replace via Whova import.]`,
+    });
+  }
+  return out;
+}
+
+export interface SeedSession {
+  title: string; format: string; startsAtLocal: string; endsAtLocal: string;
+  room: string; tracks: string[]; speakers: number[]; description: string;
+}
+
+/**
+ * Five days, May 3–7 2027, shaped like the real thing: workshops on the
+ * bookends, a plenary keynote each morning with nothing opposite it, and three
+ * parallel tracks through the middle of the day.
+ */
+export function makeSessions(speakerCount: number): SeedSession[] {
+  const days = ['2027-05-03', '2027-05-04', '2027-05-05', '2027-05-06', '2027-05-07'];
+  const slots = [
+    ['09:00', '09:45'], ['10:00', '10:45'], ['11:00', '11:45'],
+    ['13:00', '13:45'], ['14:00', '14:45'], ['15:15', '16:00'],
+  ];
+  const parallelRooms = ['VEEC Classroom 1', 'VEEC Classroom 2', 'Bloomberg 165'];
+
+  const sessions: SeedSession[] = [];
+  let topic = 0;
+  let speaker = 0;
+  const nextSpeaker = () => speaker++ % speakerCount;
+
+  days.forEach((day, d) => {
+    // One plenary keynote each morning, alone in the schedule.
+    sessions.push({
+      title: `Keynote: ${TOPICS[topic++ % TOPICS.length]}`,
+      format: 'keynote',
+      startsAtLocal: `${day}T08:30`,
+      endsAtLocal: `${day}T09:00`,
+      room: 'VEEC Banquet Hall',
+      tracks: [TRACKS[d % TRACKS.length].name],
+      speakers: [nextSpeaker()],
+      description: 'Opening plenary. No parallel sessions.',
+    });
+
+    slots.forEach(([from, to], s) => {
+      // Workshops on day one and day five run long, in one room.
+      const isWorkshopDay = d === 0 || d === 4;
+      const width = isWorkshopDay ? 1 : parallelRooms.length;
+      for (let p = 0; p < width; p++) {
+        const format = isWorkshopDay ? 'workshop' : FORMATS[(topic + p) % FORMATS.length];
+        const title = TOPICS[topic++ % TOPICS.length];
+        const track = TRACKS[(d * 3 + p + s) % TRACKS.length];
+        const secondTrack = TRACKS[(d + s + 5) % TRACKS.length];
+        sessions.push({
+          title,
+          format: format === 'keynote' ? 'talk' : format,
+          startsAtLocal: `${day}T${from}`,
+          endsAtLocal: `${day}T${to}`,
+          room: isWorkshopDay ? 'VEEC Classroom 3' : parallelRooms[p],
+          // Some sessions are cross-listed, which is why trackIds is a list.
+          tracks: s % 4 === 0 ? [track.name, secondTrack.name] : [track.name],
+          speakers: format === 'panel'
+            ? [nextSpeaker(), nextSpeaker(), nextSpeaker()]
+            : [nextSpeaker()],
+          description:
+            `${title}. [Placeholder abstract — replace via Whova import.] This session covers ` +
+            `practical experience, what failed, and what the team would do differently.`,
+        });
+      }
+    });
+
+    // The Monday reception: 21:00 local is 01:00 UTC the next day. If this ends
+    // up on the wrong day tab, the `day` derivation is broken.
+    if (d === 1) {
+      sessions.push({
+        title: 'Welcome Reception',
+        format: 'social',
+        startsAtLocal: `${day}T21:00`,
+        endsAtLocal: `${day}T23:00`,
+        room: 'VEEC Banquet Hall',
+        tracks: [],
+        speakers: [],
+        description: 'Drinks and networking. Deliberately late, to exercise the timezone logic.',
+      });
+    }
+  });
+
+  return sessions;
+}
+
+export const COMMUNITY_POSTS = [
+  { category: 'ride-share', title: 'Tram from Manhattan around 08:00?', body: 'Happy to coordinate — the F train gets busy. Anyone heading over from midtown Tuesday morning?' },
+  { category: 'meetup', title: 'SHACL users, informal lunch Wednesday', body: 'Grabbing lunch outside VEEC at 12:15 if anyone wants to compare validation war stories.' },
+  { category: 'jobs', title: 'Hiring: knowledge engineer, remote EU', body: 'Small team, ontology-heavy, permanent. Find me at the Ontotext booth or message here.' },
+  { category: 'questions', title: 'Is the Wednesday workshop laptop-required?', body: 'Travelling light — can I follow along without a machine?' },
+  { category: 'ice-breakers', title: 'First KGC — what should I not miss?', body: 'Coming from a pure relational background. What would you tell a first-timer?' },
+  { category: 'lost-and-found', title: 'Found: black laptop charger, Bloomberg 165', body: 'Handed it to the registration desk on the ground floor.' },
+];
+
+export const ANNOUNCEMENTS = [
+  { title: 'Welcome to KGC 2027', body: 'Registration opens at 07:30 in the VEEC lobby. The tram runs every 7 minutes from 59th & 2nd.' },
+  { title: 'Room change: SHACL in Production', body: 'Moved to Bloomberg 165 — bigger room, we underestimated demand.' },
+  { title: 'Wifi', body: 'Network: CornellTech-Guest. No password required. If it is saturated, the agenda works offline.' },
+];
+
+export { FIRST, LAST, ORGS, TITLES };

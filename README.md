@@ -1,6 +1,6 @@
 # KGC — Knowledge Graph Conference app
 
-A cross-platform conference app (a Whova alternative) for KGC 2026, built with
+A cross-platform conference app (a Whova alternative) for KGC 2027, built with
 Expo and React Native. **Runs on both iPhone and Android** from one codebase.
 
 > **Working on this with an AI assistant?** Everything it needs — current
