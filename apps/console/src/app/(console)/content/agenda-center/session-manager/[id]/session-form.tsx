@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 import type { RoomOption } from '@/lib/data';
+import { ROUTES } from '@/lib/nav';
 import { saveSessionAction, type SaveState } from './actions';
 
 export interface SessionFormValues {
@@ -101,7 +102,7 @@ export function SessionForm({ values, rooms }: { values: SessionFormValues; room
       <button type="submit" disabled={pending}>
         {pending ? 'Saving…' : 'Save'}
       </button>{' '}
-      <Link href="/sessions">Back to sessions</Link>
+      <Link href={ROUTES.sessionManager}>Back to Session Manager</Link>
 
       {state.error ? <p className="error">{state.error}</p> : null}
       {state.ok ? <p className="ok">{state.message}</p> : null}

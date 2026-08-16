@@ -16,7 +16,7 @@ import {
   ANNOUNCEMENTS, COMMUNITY_POSTS, FIRST, LAST, ORGS, ROOMS, SPONSORS,
   TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
 } from './lib/fixtures.js';
-import { commitAll, targetDescription, type PendingWrite } from './lib/firestore.js';
+import { commitAll, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
 import {
   claimCode, emailHash, normaliseEmail, qrSecret, registrationId,
   roomId, sessionId, speakerId, sponsorId, stableGuid, trackId as slugTrack,
@@ -243,6 +243,17 @@ async function main() {
 
   const count = await commitAll(writes);
 
+  // Remove anything a previous run wrote that this one did not. Derived ids mean
+  // an edited fixture produces a new document rather than updating the old one.
+  let pruned = 0;
+  for (const c of [
+    COLLECTIONS.speakers, COLLECTIONS.sessions, COLLECTIONS.tracks,
+    COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes,
+  ]) {
+    const keep = new Set(writes.filter((w) => w.collection === c).map((w) => w.id));
+    pruned += await pruneStale(c, EVENT_ID, keep);
+  }
+
   console.log(`  ${TRACKS.length} tracks, ${ROOMS.length} rooms, ${TICKET_TYPES.length} ticket types`);
   console.log(`  ${speakers.length} speakers`);
   console.log(`  ${sessions.length} sessions across 5 days (${sessions[0].startsAtLocal.slice(0, 10)} → 2027-05-07)`);
@@ -250,7 +261,7 @@ async function main() {
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts, ${ANNOUNCEMENTS.length} announcements`);
   console.log(`  Q&A and a poll on ${keynotes.length} keynotes`);
-  console.log(`\n  ${count} documents written.\n`);
+  console.log(`\n  ${count} documents written${pruned ? `, ${pruned} stale removed` : ''}.\n`);
   console.log('  Tracks, rooms, ticket tiers and sponsor tiers are REAL.');
   console.log('  Session titles, abstracts and all people are PLACEHOLDERS.');
   console.log('  Replace with: npm run import:whova -- --agenda <file.csv> --speakers <file.csv>');

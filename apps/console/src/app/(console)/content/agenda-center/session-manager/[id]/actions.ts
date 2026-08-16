@@ -7,6 +7,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { appendAudit, diff } from '@/lib/audit';
 import { db } from '@/lib/firestore';
 import { listRooms } from '@/lib/data';
+import { ROUTES } from '@/lib/nav';
 import { deriveTimes } from '@/lib/time';
 import { recordError } from '@/lib/errors';
 import { roomChangePush } from '@/lib/push';
@@ -161,9 +162,9 @@ export async function saveSessionAction(
       pushNote = result.detail;
     }
 
-    revalidatePath('/sessions');
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath('/war-room');
+    revalidatePath(ROUTES.sessionManager);
+    revalidatePath(`${ROUTES.sessionManager}/${sessionId}`);
+    revalidatePath(ROUTES.warRoom);
 
     return {
       ok: true,

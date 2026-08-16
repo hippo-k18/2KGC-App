@@ -1,6 +1,18 @@
 import 'server-only';
 
-import { COLLECTIONS, EVENT_ID, type AnnouncementDoc, type RoomDoc, type SessionDoc, type WithId } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  type AnnouncementDoc,
+  type RoomDoc,
+  type SessionDoc,
+  type SpeakerDoc,
+  type SponsorDoc,
+  type SponsorTier,
+  type TrackDoc,
+  type UserDoc,
+  type WithId,
+} from '@kgc/shared';
 import { db } from './firestore';
 
 /**
@@ -109,6 +121,167 @@ export async function listAnnouncements(limit = 25): Promise<AnnouncementRow[]> 
       createdAt: a.createdAt ? a.createdAt.toDate().toISOString() : null,
     };
   });
+}
+
+/**
+ * The four reads below all follow the same shape as `listSessions()`, and for
+ * the same reason: a single `where('eventId', '==', …)` equality is served by
+ * Firestore's automatic single-field index, so it needs no entry in
+ * `firestore.indexes.json`. The moment an `orderBy` joins it, it needs a
+ * composite index that this repo does not declare — and the emulator would not
+ * tell us, because it does not enforce indexes. AGENTS.md records that exact
+ * bug shipping twice. At 11 tracks, 50 speakers, 15 sponsors and 50 attendees,
+ * sorting in memory costs nothing and cannot fail in production.
+ */
+
+export interface TrackRow {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
+  /** Sessions cross-listed into this track, and how many of those are published. */
+  sessionCount: number;
+  publishedCount: number;
+  /** True when this track is the one shown on the session's agenda card. */
+  primaryCount: number;
+}
+
+export async function listTracks(): Promise<TrackRow[]> {
+  const [snap, sessions] = await Promise.all([
+    db().collection(COLLECTIONS.tracks).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const docs = sessions.docs.map((d) => d.data() as SessionDoc);
+
+  return snap.docs
+    .map((d) => {
+      const t = d.data() as TrackDoc;
+      const inTrack = docs.filter((s) => (s.trackIds ?? []).includes(d.id));
+      return {
+        id: d.id,
+        name: t.name,
+        color: t.color,
+        description: t.description,
+        sessionCount: inTrack.length,
+        publishedCount: inTrack.filter((s) => s.status === 'published').length,
+        primaryCount: inTrack.filter((s) => s.primaryTrackName === t.name).length,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export interface SpeakerRow {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  hasBio: boolean;
+  hasPhoto: boolean;
+  sessionCount: number;
+  /** Titles of the sessions this speaker is on, for the list. */
+  sessionTitles: string[];
+  /** Set when the speaker also holds a ticket, so the two identities join up. */
+  userId?: string;
+}
+
+export async function listSpeakers(): Promise<SpeakerRow[]> {
+  const [snap, sessions] = await Promise.all([
+    db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const titleById = new Map(sessions.docs.map((d) => [d.id, (d.data() as SessionDoc).title]));
+
+  return snap.docs
+    .map((d) => {
+      const s = d.data() as SpeakerDoc;
+      const ids = s.sessionIds ?? [];
+      return {
+        id: d.id,
+        name: s.name,
+        title: s.title,
+        company: s.company,
+        hasBio: Boolean(s.bio && s.bio.trim()),
+        hasPhoto: Boolean(s.photoURL),
+        sessionCount: ids.length,
+        sessionTitles: ids.map((id) => titleById.get(id) ?? id),
+        userId: s.userId,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export interface SponsorRow {
+  id: string;
+  name: string;
+  tier: SponsorTier;
+  website?: string;
+  description?: string;
+  boothLocation?: string;
+  hasLogo: boolean;
+  offerCount: number;
+  downloadCount: number;
+}
+
+/** Whova orders tiers by value and that ordering drives three surfaces (§9.2). */
+export const TIER_ORDER: SponsorTier[] = ['diamond', 'platinum', 'gold', 'silver', 'startup'];
+
+export async function listSponsors(): Promise<SponsorRow[]> {
+  const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
+  return snap.docs
+    .map((d) => {
+      const s = d.data() as SponsorDoc;
+      return {
+        id: d.id,
+        name: s.name,
+        tier: s.tier,
+        website: s.website,
+        description: s.description,
+        boothLocation: s.boothLocation,
+        hasLogo: Boolean(s.logoURL),
+        offerCount: s.offers?.length ?? 0,
+        downloadCount: s.downloads?.length ?? 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || a.name.localeCompare(b.name),
+    );
+}
+
+export interface AttendeeRow {
+  uid: string;
+  name: string;
+  email: string;
+  title?: string;
+  company?: string;
+  roles: string[];
+  onboarded: boolean;
+  visibleInDirectory: boolean;
+  messagingEnabled: boolean;
+  interests: string[];
+}
+
+export async function listAttendees(): Promise<AttendeeRow[]> {
+  const snap = await db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get();
+  return snap.docs
+    .map((d) => {
+      const u = d.data() as UserDoc;
+      return {
+        uid: d.id,
+        name: u.name,
+        email: u.email,
+        title: u.title,
+        company: u.company,
+        roles: u.roles ?? [],
+        onboarded: Boolean(u.onboarded),
+        visibleInDirectory: Boolean(u.visibleInDirectory),
+        messagingEnabled: Boolean(u.messagingEnabled),
+        interests: u.interests ?? [],
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function countWhereEvent(collection: string): Promise<number> {

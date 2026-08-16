@@ -3,6 +3,7 @@ import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
+import { ROUTES } from '@/lib/nav';
 import { targetDescription } from '@/lib/firestore';
 import { clockOf, todayInEventZone } from '@/lib/time';
 
@@ -29,7 +30,20 @@ export default async function WarRoomPage() {
 
   return (
     <>
-      <h1>War room</h1>
+      <p className="crumbs">
+        <Link href="/tools">Tools</Link> {' › '}
+      </p>
+      <h1>
+        War room <span className="tag ours">ours</span>
+      </h1>
+      <div className="banner">
+        <strong>This screen is ours, not Whova&apos;s.</strong> Nothing in §1 corresponds to it.
+        Whova&apos;s live view is scattered across seven surfaces with no unified analytics home
+        (§23), and its post-event report is not self-serve at all — you complete a survey, an
+        account manager is notified, and a 50–70 page PDF arrives in 10–14 days (§23.4). This is
+        the opposite of that: one page, current, for the two days when something is going wrong and
+        someone is standing in front of you.
+      </div>
       <p className="muted">
         {EVENT.name} · {targetDescription()} · &ldquo;today&rdquo; is {today} in {EVENT.timeZone},
         not in this laptop&apos;s zone. Refresh to update; nothing here polls.
@@ -81,7 +95,7 @@ export default async function WarRoomPage() {
                   {clockOf(s.startsAtLocal)}–{clockOf(s.endsAtLocal)}
                 </td>
                 <td>
-                  <Link href={`/sessions/${s.id}`}>{s.title}</Link>
+                  <Link href={`${ROUTES.sessionManager}/${s.id}`}>{s.title}</Link>
                 </td>
                 <td>{s.roomName ?? '—'}</td>
                 <td>{s.status}</td>

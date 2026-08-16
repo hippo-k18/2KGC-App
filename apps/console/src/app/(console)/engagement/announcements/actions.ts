@@ -7,6 +7,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { appendAudit } from '@/lib/audit';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
+import { ROUTES } from '@/lib/nav';
 import { announcementPush } from '@/lib/push';
 
 export interface SendState {
@@ -97,8 +98,8 @@ export async function sendAnnouncementAction(
       pushNote = (await announcementPush({ announcementId: ref.id, title })).detail;
     }
 
-    revalidatePath('/announcements');
-    revalidatePath('/war-room');
+    revalidatePath(ROUTES.announcements);
+    revalidatePath(ROUTES.warRoom);
 
     return {
       ok: true,

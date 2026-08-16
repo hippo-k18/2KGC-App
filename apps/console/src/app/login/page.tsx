@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation';
 import { EVENT } from '@kgc/shared';
 import { currentSession } from '@/lib/auth';
+import { ROUTES } from '@/lib/nav';
 import { targetDescription } from '@/lib/firestore';
 import { LoginForm } from './login-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage() {
-  if (await currentSession()) redirect('/sessions');
+  if (await currentSession()) redirect(ROUTES.basics);
 
   return (
     <main>
