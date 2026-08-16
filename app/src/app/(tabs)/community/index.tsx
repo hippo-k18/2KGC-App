@@ -217,7 +217,7 @@ export default function CommunityScreen() {
         ref={listRef}
         data={visible}
         keyExtractor={(p) => p.id}
-        contentContainerStyle={{ paddingBottom: Spacing.lg }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.lg }}
         ListHeaderComponent={
           // The one pinned board, and the only genuinely pinned thing this app
           // has: organizer broadcasts. Whova pins the same row at the top of
@@ -375,8 +375,6 @@ function TopicRow({
       accessibilityLabel={[pinned ? 'Pinned' : null, title, preview, meta].filter(Boolean).join('. ')}
       style={({ pressed }) => ({
         backgroundColor: pressed ? colors.surfacePressed : colors.surface,
-        borderBottomWidth: HAIRLINE,
-        borderBottomColor: colors.separator,
       })}>
       <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.sm }}>
         <Text variant="caption" tone="tertiary" numberOfLines={1}>
@@ -389,7 +387,7 @@ function TopicRow({
             <Icon name="pin.fill" size={16} color={colors.textSecondary} style={{ marginTop: 4 }} />
           ) : null}
 
-          <View style={{ flex: 1, gap: 2 }}>
+          <View style={{ flex: 1, gap: Spacing.xs }}>
             <Text variant="heading" numberOfLines={2}>
               {title}
             </Text>
@@ -409,6 +407,19 @@ function TopicRow({
           {meta}
         </Text>
       </View>
+
+      {/* The row's separator, drawn rather than bordered so it can be inset —
+          left to the text column, `Spacing.md` clear of the right edge. The
+          caption and metadata bands start at the left gutter (see above), so
+          for this row the text column *is* the gutter. */}
+      <View
+        style={{
+          height: HAIRLINE,
+          backgroundColor: colors.separator,
+          marginHorizontal: Spacing.md,
+        }}
+        {...DECORATIVE}
+      />
     </Pressable>
   );
 }

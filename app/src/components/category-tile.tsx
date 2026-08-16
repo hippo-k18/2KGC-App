@@ -4,8 +4,12 @@ import { announced, DECORATIVE } from '@/components/a11y';
 import { Icon, type IconName } from '@/components/icon';
 import { CategoryTints, Radius } from '@/constants/theme';
 
-/** Whova's tile is a 40pt rounded square — small enough to sit in a list row. */
-const TILE = 40;
+/**
+ * Whova's tile is a 40pt rounded square — small enough to sit in a list row.
+ * Exported because a row that leads with one has to inset its separator by it.
+ */
+export const CATEGORY_TILE = 40;
+const TILE = CATEGORY_TILE;
 /** Glyph as a fraction of the tile. Below ~0.5 the tile reads as an empty chip. */
 const GLYPH_RATIO = 0.55;
 

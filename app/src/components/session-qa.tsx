@@ -3,7 +3,7 @@ import { Pressable, TextInput, View } from 'react-native';
 
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   useAskQuestion,
@@ -136,7 +136,7 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
                         : `Upvote, ${q.upvoteCount ?? 0} total`
                     }
                     hitSlop={8}
-                    style={{ alignItems: 'center', minWidth: 44, gap: 2 }}>
+                    style={{ alignItems: 'center', minWidth: HIT_TARGET, gap: Spacing.xs }}>
                     <Icon
                       name={mine ? 'star.fill' : 'star'}
                       color={mine ? colors.tint : colors.textTertiary}
@@ -152,6 +152,7 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
                       height: HAIRLINE,
                       backgroundColor: colors.separator,
                       marginLeft: Spacing.md,
+                      marginRight: Spacing.md,
                     }}
                   />
                 ) : null}

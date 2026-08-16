@@ -23,12 +23,27 @@ const MESSAGE_WIDTH = 300;
  * every empty state on Android rendered a title with a gap above it and no icon
  * at all. It now goes through `Icon`, which pairs each SF Symbol with a Material
  * glyph and cannot be used without one.
+ *
+ * It centres itself in whatever space it is given rather than hanging from the
+ * top of it. Top-anchoring with a fixed `Spacing.xxl` pad put "No matches" a
+ * third of the way down the screen with 286pt of empty white under it, which
+ * reads as a half-loaded screen rather than an answer. `flexGrow` is the growth
+ * rule, not `flex`, so it still measures naturally inside a `ScrollView` whose
+ * content container has no `flexGrow: 1` of its own.
  */
 export function EmptyState({ icon = 'square.dashed', title, message }: EmptyStateProps) {
   const colors = useTheme();
 
   return (
-    <View style={{ alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xxl }}>
+    <View
+      style={{
+        flexGrow: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.xl,
+      }}>
       <Icon name={icon} size={Spacing.xxl} color={colors.textSecondary} weight="regular" />
       <Text variant="heading" style={{ textAlign: 'center' }}>
         {title}

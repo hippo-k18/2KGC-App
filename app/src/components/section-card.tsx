@@ -67,7 +67,10 @@ export function SectionCard({
         {
           backgroundColor: colors.surface,
           borderRadius: Radius.lg,
-          paddingVertical: inset ? Spacing.md : Spacing.sm,
+          // One value for both variants. The un-inset variant used `Spacing.sm`,
+          // which put a full-bleed card's title 8pt off its own top edge and 16
+          // off an inset one — the same component reading as two.
+          paddingVertical: Spacing.md,
           gap: Spacing.sm,
         },
         style,

@@ -86,7 +86,7 @@ export default function MessagesScreen() {
       <FlatList
         data={threads ?? []}
         keyExtractor={(t) => t.id}
-        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.xxl }}
         ListHeaderComponent={
           noticeDismissed ? null : <DeliveryNotice onDismiss={() => setNoticeDismissed(true)} />
         }
@@ -250,7 +250,7 @@ function ThreadRow({
           ) : null}
         </View>
 
-        <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1, gap: Spacing.xs }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm }}>
             <Text variant="heading" style={{ flex: 1 }} numberOfLines={1}>
               {name}
@@ -284,6 +284,7 @@ function ThreadRow({
             height: HAIRLINE,
             backgroundColor: colors.separator,
             marginLeft: Spacing.md + INBOX_AVATAR + GUTTER,
+            marginRight: Spacing.md,
           }}
           {...DECORATIVE}
         />

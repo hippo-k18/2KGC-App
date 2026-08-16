@@ -103,7 +103,7 @@ export default function MeScreen() {
               marginTop: Spacing.md,
             })}>
             <Avatar name={profile?.name ?? 'You'} photoURL={profile?.photoURL} size={64} />
-            <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flex: 1, gap: Spacing.xs }}>
               <Text variant="title3">{profile?.name ?? 'Your profile'}</Text>
               {profile?.title || profile?.company ? (
                 <Text tone="secondary" numberOfLines={2}>

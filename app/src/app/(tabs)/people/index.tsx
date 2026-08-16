@@ -30,8 +30,20 @@ const SEGMENTS = ['Attendees', 'Speakers', 'Sponsors'] as const;
 
 /** Avatar in a Whova directory row — larger than the 44pt list-row default. */
 const ROW_AVATAR = 52;
-/** Width of the A–Z rail. Whova's is about this; iOS's own index is 15–20pt. */
-const RAIL_WIDTH = 24;
+/**
+ * Drawn width of the A–Z rail.
+ *
+ * `Spacing.md`, which is also the row's right gutter — so the rail sits exactly
+ * in the margin the rows already leave and never draws on top of their content.
+ * It was 24, which put the strip 8pt over the "Say Hi" control as soon as the
+ * rows stopped insetting themselves out of its way. iOS's own section index is
+ * 15–20pt, so this is the platform's own figure rather than a value chosen to
+ * make the arithmetic work.
+ *
+ * The *touch* target is unchanged at 44pt — `AlphabetRail` makes up the
+ * difference with `hitSlop`, which is the whole point of drawing it small.
+ */
+const RAIL_WIDTH = Spacing.md;
 /** Point size of a rail letter, held fixed — see `AlphabetRail`. */
 const RAIL_LETTER = 11;
 /** Minimum drawn height of one rail letter. The rail distributes the rest. */
@@ -167,10 +179,7 @@ export default function PeopleScreen() {
         ? `Speakers (${count})`
         : `Sponsors (${count})`;
 
-  // The rail sits *over* the list, so the rows have to keep their right-hand
-  // controls out from under it — Whova insets its rows by exactly this much.
   const railVisible = segment === 0 && letterIndex.size > 1;
-  const gutterRight = Spacing.md + (railVisible ? RAIL_WIDTH : 0);
 
   const jumpTo = (letter: string) => {
     const index = letterIndex.get(letter);
@@ -213,6 +222,13 @@ export default function PeopleScreen() {
           },
         }}
       />
+
+      {/*
+        Air under the blue chrome. Whova leaves 20pt here and we left none, which
+        is what made three headings and a chip row read as 129pt of one crowded
+        band with no way in.
+      */}
+      <View style={{ height: Spacing.md }} {...DECORATIVE} />
 
       <View style={{ backgroundColor: colors.surface }}>
         {segment === 0 && interests.length ? (
@@ -264,6 +280,14 @@ export default function PeopleScreen() {
                 />
               ))}
             </ScrollView>
+
+            {/* Whova rules off the chip row before the count heading. Without
+                it the chips and "All Attendees (n)" are one undifferentiated
+                stack, and the chips are a control while the heading is a label. */}
+            <View
+              style={{ height: HAIRLINE, backgroundColor: colors.separator }}
+              {...DECORATIVE}
+            />
           </>
         ) : null}
 
@@ -272,7 +296,10 @@ export default function PeopleScreen() {
           accessibilityRole="header"
           style={{
             paddingHorizontal: Spacing.md,
-            paddingTop: interests.length && segment === 0 ? 0 : Spacing.md,
+            // A full gutter above the count, always. It used to be 0 whenever
+            // the chip row was showing, which put a 20pt heading 12pt under a
+            // row of pills with no rule between them.
+            paddingTop: Spacing.md,
             paddingBottom: Spacing.sm + Spacing.xs,
           }}>
           {heading}
@@ -284,7 +311,9 @@ export default function PeopleScreen() {
           ref={listRef}
           data={rows}
           keyExtractor={(row) => row.key}
-          contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+          // `flexGrow`, so searching for nonsense centres "No matches" in the
+          // list rather than leaving 286pt of void under it.
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.xxl }}
           // Without `getItemLayout` — which text that grows with Dynamic Type
           // makes impossible to state honestly — a jump past the render window
           // fails. Land on the estimate, then take the exact index once the rows
@@ -306,7 +335,6 @@ export default function PeopleScreen() {
               const s = item.speaker;
               return (
                 <DirectoryRow
-                  gutterRight={gutterRight}
                   name={s.name}
                   photoURL={s.photoURL}
                   lines={[s.title, s.company]}
@@ -330,7 +358,6 @@ export default function PeopleScreen() {
               const s = item.sponsor;
               return (
                 <DirectoryRow
-                  gutterRight={gutterRight}
                   name={s.name}
                   photoURL={s.logoURL}
                   lines={[
@@ -346,7 +373,6 @@ export default function PeopleScreen() {
             const isMe = p.uid === user?.uid;
             return (
               <DirectoryRow
-                gutterRight={gutterRight}
                 name={isMe ? `${p.name} (you)` : p.name}
                 photoURL={p.photoURL}
                 lines={[p.title, p.company]}
@@ -403,6 +429,16 @@ export default function PeopleScreen() {
  * targets, so the inner one gets no `hitSlop` on its left edge — slop there
  * would extend the message affordance under the company name, and tapping a
  * name is meant to open a profile.
+ *
+ * ## The row does not make room for the A–Z rail
+ *
+ * It used to: `paddingRight` was `Spacing.md + RAIL_WIDTH`, 40pt, which left the
+ * text column 197pt on a 393pt screen and pushed a second interest chip onto its
+ * own line — 32pt per row, on every row, to keep clear of a 24pt strip that only
+ * one of the three segments even draws. `AlphabetRail` is `position: 'absolute'`
+ * and `pointerEvents="box-none"`, so it costs the layout nothing; the row takes
+ * an ordinary `Spacing.md` gutter and the rail floats over its last 24pt, which
+ * is what Whova does too.
  */
 function DirectoryRow({
   name,
@@ -414,7 +450,6 @@ function DirectoryRow({
   sayHiName,
   onBookmark,
   bookmarked,
-  gutterRight,
 }: {
   name: string;
   photoURL?: string;
@@ -425,8 +460,6 @@ function DirectoryRow({
   sayHiName?: string;
   onBookmark?: () => void;
   bookmarked?: boolean;
-  /** Right padding, widened to clear the A–Z rail when one is drawn. */
-  gutterRight: number;
 }) {
   const colors = useTheme();
   const shown = tags.slice(0, 2);
@@ -440,12 +473,12 @@ function DirectoryRow({
         alignItems: 'flex-start',
         gap: Spacing.sm + Spacing.xs,
         paddingLeft: Spacing.md,
-        paddingRight: gutterRight,
+        paddingRight: Spacing.md,
         paddingVertical: Spacing.md,
       }}>
       <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
 
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, gap: Spacing.xs }}>
         <Text variant="heading" numberOfLines={2}>
           {name}
         </Text>
@@ -483,7 +516,7 @@ function DirectoryRow({
                   borderColor: colors.border,
                   borderRadius: Radius.sm,
                   paddingHorizontal: Spacing.sm,
-                  paddingVertical: 3,
+                  paddingVertical: Spacing.xs,
                 }}>
                 <Text variant="caption" tone="secondary" numberOfLines={1}>
                   {tag}
@@ -553,13 +586,30 @@ function DirectoryRow({
     </View>
   );
 
-  const frame = {
-    borderBottomWidth: HAIRLINE,
-    borderBottomColor: colors.separator,
-  };
+  /*
+    Inset left to the text column, `Spacing.md` clear of the right edge — the
+    one separator rule. A `borderBottomWidth` on the row itself cannot be inset,
+    which is why this is a drawn hairline rather than a border.
+  */
+  const rule = (
+    <View
+      style={{
+        height: HAIRLINE,
+        backgroundColor: colors.separator,
+        marginLeft: Spacing.md + ROW_AVATAR + Spacing.sm + Spacing.xs,
+        marginRight: Spacing.md,
+      }}
+      {...DECORATIVE}
+    />
+  );
 
   if (!onPress) {
-    return <View style={[{ backgroundColor: colors.surface }, frame]}>{body}</View>;
+    return (
+      <View style={{ backgroundColor: colors.surface }}>
+        {body}
+        {rule}
+      </View>
+    );
   }
 
   return (
@@ -567,11 +617,11 @@ function DirectoryRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={[name, ...detail, ...tags].join(', ')}
-      style={({ pressed }) => [
-        { backgroundColor: pressed ? colors.surfacePressed : colors.surface },
-        frame,
-      ]}>
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? colors.surfacePressed : colors.surface,
+      })}>
       {body}
+      {rule}
     </Pressable>
   );
 }
@@ -612,8 +662,11 @@ function IndexHeader({ letter }: { letter: string }) {
  * 852pt screen. The rail stretches to the list's full height and distributes the
  * letters through it, so with the ~15 letters a real directory produces each one
  * gets 40–50pt of vertical space; `hitSlop` extends every letter 20pt to the
- * left and to the screen edge on the right, which puts the horizontal target at
- * 44 even though the drawn strip is 24 wide. Vertical slop is deliberately zero:
+ * left, which puts the horizontal target at exactly 44 even though the drawn
+ * strip is 24 wide. It used to add another `RAIL_WIDTH` on the right as well,
+ * which reached past the screen edge and did nothing except make the target 68
+ * wide — 24pt of it lying over the rows' own "Say Hi" control, now that the rows
+ * no longer inset themselves out of the rail's way. Vertical slop is zero:
  * adjacent letters share an edge, and overlapping targets in a list of 26 would
  * mean the letter you land on is not the letter you pressed.
  *
@@ -648,7 +701,7 @@ function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter:
           onPress={() => onJump(letter)}
           accessibilityRole="button"
           accessibilityLabel={`Jump to ${letter === '#' ? 'other' : letter}`}
-          hitSlop={{ top: 0, bottom: 0, left: 20, right: RAIL_WIDTH }}
+          hitSlop={{ top: 0, bottom: 0, left: HIT_TARGET - RAIL_WIDTH, right: 0 }}
           style={({ pressed }) => ({
             width: RAIL_WIDTH,
             minHeight: RAIL_LETTER_HEIGHT,

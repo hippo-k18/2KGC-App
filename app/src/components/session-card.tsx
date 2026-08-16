@@ -15,10 +15,22 @@ const TIME_COLUMN = 74;
  * reduced to two words a line, so the row stacks instead.
  */
 const STACK_ABOVE = 1.35;
+/**
+ * The same threshold, used for the room/track caption's line cap. Two lines is a
+ * sensible ceiling at 1×; at 2× it silently eats the track name, and a clip in
+ * the middle of a wrapped line shows no ellipsis to say so.
+ */
+const UNCAP_ABOVE = STACK_ABOVE;
 /** Track colour swatch. */
 const TRACK_DOT = 6;
-/** Gap between the title, speakers and room lines — tighter than Spacing.xs. */
-const LINE_GAP = 3;
+/**
+ * Gap between the title, speakers and room lines.
+ *
+ * `Spacing.xs`, not the 3 it used to be. A 3pt gap is off the 4pt scale, and it
+ * is the kind of value that survives at 1× and collapses at 2×: the line boxes
+ * grow, the gap does not, and three lines fuse into a block.
+ */
+const LINE_GAP = Spacing.xs;
 /** Gap between the track dot and the title, and the title and the saved star. */
 const INLINE_GAP = 6;
 /** Star glyph size, and the nudge that seats it on the title's cap-height. */
@@ -68,6 +80,7 @@ export function SessionCard({
   const accent = session.primaryTrackColor ?? colors.tint;
   const stacked = fontScale > STACK_ABOVE;
   const timeColumn = Math.round(TIME_COLUMN * Math.max(fontScale, 1));
+  const lines = fontScale > UNCAP_ABOVE ? undefined : 2;
 
   return (
     <Pressable
@@ -100,11 +113,14 @@ export function SessionCard({
               ? { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' }
               : { width: timeColumn, paddingTop: 1 }
           }>
+          {/* Both times are `subhead`. A row that runs 17 / 15 / 13 reads as
+              crammed even when its padding is generous, and the 13pt tier was
+              the one nobody could read — the hierarchy is carried by tone. */}
           <Text variant="subhead" tone="secondary" style={{ fontVariant: ['tabular-nums'] }}>
             {formatTime(session.startsAtLocal)}
             {stacked ? ' –' : ''}
           </Text>
-          <Text variant="caption" tone="tertiary" style={{ fontVariant: ['tabular-nums'] }}>
+          <Text variant="subhead" tone="tertiary" style={{ fontVariant: ['tabular-nums'] }}>
             {formatTime(session.endsAtLocal)}
           </Text>
         </View>
@@ -141,24 +157,26 @@ export function SessionCard({
           </View>
 
           {session.speakerNames?.length ? (
-            <Text variant="subhead" tone="secondary" numberOfLines={2}>
+            <Text variant="subhead" tone="secondary" numberOfLines={lines}>
               {session.speakerNames.join(', ')}
             </Text>
           ) : null}
 
-          <Text variant="caption" tone="tertiary" numberOfLines={2}>
+          <Text variant="subhead" tone="tertiary" numberOfLines={lines}>
             {[session.roomName, session.primaryTrackName].filter(Boolean).join('  ·  ')}
           </Text>
         </View>
       </View>
 
-      {/* Inset separator, aligned to the text column — the iOS convention. */}
+      {/* Inset left to the text column, `Spacing.md` clear of the right edge —
+          the one separator rule, applied here as it is in `ListRow`. */}
       {!last ? (
         <View
           style={{
             height: HAIRLINE,
             backgroundColor: colors.separator,
             marginLeft: stacked ? Spacing.md : Spacing.md + timeColumn,
+            marginRight: Spacing.md,
           }}
           {...DECORATIVE}
         />

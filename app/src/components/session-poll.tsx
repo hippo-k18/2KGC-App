@@ -118,7 +118,13 @@ function Poll({
                 </View>
               </Pressable>
               {i < poll.options.length - 1 ? (
-                <View style={{ height: HAIRLINE, backgroundColor: colors.separator }} />
+                <View
+                  style={{
+                    height: HAIRLINE,
+                    backgroundColor: colors.separator,
+                    marginHorizontal: Spacing.md,
+                  }}
+                />
               ) : null}
             </View>
           );

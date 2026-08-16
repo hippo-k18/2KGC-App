@@ -40,8 +40,15 @@ const LOGO_CARD_PADDING = 10;
  * "Leaderboard" breaks mid-word; full-bleed it is 115 and does not.
  */
 const FULL_BLEED = { borderRadius: 0 } as const;
-/** The grey band between two sections. Whova's is ~7pt. */
-const SECTION_GAP = Spacing.sm;
+/**
+ * The grey band between two sections.
+ *
+ * `Spacing.md`. The comment here used to claim Whova's was "~7pt", which was an
+ * eyeball; measured against the real app it is 16.0, and this was drawn at 8 —
+ * so the one thing separating five full-bleed white blocks was half the width it
+ * should have been, and the page read as one slab with faint scratches in it.
+ */
+const SECTION_GAP = Spacing.md;
 /** `SectionCard`'s own horizontal padding, which the grid has to subtract. */
 const CARD_PADDING = Spacing.md;
 
@@ -49,7 +56,16 @@ const CARD_PADDING = Spacing.md;
 const GRID_GAP = Spacing.sm;
 /** Whova's grid is three across at every phone width. */
 const GRID_COLUMNS = 3;
-/** A `minHeight`, so a two-line tile label grows the tile rather than clipping. */
+/**
+ * A `minHeight`, so a long tile label grows the tile rather than clipping.
+ *
+ * The `minHeight` was always right and the label's `numberOfLines={2}` was not:
+ * at 2× Dynamic Type "Session Q&A" needs three lines in a 115pt tile and the
+ * third was dropped, so the grid read as "Session / Q&A", "My / schedule",
+ * "Leader" — a wall of half-labels in the one block that is pure navigation.
+ * The cap is gone; tiles on a wrapped row stretch to the tallest of them, which
+ * is flexbox's default and the correct answer here.
+ */
 const TILE_MIN_HEIGHT = 56;
 /** Whova's "there is something new in here" dot. */
 const BADGE_DOT = 14;
@@ -289,7 +305,7 @@ function EventBanner({ dateRange }: { dateRange: string }) {
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: 2 }}>
+      <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.xs }}>
         <Text variant="title" accessibilityRole="header">
           {EVENT.name}
         </Text>
@@ -303,8 +319,14 @@ function EventBanner({ dateRange }: { dateRange: string }) {
         ) : null}
       </View>
 
+      {/* Inset to the text column and `Spacing.md` clear of the right edge, like
+          every other rule in the app. Nothing here runs to the screen edge. */}
       <View
-        style={{ height: HAIRLINE, backgroundColor: colors.separator }}
+        style={{
+          height: HAIRLINE,
+          backgroundColor: colors.separator,
+          marginHorizontal: Spacing.md,
+        }}
         {...DECORATIVE}
       />
 
@@ -338,7 +360,7 @@ function TimeZoneStrip() {
         paddingVertical: Spacing.md - Spacing.xs,
       }}>
       <Icon name="mappin.and.ellipse" size={20} color={colors.textSecondary} />
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, gap: Spacing.xs }}>
         <Text variant="callout">Displaying time in the event’s time zone</Text>
         <Text variant="caption" tone="tertiary">
           Every time in this app is New York time, wherever you are reading it.
@@ -486,7 +508,7 @@ function ResourceGrid({ unread }: { unread: number }) {
               borderRadius: Radius.sm,
               backgroundColor: pressed ? colors.surfacePressed : colors.surface,
             })}>
-            <Text variant="callout" numberOfLines={2} style={{ textAlign: 'center' }}>
+            <Text variant="callout" style={{ textAlign: 'center' }}>
               {r.label}
             </Text>
 

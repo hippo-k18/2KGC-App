@@ -59,6 +59,20 @@ export interface HeaderSegments {
   onChange: (next: number) => void;
 }
 
+/**
+ * Turns the title into a control, which is what Whova's agenda does with
+ * "Filter by tracks". It is the cheapest slot in the app: a filter that lives
+ * here costs zero vertical points, where a chip row below the header costs 60.
+ */
+export interface HeaderTitleAction {
+  icon: IconName;
+  onPress: () => void;
+  /** A short state label — "3" or "Ontologies" — drawn as a pill after the title. */
+  badge?: string;
+  /** Spoken after the title. */
+  hint?: string;
+}
+
 interface WhovaHeaderProps {
   title: string;
   /** Name behind the profile pill's avatar; also its spoken label. */
@@ -67,6 +81,8 @@ interface WhovaHeaderProps {
   onProfilePress: () => void;
   /** Up to two. Anything past the second is dropped — see the note below. */
   actions?: readonly HeaderAction[];
+  /** Makes the title itself a button. */
+  titleAction?: HeaderTitleAction;
   /** Adds the second row. */
   search?: HeaderSearch;
   /** Adds the third row. */
@@ -124,6 +140,7 @@ export function WhovaHeader({
   userPhotoURL,
   onProfilePress,
   actions,
+  titleAction,
   search,
   segments,
 }: WhovaHeaderProps) {
@@ -149,13 +166,17 @@ export function WhovaHeader({
         }}>
         <ProfilePill name={userName} photoURL={userPhotoURL} onPress={onProfilePress} />
 
-        <Text
-          variant="heading"
-          numberOfLines={2}
-          accessibilityRole="header"
-          style={{ flex: 1, textAlign: 'center', color: colors.onHeader }}>
-          {title}
-        </Text>
+        {titleAction ? (
+          <HeaderTitleButton title={title} {...titleAction} />
+        ) : (
+          <Text
+            variant="heading"
+            numberOfLines={2}
+            accessibilityRole="header"
+            style={{ flex: 1, textAlign: 'center', color: colors.onHeader }}>
+            {title}
+          </Text>
+        )}
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
           {actions?.slice(0, 2).map((action) => (
@@ -178,6 +199,68 @@ export function WhovaHeader({
       {search ? <HeaderSearchField {...search} /> : null}
       {segments ? <HeaderSegmentedControl {...segments} /> : null}
     </View>
+  );
+}
+
+/**
+ * The title, as a button — Whova's "Filter by tracks".
+ *
+ * Still `accessibilityRole="header"`? No: it is a button, and calling it a
+ * header would put a control in the rotor's header list where a screen reader
+ * user expects a landmark. The screen name is already carried by the tab bar.
+ *
+ * The badge is a state label, not a decoration, so it is inside the button's
+ * `accessibilityLabel` rather than left as an unlabelled pill. `numberOfLines`
+ * is 2, not 1: at accessibility sizes a one-line cap turns "Filter by tracks"
+ * into "Filter by…", and the whole point of this control is that it says what
+ * it does.
+ */
+function HeaderTitleButton({
+  title,
+  icon,
+  onPress,
+  badge,
+  hint,
+}: HeaderTitleAction & { title: string }) {
+  const colors = useTheme();
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={badge ? `${title}, ${badge}` : title}
+      accessibilityHint={hint}
+      hitSlop={Spacing.sm}
+      style={({ pressed }) => ({
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.sm,
+        minHeight: PILL_HEIGHT,
+        opacity: pressed ? 0.6 : 1,
+      })}>
+      <Icon name={icon} size={ACTION_GLYPH} color={colors.onHeader} />
+      <Text
+        variant="heading"
+        numberOfLines={2}
+        style={{ flexShrink: 1, textAlign: 'center', color: colors.onHeader }}>
+        {title}
+      </Text>
+      {badge ? (
+        <View
+          style={{
+            paddingHorizontal: Spacing.sm,
+            paddingVertical: 1,
+            borderRadius: Radius.pill,
+            backgroundColor: Brand.blueDark,
+          }}>
+          <Text variant="caption" style={{ fontWeight: '600', color: colors.onHeader }}>
+            {badge}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -259,7 +342,9 @@ function HeaderSearchField({ value, onChangeText, placeholder, onSubmit }: Heade
         alignItems: 'center',
         gap: Spacing.sm,
         marginHorizontal: Spacing.md,
-        marginBottom: Spacing.sm,
+        // A full gutter, not half of one. Whova leaves 16pt under its field and
+        // this left 8, which is what made the three blue rows read as one slab.
+        marginBottom: Spacing.md,
         paddingHorizontal: Spacing.sm + Spacing.xs,
         minHeight: FIELD_HEIGHT,
         borderRadius: Radius.md,
@@ -342,11 +427,20 @@ function HeaderSegmentedControl({ options, value, onChange }: HeaderSegments) {
                   ? colors.surfacePressed
                   : 'transparent',
             })}>
+            {/*
+              Two lines, not one. Three segments across a 393pt bar give each
+              about 120pt, and at 2× Dynamic Type a one-line cap rendered the
+              People control as "Atten… / Spea… / Spon…" — three ellipses where
+              the labels are the only thing telling you what the control does.
+              Wrapping costs the header some height at those sizes, which is
+              exactly the trade the platform makes.
+            */}
             <Text
               variant="callout"
-              numberOfLines={1}
+              numberOfLines={2}
               style={{
                 fontWeight: selected ? '600' : '400',
+                textAlign: 'center',
                 color: selected ? colors.onAccent : colors.tint,
               }}>
               {option}

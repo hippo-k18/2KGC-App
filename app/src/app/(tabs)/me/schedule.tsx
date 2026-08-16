@@ -58,7 +58,7 @@ export default function MyScheduleScreen() {
         <SectionList
           sections={sections}
           keyExtractor={(s) => s.id}
-          contentContainerStyle={{ padding: Spacing.md, paddingBottom: Spacing.xxl }}
+          contentContainerStyle={{ flexGrow: 1, padding: Spacing.md, paddingBottom: Spacing.xxl }}
           renderSectionHeader={({ section }) => (
             <Text
               variant="label"

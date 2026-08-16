@@ -1,7 +1,7 @@
 import { FlatList, View } from 'react-native';
 import { Stack } from 'expo-router';
 
-import { CategoryTile } from '@/components/category-tile';
+import { CATEGORY_TILE, CategoryTile } from '@/components/category-tile';
 import { EmptyState } from '@/components/empty-state';
 import { Text } from '@/components/text';
 import { HAIRLINE, Spacing } from '@/constants/theme';
@@ -42,29 +42,40 @@ export default function AnnouncementsScreen() {
         style={{ flex: 1, backgroundColor: colors.background }}
         data={announcements}
         keyExtractor={(a) => a.id}
-        contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.xxl }}
         renderItem={({ item }) => (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'flex-start',
-              gap: Spacing.sm + Spacing.xs,
-              paddingHorizontal: Spacing.md,
-              paddingVertical: Spacing.md,
-              backgroundColor: colors.surface,
-              borderBottomWidth: HAIRLINE,
-              borderBottomColor: colors.separator,
-            }}>
-            <CategoryTile icon="megaphone" tint="red" />
-            <View style={{ flex: 1, gap: Spacing.xs }}>
-              <Text variant="heading">{item.title}</Text>
-              <Text variant="subhead" tone="secondary">
-                {item.body}
-              </Text>
-              <Text variant="caption" tone="tertiary">
-                {relative(item.createdAt)}
-              </Text>
+          <View style={{ backgroundColor: colors.surface }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: Spacing.sm + Spacing.xs,
+                paddingHorizontal: Spacing.md,
+                paddingVertical: Spacing.md,
+              }}>
+              <CategoryTile icon="megaphone" tint="red" />
+              <View style={{ flex: 1, gap: Spacing.xs }}>
+                <Text variant="heading">{item.title}</Text>
+                {/* Uncapped. This is the screen someone opens to read a room
+                    change in full; two lines of it is not an announcement. */}
+                <Text variant="subhead" tone="secondary">
+                  {item.body}
+                </Text>
+                <Text variant="subhead" tone="tertiary">
+                  {relative(item.createdAt)}
+                </Text>
+              </View>
             </View>
+
+            {/* Inset left to the text column, `Spacing.md` off the right edge. */}
+            <View
+              style={{
+                height: HAIRLINE,
+                backgroundColor: colors.separator,
+                marginLeft: Spacing.md + CATEGORY_TILE + Spacing.sm + Spacing.xs,
+                marginRight: Spacing.md,
+              }}
+            />
           </View>
         )}
         ListEmptyComponent={
