@@ -1,0 +1,31 @@
+{
+  "name": "@kgc/console",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Organizer console (WP-17). Next.js 15 App Router, Firebase Admin SDK server-side only.",
+  "scripts": {
+    "dev": "next dev --port 3100",
+    "build": "next build",
+    "start": "next start --port 3100",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kgc/scripts": "file:../../scripts",
+    "@kgc/shared": "file:../../packages/shared",
+    "date-fns-tz": "^3.2.0",
+    "firebase-admin": "^13.6.0",
+    "next": "^15.5.23",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.5.23",
+    "typescript": "~5.9.2"
+  }
+}
