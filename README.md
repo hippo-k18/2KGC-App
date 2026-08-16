@@ -54,8 +54,14 @@ npm install
 ### 5. Start the server
 
 ```bash
-npx expo start
+npm start
 ```
+
+**Run it from the repo root, and use `npm start` rather than `npx expo start`.**
+This is an npm workspace: the Expo project lives in `app/`, so `npx expo start`
+at the root finds no entry point and fails with *"Unable to resolve module
+./index"*. `npm start` forwards to the right workspace. (`npx expo start` still
+works if you `cd app` first.)
 
 A QR code appears in the terminal.
 
@@ -74,7 +80,7 @@ Common on corporate, university and guest Wi-Fi, which often block devices from
 talking to each other. Route it through Expo's servers instead:
 
 ```bash
-npx expo start --tunnel
+npm start -- --tunnel
 ```
 
 Slower, but it works across networks.
@@ -88,7 +94,7 @@ That live-reload loop is how the app gets built.
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `npx expo start` then scan | Real phone via Expo Go | Expo Go, same Wi-Fi |
+| `npm start` then scan | Real phone via Expo Go | Expo Go, same Wi-Fi |
 | `npm run web` | Opens in a browser — quickest for rough layout work | nothing |
 | `npm run ios` | iOS Simulator | Xcode **plus a downloaded simulator runtime** |
 | `npm run android` | Android emulator | Android Studio with an AVD |
@@ -261,7 +267,7 @@ ready for real data.
 2. Add a **Web app** (yes, web — the Firebase JS SDK is what runs inside React
    Native). Copy its config values.
 3. `cp .env.example .env.local` and paste them in.
-4. Restart with a cleared cache: `npx expo start -c`. Env vars are compiled into
+4. Restart with a cleared cache: `npm start -- -c`. Env vars are compiled into
    the bundle, so a plain restart is not enough.
 5. Authentication → Sign-in method → enable **Email/Password**, then enable
    **Email link (passwordless sign-in)** within it.

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, Switch, View } from 'react-native';
+import { Pressable, ScrollView, Switch, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
@@ -89,16 +89,19 @@ export default function MeScreen() {
         <ScreenHeader title="Me" />
 
         <View style={{ paddingHorizontal: Spacing.md }}>
-          <View
-            style={{
+          <Pressable
+            onPress={() => router.push('/me/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Edit your profile"
+            style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
               gap: Spacing.md,
-              backgroundColor: colors.surface,
+              backgroundColor: pressed ? colors.surfacePressed : colors.surface,
               borderRadius: Radius.lg,
               padding: Spacing.md,
               marginTop: Spacing.md,
-            }}>
+            })}>
             <Avatar name={profile?.name ?? 'You'} photoURL={profile?.photoURL} size={64} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="title3">{profile?.name ?? 'Your profile'}</Text>
@@ -113,7 +116,8 @@ export default function MeScreen() {
                 </Text>
               ) : null}
             </View>
-          </View>
+            <Chevron />
+          </Pressable>
 
           <SectionHeader>My conference</SectionHeader>
           <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>

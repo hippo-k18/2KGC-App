@@ -16,7 +16,11 @@
     "import:whova": "npm run import:whova --workspace=@kgc/scripts --",
     "test": "vitest run scripts/src",
     "claims": "npm run claims --workspace=@kgc/scripts --",
-    "dev:emulators": "firebase emulators:start --only firestore,auth"
+    "dev:emulators": "firebase emulators:start --only firestore,auth",
+    "web": "npm run web --workspace=app",
+    "ios": "npm run ios --workspace=app",
+    "android": "npm run android --workspace=app",
+    "dev": "npm run start --workspace=app"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
