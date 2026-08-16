@@ -96,7 +96,7 @@ export default function ThreadScreen() {
               <View
                 style={{
                   alignSelf: mine ? 'flex-end' : 'flex-start',
-                  backgroundColor: mine ? colors.tint : colors.surface,
+                  backgroundColor: mine ? colors.accent : colors.surface,
                   borderRadius: 18,
                   paddingHorizontal: 14,
                   paddingVertical: 9,

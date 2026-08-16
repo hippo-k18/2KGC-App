@@ -44,7 +44,7 @@ export default function MessagesScreen() {
                 unread > 0 ? (
                   <View
                     style={{
-                      backgroundColor: colors.tint,
+                      backgroundColor: colors.dangerFill,
                       borderRadius: Radius.pill,
                       minWidth: 22,
                       height: 22,

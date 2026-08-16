@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 
 import { ListRow, SectionHeader } from '@/components/list-row';
 import { MessagesButton } from '@/components/messages-button';
+import { Chevron } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { SessionCard } from '@/components/session-card';
 import { Text } from '@/components/text';
@@ -129,10 +130,3 @@ export default function HomeScreen() {
   );
 }
 
-function Chevron() {
-  return (
-    <Text variant="body" tone="tertiary" accessibilityElementsHidden>
-      ›
-    </Text>
-  );
-}

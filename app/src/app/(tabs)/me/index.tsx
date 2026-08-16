@@ -7,6 +7,7 @@ import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 
 import { Avatar } from '@/components/avatar';
 import { ListRow, SectionHeader } from '@/components/list-row';
+import { Chevron } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -191,10 +192,3 @@ export default function MeScreen() {
   );
 }
 
-function Chevron() {
-  return (
-    <Text variant="body" tone="tertiary" accessibilityElementsHidden>
-      ›
-    </Text>
-  );
-}

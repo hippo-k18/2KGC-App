@@ -88,7 +88,8 @@ export default function PeopleScreen() {
               backgroundColor: colors.surface,
               borderRadius: Radius.md,
               paddingHorizontal: 12,
-              height: 38,
+              minHeight: 38,
+              paddingVertical: Spacing.sm,
               fontSize: 17,
               color: colors.text,
             }}

@@ -6,6 +6,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { COLLECTIONS, type SessionDoc, type SpeakerDoc, type WithId } from '@kgc/shared';
 
 import { EmptyState } from '@/components/empty-state';
+import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -114,7 +115,7 @@ export default function SessionDetailScreen() {
           accessibilityState={{ selected: saved }}
           accessibilityLabel={saved ? 'Remove from my schedule' : 'Add to my schedule'}
           style={({ pressed }) => ({
-            backgroundColor: saved ? colors.surface : colors.tint,
+            backgroundColor: saved ? colors.surface : colors.accent,
             borderWidth: 1,
             borderColor: saved ? colors.tint : colors.tint,
             borderRadius: Radius.md,
@@ -124,9 +125,15 @@ export default function SessionDetailScreen() {
             justifyContent: 'center',
             opacity: pressed ? 0.8 : 1,
           })}>
-          <Text variant="heading" tone={saved ? 'tint' : 'onAccent'}>
-            {saved ? '★  In my schedule' : '+  Add to my schedule'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+            <Icon
+              name={saved ? 'star.fill' : 'star'}
+              color={saved ? colors.tint : colors.onAccent}
+            />
+            <Text variant="heading" tone={saved ? 'tint' : 'onAccent'}>
+              {saved ? 'In my schedule' : 'Add to my schedule'}
+            </Text>
+          </View>
         </Pressable>
 
         {session.description ? (

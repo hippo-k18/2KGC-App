@@ -88,7 +88,7 @@ export default function PersonScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Message ${person.name}`}
             style={({ pressed }) => ({
-              backgroundColor: colors.tint,
+              backgroundColor: colors.accent,
               opacity: pressed ? 0.85 : 1,
               borderRadius: Radius.md,
               height: 50,

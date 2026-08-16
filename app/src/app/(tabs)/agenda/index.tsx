@@ -84,7 +84,10 @@ export default function AgendaScreen() {
               backgroundColor: colors.surface,
               borderRadius: Radius.md,
               paddingHorizontal: 12,
-              height: 38,
+              // minHeight, not height: a fixed box clips its own text once
+              // Dynamic Type grows past the default.
+              minHeight: 38,
+              paddingVertical: Spacing.sm,
               fontSize: 17,
               color: colors.text,
             }}

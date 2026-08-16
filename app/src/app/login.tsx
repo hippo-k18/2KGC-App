@@ -139,7 +139,7 @@ export default function LoginScreen() {
           accessibilityRole="button"
           accessibilityLabel="Sign in"
           style={({ pressed }) => ({
-            backgroundColor: colors.tint,
+            backgroundColor: colors.accent,
             opacity: busy || !email || !password ? 0.5 : pressed ? 0.85 : 1,
             borderRadius: Radius.md,
             alignItems: 'center',
