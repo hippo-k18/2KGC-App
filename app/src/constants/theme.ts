@@ -2,101 +2,100 @@
  * Palette and layout scale. Every screen pulls colours from `useTheme()` rather
  * than hard-coding hex values, so dark mode needs no per-screen work.
  *
- * The blues are KGC's own, lifted from knowledgegraph.tech: #2B6CB0 primary and
- * #3182CE lighter. The greys are the iOS system scale rather than a bespoke one,
- * because the target is a native-feeling Apple interface — matching the platform
- * reads as considered, and inventing a grey ramp reads as a website in a phone.
+ * ## Where these came from
  *
- * Deliberately flat. The only gradient anywhere in this app is inside the KGC
- * logo itself, which is the brand's own artwork; the chrome around it is solid
- * fills and hairline rules.
+ * Sampled from screenshots of the real Whova app running the real KGC 2026
+ * event, rather than guessed. Method, for anyone repeating it: a screenshot is
+ * ~85% white, so a plain colour histogram just returns white. Filtering pixels
+ * by HSV saturation (> 0.25) isolates the design system's actual colours, and
+ * quantising to a coarse grid merges antialiasing variants of one swatch into a
+ * single bucket instead of scattering it across hundreds of near-identical
+ * counts. That yields Whova's chrome exactly: header `#2069BC`, accent
+ * `#24A8E4`, badge `#F0604E`, amber banner `#F2B24A`, search field `#E3E3E5`.
  *
- * ## Contrast policy
+ * ## Where we deliberately differ
  *
- * Every foreground token clears **WCAG 2.1 AA (4.5:1)** against every resting
- * background it can land on — `surface`, `background`/`groupedBackground` and
- * `tintSoft` — because the type it carries is 13–17pt and none of it qualifies
- * as "large text". `textSecondary` and `textTertiary` additionally clear 4.5:1
- * against `surfacePressed`, since a ListRow held under a thumb is still being
- * read. Measured ratios are recorded per token below; they were computed with
- * the WCAG relative-luminance formula, not eyeballed.
+ * Three of Whova's own pairings fail WCAG AA, and they are not marginal:
  *
- * `surfacePressed` is a transient state, so the semantic colours (`danger`,
- * `success`, `warning`) are allowed to sit at ~4.1–4.3:1 there; their resting
- * ratios are all ≥ 4.5:1 and they are the Apple HIG "accessible" variants.
+ *   white on `#24A8E4` (selected chip)  2.69:1
+ *   white on `#F0604E` (unread badge)   3.24:1
+ *   white on `#F2B24A` (amber banner)   1.87:1
  *
- * Fills carry a separate token from foregrounds. `tint` is the brand colour for
- * *text, icons and the tab bar*; `accent` is the brand colour for a *solid fill
- * behind `onAccent` text*. In light mode they are the same value. In dark they
- * cannot be: a blue readable as text on #1C1C1E has too high a luminance for
- * white to sit on it (#4A9EE8 vs white is 2.86:1), and a blue dark enough for
- * white is unreadable as text. Same reason `dangerFill` exists apart from
- * `danger`.
+ * Copying those would be copying a defect. Each is fixed by holding Whova's hue
+ * and moving only luminance until white clears 4.5:1 — so it still reads as the
+ * same colour at a glance. The amber banner keeps Whova's bright fill and takes
+ * near-black text instead, because darkening amber far enough for white turns it
+ * brown and loses the point of the banner.
+ *
+ * Deliberately flat. The only gradients are inside the KGC logo and the hero
+ * artwork; the chrome around them is solid fills and hairline rules.
  */
 
 import { Platform } from 'react-native';
 
-/** KGC brand, from the conference site. */
+/** Whova's chrome, sampled. `*Raw` values are Whova's exact pixels. */
 export const Brand = {
-  /** Primary. Buttons, active state, links. */
-  blue: '#2B6CB0',
-  /** Lighter blue, for dark mode and secondary emphasis. */
-  blueLight: '#3182CE',
-  /** The teal end of the logo's gradient. Accents only, never large fills. */
+  /** Header, primary buttons, active tab. white-on-this is 5.51:1. */
+  blue: '#2069BC',
+  /** Whova's bright accent. Decorative only — see `accent` for text-bearing fills. */
+  accentRaw: '#24A8E4',
+  /** Same hue as Whova's accent, luminance dropped until white passes AA. */
+  accent: '#1B7EAB',
+  /** Pressed / status-bar navy, sampled. */
+  blueDark: '#0C4884',
+  /** KGC's own brand blue from knowledgegraph.tech. */
+  kgc: '#2B6CB0',
+  /** The teal end of the KGC logo gradient. */
   teal: '#3AAFA9',
-  /** The navy end of the logo's gradient. */
-  navy: '#2A4B8D',
+} as const;
+
+/**
+ * Category tile tints, in Whova's style: a pale fill with a saturated glyph.
+ * Each pair is checked — the glyph clears 4.5:1 on its own tile.
+ */
+export const CategoryTints = {
+  blue: { bg: '#DCE9F7', fg: '#14538F' },
+  purple: { bg: '#EADDF5', fg: '#5B21A8' },
+  red: { bg: '#FADCD7', fg: '#A32A18' },
+  green: { bg: '#D9EFDD', fg: '#1B6B33' },
+  amber: { bg: '#FBEBCB', fg: '#7A5310' },
+  orange: { bg: '#FBE0D2', fg: '#96410F' },
+  teal: { bg: '#D6EDEC', fg: '#12615D' },
 } as const;
 
 export const Colors = {
   light: {
-    /** Behind grouped content — iOS convention is grey behind white cards. */
     background: '#F2F2F7',
-    /** Cards, list rows, anything raised off the background. */
     surface: '#FFFFFF',
-    /** Pressed state for a surface row. */
     surfacePressed: '#E5E5EA',
     groupedBackground: '#F2F2F7',
-    /** 21.00:1 on surface · 18.82 on background · 16.73 on pressed. */
+    /** Whova's blue header. Content on it uses `onHeader`. */
+    header: Brand.blue,
+    onHeader: '#FFFFFF',
+    /** The search field that sits inside the blue header. */
+    headerField: '#E3E3E5',
+    /** 21.00:1 on surface. */
     text: '#000000',
-    /**
-     * 9.12:1 on surface · 8.18 on background · 7.27 on pressed · 7.94 on tintSoft.
-     * Was #6B7280 (4.83 / 4.33 / 3.85 / 4.20) — passed only against white, and
-     * it was a Tailwind blue-grey rather than an iOS one.
-     */
+    /** 9.12:1 on surface · 8.18 on background · 7.27 on pressed. */
     textSecondary: '#48484A',
-    /**
-     * Third-level text: timestamps, metadata, session end times, unread counts.
-     * 5.99:1 on surface · 5.37 on background · 4.77 on pressed · 5.21 on tintSoft.
-     * Was #9CA3AF — **2.54:1 on white**, less than a third of what 13pt needs.
-     * iOS's own tertiaryLabel is lighter still; it is legible on device only
-     * because Apple pairs it with Increase Contrast. This is systemGray2's
-     * dark-side value, which is the closest real Apple grey that clears AA.
-     */
+    /** 5.99:1 on surface · 5.37 on background · 4.77 on pressed. */
     textTertiary: '#636366',
-    /** Hairline separators. Rendered at 0.5pt, not 1. Non-text, 1.52:1. */
     border: '#D1D1D6',
-    /** Even lighter rule, for separators inside a card. Non-text, 1.26:1. */
     separator: '#E5E5EA',
-    /** Brand as *foreground*: links, tinted text, tab bar. 5.42:1 on surface. */
+    /** Brand as *foreground*: links, tinted text. 5.51:1 on surface. */
     tint: Brand.blue,
-    /** Brand as a *solid fill* under `onAccent`. white-on-fill 5.42:1. */
+    /** Brand as a *solid fill* under `onAccent`. */
     accent: Brand.blue,
-    /** Text/icons drawn on top of `accent`, `dangerFill` or an avatar swatch. */
     onAccent: '#FFFFFF',
-    /** Subtle tinted fill — selected chips, badges. */
-    tintSoft: '#E8F0F9',
-    /**
-     * Destructive *text* (a "Sign out" row). Apple's accessible red.
-     * 5.38:1 on surface · 4.83 on background · 4.29 on pressed · 4.68 on tintSoft.
-     * Was #FF3B30 — 3.55:1 on white.
-     */
+    tintSoft: '#E1ECF8',
+    /** Whova's amber promo banner, with near-black text — 7.43:1. */
+    banner: '#F2B24A',
+    onBanner: '#3A2A05',
+    /** Destructive text. 5.38:1 on surface. */
     danger: '#D70015',
-    /** Destructive *fill* (the unread badge). white-on-fill 6.12:1. */
-    dangerFill: '#C7000B',
-    /** 5.40:1 on surface · 4.84 on background · 4.30 on pressed. Was #34C759, 2.22:1. */
+    /** Unread badges: Whova's hue, luminance fixed. white-on-this 4.51:1. */
+    dangerFill: '#C75041',
     success: '#1E7A34',
-    /** 5.20:1 on surface · 4.66 on background · 4.14 on pressed. Was #FF9500, 2.20:1. */
     warning: '#B25000',
   },
   dark: {
@@ -104,54 +103,42 @@ export const Colors = {
     surface: '#1C1C1E',
     surfacePressed: '#2C2C2E',
     groupedBackground: '#000000',
-    /** 17.01:1 on surface · 21.00 on background · 13.94 on pressed. */
+    /** Held at Whova's blue in dark too — the header is the brand. */
+    header: Brand.blue,
+    onHeader: '#FFFFFF',
+    headerField: '#2C2C2E',
     text: '#FFFFFF',
-    /** 7.69:1 on surface · 9.50 on background · 6.30 on pressed · 6.51 on tintSoft. */
+    /** 7.69:1 on surface · 9.50 on background. */
     textSecondary: '#AEAEB2',
-    /**
-     * 5.94:1 on surface · 7.33 on background · 4.86 on pressed · 5.02 on tintSoft.
-     * Was #6B6B70 — 3.21:1 on surface, 2.63 on a pressed row.
-     */
+    /** 5.94:1 on surface · 7.33 on background. */
     textTertiary: '#98989F',
     border: '#38383A',
     separator: '#2C2C2E',
     /**
-     * Brand as *foreground*. Lifted for contrast on black — #2B6CB0 fails AA
-     * against a dark surface. 5.95:1 on surface · 7.35 on background.
+     * Brand as *foreground*, lifted for a dark surface — #2069BC fails AA there.
+     * 5.95:1 on surface.
      */
     tint: '#4A9EE8',
     /**
-     * Brand as a *solid fill*. Deliberately NOT `tint`: white on #4A9EE8 is
-     * 2.86:1. white-on-fill 5.14:1, and the fill itself clears 3:1 against
-     * surface (3.31) and background (4.08) so its edge is visible.
+     * Brand as a *solid fill*. Deliberately not `tint`: white on #4A9EE8 is
+     * 2.86:1. A blue readable as text on #1C1C1E is too light to carry white.
      */
     accent: '#1F6FBF',
     onAccent: '#FFFFFF',
-    tintSoft: '#1B2B3D',
-    /** 6.03:1 on surface · 7.45 on background · 4.94 on pressed. Was #FF453A, 4.99/4.09. */
+    tintSoft: '#16283D',
+    banner: '#C98F30',
+    onBanner: '#1A1200',
     danger: '#FF6961',
-    /** white-on-fill 5.01:1, fill vs surface 3.40:1. */
     dangerFill: '#D9202B',
-    /** 8.42:1 on surface · 10.39 on background · 6.89 on pressed. */
     success: '#30D158',
-    /** 8.28:1 on surface · 10.22 on background · 6.78 on pressed. */
     warning: '#FF9F0A',
   },
 } as const;
 
 /**
- * Avatar initial swatches. Lives here rather than in `avatar.tsx` because it is
- * palette, and nothing outside this file may spell a hex value.
- *
- * Every swatch carries white initials, so every one clears AA against #FFFFFF:
- * blue 5.42 · teal 6.08 · violet 5.70 · amber 5.77 · red 5.91 · green 5.88 ·
- * cyan 6.47. The previous set was four failures out of seven (teal #3AAFA9 at
- * 2.66:1, amber #D97706 at 3.19, green #059669 at 3.77, cyan #0891B2 at 3.68).
- *
- * Scheme-independent: the swatch *is* the background, so only the white-on-swatch
- * pair matters. Against a dark surface the circles sit at 2.6–3.5:1, which is a
- * decorative shape boundary rather than an information-bearing one — the initials
- * inside it are what must be legible, and they are.
+ * Avatar initial swatches. Every one carries white initials and clears AA
+ * against white: blue 5.42 · teal 6.08 · violet 5.70 · amber 5.77 · red 5.91 ·
+ * green 5.88 · cyan 6.47.
  */
 export const AvatarPalette = [
   '#2B6CB0',
@@ -181,7 +168,7 @@ export const Spacing = {
 
 /** iOS uses larger corner radii than the web. 10 is a list row, 14 a card. */
 export const Radius = {
-  sm: 8,
+  sm: 6,
   md: 10,
   lg: 14,
   xl: 20,
@@ -190,9 +177,8 @@ export const Radius = {
 
 /**
  * Minimum tappable edge. Apple's HIG and Android's Material both land on 44pt
- * (Material says 48dp; 44 is the stricter shared floor for iOS). Controls that
- * are visually smaller than this must make up the difference with `hitSlop`
- * rather than by growing — see `FilterChip`.
+ * (Material says 48dp; 44 is the stricter shared floor). Controls smaller than
+ * this must make up the difference with `hitSlop` rather than by growing.
  */
 export const HIT_TARGET = 44;
 
