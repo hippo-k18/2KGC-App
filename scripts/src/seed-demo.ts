@@ -9,7 +9,7 @@
  * database whose rules have not been through a full review — the guest list is
  * the most sensitive asset here, and a prototype is exactly where it leaks.
  */
-import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, TIME_ZONE } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, TIME_ZONE, threadIdFor } from '@kgc/shared';
 import { Timestamp } from 'firebase-admin/firestore';
 
 import {
@@ -226,6 +226,58 @@ async function main() {
     });
   });
 
+  // --- conversations -------------------------------------------------------
+  //
+  // The inbox demos terribly empty, and "no messages" is also the one state that
+  // cannot show whether the unread badge, the read/unread weighting or the date
+  // formatting work. Thread ids are the two uids sorted and joined with `_`,
+  // which is what lets the security rules prove membership from the path.
+  const ME = 'demo_000';
+  const CONVERSATIONS = [
+    { with: 'demo_003', unread: 2, lines: [
+      [1, 'Enjoyed your talk on provenance — do you have the slides?'],
+      [0, 'Thanks! I will put them in the session materials tonight.'],
+      [1, 'Perfect. Are you around for the reception on Tuesday?'],
+    ]},
+    { with: 'demo_011', unread: 0, lines: [
+      [0, 'We are doing an informal SHACL lunch on Wednesday if you fancy it.'],
+      [1, 'Count me in. Outside VEEC?'],
+    ]},
+    { with: 'demo_025', unread: 1, lines: [
+      [1, 'Are you taking the tram over on Monday morning?'],
+    ]},
+  ] as const;
+
+  CONVERSATIONS.forEach((c, ci) => {
+    const threadId = threadIdFor(ME, c.with);
+    const last = c.lines[c.lines.length - 1];
+    // Spread the threads across recent days so the inbox exercises every branch
+    // of the date formatter — a time today, a weekday, and a full date.
+    const daysAgo = ci * 3;
+    const when = Timestamp.fromMillis(Date.now() - daysAgo * 86_400_000);
+
+    push(COLLECTIONS.threads, threadId, {
+      eventId: EVENT_ID,
+      participantIds: [ME, c.with].sort(),
+      lastMessage: last[1],
+      lastMessageAt: when,
+      lastSenderId: last[0] === 0 ? ME : c.with,
+      unread: { [ME]: c.unread, [c.with]: 0 },
+    });
+
+    c.lines.forEach((line, li) => {
+      writes.push({
+        collection: `${COLLECTIONS.threads}/${threadId}/${SUBCOLLECTIONS.messages}`,
+        id: `seed-msg-${ci}-${li}`,
+        data: {
+          senderId: line[0] === 0 ? ME : c.with,
+          body: line[1],
+          sentAt: Timestamp.fromMillis(when.toMillis() - (c.lines.length - li) * 600_000),
+        },
+      });
+    });
+  });
+
   // --- community, announcements ------------------------------------------
   COMMUNITY_POSTS.forEach((p, i) => {
     push(COLLECTIONS.communityPosts, `seed-post-${i}`, {
@@ -261,6 +313,7 @@ async function main() {
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts, ${ANNOUNCEMENTS.length} announcements`);
   console.log(`  Q&A and a poll on ${keynotes.length} keynotes`);
+  console.log(`  ${CONVERSATIONS.length} conversations in the inbox`);
   console.log(`\n  ${count} documents written${pruned ? `, ${pruned} stale removed` : ''}.\n`);
   console.log('  Tracks, rooms, ticket tiers and sponsor tiers are REAL.');
   console.log('  Session titles, abstracts and all people are PLACEHOLDERS.');

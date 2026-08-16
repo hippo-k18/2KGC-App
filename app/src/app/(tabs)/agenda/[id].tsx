@@ -11,7 +11,7 @@ import { SessionPoll } from '@/components/session-poll';
 import { SessionQA } from '@/components/session-qa';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDayTab, formatTime } from '@/lib/data/sessions';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
@@ -111,29 +111,36 @@ export default function SessionDetailScreen() {
           ) : null}
         </View>
 
+        {/*
+          Worded and drawn to match the control on every agenda row — same verb,
+          same calendar-plus glyph. It was "Add to my schedule" with a star here
+          and "Add to Agenda" with a calendar in the list, which reads as two
+          different features to anyone who has not written the code.
+        */}
         <Pressable
           onPress={() => toggle(session.id)}
           accessibilityRole="button"
           accessibilityState={{ selected: saved }}
-          accessibilityLabel={saved ? 'Remove from my schedule' : 'Add to my schedule'}
+          accessibilityLabel={saved ? 'Remove from my agenda' : 'Add to my agenda'}
           style={({ pressed }) => ({
             backgroundColor: saved ? colors.surface : colors.accent,
             borderWidth: 1,
-            borderColor: saved ? colors.tint : colors.tint,
+            borderColor: colors.tint,
             borderRadius: Radius.md,
             paddingVertical: Spacing.md,
             alignItems: 'center',
-            minHeight: 48,
+            minHeight: HIT_TARGET,
             justifyContent: 'center',
             opacity: pressed ? 0.8 : 1,
           })}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
             <Icon
-              name={saved ? 'star.fill' : 'star'}
+              name={saved ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
+              size={20}
               color={saved ? colors.tint : colors.onAccent}
             />
             <Text variant="heading" tone={saved ? 'tint' : 'onAccent'}>
-              {saved ? 'In my schedule' : 'Add to my schedule'}
+              {saved ? 'In My Agenda' : 'Add to Agenda'}
             </Text>
           </View>
         </Pressable>

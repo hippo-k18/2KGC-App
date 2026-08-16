@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
-import { collection, query, where } from 'firebase/firestore';
+import { useCallback, useMemo } from 'react';
+import { collection, deleteDoc, doc, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
 import {
   COLLECTIONS,
   EVENT_ID,
+  SUBCOLLECTIONS,
   type DirectoryDoc,
   type SpeakerDoc,
   type SponsorDoc,
@@ -11,7 +12,9 @@ import {
 } from '@kgc/shared';
 
 import { getDb } from '@/lib/firebase/client';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { useCollection } from '@/lib/data/use-collection';
+import { runWrite, type WriteResult } from '@/lib/data/write';
 
 export type DirectoryEntry = WithId<DirectoryDoc>;
 export type Speaker = WithId<SpeakerDoc>;
@@ -99,6 +102,57 @@ export function useSponsors() {
       a.name.localeCompare(b.name),
   );
   return { sponsors: data, loading };
+}
+
+/**
+ * Bookmarked attendees — Whova's star on a directory row.
+ *
+ * `users/{uid}/savedContacts/{contactUid}`, keyed by the person rather than an
+ * auto id, so bookmarking twice is idempotent and "is this bookmarked?" is a set
+ * membership test instead of a query. The model and the security rule for this
+ * both already existed; only the seam was missing, which is why the star could
+ * not be drawn.
+ *
+ * Private by construction: the rule permits only the owner to read or write the
+ * subcollection, so who you bookmarked is not visible to the person bookmarked.
+ */
+export function useSavedContacts() {
+  const { user } = useAuth();
+
+  const { data } = useCollection<string>(
+    () =>
+      collection(
+        getDb(),
+        COLLECTIONS.users,
+        user?.uid ?? '_',
+        SUBCOLLECTIONS.savedContacts,
+      ),
+    [user?.uid],
+    (id) => id,
+  );
+
+  const saved = useMemo(() => new Set(data ?? []), [data]);
+
+  const toggle = useCallback(
+    async (contactUid: string): Promise<WriteResult> => {
+      if (!user) return { ok: false, error: new Error('Not signed in') };
+      const ref = doc(
+        getDb(),
+        COLLECTIONS.users,
+        user.uid,
+        SUBCOLLECTIONS.savedContacts,
+        contactUid,
+      );
+      return saved.has(contactUid)
+        ? runWrite('remove bookmark', () => deleteDoc(ref))
+        : runWrite('bookmark attendee', () =>
+            setDoc(ref, { contactUid, savedAt: serverTimestamp() }),
+          );
+    },
+    [user, saved],
+  );
+
+  return { saved, toggle, isSaved: (uid: string) => saved.has(uid) };
 }
 
 /** Initials for the avatar fallback. Storage may not be provisioned on Spark. */

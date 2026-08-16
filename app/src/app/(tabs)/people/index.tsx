@@ -1,26 +1,57 @@
-import { useMemo, useState } from 'react';
-import { FlatList, ScrollView, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { FlatList, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { threadIdFor } from '@kgc/shared';
+
+import { DECORATIVE } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { EmptyState } from '@/components/empty-state';
 import { FilterChip } from '@/components/filter-chip';
-import { ListRow } from '@/components/list-row';
-import { MessagesButton } from '@/components/messages-button';
-import { ScreenHeader } from '@/components/screen-header';
+import { Chevron, Icon } from '@/components/icon';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { WhovaHeader } from '@/components/whova-header';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   searchAttendees,
   useDirectory,
+  useSavedContacts,
   useInterests,
   useSpeakers,
   useSponsors,
+  type DirectoryEntry,
+  type Speaker,
+  type Sponsor,
 } from '@/lib/data/directory';
 import { useAuth } from '@/lib/auth/auth-provider';
 
-type Segment = 'attendees' | 'speakers' | 'sponsors';
+const SEGMENTS = ['Attendees', 'Speakers', 'Sponsors'] as const;
+
+/** Avatar in a Whova directory row — larger than the 44pt list-row default. */
+const ROW_AVATAR = 52;
+/** Width of the A–Z rail. Whova's is about this; iOS's own index is 15–20pt. */
+const RAIL_WIDTH = 24;
+/** Point size of a rail letter, held fixed — see `AlphabetRail`. */
+const RAIL_LETTER = 11;
+/** Minimum drawn height of one rail letter. The rail distributes the rest. */
+const RAIL_LETTER_HEIGHT = 13;
+
+/**
+ * One item in the flattened directory list.
+ *
+ * A `SectionList` would express the A–Z sections more directly, but the index
+ * rail has to turn a letter into a scroll position, and `scrollToLocation` on a
+ * `SectionList` needs `getItemLayout` to be correct for *every* row — which it
+ * cannot be, because these rows are text that grows with Dynamic Type. Flat
+ * indices plus `scrollToIndex` with an `onScrollToIndexFailed` fallback works
+ * whatever the rows actually measure.
+ */
+type Row =
+  | { kind: 'index'; key: string; letter: string }
+  | { kind: 'attendee'; key: string; person: DirectoryEntry }
+  | { kind: 'speaker'; key: string; speaker: Speaker }
+  | { kind: 'sponsor'; key: string; sponsor: Sponsor };
 
 /**
  * People — attendees, speakers and sponsors as segments of one tab.
@@ -28,32 +59,60 @@ type Segment = 'attendees' | 'speakers' | 'sponsors';
  * Whova scatters these across three places, two of which are behind a tile grid
  * most attendees never open. They are the same question — "who is here?" — so
  * they belong behind one control.
+ *
+ * The layout is Whova's Attendees screen: blue header with the search field in
+ * it, a "Browse attendees by" chip row, a count heading, then rows of avatar,
+ * name, affiliation and category tags with an A–Z rail down the right edge.
+ *
+ * ## What is deliberately not here
+ *
+ * **The bookmark star.** `users/{uid}/savedContacts/{contactUid}` is modelled
+ * and `firestore.rules` already allows exactly that write — but no hook in
+ * `lib/data/` reads or writes it, and a screen must not open its own listener
+ * (that is how two composite-index bugs shipped). A star that filled in and
+ * forgot itself on the next render would be a lie about saved contacts, so the
+ * control is absent until `lib/data/directory.ts` grows a `useSavedContacts()`.
+ * The "Bookmarked" filter chip is missing for the same reason.
+ *
+ * **"Recommended", and its red badge.** That is a matching service, not a
+ * filter — there is no interest-similarity score anywhere in this data model.
+ *
+ * **Location.** `DirectoryDoc` carries name, title, company, photo and
+ * interests, and nothing else; Whova's third grey line has no field behind it.
+ *
+ * "Say Hi" *is* here, because it is real: it opens the 1:1 thread with that
+ * attendee, whose id is derived from the two uids and needs no lookup.
  */
 export default function PeopleScreen() {
   const colors = useTheme();
   const router = useRouter();
-  const { user } = useAuth();
-  const [segment, setSegment] = useState<Segment>('attendees');
+  const { user, profile } = useAuth();
+  const [segment, setSegment] = useState(0);
   const [search, setSearch] = useState('');
   const [interest, setInterest] = useState<string | null>(null);
+  const listRef = useRef<FlatList<Row>>(null);
 
   const { people, loading } = useDirectory();
+  const { isSaved, toggle: toggleBookmark } = useSavedContacts();
+  // Whova's "Bookmarked" chip. Real, because the bookmark itself is real.
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const { speakers } = useSpeakers();
   const { sponsors } = useSponsors();
   const interests = useInterests(people);
 
-  const visiblePeople = useMemo(
-    () => (people ? searchAttendees(people, search, interest) : []),
-    [people, search, interest],
-  );
+  const visiblePeople = useMemo(() => {
+    if (!people) return [];
+    const found = searchAttendees(people, search, interest);
+    // Applied after the search seam rather than inside it: bookmarks are a
+    // per-user overlay on the directory, not a property of it, and
+    // `searchAttendees` has to stay the one swappable implementation.
+    return bookmarkedOnly ? found.filter((p) => isSaved(p.uid)) : found;
+  }, [people, search, interest, bookmarkedOnly, isSaved]);
 
   const visibleSpeakers = useMemo(() => {
     const n = search.trim().toLowerCase();
     return (speakers ?? []).filter(
-      (s) =>
-        !n ||
-        s.name.toLowerCase().includes(n) ||
-        (s.company ?? '').toLowerCase().includes(n),
+      (s) => !n || s.name.toLowerCase().includes(n) || (s.company ?? '').toLowerCase().includes(n),
     );
   }, [speakers, search]);
 
@@ -62,162 +121,554 @@ export default function PeopleScreen() {
     return (sponsors ?? []).filter((s) => !n || s.name.toLowerCase().includes(n));
   }, [sponsors, search]);
 
+  /**
+   * The flat list, plus where each letter's section starts.
+   *
+   * Only the attendee segment is sectioned. Speakers are few enough to scroll,
+   * and sponsors are ordered by tier — a commercial commitment that an
+   * alphabetical rail would quietly reorder.
+   */
+  const { rows, letterIndex } = useMemo(() => {
+    if (segment === 1) {
+      return {
+        rows: visibleSpeakers.map<Row>((s) => ({ kind: 'speaker', key: s.id, speaker: s })),
+        letterIndex: new Map<string, number>(),
+      };
+    }
+    if (segment === 2) {
+      return {
+        rows: visibleSponsors.map<Row>((s) => ({ kind: 'sponsor', key: s.id, sponsor: s })),
+        letterIndex: new Map<string, number>(),
+      };
+    }
+
+    const out: Row[] = [];
+    const index = new Map<string, number>();
+    let current = '';
+    for (const person of visiblePeople) {
+      const letter = initialLetter(person.name);
+      if (letter !== current) {
+        current = letter;
+        index.set(letter, out.length);
+        out.push({ kind: 'index', key: `index-${letter}`, letter });
+      }
+      out.push({ kind: 'attendee', key: person.id, person });
+    }
+    return { rows: out, letterIndex: index };
+  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors]);
+
   const count =
-    segment === 'attendees'
-      ? visiblePeople.length
-      : segment === 'speakers'
-        ? visibleSpeakers.length
-        : visibleSponsors.length;
+    segment === 0 ? visiblePeople.length : segment === 1 ? visibleSpeakers.length : visibleSponsors.length;
+
+  const heading =
+    segment === 0
+      ? `${interest ?? 'All'} Attendees (${count})`
+      : segment === 1
+        ? `Speakers (${count})`
+        : `Sponsors (${count})`;
+
+  // The rail sits *over* the list, so the rows have to keep their right-hand
+  // controls out from under it — Whova insets its rows by exactly this much.
+  const railVisible = segment === 0 && letterIndex.size > 1;
+  const gutterRight = Spacing.md + (railVisible ? RAIL_WIDTH : 0);
+
+  const jumpTo = (letter: string) => {
+    const index = letterIndex.get(letter);
+    if (index === undefined) return;
+    listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
+  };
+
+  /**
+   * Changing what the list *is* has to return it to the top. Without this,
+   * switching from a scrolled-to-the-Zs attendee list to Speakers keeps the
+   * offset and opens on the last four names, which reads as a broken screen.
+   */
+  const toTop = () => listRef.current?.scrollToOffset({ offset: 0, animated: false });
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="People" trailing={<MessagesButton />} />
+      <WhovaHeader
+        title="People"
+        userName={profile?.name ?? 'You'}
+        userPhotoURL={profile?.photoURL}
+        onProfilePress={() => router.push('/me')}
+        actions={[
+          { icon: 'envelope.fill', label: 'Messages', onPress: () => router.push('/messages') },
+        ]}
+        search={{
+          value: search,
+          onChangeText: (next) => {
+            setSearch(next);
+            toTop();
+          },
+          placeholder: `Search ${SEGMENTS[segment].toLowerCase()}`,
+        }}
+        segments={{
+          options: SEGMENTS,
+          value: segment,
+          onChange: (next) => {
+            setSegment(next);
+            setInterest(null);
+            toTop();
+          },
+        }}
+      />
 
-      <View style={{ gap: 12, paddingTop: 12 }}>
-        <View style={{ paddingHorizontal: Spacing.md }}>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder={`Search ${segment}`}
-            placeholderTextColor={colors.textTertiary}
-            accessibilityLabel={`Search ${segment}`}
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-            autoCapitalize="none"
-            style={{
-              backgroundColor: colors.surface,
-              borderRadius: Radius.md,
-              paddingHorizontal: 12,
-              minHeight: 38,
-              paddingVertical: Spacing.sm,
-              fontSize: 17,
-              color: colors.text,
-            }}
-          />
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.sm }}>
-          {(['attendees', 'speakers', 'sponsors'] as Segment[]).map((s) => (
-            <FilterChip
-              key={s}
-              label={s[0].toUpperCase() + s.slice(1)}
-              selected={segment === s}
-              onPress={() => {
-                setSegment(s);
-                setInterest(null);
-              }}
-            />
-          ))}
-        </ScrollView>
-
-        {segment === 'attendees' && interests.length ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.sm }}>
-            <FilterChip
-              label="All interests"
-              selected={interest === null}
-              onPress={() => setInterest(null)}
-            />
-            {interests.map((i) => (
+      <View style={{ backgroundColor: colors.surface }}>
+        {segment === 0 && interests.length ? (
+          <>
+            <Text
+              variant="heading"
+              accessibilityRole="header"
+              style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.sm + Spacing.xs }}>
+              Browse attendees by
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: Spacing.md,
+                paddingVertical: Spacing.sm + Spacing.xs,
+                gap: Spacing.sm,
+              }}>
               <FilterChip
-                key={i}
-                label={i}
-                selected={interest === i}
-                onPress={() => setInterest(interest === i ? null : i)}
+                label="All"
+                role="tab"
+                selected={interest === null && !bookmarkedOnly}
+                onPress={() => {
+                  setInterest(null);
+                  setBookmarkedOnly(false);
+                  toTop();
+                }}
               />
-            ))}
-          </ScrollView>
+              <FilterChip
+                label="Bookmarked"
+                role="tab"
+                selected={bookmarkedOnly}
+                onPress={() => {
+                  setBookmarkedOnly((on) => !on);
+                  setInterest(null);
+                  toTop();
+                }}
+              />
+              {interests.map((i) => (
+                <FilterChip
+                  key={i}
+                  label={i}
+                  role="tab"
+                  selected={interest === i}
+                  onPress={() => {
+                    setInterest(interest === i ? null : i);
+                    toTop();
+                  }}
+                />
+              ))}
+            </ScrollView>
+          </>
         ) : null}
 
-        <View style={{ height: HAIRLINE, backgroundColor: colors.border }} />
+        <Text
+          variant="title3"
+          accessibilityRole="header"
+          style={{
+            paddingHorizontal: Spacing.md,
+            paddingTop: interests.length && segment === 0 ? 0 : Spacing.md,
+            paddingBottom: Spacing.sm + Spacing.xs,
+          }}>
+          {heading}
+        </Text>
       </View>
 
-      <FlatList
-        data={
-          segment === 'attendees'
-            ? visiblePeople
-            : segment === 'speakers'
-              ? visibleSpeakers
-              : visibleSponsors
-        }
-        keyExtractor={(item: any) => item.id}
-        contentContainerStyle={{
-          paddingHorizontal: Spacing.md,
-          paddingTop: Spacing.md,
-          paddingBottom: Spacing.xxl,
-        }}
-        ListHeaderComponent={
-          count ? (
-            <Text
-              variant="label"
-              tone="secondary"
-              style={{ paddingBottom: Spacing.sm, paddingLeft: Spacing.xs }}>
-              {count} {count === 1 ? 'RESULT' : 'RESULTS'}
-            </Text>
-          ) : null
-        }
-        renderItem={({ item, index }) => {
-          const last = index === count - 1;
-          if (segment === 'sponsors') {
-            const s = item as (typeof visibleSponsors)[number];
+      <View style={{ flex: 1 }}>
+        <FlatList
+          ref={listRef}
+          data={rows}
+          keyExtractor={(row) => row.key}
+          contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+          // Without `getItemLayout` — which text that grows with Dynamic Type
+          // makes impossible to state honestly — a jump past the render window
+          // fails. Land on the estimate, then take the exact index once the rows
+          // there have mounted.
+          onScrollToIndexFailed={(info) => {
+            listRef.current?.scrollToOffset({
+              offset: info.averageItemLength * info.index,
+              animated: false,
+            });
+            setTimeout(
+              () => listRef.current?.scrollToIndex({ index: info.index, animated: false }),
+              60,
+            );
+          }}
+          renderItem={({ item }) => {
+            if (item.kind === 'index') return <IndexHeader letter={item.letter} />;
+
+            if (item.kind === 'speaker') {
+              const s = item.speaker;
+              return (
+                <DirectoryRow
+                  gutterRight={gutterRight}
+                  name={s.name}
+                  photoURL={s.photoURL}
+                  lines={[s.title, s.company]}
+                  tags={
+                    s.sessionIds?.length
+                      ? [`${s.sessionIds.length} session${s.sessionIds.length > 1 ? 's' : ''}`]
+                      : []
+                  }
+                  onPress={
+                    // Only a speaker who also holds a ticket has a directory
+                    // profile to open. There is no speaker detail route yet.
+                    s.userId
+                      ? () => router.push({ pathname: '/people/[uid]', params: { uid: s.userId! } })
+                      : undefined
+                  }
+                />
+              );
+            }
+
+            if (item.kind === 'sponsor') {
+              const s = item.sponsor;
+              return (
+                <DirectoryRow
+                  gutterRight={gutterRight}
+                  name={s.name}
+                  photoURL={s.logoURL}
+                  lines={[
+                    s.tier[0].toUpperCase() + s.tier.slice(1),
+                    s.boothLocation ? `Booth ${s.boothLocation}` : undefined,
+                  ]}
+                  tags={s.offers?.slice(0, 2) ?? []}
+                />
+              );
+            }
+
+            const p = item.person;
+            const isMe = p.uid === user?.uid;
             return (
-              <ListRow
-                leading={<Avatar name={s.name} photoURL={s.logoURL} />}
-                title={s.name}
-                subtitle={s.tier[0].toUpperCase() + s.tier.slice(1)}
-                meta={s.boothLocation ? `Booth ${s.boothLocation}` : undefined}
-                first={index === 0}
-                last={last}
+              <DirectoryRow
+                gutterRight={gutterRight}
+                name={isMe ? `${p.name} (you)` : p.name}
+                photoURL={p.photoURL}
+                lines={[p.title, p.company]}
+                tags={p.interests ?? []}
+                onPress={() => router.push({ pathname: '/people/[uid]', params: { uid: p.uid } })}
+                onSayHi={
+                  user && !isMe
+                    ? () =>
+                        router.push({
+                          pathname: '/messages/[threadId]',
+                          params: { threadId: threadIdFor(user.uid, p.uid), to: p.uid },
+                        })
+                    : undefined
+                }
+                sayHiName={p.name}
+                bookmarked={isSaved(p.uid)}
+                onBookmark={user && p.uid !== user.uid ? () => toggleBookmark(p.uid) : undefined}
               />
             );
-          }
-          if (segment === 'speakers') {
-            const s = item as (typeof visibleSpeakers)[number];
-            return (
-              <ListRow
-                leading={<Avatar name={s.name} photoURL={s.photoURL} />}
-                title={s.name}
-                subtitle={[s.title, s.company].filter(Boolean).join(' · ') || undefined}
-                meta={s.sessionIds?.length ? `${s.sessionIds.length} session${s.sessionIds.length > 1 ? 's' : ''}` : undefined}
-                first={index === 0}
-                last={last}
+          }}
+          ListEmptyComponent={
+            loading ? null : (
+              <EmptyState
+                icon="person.2"
+                title={search || interest ? 'No matches' : 'Nobody here yet'}
+                message={
+                  search || interest
+                    ? 'Try a different name, company or category.'
+                    : 'Attendees appear here as they join and opt in.'
+                }
               />
-            );
+            )
           }
-          const p = item as (typeof visiblePeople)[number];
-          return (
-            <ListRow
-              leading={<Avatar name={p.name} photoURL={p.photoURL} />}
-              title={p.name + (p.uid === user?.uid ? '  (you)' : '')}
-              subtitle={[p.title, p.company].filter(Boolean).join(' · ') || undefined}
-              meta={p.interests?.slice(0, 2).join(' · ')}
-              first={index === 0}
-              last={last}
-              onPress={() => router.push({ pathname: '/people/[uid]', params: { uid: p.uid } })}
-            />
-          );
-        }}
-        ListEmptyComponent={
-          loading ? null : (
-            <EmptyState
-              icon="person.2"
-              title={search ? 'No matches' : 'Nobody here yet'}
-              message={
-                search
-                  ? 'Try a different name or company.'
-                  : 'Attendees appear here as they join and opt in.'
-              }
-            />
-          )
-        }
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      />
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        />
+
+        {railVisible ? <AlphabetRail letters={[...letterIndex.keys()]} onJump={jumpTo} /> : null}
+      </View>
     </View>
   );
+}
+
+/**
+ * One directory row, in Whova's shape: photo, name, two grey affiliation lines,
+ * category tags, a chevron at the top right and "Say Hi" at the bottom right.
+ *
+ * The tags are the attendee's `interests`, which is what this app has where
+ * Whova has "Organizers / Exhibitors / Speakers". They are capped at two with a
+ * "+N more" tail, because a data scientist with nine interests would otherwise
+ * push the next attendee off the screen.
+ *
+ * "Say Hi" is a `Pressable` inside the row's own `Pressable`. That nests two
+ * targets, so the inner one gets no `hitSlop` on its left edge — slop there
+ * would extend the message affordance under the company name, and tapping a
+ * name is meant to open a profile.
+ */
+function DirectoryRow({
+  name,
+  photoURL,
+  lines,
+  tags,
+  onPress,
+  onSayHi,
+  sayHiName,
+  onBookmark,
+  bookmarked,
+  gutterRight,
+}: {
+  name: string;
+  photoURL?: string;
+  lines: (string | undefined)[];
+  tags: string[];
+  onPress?: () => void;
+  onSayHi?: () => void;
+  sayHiName?: string;
+  onBookmark?: () => void;
+  bookmarked?: boolean;
+  /** Right padding, widened to clear the A–Z rail when one is drawn. */
+  gutterRight: number;
+}) {
+  const colors = useTheme();
+  const shown = tags.slice(0, 2);
+  const extra = tags.length - shown.length;
+  const detail = lines.filter(Boolean) as string[];
+
+  const body = (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.sm + Spacing.xs,
+        paddingLeft: Spacing.md,
+        paddingRight: gutterRight,
+        paddingVertical: Spacing.md,
+      }}>
+      <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
+
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="heading" numberOfLines={2}>
+          {name}
+        </Text>
+        {detail.map((line) => (
+          <Text key={line} variant="subhead" tone="secondary" numberOfLines={2}>
+            {line}
+          </Text>
+        ))}
+
+        {/*
+          Wraps, and each tag also shrinks. Whova's tags are single words
+          ("Exhibitors", "Speakers") and always fit on one line; KGC's interests
+          are phrases ("Natural Language Processing"), so forcing one line
+          truncated *both* of them to "Health C… | Data Architec…", which is
+          worse than a second line. Wrapping keeps short pairs inline and gives a
+          long label a line of its own; `flexShrink` plus `numberOfLines` is the
+          backstop for a single tag wider than the whole column. The row's
+          `accessibilityLabel` below carries every tag in full either way.
+        */}
+        {shown.length ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: Spacing.xs + 2,
+              paddingTop: Spacing.xs,
+            }}>
+            {shown.map((tag) => (
+              <View
+                key={tag}
+                style={{
+                  flexShrink: 1,
+                  borderWidth: HAIRLINE,
+                  borderColor: colors.border,
+                  borderRadius: Radius.sm,
+                  paddingHorizontal: Spacing.sm,
+                  paddingVertical: 3,
+                }}>
+                <Text variant="caption" tone="secondary" numberOfLines={1}>
+                  {tag}
+                </Text>
+              </View>
+            ))}
+            {extra > 0 ? (
+              <Text variant="caption" tone="tertiary" numberOfLines={1}>
+                + {extra} more
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+
+      <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', gap: Spacing.md }}>
+        {onPress ? (
+          <View {...DECORATIVE}>
+            <Chevron />
+          </View>
+        ) : (
+          <View style={{ width: 16 }} {...DECORATIVE} />
+        )}
+
+        {onBookmark ? (
+          <Pressable
+            onPress={onBookmark}
+            accessibilityRole="button"
+            accessibilityState={{ selected: bookmarked }}
+            accessibilityLabel={
+              bookmarked
+                ? `Remove ${sayHiName ?? 'this attendee'} from your bookmarks`
+                : `Bookmark ${sayHiName ?? 'this attendee'}`
+            }
+            hitSlop={Spacing.sm}
+            style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
+            <Icon
+              name={bookmarked ? 'star.fill' : 'star'}
+              size={20}
+              color={bookmarked ? colors.tint : colors.textTertiary}
+            />
+          </Pressable>
+        ) : null}
+
+        {onSayHi ? (
+          <Pressable
+            onPress={onSayHi}
+            accessibilityRole="button"
+            accessibilityLabel={sayHiName ? `Say hi to ${sayHiName}` : 'Say hi'}
+            accessibilityHint="Opens a message thread"
+            hitSlop={{ top: Spacing.sm, bottom: Spacing.sm, left: 0, right: Spacing.sm }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: Spacing.xs + 2,
+              paddingVertical: Spacing.xs,
+              minHeight: HIT_TARGET - Spacing.md,
+              opacity: pressed ? 0.4 : 1,
+            })}>
+            <Icon name="bubble.left" size={16} color={colors.tint} />
+            <Text variant="subhead" tone="tint" numberOfLines={1}>
+              Say Hi
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  const frame = {
+    borderBottomWidth: HAIRLINE,
+    borderBottomColor: colors.separator,
+  };
+
+  if (!onPress) {
+    return <View style={[{ backgroundColor: colors.surface }, frame]}>{body}</View>;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={[name, ...detail, ...tags].join(', ')}
+      style={({ pressed }) => [
+        { backgroundColor: pressed ? colors.surfacePressed : colors.surface },
+        frame,
+      ]}>
+      {body}
+    </Pressable>
+  );
+}
+
+/** The grey "A" band between sections. A real header, so the rotor can reach it. */
+function IndexHeader({ letter }: { letter: string }) {
+  const colors = useTheme();
+  return (
+    <View
+      style={{
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.xs + 2,
+        backgroundColor: colors.groupedBackground,
+      }}>
+      <Text variant="label" tone="secondary" accessibilityRole="header">
+        {letter}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * The A–Z index down the right edge.
+ *
+ * ## It is a real control, not decoration
+ *
+ * The obvious way to build this is a column of tiny `Text`s, which is what makes
+ * every implementation of it unusable with a screen reader: 26 unlabelled
+ * single characters between the search field and the list. Each letter here is a
+ * button labelled "Jump to A", the rail itself is a `tablist`-free plain group
+ * with its own label, and the letters are only those the visible list actually
+ * contains — jumping to a letter nobody's surname starts with is a dead control,
+ * and a dead control is worse than a missing one.
+ *
+ * ## Targets
+ *
+ * A letter is drawn at 13pt tall, because 26 of them at 44 would be 1,144pt on a
+ * 852pt screen. The rail stretches to the list's full height and distributes the
+ * letters through it, so with the ~15 letters a real directory produces each one
+ * gets 40–50pt of vertical space; `hitSlop` extends every letter 20pt to the
+ * left and to the screen edge on the right, which puts the horizontal target at
+ * 44 even though the drawn strip is 24 wide. Vertical slop is deliberately zero:
+ * adjacent letters share an edge, and overlapping targets in a list of 26 would
+ * mean the letter you land on is not the letter you pressed.
+ *
+ * ## The one place text does not scale
+ *
+ * `allowFontScaling={false}`, for the same reason `Avatar` does it: the rail is
+ * a fixed-height column that cannot grow, and at the largest accessibility sizes
+ * 26 letters at 25pt would be twice the height of the phone. Nothing is lost —
+ * the rail is an accelerator for a list that is fully navigable without it, and
+ * the list's own text scales normally.
+ */
+function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter: string) => void }) {
+  const colors = useTheme();
+
+  return (
+    <View
+      pointerEvents="box-none"
+      accessible={false}
+      accessibilityLabel="Alphabet index"
+      style={{
+        position: 'absolute',
+        top: Spacing.sm,
+        bottom: Spacing.sm,
+        right: 0,
+        width: RAIL_WIDTH,
+        alignItems: 'center',
+        justifyContent: 'space-evenly',
+      }}>
+      {letters.map((letter) => (
+        <Pressable
+          key={letter}
+          onPress={() => onJump(letter)}
+          accessibilityRole="button"
+          accessibilityLabel={`Jump to ${letter === '#' ? 'other' : letter}`}
+          hitSlop={{ top: 0, bottom: 0, left: 20, right: RAIL_WIDTH }}
+          style={({ pressed }) => ({
+            width: RAIL_WIDTH,
+            minHeight: RAIL_LETTER_HEIGHT,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.4 : 1,
+          })}>
+          <Text
+            allowFontScaling={false}
+            style={{ fontSize: RAIL_LETTER, lineHeight: RAIL_LETTER + 2, fontWeight: '600', color: colors.tint }}>
+            {letter}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** First letter of a name, with everything non-alphabetic collected under "#". */
+function initialLetter(name: string): string {
+  const first = name.trim()[0]?.toUpperCase() ?? '#';
+  return first >= 'A' && first <= 'Z' ? first : '#';
 }
