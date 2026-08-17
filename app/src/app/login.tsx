@@ -32,11 +32,61 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  * `registered` custom claim and the security rules that read it are all real, so
  * this screen exercises the same authorization path that ships.
  */
+/**
+ * The demo shortcut: type `demo` / `123` and you are in.
+ *
+ * Firebase Auth will not accept either value literally — it wants an address in
+ * the first field and at least six characters in the second — so this maps them
+ * onto the real seeded credentials. Nothing about the account is weakened: the
+ * password on `demo_000` is still what `npm run claims` set, the custom claims
+ * are real, and the security rules that read them are the same ones that ship.
+ * The only thing that changes is what has to be typed on a stage.
+ *
+ * **It is deliberately confined to the emulator.** `demo` / `123` against a live
+ * project would be a real credential, guessable in two attempts, on an account
+ * that here happens to hold the `organizer` role. Gated this way the shortcut
+ * cannot outlive the demo: point the app at production and the field reverts to
+ * an ordinary email box.
+ */
+const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
+const DEMO_USERNAME = 'demo';
+const DEMO_PASSCODE = '123';
+const DEMO_EMAIL = 'amara.okonkwo@example.test';
+/** Set by `scripts/src/set-claims.ts`; changing it there means changing it here. */
+const DEMO_REAL_PASSWORD = 'kgcdemo2027';
+
+/**
+ * What actually gets sent to Firebase.
+ *
+ * The second branch accepts a bare local part — `kwame.adeyemi` for
+ * `kwame.adeyemi@example.test` — because on a stage the likeliest slip is
+ * dropping the domain, and "that email and password do not match an account" is
+ * a poor thing to be reading aloud to a room.
+ *
+ * It does **not** accept a uid like `demo_004`. The seed derives addresses from
+ * the person's name, not from their uid, so `demo_004@example.test` belongs to
+ * nobody. Worth stating because the uids are the visible handle everywhere else
+ * in this codebase, so the mapping looks like it ought to work.
+ */
+function resolveCredentials(username: string, password: string) {
+  const u = username.trim().toLowerCase();
+
+  if (USE_EMULATOR && u === DEMO_USERNAME && password === DEMO_PASSCODE) {
+    return { email: DEMO_EMAIL, password: DEMO_REAL_PASSWORD };
+  }
+  if (USE_EMULATOR && !u.includes('@') && u) {
+    return { email: `${u}@example.test`, password: password || DEMO_REAL_PASSWORD };
+  }
+  return { email: username.trim(), password };
+}
+
 export default function LoginScreen() {
   const colors = useTheme();
   const { user, loading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Prefilled in emulator mode. The fastest sign-in on stage is one that needs
+  // no typing at all, and the credentials are printed below the form anyway.
+  const [email, setEmail] = useState(USE_EMULATOR ? DEMO_USERNAME : '');
+  const [password, setPassword] = useState(USE_EMULATOR ? DEMO_PASSCODE : '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -47,7 +97,8 @@ export default function LoginScreen() {
     setError(null);
     setBusy(true);
     try {
-      await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+      const creds = resolveCredentials(email, password);
+      await signInWithEmailAndPassword(getFirebaseAuth(), creds.email, creds.password);
       // No navigation here — `useAuth` flips and the redirect above fires.
     } catch (e) {
       const code = (e as { code?: string }).code ?? '';
@@ -104,13 +155,16 @@ export default function LoginScreen() {
             value={email}
             onChangeText={setEmail}
             style={field}
-            placeholder="Email"
+            placeholder={USE_EMULATOR ? 'Username' : 'Email'}
             placeholderTextColor={colors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            accessibilityLabel="Email address"
+            // Not `email-address` in emulator mode: that keyboard leads with an
+            // "@" key for a field whose expected value is the word "demo".
+            keyboardType={USE_EMULATOR ? 'default' : 'email-address'}
+            textContentType={USE_EMULATOR ? 'username' : 'emailAddress'}
+            accessibilityLabel={USE_EMULATOR ? 'Username' : 'Email address'}
+            onSubmitEditing={submit}
           />
 
           <TextInput
@@ -155,11 +209,28 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
-        {process.env.EXPO_PUBLIC_USE_EMULATOR === '1' ? (
-          <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
-            Emulator mode. Seeded accounts use the password kgcdemo2027 —
-            try amara.okonkwo@example.test
-          </Text>
+        {USE_EMULATOR ? (
+          <View style={{ gap: 4 }}>
+            {/*
+              Printed rather than remembered. The fields arrive prefilled, so this
+              is here for the moment someone clears them, or wants to sign in as a
+              second attendee to show a message arriving.
+            */}
+            <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
+              Demo sign-in — username{' '}
+              <Text variant="caption" tone="tint">
+                demo
+              </Text>
+              , password{' '}
+              <Text variant="caption" tone="tint">
+                123
+              </Text>
+            </Text>
+            <Text variant="caption" tone="tertiary" style={{ textAlign: 'center' }}>
+              Any seeded attendee also works, by name — type kwame.adeyemi, or the
+              full {DEMO_EMAIL} — with the password {DEMO_REAL_PASSWORD}.
+            </Text>
+          </View>
         ) : null}
       </Screen>
     </KeyboardAvoidingView>
