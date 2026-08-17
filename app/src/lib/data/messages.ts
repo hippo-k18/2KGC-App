@@ -83,17 +83,29 @@ export function useMessages(threadId: string | undefined): Message[] {
  *
  * The thread id is the two uids sorted and joined with `_`, so two people who
  * message each other simultaneously converge on one conversation instead of
- * creating two. That determinism is also what lets the security rules prove
- * membership from the path without reading the parent document — which is why
- * the message can be written before the thread exists.
+ * creating two. Membership is *not* derivable from that id — uids here contain
+ * the separator — so the rules read `participantIds` off the thread document.
  *
- * The order matters. This used to `getDoc` the thread first, and a read is the
- * one thing that cannot be queued: with no network it rejects with `unavailable`
- * instead of answering "no such document", so the send failed outright and the
- * attendee's text was already gone from the input. Now the message goes first
- * and the thread summary follows, detached, because a write promise settles only
- * on server acknowledgement and awaiting it on conference wifi meant the message
- * was never even queued.
+ * The order matters, twice over.
+ *
+ * This used to `getDoc` the thread first, and a read is the one thing that
+ * cannot be queued: with no network it rejects with `unavailable` instead of
+ * answering "no such document", so the send failed outright and the attendee's
+ * text was already gone from the input. Neither write is awaited before the
+ * other is dispatched, because a write promise settles only on server
+ * acknowledgement and awaiting one on conference wifi meant the next was never
+ * even queued.
+ *
+ * But the *thread summary must be dispatched first*. The `messages` rule proves
+ * membership with `get()` on the parent thread, and `get()` on a document that
+ * does not exist returns null — dereferencing `.data.participantIds` on it is a
+ * "Null value error", which Firestore reports as `permission-denied`. With the
+ * message queued first, every FIRST message to a new contact was rejected: the
+ * text bounced back into the composer, while the summary write that followed
+ * still created the thread, so the recipient got an inbox row and an unread
+ * badge for a message that did not exist. The SDK's mutation queue is FIFO, so
+ * dispatching the thread first is enough — it commits before the message is
+ * evaluated, without either call being awaited.
  */
 export async function sendMessage(
   from: string,
@@ -104,12 +116,6 @@ export async function sendMessage(
   const threadId = threadIdFor(from, to);
   const threadRef = doc(db, COLLECTIONS.threads, threadId);
   const text = body.trim();
-
-  const queued = addDoc(collection(threadRef, SUBCOLLECTIONS.messages), {
-    senderId: from,
-    body: text,
-    sentAt: serverTimestamp(),
-  });
 
   // `setDoc(..., merge)` covers both cases in one write: it creates the thread
   // on first contact and updates the summary afterwards. The rules allow both,
@@ -135,6 +141,12 @@ export async function sendMessage(
       { merge: true },
     ),
   );
+
+  const queued = addDoc(collection(threadRef, SUBCOLLECTIONS.messages), {
+    senderId: from,
+    body: text,
+    sentAt: serverTimestamp(),
+  });
 
   return { ...(await runWrite('send message', () => queued)), threadId };
 }
