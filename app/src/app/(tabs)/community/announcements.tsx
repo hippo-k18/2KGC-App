@@ -1,6 +1,7 @@
 import { FlatList, View } from 'react-native';
 
 import { CATEGORY_TILE, CategoryTile } from '@/components/category-tile';
+import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
@@ -27,7 +28,7 @@ import { relative } from './index';
  */
 export default function AnnouncementsScreen() {
   const colors = useTheme();
-  const announcements = useAnnouncements();
+  const { announcements, error, retry } = useAnnouncements();
 
   return (
     <>
@@ -73,11 +74,18 @@ export default function AnnouncementsScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <EmptyState
-            icon="megaphone"
-            title="No announcements yet"
-            message="Organizer notices about room changes, wifi and timings appear here."
-          />
+          // "No announcements yet" over a refused read is the most costly version
+          // of this bug in the app: this is the screen an attendee opens to check
+          // whether a room has moved.
+          error ? (
+            <DataError error={error} subject="organizer announcements" onRetry={retry} />
+          ) : (
+            <EmptyState
+              icon="megaphone"
+              title="No announcements yet"
+              message="Organizer notices about room changes, wifi and timings appear here."
+            />
+          )
         }
       />
     </>

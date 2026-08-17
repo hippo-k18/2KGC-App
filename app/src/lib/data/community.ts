@@ -58,7 +58,7 @@ export const categoryLabel = (id: string) =>
 const PAGE_SIZE = 50;
 
 export function useCommunityPosts(category: string | null) {
-  const { data, error, loading } = useCollection<Post>(
+  const { data, error, loading, retry } = useCollection<Post>(
     () => {
       const base = [
         where('eventId', '==', EVENT_ID),
@@ -82,7 +82,7 @@ export function useCommunityPosts(category: string | null) {
     [category],
     (id, d) => ({ id, ...d }) as Post,
   );
-  return { posts: data, error, loading };
+  return { posts: data, error, loading, retry };
 }
 
 /**
@@ -156,8 +156,15 @@ export function useReplyCounts(posts: Post[] | null): Record<string, number> | n
   return counts;
 }
 
-export function useReplies(postId: string | undefined): Reply[] {
-  const { data } = useCollection<Reply>(
+/**
+ * A post's replies.
+ *
+ * An object rather than a bare array, for the same reason `useReplyCounts`
+ * returns `null` rather than zero: "0 REPLIES" under a post with eleven of them
+ * is a specific claim, and it is false.
+ */
+export function useReplies(postId: string | undefined) {
+  const { data, error, retry } = useCollection<Reply>(
     () =>
       query(
         collection(getDb(), COLLECTIONS.communityPosts, postId ?? '_', SUBCOLLECTIONS.replies),
@@ -168,7 +175,7 @@ export function useReplies(postId: string | undefined): Reply[] {
     [postId],
     (id, d) => ({ id, ...d }) as Reply,
   );
-  return data ?? [];
+  return { replies: data ?? [], error, retry };
 }
 
 export async function createPost(input: {

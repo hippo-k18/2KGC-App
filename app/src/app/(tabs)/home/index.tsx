@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-n
 import { useRouter } from 'expo-router';
 
 import { DECORATIVE } from '@/components/a11y';
+import { combineFailures, DataErrorBanner } from '@/components/data-error';
 import { Icon } from '@/components/icon';
 import { ListRow } from '@/components/list-row';
 import { SectionCard } from '@/components/section-card';
@@ -126,15 +127,31 @@ export default function HomeScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const { sessions } = useSessions();
+  const { sessions, error: sessionsError, retry: retrySessions } = useSessions();
   const days = useDays(sessions);
   const { now, next, usingFallback } = useNowNext(sessions);
-  const announcements = useAnnouncements();
-  const { isSaved } = useSavedSessions();
+  const {
+    announcements,
+    error: announcementsError,
+    retry: retryAnnouncements,
+  } = useAnnouncements();
+  const { isSaved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads } = useThreads(user?.uid);
   const unread = totalUnread(threads, user?.uid);
 
   const [expanded, setExpanded] = useState(false);
+
+  // One banner, not three. A missing claim denies all three of these listeners at
+  // once — see `combineFailures`.
+  const failure = combineFailures([
+    { error: sessionsError, subject: 'what is on now', retry: retrySessions },
+    {
+      error: announcementsError,
+      subject: 'organizer announcements',
+      retry: retryAnnouncements,
+    },
+    { error: savedError, subject: 'your saved sessions', retry: retrySaved },
+  ]);
 
   const openSession = (id: string) =>
     router.push({ pathname: '/agenda/[id]', params: { id } });
@@ -160,6 +177,22 @@ export default function HomeScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl, gap: SECTION_GAP }}>
         <EventBanner dateRange={formatEventDates(days)} />
+
+        {/*
+          A banner rather than a full-screen error, because most of this screen is
+          real without any of these queries: the hero, the resource grid and the
+          event description are constants, so replacing the page would take away
+          working navigation in order to report that a listener failed.
+
+          All three of these used to fail completely silently. "Happening now" and
+          "Up next" simply did not render — the sections are conditional on
+          `now.length` — so a refused sessions read looked exactly like a
+          conference whose programme was not published yet, on the one screen an
+          attendee opens while walking between buildings. Announcements were
+          worse: that collection is where a room change is published. And every
+          star on the cards is drawn from the saved-sessions listener.
+        */}
+        {failure ? <DataErrorBanner {...failure} /> : null}
 
         {now.length ? (
           <SectionCard

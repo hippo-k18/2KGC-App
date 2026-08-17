@@ -1,5 +1,6 @@
 import { Redirect } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Platform } from 'react-native';
 import {
   Icon,
   Label,
@@ -10,6 +11,65 @@ import {
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+
+/**
+ * Make the browser preview's tab bar fit a phone.
+ *
+ * On iOS and Android `NativeTabs` is a real UITabBar / Material bottom
+ * navigation, and both lay five items out across whatever width they are given.
+ * On web it is a Radix tab list styled by expo-router's own stylesheet
+ * (`expo-router/assets/native-tabs.module.css`), and that stylesheet is written
+ * for a desktop window: `max-width: 90vw`, 20px of padding either side of every
+ * label, `white-space: nowrap`, the whole pill `position: fixed` at the top.
+ *
+ * Five labels need 445px. At 393px — the logical width of an iPhone 15, and the
+ * most common phone width there is — 90vw gives the pill 354px, so 91px of it is
+ * past its own right edge: "Community" is clipped mid-word and "Me" is not drawn
+ * at all. The pill is `overflow-x: auto`, so the content is technically
+ * scrollable, but a fixed 40px bar with no scrollbar and no gradient gives no
+ * hint of that — the Me tab simply could not be opened in the preview. At 320px
+ * (iPhone SE) 157px is missing and "Community" goes with it.
+ *
+ * The fix is three rules: a slightly wider ceiling than 90vw, a phone-sized
+ * gutter instead of a desktop one, and permission for a label to shrink and
+ * ellipsize rather than demand its full width — the last so that this cannot
+ * silently break again if a tab is renamed or a sixth one is added. The scroll
+ * container is deliberately left in place as the final backstop.
+ *
+ * It is CSS because the rules it has to outrank are CSS in a package we do not
+ * control; an attribute selector already beats their single class, so nothing
+ * here needs `!important`. And it is inert on device: the block is behind
+ * `Platform.OS === 'web'`, and the bar it targets is not the one either platform
+ * draws. `typeof document` covers the static render, which runs in Node.
+ */
+const WEB_TAB_BAR_STYLE_ID = 'kgc-web-tab-bar';
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  if (!document.getElementById(WEB_TAB_BAR_STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = WEB_TAB_BAR_STYLE_ID;
+    style.textContent = `
+      [role='tablist'][aria-label='Main'] {
+        max-width: calc(100vw - 16px);
+      }
+      [role='tablist'][aria-label='Main'] > button {
+        min-width: 0;
+        flex-shrink: 1;
+      }
+      [role='tablist'][aria-label='Main'] > button > span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      @media (max-width: 520px) {
+        [role='tablist'][aria-label='Main'] > button {
+          padding: 0 5px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
 
 /**
  * Native tab bar: Home, Agenda, People, Community, Me.

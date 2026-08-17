@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { DataErrorBanner } from '@/components/data-error';
 import { Text } from '@/components/text';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { failureCode } from '@/lib/data/errors';
 import { useCastVote, useMyVote, usePolls } from '@/lib/data/qa';
 
 /**
@@ -17,8 +19,16 @@ import { useCastVote, useMyVote, usePolls } from '@/lib/data/qa';
  * drawing empty bars and letting the organizer conclude nobody voted.
  */
 export function SessionPoll({ sessionId }: { sessionId: string }) {
-  const { polls } = usePolls(sessionId);
+  const { polls, error, retry } = usePolls(sessionId);
   const poll = polls[0];
+  // A refused read used to render nothing whatsoever — the section simply was not
+  // there — so an attendee looking for the poll the speaker had just opened
+  // concluded there was not one. Silence is not an acceptable answer here.
+  if (error) {
+    return (
+      <DataErrorBanner error={error} subject="the poll for this session" onRetry={retry} />
+    );
+  }
   if (!poll) return null;
   return <Poll sessionId={sessionId} pollId={poll.id} poll={poll} />;
 }
@@ -33,7 +43,7 @@ function Poll({
   poll: ReturnType<typeof usePolls>['polls'][number];
 }) {
   const colors = useTheme();
-  const myVote = useMyVote(sessionId, pollId);
+  const { vote: myVote, error: voteError } = useMyVote(sessionId, pollId);
   const cast = useCastVote(sessionId, pollId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +144,17 @@ function Poll({
       {error ? (
         <Text variant="caption" tone="danger" accessibilityLiveRegion="polite">
           {error}
+        </Text>
+      ) : null}
+
+      {/* Whether you have voted is read from your own ballot document, so a
+          refused read of it re-offers the vote to someone who has already cast
+          one — and Firestore rejects the second write, which looks like the poll
+          is broken. Said plainly instead. */}
+      {voteError ? (
+        <Text variant="caption" tone="danger" accessibilityLiveRegion="polite">
+          Could not check whether you have already voted ({failureCode(voteError) || 'unknown'}).
+          If your vote does not register, it is probably already recorded.
         </Text>
       ) : null}
 

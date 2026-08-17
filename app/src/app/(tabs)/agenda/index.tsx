@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 
 import { DECORATIVE } from '@/components/a11y';
+import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { FilterChip } from '@/components/filter-chip';
 import { Icon } from '@/components/icon';
@@ -137,10 +138,10 @@ export default function AgendaScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { profile } = useAuth();
-  const { sessions, error, loading } = useSessions();
-  const tracks = useTracks();
+  const { sessions, error, loading, retry } = useSessions();
+  const { tracks, error: tracksError } = useTracks();
   const days = useDays(sessions);
-  const { saved, toggle } = useSavedSessions();
+  const { saved, toggle, error: savedError, retry: retrySaved } = useSavedSessions();
   const { posts: meetups } = useCommunityPosts('meetup');
 
   // `trackId` is deliberately independent of `day`: nothing in `setDay` clears
@@ -201,19 +202,17 @@ export default function AgendaScreen() {
     />
   );
 
+  // This used to be an `EmptyState` reading "Could not load the agenda — is the
+  // emulator running? Try npm run dev:emulators", which is a developer's guess
+  // shown to an attendee: it says the same thing to a `permission-denied` (their
+  // token is stale, and signing in again fixes it), to `unavailable` (their wifi
+  // dropped, and nothing needs fixing) and to `failed-precondition` (an index is
+  // missing and only the organizers can do anything). `DataError` reads the code.
   if (error) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         {header}
-        <EmptyState
-          icon="calendar"
-          title="Could not load the agenda"
-          message={
-            process.env.EXPO_PUBLIC_USE_EMULATOR === '1'
-              ? 'Is the emulator running? Try npm run dev:emulators.'
-              : 'Check your connection and try again.'
-          }
-        />
+        <DataError error={error} subject="the agenda" onRetry={retry} />
       </View>
     );
   }
@@ -226,6 +225,18 @@ export default function AgendaScreen() {
           left none, which is what fused header, strip and chip row into one
           slab. `Spacing.sm` is the scale's nearest value. */}
       <View style={{ height: Spacing.sm }} {...DECORATIVE} />
+
+      {/* The agenda itself loaded, so the list is worth keeping — but every "Add
+          to Agenda" control on it is drawn from `saved`, and a refused read of
+          that subcollection makes all of them read "not added". Silently, that
+          invites an attendee to rebuild a personal agenda they already have. */}
+      {savedError ? (
+        <DataErrorBanner
+          error={savedError}
+          subject="your saved sessions"
+          onRetry={retrySaved}
+        />
+      ) : null}
 
       {/* The day strip is not merely dimmed while a query is active — it is
           taken away, because a control that is visible and inert is read as a
@@ -291,6 +302,7 @@ export default function AgendaScreen() {
       <TrackSheet
         visible={filtering}
         tracks={tracks}
+        tracksError={tracksError}
         value={trackId}
         onClose={() => setFiltering(false)}
         onSelect={(next) => {
@@ -318,12 +330,15 @@ export default function AgendaScreen() {
 function TrackSheet({
   visible,
   tracks,
+  tracksError,
   value,
   onClose,
   onSelect,
 }: {
   visible: boolean;
   tracks: { id: string; name: string; color?: string }[];
+  /** A refused tracks read leaves this sheet holding only "All tracks". */
+  tracksError?: Error | null;
   value: string | null;
   onClose: () => void;
   onSelect: (next: string | null) => void;
@@ -361,6 +376,12 @@ function TrackSheet({
             style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.md }}>
             Your choice is kept when you change day.
           </Text>
+
+          {/* Without this the sheet holds a single "All tracks" chip and reads as
+              a one-track conference. */}
+          {tracksError ? (
+            <DataErrorBanner error={tracksError} subject="the track list" />
+          ) : null}
 
           <ScrollView
             contentContainerStyle={{

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { ListRow } from '@/components/list-row';
 import { Chevron } from '@/components/icon';
@@ -48,7 +49,7 @@ const COPY: Record<Feature, { title: string; blurb: string; empty: string }> = {
 export default function SessionFeatureScreen() {
   const router = useRouter();
   const { feature } = useLocalSearchParams<{ feature?: string }>();
-  const { sessions, loading } = useSessions();
+  const { sessions, loading, error, retry } = useSessions();
 
   const kind: Feature = feature === 'polls' ? 'polls' : 'qa';
   const copy = COPY[kind];
@@ -89,6 +90,11 @@ export default function SessionFeatureScreen() {
               />
             ))}
           </View>
+        ) : error ? (
+          // Otherwise a refused agenda read says "no session in the programme has
+          // Q&A switched on yet" — a claim about the programme, made without
+          // having read it.
+          <DataError error={error} subject="the programme" onRetry={retry} />
         ) : loading ? null : (
           <EmptyState
             icon="questionmark.circle"

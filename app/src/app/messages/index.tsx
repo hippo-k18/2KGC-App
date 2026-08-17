@@ -7,6 +7,7 @@ import type { Timestamp } from '@kgc/shared';
 
 import { DECORATIVE } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
+import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { PushedHeader } from '@/components/pushed-header';
@@ -73,8 +74,8 @@ export default function MessagesScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
-  const { threads, loading } = useThreads(user?.uid);
-  const { people } = useDirectory();
+  const { threads, loading, error, retry } = useThreads(user?.uid);
+  const { people, error: peopleError, retry: retryPeople } = useDirectory();
   // Session-scoped, not persisted: a preference this small is not worth a
   // storage round trip on launch, and the strip is one line of standing fact
   // rather than a nag.
@@ -112,7 +113,22 @@ export default function MessagesScreen() {
         keyExtractor={(t) => t.id}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.xxl }}
         ListHeaderComponent={
-          noticeDismissed ? null : <DeliveryNotice onDismiss={() => setNoticeDismissed(true)} />
+          <>
+            {/* Names on these rows come from the directory, not from the thread,
+                so a refused directory read titles every conversation "Attendee"
+                — an inbox of identical strangers, with no hint that a lookup
+                failed rather than that nobody filled in their name. */}
+            {peopleError ? (
+              <DataErrorBanner
+                error={peopleError}
+                subject="the names of the people you are talking to"
+                onRetry={retryPeople}
+              />
+            ) : null}
+            {noticeDismissed ? null : (
+              <DeliveryNotice onDismiss={() => setNoticeDismissed(true)} />
+            )}
+          </>
         }
         renderItem={({ item, index }) => {
           const other = otherParticipant(item, user?.uid ?? '');
@@ -134,7 +150,12 @@ export default function MessagesScreen() {
           );
         }}
         ListEmptyComponent={
-          loading ? null : (
+          // "No messages" over a refused read is the version of this bug an
+          // attendee is least likely to question — an empty inbox is the normal
+          // state of one — so it is also the one that hides longest.
+          error ? (
+            <DataError error={error} subject="your inbox" onRetry={retry} />
+          ) : loading ? null : (
             <EmptyState
               icon="envelope"
               title="No messages"

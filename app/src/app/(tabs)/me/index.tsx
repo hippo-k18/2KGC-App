@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Switch, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 
 import { Avatar } from '@/components/avatar';
+import { combineFailures, DataErrorBanner } from '@/components/data-error';
 import { ListRow, SectionHeader } from '@/components/list-row';
-import { Chevron } from '@/components/icon';
+import { Chevron, Icon } from '@/components/icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -29,13 +30,44 @@ import { getDb } from '@/lib/firebase/client';
 export default function MeScreen() {
   const colors = useTheme();
   const router = useRouter();
-  const { user, profile } = useAuth();
-  const { saved } = useSavedSessions();
-  const { threads } = useThreads(user?.uid);
+  const { user, profile, profileError, retryProfile } = useAuth();
+  const { saved, error: savedError, retry: retrySaved } = useSavedSessions();
+  const { threads, error: threadsError, retry: retryThreads } = useThreads(user?.uid);
   const unread = totalUnread(threads, user?.uid);
+
+  const failure = combineFailures([
+    { error: profileError, subject: 'your profile', retry: retryProfile },
+    { error: savedError, subject: 'your saved sessions', retry: retrySaved },
+    { error: threadsError, subject: 'your unread message count', retry: retryThreads },
+  ]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Confirming a save that happened on another screen.
+   *
+   * `me/profile.tsx` writes the profile *and* the directory projection, both
+   * silently, and then leaves. Nothing on the way out said the write landed, and
+   * a name that happens to look the same afterwards is not evidence — a save
+   * that failed looked exactly like one that worked. It now returns here with
+   * `?saved=1` and this says so.
+   *
+   * The param is cleared as soon as it is read, so a reload of `/me` — or coming
+   * back to the tab an hour later — does not re-announce a save from earlier;
+   * and the notice retires itself, because a confirmation that stays on screen
+   * stops being about the thing you just did.
+   */
+  const { saved: savedParam } = useLocalSearchParams<{ saved?: string }>();
+  const [savedNotice, setSavedNotice] = useState(false);
+
+  useEffect(() => {
+    if (!savedParam) return;
+    setSavedNotice(true);
+    router.setParams({ saved: undefined });
+    const timer = setTimeout(() => setSavedNotice(false), 6000);
+    return () => clearTimeout(timer);
+  }, [savedParam, router]);
 
   async function setFlag(field: 'visibleInDirectory' | 'messagingEnabled', value: boolean) {
     if (!user) return;
@@ -88,7 +120,50 @@ export default function MeScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
         <ScreenHeader title="Me" />
 
+        {/*
+          Everything below this line is a claim about the account, and with no
+          profile every one of them is a default pretending to be a setting: the
+          card reads "Your profile" with no name, "My schedule" reads "0
+          sessions", and both privacy switches read off — so the app tells an
+          attendee they are hidden from the directory when it was simply never
+          allowed to look.
+
+          `users/{uid}` is readable by its owner whether or not they are
+          registered (`firestore.rules`), so on a stale token the *read* succeeds
+          and returns nothing while the first-sign-in *create* is denied. Both
+          arrive here as `profileError` — see `AuthProvider` — because from this
+          screen they are the same failure.
+        */}
+        {failure ? (
+          <View style={{ paddingTop: Spacing.md }}>
+            <DataErrorBanner {...failure} />
+          </View>
+        ) : null}
+
         <View style={{ paddingHorizontal: Spacing.md }}>
+          {savedNotice ? (
+            <View
+              accessibilityLiveRegion="polite"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: Spacing.sm,
+                backgroundColor: colors.tintSoft,
+                borderRadius: Radius.lg,
+                paddingHorizontal: Spacing.md,
+                paddingVertical: Spacing.sm,
+                marginTop: Spacing.md,
+              }}>
+              <Icon name="checkmark.circle.fill" size={18} color={colors.tint} />
+              {/* `flex: 1` and a shrinkable text column, so the sentence wraps
+                  inside the banner rather than widening the card past the
+                  gutter at 320pt or at accessibility text sizes. */}
+              <Text variant="subhead" tone="tint" style={{ flex: 1 }}>
+                Profile saved
+              </Text>
+            </View>
+          ) : null}
+
           <Pressable
             onPress={() => router.push('/me/profile')}
             accessibilityRole="button"
@@ -121,12 +196,23 @@ export default function MeScreen() {
 
           <SectionHeader>My conference</SectionHeader>
           <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
+            {/*
+              First row in the section, above the schedule, because it is the one
+              thing on this tab an attendee opens while standing in a queue with
+              somebody waiting. Everything else here can be found at leisure.
+            */}
+            <ListRow
+              title="My badge"
+              subtitle="Your check-in QR code"
+              onPress={() => router.push('/me/badge')}
+              trailing={<Chevron />}
+              first
+            />
             <ListRow
               title="My schedule"
               meta={`${saved.size} ${saved.size === 1 ? 'session' : 'sessions'}`}
               onPress={() => router.push('/me/schedule')}
               trailing={<Chevron />}
-              first
             />
             <ListRow
               title="Messages"

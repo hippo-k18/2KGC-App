@@ -1,4 +1,13 @@
-import { createContext, use, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
@@ -13,6 +22,20 @@ interface AuthState {
   user: User | null;
   /** The attendee's Firestore profile; null until it exists. */
   profile: WithId<UserDoc> | null;
+  /**
+   * Why the profile could not be read, when it could not be.
+   *
+   * Exposed because `profile: null` alone is ambiguous in the worst possible
+   * way: it is both "you are new here, so your name and privacy switches show
+   * their defaults" and "the rules refused, so what you are looking at is not
+   * your account at all". The Me tab renders those two identically otherwise —
+   * and a `permission-denied` on `users/{uid}` is the single clearest signal
+   * that the `registered` claim is missing from this device's token, because it
+   * is the one read that is keyed by the caller's own uid.
+   */
+  profileError: Error | null;
+  /** Refreshes the ID token and re-reads the profile. */
+  retryProfile: () => void;
   /** True until the first auth state resolves. Render nothing auth-dependent. */
   loading: boolean;
   /**
@@ -26,6 +49,8 @@ interface AuthState {
 const AuthContext = createContext<AuthState>({
   user: null,
   profile: null,
+  profileError: null,
+  retryProfile: () => {},
   loading: true,
   configured: false,
 });
@@ -55,17 +80,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     data: profile,
     loading: profileLoading,
     error: profileError,
+    retry: retryProfile,
   } = useDocument<WithId<UserDoc>>(
     () => (uid ? doc(getDb(), COLLECTIONS.users, uid) : null),
     [uid],
     (id, d) => ({ id, ...d }) as WithId<UserDoc>,
   );
 
-  useCreateProfileOnFirstSignIn(auth.user, profile, profileLoading || Boolean(profileError));
+  const { error: createError, reset: resetCreate } = useCreateProfileOnFirstSignIn(
+    auth.user,
+    profile,
+    profileLoading || Boolean(profileError),
+  );
+
+  const retry = useCallback(() => {
+    resetCreate();
+    retryProfile();
+  }, [resetCreate, retryProfile]);
 
   const value = useMemo<AuthState>(
-    () => ({ user: auth.user, profile, loading: auth.loading, configured }),
-    [auth.user, auth.loading, profile, configured],
+    () => ({
+      user: auth.user,
+      profile,
+      // A denied *create* matters here as much as a denied read, and for the
+      // same reason: with neither, `profile` is null and the Me tab renders its
+      // defaults as though they were the attendee's own settings.
+      profileError: profileError ?? createError,
+      retryProfile: retry,
+      loading: auth.loading,
+      configured,
+    }),
+    [auth.user, auth.loading, profile, profileError, createError, retry, configured],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
@@ -92,11 +137,26 @@ function useCreateProfileOnFirstSignIn(
   unsettled: boolean,
 ) {
   const attempted = useRef<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  // Lets the Me tab's retry button mean something here too. Without clearing the
+  // ref the one-attempt-per-uid guard below would swallow every retry.
+  const reset = useCallback(() => {
+    attempted.current = null;
+    setError(null);
+    setAttempt((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!user || profile || unsettled) return;
     // One attempt per uid. A denied write (no `registered` claim, i.e. not a
-    // ticket holder) must not become a retry loop against the rules.
+    // ticket holder) must not become a retry loop against the rules — but it must
+    // not be silent either: `users/{uid}` is readable by its owner whether or not
+    // they are registered, so a stale token fails at the *create*, not the read,
+    // and the only visible consequence used to be a profile card headed "Your
+    // profile" over two privacy switches showing defaults as if they were
+    // settings.
     if (attempted.current === user.uid) return;
     attempted.current = user.uid;
 
@@ -121,8 +181,10 @@ function useCreateProfileOnFirstSignIn(
         },
         { merge: true },
       ),
-    );
-  }, [user, profile, unsettled]);
+    ).then((result) => setError(result.error));
+  }, [user, profile, unsettled, attempt]);
+
+  return { error, reset };
 }
 
 export function useAuth() {

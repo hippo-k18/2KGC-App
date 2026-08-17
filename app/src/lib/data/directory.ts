@@ -33,13 +33,13 @@ export type Sponsor = WithId<SponsorDoc>;
  * reaches the device, which is a stronger guarantee than any client-side filter.
  */
 export function useDirectory() {
-  const { data, error, loading } = useCollection<DirectoryEntry>(
+  const { data, error, loading, retry } = useCollection<DirectoryEntry>(
     () => query(collection(getDb(), COLLECTIONS.directory), where('eventId', '==', EVENT_ID)),
     [],
     (id, d) => ({ id, ...d }) as DirectoryEntry,
     (a, b) => a.name.localeCompare(b.name),
   );
-  return { people: data, error, loading };
+  return { people: data, error, loading, retry };
 }
 
 /**
@@ -80,19 +80,19 @@ export function useInterests(people: DirectoryEntry[] | null): string[] {
 }
 
 export function useSpeakers() {
-  const { data, loading } = useCollection<Speaker>(
+  const { data, error, loading, retry } = useCollection<Speaker>(
     () => query(collection(getDb(), COLLECTIONS.speakers), where('eventId', '==', EVENT_ID)),
     [],
     (id, d) => ({ id, ...d }) as Speaker,
     (a, b) => a.name.localeCompare(b.name),
   );
-  return { speakers: data, loading };
+  return { speakers: data, error, loading, retry };
 }
 
 const TIER_ORDER = ['diamond', 'platinum', 'gold', 'silver', 'startup'];
 
 export function useSponsors() {
-  const { data, loading } = useCollection<Sponsor>(
+  const { data, error, loading, retry } = useCollection<Sponsor>(
     () => query(collection(getDb(), COLLECTIONS.sponsors), where('eventId', '==', EVENT_ID)),
     [],
     (id, d) => ({ id, ...d }) as Sponsor,
@@ -101,7 +101,7 @@ export function useSponsors() {
       TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) ||
       a.name.localeCompare(b.name),
   );
-  return { sponsors: data, loading };
+  return { sponsors: data, error, loading, retry };
 }
 
 /**
@@ -119,7 +119,7 @@ export function useSponsors() {
 export function useSavedContacts() {
   const { user } = useAuth();
 
-  const { data } = useCollection<string>(
+  const { data, error } = useCollection<string>(
     () =>
       collection(
         getDb(),
@@ -152,7 +152,7 @@ export function useSavedContacts() {
     [user, saved],
   );
 
-  return { saved, toggle, isSaved: (uid: string) => saved.has(uid) };
+  return { saved, error, toggle, isSaved: (uid: string) => saved.has(uid) };
 }
 
 /** Initials for the avatar fallback. Storage may not be provisioned on Spark. */

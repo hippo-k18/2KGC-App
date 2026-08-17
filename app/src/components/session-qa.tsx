@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
+import { DataErrorBanner } from '@/components/data-error';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -27,7 +28,7 @@ import {
  */
 export function SessionQA({ sessionId }: { sessionId: string }) {
   const colors = useTheme();
-  const { questions, loading } = useQuestions(sessionId);
+  const { questions, loading, error, retry } = useQuestions(sessionId);
   const ask = useAskQuestion(sessionId);
   const toggle = useToggleUpvote(sessionId);
   const { upvoted, mark } = useMyUpvotes(sessionId, (questions ?? []).map((q) => q.id));
@@ -100,7 +101,12 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
         </Text>
       ) : null}
 
-      {loading ? null : !questions?.length ? (
+      {/* "No questions yet. Be the first." is exactly wrong over a refused read:
+          the attendee asks a question the room has already asked, and the
+          moderator gets it twice. */}
+      {error ? (
+        <DataErrorBanner error={error} subject="the questions for this session" onRetry={retry} />
+      ) : loading ? null : !questions?.length ? (
         <Text variant="subhead" tone="tertiary">
           No questions yet. Be the first.
         </Text>

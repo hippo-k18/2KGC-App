@@ -119,6 +119,10 @@ const ANDROID_EQUIVALENT = {
   'mappin.and.ellipse': 'place',
   'video.fill': 'videocam',
   wifi: 'wifi',
+  /** A read the rules refused — see `components/data-error.tsx`. */
+  lock: 'lock-outline',
+  /** A read that never reached the server, as distinct from one it refused. */
+  'wifi.slash': 'wifi-off',
   trophy: 'emoji-events',
   'pin.fill': 'push-pin',
   ellipsis: 'more-horiz',

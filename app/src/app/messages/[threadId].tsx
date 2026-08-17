@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
+import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
@@ -50,9 +51,9 @@ export default function ThreadScreen() {
   const { threadId, to } = useLocalSearchParams<{ threadId: string; to?: string }>();
   const colors = useTheme();
   const { user } = useAuth();
-  const { people } = useDirectory();
+  const { people, error: peopleError } = useDirectory();
   const { threads } = useThreads(user?.uid);
-  const messages = useMessages(threadId);
+  const { messages, error, retry } = useMessages(threadId);
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList>(null);
 
@@ -62,7 +63,14 @@ export default function ThreadScreen() {
   // cold open of a link to this screen is a second or two. Titling the header
   // "Attendee" in the meantime states, wrongly and confidently, that the name
   // is unknown; an empty title says only that it has not arrived yet.
-  const name = people ? (people.find((p) => p.uid === other)?.name ?? 'Attendee') : '';
+  // A refused directory read leaves `people` null forever, which held the header
+  // title at the empty string permanently — a conversation with nobody. Falling
+  // back to "Attendee" is at least a visible placeholder rather than a blank.
+  const name = people
+    ? (people.find((p) => p.uid === other)?.name ?? 'Attendee')
+    : peopleError
+      ? 'Attendee'
+      : '';
 
   useEffect(() => {
     if (messages.length) {
@@ -135,11 +143,20 @@ export default function ThreadScreen() {
             );
           }}
           ListEmptyComponent={
-            <EmptyState
-              icon="envelope"
-              title={`Say hello to ${name}`}
-              message="Messages are private between the two of you."
-            />
+            // A thread reached from a profile genuinely has no messages, which is
+            // why this screen's empty state is an invitation. Over a refused read
+            // the same invitation appears above a conversation that already
+            // exists, and the reply the other person is waiting for is written as
+            // though it were the first thing ever said.
+            error ? (
+              <DataError error={error} subject="this conversation" onRetry={retry} />
+            ) : (
+              <EmptyState
+                icon="envelope"
+                title={`Say hello to ${name}`}
+                message="Messages are private between the two of you."
+              />
+            )
           }
         />
 

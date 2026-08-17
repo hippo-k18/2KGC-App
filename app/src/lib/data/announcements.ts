@@ -9,8 +9,16 @@ import type { Session } from '@/lib/data/sessions';
 
 export type Announcement = WithId<AnnouncementDoc>;
 
-export function useAnnouncements(): Announcement[] {
-  const { data } = useCollection<Announcement>(
+/**
+ * Organizer broadcasts.
+ *
+ * Returns an object rather than a bare array because a refused read has to stay
+ * distinguishable from a quiet week. These are room changes and timing
+ * corrections — the one collection where "nothing here" being silently wrong
+ * sends people to the wrong building.
+ */
+export function useAnnouncements() {
+  const { data, error, retry } = useCollection<Announcement>(
     () =>
       query(
         collection(getDb(), COLLECTIONS.announcements),
@@ -20,7 +28,7 @@ export function useAnnouncements(): Announcement[] {
     [],
     (id, d) => ({ id, ...d }) as Announcement,
   );
-  return data ?? [];
+  return { announcements: data ?? [], error, retry };
 }
 
 /**

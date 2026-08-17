@@ -21,7 +21,7 @@ export type Session = WithId<SessionDoc>;
  * console has to reach a phone already looking at the agenda.
  */
 export function useSessions() {
-  const { data, error, loading } = useCollection<Session>(
+  const { data, error, loading, retry } = useCollection<Session>(
     () =>
       query(
         collection(getDb(), COLLECTIONS.sessions),
@@ -37,7 +37,7 @@ export function useSessions() {
     (a, b) => (a.startsAtLocal ?? '').localeCompare(b.startsAtLocal ?? ''),
   );
 
-  return { sessions: data, error, loading };
+  return { sessions: data, error, loading, retry };
 }
 
 /** Distinct days present in the agenda, in order. */

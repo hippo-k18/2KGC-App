@@ -6,6 +6,7 @@ import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 
 import { Avatar } from '@/components/avatar';
+import { DataErrorBanner } from '@/components/data-error';
 import { FilterChip } from '@/components/filter-chip';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
@@ -35,7 +36,7 @@ export default function EditProfileScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const tracks = useTracks();
+  const { tracks, error: tracksError, retry: retryTracks } = useTracks();
 
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
@@ -104,7 +105,21 @@ export default function EditProfileScreen() {
         // Hidden means absent, so an edit must not quietly re-list you.
         await deleteDoc(entry).catch(() => undefined);
       }
-      router.back();
+
+      // `router.back()` was wrong, and wrong in a way that depended on where you
+      // came from. This screen is pushed from three places — the Me row, and the
+      // avatar in the Home and Agenda headers — and only the first one leaves
+      // `/me` underneath it in the Me tab's stack. Opened from either header,
+      // popping this screen pops the *parent* navigator instead and lands you
+      // back on Home, so saving your profile looked like the app throwing you
+      // out. `dismissTo` pops to `/me` when it is there and replaces this screen
+      // with it when it is not, which makes the destination the same either way
+      // — and the same one the header's own back button promises.
+      //
+      // The param is the confirmation. Every write above is silent on success,
+      // and a form that navigates away without a word is indistinguishable from
+      // one that failed: `/me` reads it and says so. See `me/index.tsx`.
+      router.dismissTo('/me?saved=1');
     } catch (e) {
       setError('Could not save. Check your connection and try again.');
       console.warn('[profile] save failed:', (e as Error).message);
@@ -188,6 +203,17 @@ export default function EditProfileScreen() {
           </Labelled>
 
           <Labelled label={`INTERESTS  ·  ${interests.length}/20`}>
+            {/* The chips *are* the tracks, so a refused read leaves this section
+                empty and the attendee concludes the event has no topics to pick
+                from — and saves a profile with no interests, which is what the
+                People tab's filter row is built out of. */}
+            {tracksError ? (
+              <DataErrorBanner
+                error={tracksError}
+                subject="the list of topics"
+                onRetry={retryTracks}
+              />
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }}>
               {tracks.map((t) => (
                 <FilterChip

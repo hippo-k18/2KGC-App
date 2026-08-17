@@ -44,7 +44,7 @@ export type Vote = WithId<PollVoteDoc>;
  * the collection directly.
  */
 export function useQuestions(sessionId: string | undefined) {
-  const { data, error, loading } = useCollection<Question>(
+  const { data, error, loading, retry } = useCollection<Question>(
     () =>
       query(
         collection(
@@ -63,7 +63,7 @@ export function useQuestions(sessionId: string | undefined) {
       (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0),
   );
 
-  return { questions: data, error, loading };
+  return { questions: data, error, loading, retry };
 }
 
 /**
@@ -186,7 +186,7 @@ export function useToggleUpvote(sessionId: string | undefined) {
  * Polls are few per session, so this reads the collection rather than paging.
  */
 export function usePolls(sessionId: string | undefined) {
-  const { data, loading } = useCollection<Poll>(
+  const { data, error, loading, retry } = useCollection<Poll>(
     () =>
       query(
         collection(getDb(), COLLECTIONS.sessions, sessionId ?? '_', SUBCOLLECTIONS.polls),
@@ -196,14 +196,14 @@ export function usePolls(sessionId: string | undefined) {
     (id, d) => ({ id, ...d }) as Poll,
   );
 
-  return { polls: data ?? [], loading };
+  return { polls: data ?? [], error, loading, retry };
 }
 
 /** Your own ballot. Readable only by you and an organizer — a vote is secret. */
 export function useMyVote(sessionId: string | undefined, pollId: string | undefined) {
   const { user } = useAuth();
 
-  const { data } = useDocument<Vote>(
+  const { data, error } = useDocument<Vote>(
     () =>
       user && sessionId && pollId
         ? doc(
@@ -220,7 +220,7 @@ export function useMyVote(sessionId: string | undefined, pollId: string | undefi
     (id, d) => ({ id, ...d }) as Vote,
   );
 
-  return data;
+  return { vote: data, error };
 }
 
 /**

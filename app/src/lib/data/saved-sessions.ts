@@ -21,7 +21,7 @@ import { runWrite, type WriteResult } from '@/lib/data/write';
  */
 export function useSavedSessions() {
   const { user } = useAuth();
-  const { data } = useCollection<string>(
+  const { data, error, retry } = useCollection<string>(
     () =>
       collection(
         getDb(),
@@ -57,5 +57,5 @@ export function useSavedSessions() {
     [user, saved],
   );
 
-  return { saved, toggle, isSaved: (id: string) => saved.has(id) };
+  return { saved, error, retry, toggle, isSaved: (id: string) => saved.has(id) };
 }

@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 
 import { COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
 
+import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
+import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -19,6 +21,7 @@ import {
   useMyReactions,
   useReplies,
 } from '@/lib/data/community';
+import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
 type Post = WithId<CommunityPostDoc>;
@@ -29,27 +32,44 @@ export default function PostScreen() {
   const colors = useTheme();
   const { user } = useAuth();
 
-  const [post, setPost] = useState<Post | null>(null);
-  const [missing, setMissing] = useState(false);
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
 
-  const replies = useReplies(id);
-  const reacted = useMyReactions(user?.uid, id ? [id] : []);
+  // `useDocument` rather than a bare `onSnapshot`. The listener this replaces had
+  // no error callback at all, which is the one omission that unmounts the whole
+  // app: the SDK rethrows asynchronously, so a refused read of one post took the
+  // tab bar with it. And with no error state, a denial left `post` null forever —
+  // the screen below sat on a blank body under a back button, indefinitely, with
+  // no way to tell that apart from a slow load.
+  const {
+    data: post,
+    status: postStatus,
+    error: postError,
+    retry: retryPost,
+  } = useDocument<Post>(
+    () => (id ? doc(getDb(), COLLECTIONS.communityPosts, id) : null),
+    [id],
+    (docId, d) => ({ id: docId, ...d }) as Post,
+  );
+  // Settled and absent, which is different from settled and refused.
+  const missing = postStatus === 'ready' && !post;
 
-  useEffect(() => {
-    if (!id) return;
-    return onSnapshot(doc(getDb(), COLLECTIONS.communityPosts, id), (snap) => {
-      if (!snap.exists()) return setMissing(true);
-      setPost({ id: snap.id, ...snap.data() } as Post);
-    });
-  }, [id]);
+  const { replies, error: repliesError, retry: retryReplies } = useReplies(id);
+  const reacted = useMyReactions(user?.uid, id ? [id] : []);
 
   // Above the early returns — see the note in `agenda/[id].tsx`.
   const header = <PushedHeader backTitle="Community" backHref="/community" />;
 
+  if (postError) {
+    return (
+      <>
+        {header}
+        <DataError error={postError} subject="this topic" onRetry={retryPost} />
+      </>
+    );
+  }
   if (missing) {
     return (
       <>
@@ -59,10 +79,31 @@ export default function PostScreen() {
     );
   }
   if (!post) {
+    // Post-shaped, not blank — see `agenda/[id].tsx`. The card and the replies
+    // heading are drawn where they will be, so the thread does not shift under a
+    // thumb that is already reaching for it.
     return (
       <>
         {header}
-        <View style={{ flex: 1, backgroundColor: colors.background }} />
+        <View style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md }}>
+          <SkeletonScreen
+            label="this topic"
+            slowNotice="Still loading. The app cannot reach the server — this will fill in as soon as it can.">
+            <View
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: Radius.lg,
+                padding: Spacing.md,
+                gap: Spacing.sm,
+              }}>
+              <SkeletonBlock width="30%" height={12} />
+              <SkeletonBlock width="85%" height={22} />
+              <SkeletonText lines={3} />
+            </View>
+            <SkeletonBlock width="25%" height={12} />
+            <SkeletonBlock height={64} radius={Radius.md} />
+          </SkeletonScreen>
+        </View>
       </>
     );
   }
@@ -158,9 +199,19 @@ export default function PostScreen() {
             </View>
           </View>
 
-          <Text variant="label" tone="secondary">
-            {replies.length} {replies.length === 1 ? 'REPLY' : 'REPLIES'}
-          </Text>
+          {/* The count below is drawn from the loaded page, so a refused read
+              renders a confident "0 REPLIES" over a discussion. */}
+          {repliesError ? (
+            <DataErrorBanner
+              error={repliesError}
+              subject="the replies to this topic"
+              onRetry={retryReplies}
+            />
+          ) : (
+            <Text variant="label" tone="secondary">
+              {replies.length} {replies.length === 1 ? 'REPLY' : 'REPLIES'}
+            </Text>
+          )}
 
           {replies.map((r) => (
             <View

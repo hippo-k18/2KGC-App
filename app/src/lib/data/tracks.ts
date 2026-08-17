@@ -7,13 +7,19 @@ import { useCollection } from '@/lib/data/use-collection';
 
 export type Track = WithId<TrackDoc>;
 
-/** The event's tracks. Eleven documents — loaded whole, sorted by name. */
-export function useTracks(): Track[] {
-  const { data } = useCollection<Track>(
+/**
+ * The event's tracks. Eleven documents — loaded whole, sorted by name.
+ *
+ * An object rather than a bare array: a refused read leaves the filter sheet
+ * showing "All tracks" and nothing else, which looks like a single-track event
+ * rather than a failure.
+ */
+export function useTracks() {
+  const { data, error, retry } = useCollection<Track>(
     () => query(collection(getDb(), COLLECTIONS.tracks), where('eventId', '==', EVENT_ID)),
     [],
     (id, d) => ({ id, ...d }) as Track,
     (a, b) => a.name.localeCompare(b.name),
   );
-  return data ?? [];
+  return { tracks: data ?? [], error, retry };
 }

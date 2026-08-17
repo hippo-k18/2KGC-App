@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { SectionList, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { SessionCard } from '@/components/session-card';
@@ -22,8 +23,15 @@ import { formatDayTab, useSessions } from '@/lib/data/sessions';
 export default function MyScheduleScreen() {
   const colors = useTheme();
   const router = useRouter();
-  const { sessions } = useSessions();
-  const { saved, isSaved } = useSavedSessions();
+  const { sessions, error: sessionsError, retry: retrySessions } = useSessions();
+  const { saved, isSaved, error: savedError, retry: retrySaved } = useSavedSessions();
+
+  // This screen is the intersection of two listeners, and either one failing
+  // empties it. "Nothing saved yet — add sessions from the agenda" was therefore
+  // shown to attendees whose whole week was already in here.
+  const error = savedError ?? sessionsError;
+  const retry = savedError ? retrySaved : retrySessions;
+  const subject = savedError ? 'your saved sessions' : 'the agenda';
 
   const { sections, clashes } = useMemo(() => {
     const mine = (sessions ?? []).filter((s) => saved.has(s.id));
@@ -87,11 +95,15 @@ export default function MyScheduleScreen() {
             </View>
           )}
           ListEmptyComponent={
-            <EmptyState
-              icon="star"
-              title="Nothing saved yet"
-              message="Add sessions from the agenda and they appear here, grouped by day."
-            />
+            error ? (
+              <DataError error={error} subject={subject} onRetry={retry} />
+            ) : (
+              <EmptyState
+                icon="star"
+                title="Nothing saved yet"
+                message="Add sessions from the agenda and they appear here, grouped by day."
+              />
+            )
           }
         />
       </View>

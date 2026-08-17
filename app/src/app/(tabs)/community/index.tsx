@@ -6,6 +6,7 @@ import type { Timestamp } from '@kgc/shared';
 
 import { DECORATIVE } from '@/components/a11y';
 import { CategoryTile, type CategoryTint } from '@/components/category-tile';
+import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { FilterChip } from '@/components/filter-chip';
 import { Chevron, Icon, type IconName } from '@/components/icon';
@@ -127,9 +128,13 @@ export default function CommunityScreen() {
   const [composing, setComposing] = useState(false);
   const listRef = useRef<FlatList<Post>>(null);
 
-  const { posts, loading } = useCommunityPosts(category);
+  const { posts, loading, error, retry } = useCommunityPosts(category);
   const replyCounts = useReplyCounts(posts);
-  const announcements = useAnnouncements();
+  const {
+    announcements,
+    error: announcementsError,
+    retry: retryAnnouncements,
+  } = useAnnouncements();
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -249,7 +254,18 @@ export default function CommunityScreen() {
         keyExtractor={(p) => p.id}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.lg }}
         ListHeaderComponent={
-          // The one pinned board, and the only genuinely pinned thing this app
+          // The pinned row is conditional on there being announcements, so a
+          // refused read of that collection removed the entrance to the board
+          // organizers publish room changes on — without drawing anything at all.
+          // Suppressed when the board itself failed, because the `DataError` filling
+          // the list below already says the same thing at length.
+          announcementsError && !error ? (
+            <DataErrorBanner
+              error={announcementsError}
+              subject="organizer announcements"
+              onRetry={retryAnnouncements}
+            />
+          ) : // The one pinned board, and the only genuinely pinned thing this app
           // has: organizer broadcasts. Whova pins the same row at the top of
           // its board and calls it "Organizer Announcements".
           !category && !search.trim() && announcements.length ? (
@@ -288,7 +304,13 @@ export default function CommunityScreen() {
           );
         }}
         ListEmptyComponent={
-          loading ? null : (
+          // Before this branch existed, a refused read of the board rendered
+          // "No topics yet — start a meet-up, ask a question, or offer a ride
+          // from the tram": an invitation to be the first to post to a board that
+          // already had fifty topics on it.
+          error ? (
+            <DataError error={error} subject="the community board" onRetry={retry} />
+          ) : loading ? null : (
             <EmptyState
               icon="bubble.left.and.bubble.right"
               title={search.trim() ? 'No matching topics' : category ? 'Nothing here yet' : 'No topics yet'}
