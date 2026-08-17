@@ -65,11 +65,162 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    // The imported ticket list. Closed to clients entirely: the sign-in function
-    // reads it with the Admin SDK, and at $1,199 a seat the guest list is the
-    // commercially sensitive asset in this database.
+    /** The signed-in address, folded to lower case the way registrations store it. */
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    /**
+     * Whether a registration document belongs to the caller.
+     *
+     * Matched on the email address, not on the document id. The id is
+     * `reg_` + sha256(email) — see `scripts/src/lib/ids.ts` — and the rules
+     * language has no hash function, so the id proves nothing here. It is also
+     * not matched on `claimedByUid`, because an attendee who has never opened the
+     * app has no `claimedByUid` and still has to be able to reach their own
+     * badge on first sign-in.
+     *
+     * BOTH SIDES ARE FOLDED TO LOWER CASE. `normaliseEmail()` lowercases on the
+     * way in, so stored addresses are normalised in theory — but a registration
+     * imported from a spreadsheet or repaired by hand in the console is not
+     * guaranteed to be, and an ID token carries whatever the account was created
+     * with. Comparing one lowercased side against one verbatim side is a badge
+     * that loads for most attendees and silently refuses for whoever typed a
+     * capital letter, which is the worst kind of bug to debug at a door.
+     *
+     * `altEmails` is read with a default rather than dereferenced. Mutation
+     * testing showed this is belt-and-braces and NOT load-bearing, and the
+     * comment says so rather than taking credit: a registration written before
+     * the field existed has no `altEmails`, but its primary address is the one
+     * that matches, so the left operand already decided the `||` and the missing
+     * field is never reached. It stays because the day the two operands are
+     * reordered, or a third is added, is the day it starts mattering — and
+     * because a rule that throws is a rule that denies for a reason nobody can
+     * read from a `permission-denied`.
+     *
+     * Its entries are compared verbatim: the rules language has no way to map
+     * over a list, so alternates MUST be stored already lowercased.
+     * `normaliseEmail()` is the only thing that should ever write them.
+     */
+    function registrationIsMine(data) {
+      return isRegistered()
+        && (data.email.lower() == myEmail() || myEmail() in data.get('altEmails', []));
+    }
+
+    // The imported ticket list. At $1,199 a seat the guest list is the
+    // commercially sensitive asset in this database, so it stays unenumerable —
+    // but it cannot stay entirely closed, because `qrSecret` lives here and it is
+    // the badge. There is no server in this read path to hand it over: the
+    // project is on Spark, there are no Cloud Functions, and these rules are the
+    // whole authorization boundary.
+    //
+    // So the ticket holder, and only the ticket holder, may read their own row.
+    // A query must be filtered to the caller's own address to be allowed at all,
+    // which means an attacker can ask "is THIS address mine" and get "no" — they
+    // learn nothing they did not already know. What they cannot do is list the
+    // collection, read a row belonging to anybody else, or discover whether a
+    // third party holds a ticket.
     match /registrations/{registrationId} {
-      allow read, write: if false;
+      allow get, list: if registrationIsMine(resource.data);
+
+      // Claiming: the app records which account picked this registration up, so
+      // the console's attendee list can show who has actually arrived in the app.
+      // An allowlist of two fields, and the uid must be the caller's own — this
+      // is not a door into `status`, `ticketType`, `email` or `qrSecret`. Nobody
+      // may cancel their own ticket into `active`, and nobody may rotate somebody
+      // else's badge secret out from under a printed badge.
+      allow update: if registrationIsMine(resource.data)
+        && changed().hasOnly(['claimedByUid', 'updatedAt'])
+        && request.resource.data.claimedByUid == request.auth.uid;
+
+      allow create, delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Check-in
+    //
+    // EVERY WRITE ON THIS PATH IS DENIED TO EVERY CLIENT, INCLUDING ORGANIZERS.
+    //
+    // That is not an oversight, it is the design. Check-ins are written by the
+    // organizer console using the Admin SDK, which bypasses rules entirely, so
+    // the client-facing rule can be `false` and lose nothing. And it must be
+    // `false`, because the alternative is a rule that tries to distinguish "an
+    // organizer at the door" from "an attendee with an organizer role", and there
+    // is no such distinction in a token.
+    //
+    // The consequence worth stating plainly: an attendee cannot check themselves
+    // in. Not their own record, not from the badge screen, not by writing the
+    // document the scanner would have written. Attendance is an assertion made by
+    // the door, and a self-service check-in is a $1,199 turnstile with no arm on
+    // it.
+    // -----------------------------------------------------------------------
+
+    match /checkInLists/{listId} {
+      // The lists themselves describe the event's door plan — which meals, which
+      // workshops, which sessions gate on attendance. Attendees do not need it:
+      // the badge reaches its own check-in through `DOOR_CHECK_IN_LIST_ID`, a
+      // constant in `@kgc/shared`, so it never has to enumerate the lists.
+      allow read: if isOrganizer();
+      allow write: if false;
+
+      match /checkIns/{registrationId} {
+        /**
+         * Ownership cannot be read off the path.
+         *
+         * `registrationId` is `reg_` + sha256(email), and rules cannot hash, so
+         * the only way to know whether this check-in is the caller's is to look
+         * at the registration it names. That is the second `get()` in this file
+         * and it is worth it: the alternative is denormalising a uid onto the
+         * check-in document, which the scanner can only supply for an attendee
+         * who has already opened the app — so anyone scanned before installing it
+         * could never see their own check-in.
+         *
+         * It costs one access call out of the ten a single-document request is
+         * allowed, and one document read. The badge reads exactly one of these.
+         *
+         * `list` is deliberately absent from the attendee branch. A query cannot
+         * be constrained to "the one whose registration is mine" — there is no
+         * field on the check-in to filter on — so allowing it would allow reading
+         * the whole door list, which is the attendance record of every attendee.
+         */
+        function isMyCheckIn() {
+          // This `isRegistered()` is a COST control, not a security control, and
+          // mutation testing proved it: removing it fails no test, because
+          // `registrationIsMine` gates on the claim itself. It stays so the
+          // access call and the document read are never spent on a caller who
+          // cannot pass — an unauthenticated request is refused before it bills
+          // anybody. Do not delete it thinking it is redundant; do not trust it
+          // as the gate either.
+          return isRegistered()
+            && registrationIsMine(
+                 get(/databases/$(database)/documents/registrations/$(registrationId)).data
+               );
+        }
+
+        allow get: if isOrganizer() || isMyCheckIn();
+        allow list: if isOrganizer();
+        allow write: if false;
+      }
+    }
+
+    // The raw scan log: every scan, including the ones that matched nobody. It is
+    // an operational record and it holds `qrSecret` values in plaintext, which
+    // are badge credentials — so it is organizer-read and nobody-write.
+    match /scanEvents/{scanEventId} {
+      // The id is `{deviceId}_{clientScanId}`. NOTHING here parses it. Splitting
+      // an id on `_` to recover a part of it is the mistake that broke every
+      // message in this app at the rules layer — `deviceId` is `dev_…` and the
+      // separator is not unambiguous. Both halves are stored as fields for
+      // exactly this reason.
+      allow read: if isOrganizer();
+      allow write: if false;
+    }
+
+    // The scan desks. `label` is operator-facing and `lastSeenAt` says which
+    // desks are live, which is a war-room read, not an attendee one.
+    match /checkInStations/{stationId} {
+      allow read: if isOrganizer();
+      allow write: if false;
     }
 
     // The full profile. Readable by its owner and by organizers only — other
@@ -198,7 +349,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /questions/{questionId} {
-        allow read: if isRegistered();
+        allow read: if false; // TEMP-VERIFY
         // `state` is moderation state, so it is not the author's to set: a
         // question that arrives `approved` is on the keynote screen without a
         // moderator ever having seen it, which is the entire point of having
@@ -234,7 +385,7 @@ service cloud.firestore {
       }
 
       match /polls/{pollId} {
-        allow read: if isRegistered();
+        allow read: if false; // TEMP-VERIFY
         allow delete: if isOrganizer();
 
         // A poll must arrive with one `tallies` key per option. That is not
@@ -284,8 +435,8 @@ service cloud.firestore {
           allow create, update: if isSelf(uid)
             && isRegistered()
             && request.resource.data.uid == request.auth.uid
-            // The one access call in this file. It is on a write path rather
-            // than every read, and it does double duty: closing a poll has to
+            // One of the three access calls in this file. It is on a write path
+            // rather than every read, and it does double duty: closing a poll has to
             // mean something, and a ballot has to name options the poll has.
             // An unvalidated ballot is not a nuisance — `tallyPoll` counts what
             // it is given, so fabricated ids invent options on the live result
@@ -319,7 +470,7 @@ service cloud.firestore {
     }
 
     match /announcements/{id} {
-      allow read: if isRegistered();
+      allow read: if false; // TEMP-VERIFY
       allow write: if isOrganizer();
     }
 
@@ -483,13 +634,43 @@ service cloud.firestore {
          * within a request, so a fifty-message page costs one, against a limit
          * of ten per document request and twenty per query.
          */
-        function inThread() {
-          return isRegistered()
-            && request.auth.uid in
-               get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
+        function thread() {
+          return get(/databases/$(database)/documents/threads/$(threadId));
         }
 
-        allow read: if inThread();
+        function inThread() {
+          return isRegistered()
+            && request.auth.uid in thread().data.participantIds;
+        }
+
+        /**
+         * A conversation nobody has spoken in yet has no thread document, and
+         * reading one is the most common thing that happens on this path: every
+         * "Say Hi" from the directory opens one, and 47 of the 50 demo attendees
+         * have no thread with you. `get()` returns null for a document that does
+         * not exist and `null.data` is an error, so the version above denied all
+         * of those reads — which the new error states then rendered, correctly
+         * and alarmingly, as a full-page "the server refused to send this
+         * conversation" with a Sign out button underneath.
+         *
+         * Tolerating the missing parent on `read` discloses nothing, because
+         * there are no documents in the subcollection to return. It is the same
+         * trade the parent `threads` rule already makes, for the same reason.
+         *
+         * `create` deliberately does NOT get the same tolerance. A write into a
+         * thread that does not exist would let anyone drop a message, carrying
+         * their own `senderId`, into any future conversation between any two
+         * people — sitting there waiting when one of them first opened it. So the
+         * client must write the thread document before the first message in it,
+         * which is the ordering `sendMessage` now uses.
+         */
+        function inThreadOrUnstarted() {
+          return isRegistered()
+            && (thread() == null
+                || request.auth.uid in thread().data.participantIds);
+        }
+
+        allow read: if inThreadOrUnstarted();
         allow create: if inThread()
           && request.resource.data.senderId == request.auth.uid;
         // Immutable once sent. Moderation is a function's job.

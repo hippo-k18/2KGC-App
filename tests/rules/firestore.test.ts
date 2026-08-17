@@ -64,7 +64,69 @@ beforeEach(async () => {
   // everything fails for the wrong reason.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'registrations/reg_001'), { email: `${A}@kgc.test` });
+    // Four registrations, because "is this row mine" is the whole predicate and
+    // every shape it has to answer for is here: the caller's own, somebody
+    // else's, one reached through an alternate address, and one written before
+    // `altEmails` existed at all.
+    await setDoc(doc(db, 'registrations/reg_001'), {
+      email: `${A}@kgc.test`, altEmails: [], name: 'A', ticketType: 'All Access',
+      status: 'active', qrSecret: 'secret-belonging-to-A', claimCode: 'AAAAAA',
+    });
+    await setDoc(doc(db, 'registrations/reg_002'), {
+      email: `${B}@kgc.test`, altEmails: [], name: 'B', ticketType: 'Standard',
+      status: 'active', qrSecret: 'secret-belonging-to-B', claimCode: 'BBBBBB',
+    });
+    // Registered under an assistant's address, with the attendee's own listed as
+    // an alternate — the case the `altEmails` field exists for. Stored lowercased,
+    // which is a requirement rather than a habit: rules cannot map over a list, so
+    // alternates are compared verbatim and only `normaliseEmail()` may write them.
+    await setDoc(doc(db, 'registrations/reg_alias'), {
+      email: 'assistant@kgc.test', altEmails: [`${A}@kgc.test`.toLowerCase()],
+      status: 'active', qrSecret: 'secret-reached-by-alias',
+    });
+    // The same alternate, stored with the capital letter it was typed with. It
+    // must NOT match, and the test that says so is the documentation for why the
+    // importer has to normalise.
+    await setDoc(doc(db, 'registrations/reg_alias_mixedcase'), {
+      email: 'assistant2@kgc.test', altEmails: [`${A}@kgc.test`],
+      status: 'active', qrSecret: 'secret-behind-a-capital-letter',
+    });
+    // No `altEmails` key at all. Dereferencing an absent field throws in rules,
+    // which Firestore reports as permission-denied — so without a default this
+    // shape is a badge that will not load for the oldest registrations only.
+    await setDoc(doc(db, 'registrations/reg_legacy'), {
+      email: `${A}@kgc.test`, status: 'active', qrSecret: 'secret-from-before-altEmails',
+    });
+    // A cancelled ticket, so "you may not revive your own registration" is
+    // testable against a status that is genuinely not `active`.
+    await setDoc(doc(db, 'registrations/reg_cancelled'), {
+      email: `${A}@kgc.test`, altEmails: [], status: 'cancelled',
+      qrSecret: 'secret-of-a-cancelled-ticket',
+    });
+
+    // Check-in. `checkInLists/{listId}/checkIns/{registrationId}` — keyed by
+    // registration, which is what makes a second scan a create that fails.
+    await setDoc(doc(db, 'checkInLists/event-door'), {
+      eventId: 'kgc-2027', name: 'KGC 2027 — Main Door', kind: 'event',
+    });
+    await setDoc(doc(db, 'checkInLists/event-door/checkIns/reg_001'), {
+      registrationId: 'reg_001', stationId: 'dev_desk1', operatorUid: ORG,
+    });
+    await setDoc(doc(db, 'checkInLists/event-door/checkIns/reg_002'), {
+      registrationId: 'reg_002', stationId: 'dev_desk1', operatorUid: ORG,
+    });
+    // A check-in naming a registration that has since been deleted, so "the
+    // ownership lookup found nothing" is exercised rather than assumed.
+    await setDoc(doc(db, 'checkInLists/event-door/checkIns/reg_deleted'), {
+      registrationId: 'reg_deleted', stationId: 'dev_desk1',
+    });
+    await setDoc(doc(db, 'scanEvents/dev_desk1_scan-1'), {
+      eventId: 'kgc-2027', deviceId: 'dev_desk1', clientScanId: 'scan-1',
+      qrSecret: 'secret-belonging-to-A', listId: 'event-door', result: 'ok',
+    });
+    await setDoc(doc(db, 'checkInStations/dev_desk1'), {
+      eventId: 'kgc-2027', label: 'Front desk 1', deviceId: 'dev_desk1',
+    });
     await setDoc(doc(db, 'sessions/s1'), { title: 'Keynote', status: 'published' });
     await setDoc(doc(db, 'sessions/draft1'), { title: 'Unannounced keynote', status: 'draft' });
     await setDoc(doc(db, 'speakers/sp1'), { name: 'A Speaker' });
@@ -137,6 +199,22 @@ const asOrg = () =>
 const asOrgNoTicket = () =>
   env.authenticatedContext('orgNoTicket', {
     roles: ['organizer'], email: 'orgNoTicket@kgc.test',
+  }).firestore();
+
+/**
+ * Signed in with a ticket holder's address, but holding no ticket.
+ *
+ * This is the account anybody can make: sign-up is open, and knowing somebody's
+ * email address is not a secret. It exists because the registration and check-in
+ * rules match on the address, so the `registered` claim is the *only* thing
+ * standing between "I know Amara's email" and "I have Amara's badge secret".
+ * Mutation testing found that gap: dropping `isRegistered()` from the ownership
+ * predicate broke nothing, because no context in this file combined a matching
+ * address with a missing claim.
+ */
+const asImposter = () =>
+  env.authenticatedContext('imposter', {
+    email: `${A}@kgc.test`, email_verified: true,
   }).firestore();
 
 describe('the gate', () => {
@@ -427,13 +505,281 @@ describe('private per-user storage', () => {
 });
 
 describe('the ticket list', () => {
+  // The ticket list used to be closed to clients outright. It cannot stay that
+  // way: `qrSecret` lives here and it *is* the badge, and there is no server in
+  // the read path to hand it over — no Cloud Functions, Spark plan, rules only.
+  // So the invariant narrowed from "nobody may read this" to "only the holder
+  // may read their own row, and nobody may enumerate it". Every way of asking
+  // for somebody else's row is below, because the guest list is the
+  // commercially sensitive asset in this database.
   it('is not enumerable by anyone, including organizers', async () => {
     await assertFails(getDocs(collection(asA(), 'registrations')));
     await assertFails(getDocs(collection(asOrg(), 'registrations')));
   });
 
-  it('is not readable document-by-document either', async () => {
-    await assertFails(getDoc(doc(asA(), 'registrations/reg_001')));
+  it('lets a ticket holder read their own registration', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'registrations/reg_001')));
+  });
+
+  it('hides one attendee’s registration from another', async () => {
+    await assertFails(getDoc(doc(asA(), 'registrations/reg_002')));
+    await assertFails(getDoc(doc(asB(), 'registrations/reg_001')));
+  });
+
+  it('hides a registration from an organizer client too', async () => {
+    // The console reads registrations with the Admin SDK, which bypasses rules.
+    // An organizer holding a browser tab is still a client, and $1,199-a-seat
+    // contact details are not something a role should hand over.
+    await assertFails(getDoc(doc(asOrg(), 'registrations/reg_001')));
+  });
+
+  it('refuses an unauthenticated reader and one with no ticket', async () => {
+    await assertFails(getDoc(doc(unauth(), 'registrations/reg_001')));
+    await assertFails(getDoc(doc(noClaim(), 'registrations/reg_001')));
+  });
+
+  it('refuses an account that knows a ticket holder’s address but holds no ticket', async () => {
+    // Sign-up is open and an email address is not a secret, so this account is
+    // free to create. The `registered` claim is the only thing between it and
+    // somebody else's badge secret — matching on the address alone is not
+    // authentication, it is a lookup key.
+    await assertFails(getDoc(doc(asImposter(), 'registrations/reg_001')));
+    await assertFails(
+      getDocs(
+        query(collection(asImposter(), 'registrations'), where('email', '==', `${A}@kgc.test`)),
+      ),
+    );
+    await assertFails(
+      updateDoc(doc(asImposter(), 'registrations/reg_001'), { claimedByUid: 'imposter' }),
+    );
+    await assertFails(getDoc(doc(asImposter(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('lets a holder find their registration by their own address', async () => {
+    // This is how the badge screen finds it: the document id is
+    // `reg_` + sha256(email) and the app does not hash, so it queries. The rule
+    // is satisfied for every document the filter can return.
+    await assertSucceeds(
+      getDocs(query(collection(asA(), 'registrations'), where('email', '==', `${A}@kgc.test`))),
+    );
+  });
+
+  it('refuses a query filtered to somebody else’s address', async () => {
+    // The membership oracle that matters. Without this the collection is a way
+    // to ask "does this person hold a ticket" about anybody.
+    await assertFails(
+      getDocs(query(collection(asA(), 'registrations'), where('email', '==', `${B}@kgc.test`))),
+    );
+  });
+
+  it('recognises an alternate address the registration lists', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'registrations/reg_alias')));
+    await assertFails(getDoc(doc(asB(), 'registrations/reg_alias')));
+  });
+
+  it('matches the primary address whatever case it was stored in', async () => {
+    // The fixture stores `attendeeA@kgc.test` with a capital A while the token
+    // carries the lowercased form. Comparing one folded side against one verbatim
+    // side is a badge that works for most people and refuses for whoever typed a
+    // capital letter — which is exactly how this rule failed first time.
+    await assertSucceeds(getDoc(doc(asA(), 'registrations/reg_001')));
+  });
+
+  it('does not match an alternate address stored in the wrong case', async () => {
+    // Not a nice property, but a true one, and it belongs in the test file rather
+    // than in a surprise at a door: rules cannot fold the case of a list's
+    // entries, so `altEmails` must be written already normalised.
+    await assertFails(getDoc(doc(asA(), 'registrations/reg_alias_mixedcase')));
+  });
+
+  it('still works on a registration written before altEmails existed', async () => {
+    // An absent field dereferenced in rules throws, and Firestore reports that
+    // as permission-denied — so the failure mode is a badge that loads for
+    // recent registrations and not for imported ones.
+    await assertSucceeds(getDoc(doc(asA(), 'registrations/reg_legacy')));
+  });
+
+  it('lets the holder attach their registration to their own account', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asA(), 'registrations/reg_001'), { claimedByUid: A }),
+    );
+  });
+
+  it('refuses claiming a registration for a different account', async () => {
+    await assertFails(updateDoc(doc(asA(), 'registrations/reg_001'), { claimedByUid: B }));
+  });
+
+  it('refuses claiming somebody else’s registration', async () => {
+    await assertFails(updateDoc(doc(asA(), 'registrations/reg_002'), { claimedByUid: A }));
+  });
+
+  it('refuses rotating the badge secret under cover of a claim', async () => {
+    // `qrSecret` may already be printed on a badge in somebody's hand. The
+    // claim allowlist is what stops a client invalidating it.
+    await assertFails(
+      updateDoc(doc(asA(), 'registrations/reg_001'), {
+        claimedByUid: A,
+        qrSecret: 'a-secret-of-my-own-choosing',
+      }),
+    );
+  });
+
+  it('refuses reviving a cancelled ticket, or upgrading one, while claiming it', async () => {
+    // A cancelled ticket is the scanner's `cancelled` verdict and a trip to the
+    // registration desk. Claiming it in the app must not be a way to make it
+    // `active` again, and must not be a way to promote Standard to All Access.
+    await assertFails(
+      updateDoc(doc(asA(), 'registrations/reg_cancelled'), { claimedByUid: A, status: 'active' }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), 'registrations/reg_001'), {
+        claimedByUid: A,
+        ticketType: 'All Access (VIP)',
+      }),
+    );
+  });
+
+  it('refuses minting or deleting a registration from a client', async () => {
+    await assertFails(
+      setDoc(doc(asA(), 'registrations/reg_selfissued'), {
+        email: `${A}@kgc.test`, status: 'active', qrSecret: 'mine',
+      }),
+    );
+    await assertFails(deleteDoc(doc(asA(), 'registrations/reg_001')));
+    await assertFails(deleteDoc(doc(asOrg(), 'registrations/reg_001')));
+  });
+});
+
+describe('check-in', () => {
+  // The rule that matters most on this path is that there is no client write
+  // rule at all. The console writes check-ins with the Admin SDK, which bypasses
+  // rules, so denying every client write costs nothing and closes the question
+  // of whether attendance is self-assertable.
+  it('refuses an attendee checking themselves in', async () => {
+    await assertFails(
+      setDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_003'), {
+        registrationId: 'reg_003', stationId: 'dev_mine',
+      }),
+    );
+  });
+
+  it('refuses an attendee overwriting their own check-in record', async () => {
+    // Their own document, which they are allowed to read. Reading it is not a
+    // licence to move the time or the desk it says they arrived at.
+    await assertFails(
+      setDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_001'), {
+        registrationId: 'reg_001', stationId: 'dev_mine',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_001'), { stationId: 'dev_mine' }),
+    );
+  });
+
+  it('refuses an attendee un-checking themselves in', async () => {
+    await assertFails(deleteDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('refuses an organizer client writing a check-in as well', async () => {
+    // An organizer is a client with a role, not a server. If the console ever
+    // stops using the Admin SDK this test is the thing that will notice.
+    await assertFails(
+      setDoc(doc(asOrg(), 'checkInLists/event-door/checkIns/reg_003'), {
+        registrationId: 'reg_003', stationId: 'dev_desk1',
+      }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('lets an attendee read their own check-in', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('hides one attendee’s check-in from another', async () => {
+    // Attendance is a personal fact. Who arrived, and when, is not something the
+    // person next to them gets to look up.
+    await assertFails(getDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_002')));
+    await assertFails(getDoc(doc(asB(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('refuses an unauthenticated read of a check-in, and one with no ticket', async () => {
+    await assertFails(getDoc(doc(unauth(), 'checkInLists/event-door/checkIns/reg_001')));
+    await assertFails(getDoc(doc(noClaim(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('refuses a check-in whose registration no longer exists', async () => {
+    // The ownership lookup returns nothing, and nothing is not a match. A
+    // deleted registration must not become a check-in anyone can read.
+    await assertFails(getDoc(doc(asA(), 'checkInLists/event-door/checkIns/reg_deleted')));
+  });
+
+  it('refuses an attendee listing the door list', async () => {
+    // The list is the attendance record of every attendee, and there is no field
+    // on a check-in to filter it down to the caller — so `list` is organizer-only
+    // even though `get` is not. `list` and `get` are separate rules here on
+    // purpose.
+    await assertFails(getDocs(collection(asA(), 'checkInLists/event-door/checkIns')));
+  });
+
+  it('lets an organizer read the door list and each check-in on it', async () => {
+    await assertSucceeds(getDocs(collection(asOrg(), 'checkInLists/event-door/checkIns')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'checkInLists/event-door/checkIns/reg_001')));
+  });
+
+  it('keeps the door plan itself organizer-only', async () => {
+    // The badge reaches its own check-in through a constant id, so an attendee
+    // never needs to know which meals and workshops gate on attendance.
+    await assertFails(getDoc(doc(asA(), 'checkInLists/event-door')));
+    await assertFails(getDocs(collection(asA(), 'checkInLists')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'checkInLists/event-door')));
+  });
+
+  it('refuses a client creating or renaming a check-in list', async () => {
+    await assertFails(
+      setDoc(doc(asOrg(), 'checkInLists/my-own-door'), {
+        eventId: 'kgc-2027', name: 'Mine', kind: 'event',
+      }),
+    );
+    await assertFails(updateDoc(doc(asOrg(), 'checkInLists/event-door'), { name: 'Renamed' }));
+  });
+
+  it('keeps the raw scan log away from attendees', async () => {
+    // Every entry holds a `qrSecret` in plaintext, which is a badge credential
+    // for whoever it belongs to.
+    await assertFails(getDoc(doc(asA(), 'scanEvents/dev_desk1_scan-1')));
+    await assertFails(getDocs(collection(asA(), 'scanEvents')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'scanEvents/dev_desk1_scan-1')));
+  });
+
+  it('refuses a client appending to the scan log', async () => {
+    // A forged scan event is a forged audit trail. The append-only log is
+    // append-only from the Admin SDK, and from nowhere else.
+    await assertFails(
+      setDoc(doc(asA(), 'scanEvents/dev_mine_scan-1'), {
+        eventId: 'kgc-2027', deviceId: 'dev_mine', clientScanId: 'scan-1',
+        qrSecret: 'secret-belonging-to-A', listId: 'event-door', result: 'ok',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asOrg(), 'scanEvents/dev_mine_scan-2'), {
+        eventId: 'kgc-2027', deviceId: 'dev_mine', clientScanId: 'scan-2',
+        qrSecret: 'x', listId: 'event-door', result: 'ok',
+      }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), 'scanEvents/dev_desk1_scan-1')));
+  });
+
+  it('keeps the scan desks organizer-only and client-immutable', async () => {
+    await assertFails(getDoc(doc(asA(), 'checkInStations/dev_desk1')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'checkInStations/dev_desk1')));
+    await assertFails(
+      setDoc(doc(asOrg(), 'checkInStations/dev_mine'), {
+        eventId: 'kgc-2027', label: 'Mine', deviceId: 'dev_mine',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(asOrg(), 'checkInStations/dev_desk1'), { label: 'Renamed' }),
+    );
   });
 });
 
@@ -576,6 +922,42 @@ describe('private messages', () => {
 
   it('hides the messages inside it too', async () => {
     await assertFails(getDocs(collection(asOrg(), `threads/${thread}/messages`)));
+  });
+
+  // A conversation nobody has spoken in yet, which is the ordinary case: 47 of
+  // the 50 demo attendees have no thread with you, so this is what "Say Hi" from
+  // the directory opens. It used to be denied — `get()` on the absent parent
+  // returned null and `null.data` errored — and the error states then presented
+  // that as "the server refused to send this conversation", with a Sign out
+  // button, on the flagship flow of the demo.
+  const unstarted = `${A}_unknownPerson`;
+
+  it('opens a conversation nobody has started yet', async () => {
+    await assertSucceeds(getDocs(collection(asA(), `threads/${unstarted}/messages`)));
+  });
+
+  it('lets an outsider read an unstarted conversation, which is empty', async () => {
+    // Not a leak, and worth stating rather than leaving as an accident: there are
+    // no documents to return. Denying it would cost the line above, which is the
+    // path every attendee actually walks.
+    const snap = await assertSucceeds(
+      getDocs(collection(asOrg(), `threads/${unstarted}/messages`)),
+    );
+    expect(snap.empty).toBe(true);
+  });
+
+  it('refuses a message into a conversation that has no thread', async () => {
+    // The reason `create` does not get the same tolerance as `read`. Without
+    // this, anyone could park a message carrying their own senderId inside any
+    // future conversation between any two people, waiting for one of them to
+    // open it. Denied even for a participant, which is why the client must write
+    // the thread document before the first message in it.
+    await assertFails(
+      setDoc(doc(asA(), `threads/${unstarted}/messages/m1`), { senderId: A, body: 'hi' }),
+    );
+    await assertFails(
+      setDoc(doc(asOrg(), `threads/${unstarted}/messages/m1`), { senderId: ORG, body: 'hi' }),
+    );
   });
 
   it('refuses a message written by an outsider', async () => {

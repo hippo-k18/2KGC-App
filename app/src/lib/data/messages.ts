@@ -29,14 +29,26 @@ import { detachWrite, runWrite, type WriteResult } from '@/lib/data/write';
 export type Thread = WithId<ThreadDoc>;
 export type Message = WithId<MessageDoc>;
 
-/** Whova caps direct messages at 100 per 24 hours. Worth copying. */
-export const DAILY_MESSAGE_LIMIT = 100;
+/*
+ * Whova caps direct messages at 100 per 24 hours, and copying that is worth
+ * doing — but the constant that used to sit here did not do it. It was exported,
+ * documented as a cap, and referenced by nothing: no rule, no client check, no
+ * call site. Anyone reading it would have concluded the app was rate-limited.
+ *
+ * It cannot be enforced from a client at all. A counter the sender increments is
+ * a counter the sender can decline to increment, and a rule cannot count a
+ * sender's writes across a day without reading a document that only a server can
+ * be trusted to maintain. So this belongs with the other Blaze-blocked work
+ * rather than in a constant that reads as done.
+ *
+ * Restore it when there is a function to enforce it, next to the enforcement.
+ */
 
 /** How much of a conversation one listener carries. See `useMessages`. */
 const MESSAGE_PAGE_SIZE = 50;
 
 export function useThreads(uid: string | undefined) {
-  const { data, loading } = useCollection<Thread>(
+  const { data, error, loading, retry } = useCollection<Thread>(
     () =>
       query(
         collection(getDb(), COLLECTIONS.threads),
@@ -46,7 +58,7 @@ export function useThreads(uid: string | undefined) {
     [uid],
     (id, d) => ({ id, ...d }) as Thread,
   );
-  return { threads: data, loading };
+  return { threads: data, error, loading, retry };
 }
 
 /**
@@ -64,8 +76,8 @@ export function useThreads(uid: string | undefined) {
  * cursor (`endBefore` the oldest loaded doc) before a heavy thread loses
  * history.
  */
-export function useMessages(threadId: string | undefined): Message[] {
-  const { data } = useCollection<Message>(
+export function useMessages(threadId: string | undefined) {
+  const { data, error, retry } = useCollection<Message>(
     () =>
       query(
         collection(getDb(), COLLECTIONS.threads, threadId ?? '_', SUBCOLLECTIONS.messages),
@@ -75,7 +87,9 @@ export function useMessages(threadId: string | undefined): Message[] {
     [threadId],
     (id, d) => ({ id, ...d }) as Message,
   );
-  return data ?? [];
+  // An object, not a bare array. "Say hello to Priya" over a conversation the
+  // server refused to send is the same lie an empty agenda was telling.
+  return { messages: data ?? [], error, retry };
 }
 
 /**

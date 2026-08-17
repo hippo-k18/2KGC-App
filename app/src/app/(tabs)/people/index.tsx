@@ -6,6 +6,7 @@ import { threadIdFor } from '@kgc/shared';
 
 import { DECORATIVE } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
+import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { FilterChip } from '@/components/filter-chip';
 import { Chevron, Icon } from '@/components/icon';
@@ -78,14 +79,6 @@ type Row =
  *
  * ## What is deliberately not here
  *
- * **The bookmark star.** `users/{uid}/savedContacts/{contactUid}` is modelled
- * and `firestore.rules` already allows exactly that write — but no hook in
- * `lib/data/` reads or writes it, and a screen must not open its own listener
- * (that is how two composite-index bugs shipped). A star that filled in and
- * forgot itself on the next render would be a lie about saved contacts, so the
- * control is absent until `lib/data/directory.ts` grows a `useSavedContacts()`.
- * The "Bookmarked" filter chip is missing for the same reason.
- *
  * **"Recommended", and its red badge.** That is a matching service, not a
  * filter — there is no interest-similarity score anywhere in this data model.
  *
@@ -104,12 +97,21 @@ export default function PeopleScreen() {
   const [interest, setInterest] = useState<string | null>(null);
   const listRef = useRef<FlatList<Row>>(null);
 
-  const { people, loading } = useDirectory();
+  const { people, loading, error: peopleError, retry: retryPeople } = useDirectory();
   const { isSaved, toggle: toggleBookmark } = useSavedContacts();
   // Whova's "Bookmarked" chip. Real, because the bookmark itself is real.
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
-  const { speakers } = useSpeakers();
-  const { sponsors } = useSponsors();
+  const { speakers, error: speakersError, retry: retrySpeakers } = useSpeakers();
+  const { sponsors, error: sponsorsError, retry: retrySponsors } = useSponsors();
+
+  // One segment is visible at a time, and each reads a different collection, so
+  // the error belongs to the segment rather than to the screen. Showing the
+  // directory's failure while Sponsors is selected would be reporting on a query
+  // nobody is looking at.
+  const segmentError = segment === 0 ? peopleError : segment === 1 ? speakersError : sponsorsError;
+  const retrySegment = segment === 0 ? retryPeople : segment === 1 ? retrySpeakers : retrySponsors;
+  const segmentSubject =
+    segment === 0 ? 'the attendee list' : segment === 1 ? 'the speaker list' : 'the sponsor list';
   const interests = useInterests(people);
 
   const visiblePeople = useMemo(() => {
@@ -407,7 +409,18 @@ export default function PeopleScreen() {
             );
           }}
           ListEmptyComponent={
-            loading ? null : (
+            // The error branch comes first, and it is the reason this component
+            // exists in its current shape: "Nobody here yet — attendees appear
+            // here as they join and opt in" is what a `permission-denied` on the
+            // directory used to render, which is a confident, false, reassuring
+            // account of a thousand-person conference.
+            segmentError ? (
+              <DataError
+                error={segmentError}
+                subject={segmentSubject}
+                onRetry={retrySegment}
+              />
+            ) : loading ? null : (
               <EmptyState
                 icon="person.2"
                 title={search || interest ? 'No matches' : 'Nobody here yet'}

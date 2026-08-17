@@ -1,8 +1,9 @@
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { pushedStackScreenOptions } from '@/components/pushed-header';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth/auth-provider';
 
 /**
  * Messages sits outside the tab bar.
@@ -30,6 +31,20 @@ import { useTheme } from '@/hooks/use-theme';
  */
 export default function MessagesLayout() {
   const colors = useTheme();
+  const { user, loading } = useAuth();
+
+  /*
+   * The same gate `(tabs)/_layout.tsx` carries, which this group needed just as
+   * much and did not have. Messages is outside the tab group, so the tab guard
+   * never covered it — and these are the two most linkable routes in the app.
+   *
+   * Signed out, `/messages` rendered an inbox whose list never resolved: not the
+   * empty state, a permanent blank, because `loading` stays true with no user to
+   * query for. `/messages/<id>` was worse — "Say hello to" with a dangling empty
+   * name, above a composer that looked live and whose Send did nothing.
+   */
+  if (loading) return null;
+  if (!user) return <Redirect href="/login" />;
 
   return (
     <>
