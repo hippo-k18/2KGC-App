@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 
 import { Avatar } from '@/components/avatar';
 import { FilterChip } from '@/components/filter-chip';
+import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -124,7 +125,7 @@ export default function EditProfileScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: 'Edit profile', headerBackTitle: 'Me' }} />
+      <PushedHeader title="Edit profile" backTitle="Me" backHref="/me" />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: colors.background }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { SectionList, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { EmptyState } from '@/components/empty-state';
+import { PushedHeader } from '@/components/pushed-header';
 import { SessionCard } from '@/components/session-card';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -53,7 +54,7 @@ export default function MyScheduleScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: 'My schedule', headerBackTitle: 'Me' }} />
+      <PushedHeader title="My schedule" backTitle="Me" backHref="/me" />
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <SectionList
           sections={sections}

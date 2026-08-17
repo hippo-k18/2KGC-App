@@ -1,7 +1,8 @@
 import { View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
 import { Icon } from '@/components/icon';
+import { PushedHeader } from '@/components/pushed-header';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -28,7 +29,7 @@ export default function ComingSoonScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: '', headerBackTitle: 'Home' }} />
+      <PushedHeader backTitle="Home" backHref="/home" />
 
       <Screen grouped>
         <View

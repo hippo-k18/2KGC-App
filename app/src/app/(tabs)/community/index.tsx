@@ -129,7 +129,13 @@ export default function CommunityScreen() {
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me')}
         actions={[
-          { icon: 'envelope.fill', label: 'Messages', onPress: () => router.push('/messages') },
+          {
+            icon: 'envelope.fill',
+            label: 'Messages',
+            // `from` names the tab to come back to — see `messages/index.tsx`.
+            onPress: () =>
+              router.push({ pathname: '/messages', params: { from: 'community' } }),
+          },
         ]}
         search={{
           value: search,

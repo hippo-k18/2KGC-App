@@ -1,5 +1,7 @@
 import { Stack } from 'expo-router';
 
+import { pushedStackScreenOptions } from '@/components/pushed-header';
+
 /**
  * Stack inside the Home tab.
  *
@@ -10,7 +12,7 @@ import { Stack } from 'expo-router';
  */
 export default function HomeLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={pushedStackScreenOptions}>
       <Stack.Screen name="index" options={{ title: 'Home' }} />
       <Stack.Screen name="session-feature" options={{ title: 'Session Q&A' }} />
       <Stack.Screen name="coming-soon" options={{ title: 'Not built yet' }} />

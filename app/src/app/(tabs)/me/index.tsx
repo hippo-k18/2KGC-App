@@ -131,7 +131,7 @@ export default function MeScreen() {
             <ListRow
               title="Messages"
               meta={unread ? `${unread} unread` : undefined}
-              onPress={() => router.push('/messages')}
+              onPress={() => router.push({ pathname: '/messages', params: { from: 'me' } })}
               trailing={<Chevron />}
             />
             <ListRow title="Venue" subtitle={EVENT.venue} last />

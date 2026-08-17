@@ -1,14 +1,9 @@
 import type { ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
+import { WEB_TAB_BAR } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { Spacing } from '@/constants/theme';
-
-/**
- * Height of the bar `NativeTabs` pins to the top of the window on web. Nothing
- * measures it, so it is a constant here; on device the value is unused.
- */
-const WEB_TAB_BAR = 68;
 
 /**
  * Large title with an optional trailing action.

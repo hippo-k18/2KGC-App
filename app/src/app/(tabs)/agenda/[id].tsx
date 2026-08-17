@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 import { COLLECTIONS, type SessionDoc, type SpeakerDoc, type WithId } from '@kgc/shared';
 
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { PushedHeader } from '@/components/pushed-header';
 import { SessionPoll } from '@/components/session-poll';
 import { SessionQA } from '@/components/session-qa';
 import { Screen } from '@/components/screen';
@@ -72,17 +73,33 @@ export default function SessionDetailScreen() {
     })();
   }, [speakerIds]);
 
+  // The header goes above the early returns, not inside the success branch.
+  // A link opened cold spends a second or two in `!session` and a removed
+  // session stays in `missing` for good; drawn only on success, the back
+  // button was missing in exactly the two states you most need it.
+  const header = <PushedHeader backTitle="Agenda" backHref="/agenda" />;
+
   if (missing) {
     return (
-      <Screen grouped>
-        <EmptyState title="Session not found" message="It may have been removed from the programme." />
-      </Screen>
+      <>
+        {header}
+        <Screen grouped>
+          <EmptyState title="Session not found" message="It may have been removed from the programme." />
+        </Screen>
+      </>
     );
   }
   if (!session) {
     // No spinner: the agenda list has already been rendered from cache, so a
     // flash of loading chrome here reads as slower than a brief blank.
-    return <Screen grouped><View /></Screen>;
+    return (
+      <>
+        {header}
+        <Screen grouped>
+          <View />
+        </Screen>
+      </>
+    );
   }
 
   const saved = isSaved(session.id);
@@ -90,7 +107,7 @@ export default function SessionDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: '', headerBackTitle: 'Agenda' }} />
+      {header}
       <Screen grouped>
         <View style={{ gap: Spacing.sm }}>
           {session.primaryTrackName ? (

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 import { COLLECTIONS, threadIdFor, type DirectoryDoc, type WithId } from '@kgc/shared';
 
 import { Avatar } from '@/components/avatar';
 import { EmptyState } from '@/components/empty-state';
+import { PushedHeader } from '@/components/pushed-header';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -42,22 +43,32 @@ export default function PersonScreen() {
     });
   }, [uid]);
 
+  // Above the early returns — see the note in `agenda/[id].tsx`. Both states
+  // below are reachable from a cold link, and neither had a way out.
+  const header = <PushedHeader backTitle="People" backHref="/people" />;
+
   if (missing) {
     return (
-      <Screen grouped>
-        <EmptyState
-          icon="person.slash"
-          title="Profile not available"
-          message="This attendee is not listed in the directory."
-        />
-      </Screen>
+      <>
+        {header}
+        <Screen grouped>
+          <EmptyState
+            icon="person.slash"
+            title="Profile not available"
+            message="This attendee is not listed in the directory."
+          />
+        </Screen>
+      </>
     );
   }
   if (!person) {
     return (
-      <Screen grouped>
-        <View />
-      </Screen>
+      <>
+        {header}
+        <Screen grouped>
+          <View />
+        </Screen>
+      </>
     );
   }
 
@@ -65,7 +76,7 @@ export default function PersonScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: '', headerBackTitle: 'People' }} />
+      {header}
       <Screen grouped>
         <View style={{ alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm }}>
           <Avatar name={person.name} photoURL={person.photoURL} size={88} />

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 import { COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
 
 import { EmptyState } from '@/components/empty-state';
+import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -46,19 +47,32 @@ export default function PostScreen() {
     });
   }, [id]);
 
+  // Above the early returns — see the note in `agenda/[id].tsx`.
+  const header = <PushedHeader backTitle="Community" backHref="/community" />;
+
   if (missing) {
-    return <EmptyState icon="trash" title="Post removed" />;
+    return (
+      <>
+        {header}
+        <EmptyState icon="trash" title="Post removed" />
+      </>
+    );
   }
-  if (!post) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!post) {
+    return (
+      <>
+        {header}
+        <View style={{ flex: 1, backgroundColor: colors.background }} />
+      </>
+    );
+  }
 
   const mine = post.authorId === user?.uid;
   const iReacted = reacted.has(post.id);
 
   return (
     <>
-      <Stack.Screen
-        options={{ headerShown: true, title: '', headerBackTitle: 'Community' }}
-      />
+      {header}
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: colors.background }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

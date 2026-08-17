@@ -72,6 +72,15 @@ function RootNavigator() {
       {/* Decides between /login and /home; no header, so it never flashes. */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      {/*
+        Messages sits outside the tab bar and draws its own header. Declaring
+        it here does more than remove the duplicate bar the group used to render
+        under: an undeclared route falls through to this stack's defaults, and
+        the default header's back button names itself after the *previous
+        route*, which is the group `(tabs)`. That is where the inbox's
+        "(tabs), back" came from — a group name is not a place.
+      */}
+      <Stack.Screen name="messages" options={{ headerShown: false }} />
       {/* Full screen rather than a modal — it gates the app. */}
       <Stack.Screen name="login" options={{ headerShown: false }} />
     </Stack>

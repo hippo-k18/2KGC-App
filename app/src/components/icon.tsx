@@ -87,6 +87,8 @@ type AndroidGlyph = MaterialName | { readonly mc: CommunityName };
 
 const ANDROID_EQUIVALENT = {
   'chevron.right': 'chevron-right',
+  /** Back. Drawn by `pushed-header.tsx`; nothing else in the app points left. */
+  'chevron.left': 'chevron-left',
   'chevron.down': 'expand-more',
   'envelope.fill': 'mail',
   envelope: 'mail-outline',

@@ -4,16 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
 import { Icon, type IconName } from '@/components/icon';
+import { WEB_TAB_BAR } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { Brand, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-/**
- * Height of the bar `NativeTabs` pins to the top of the window on web. Nothing
- * measures it, so it is a constant here — the same one `screen-header.tsx`
- * carries, for the same reason. On device the value is unused.
- */
-const WEB_TAB_BAR = 68;
 /** Avatar inside the profile pill. Smaller than a list row's 44pt one. */
 const PILL_AVATAR = 28;
 /** Ring of pill fill around the avatar. */

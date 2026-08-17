@@ -202,7 +202,12 @@ export default function PeopleScreen() {
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me')}
         actions={[
-          { icon: 'envelope.fill', label: 'Messages', onPress: () => router.push('/messages') },
+          {
+            icon: 'envelope.fill',
+            label: 'Messages',
+            // `from` names the tab to come back to — see `messages/index.tsx`.
+            onPress: () => router.push({ pathname: '/messages', params: { from: 'people' } }),
+          },
         ]}
         search={{
           value: search,
@@ -380,7 +385,15 @@ export default function PeopleScreen() {
                 onPress={() => router.push({ pathname: '/people/[uid]', params: { uid: p.uid } })}
                 onSayHi={
                   user && !isMe
-                    ? () =>
+                    ? // Pushing out of the tab group into `messages` hoists the
+                      // params onto the root-level `messages` route as well as
+                      // the leaf, so expo-router serialises the id twice:
+                      // `/messages/<id>?threadId=<id>&to=<uid>`. Spelling the
+                      // path out by hand does not avoid it — the URL is rebuilt
+                      // from the navigation state, not from what was pushed —
+                      // and both copies parse to the same value, so this stays
+                      // in the form the router documents.
+                      () =>
                         router.push({
                           pathname: '/messages/[threadId]',
                           params: { threadId: threadIdFor(user.uid, p.uid), to: p.uid },

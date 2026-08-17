@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { differenceInCalendarDays, format } from 'date-fns';
 
 import type { Timestamp } from '@kgc/shared';
@@ -9,6 +9,7 @@ import { DECORATIVE } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { EVENT } from '@/config/event';
 import { AVATAR_SIZE, HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -23,6 +24,26 @@ const INBOX_AVATAR = AVATAR_SIZE + Spacing.sm; // 52
 const BADGE_HEIGHT = 20;
 /** Gap between the avatar and the text column. */
 const GUTTER = Spacing.md - Spacing.xs; // 12
+
+/**
+ * The tab the inbox was opened from, named by the `from` param each tab passes.
+ *
+ * The inbox is outside the tab bar, so backing out of it pops the *root* stack
+ * and lands on whichever tab opened it. It cannot work that out for itself: the
+ * root stack's previous entry is the group `(tabs)`, and the header was
+ * labelling its own back button "(tabs), back" because of it. Only the caller
+ * knows, so the four screens with a Messages action say so.
+ *
+ * A cold open of `/messages` has no `from` and falls back to People, which is
+ * where the inbox's own "New message" action goes.
+ */
+const TABS = {
+  home: { title: 'Home', href: '/home' },
+  agenda: { title: 'Agenda', href: '/agenda' },
+  people: { title: 'People', href: '/people' },
+  community: { title: 'Community', href: '/community' },
+  me: { title: 'Me', href: '/me' },
+} as const satisfies Record<string, { title: string; href: Href }>;
 
 /**
  * The inbox.
@@ -50,6 +71,7 @@ const GUTTER = Spacing.md - Spacing.xs; // 12
 export default function MessagesScreen() {
   const colors = useTheme();
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
   const { threads, loading } = useThreads(user?.uid);
   const { people } = useDirectory();
@@ -61,26 +83,28 @@ export default function MessagesScreen() {
   const unread = totalUnread(threads, user?.uid);
   const personFor = (uid: string) => people?.find((p) => p.uid === uid);
   const nameFor = (uid: string) => personFor(uid)?.name ?? 'Attendee';
+  const origin = TABS[from as keyof typeof TABS] ?? TABS.people;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <Stack.Screen
-        options={{
-          // Whova puts the unread count in the title. Dropped when it is zero,
-          // because "Messages (0)" is noise.
-          title: unread ? `Messages (${unread})` : 'Messages',
-          headerRight: () => (
-            <Pressable
-              onPress={() => router.push('/people')}
-              accessibilityRole="button"
-              accessibilityLabel="New message"
-              accessibilityHint="Opens the attendee list to choose someone"
-              hitSlop={Spacing.md}
-              style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
-              <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
-            </Pressable>
-          ),
-        }}
+      <PushedHeader
+        // Whova puts the unread count in the title. Dropped when it is zero,
+        // because "Messages (0)" is noise.
+        title={unread ? `Messages (${unread})` : 'Messages'}
+        backTitle={origin.title}
+        backHref={origin.href}
+        popsToBackTitle
+        headerRight={() => (
+          <Pressable
+            onPress={() => router.push('/people')}
+            accessibilityRole="button"
+            accessibilityLabel="New message"
+            accessibilityHint="Opens the attendee list to choose someone"
+            hitSlop={Spacing.md}
+            style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
+            <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
+          </Pressable>
+        )}
       />
 
       <FlatList

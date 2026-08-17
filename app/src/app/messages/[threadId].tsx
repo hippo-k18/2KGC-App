@@ -7,15 +7,36 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
 import { EmptyState } from '@/components/empty-state';
+import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useDirectory } from '@/lib/data/directory';
 import { markThreadRead, sendMessage, useMessages, useThreads } from '@/lib/data/messages';
+
+/**
+ * The correspondent's uid, read out of the thread id.
+ *
+ * A thread id is the two uids sorted and joined with `_` — but the uids
+ * themselves contain underscores (`demo_003`), so splitting on `_` and taking
+ * whichever piece is not yours yields `"demo"`. That matched nobody in the
+ * directory, which is why a thread opened from a link was headed "Attendee" and
+ * offered to "Say hello to Attendee": not a race with the directory load, a
+ * mis-parse that never resolved. Stripping your own uid off whichever end it
+ * sits on leaves the other one whole, whatever it contains.
+ *
+ * Only needed when the screen was opened cold; every in-app route passes `to`.
+ */
+function otherFromThreadId(threadId?: string, uid?: string): string {
+  if (!threadId || !uid) return '';
+  if (threadId.startsWith(`${uid}_`)) return threadId.slice(uid.length + 1);
+  if (threadId.endsWith(`_${uid}`)) return threadId.slice(0, -(uid.length + 1));
+  return '';
+}
 
 /**
  * A conversation.
@@ -36,8 +57,12 @@ export default function ThreadScreen() {
   const listRef = useRef<FlatList>(null);
 
   // Derive the other participant from the id when it was not passed in.
-  const other = to ?? threadId?.split('_').find((p) => p !== user?.uid) ?? '';
-  const name = people?.find((p) => p.uid === other)?.name ?? 'Attendee';
+  const other = to ?? otherFromThreadId(threadId, user?.uid);
+  // `people` is `undefined` until the directory listener delivers, which on a
+  // cold open of a link to this screen is a second or two. Titling the header
+  // "Attendee" in the meantime states, wrongly and confidently, that the name
+  // is unknown; an empty title says only that it has not arrived yet.
+  const name = people ? (people.find((p) => p.uid === other)?.name ?? 'Attendee') : '';
 
   useEffect(() => {
     if (messages.length) {
@@ -80,7 +105,10 @@ export default function ThreadScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: name }} />
+      {/* `backHref` is the inbox rather than wherever this was opened from: a
+          thread reached by link has no history at all, and the inbox is the one
+          screen that certainly lists it. */}
+      <PushedHeader title={name} backTitle="Messages" backHref="/messages" />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: colors.background }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

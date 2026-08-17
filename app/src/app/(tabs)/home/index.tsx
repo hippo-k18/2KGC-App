@@ -153,7 +153,7 @@ export default function HomeScreen() {
             // names, not nodes, so `MessagesButton`'s drawn badge cannot come
             // along. The Messages tile in the grid below carries the visible dot.
             label: unread ? `Messages, ${unread} unread` : 'Messages',
-            onPress: () => router.push('/messages'),
+            onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
           },
         ]}
       />
@@ -429,7 +429,7 @@ function ResourceGrid({ unread }: { unread: number }) {
     { label: 'My schedule', onPress: () => router.push('/me/schedule') },
     {
       label: 'Messages',
-      onPress: () => router.push('/messages'),
+      onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
       badge: unread ? `${unread} unread` : undefined,
     },
     { label: 'My profile', onPress: () => router.push('/me/profile') },

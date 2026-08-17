@@ -1,8 +1,8 @@
 import { FlatList, View } from 'react-native';
-import { Stack } from 'expo-router';
 
 import { CATEGORY_TILE, CategoryTile } from '@/components/category-tile';
 import { EmptyState } from '@/components/empty-state';
+import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { HAIRLINE, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -31,13 +31,7 @@ export default function AnnouncementsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Announcements',
-          headerBackTitle: 'Community',
-        }}
-      />
+      <PushedHeader title="Announcements" backTitle="Community" backHref="/community" />
       <FlatList
         style={{ flex: 1, backgroundColor: colors.background }}
         data={announcements}
