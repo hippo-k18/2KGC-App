@@ -179,7 +179,7 @@ export const NAV: NavNode[] = [
             slug: 'track-manager',
             label: 'Track Manager',
             kind: 'implemented',
-            note: 'The tracks sessions are cross-listed into. §11.4.',
+            note: 'The tracks sessions are cross-listed into. View-only — the importer owns them. §11.4.',
           },
           {
             slug: 'session-qa-manager',
@@ -216,7 +216,7 @@ export const NAV: NavNode[] = [
             slug: 'speaker-manager',
             label: 'Speaker Manager',
             kind: 'implemented',
-            note: 'The speaker list, with profile completeness. §7.1–§7.3.',
+            note: 'The speaker list, with profile completeness. View-only — no add, edit or invite. §7.1–§7.3.',
           },
           {
             slug: 'message-speakers',
@@ -324,7 +324,7 @@ export const NAV: NavNode[] = [
             slug: 'sponsor-manager',
             label: 'Sponsor Manager',
             kind: 'implemented',
-            note: 'The sponsor list, grouped by tier. §9.2.',
+            note: 'The sponsor list, grouped by tier. View-only — the importer owns tiers and logos. §9.2.',
           },
           {
             slug: 'sponsor-tiering',
@@ -1003,7 +1003,7 @@ export const NAV: NavNode[] = [
             slug: 'attendees',
             label: 'Attendees',
             kind: 'implemented',
-            note: 'The attendee list, searchable. §10.3.',
+            note: 'The attendee list, searchable. View-only — no edit, invite, export or role change. §10.3.',
           },
           {
             slug: 'import-attendees',
@@ -1255,7 +1255,7 @@ export const NAV: NavNode[] = [
         slug: 'announcements',
         label: 'Announcements',
         kind: 'implemented',
-        note: 'Push, email and a Community Board thread. §18.1.',
+        note: 'Writes an announcement the app reads live. Push is a logged seam, email and the Community Board thread are not built. §18.1.',
       },
       {
         slug: 'surveys',
