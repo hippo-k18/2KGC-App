@@ -269,7 +269,15 @@ export default async function HomePage() {
                 <p style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--ink)', margin: '10px 0 14px' }}>
                   {formatPrice(t.priceCents)}
                 </p>
-                <Link href={`/tickets#buy`} className="btn btn-outline btn-sm btn-block">
+                {/*
+                  `?tier=` matters: the tickets page reads it and preselects the
+                  form, and without it all four of these buttons landed on the
+                  same page with All Access selected — so "Choose Workshops"
+                  offered to charge $1,199 for a $699 ticket. The tickets page's
+                  own tier buttons already carry the param; these were the copy
+                  that lost it.
+                */}
+                <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-outline btn-sm btn-block">
                   Choose {t.name}
                 </Link>
               </div>
