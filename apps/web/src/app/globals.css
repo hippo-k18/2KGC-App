@@ -82,6 +82,16 @@
    */
   --blue: var(--palette-2);
   --blue-dark: #1b2942;
+  /*
+   * The third one, missed when the other two were restored — and the two rules
+   * that use it are both full-bleed dark panels, so the failure was not a button
+   * losing its tint but white text landing on the page background. The footer
+   * sits on every page and rendered as invisible white-on-`#f7fafc`; `.ticket
+   * .top` is the order confirmation's header, and because the declaration is a
+   * `background` shorthand the invalid colour took the photograph down with it.
+   * `--palette-1` is the theme's deepest ink, which is what "deep" meant here.
+   */
+  --blue-deep: var(--palette-1);
 
   --radius: 10px;
   --shadow: 0 1px 2px rgb(16 36 58 / 6%), 0 8px 24px rgb(16 36 58 / 6%);
@@ -102,10 +112,27 @@
  * to a page that already has to show a cookie-consent banner would be adding a
  * consent problem in order to solve a typography one.
  */
+/*
+ * `font-weight: 400`, not the `300 800` range this used to declare.
+ *
+ * The range is a variable-font descriptor and these two files are static: no
+ * `fvar` table, one weight each. Declaring 300–800 told the browser this face
+ * already covers 800, so a heading asking for 800 got the 400 file and *no
+ * synthetic bolding either* — the descriptor suppresses the synthesis that would
+ * otherwise have stood in. Measured: an h1 at 400, 700 and 800 all set to the
+ * same 539.47px. The heading scale this file spends a paragraph justifying as
+ * "blunt and heavy" was rendering at Regular on every page, and it looked
+ * plausible because everything was equally wrong.
+ *
+ * Naming the real weight restores synthesis, which is the honest fallback rather
+ * than the intended end state: the live site serves genuine 600/700/800 cuts and
+ * this should too, once those woff2 files are in `public/kgc/fonts/`. Until then
+ * a synthesised bold is visibly bold, which the current state is not.
+ */
 @font-face {
   font-family: 'Open Sans';
   src: url('/kgc/fonts/open-sans-400.woff2') format('woff2');
-  font-weight: 300 800;
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
@@ -113,7 +140,7 @@
 @font-face {
   font-family: 'Open Sans';
   src: url('/kgc/fonts/open-sans-italic.woff2') format('woff2');
-  font-weight: 300 800;
+  font-weight: 400;
   font-style: italic;
   font-display: swap;
 }
