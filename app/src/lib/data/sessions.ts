@@ -55,16 +55,50 @@ export interface AgendaFilters {
 }
 
 /**
+ * Whether the search box holds a query, by the same rule `filterSessions` uses.
+ *
+ * Exported so the screen cannot disagree with the predicate about it. The day
+ * strip's appearance and the wording of the empty state both hang off this
+ * answer, and a screen that thought it was searching while the filter thought it
+ * was not would show the cross-day chrome over a single day's results.
+ */
+export function isSearching(search: string): boolean {
+  return search.trim().length > 0;
+}
+
+/**
  * Applies the filter bar to the loaded agenda.
  *
- * Search covers title, speaker names and room, because those are the three
- * things people actually type — "Hartmann", "SHACL" and "Bloomberg" should all
- * find the same session.
+ * Search covers title, speaker names and room — Whova's own documented scope
+ * ("search session name, location or speaker name"), and the three things people
+ * actually type: "Hartmann", "SHACL" and "Bloomberg" should all find the same
+ * session.
+ *
+ * **A query searches the whole agenda, not the selected day.** This is the one
+ * place the day strip stops applying, and it is deliberate. On a five-day
+ * programme a day-scoped search returns nothing four times out of five, and the
+ * empty list is indistinguishable from "that person is not speaking at this
+ * conference" — so an attendee who searches a speaker's name from Monday
+ * concludes the session does not exist. It is the same failure as a filter you
+ * have forgotten is on, which is the complaint the persistent track filter above
+ * this was written to answer; scoping search to a day recreated it in the one
+ * control where the user has no way to see the filter at all.
+ *
+ * Whova's own help text is silent on which days its search covers, so this is a
+ * divergence only if Whova narrows — and it is the same class of documented
+ * divergence as the persistent track filter. The screen pays for it by saying
+ * what it searched: while a query is active the day strip is replaced by a line
+ * naming the number of days and the track, and the no-results state names the
+ * query and the scope.
+ *
+ * The track filter still applies during a search, because the header carries the
+ * active track's name the whole time and so that narrowing is never invisible.
  */
 export function filterSessions(sessions: Session[], f: AgendaFilters): Session[] {
   const needle = f.search.trim().toLowerCase();
+  const day = needle ? null : f.day;
   return sessions.filter((s) => {
-    if (f.day && s.day !== f.day) return false;
+    if (day && s.day !== day) return false;
     if (f.trackId && !(s.trackIds ?? []).includes(f.trackId)) return false;
     if (!needle) return true;
     return (

@@ -14,7 +14,7 @@
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\"",
     "seed": "npm run seed --workspace=@kgc/scripts --",
     "import:whova": "npm run import:whova --workspace=@kgc/scripts --",
-    "test": "vitest run scripts/src",
+    "test": "vitest run scripts/src app/src",
     "claims": "npm run claims --workspace=@kgc/scripts --",
     "dev:emulators": "firebase emulators:start --only firestore,auth",
     "web": "npm run web --workspace=app",

@@ -22,7 +22,9 @@ import { useCommunityPosts } from '@/lib/data/community';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import {
   filterSessions,
+  formatDayTab,
   formatTime,
+  isSearching,
   useDays,
   useSessions,
   type Session,
@@ -122,6 +124,14 @@ const MONTHS = [
  *
  * 3. **No stream badge.** `SessionDoc` carries no livestream field, so the green
  *    dot, the video glyph and "Stream has ended" have nothing to render from.
+ *
+ * 4. **Search spans the whole programme, and says so.** A query drops the day
+ *    filter (`filterSessions`), so typing "Vasquez" on Monday finds Wednesday's
+ *    panel. That is worthless without the second half: results regroup under day
+ *    headers instead of time headers, and the day strip — which no longer
+ *    constrains anything — is replaced by a line stating how many results across
+ *    how many days, and which track, if one is set. A cross-day list under time
+ *    headers reading "9:00 AM" three times is its own bug.
  */
 export default function AgendaScreen() {
   const colors = useTheme();
@@ -145,6 +155,8 @@ export default function AgendaScreen() {
 
   const activeDay = day ?? days[0] ?? null;
   const activeTrack = tracks.find((t) => t.id === trackId) ?? null;
+  // The predicate's own answer, not a second guess at it — see `isSearching`.
+  const searching = isSearching(search);
 
   const visible = useMemo(() => {
     if (!sessions) return [];
@@ -152,7 +164,14 @@ export default function AgendaScreen() {
     return mine ? matched.filter((s) => saved.has(s.id)) : matched;
   }, [sessions, activeDay, trackId, search, mine, saved]);
 
-  const sections = useMemo(() => groupByStartTime(visible), [visible]);
+  // Days that actually returned something, not the days of the programme: "12
+  // results across 3 days" has to be countable off the list below it.
+  const matchedDays = useMemo(() => new Set(visible.map((s) => s.day)).size, [visible]);
+
+  const sections = useMemo(
+    () => (searching ? groupByDay(visible) : groupByStartTime(visible)),
+    [visible, searching],
+  );
 
   const header = (
     <WhovaHeader
@@ -208,7 +227,20 @@ export default function AgendaScreen() {
           slab. `Spacing.sm` is the scale's nearest value. */}
       <View style={{ height: Spacing.sm }} {...DECORATIVE} />
 
-      <DayStrip days={days} active={activeDay} onSelect={setDay} />
+      {/* The day strip is not merely dimmed while a query is active — it is
+          taken away, because a control that is visible and inert is read as a
+          control that works. What replaces it says what the search covered. */}
+      {searching ? (
+        <SearchScope
+          results={visible.length}
+          days={matchedDays}
+          trackName={activeTrack?.name}
+          mine={mine}
+          onClear={() => setSearch('')}
+        />
+      ) : (
+        <DayStrip days={days} active={activeDay} onSelect={setDay} />
+      )}
 
       <SectionList
         sections={sections}
@@ -221,10 +253,16 @@ export default function AgendaScreen() {
         // list's own height instead of hanging from the top of it.
         contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.xxl }}
         ListHeaderComponent={
-          <MeetupBanner
-            count={meetups?.length ?? 0}
-            onPress={() => router.push('/community')}
-          />
+          // Dropped while searching. An amber promo wedged between "9 results
+          // across 3 days" and the first day header breaks the one association
+          // that line exists to make, and a search is the moment an attendee is
+          // least interested in being sold a meet-up.
+          searching ? null : (
+            <MeetupBanner
+              count={meetups?.length ?? 0}
+              onPress={() => router.push('/community')}
+            />
+          )
         }
         renderSectionHeader={({ section }) => <TimeHeader title={section.title} />}
         renderItem={({ item, index, section }) => (
@@ -236,7 +274,16 @@ export default function AgendaScreen() {
             onPress={() => router.push({ pathname: '/agenda/[id]', params: { id: item.id } })}
           />
         )}
-        ListEmptyComponent={loading ? null : <AgendaEmpty mine={mine} filtered={Boolean(search || trackId)} />}
+        ListEmptyComponent={
+          loading ? null : (
+            <AgendaEmpty
+              mine={mine}
+              search={search}
+              trackName={activeTrack?.name}
+              programmeDays={days.length}
+            />
+          )
+        }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       />
@@ -341,6 +388,32 @@ function TrackSheet({
       </Pressable>
     </Modal>
   );
+}
+
+/**
+ * Search results, grouped under their date.
+ *
+ * A cross-day result set under the usual time headers is unreadable — three
+ * separate "9:00 AM" bands with no indication that they are three different
+ * mornings — and worse than unreadable, it is misleading, because the reader's
+ * only model of this screen is that everything on it is one day. The row's own
+ * time column still carries the clock, so nothing is lost by spending the header
+ * on the date instead.
+ *
+ * Sessions arrive sorted by `startsAtLocal`, whose first ten characters are the
+ * day key, so one pass groups them and the days come out in order.
+ */
+function groupByDay(sessions: Session[]): { title: string; data: Session[] }[] {
+  const out: { title: string; data: Session[] }[] = [];
+  for (const session of sessions) {
+    // Same reasoning as `groupByStartTime`: a session whose day key will not
+    // parse has to land somewhere named rather than disappear.
+    const title = formatDayTab(session.day) || 'Date to be confirmed';
+    const current = out[out.length - 1];
+    if (current && current.title === title) current.data.push(session);
+    else out.push({ title, data: [session] });
+  }
+  return out;
 }
 
 /** Sessions arrive sorted by `startsAtLocal`, so one pass groups them. */
@@ -482,6 +555,91 @@ function DayStrip({
           })}
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * What a search actually covered, in the slot the day strip vacated.
+ *
+ * This exists because the fix it belongs to is only half a fix without it. A
+ * search that quietly widens from one day to five is better than one that
+ * quietly narrows, but both are quiet, and the app's problem has always been
+ * scope the user cannot see. So the line is specific: a count, the number of days
+ * those results are spread over, and the track if one is set — every narrowing
+ * still in force, named. "12 results across 3 days" is checkable against the day
+ * headers immediately below it.
+ *
+ * `Clear` restores the day strip and the day that was selected before the
+ * search; `day` state is never touched by any of this, so the strip comes back
+ * exactly where it was left.
+ */
+function SearchScope({
+  results,
+  days,
+  trackName,
+  mine,
+  onClear,
+}: {
+  results: number;
+  days: number;
+  trackName?: string;
+  mine: boolean;
+  onClear: () => void;
+}) {
+  const colors = useTheme();
+
+  // No count of days when nothing matched: "0 results across 0 days" is noise on
+  // top of a no-results state that already explains itself.
+  const summary =
+    results === 0
+      ? 'No results'
+      : `${results} ${results === 1 ? 'result' : 'results'} across ` +
+        `${days} ${days === 1 ? 'day' : 'days'}`;
+  const scope = [mine ? 'in My Agenda' : null, trackName ? `in ${trackName}` : null]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        backgroundColor: colors.surface,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        minHeight: HIT_TARGET,
+        borderBottomWidth: HAIRLINE,
+        borderBottomColor: colors.border,
+      }}>
+      <View style={{ flex: 1 }}>
+        <Text variant="subhead" accessibilityRole="header" style={{ fontWeight: '600' }}>
+          {summary}
+        </Text>
+        {/* Said plainly rather than implied by an inert day strip: the whole
+            programme was searched, and this is what else is still narrowing it. */}
+        <Text variant="caption" tone="secondary">
+          Whole agenda searched{scope ? `, ${scope}` : ''}
+        </Text>
+      </View>
+
+      <Pressable
+        onPress={onClear}
+        accessibilityRole="button"
+        accessibilityLabel="Clear the search and go back to the day you were on"
+        hitSlop={Spacing.sm}
+        style={({ pressed }) => ({
+          justifyContent: 'center',
+          minHeight: HIT_TARGET,
+          paddingHorizontal: Spacing.sm,
+          borderRadius: Radius.sm,
+          backgroundColor: pressed ? colors.surfacePressed : 'transparent',
+        })}>
+        <Text variant="callout" style={{ color: colors.tint }}>
+          Clear
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -772,7 +930,55 @@ function AddToAgenda({
   );
 }
 
-function AgendaEmpty({ mine, filtered }: { mine: boolean; filtered: boolean }) {
+/**
+ * The four ways this list can be empty, kept apart.
+ *
+ * "No matches" over a five-day agenda that only ever searched Monday was the
+ * defect this screen was carrying: an attendee reads it as "that speaker is not
+ * at this conference" and stops looking. So the query is quoted back — nobody
+ * trusts a search that will not repeat what it heard — and the scope is stated
+ * outright, including the number of days and any track still narrowing it, which
+ * is also the only thing that makes the next action obvious.
+ *
+ * Nothing here claims a scope the predicate does not have: it searches title,
+ * location and speaker across every published day, which is what these strings
+ * say and no more. Description and track name are *not* matched, so this stops
+ * short of promising "anything about the session".
+ */
+function AgendaEmpty({
+  mine,
+  search,
+  trackName,
+  programmeDays,
+}: {
+  mine: boolean;
+  search: string;
+  trackName?: string;
+  programmeDays: number;
+}) {
+  const query = search.trim();
+
+  // A query comes first, even inside My Agenda: it is the most recent thing the
+  // attendee did, and "nothing saved yet" would be a lie about why the list is
+  // empty when they have in fact just typed something with no match.
+  if (query) {
+    const where = mine
+      ? 'in My Agenda'
+      : `across all ${programmeDays} ${programmeDays === 1 ? 'day' : 'days'}`;
+    return (
+      <EmptyState
+        icon="magnifyingglass"
+        title={`No sessions match “${query}”`}
+        message={
+          `Searched session titles, locations and speaker names ${where}` +
+          (trackName
+            ? `, in the ${trackName} track. Clearing the track filter may find it.`
+            : '. Check the spelling, or try part of a name.')
+        }
+      />
+    );
+  }
+
   if (mine) {
     return (
       <EmptyState
@@ -782,15 +988,22 @@ function AgendaEmpty({ mine, filtered }: { mine: boolean; filtered: boolean }) {
       />
     );
   }
+
+  if (trackName) {
+    return (
+      <EmptyState
+        icon="slider.horizontal.3"
+        title={`Nothing in ${trackName} today`}
+        message="That track has no sessions on this day. Try another day, or clear the track filter."
+      />
+    );
+  }
+
   return (
     <EmptyState
-      icon={filtered ? 'magnifyingglass' : 'calendar'}
-      title={filtered ? 'No matches' : 'No sessions yet'}
-      message={
-        filtered
-          ? 'Try another track, or clear the search.'
-          : 'The programme appears here once it is published.'
-      }
+      icon="calendar"
+      title="No sessions yet"
+      message="The programme appears here once it is published."
     />
   );
 }
