@@ -95,10 +95,15 @@ export function getFirebaseAuth(): Auth {
   } catch {
     auth = getAuth(app);
   }
-  // Same Fast Refresh hazard as Firestore above — see `emulatorState`.
+  // Same Fast Refresh hazard as Firestore below — see `emulatorState`.
   if (useEmulator && !emulatorState.__kgcAuthEmulator) {
-    emulatorState.__kgcAuthEmulator = true;
-    connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+    try {
+      connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+      emulatorState.__kgcAuthEmulator = true;
+    } catch (e) {
+      // Deliberately not latching on failure. See the note on `emulatorState`.
+      console.warn('[firebase] auth emulator connect failed:', (e as Error).message);
+    }
   }
   return auth;
 }
@@ -112,6 +117,13 @@ export function getFirebaseAuth(): Auth {
  * module while the Firebase app — and its Firestore instance — survive, so a
  * module-level boolean resets to `false` and the second call crashes the app on
  * the next save. `globalThis` outlives the module.
+ *
+ * **The flag is set only after a connect succeeds.** Setting it first looks
+ * equivalent and is not: if the connect throws, the latch is already on, every
+ * later instance skips it, and the app silently talks to *production* with
+ * `apiKey: 'emulator'`. That surfaces as `auth/network-request-failed` and then
+ * as a blank screen, several navigations later, with nothing pointing at the
+ * cause.
  */
 const emulatorState = globalThis as typeof globalThis & {
   __kgcFirestoreEmulator?: boolean;
@@ -121,9 +133,13 @@ const emulatorState = globalThis as typeof globalThis & {
 export function getDb(): Firestore {
   const store = getFirestore(firebaseApp());
   if (useEmulator && !emulatorState.__kgcFirestoreEmulator) {
-    emulatorState.__kgcFirestoreEmulator = true;
-    connectFirestoreEmulator(store, emulatorHost, 8080);
-    console.log(`[firebase] Firestore emulator at ${emulatorHost}:8080`);
+    try {
+      connectFirestoreEmulator(store, emulatorHost, 8080);
+      emulatorState.__kgcFirestoreEmulator = true;
+      console.log(`[firebase] Firestore emulator at ${emulatorHost}:8080`);
+    } catch (e) {
+      console.warn('[firebase] Firestore emulator connect failed:', (e as Error).message);
+    }
   }
   return store;
 }

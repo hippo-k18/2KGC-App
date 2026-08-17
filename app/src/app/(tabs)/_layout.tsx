@@ -1,3 +1,4 @@
+import { Redirect } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   Icon,
@@ -8,6 +9,7 @@ import {
 
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth/auth-provider';
 
 /**
  * Native tab bar: Home, Agenda, People, Community, Me.
@@ -29,6 +31,20 @@ import { useScheme } from '@/hooks/use-theme';
  */
 export default function TabLayout() {
   const colors = Colors[useScheme()];
+  const { user, loading } = useAuth();
+
+  /*
+   * The gate. Only `/` was guarded before, so signing out left the whole tab
+   * shell mounted and browsable: every screen still rendered its chrome, just
+   * with no data — Agenda with no days, "All Attendees (0)", "0 topics". That
+   * reads as an app that has lost the conference, not as a signed-out state,
+   * and browser-back walked straight back into it.
+   *
+   * It also covers the token expiring mid-conference, which produces exactly
+   * the same empty-but-chromed screens.
+   */
+  if (loading) return null;
+  if (!user) return <Redirect href="/login" />;
 
   return (
     <NativeTabs tintColor={colors.tint} backgroundColor={colors.surface}>
