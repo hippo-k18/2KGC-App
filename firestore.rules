@@ -378,26 +378,43 @@ service cloud.firestore {
       }
     }
 
-    // Thread ids are the two participant uids sorted and joined with '_', so
-    // membership is provable from the path alone. That is what lets the messages
-    // subcollection avoid a `get()` on its parent on every single read.
-    // Firebase uids are alphanumeric, so the separator is unambiguous.
+    // Thread ids are the two participant uids sorted and joined with '_'.
+    //
+    // An earlier version proved membership by splitting that id on '_', on the
+    // stated grounds that "Firebase uids are alphanumeric, so the separator is
+    // unambiguous". That assumption was false in this very repo: the seeded
+    // accounts are `demo_000`, `demo_001`, so `demo_000_demo_001` split to
+    // ['demo','000','demo','001'] and contained neither participant. Every
+    // message read and every send was denied — while the inbox itself kept
+    // working, because that branch reads `participantIds`, so it looked as
+    // though the messages had been deleted rather than as though a rule was
+    // wrong.
+    //
+    // Nothing below parses the id any more. Membership comes from the document,
+    // and the id is bound to its participants by *reconstructing* it rather than
+    // taking it apart — which is correct whatever a uid happens to contain.
     match /threads/{threadId} {
       /**
        * Membership from the document, for reads.
        *
-       * NOT from the path: on a `list`, the `{threadId}` wildcard is not bound
-       * the way it is on a `get`, so `threadId.split('_')` evaluates against
-       * null and the whole inbox query fails. The client query filters on
-       * `participantIds array-contains uid`, which satisfies this.
+       * NOT from the path. On a `list` the `{threadId}` wildcard is not bound
+       * the way it is on a `get`, so any check derived from the id evaluates
+       * against null and the whole inbox query fails. The client query filters
+       * on `participantIds array-contains uid`, which satisfies this.
        */
       function isParticipant() {
         return isRegistered() && request.auth.uid in resource.data.participantIds;
       }
 
-      /** Membership from the path. Only safe where `threadId` is bound. */
-      function inThreadPath() {
-        return isRegistered() && request.auth.uid in threadId.split('_');
+      /**
+       * The id a pair of uids must produce, in either sort order.
+       *
+       * Built by concatenation, never by splitting, so a uid containing the
+       * separator cannot break it.
+       */
+      function idMatchesParticipants(pair) {
+        return threadId == pair[0] + '_' + pair[1]
+            || threadId == pair[1] + '_' + pair[0];
       }
 
       /**
@@ -435,19 +452,20 @@ service cloud.firestore {
       // `resource` is null when the document does not exist, and dereferencing
       // it throws — which Firestore reports as permission-denied rather than
       // not-found. Reading a conversation before anyone has spoken in it is
-      // routine (`messages.ts` did it on the send path, and any screen that
-      // opens a thread from the directory does it), and it failed on this line.
-      // Falling back to the path is safe here: on a `get` the wildcard is bound.
+      // routine: any screen opening a thread from the directory does it.
+      // A read of a document that is not there discloses nothing, so it needs
+      // no membership test of its own.
       allow read: if isRegistered()
         && (resource == null
-            ? inThreadPath()
-            : request.auth.uid in resource.data.participantIds);
-      // On create there is no `resource`, so the path is the only thing to
-      // check — and checking it is what stops someone minting a thread id that
-      // does not match its participants.
-      allow create: if inThreadPath()
-        && request.resource.data.participantIds.toSet() == threadId.split('_').toSet()
-        && request.resource.data.participantIds.size() == 2;
+            || request.auth.uid in resource.data.participantIds);
+      // On create there is no `resource` to check against, so the guarantee has
+      // to come from the id itself: you must be one of the two participants,
+      // and the id must be the one those two produce. That is what stops a
+      // thread being minted between two other people.
+      allow create: if isRegistered()
+        && request.resource.data.participantIds.size() == 2
+        && request.auth.uid in request.resource.data.participantIds
+        && idMatchesParticipants(request.resource.data.participantIds);
       // Participants may not rewrite who is in the thread.
       allow update: if isParticipant()
         && changed().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'unread'])
@@ -455,8 +473,24 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{id} {
-        allow read: if inThreadPath();
-        allow create: if inThreadPath()
+        /**
+         * Membership read from the parent thread.
+         *
+         * This is the `get()` the old path-splitting trick existed to avoid,
+         * and paying for it is the right trade: the optimisation rested on an
+         * assumption about uid contents that turned out to be untrue, and it
+         * silently denied every message in the app. Access calls are cached
+         * within a request, so a fifty-message page costs one, against a limit
+         * of ten per document request and twenty per query.
+         */
+        function inThread() {
+          return isRegistered()
+            && request.auth.uid in
+               get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
+        }
+
+        allow read: if inThread();
+        allow create: if inThread()
           && request.resource.data.senderId == request.auth.uid;
         // Immutable once sent. Moderation is a function's job.
         allow update, delete: if false;

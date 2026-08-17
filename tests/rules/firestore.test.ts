@@ -566,6 +566,67 @@ describe('private messages', () => {
     );
   });
 
+  it('works when a uid contains the id separator', async () => {
+    /*
+     * The regression that broke every message in the app. The rule used to
+     * prove membership with `threadId.split('_')`, documented as safe because
+     * "Firebase uids are alphanumeric" — while this repo's own seeded accounts
+     * are `demo_000` and `demo_001`. `demo_000_demo_001` split to four pieces
+     * and contained neither participant, so every read and send was denied.
+     * The inbox kept working (it reads `participantIds`), so it looked as
+     * though the messages had been deleted rather than as though a rule was
+     * wrong. Nothing may parse a thread id again.
+     */
+    const U1 = 'demo_000';
+    const U2 = 'demo_001';
+    const t = `${U1}_${U2}`;
+    const claims = (uid: string) => ({
+      registered: true, roles: ['attendee'],
+      email: `${uid}@kgc.test`, email_verified: true,
+    });
+    const one = env.authenticatedContext(U1, claims(U1)).firestore();
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `threads/${t}`), {
+        participantIds: [U1, U2], unread: { [U1]: 0, [U2]: 0 },
+      });
+      await setDoc(doc(ctx.firestore(), `threads/${t}/messages/m1`), {
+        senderId: U2, body: 'hello',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(one, `threads/${t}`)));
+    await assertSucceeds(getDocs(collection(one, `threads/${t}/messages`)));
+    await assertSucceeds(
+      setDoc(doc(one, `threads/${t}/messages/m2`), { senderId: U1, body: 'hi back' }),
+    );
+    // And an outsider still cannot get in, separator or no separator.
+    const outsider = env.authenticatedContext('demo_009', claims('demo_009')).firestore();
+    await assertFails(getDocs(collection(outsider, `threads/${t}/messages`)));
+  });
+
+  it('lets a participant create the thread on first contact', async () => {
+    const U1 = 'demo_000';
+    const U2 = 'demo_007';
+    const claims = (uid: string) => ({
+      registered: true, roles: ['attendee'],
+      email: `${uid}@kgc.test`, email_verified: true,
+    });
+    const one = env.authenticatedContext(U1, claims(U1)).firestore();
+
+    await assertSucceeds(
+      setDoc(doc(one, `threads/${U1}_${U2}`), {
+        participantIds: [U1, U2], unread: { [U1]: 0, [U2]: 0 },
+      }),
+    );
+    // The id must be the one those two participants produce.
+    await assertFails(
+      setDoc(doc(one, 'threads/not_their_id'), {
+        participantIds: [U1, U2], unread: { [U1]: 0, [U2]: 0 },
+      }),
+    );
+  });
+
   it('lets a participant read and send', async () => {
     await assertSucceeds(getDoc(doc(asA(), `threads/${thread}`)));
     await assertSucceeds(
@@ -637,8 +698,30 @@ describe('private messages', () => {
     // existed threw — and `sendMessage()` read the thread before creating it,
     // which made every FIRST message between two people impossible.
     await assertSucceeds(getDoc(doc(asA(), `threads/${A}_${ORG}`)));
-    // The fallback is the path, so it still hides a stranger's empty thread.
+    /*
+     * A `get` on a thread that does not exist is allowed for any registered
+     * attendee, including one who is not a participant. This is a deliberate
+     * trade, not an oversight.
+     *
+     * The only way to decide membership on a missing document is to parse the
+     * id, and parsing the id is precisely the bug this block was rewritten to
+     * remove — it assumed uids never contain the separator, which this repo's
+     * own accounts violate. Rather than reintroduce that assumption in a
+     * narrower place, the empty read is permitted: it returns no data, and all
+     * an outsider can learn is that two people have not spoken. A thread that
+     * *does* exist is still hidden, which is the guarantee that matters.
+     */
+    await assertSucceeds(getDoc(doc(asB(), `threads/${A}_${ORG}`)));
+    // The moment it exists, an outsider is locked out again.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `threads/${A}_${ORG}`), {
+        participantIds: [A, ORG], unread: { [A]: 0, [ORG]: 0 },
+      });
+    });
     await assertFails(getDoc(doc(asB(), `threads/${A}_${ORG}`)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), `threads/${A}_${ORG}`));
+    });
     // …and the write that follows, in the shape `messages.ts` now sends it:
     // one merged `setDoc` that creates the thread and its summary together.
     await assertSucceeds(
