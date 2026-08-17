@@ -11,23 +11,102 @@
  * is allowed to be nice.
  */
 
+/*
+ * The palette below is not sampled from screenshots of knowledgegraph.tech — it
+ * is that site's own theme palette, read out of its `:root` custom properties.
+ * Where declared and rendered values disagreed, the declaration won, and they
+ * disagreed twice:
+ *
+ *   - `#1a202c` appears throughout the served CSS and reads like the header
+ *     colour. It is not; the header computes to `#263759`.
+ *   - `#2b6cb0` and `#3182ce` were the primary blues in this file, sampled off
+ *     the rendered page. They are not in the theme at all — they belong to the
+ *     embedded Whova agenda widget, the one piece of that page this project
+ *     exists to replace. Building on them meant matching the thing we are
+ *     removing. The site's real accent is the teal `#17556a`.
+ *
+ * Kept under the theme's own numbering rather than renamed to something tidier,
+ * so anyone holding the live stylesheet can compare line for line.
+ */
 :root {
-  /* KGC blue, and a darker shade for text on light and large surfaces. */
-  --blue: #2b6cb0;
-  --blue-dark: #1e4e82;
-  --blue-deep: #12314f;
+  --palette-1: #272338; /* deepest ink, a near-black violet */
+  --palette-2: #263759; /* brand navy: header, primary button */
+  --palette-3: #e0e5ee;
+  --palette-4: #8dccee; /* primary button hover */
+  --palette-5: #f68621; /* orange: announcement bar, search icon */
+  --palette-6: #17556a; /* teal: the highlight colour */
+  --palette-7: #edf2f7;
+  --palette-8: #f7fafc; /* page background */
+  --palette-9: #fff;
+  --palette-11: #13612e;
+  --palette-12: #1159af;
+  --palette-13: #b82105;
+  --palette-14: #f7630c;
+  --palette-15: #f5a524;
+
+  /* The theme's semantic aliases, kept as aliases so the intent stays legible. */
+  --navy: var(--palette-2);
+  --orange: var(--palette-5);
+  --highlight: var(--palette-6);
+  --btn-bg: var(--palette-2);
+  --btn-bg-hover: var(--palette-4);
+  --btn-fg: var(--palette-9);
+  --btn-sec-bg: var(--palette-7);
+  --btn-sec-bg-hover: var(--palette-2);
+
+  --heading: #1f1a11; /* every h1–h3 on the live site */
   --ink: #10243a;
   --body: #33475b;
   --muted: #64748b;
-  --line: #dbe3ec;
-  --wash: #f4f7fb;
-  --white: #fff;
-  --accent: #2fa5b8; /* the teal end of the logo gradient */
-  --good: #15803d;
-  --warn: #92400e;
+  --line: var(--palette-3);
+  --wash: var(--palette-7);
+  --white: var(--palette-9);
+  --accent: var(--palette-6);
+  --good: var(--palette-11);
+  --warn: var(--palette-13);
+
   --radius: 10px;
   --shadow: 0 1px 2px rgb(16 36 58 / 6%), 0 8px 24px rgb(16 36 58 / 6%);
+
+  /*
+   * The theme declares `--global-content-width: 2000px`, which is a page builder
+   * saying "no constraint" rather than a measured line length. Its narrow width
+   * of 842px is a real measurement, and prose is held near it.
+   */
   --max: 1120px;
+  --narrow: 842px;
+  --edge-padding: 1.5rem;
+}
+
+/*
+ * Self-hosted, exactly as the real site serves them — not Google Fonts. The live
+ * site serves these from its own origin, and adding a third-party font request
+ * to a page that already has to show a cookie-consent banner would be adding a
+ * consent problem in order to solve a typography one.
+ */
+@font-face {
+  font-family: 'Open Sans';
+  src: url('/kgc/fonts/open-sans-400.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Sans';
+  src: url('/kgc/fonts/open-sans-italic.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* The navigation, and only the navigation, changes family on the real site. */
+@font-face {
+  font-family: 'Roboto';
+  src: url('/kgc/fonts/roboto-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 * {
@@ -41,36 +120,58 @@ html {
 body {
   margin: 0;
   color: var(--body);
-  background: var(--white);
-  font:
-    16px/1.6 -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    system-ui,
-    sans-serif;
+  /* `--palette-8`, not white: the real site's page background is faintly blue. */
+  background: var(--palette-8);
+  font: 16px/1.6 'Open Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * The heading scale is the live site's, verbatim. All three weigh 800, share a
+ * 1.5 line-height and the same colour, and differ only in size — a flatter,
+ * heavier scale than the fluid `clamp()` ramp that used to be here, and the
+ * reason its headings read as blunt rather than elegant. Matching it is the
+ * point.
+ *
+ * No negative letter-spacing either: the previous -0.015em was a nicety this
+ * site does not apply, and at 800 weight it visibly closes up the counters.
+ */
 h1,
 h2,
 h3,
 h4 {
-  color: var(--ink);
-  line-height: 1.15;
+  color: var(--heading);
+  font-weight: 800;
+  font-style: normal;
+  line-height: 1.5;
   margin: 0 0 0.5em;
-  letter-spacing: -0.015em;
 }
 
 h1 {
-  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  font-size: 32px;
 }
 
 h2 {
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-size: 28px;
 }
 
 h3 {
-  font-size: 1.15rem;
+  font-size: 24px;
+}
+
+h4 {
+  font-size: 20px;
+}
+
+/*
+ * The hero headline is italic, and it is the only heading that is. The theme's
+ * own `h1` rule says `font-style: normal`, so this is applied at the hero
+ * specifically — a deliberate choice for that one element, not a fallback and
+ * not something to generalise.
+ */
+.hero-headline {
+  font-style: italic;
+  font-weight: 800;
 }
 
 p {
@@ -121,26 +222,49 @@ section.tint {
 
 /* ---------------------------------------------------------------- header -- */
 
+/*
+ * The announcement bar sits above the header on the live site, full-bleed
+ * orange. Its text is set in the component rather than here, because what it
+ * says is a fact about the event and not a fact about the design.
+ */
+.announce {
+  background: var(--orange);
+  color: var(--white);
+  text-align: center;
+  font-weight: 700;
+  font-size: 17.6px;
+  line-height: 1.3;
+  text-transform: uppercase;
+  padding: 14px var(--edge-padding);
+}
+
+.announce a {
+  color: inherit;
+}
+
+/*
+ * Solid navy, not the translucent white bar this used to be. The real header is
+ * an opaque block of `--palette-2` with the white wireframe wordmark in it, and
+ * the wordmark is the most recognisable thing on the site — it only reads
+ * correctly against the navy.
+ */
 .site-header {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgb(255 255 255 / 92%);
-  backdrop-filter: saturate(160%) blur(8px);
-  border-bottom: 1px solid var(--line);
+  background: var(--navy);
 }
 
 .site-header .bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 68px;
-  flex-wrap: wrap;
+  min-height: 96px;
 }
 
 .site-header .logo img {
   display: block;
-  height: 38px;
+  height: 56px;
   width: auto;
 }
 
@@ -152,8 +276,10 @@ section.tint {
   flex-wrap: wrap;
 }
 
+/* Roboto here, and nowhere else. The one family change on the whole site. */
 .site-header nav a {
-  color: var(--ink);
+  color: var(--white);
+  font-family: Roboto, sans-serif;
   text-decoration: none;
   font-size: 0.94rem;
   font-weight: 500;
@@ -162,13 +288,73 @@ section.tint {
 }
 
 .site-header nav a:hover {
-  background: var(--wash);
-  color: var(--blue);
+  background: rgb(255 255 255 / 12%);
 }
 
 .site-header nav a[aria-current='page'] {
-  color: var(--blue);
   font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--orange);
+}
+
+/* The search affordance is orange — the only orange in the header. */
+.site-header .search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--orange);
+  cursor: pointer;
+}
+
+.site-header .menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--white);
+  cursor: pointer;
+}
+
+/*
+ * Below this width the live site collapses to a wordmark, the orange search and
+ * a hamburger. 900px rather than a rounder number because that is where this
+ * navigation's own labels start to wrap.
+ */
+@media (width <= 900px) {
+  .site-header nav {
+    display: none;
+  }
+
+  .site-header nav.open {
+    display: flex;
+    position: absolute;
+    inset: 96px 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--navy);
+    padding: 8px var(--edge-padding) 20px;
+    border-top: 1px solid rgb(255 255 255 / 12%);
+  }
+
+  .site-header nav.open a {
+    padding: 14px 4px;
+    border-radius: 0;
+  }
+
+  .site-header .menu-toggle {
+    display: inline-flex;
+  }
+
+  .site-header .logo img {
+    height: 44px;
+  }
 }
 
 /* ---------------------------------------------------------------- buttons - */
@@ -234,34 +420,74 @@ section.tint {
 
 /* ------------------------------------------------------------------- hero - */
 
+/*
+ * The real photograph, not the generated one this used to carry: Iwan Baan's
+ * aerial of the Cornell Tech campus on Roosevelt Island, with the Queensboro
+ * Bridge and midtown behind it. The live site crops into the midtown half, which
+ * is why its hero reads as "New York" rather than "a campus" — hence the
+ * background position below.
+ */
 .hero {
   position: relative;
   color: var(--white);
-  background: var(--blue-deep) url('/hero-kgc.png') center / cover no-repeat;
+  background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 28% / cover no-repeat;
   padding: 0;
   isolation: isolate;
 }
 
+/*
+ * A flat scrim rather than the old 100deg gradient. The photograph is bright
+ * across its whole width — sky top left, lit buildings top right — so a gradient
+ * that faded out to one side left the headline sitting on cloud. Even darkening
+ * keeps every line of white text above 4.5:1 wherever it happens to fall.
+ */
 .hero::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(100deg, rgb(9 26 45 / 88%) 0%, rgb(9 26 45 / 62%) 55%, rgb(9 26 45 / 30%) 100%);
+  background: rgb(20 28 46 / 62%);
 }
 
 .hero .wrap {
   padding-block: clamp(72px, 12vw, 132px);
 }
 
+/*
+ * The hero headline is the one italic heading on the site, and it is set far
+ * larger than the theme's 32px `h1` — it is the only place the page shouts.
+ */
 .hero h1 {
   color: var(--white);
-  max-width: 15ch;
+  font-style: italic;
+  font-weight: 800;
+  font-size: clamp(2.6rem, 7vw, 5rem);
+  line-height: 1.1;
+  max-width: 14ch;
+  margin-bottom: 0.25em;
+}
+
+.hero .hero-eyebrow {
+  color: var(--white);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 400;
+  margin: 0 0 0.15em;
 }
 
 .hero .lede {
-  color: rgb(255 255 255 / 88%);
-  font-size: 1.22rem;
+  color: rgb(255 255 255 / 92%);
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  font-weight: 600;
+}
+
+/* "MAY 4–8, 2027 | CORNELL TECH NYC" — spaced capitals, as on the live site. */
+.hero .hero-dates {
+  color: var(--white);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 1.2em;
 }
 
 .hero .meta {

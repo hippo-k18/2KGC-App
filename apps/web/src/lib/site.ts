@@ -18,6 +18,12 @@ export const SITE = {
   city: 'New York City',
   timeZone: EVENT.timeZone,
 
+  /**
+   * The edition, on its own, because the hero shouts it as a bare "KGC 2027"
+   * above the conference name — the way the live site does.
+   */
+  year: 2027,
+
   /** Monday to Friday. Workshops open the week, the main conference closes it. */
   datesLong: '3–7 May 2027',
   datesShort: 'May 3–7, 2027',
@@ -35,6 +41,28 @@ export const SITE = {
   ],
 } as const;
 
+/**
+ * The strip above the header.
+ *
+ * On the live site this reads "SOLD OUT – REPLAY PURCHASES OPEN SOON", which is
+ * true of the finished 2026 event and would be a lie about 2027. It lives here,
+ * as one string, so that changing what the site announces is a one-line edit by
+ * someone who knows the answer — rather than a hunt through JSX by someone who
+ * does not. Set it to `null` to remove the bar entirely.
+ */
+export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
+
+/**
+ * The header navigation.
+ *
+ * The live site carries a longer list — Blog, Learn, Community, Resource Hub,
+ * Meet the Team, and a Previous Events menu going back to KGC 2019 — plus two
+ * expanding submenus. Those are pages this site does not have, and a navigation
+ * item that 404s is worse than an absent one, so the list is the real one
+ * intersected with what exists here. `Healthcare & Life Sciences Symposium` is
+ * the one worth adding next; it is a real page on the live site (`/hcls/`) and a
+ * real part of the programme.
+ */
 export const NAV = [
   { href: '/speakers', label: 'Speakers' },
   { href: '/agenda', label: 'Agenda' },

@@ -19,13 +19,19 @@ export default async function HomePage() {
     <>
       <section className="hero">
         <div className="wrap">
-          <p className="eyebrow" style={{ color: 'rgb(255 255 255 / 70%)' }}>
-            Knowledge Graph Conference 2027
-          </p>
-          <h1>Make your enterprise data something a machine can reason about</h1>
-          <p className="lede">
-            Five days of workshops, case studies and hard-won practitioner detail on knowledge
-            graphs, ontologies and the semantic layer that decides whether your AI programme works.
+          {/*
+            The live site's hero is four stacked lines and this matches its
+            shape: a plain year, the conference name shouted in italic, the
+            positioning line, then the dates in spaced capitals. The old version
+            led with a sentence about enterprise data, which buried the one thing
+            a visitor arrives wanting to confirm — which conference this is, and
+            when.
+          */}
+          <p className="hero-eyebrow">KGC {SITE.year}</p>
+          <h1>The Knowledge Graph Conference</h1>
+          <p className="lede">Make Your Enterprise Data AI Ready</p>
+          <p className="hero-dates">
+            {SITE.datesLong} &nbsp;|&nbsp; {SITE.venueShort}
           </p>
 
           <div className="meta">
