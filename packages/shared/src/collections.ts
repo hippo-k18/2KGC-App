@@ -50,6 +50,23 @@ export const SUBCOLLECTIONS = {
 export const QA_BOARD_DOC = "current";
 
 /**
+ * `checkInLists/{DOOR_CHECK_IN_LIST_ID}` — the main entrance.
+ *
+ * A fixed id rather than a generated one, for two reasons. Two console tabs
+ * racing to seed the door list produce one document, because the second
+ * `create()` fails with `already-exists`. And the attendee app has to be able to
+ * read its own check-in status without first listing every check-in list — it
+ * knows the path because the id is a constant, which is also what keeps the
+ * `checkInLists` read rule closed to attendees.
+ *
+ * It lives here rather than in either app because both sides must agree: the
+ * console writes `checkInLists/event-door/checkIns/{registrationId}` and the
+ * badge reads it. Two copies of the string would drift, and the failure would be
+ * a badge that says "not checked in" to somebody who was.
+ */
+export const DOOR_CHECK_IN_LIST_ID = "event-door";
+
+/**
  * A pair of uids always maps to the same thread id.
  *
  * This is also what lets the `messages` security rules prove membership from

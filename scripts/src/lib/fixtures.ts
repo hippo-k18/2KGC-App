@@ -121,6 +121,75 @@ export interface SeedSpeaker {
   name: string; title: string; company: string; bio: string;
 }
 
+/**
+ * Second sentences for a speaker bio, picked by index.
+ *
+ * The bio used to be one template with `[Placeholder bio — replace via Whova
+ * import.]` on the end, which meant all 45 speaker cards carried the same
+ * sentence and announced themselves as unfinished. In a demo that is the most
+ * visible thing on the screen, and it teaches the audience nothing true — the
+ * operator already gets a loud warning from `seed-demo.ts` that every person here
+ * is invented, which is where that warning belongs.
+ *
+ * Still obviously synthetic, and deliberately so: the names are generated from
+ * two small lists, and nothing here should be mistaken for a real programme.
+ */
+const BIO_NOTES = [
+  'Their work centres on making ontologies survive contact with the teams that have to maintain them.',
+  'They have spent the last few years on entity resolution at a scale where every heuristic eventually embarrasses someone.',
+  'Most of their time goes on the join between a graph and the relational systems nobody is allowed to switch off.',
+  'They write and speak often about why schema decisions outlive the people who make them.',
+  'Their focus is provenance: not modelling it, which is easy, but keeping it accurate once the pipeline has been rewritten twice.',
+  'They came to knowledge graphs from search relevance, and still think about the problem in those terms.',
+  'They maintain several open-source tools in this space and are candid about which of them were mistakes.',
+  'Their interest is the operational side — migrations, monitoring, and what to do when a reasoner stops terminating.',
+  'They work on the boundary between knowledge graphs and language models, mostly on the parts that do not work yet.',
+  'They have led two large graph migrations, one of which they describe as a success.',
+];
+
+function speakerBio(name: string, title: string, company: string, i: number): string {
+  const article = /^[aeiou]/i.test(title) ? 'an' : 'a';
+  return `${name} is ${article} ${title} at ${company}. ${BIO_NOTES[i % BIO_NOTES.length]}`;
+}
+
+/**
+ * Abstract bodies, picked by index so adjacent rooms do not read identically.
+ *
+ * Same reasoning as `BIO_NOTES`: 66 of the 72 sessions shared one string ending
+ * in `[Placeholder abstract — replace via Whova import.]`, so the agenda looked
+ * broken rather than unfinished, and a session detail screen — the busiest screen
+ * in the app — had nothing on it worth reading.
+ */
+const ABSTRACT_BODIES = [
+  'A walk through a system that is in production now: what the model looked like on the first day, what it looks like after two years of requests nobody anticipated, and which of those changes were cheap.',
+  'Less a methodology talk than a post-mortem. Three approaches were tried, two were abandoned, and the reasons had more to do with team size than with technology.',
+  'Practical material, aimed at people who already have a graph and are wondering why it is getting slower. Query shapes, index choices, and the point at which denormalising stopped being a compromise.',
+  'The uncomfortable version of this topic: where the published guidance breaks down at scale, and what has to be given up to get past it.',
+  'A tour of the tooling, honestly assessed — including where the standards help, where they get in the way, and what still has to be written by hand.',
+  'Two teams, the same problem, opposite conclusions. This session sets out both and is deliberately not neutral about which travelled better.',
+  'Aimed at newcomers, but not introductory. The question is what to build first when the eventual shape of the graph is not yet knowable.',
+  'What happens after the pilot succeeds: governance, ownership, and the awkward conversation about who is on call for the ontology.',
+];
+
+/**
+ * One-line attendee bios, in the register people actually write in — first
+ * person, slightly under-punctuated, occasionally asking for something.
+ */
+export const ATTENDEE_BIOS = [
+  'Ontology work at a mid-size insurer. Here mostly for the modelling track.',
+  'Second KGC. Happy to talk about migrating off a relational warehouse.',
+  'Data engineer, new to graphs — looking for people to ask stupid questions.',
+  'Interested in provenance and in anything involving a reasoner that will not terminate.',
+  'Currently deciding between two graph databases. Opinions welcome.',
+  'Working on entity resolution across 40 source systems. It is going fine.',
+  'Academic side — knowledge representation. Keen to hear what industry actually deploys.',
+  'Product manager on a search team. I care about relevance, I tolerate SPARQL.',
+  'Building an internal knowledge graph for a hospital network. Governance questions mostly.',
+  'Here for the LLM-and-graphs sessions, sceptically.',
+  'Consultant. Have seen a lot of half-finished ontologies and would like to see fewer.',
+  'Platform engineer. My interest is how any of this is operated at 3am.',
+];
+
 export function makeSpeakers(n: number): SeedSpeaker[] {
   const out: SeedSpeaker[] = [];
   for (let i = 0; i < n; i++) {
@@ -131,9 +200,7 @@ export function makeSpeakers(n: number): SeedSpeaker[] {
       name,
       title,
       company,
-      bio: `${name} is ${/^[aeiou]/i.test(title) ? 'an' : 'a'} ${title} at ${company}, ` +
-        `working on knowledge representation, data integration and the unglamorous parts of ` +
-        `making graphs useful in production. [Placeholder bio — replace via Whova import.]`,
+      bio: speakerBio(name, title, company, i),
     });
   }
   return out;
@@ -195,9 +262,7 @@ export function makeSessions(speakerCount: number): SeedSession[] {
           speakers: format === 'panel'
             ? [nextSpeaker(), nextSpeaker(), nextSpeaker()]
             : [nextSpeaker()],
-          description:
-            `${title}. [Placeholder abstract — replace via Whova import.] This session covers ` +
-            `practical experience, what failed, and what the team would do differently.`,
+          description: ABSTRACT_BODIES[(topic + p + s + d) % ABSTRACT_BODIES.length],
         });
       }
     });

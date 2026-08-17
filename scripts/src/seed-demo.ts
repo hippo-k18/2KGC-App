@@ -13,7 +13,7 @@ import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, TIME_ZONE, threadIdFor } from '@
 import { Timestamp } from 'firebase-admin/firestore';
 
 import {
-  ANNOUNCEMENTS, COMMUNITY_POSTS, FIRST, LAST, ORGS, ROOMS, SPONSORS,
+  ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, ROOMS, SPONSORS,
   TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
 } from './lib/fixtures.js';
 import { commitAll, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
@@ -152,7 +152,10 @@ async function main() {
 
     push(COLLECTIONS.users, uid, {
       ...base(), email, name, title, company, interests,
-      bio: `Placeholder profile for demo purposes.`,
+      // Attendee bios, not speaker bios: one line, in the register people
+      // actually write in. "Placeholder profile for demo purposes." sat on all 50
+      // profile cards and on every People row that showed a bio.
+      bio: ATTENDEE_BIOS[i % ATTENDEE_BIOS.length],
       onboarded: true, visibleInDirectory: visible, messagingEnabled: true,
       notificationPrefs: { announcements: true, messages: true, sessionReminders: true },
       roles: i === 0 ? ['attendee', 'organizer'] : i < 6 ? ['attendee', 'speaker'] : ['attendee'],
@@ -340,7 +343,12 @@ async function main() {
   console.log(`  ${CONVERSATIONS.length} conversations in the inbox`);
   console.log(`\n  ${count} documents written${pruned ? `, ${pruned} stale removed` : ''}.\n`);
   console.log('  Tracks, rooms, ticket tiers and sponsor tiers are REAL.');
-  console.log('  Session titles, abstracts and all people are PLACEHOLDERS.');
+  // Worth keeping loud, and worth keeping accurate. The abstracts and bios now
+  // read as finished prose rather than announcing themselves with "[Placeholder]"
+  // — which is right for a demo and wrong to be vague about here, because the
+  // operator is the one person who has to know none of these people exist.
+  console.log('  Every session, abstract, speaker and attendee is INVENTED.');
+  console.log('  They read as real prose on purpose; none of them are real.');
   console.log('  Replace with: npm run import:whova -- --agenda <file.csv> --speakers <file.csv>');
 }
 

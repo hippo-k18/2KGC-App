@@ -35,9 +35,16 @@ Checkout) and an organizer console at `apps/console/`. **Neither is a root
 workspace member** — that is deliberate, and it means you install and run each
 from its own directory.
 
-**Not built or only partly wired:** the organizer console is close to empty,
-push notifications do not exist, and check-in and badges are mid-build. Session
-Q&A and polls render but their tallies never move. See `whova-rebuild/STATUS.md`
+**Built end to end:** the check-in loop. Ticket purchase on the website →
+confirmation page behind an HMAC capability token → sign-in → the badge QR at
+`me/badge` → a scan at the console's desk → an idempotent `checkIns` document,
+with the badge reflecting it live. Verified as one continuous run, not screen by
+screen.
+
+**Not built or only partly wired:** the organizer console is close to empty, push
+notifications do not exist, badge *printing* (`badgeTemplates`,
+`badgePrintJobs`) is still only modelled, and Session Q&A and polls render but
+their tallies never move. See `whova-rebuild/STATUS.md`
 and the parity tables beside it for a measured breakdown — the honest headline is
 **roughly 13% of Whova by feature count** (app 47 built / 25 partial of 241 rows;
 console 0 built / 7 partial of 136), and the reason so much sits at "partial" is
@@ -51,7 +58,8 @@ the same document types and must not duplicate them.
 ```
 package.json               workspaces: ["app", "functions", "packages/*", "scripts"]
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
-tests/rules/                98 tests — the security boundary
+tests/rules/                134 tests — the security boundary
+tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
 functions/                  empty — WP-02 fills this, once the project is on Blaze
 packages/shared/
   package.json              "@kgc/shared" — plain TS, no React, no Firebase SDK import.
@@ -84,13 +92,19 @@ app/
         _layout.tsx          Home · Agenda · People · Community · Me
         home/ agenda/ people/ community/ me/
                              agenda and people have [id]/[uid] detail routes;
-                             community has [id]; me has schedule.tsx
+                             community has [id]; me has schedule.tsx and
+                             badge.tsx — the check-in QR
       messages/              inbox + [threadId] — deliberately NOT a tab
     components/              text, screen, screen-header, list-row, session-card,
                              filter-chip, avatar, empty-state, messages-button
     config/event.ts          re-exports EVENT from @kgc/shared
     lib/data/                one hook module per domain; use-collection.ts is the
-                             error-safe listener every one of them should use
+                             error-safe listener every one of them should use.
+                             badge.ts holds the QR-payload decision — read its
+                             header before touching anything check-in shaped.
+    lib/qr/encode.ts         a dependency-free QR encoder. Hand-rolled because
+                             every npm QR component needs react-native-svg, and
+                             Expo Go ships a fixed set of native modules.
     constants/theme.ts       brand palette, spacing, radii
     hooks/use-theme.ts
     lib/
@@ -117,6 +131,16 @@ in `firestore.indexes.json` works locally and fails with `failed-precondition` i
 production. Two screens shipped broken this way and nobody noticed, because the
 hooks render an empty state on error. Add the index when you add the query.
 
+**It does not enforce `fieldOverrides` either, and that bit harder.** An override
+of `"indexes": []` turns *single-field* indexing off for a field, which makes any
+`orderBy` on it fail in production — and the emulator ignores index configuration
+completely, so the query passes every local run. `scanEvents.scannedAt` was
+overridden to `[]` while `recentScanEvents()` ordered by it: the console's scan log
+would have failed the first time it was opened live. The override has been removed
+(DESCENDING re-enabled) and the reasoning is recorded in the `recentScanEvents()`
+docblock in `apps/console/src/lib/checkin.ts`, because JSON cannot hold a comment.
+When you read an override, check nothing orders by that field.
+
 ## How to verify a change
 
 Run from the repo root:
@@ -124,8 +148,8 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 98 tests against firestore.rules
-npm test                             # 9 unit tests, mostly timezone derivation
+npm run test:rules                   # 134 tests against firestore.rules
+npm test                             # 35 unit tests: timezone derivation and the QR encoder
 ```
 
 `test:rules` runs the Firestore emulator, which **requires Java**. If you see
@@ -287,16 +311,31 @@ Four things to know before editing it:
   thread id. See the data-model note above for why — it is the worst bug this repo
   has had, and the comment justifying it read as entirely reasonable.
 - **A `get()` on the parent is required on the `messages` path**, and it is one of
-  only two in the file. The other is on the poll-vote write path, checking that a
-  poll is still open. Both are deliberate and documented in place. Adding a third
-  is a decision, not a detail: the cap is 10 access calls per single-document
-  request and 20 per query, and exceeding it is a hard error, not a slowdown.
+  three in the file. The second is on the poll-vote write path, checking that a
+  poll is still open. The third is on `checkInLists/{id}/checkIns/{registrationId}`,
+  resolving whether that check-in belongs to the caller — the id is
+  `reg_` + sha256(email) and rules cannot hash, so the registration has to be read.
+  All three are deliberate and documented in place. Adding a fourth is a decision,
+  not a detail: the cap is 10 access calls per single-document request and 20 per
+  query, and exceeding it is a hard error, not a slowdown.
+- **The ticket list is no longer closed outright.** `registrations` was
+  `allow read, write: if false`; it is now readable, and *only* readable, by the
+  holder, matched on the token's email address folded to lower case. That is forced:
+  `qrSecret` is the badge, there is no Cloud Function to hand it over on Spark, and
+  the rules are the entire read path. It stays unenumerable — a query must be
+  filtered to the caller's own address — and the only writable field is
+  `claimedByUid`.
+- **Attendees cannot check themselves in.** Every write under `checkInLists`,
+  `scanEvents` and `checkInStations` is denied to every client including organizers,
+  because the console writes them with the Admin SDK and bypasses rules entirely.
+  If the console ever stops using the Admin SDK, those paths need a rule, not a
+  loosening.
 - **`list` and `get` are not the same rule.** A predicate reading `resource.data`
   works on a single-document `get` and evaluates against null on a `list`, denying
   the whole query. The inbox broke this way once. If a rule guards a collection
   anyone queries, test both verbs.
 
-`tests/rules/firestore.test.ts` has **98 tests, one per invariant**. It has been
+`tests/rules/firestore.test.ts` has **134 tests, one per invariant**. It has been
 mutation-checked: breaking `isRegistered()` fails exactly the test that names that
 guarantee. Add a test whenever you add a rule — the suite is the only thing
 standing between this file and 1,000 attendees' data.

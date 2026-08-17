@@ -3,6 +3,7 @@ import 'server-only';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
+  DOOR_CHECK_IN_LIST_ID,
   EVENT_ID,
   SUBCOLLECTIONS,
   type CheckInDoc,
@@ -37,8 +38,15 @@ import { db } from './firestore';
  *     registrations filter in memory in microseconds.
  */
 
-/** The id the door list is seeded at, so two concurrent requests cannot create two. */
-export const DEFAULT_LIST_ID = 'event-door';
+/**
+ * The id the door list is seeded at, so two concurrent requests cannot create two.
+ *
+ * Re-exported from `@kgc/shared` rather than spelled here: the attendee app's
+ * badge reads its own check-in status from this same list, and a second copy of
+ * the literal would drift into a badge that reports "not checked in" for
+ * somebody the desk has already waved through.
+ */
+export const DEFAULT_LIST_ID = DOOR_CHECK_IN_LIST_ID;
 
 export type ScanOutcome = ScanEventDoc['result'];
 
@@ -251,6 +259,28 @@ export async function recentCheckIns(
  * reason above — the same trade `recentAudit()` in `data.ts` makes, and for the
  * same reason: there is exactly one event. The list filter happens in memory,
  * so it over-fetches slightly and that is the cheap side of the mistake.
+ *
+ * THIS `orderBy` DEPENDS ON A SINGLE-FIELD INDEX ON `scanEvents.scannedAt`,
+ * and it did not have one.
+ *
+ * `firestore.indexes.json` carried a `fieldOverrides` entry setting
+ * `scanEvents.scannedAt` to `"indexes": []`, which turns single-field indexing
+ * off for that field. An `orderBy` on a field with no index fails in production
+ * with `failed-precondition` — and the Firestore emulator does not enforce index
+ * configuration at all, so this query passed every local run and would have
+ * failed the first time the war room was opened live. AGENTS.md records two
+ * screens already shipped broken exactly this way.
+ *
+ * The override was re-enabled (DESCENDING only, which is the one direction this
+ * query needs). The reasoning, recorded here because JSON cannot hold a comment:
+ * disabling the index protects write throughput, and a monotonically increasing
+ * timestamp genuinely is Firestore's textbook index hotspot, capped near 500
+ * writes/sec on sequential index values. But the door scanner at a ~1,000-person
+ * conference peaks at a handful of scans per second — three orders of magnitude
+ * below that ceiling — so the override was paying a real, load-bearing query to
+ * avoid a limit this event cannot reach. If KGC ever runs at a scale where scan
+ * throughput is the constraint, the fix is a sharded or bucketed ordering key,
+ * not an unindexed `orderBy` that cannot run.
  */
 export async function recentScanEvents(listId: string, limit = 20): Promise<ScanEventRow[]> {
   const snap = await db()

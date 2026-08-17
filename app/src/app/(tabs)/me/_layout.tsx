@@ -9,6 +9,7 @@ export default function MeLayout() {
       <Stack.Screen name="index" options={{ title: 'Me' }} />
       <Stack.Screen name="schedule" options={{ title: 'My schedule' }} />
       <Stack.Screen name="profile" options={{ title: 'Edit profile' }} />
+      <Stack.Screen name="badge" options={{ title: 'My badge' }} />
     </Stack>
   );
 }

@@ -48,3 +48,12 @@ example
 # generated native folders
 /ios
 /android
+
+# Emulator debug logs. The Firestore one reached 28 MB in an afternoon of heavy
+# use and was very nearly committed.
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+ui-debug.log
+pubsub-debug.log
+firebase-debug.*.log

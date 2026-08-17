@@ -300,7 +300,12 @@
     {
       "collectionGroup": "scanEvents",
       "fieldPath": "scannedAt",
-      "indexes": []
+      "indexes": [
+        {
+          "queryScope": "COLLECTION",
+          "order": "DESCENDING"
+        }
+      ]
     },
     {
       "collectionGroup": "messages",
