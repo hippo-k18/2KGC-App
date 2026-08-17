@@ -284,6 +284,44 @@ Decisions worth preserving — do not "simplify" these:
   a `create` that fails with `already-exists`, and *that failure is the
   mechanism* — there is no read-then-write race to lose.
 
+### The badge QR payload, and the threat it accepts
+
+The payload is the registration's `qrSecret`, alone — no email, no uid, no
+`registrationId`, no envelope. The full argument is in the header of
+`app/src/lib/data/badge.ts`; this is the summary, because it is the one decision
+on this path that is expensive to revisit.
+
+Rejected: an **email** turns a badge held up in a hall into a thousand harvestable
+addresses. A **`registrationId`** is worse than it looks — it is
+`reg_` + sha256(email), so anyone who knows an address can compute it, which is
+also why `/order/{token}` exists on the website. A **uid** would join one
+photograph to the profile, the messages and the saved sessions.
+
+Rejected with more regret: a **short-lived signed token**. Verifying a signature
+needs a key at the door; a key in the app bundle is not a secret, and a
+per-attendee key is `qrSecret` again — so the honest form is TOTP, which requires
+the phone's clock and the reader's clock to agree *while both are offline*, which
+is the exact situation the badge exists for. Every offline verifier must tolerate
+skew, and the skew window **is** the replay window, so the scheme widens the thing
+it was adopted to narrow. Offline and replay resistance are in genuine tension
+here and this resolves in favour of offline: a badge that fails in a basement
+fails at the only moment it is ever used.
+
+**The accepted threat, plainly: `qrSecret` is a long-lived bearer credential for
+attendance.** Photograph the screen and you can be checked in as that attendee.
+Bounded by four things — it grants attendance and nothing else (it is not a
+sign-in credential; `claimCode` is, and is deliberately separate); the theft is
+detected rather than silent, because the real attendee's scan returns "already
+checked in at 09:12 at Front desk 1" and `scanEvents` names the device; it is
+revocable by rotating the secret, which no client may do; and at 192 random bits
+it is neither guessable nor enumerable. **Not** accepted, and closed in the rules:
+identity disclosure, enumeration of the ticket list, and self-check-in.
+
+If `expo-crypto` is ever added, revisit one detail: the badge finds its
+registration with a filtered *query* on `email` only because the client cannot
+compute sha256 and therefore cannot address the document directly. A `getDoc` on
+the derived id would need no `list` rule at all.
+
 ## Security model
 
 `firestore.rules` is default-closed and is **the entire security boundary**.
