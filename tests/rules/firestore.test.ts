@@ -46,9 +46,24 @@ const attendee = (uid: string) => ({
   email_verified: true,
 });
 
+/**
+ * A project id unique to this process, not the fixed `kgc-rules-test`.
+ *
+ * `beforeEach` calls `clearFirestore()`, which wipes everything under the project
+ * id — so two runs of this suite against the same emulator delete each other's
+ * fixtures mid-test. That is not hypothetical: with several agents working in one
+ * tree it produced 11 failures and then 134 passes on consecutive runs with no
+ * change in between, every one of them passing in isolation. A suite that is the
+ * only thing standing between this file and 1,000 attendees' data must not be a
+ * coin flip, and a false green is the worse half of that.
+ *
+ * The emulator creates project namespaces on demand, so this costs nothing.
+ */
+const PROJECT_ID = `kgc-rules-test-${process.pid}`;
+
 beforeAll(async () => {
   env = await initializeTestEnvironment({
-    projectId: 'kgc-rules-test',
+    projectId: PROJECT_ID,
     firestore: {
       rules: readFileSync(resolve(__dirname, '../../firestore.rules'), 'utf8'),
     },

@@ -349,7 +349,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /questions/{questionId} {
-        allow read: if false; // TEMP-VERIFY
+        allow read: if isRegistered();
         // `state` is moderation state, so it is not the author's to set: a
         // question that arrives `approved` is on the keynote screen without a
         // moderator ever having seen it, which is the entire point of having
@@ -385,7 +385,7 @@ service cloud.firestore {
       }
 
       match /polls/{pollId} {
-        allow read: if false; // TEMP-VERIFY
+        allow read: if isRegistered();
         allow delete: if isOrganizer();
 
         // A poll must arrive with one `tallies` key per option. That is not
@@ -470,7 +470,7 @@ service cloud.firestore {
     }
 
     match /announcements/{id} {
-      allow read: if false; // TEMP-VERIFY
+      allow read: if isRegistered();
       allow write: if isOrganizer();
     }
 
