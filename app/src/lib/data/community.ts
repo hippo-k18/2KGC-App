@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   limit,
   limitToLast,
   onSnapshot,
@@ -81,6 +83,77 @@ export function useCommunityPosts(category: string | null) {
     (id, d) => ({ id, ...d }) as Post,
   );
   return { posts: data, error, loading };
+}
+
+/**
+ * Live reply counts for a page of the board, counted on the server.
+ *
+ * `replyCount` on the post document is the field this *should* read, and one day
+ * will: a Cloud Function trigger owns it, the rules forbid any client from
+ * writing it, and the seed sets it to zero. But there are no Cloud Functions —
+ * the project is on the Spark plan — so nothing has ever incremented it, and the
+ * board therefore told every attendee "No replies yet" on posts with replies
+ * sitting right underneath. That is worse than showing no count at all, because
+ * it is a specific claim and it is false.
+ *
+ * A count aggregation is the fix that needs no server: it is exact, it costs one
+ * read per thousand documents rather than one per document, and it works on
+ * Spark today. The cost is one round trip per post — up to `PAGE_SIZE` of them,
+ * issued in parallel — which is why this is a stopgap and not the design. When
+ * the trigger lands, delete this hook and read the field.
+ *
+ * Counts arrive after the posts do, so the return value distinguishes "not
+ * counted yet" (`null`) from "counted, and it is zero". The board must not
+ * render a confident zero during the gap; that is the same lie in a smaller
+ * window.
+ *
+ * Recounted on focus, which is not incidental. An aggregation is a one-shot read,
+ * not a listener, and posting a reply does not touch the post document — so the
+ * board's own subscription never fires and nothing else would ever refresh this.
+ * Replying and coming straight back is exactly how the original bug was found.
+ */
+export function useReplyCounts(posts: Post[] | null): Record<string, number> | null {
+  const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  useFocusEffect(useCallback(() => setNonce((n) => n + 1), []));
+
+  // Keyed on the ids, not the array: `useCollection` hands back a fresh array on
+  // every snapshot, so depending on the array itself re-counts the whole board
+  // each time anyone reacts to anything.
+  const key = posts?.map((p) => p.id).join(',') ?? '';
+
+  useEffect(() => {
+    if (!key) {
+      setCounts(null);
+      return;
+    }
+    const ids = key.split(',');
+    let live = true;
+    (async () => {
+      const settled = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const snap = await getCountFromServer(
+              collection(getDb(), COLLECTIONS.communityPosts, id, SUBCOLLECTIONS.replies),
+            );
+            return [id, snap.data().count] as const;
+          } catch {
+            // One unreadable post must not blank the counts for the other 49.
+            // Omitted rather than zeroed — see the note on `null` above.
+            return null;
+          }
+        }),
+      );
+      if (!live) return;
+      setCounts(Object.fromEntries(settled.filter((e) => e !== null)));
+    })();
+    return () => {
+      live = false;
+    };
+  }, [key, nonce]);
+
+  return counts;
 }
 
 export function useReplies(postId: string | undefined): Reply[] {

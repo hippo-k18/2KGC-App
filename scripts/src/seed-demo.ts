@@ -279,11 +279,35 @@ async function main() {
   });
 
   // --- community, announcements ------------------------------------------
+  let replyTotal = 0;
   COMMUNITY_POSTS.forEach((p, i) => {
     push(COLLECTIONS.communityPosts, `seed-post-${i}`, {
       ...base(), authorId: `demo_${String((i * 5) % ATTENDEE_COUNT).padStart(3, '0')}`,
       category: p.category, title: p.title, body: p.body,
+      // `replyCount` stays at zero on purpose even though replies are seeded
+      // below. The field is function-owned and the rules forbid a client from
+      // writing it; seeding it to the real number would paper over the fact that
+      // nothing maintains it, and the next person to add a reply through the app
+      // would silently drift. The board counts the subcollection instead.
       status: 'visible', replyCount: 0, reactionCount: 0,
+    });
+
+    p.replies.forEach((body, r) => {
+      push(
+        `${COLLECTIONS.communityPosts}/seed-post-${i}/${SUBCOLLECTIONS.replies}`,
+        `seed-reply-${r}`,
+        {
+          // Spread the authors around the attendee pool so a thread does not look
+          // like one person talking to themselves.
+          authorId: `demo_${String((i * 7 + r * 3 + 1) % ATTENDEE_COUNT).padStart(3, '0')}`,
+          body,
+          // Explicit ascending times, not `serverTimestamp()`: the thread reads
+          // `orderBy('createdAt')`, and a batch of server timestamps can resolve
+          // close enough together to shuffle a conversation into nonsense.
+          createdAt: Timestamp.fromMillis(Date.now() - (p.replies.length - r) * 1_800_000),
+        },
+      );
+      replyTotal += 1;
     });
   });
 
@@ -311,7 +335,7 @@ async function main() {
   console.log(`  ${sessions.length} sessions across 5 days (${sessions[0].startsAtLocal.slice(0, 10)} → 2027-05-07)`);
   console.log(`  ${SPONSORS.length} sponsors`);
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
-  console.log(`  ${COMMUNITY_POSTS.length} community posts, ${ANNOUNCEMENTS.length} announcements`);
+  console.log(`  ${COMMUNITY_POSTS.length} community posts with ${replyTotal} replies, ${ANNOUNCEMENTS.length} announcements`);
   console.log(`  Q&A and a poll on ${keynotes.length} keynotes`);
   console.log(`  ${CONVERSATIONS.length} conversations in the inbox`);
   console.log(`\n  ${count} documents written${pruned ? `, ${pruned} stale removed` : ''}.\n`);

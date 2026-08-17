@@ -30,13 +30,18 @@ schedule), People (attendees / speakers / sponsors segments), Community (posting
 replies, reactions) and Me (profile, my schedule, privacy). Messages is a header
 icon with an unread badge rather than a tab.
 
-`app/src/components/demo-screen.tsx` is the old placeholder and is no longer
-rendered by anything — it can be deleted.
+There is also a marketing/ticketing website at `apps/web/` (Next.js, Stripe
+Checkout) and an organizer console at `apps/console/`. **Neither is a root
+workspace member** — that is deliberate, and it means you install and run each
+from its own directory.
 
-**Not built:** session Q&A and live polls, push notifications, the organizer
-console, check-in, badges, registration. See `whova-rebuild/STATUS.md` for a
-measured breakdown; the short version is that the attendee app's demo tier is
-roughly two-thirds done and everything server-side is at zero.
+**Not built or only partly wired:** the organizer console is close to empty,
+push notifications do not exist, and check-in and badges are mid-build. Session
+Q&A and polls render but their tallies never move. See `whova-rebuild/STATUS.md`
+and the parity tables beside it for a measured breakdown — the honest headline is
+**roughly 13% of Whova by feature count** (app 47 built / 25 partial of 241 rows;
+console 0 built / 7 partial of 136), and the reason so much sits at "partial" is
+almost always the Spark plan rather than missing UI.
 
 As of WP-01 this is an **npm workspace monorepo**, not a single Expo project at the
 repo root. `models.ts` and `collections.ts` moved out of the app into
@@ -46,7 +51,7 @@ the same document types and must not duplicate them.
 ```
 package.json               workspaces: ["app", "functions", "packages/*", "scripts"]
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
-tests/rules/                47 tests — the security boundary
+tests/rules/                98 tests — the security boundary
 functions/                  empty — WP-02 fills this, once the project is on Blaze
 packages/shared/
   package.json              "@kgc/shared" — plain TS, no React, no Firebase SDK import.
@@ -119,7 +124,7 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 47 tests against firestore.rules
+npm run test:rules                   # 98 tests against firestore.rules
 npm test                             # 9 unit tests, mostly timezone derivation
 ```
 
@@ -225,9 +230,16 @@ the modelled-but-unbuilt `checkInLists`, `checkInStations`, `scanEvents`,
 
 Decisions worth preserving — do not "simplify" these:
 
-- **Thread ids are deterministic** — the two uids sorted and joined with `_`. A
-  pair maps to one conversation, *and* membership is provable from the path, so
-  the `messages` rules need no `get()` on the parent.
+- **Thread ids are deterministic** — the two uids sorted and joined with `_`, so
+  a pair maps to one conversation. **Membership is *not* derivable from that id.**
+  An earlier version proved membership by splitting the id on `_`, on the stated
+  assumption that "Firebase uids are alphanumeric, so the separator is
+  unambiguous". Uids are not: the demo accounts are `demo_000`, `demo_001`, so
+  `demo_000_demo_001` split into four pieces containing neither participant and
+  **every message read and send was denied**. Membership comes from the
+  `participantIds` array on the thread document, and nothing anywhere parses a
+  thread id to find a person. The same mistake was made independently in the
+  thread-title code; if you find a third instance, it is a bug.
 - **Sessions carry a denormalised `day` string** so day tabs query by equality
   rather than timezone-aware ranges. Local wall time (`startsAtLocal` +
   `timeZone`) is the authoring truth; `startsAt`/`endsAt`/`day` are derived from
@@ -271,12 +283,20 @@ Four things to know before editing it:
   separate `directory/{uid}` projection written by a trigger, not a filtered view
   of `users/{uid}`. Opting out deletes the projection, so a hidden attendee's
   record never leaves the server.
-- **Thread membership is proved from the path.** Thread ids are the two uids
-  sorted and joined with `_`, so `messages` needs no `get()` on its parent.
-- **There is exactly one `get()` in the file**, on the poll-vote write path, to
-  check that a poll is still open. It is deliberate and documented in place.
+- **Thread membership is read from the thread document**, never inferred from the
+  thread id. See the data-model note above for why — it is the worst bug this repo
+  has had, and the comment justifying it read as entirely reasonable.
+- **A `get()` on the parent is required on the `messages` path**, and it is one of
+  only two in the file. The other is on the poll-vote write path, checking that a
+  poll is still open. Both are deliberate and documented in place. Adding a third
+  is a decision, not a detail: the cap is 10 access calls per single-document
+  request and 20 per query, and exceeding it is a hard error, not a slowdown.
+- **`list` and `get` are not the same rule.** A predicate reading `resource.data`
+  works on a single-document `get` and evaluates against null on a `list`, denying
+  the whole query. The inbox broke this way once. If a rule guards a collection
+  anyone queries, test both verbs.
 
-`tests/rules/firestore.test.ts` has **40 tests, one per invariant**. It has been
+`tests/rules/firestore.test.ts` has **98 tests, one per invariant**. It has been
 mutation-checked: breaking `isRegistered()` fails exactly the test that names that
 guarantee. Add a test whenever you add a rule — the suite is the only thing
 standing between this file and 1,000 attendees' data.
@@ -332,19 +352,29 @@ standing between this file and 1,000 attendees' data.
 - **Push notifications are not implemented.** `fcmTokens` and `PushTokenDoc`
   exist; nothing writes to them. Push also needs a development build — Expo Go
   cannot receive it.
-- **App icon and splash are still Expo's defaults** in `app/assets/images/`.
-- **No sign-out control.** The demo session is in-memory only, so reloading
-  returns to the login screen. Intentional.
+- **The app claims capabilities it does not have.** This is the recurring defect
+  class here, not an occasional slip: **fourteen** cases have been found, three of
+  them introduced by agents cleaning up the other eleven. A privacy switch that
+  said it blocked messages, an offline story that cannot work on this SDK, a
+  comment asserting an id format that the seed data contradicts. Before you write
+  reassuring microcopy, exercise the path. Before you trust a comment, check it
+  against the data.
 
 ## Suggested next steps
 
-Confirm with the owner before starting — the tabs are blank on purpose.
-
-1. Upgrade `kgc-database` to Blaze (currently Spark, blocking Cloud Functions),
-   move `.env.local` into `app/.env.local`, then deploy rules and indexes —
-   written but never applied.
-2. Import scripts for `registrations`, `sessions`, `speakers`, `tracks`.
-3. Decide the auth mechanism and finish it.
-4. Agenda list + session detail + personal agenda — the biggest gap vs Whova.
-5. Attendee directory and 1:1 messaging.
-6. Community board, sponsors, push, live Q&A and polls.
+1. Upgrade `kgc-database` to Blaze (currently Spark). It is the single
+   highest-leverage change available: it converts roughly twelve inert fields —
+   every counter, every poll tally, the directory mirror, push — into working
+   features, and unblocks the seven aggregate triggers at once. Then deploy rules
+   and indexes, which are written but have **never been applied**.
+2. The organizer console (`apps/console/`) is the weakest area by far and the one
+   the owner has said must end up "almost identical" to Whova's. Its
+   `src/lib/nav.ts` encodes Whova's IA as 163 nodes and mislabels many of them
+   "built" when they are view-only — do not trust it as a progress map.
+3. Nothing creates `users/{uid}` on first sign-in, which is the gap between the
+   seeded demo working and a real attendee working. See the note above.
+4. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`
+   are modelled and have **no rules at all**, so default-deny is currently the
+   only thing protecting them.
+5. Session Q&A and live polls exist as components but their tallies are inert
+   until (1).

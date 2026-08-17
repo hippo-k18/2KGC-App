@@ -21,6 +21,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   increment,
@@ -29,7 +30,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const A = 'attendeeA';
 const B = 'attendeeB';
@@ -444,6 +445,23 @@ describe('server-owned counters', () => {
   it('refuses a client nudge to replyCount', async () => {
     await assertFails(updateDoc(doc(asA(), 'communityPosts/p1'), { replyCount: 1 }));
     await assertFails(updateDoc(doc(asOrg(), 'communityPosts/p1'), { replyCount: 1 }));
+  });
+
+  // `replyCount` is server-owned and there is no server, so the board counts the
+  // subcollection itself with an aggregation query. That query is governed by
+  // `list`, not `get` — a distinction that has already cost this app its entire
+  // inbox once, when a predicate reading `resource.data` passed on a single
+  // document and evaluated against null across a collection. The count the board
+  // now depends on is therefore asserted here rather than assumed.
+  it('lets an attendee count the replies on a post', async () => {
+    const snap = await assertSucceeds(
+      getCountFromServer(collection(asA(), 'communityPosts/p1/replies')),
+    );
+    expect(snap.data().count).toBe(2);
+  });
+
+  it('refuses a reply count to someone without a ticket', async () => {
+    await assertFails(getCountFromServer(collection(noClaim(), 'communityPosts/p1/replies')));
   });
 
   it('refuses a client nudge to reactionCount', async () => {

@@ -20,6 +20,7 @@ import {
   categoryLabel,
   createPost,
   useCommunityPosts,
+  useReplyCounts,
   type Post,
 } from '@/lib/data/community';
 
@@ -57,10 +58,32 @@ const DEFAULT_STYLE = { icon: 'bubble.left' as IconName, tint: 'blue' as Categor
  * one page, sorting has to move into the query and each option needs its own
  * index entry before it can ship.
  */
+/**
+ * `replies` sorts by the counted value, not by `post.replyCount` — that field is
+ * function-owned, there are no functions yet, and it is zero on every post, so
+ * this option used to be an expensive no-op that reordered nothing. `liked` still
+ * reads `reactionCount` and so is still a no-op; it stays honest only because a
+ * zero like-count renders as no label at all rather than as a claim.
+ */
+type Counts = Record<string, number> | null;
+
 const SORTS = [
-  { id: 'newest', label: 'Newest', compare: (a: Post, b: Post) => millis(b.createdAt) - millis(a.createdAt) },
-  { id: 'replies', label: 'Most Replies', compare: (a: Post, b: Post) => b.replyCount - a.replyCount },
-  { id: 'liked', label: 'Most Liked', compare: (a: Post, b: Post) => b.reactionCount - a.reactionCount },
+  {
+    id: 'newest',
+    label: 'Newest',
+    compare: (a: Post, b: Post) => millis(b.createdAt) - millis(a.createdAt),
+  },
+  {
+    id: 'replies',
+    label: 'Most Replies',
+    compare: (a: Post, b: Post, counts: Counts) =>
+      (counts?.[b.id] ?? 0) - (counts?.[a.id] ?? 0),
+  },
+  {
+    id: 'liked',
+    label: 'Most Liked',
+    compare: (a: Post, b: Post) => b.reactionCount - a.reactionCount,
+  },
 ] as const;
 
 type SortId = (typeof SORTS)[number]['id'];
@@ -105,6 +128,7 @@ export default function CommunityScreen() {
   const listRef = useRef<FlatList<Post>>(null);
 
   const { posts, loading } = useCommunityPosts(category);
+  const replyCounts = useReplyCounts(posts);
   const announcements = useAnnouncements();
 
   const visible = useMemo(() => {
@@ -112,8 +136,8 @@ export default function CommunityScreen() {
     const compare = SORTS.find((s) => s.id === sort)!.compare;
     return (posts ?? [])
       .filter((p) => !needle || p.title.toLowerCase().includes(needle))
-      .sort(compare);
-  }, [posts, search, sort]);
+      .sort((a, b) => compare(a, b, replyCounts));
+  }, [posts, search, sort, replyCounts]);
 
   const sortLabel = SORTS.find((s) => s.id === sort)!.label;
 
@@ -251,7 +275,7 @@ export default function CommunityScreen() {
               title={item.title}
               preview={item.body}
               meta={[
-                replyLabel(item.replyCount),
+                replyLabel(replyCounts?.[item.id]),
                 item.reactionCount ? `${item.reactionCount} Likes` : null,
                 categoryLabel(item.category),
               ]
@@ -589,7 +613,14 @@ function Composer({
   );
 }
 
-function replyLabel(count: number): string {
+/**
+ * `undefined` means the count has not arrived yet, and renders as nothing at all.
+ * The previous version took a plain number and said "No replies yet" for zero —
+ * which, because the number was always zero, appeared on every post on the board
+ * including ones with replies visible the moment you tapped in.
+ */
+function replyLabel(count: number | undefined): string | null {
+  if (count === undefined) return null;
   if (!count) return 'No replies yet';
   return `${count} ${count === 1 ? 'Reply' : 'Replies'}`;
 }

@@ -221,19 +221,84 @@ export function makeSessions(speakerCount: number): SeedSession[] {
   return sessions;
 }
 
+/**
+ * `replies` seeds the subcollection under each post.
+ *
+ * They are not decoration. The board renders a reply count, and with every post
+ * at zero there was nothing to distinguish a working count from a broken one —
+ * the count *was* broken, and it looked exactly like a quiet board. The
+ * distribution is deliberately uneven so the "Most Replies" sort visibly reorders
+ * something, and one post is left empty so the genuine "No replies yet" state is
+ * still reachable.
+ */
 export const COMMUNITY_POSTS = [
-  { category: 'ride-share', title: 'Tram from Manhattan around 08:00?', body: 'Happy to coordinate — the F train gets busy. Anyone heading over from midtown Tuesday morning?' },
-  { category: 'meetup', title: 'SHACL users, informal lunch Wednesday', body: 'Grabbing lunch outside VEEC at 12:15 if anyone wants to compare validation war stories.' },
-  { category: 'jobs', title: 'Hiring: knowledge engineer, remote EU', body: 'Small team, ontology-heavy, permanent. Find me at the Ontotext booth or message here.' },
-  { category: 'questions', title: 'Is the Wednesday workshop laptop-required?', body: 'Travelling light — can I follow along without a machine?' },
-  { category: 'ice-breakers', title: 'First KGC — what should I not miss?', body: 'Coming from a pure relational background. What would you tell a first-timer?' },
-  { category: 'lost-and-found', title: 'Found: black laptop charger, Bloomberg 165', body: 'Handed it to the registration desk on the ground floor.' },
+  {
+    category: 'ride-share',
+    title: 'Tram from Manhattan around 08:00?',
+    body: 'Happy to coordinate — the F train gets busy. Anyone heading over from midtown Tuesday morning?',
+    replies: [
+      'I am on the 08:05 from 59th most mornings, happy to have company.',
+      'Tram is fine but the queue at 08:30 is twenty minutes. Go early.',
+      'Taking the ferry instead — slower, but you get a seat and a view.',
+    ],
+  },
+  {
+    category: 'meetup',
+    title: 'SHACL users, informal lunch Wednesday',
+    body: 'Grabbing lunch outside VEEC at 12:15 if anyone wants to compare validation war stories.',
+    replies: [
+      'Count me in. Bringing a horror story about recursive shapes.',
+      'Is this still on if it rains?',
+      'There is covered seating on the north side, so yes.',
+      'Joining late, will find you around 12:40.',
+      'We ended up with eleven people last year — worth booking ahead.',
+    ],
+  },
+  {
+    category: 'jobs',
+    title: 'Hiring: knowledge engineer, remote EU',
+    body: 'Small team, ontology-heavy, permanent. Find me at the Ontotext booth or message here.',
+    replies: ['Messaged you.', 'Is there a junior version of this role?'],
+  },
+  {
+    category: 'questions',
+    title: 'Is the Wednesday workshop laptop-required?',
+    body: 'Travelling light — can I follow along without a machine?',
+    replies: [
+      'Hands-on for the second half, so bring one if you can.',
+      'Organizer here — you can pair with someone, nobody gets stuck.',
+    ],
+  },
+  {
+    category: 'ice-breakers',
+    title: 'First KGC — what should I not miss?',
+    body: 'Coming from a pure relational background. What would you tell a first-timer?',
+    replies: [
+      'The Tuesday keynote, then talk to people in the hallway instead of filling every slot.',
+      'Came from SQL myself two years ago — the modelling track is where it clicked.',
+      'Do not skip the lightning talks. Best signal-to-noise of the week.',
+      'Say hello to the sponsors on day one, they are far less busy then.',
+    ],
+  },
+  // Deliberately left with no replies: the empty state has to stay reachable.
+  {
+    category: 'lost-and-found',
+    title: 'Found: black laptop charger, Bloomberg 165',
+    body: 'Handed it to the registration desk on the ground floor.',
+    replies: [],
+  },
 ];
 
 export const ANNOUNCEMENTS = [
   { title: 'Welcome to KGC 2027', body: 'Registration opens at 07:30 in the VEEC lobby. The tram runs every 7 minutes from 59th & 2nd.' },
   { title: 'Room change: SHACL in Production', body: 'Moved to Bloomberg 165 — bigger room, we underestimated demand.' },
-  { title: 'Wifi', body: 'Network: CornellTech-Guest. No password required. If it is saturated, the agenda works offline.' },
+  // Do not restore the "the agenda works offline" clause this used to end with.
+  // It does not work offline: the Firebase JS SDK has no disk persistence on
+  // React Native, so the cache is memory-only and a cold start with no network
+  // renders nothing. Promising a room full of attendees that their app works
+  // offline, on the one day the venue wifi is saturated, is how this turns into
+  // a queue at the registration desk.
+  { title: 'Wifi', body: 'Network: CornellTech-Guest. No password required. It saturates around the keynotes, so room numbers are on the printed programme too.' },
 ];
 
 export { FIRST, LAST, ORGS, TITLES };
