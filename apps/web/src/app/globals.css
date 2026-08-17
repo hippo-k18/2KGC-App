@@ -65,6 +65,24 @@
   --good: var(--palette-11);
   --warn: var(--palette-13);
 
+  /*
+   * `--blue` and `--blue-dark` are the old invented names, kept as aliases onto
+   * the real palette rather than deleted.
+   *
+   * Deleting them was a mistake I made and did not notice: twenty-seven rules
+   * still referenced them — button backgrounds, focus outlines, track chips,
+   * table borders — and an undefined custom property is invalid at computed-value
+   * time, so each of those silently fell back to its initial value. Primary
+   * buttons rendered with no background at all. It was visible in a screenshot I
+   * had already looked at, which is the useful part of the lesson: a stylesheet
+   * does not fail loudly.
+   *
+   * Navy rather than teal because the dominant use is the primary button, whose
+   * real background is `--palette-2`.
+   */
+  --blue: var(--palette-2);
+  --blue-dark: #1b2942;
+
   --radius: 10px;
   --shadow: 0 1px 2px rgb(16 36 58 / 6%), 0 8px 24px rgb(16 36 58 / 6%);
 
@@ -178,8 +196,9 @@ p {
   margin: 0 0 1em;
 }
 
+/* Links take the theme's highlight, which is the teal — not the button navy. */
 a {
-  color: var(--blue);
+  color: var(--highlight);
 }
 
 img {
@@ -1159,5 +1178,309 @@ section.tint {
     width: 100%;
     margin-left: 0;
     padding-bottom: 8px;
+  }
+}
+
+/* ================================================================ homepage =
+ *
+ * Sections below the hero, matching knowledgegraph.tech band for band. The live
+ * page is Kadence rows at a 2000px content width, which is a page builder saying
+ * "no constraint"; `--max` holds prose at a readable measure instead, and the
+ * bands that should run edge to edge say so with `.kgc-wide`.
+ */
+
+.kgc-wide {
+  max-width: var(--max);
+  margin-inline: auto;
+  padding-inline: var(--edge-padding);
+}
+
+/* ---- the three pale stat cards ---- */
+
+.kgc-stats {
+  background: var(--palette-8);
+  padding-block: 8px 40px;
+}
+
+.kgc-stats-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.kgc-stat {
+  background: var(--palette-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 40px 24px;
+  text-align: center;
+}
+
+/*
+ * The numeral is the only bold thing in the heading — "1,000+" at 700 against
+ * "Attendees" at 400, both in navy. It reads as a figure with a label rather
+ * than as a headline, which is what makes the row scannable.
+ */
+.kgc-stat h2 {
+  color: var(--navy);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.kgc-stat h2 b {
+  font-weight: 700;
+}
+
+.kgc-stat p {
+  color: var(--highlight);
+  font-size: 20px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ---- photo beside prose: "Why Attend", HCLS ---- */
+
+.kgc-split {
+  padding-block: 56px;
+}
+
+.kgc-split.kgc-tone-navy {
+  background: var(--navy);
+  color: #fff;
+}
+
+.kgc-split.kgc-tone-navy h2,
+.kgc-split.kgc-tone-navy p {
+  color: #fff;
+}
+
+.kgc-split-row {
+  display: grid;
+  gap: 32px;
+  align-items: center;
+}
+
+/* 525/803 on the live page — a narrow photo against wide prose. */
+@media (width >= 900px) {
+  .kgc-split-row.kgc-split-uneven {
+    grid-template-columns: 525fr 803fr;
+  }
+
+  .kgc-split-row.kgc-split-equal {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .kgc-split-row.kgc-photo-right .kgc-split-photo {
+    order: 2;
+  }
+}
+
+.kgc-split-photo {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--wash);
+}
+
+.kgc-split-photo img {
+  object-fit: cover;
+}
+
+.kgc-split-prose p {
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+/* ---- the two numbered highlights, on navy ---- */
+
+.kgc-pair {
+  background: var(--navy);
+  color: #fff;
+  padding-block: 56px;
+}
+
+.kgc-pair-row {
+  display: grid;
+  gap: 40px;
+}
+
+@media (width >= 900px) {
+  .kgc-pair-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.kgc-pair-photo {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+  background: rgb(255 255 255 / 8%);
+}
+
+.kgc-pair-photo img {
+  object-fit: cover;
+}
+
+.kgc-pair h2 {
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.kgc-pair-body {
+  color: rgb(255 255 255 / 88%);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.kgc-pair-note {
+  color: rgb(255 255 255 / 62%);
+  font-size: 14px;
+  font-style: italic;
+}
+
+/*
+ * The live "Learn more →" is set in `--palette-2`, the same navy as the band
+ * behind it, so on the real site it is invisible and links nowhere. This uses
+ * the theme's own light blue, which clears 4.5:1 on that navy.
+ */
+.kgc-pair-link a {
+  color: var(--palette-4);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.kgc-pair-link a:hover {
+  text-decoration: underline;
+}
+
+/* ---- testimonials ---- */
+
+.kgc-quotes {
+  padding-block: 56px;
+  max-width: var(--max);
+  margin-inline: auto;
+  padding-inline: var(--edge-padding);
+}
+
+.kgc-quotes-heading {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/*
+ * A scroll-snapping strip rather than the live site's auto-advancing carousel:
+ * it needs no JavaScript, works with a trackpad or arrow keys, and nothing moves
+ * under a reader mid-sentence. `tabIndex` is on the list in the component so a
+ * keyboard can reach the scroll container at all.
+ */
+.kgc-quotes-strip {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 12px;
+}
+
+.kgc-quotes-strip li {
+  flex: 0 0 min(620px, 88%);
+  scroll-snap-align: center;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.kgc-quotes-strip img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.kgc-quotes-strip:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 4px;
+}
+
+/* ---- FAQ ---- */
+
+.kgc-faq {
+  max-width: var(--narrow);
+  margin-inline: auto;
+  padding: 56px var(--edge-padding);
+}
+
+.kgc-faq h2 {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.kgc-faq details {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+}
+
+.kgc-faq summary {
+  cursor: pointer;
+  padding: 16px 18px;
+  font-weight: 700;
+  color: var(--heading);
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.kgc-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A rotating chevron, so open/closed is visible and not only announced. */
+.kgc-faq summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--highlight);
+  border-bottom: 2px solid var(--highlight);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.kgc-faq details[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.kgc-faq summary:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: -2px;
+}
+
+.kgc-faq .answer {
+  padding: 0 18px 16px;
+  color: var(--body);
+}
+
+.kgc-faq .answer p {
+  margin: 0 0 0.8em;
+}
+
+.kgc-faq .answer ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kgc-faq summary::after {
+    transition: none;
   }
 }

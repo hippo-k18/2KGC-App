@@ -53,6 +53,32 @@ export const SITE = {
 export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
 
 /**
+ * The badge on the healthcare & life sciences panel.
+ *
+ * The live site renders "HCLS sold out" — true of the finished 2026 symposium,
+ * and a lie about 2027, exactly like `ANNOUNCEMENT` above. Same treatment: one
+ * declaration, changed by whoever knows the answer. Set `label` to
+ * `'HCLS sold out'` and `href` to `null` to reproduce the live 2026 state; set
+ * the whole export to `null` to drop the badge.
+ */
+export const HCLS_BADGE: { label: string; href: string | null } | null = {
+  label: 'HCLS tickets open soon',
+  href: null,
+};
+
+/**
+ * The attendance figure in the first stat block.
+ *
+ * The other two stat blocks count real Firestore documents. This one cannot:
+ * `registrations` holds ticket holders for *this* edition mid-sale, which in a
+ * seeded demo is fifty-odd people and would render "52 Attendees" under a
+ * headline claiming a thousand. So this is what it says it is — a stated
+ * expectation, phrased as one — and it is here rather than in JSX so that
+ * nobody has to guess whether the number was counted or typed. It was typed.
+ */
+export const ATTENDEES_EXPECTED = '1,000+';
+
+/**
  * The header navigation.
  *
  * The live site carries a longer list — Blog, Learn, Community, Resource Hub,
@@ -82,6 +108,22 @@ export function formatDayHeading(day: string): string {
     month: 'long',
     timeZone: 'UTC',
   }).format(dt);
+}
+
+/**
+ * `2027-05-05` → `{ weekday: 'Wed', date: 'May 05' }`.
+ *
+ * The two-line label the day tabs show, stacked. Same UTC-anchored parse as
+ * `formatDayHeading` and for the same reason: these are plain dates, and
+ * `new Date('2027-05-05')` formatted locally reads a day early west of
+ * Greenwich.
+ */
+export function formatDayTab(day: string): { weekday: string; date: string } {
+  const [y, m, d] = day.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const fmt = (opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-US', { ...opts, timeZone: 'UTC' }).format(dt);
+  return { weekday: fmt({ weekday: 'short' }), date: fmt({ month: 'short', day: '2-digit' }) };
 }
 
 /** `2027-05-05T09:00` → `09:00`. The stored wall clock is already event-local. */
