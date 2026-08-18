@@ -72,6 +72,35 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 }
 
 /**
+ * Tab-bar appearance, iOS and Android only.
+ *
+ * On iOS 26 `NativeTabs` renders the new floating capsule, which is why a
+ * side-by-side against Whova reads as "the nav bar is not the same and too big":
+ * Whova draws a classic full-width UITabBar with a hairline above it, and ours
+ * draws a translucent pill with a large rounded highlight behind the selected
+ * tab. The pill's *shape* belongs to the OS and cannot be turned off from here.
+ * What can be set is everything that makes it look heavier than it needs to:
+ * `blurEffect: 'none'` and `disableTransparentOnScrollEdge` stop content showing
+ * through it, `minimizeBehavior: 'never'` keeps it from resizing as the page
+ * scrolls, and a 10pt label matches Whova's caption-sized ones.
+ *
+ * **Spread empty on web, and that is not a tidiness point.** The web build
+ * renders a Radix tab list from `NativeTabsView.web`, which reads `labelStyle`
+ * and ignores the rest — and passing them anyway took the whole preview down to
+ * a blank root div that never recovered. These describe a UITabBar; there is no
+ * UITabBar on web.
+ */
+const TAB_BAR_APPEARANCE =
+  Platform.OS === 'web'
+    ? {}
+    : ({
+        blurEffect: 'none',
+        minimizeBehavior: 'never',
+        disableTransparentOnScrollEdge: true,
+        labelStyle: { fontSize: 10 },
+      } as const);
+
+/**
  * Native tab bar: Home, Agenda, People, Community, Me.
  *
  * Deliberately NOT Whova's layout, which this originally copied. Whova puts
@@ -107,7 +136,26 @@ export default function TabLayout() {
   if (!user) return <Redirect href="/login" />;
 
   return (
-    <NativeTabs tintColor={colors.tint} backgroundColor={colors.surface}>
+    /*
+     * Pinned, opaque and small-labelled — as close to Whova's flat bar as the
+     * native control allows.
+     *
+     * On iOS 26 `NativeTabs` renders the new floating capsule, which is why a
+     * side-by-side against Whova reads as "the nav bar is not the same and too
+     * big": Whova draws a classic full-width UITabBar with a hairline above it,
+     * and ours draws a translucent pill with a large rounded highlight behind
+     * the selected tab. The pill's *shape* is the OS's and cannot be turned off
+     * from here. What can be set is everything that makes it look bulkier than
+     * it needs to:
+     *
+     * - `blurEffect="none"` plus `disableTransparentOnScrollEdge` stops content
+     *   showing through it, which is most of the visual weight.
+     * - `minimizeBehavior="never"` keeps it from resizing as the page scrolls,
+     *   so it is one fixed object rather than two.
+     * - `labelStyle` at 10pt matches Whova's caption-sized labels; the default
+     *   is the system body size, which is what makes five labels feel crowded.
+     */
+    <NativeTabs tintColor={colors.tint} backgroundColor={colors.surface} {...TAB_BAR_APPEARANCE}>
       <NativeTabs.Trigger name="home">
         <Icon
           sf={{ default: 'house', selected: 'house.fill' }}

@@ -47,6 +47,7 @@ type Variant =
   | 'title3'
   | 'heading'
   | 'body'
+  | 'title2'
   | 'callout'
   | 'subhead'
   | 'caption'
@@ -56,6 +57,13 @@ const VARIANTS: Record<Variant, TextStyle> = {
   // Display sizes: no lineHeight — see the note above.
   largeTitle: { fontSize: 34, fontWeight: '700', letterSpacing: 0.37 },
   title: { fontSize: 28, fontWeight: '700', letterSpacing: 0.36 },
+  /**
+   * The missing step between 28 and 20, and the one a screen title usually
+   * wants. Measured against Whova on the same device, its event name sets at
+   * about 21pt; ours was `title` at 28 and wrapped "Knowledge Graph Conference
+   * 2027" onto two lines where Whova fits its own on one.
+   */
+  title2: { fontSize: 22, fontWeight: '700', letterSpacing: -0.26 },
   title3: { fontSize: 20, fontWeight: '600', letterSpacing: -0.45 },
   // Text sizes: lineHeight at ≥1.29×, which clears SF Pro's natural leading.
   heading: { fontSize: 17, lineHeight: 22, fontWeight: '600', letterSpacing: -0.41 },

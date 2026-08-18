@@ -338,15 +338,21 @@ function EventBanner({ dateRange }: { dateRange: string }) {
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.xs }}>
-        <Text variant="title" accessibilityRole="header">
+      {/*
+        Sized against Whova on the same phone rather than against the HIG's
+        largest available step. `title` (28pt) wrapped the event name onto two
+        lines where Whova fits its own on one, and 17pt venue and date lines gave
+        the block four tall rows before the first piece of actual information.
+      */}
+      <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 2 }}>
+        <Text variant="title2" accessibilityRole="header">
           {EVENT.name}
         </Text>
-        <Text variant="body" tone="secondary">
+        <Text variant="subhead" tone="secondary">
           {EVENT.venue}
         </Text>
         {dateRange ? (
-          <Text variant="body" tone="secondary">
+          <Text variant="subhead" tone="secondary">
             {dateRange}
           </Text>
         ) : null}
@@ -387,17 +393,20 @@ function TimeZoneStrip() {
     <View
       style={{
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: Spacing.sm + Spacing.xs,
+        alignItems: 'center',
+        gap: Spacing.sm,
         paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md - Spacing.xs,
+        paddingVertical: Spacing.sm,
       }}>
-      <Icon name="mappin.and.ellipse" size={20} color={colors.textSecondary} />
-      <View style={{ flex: 1, gap: Spacing.xs }}>
-        <Text variant="callout">Displaying time in the event’s time zone</Text>
-        <Text variant="caption" tone="tertiary">
-          Every time in this app is New York time, wherever you are reading it.
-        </Text>
+      <Icon name="mappin.and.ellipse" size={18} color={colors.textSecondary} />
+      {/*
+        One line, as Whova's is. The second sentence — "Every time in this app is
+        New York time, wherever you are reading it" — restated the first at
+        greater length and cost three rows of height above the fold, on the
+        screen that is supposed to answer "what is on next".
+      */}
+      <View style={{ flex: 1 }}>
+        <Text variant="subhead">Displaying time in the event’s time zone</Text>
       </View>
     </View>
   );

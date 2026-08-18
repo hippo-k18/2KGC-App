@@ -54,17 +54,27 @@ export default function MessagesLayout() {
       <Stack
         screenOptions={{
           ...pushedStackScreenOptions,
+          /*
+           * `headerShown: true` here, overriding the `false` that
+           * `pushedStackScreenOptions` carries for every other stack in the app.
+           *
+           * Both of these screens want a header unconditionally — the inbox
+           * and a thread are pushed, and neither draws a `WhovaHeader` — and
+           * relying on each screen to switch it back on left the inbox with no
+           * header and therefore no back button at all on device. The only ways
+           * out were the swipe gesture and force-quitting.
+           *
+           * The screens still set their own `title` and `headerLeft` through
+           * `PushedHeader`; what they no longer have to do is turn the header on
+           * before those options mean anything.
+           */
+          headerShown: true,
           headerStyle: { backgroundColor: colors.header },
           headerTintColor: colors.onHeader,
           headerTitleStyle: { color: colors.onHeader },
           headerShadowVisible: false,
-        }}>
-        {/* Both screens turn the header on themselves, via `PushedHeader`: the
-            inbox's title carries the unread count and the thread's is a name,
-            so neither can be spelled here. */}
-        <Stack.Screen name="index" />
-        <Stack.Screen name="[threadId]" />
-      </Stack>
+        }}
+      />
     </>
   );
 }
