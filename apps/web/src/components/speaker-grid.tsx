@@ -26,6 +26,56 @@ function initials(name: string): string {
 }
 
 /**
+ * One card. Exported because the "Our First Speakers" block on `/speakers`
+ * renders the same card in a different container, and two copies of this markup
+ * would drift apart the first time either one is touched.
+ */
+export function SpeakerCard({
+  speaker: s,
+  /**
+   * The lead five on `/speakers` are the first thing on the page and one of
+   * them is the LCP element, so they load eagerly. Everything in the grid below
+   * stays lazy — 132 portraits fetched at once is the whole point of the "show
+   * more".
+   */
+  eager = false,
+}: {
+  speaker: SpeakerTile;
+  eager?: boolean;
+}) {
+  return (
+    <article className="speaker-tile">
+      {s.photoURL ? (
+        /*
+         * A plain <img>: portraits come from the conference database and, for
+         * the imported set, from arbitrary upstream hosts. `next/image` would
+         * need every one of those hosts in `images.remotePatterns`, and a
+         * speaker added in the console with a new host would render a 400
+         * instead of a face.
+         */
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          className="speaker-portrait"
+          src={s.photoURL}
+          alt=""
+          width={s.width ?? 200}
+          height={s.height ?? 200}
+          loading={eager ? 'eager' : 'lazy'}
+          fetchPriority={eager ? 'high' : undefined}
+        />
+      ) : (
+        <div className="speaker-portrait is-fallback" aria-hidden="true">
+          {initials(s.name)}
+        </div>
+      )}
+      <h3 className="speaker-name">{s.name}</h3>
+      {s.company ? <p className="speaker-org">{s.company}</p> : null}
+      {s.role ? <p className="speaker-role">{s.role}</p> : null}
+    </article>
+  );
+}
+
+/**
  * The speaker grid, framed the way the live `2026-speakers` page frames it: a
  * large circular portrait centred over a centred name, company and role, on a
  * pale card with no border.
@@ -57,33 +107,7 @@ export function SpeakerGrid({
     <>
       <div className="speaker-grid">
         {visible.map((s) => (
-          <article className="speaker-tile" key={s.id}>
-            {s.photoURL ? (
-              /*
-               * A plain <img>: portraits come from the conference database and,
-               * for the imported set, from arbitrary upstream hosts. `next/image`
-               * would need every one of those hosts in `images.remotePatterns`,
-               * and a speaker added in the console with a new host would render a
-               * 400 instead of a face.
-               */
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                className="speaker-portrait"
-                src={s.photoURL}
-                alt=""
-                width={s.width ?? 200}
-                height={s.height ?? 200}
-                loading="lazy"
-              />
-            ) : (
-              <div className="speaker-portrait is-fallback" aria-hidden="true">
-                {initials(s.name)}
-              </div>
-            )}
-            <h3 className="speaker-name">{s.name}</h3>
-            {s.company ? <p className="speaker-org">{s.company}</p> : null}
-            {s.role ? <p className="speaker-role">{s.role}</p> : null}
-          </article>
+          <SpeakerCard key={s.id} speaker={s} />
         ))}
       </div>
 

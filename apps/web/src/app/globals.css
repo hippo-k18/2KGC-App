@@ -2932,3 +2932,50 @@ section.tint {
   color: var(--ink);
   font-weight: 700;
 }
+
+/* ------------------------------------------- "Our First Speakers", 3 then 2 -- */
+
+/*
+ * Whova's widget runs at `design.max_cols: 3`, so its five highlighted speakers
+ * land three across and the remaining two centre themselves underneath. A grid
+ * with three columns cannot do that — the fourth and fifth cards would sit hard
+ * left under columns one and two — so this is a centred flex row whose children
+ * are sized to a column instead of placed in one. The breakpoints are the same
+ * 620 / 1000 as `.speaker-grid`, so the two sections of the page step together.
+ */
+.featured-speakers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 36px;
+}
+
+.featured-speakers > .speaker-tile {
+  flex: 0 1 100%;
+}
+
+@media (width >= 620px) {
+  .featured-speakers > .speaker-tile {
+    flex-basis: calc((100% - 28px) / 2);
+  }
+}
+
+@media (width >= 1000px) {
+  .featured-speakers > .speaker-tile {
+    flex-basis: calc((100% - 56px) / 3);
+  }
+}
+
+/*
+ * `.page-head-centred` only centres the eyebrow, h1 and lede it was written
+ * for, and both section headings here sit outside that set.
+ */
+.speaker-section-head {
+  text-align: center;
+  margin-top: 72px;
+}
+
+.speaker-section-head:first-of-type {
+  margin-top: 48px;
+}

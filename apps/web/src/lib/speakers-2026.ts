@@ -32,6 +32,24 @@
  * `design.orderby` reports as `last_name` — preserved verbatim here, quirks and
  * all. It is why `(Phil) (Meredith)` sorts first.
  *
+ * ## Which five are the highlighted ones, and how that was established
+ *
+ * The same payload names them outright: `design.highlight_speakers` is an array
+ * of exactly five Whova profile ids, which resolve against `speakers[].pid` to
+ * Bertails, Khattar, Hendler, Ivie and Pakiman. They are `featured: true` below.
+ *
+ * Do **not** take the render order from that array — it is stored in whatever
+ * order the organiser picked them (Khattar sits second in it). The widget sorts
+ * the highlights with the same `design.orderby: last_name` it sorts everyone
+ * else by, so the five render Bertails · Hendler · Ivie / Khattar · Pakiman.
+ * Confirmed by loading the embed itself, `https://whova.com/embedded/speakers/
+ * <event_id>/`, in headless Chrome and reading the five cards it paints. That is
+ * also the order they fall in here, because this array is already `last_name`
+ * ordered — so a straight `.filter()` reproduces the live page for free.
+ *
+ * Whova's `design.max_cols` is 3, which is why the fifth row wraps to two
+ * centred cards rather than five across.
+ *
  * ## This is 2026 data on a 2027 site — on purpose
  *
  * KGC 2027 has no published roster yet. The site owner chose to show the 2026
@@ -82,6 +100,8 @@ export interface Speaker2026 {
   height?: number;
   /** The speaker's page on knowledgegraph.tech, if the card links to one. */
   href?: string;
+  /** In Whova's `design.highlight_speakers` — the "Our First Speakers" five. */
+  featured?: boolean;
 }
 
 /** Source order preserved: Whova's `display_dict`, ordered by last name. */
@@ -160,6 +180,7 @@ export const SPEAKERS_2026: Speaker2026[] = [
     photo: '/kgc/speakers/alexandre-bertails.jpg',
     width: 280,
     height: 280,
+    featured: true,
   },
   {
     name: 'Rashmi Bhat',
@@ -419,6 +440,7 @@ export const SPEAKERS_2026: Speaker2026[] = [
     photo: '/kgc/speakers/jim-hendler.jpg',
     width: 280,
     height: 280,
+    featured: true,
   },
   {
     name: 'Florence Hudson',
@@ -443,6 +465,7 @@ export const SPEAKERS_2026: Speaker2026[] = [
     photo: '/kgc/speakers/charles-ivie.jpg',
     width: 279,
     height: 262,
+    featured: true,
   },
   {
     name: 'Jared Jacobovitz',
@@ -541,6 +564,7 @@ export const SPEAKERS_2026: Speaker2026[] = [
     photo: '/kgc/speakers/agrita-khattar.jpg',
     width: 280,
     height: 280,
+    featured: true,
   },
   {
     name: 'Atanas Kiryakov',
@@ -791,6 +815,7 @@ export const SPEAKERS_2026: Speaker2026[] = [
     photo: '/kgc/speakers/anahita-pakiman.jpg',
     width: 280,
     height: 280,
+    featured: true,
   },
   {
     name: 'Shreya Pandey',
@@ -1120,3 +1145,16 @@ export const SPEAKERS_2026: Speaker2026[] = [
     height: 480,
   },
 ];
+
+/**
+ * The five Whova highlights, in the order the live widget paints them — which
+ * needs no sorting here, because `SPEAKERS_2026` is already in Whova's
+ * `last_name` order and the widget sorts its highlights the same way.
+ */
+export const FEATURED_2026: Speaker2026[] = SPEAKERS_2026.filter((s) => s.featured);
+
+/**
+ * Everyone else. Derived rather than listed so the two sections cannot drift
+ * into showing the same person twice.
+ */
+export const REST_2026: Speaker2026[] = SPEAKERS_2026.filter((s) => !s.featured);
