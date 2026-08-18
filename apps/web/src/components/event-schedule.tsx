@@ -7,10 +7,15 @@ import { formatDayTab, localTime, SITE } from '@/lib/site';
 /**
  * The "Event Schedule" panel: search, track filter, day tabs, session list.
  *
- * It lives here rather than inside `components/home/` because the homepage and
- * `/agenda` show the same control and must not drift apart. The live site gets
- * away with duplicating it only because both copies are the same third-party
- * iframe — which is the thing this project exists to delete.
+ * **This is currently used by the homepage only.** It lives outside
+ * `components/home/` because it is meant to be shared with `/agenda`, and that
+ * page has not adopted it yet: `/agenda` still renders every day as a heading
+ * with its own `.day-nav` pill row, and has no search field and no track filter
+ * at all. This docblock previously asserted that "the homepage and `/agenda`
+ * show the same control", which was never true and is the kind of claim that
+ * gets believed instead of checked — the two controls have drifted precisely
+ * because nothing was sharing them. Moving `/agenda` onto this component is the
+ * open piece of work; until then, changes made here do not reach it.
  *
  * **On the blue.** The live widget paints the selected day tab `#2b6cb0`. That
  * colour is not in the KGC theme at all; it is Whova's, and copying it once

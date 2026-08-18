@@ -242,6 +242,16 @@ img {
   max-width: 760px;
 }
 
+/*
+ * `.narrow` is a container width, and at 760px it leaves 712px of text — about
+ * 86 characters a line on /about and /sponsor, where the long-form copy lives.
+ * Capping the paragraphs rather than the container keeps headings, lists and
+ * cards at the full measure and only shortens the running prose.
+ */
+.wrap.narrow p:not(.lede):not(.eyebrow):not(.muted) {
+  max-width: 68ch;
+}
+
 section {
   padding: 64px 0;
 }
@@ -455,6 +465,21 @@ section.tint {
  * back to Chrome's default `auto 1px` ring while `.kgc-faq summary` and the
  * quotes strip defined a real 2px one — two focus languages on a single page.
  */
+.day-nav a:focus-visible,
+.day-tab:focus-visible,
+.logo-tile:focus-visible,
+.speaker .links a:focus-visible,
+.site-header nav a:focus-visible,
+.site-header .search:focus-visible,
+.menu-toggle:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
+.speaker .links a:hover {
+  text-decoration: underline;
+}
+
 .btn:focus-visible {
   outline: 2px solid var(--highlight);
   outline-offset: 2px;
@@ -680,19 +705,26 @@ section.tint {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
+/*
+ * `.g3` is the sponsorship packages on `/sponsor` — five cards, not three.
+ *
+ * A hard `repeat(3, 1fr)` was pasted here by mistake while fixing an unrelated
+ * band, which at 393 crushed five cards into three ~155px columns and pushed the
+ * page 129px wider than the phone. Explicit and responsive instead.
+ */
 .g3 {
-  /*
-   * `minmax(260px, 1fr)` needed 3x260 + 2x16 = 812px and the container is 720 at
-   * a 768 viewport, so the three stats broke two-and-one with "45 Speakers"
-   * orphaned beside a half-width gap. Three abreast is the whole point of a
-   * three-stat band; below 620 they stack.
-   */
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
 }
 
-@media (width <= 620px) {
-  .kgc-stats-row {
-    grid-template-columns: 1fr;
+@media (width >= 560px) {
+  .g3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width >= 900px) {
+  .g3 {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -780,11 +812,20 @@ section.tint {
 
 /* ----------------------------------------------------------------- agenda - */
 
+/*
+ * One scrolling row, matching `.schedule-days` on the homepage panel.
+ *
+ * This wrapped instead: five days became two rows at 768 and four at 393, so the
+ * control changed shape three times down the range and read as a paragraph of
+ * pills rather than as a day picker.
+ */
 .day-nav {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
   margin-bottom: 28px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
 }
 
 .day-nav a {
@@ -792,7 +833,9 @@ section.tint {
   border: 1px solid var(--line);
   background: var(--white);
   border-radius: 999px;
-  padding: 7px 16px;
+  /* Was `7px 16px` — a 39px control, under the 44px floor. */
+  padding: 11px 18px;
+  flex: 0 0 auto;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--ink);
@@ -1275,7 +1318,12 @@ section.tint {
   text-decoration: none;
 }
 
-.logo-tile:hover {
+/* `a.logo-tile`, not `.logo-tile`: a hover response on a non-link is a promise. */
+a.logo-tile {
+  cursor: pointer;
+}
+
+a.logo-tile:hover {
   border-color: var(--blue);
   background: var(--wash);
 }
@@ -1332,10 +1380,34 @@ section.tint {
   text-decoration: underline;
 }
 
+/*
+ * The four footer columns, which were rendering as one stacked column on every
+ * page of the site.
+ *
+ * `grid-template-columns: 1.6fr repeat(auto-fit, minmax(150px, 1fr))` is invalid
+ * CSS: an auto-repeat track cannot share a track list with a flexible `fr` track,
+ * so the parser discards the whole declaration rather than the offending part.
+ * The grid then fell back to a single 1072px column — which is also why the
+ * footer's intro paragraph was setting at about 140 characters a line.
+ *
+ * Written out, because that is what the invalid version was trying to say.
+ */
 .site-footer .cols {
   display: grid;
-  grid-template-columns: 1.6fr repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: 1fr;
   gap: 32px;
+}
+
+@media (width >= 620px) {
+  .site-footer .cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width >= 900px) {
+  .site-footer .cols {
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  }
 }
 
 .site-footer .mark {
@@ -1446,7 +1518,19 @@ section.tint {
 .kgc-stats-row {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /*
+   * `minmax(260px, 1fr)` needs 3x260 + 2x16 = 812px and the container is 720 at
+   * a 768 viewport, so the three stats broke two-and-one with "45 Speakers"
+   * orphaned beside a half-width gap. Three abreast is the point of a three-stat
+   * band; below 620 they stack.
+   */
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (width <= 620px) {
+  .kgc-stats-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .kgc-stat {

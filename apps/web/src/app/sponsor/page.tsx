@@ -97,14 +97,34 @@ export default async function SponsorPage() {
           <div className="wrap">
             <h2>Confirmed for 2027</h2>
             <div className="logos" style={{ marginTop: 20 }}>
-              {sponsors.map((s) => (
-                <div className="logo-tile" key={s.id}>
-                  <span>
-                    {s.name}
-                    <span className="tier">{s.tier}</span>
-                  </span>
-                </div>
-              ))}
+              {/*
+                Links, matching the homepage's identical strip. These were plain
+                `div`s while `.logo-tile:hover` still applied, so fifteen tiles
+                lit up under the pointer and led nowhere.
+              */}
+              {sponsors.map((s) =>
+                s.website ? (
+                  <a
+                    key={s.id}
+                    className="logo-tile"
+                    href={s.website}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    <span>
+                      {s.name}
+                      <span className="tier">{s.tier}</span>
+                    </span>
+                  </a>
+                ) : (
+                  <div className="logo-tile" key={s.id}>
+                    <span>
+                      {s.name}
+                      <span className="tier">{s.tier}</span>
+                    </span>
+                  </div>
+                ),
+              )}
             </div>
           </div>
         </section>
