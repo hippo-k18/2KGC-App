@@ -100,17 +100,21 @@ export const APP_DISTRIBUTION =
 /**
  * The header navigation.
  *
- * The live site carries a longer list — Blog, Learn, Community, Resource Hub,
- * Meet the Team, and a Previous Events menu going back to KGC 2019 — plus two
- * expanding submenus. Those are pages this site does not have, and a navigation
- * item that 404s is worse than an absent one, so the list is the real one
- * intersected with what exists here. `Healthcare & Life Sciences Symposium` is
- * the one worth adding next; it is a real page on the live site (`/hcls/`) and a
- * real part of the programme.
+ * The live site's own navigation, scraped: `2026 Speakers`, `Sponsor KGC`,
+ * `Blog`, `Learn`, `About KGC`, `Community`, `Resource Hub`, `Healthcare & Life
+ * Sciences Symposium`, `Meet the Team`, and a `Previous Events` menu going back
+ * to KGC 2019 — twenty internal pages in all. This list is that one intersected
+ * with what exists here, because a navigation item that 404s is worse than an
+ * absent one.
+ *
+ * `HCLS` has just moved from the second list to the first. Still missing, in
+ * rough order of how much they would be missed: `/team`, `/community`,
+ * `/knowledge-graph-learning-program`, `/blog`, and the 2019–2025 archive pages.
  */
 export const NAV = [
   { href: '/speakers', label: 'Speakers' },
   { href: '/agenda', label: 'Agenda' },
+  { href: '/hcls', label: 'HCLS' },
   { href: '/sponsor', label: 'Sponsor KGC' },
   { href: '/about', label: 'About KGC' },
 ] as const;

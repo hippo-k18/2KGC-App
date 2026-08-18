@@ -2379,3 +2379,29 @@ a.logo-tile:hover {
   position: relative;
   z-index: 1;
 }
+
+/* A ticked list, for the "what we are looking for" blocks on inner pages. */
+.ticks {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+  display: grid;
+  gap: 12px;
+}
+
+.ticks li {
+  position: relative;
+  padding-left: 30px;
+}
+
+.ticks li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.55em;
+  width: 12px;
+  height: 6px;
+  border-left: 2px solid var(--highlight);
+  border-bottom: 2px solid var(--highlight);
+  transform: rotate(-45deg);
+}

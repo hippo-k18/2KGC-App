@@ -232,11 +232,18 @@ export default async function HomePage() {
         tone="navy"
         columns="equal"
         footer={
-          HCLS_BADGE ? (
-            <p className="kgc-pair-note" style={{ marginTop: 16 }}>
-              {HCLS_BADGE.label}
+          <>
+            {HCLS_BADGE ? (
+              <p className="kgc-pair-note" style={{ marginTop: 16 }}>
+                {HCLS_BADGE.label}
+              </p>
+            ) : null}
+            {/* This band described a whole symposium and linked only to its own
+                anchor. `/hcls` is a real page on the live site and now here. */}
+            <p className="kgc-pair-link" style={{ marginTop: 12 }}>
+              <Link href="/hcls">About the symposium →</Link>
             </p>
-          ) : null
+          </>
         }
       >
         <p>
