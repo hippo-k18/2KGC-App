@@ -37,7 +37,10 @@ export const SITE = {
     { label: 'LinkedIn', href: 'https://www.linkedin.com/company/knowledge-graph-conference/' },
     { label: 'X', href: 'https://x.com/knowledgegraphc' },
     { label: 'YouTube', href: 'https://www.youtube.com/@knowledgegraphconference' },
-    { label: 'Slack', href: 'https://www.knowledgegraph.tech/' },
+    // A `Slack` entry used to sit here pointing at `https://www.knowledgegraph.tech/`
+    // — a link that says Slack and lands on the homepage. Restore it with the real
+    // workspace invite URL; until someone has that URL, no link is better than a
+    // wrong one, for the same reason the `NAV` docblock gives.
   ],
 } as const;
 
@@ -77,6 +80,22 @@ export const HCLS_BADGE: { label: string; href: string | null } | null = {
  * nobody has to guess whether the number was counted or typed. It was typed.
  */
 export const ATTENDEES_EXPECTED = '1,000+';
+
+/**
+ * How an attendee actually gets the app, stated as one editable sentence.
+ *
+ * The confirmation page used to say "Search 'Knowledge Graph Conference' on the
+ * App Store or Google Play". The app is published to neither — it runs in Expo
+ * Go — so every purchaser was being sent to a store search that returns nothing,
+ * on the one page they are guaranteed to read. This is here, next to
+ * `ANNOUNCEMENT` and `HCLS_BADGE`, for the same reason those are: it is a claim
+ * about the world that only the owner can make true, and it should be changed in
+ * one place by whoever knows the answer.
+ *
+ * Set it to the store sentence on the day the app is actually listed.
+ */
+export const APP_DISTRIBUTION =
+  'We will send you an install link before the conference. The app is not on the public app stores yet.';
 
 /**
  * The header navigation.

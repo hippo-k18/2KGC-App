@@ -277,7 +277,7 @@ export default async function HomePage() {
                   own tier buttons already carry the param; these were the copy
                   that lost it.
                 */}
-                <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-outline btn-sm btn-block">
+                <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-outline btn-block">
                   Choose {t.name}
                 </Link>
               </div>

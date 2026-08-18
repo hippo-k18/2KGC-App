@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
-import { SITE } from '@/lib/site';
+import { APP_DISTRIBUTION, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Your ticket',
@@ -90,7 +90,9 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
           </p>
           <p className="code">{reg.claimCode}</p>
           <p className="muted" style={{ margin: '12px 0 0', fontSize: '0.9rem' }}>
-            Write this down. It is also printed on your badge.
+            Write this down, or keep this page. The code is also shown in the app under Me →
+            Badge once you have signed in — but if you cannot sign in, this page is the only
+            place you will find it.
           </p>
         </div>
 
@@ -102,8 +104,8 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
 
         <ol className="steps" style={{ margin: '24px 0 32px' }}>
           <li>
-            <strong>Download the KGC app</strong>
-            Search “Knowledge Graph Conference” on the App Store or Google Play.
+            <strong>Get the KGC app</strong>
+            {APP_DISTRIBUTION}
           </li>
           <li>
             <strong>Sign in with {reg.email}</strong>
@@ -111,9 +113,9 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
             different one and the app will not find it.
           </li>
           <li>
-            <strong>If the address is wrong, use the claim code</strong>
-            Enter <span className="mono">{reg.claimCode}</span> when the app asks, and it will attach
-            this registration to whichever account you signed in with.
+            <strong>If the address is wrong, bring the claim code</strong>
+            Give <span className="mono">{reg.claimCode}</span> to the registration desk and they
+            will attach this ticket to whichever account you signed in with.
           </li>
           <li>
             <strong>Build your schedule</strong>

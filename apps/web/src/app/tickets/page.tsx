@@ -49,7 +49,7 @@ export default async function TicketsPage({
             {TIERS.map((t) => (
               <div key={t.id} className={`tier${t.featured ? ' featured' : ''}`}>
                 {t.featured && <span className="badge">Most popular</span>}
-                <h3>{t.name}</h3>
+                <h2>{t.name}</h2>
                 <p className="muted" style={{ fontSize: '0.9rem', margin: 0 }}>
                   {t.tagline}
                 </p>
@@ -63,7 +63,7 @@ export default async function TicketsPage({
                 </ul>
                 <Link
                   href={`/tickets?tier=${t.id}#buy`}
-                  className={`btn btn-block btn-sm ${t.featured ? 'btn-primary' : 'btn-outline'}`}
+                  className={`btn btn-block ${t.featured ? 'btn-primary' : 'btn-outline'}`}
                 >
                   Choose {t.name}
                 </Link>

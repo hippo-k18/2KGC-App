@@ -25,7 +25,7 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h4>Attend</h4>
+            <h2>Attend</h2>
             <Link href="/tickets">Tickets</Link>
             <Link href="/agenda">Agenda</Link>
             <Link href="/speakers">Speakers</Link>
@@ -33,22 +33,19 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h4>Participate</h4>
+            <h2>Participate</h2>
             <Link href="/sponsor">Sponsor KGC</Link>
             <Link href="/sponsor#speak">Speak at KGC</Link>
             <Link href="/about#code-of-conduct">Code of conduct</Link>
           </div>
 
           <div>
-            <h4>Follow</h4>
+            <h2>Follow</h2>
             {SITE.social.map((s) => (
               <a key={s.label} href={s.href} rel="noreferrer noopener" target="_blank">
                 {s.label}
               </a>
             ))}
-            <a href="https://www.youtube.com/@knowledgegraphconference" rel="noreferrer noopener" target="_blank">
-              Watch videos
-            </a>
           </div>
         </div>
 

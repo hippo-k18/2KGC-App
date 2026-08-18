@@ -764,14 +764,22 @@ section.tint {
   border-radius: 4px;
   padding: 3px 8px;
   background: var(--wash);
-  color: var(--muted);
+  /* `--muted` on `--wash` is 4.23:1, which 11.5px text does not get to be. */
+  color: var(--body);
   border: 1px solid var(--line);
 }
 
 .tag.track {
   background: color-mix(in srgb, var(--track, var(--blue)) 12%, white);
   border-color: color-mix(in srgb, var(--track, var(--blue)) 35%, white);
-  color: color-mix(in srgb, var(--track, var(--blue)) 78%, black);
+  /*
+   * 62%, not the 78% this was. At 78% the amber and orange tracks — Business Use
+   * Cases, SEO, Open Knowledge Networks — landed between 4.08:1 and 4.45:1 on
+   * their own 12% tint, just under the 4.5:1 that 11.5px text needs. Mixing more
+   * black in darkens the label without touching the tint that identifies the
+   * track, so the chips still read as a colour-coded set.
+   */
+  color: color-mix(in srgb, var(--track, var(--blue)) 62%, black);
 }
 
 /* ---------------------------------------------------------------- tickets - */
@@ -811,7 +819,7 @@ section.tint {
   margin-bottom: 10px;
 }
 
-.tier h3 {
+.tier h2 {
   margin-bottom: 2px;
   font-size: 1.25rem;
 }
@@ -879,6 +887,23 @@ section.tint {
   border-radius: 8px;
   background: var(--white);
   color: var(--ink);
+}
+
+/*
+ * A `select` renders at its native control height and ignores the padding above
+ * unless `appearance` is cleared — so the tier picker, the first control in the
+ * purchase form, came out 27px tall on a phone next to two 44px text inputs.
+ * Clearing `appearance` also removes the platform chevron, hence the drawn one.
+ */
+.field select {
+  appearance: none;
+  min-height: 44px;
+  padding-right: 38px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 19px) calc(50% + 2px), calc(100% - 14px) calc(50% + 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 
 .field input:focus,
@@ -1098,7 +1123,14 @@ section.tint {
   margin-top: 0;
 }
 
-.site-footer h4 {
+/*
+ * The footer column labels. They are `h2` rather than the `h4` they used to be:
+ * an `h4` sitting directly under a page's `h1` or `h2` skips a level, and it did
+ * so on every single page of this site because the footer is global. The size
+ * here is what makes them look like column labels; the tag is what makes the
+ * document outline true.
+ */
+.site-footer h2 {
   color: var(--white);
   font-size: 0.78rem;
   letter-spacing: 0.12em;
@@ -1106,11 +1138,16 @@ section.tint {
   margin-bottom: 12px;
 }
 
+/*
+ * `padding: 3px 0` gave these a 29px hit area on a phone, under the 44px
+ * minimum, and they are stacked — so a mis-tap lands on the neighbouring link
+ * rather than on nothing.
+ */
 .site-footer a {
   color: rgb(255 255 255 / 88%);
   text-decoration: none;
   display: block;
-  padding: 3px 0;
+  padding: 10px 0;
 }
 
 .site-footer a:hover {
@@ -1509,5 +1546,308 @@ section.tint {
 @media (prefers-reduced-motion: reduce) {
   .kgc-faq summary::after {
     transition: none;
+  }
+}
+
+/* ------------------------------------------------ event schedule panel - */
+
+/*
+ * `components/event-schedule.tsx` shipped with none of this.
+ *
+ * The component was written, imported and rendered, and not one of its twenty
+ * class names had a rule anywhere in this file — so on the homepage and on
+ * `/agenda`, the site's two most important screens, the day tabs were 18px-tall
+ * unstyled buttons, the search box was a 21px input, and `.sr-only` did not
+ * exist, which meant the two "visually hidden" labels were simply visible. It
+ * measured fine on the four *other* homepage sections, which is why it survived
+ * a verification pass: nothing had checked this one.
+ */
+
+/*
+ * Hidden from sight, still read aloud. `display: none` would remove it from the
+ * accessibility tree too, which defeats the point of having the label at all.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.schedule {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 26px;
+}
+
+.schedule-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.schedule-head h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.schedule-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 40px square each: these are the icons the live widget puts here, and at the
+   20px the SVGs draw at they would otherwise be a half-size touch target. */
+.schedule-actions a,
+.schedule-actions button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.schedule-actions a:hover,
+.schedule-actions button:hover {
+  background: var(--wash);
+  color: var(--navy);
+}
+
+.schedule-search {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+
+.schedule-search input {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 10px 40px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+  appearance: none;
+}
+
+.schedule-search input:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+  border-color: var(--navy);
+}
+
+/* Orange, because the header's search icon is orange — it is the one accent the
+   live site spends on search, and repeating it here is what ties the two together. */
+.schedule-search-icon {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: var(--orange);
+  pointer-events: none;
+}
+
+.schedule-filter {
+  margin-top: 18px;
+}
+
+.schedule-filter select {
+  min-height: 44px;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 10px 38px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 19px) calc(50% + 2px), calc(100% - 14px) calc(50% + 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  max-width: 100%;
+}
+
+.schedule-filter select:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+}
+
+/*
+ * One scrolling row, never a wrapping grid. Five days at a phone width used to
+ * break four-and-one, orphaning Friday on its own line and making the control
+ * read as two different things.
+ */
+.schedule-days {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.schedule-days::-webkit-scrollbar {
+  display: none;
+}
+
+.day-tab {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 2px;
+  min-width: 84px;
+  min-height: 56px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--body);
+  font: inherit;
+  line-height: 1.25;
+  cursor: pointer;
+  text-align: center;
+}
+
+.day-tab:hover {
+  border-color: var(--navy);
+  color: var(--navy);
+}
+
+/* "the selected day is a solid blue block" — and the blue is the theme's own
+   palette2 navy, not the #2b6cb0 the third-party widget paints. */
+.day-tab.is-selected {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--white);
+}
+
+.day-tab .weekday {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.day-tab .date {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.schedule-zone {
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.schedule-list {
+  margin-top: 8px;
+}
+
+.schedule-item {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.schedule-item h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.schedule-item .when {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.schedule-item .who {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+/* `--track` is set inline from the session's own track colour, and falls back to
+   the theme accent for a session whose track has none. */
+.schedule-track {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--white);
+  /*
+   * Darkened rather than used raw. The track colours are authored for a pale
+   * chip on a white agenda, and several of them — the greens especially — put
+   * white text at 3.8:1, under the 4.5:1 this size needs. Taking 18% out of
+   * every one clears AA without giving each track a hand-tuned exception.
+   */
+  background: color-mix(in srgb, var(--track, var(--accent)) 82%, #000);
+}
+
+.schedule-empty {
+  margin: 20px 0 0;
+  color: var(--muted);
+}
+
+.schedule-more {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.schedule-more a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.schedule-more a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .schedule {
+    padding: 18px;
+  }
+
+  .schedule-head h2 {
+    font-size: 1.3rem;
+  }
+
+  .schedule-tools {
+    width: 100%;
+  }
+
+  .schedule-filter select {
+    width: 100%;
   }
 }
