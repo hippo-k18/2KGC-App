@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listSpeakers, type SpeakerCard } from '@/lib/data';
+import { listSpeakers } from '@/lib/data';
+import { SpeakerGrid } from '@/components/speaker-grid';
 
 export const metadata: Metadata = {
   title: 'Speakers',
@@ -17,63 +18,6 @@ export const metadata: Metadata = {
  * correction in the organizer console shows up in both places at once.
  */
 export const dynamic = 'force-dynamic';
-
-/** Initials for the fallback avatar. Two at most, so the circle stays legible. */
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
-function Speaker({ s }: { s: SpeakerCard }) {
-  const role = [s.title, s.company].filter(Boolean).join(', ');
-  return (
-    <div className="card speaker">
-      {s.photoURL ? (
-        // Remote speaker photos come from arbitrary hosts, so this is a plain
-        // <img>: `next/image` would need every one of those hosts listed in
-        // `images.remotePatterns`, and a speaker added in the console with a
-        // new host would then render a 400 instead of a face.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className="avatar" src={s.photoURL} alt="" width={56} height={56} />
-      ) : (
-        <div className="avatar" aria-hidden="true">
-          {initials(s.name)}
-        </div>
-      )}
-      <div className="speaker-body">
-        <div className="name">{s.name}</div>
-        {role && <div className="role">{role}</div>}
-        {s.bio && <p className="bio">{s.bio}</p>}
-        <div className="links">
-          {s.linkedin && (
-            <a href={s.linkedin} target="_blank" rel="noreferrer noopener">
-              LinkedIn
-            </a>
-          )}
-          {s.x && (
-            <a href={s.x} target="_blank" rel="noreferrer noopener">
-              X
-            </a>
-          )}
-          {s.website && (
-            <a href={s.website} target="_blank" rel="noreferrer noopener">
-              Website
-            </a>
-          )}
-          {s.sessionCount > 0 && (
-            <span className="muted">
-              {s.sessionCount} session{s.sessionCount === 1 ? '' : 's'}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default async function SpeakersPage() {
   const speakers = await listSpeakers();
@@ -102,11 +46,15 @@ export default async function SpeakersPage() {
             <Link href="/tickets">register</Link> and we will mail you when it goes live.
           </p>
         ) : (
-          <div className="grid g2" style={{ marginTop: 32 }}>
-            {speakers.map((s) => (
-              <Speaker key={s.id} s={s} />
-            ))}
-          </div>
+          <SpeakerGrid
+            speakers={speakers.map((s) => ({
+              id: s.id,
+              name: s.name,
+              company: s.company,
+              role: s.title,
+              photoURL: s.photoURL,
+            }))}
+          />
         )}
       </div>
     </section>
