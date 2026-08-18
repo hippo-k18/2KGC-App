@@ -246,7 +246,10 @@ export default function SessionDetailScreen() {
               {session.primaryTrackName.toUpperCase()}
             </Text>
           ) : null}
-          <Text variant="title">{session.title}</Text>
+          {/* `title2`, not `title`: session titles here run to sixty characters
+              and at 28pt the longest of them filled four lines before any of the
+              detail below it. Whova sets its own at about 22. */}
+          <Text variant="title2">{session.title}</Text>
           <Text tone="secondary">
             {formatDayTab(session.day)} · {formatTime(session.startsAtLocal)} –{' '}
             {formatTime(session.endsAtLocal)}

@@ -461,7 +461,13 @@ function TopicRow({
       style={({ pressed }) => ({
         backgroundColor: pressed ? colors.surfacePressed : colors.surface,
       })}>
-      <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.sm }}>
+      {/* 12 and 6 rather than 16 and 8 — see the agenda row, same reasoning. */}
+      <View
+        style={{
+          paddingHorizontal: Spacing.md,
+          paddingVertical: Spacing.md - Spacing.xs,
+          gap: Spacing.sm - 2,
+        }}>
         <Text variant="caption" tone="tertiary" numberOfLines={1}>
           {caption}
         </Text>

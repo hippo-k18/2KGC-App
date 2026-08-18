@@ -800,7 +800,10 @@ function AgendaRow({
           // into the calendar glyph.
           gap: stacked ? Spacing.xs : Spacing.md,
           paddingHorizontal: Spacing.md,
-          paddingVertical: Spacing.md,
+          // 12, not 16: these rows are three and four lines tall already, and at
+          // 16 top and bottom the agenda fitted noticeably fewer sessions on a
+          // screen than Whova's does.
+          paddingVertical: Spacing.md - Spacing.xs,
         }}>
         <Pressable
           onPress={onPress}

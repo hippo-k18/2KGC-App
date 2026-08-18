@@ -29,8 +29,15 @@ import { useAuth } from '@/lib/auth/auth-provider';
 
 const SEGMENTS = ['Attendees', 'Speakers', 'Sponsors'] as const;
 
-/** Avatar in a Whova directory row — larger than the 44pt list-row default. */
-const ROW_AVATAR = 52;
+/**
+ * Avatar in a directory row.
+ *
+ * 44, matching the list-row default — it was 52, which with 16pt of padding
+ * above and below made an 84pt row, half again as tall as the one Whova draws.
+ * (The comment here used to say "larger than the 44pt list-row default", which
+ * this value now contradicts.)
+ */
+const ROW_AVATAR = 44;
 /**
  * Drawn width of the A–Z rail.
  *
@@ -521,7 +528,9 @@ function DirectoryRow({
         gap: Spacing.sm + Spacing.xs,
         paddingLeft: Spacing.md,
         paddingRight: Spacing.md,
-        paddingVertical: Spacing.md,
+        // 12 with a 44pt avatar gives a 68pt row; it was 16 with 52, which is
+        // 84 — half again as tall as the directory row Whova draws.
+        paddingVertical: Spacing.md - Spacing.xs,
       }}>
       <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
 
