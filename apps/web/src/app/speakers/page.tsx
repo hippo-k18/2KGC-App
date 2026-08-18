@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listSpeakers } from '@/lib/data';
+import { SITE } from '@/lib/site';
+import { SPEAKERS_2026 } from '@/lib/speakers-2026';
 import { SpeakerGrid } from '@/components/speaker-grid';
 
 export const metadata: Metadata = {
@@ -10,17 +11,31 @@ export const metadata: Metadata = {
 };
 
 /**
- * The speaker list, rendered from the `speakers` collection.
+ * The speaker list.
  *
- * The incumbent site embeds this from Whova in an iframe, which is why it does
- * not appear in search results and cannot be linked to. Here it is server
- * rendered from our own data: the same documents the mobile app reads, so a
- * correction in the organizer console shows up in both places at once.
+ * ## Why this shows 2026 people on a 2027 site, and says so
+ *
+ * The 2027 programme has not been selected — the seeded `speakers` collection
+ * holds invented names, which is the right thing for testing the app and the
+ * wrong thing for a public page. So this renders the **real KGC 2026 roster**,
+ * scraped from the live site, and the copy states plainly which year these
+ * people spoke in. Showing 137 real practitioners under an accurate label is
+ * worth more than 45 invented ones under a flattering one, and quietly
+ * presenting last year's line-up as this year's would be the exact defect this
+ * repository keeps finding in itself.
+ *
+ * ## The joke in the provenance
+ *
+ * The incumbent site's speaker page is not a page. It is an embedded **Whova**
+ * widget, which is why those speakers do not appear in search results and cannot
+ * be linked to — and Whova is the product this whole project replaces. Here the
+ * same people are server-rendered, indexable and linkable. See
+ * `lib/speakers-2026.ts` for how the data was actually obtained.
  */
 export const dynamic = 'force-dynamic';
 
 export default async function SpeakersPage() {
-  const speakers = await listSpeakers();
+  const speakers = SPEAKERS_2026;
 
   return (
     <section>
@@ -32,11 +47,11 @@ export default async function SpeakersPage() {
         a grid that was balanced.
       */}
       <div className="wrap page-head-centred">
-        <p className="eyebrow">2027 programme</p>
+        <p className="eyebrow">KGC 2026</p>
         <h1>Speakers</h1>
         <p className="lede">
-          {speakers.length} confirmed so far, listed by surname, and growing as the programme
-          committee works through the submissions. Sessions for each speaker are on the{' '}
+          The {speakers.length} people who spoke at KGC 2026, listed by surname. The {SITE.year}{' '}
+          programme is still with the committee — when it is settled it appears here and on the{' '}
           <Link href="/agenda">agenda</Link>.
         </p>
 
@@ -47,12 +62,16 @@ export default async function SpeakersPage() {
           </p>
         ) : (
           <SpeakerGrid
-            speakers={speakers.map((s) => ({
-              id: s.id,
+            speakers={speakers.map((s, i) => ({
+              // Whova gives no stable public id, so the name is the key. The
+              // index disambiguates the two people who share one.
+              id: `${s.name}-${i}`,
               name: s.name,
               company: s.company,
-              role: s.title,
-              photoURL: s.photoURL,
+              role: s.role,
+              photoURL: s.photo,
+              width: s.width,
+              height: s.height,
             }))}
           />
         )}
