@@ -3,6 +3,7 @@ import { listAgenda, listSponsors, programmeCounts } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
 import { formatPrice, TIERS } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
+import { GraphField } from '@/components/graph-field';
 import { HighlightPair } from '@/components/home/highlight-pair';
 import { PhotoSplit } from '@/components/home/photo-split';
 import { StatBlocks } from '@/components/home/stat-blocks';
@@ -70,6 +71,8 @@ export default async function HomePage() {
   return (
     <>
       <section className="hero">
+        {/* The node-and-edge field over the photograph — see `graph-field.tsx`. */}
+        <GraphField />
         <div className="wrap">
           {/*
             The live site's hero is four stacked lines and this matches its
