@@ -27,8 +27,12 @@ export function SiteHeader() {
 
   return (
     <>
-      {ANNOUNCEMENT ? <div className="announce">{ANNOUNCEMENT}</div> : null}
-
+      {/*
+        The announcement bar sits BELOW the navy header, not above it. Measured on
+        knowledgegraph.tech at a 1512px viewport: the header occupies y 0–100 and
+        the orange strip y 100–132. Ours had them the other way round, which put
+        the first thing a visitor sees — an orange band — above the brand.
+      */}
       <header className="site-header">
         <div className="wrap bar">
           <Link href="/" className="logo" aria-label="Knowledge Graph Conference, home">
@@ -83,6 +87,8 @@ export function SiteHeader() {
           </Link>
         </div>
       </header>
+
+      {ANNOUNCEMENT ? <div className="announce">{ANNOUNCEMENT}</div> : null}
     </>
   );
 }
