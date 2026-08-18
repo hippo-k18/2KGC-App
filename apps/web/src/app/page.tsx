@@ -146,15 +146,6 @@ export default async function HomePage() {
         page: the thing being demonstrated sits exactly where the incumbent used
         to be. Capped per day, because the homepage teases and `/agenda` does not.
       */}
-      {/*
-        Everything from the schedule to the FAQ hangs off one drawn edge — see
-        `.spine` in `globals.css`. It is a `view()` scroll timeline, so it costs
-        no JavaScript, and the `@supports` guard means a browser without
-        scroll-driven animations simply draws nothing.
-      */}
-      <div className="spine-wrap">
-        <div className="spine" aria-hidden="true" />
-
       <section className="kgc-wide" aria-labelledby="schedule-heading">
         <h2 id="schedule-heading" className="hero-headline" style={{ fontSize: 32 }}>
           KGC {SITE.year} Full Agenda
@@ -412,8 +403,6 @@ export default async function HomePage() {
           </div>
         </details>
       </section>
-
-      </div>
 
       <section className="tint">
         <div className="wrap narrow center">
