@@ -8,6 +8,7 @@ import { DECORATIVE } from '@/components/a11y';
 import { CategoryTile, type CategoryTint } from '@/components/category-tile';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
+import { SkeletonBlock, SkeletonScreen } from '@/components/skeleton';
 import { FilterChip } from '@/components/filter-chip';
 import { Chevron, Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
@@ -242,8 +243,21 @@ export default function CommunityScreen() {
             <Icon name="chevron.down" size={14} color={colors.textSecondary} />
           </Pressable>
 
+          {/*
+            Counted only once there is something to count.
+
+            `visible` falls back to `[]` while `posts` is still null, so this
+            rendered a confident "0 topics" for the whole of every cold load —
+            above a list body that correctly drew nothing, which made the empty
+            count the only thing on the screen and the most believable part of
+            it. The board has six posts. `ListEmptyComponent` below already
+            distinguishes loading from empty from denied; this line was the one
+            place that did not.
+          */}
           <Text variant="subhead" tone="tertiary">
-            {visible.length} {visible.length === 1 ? 'topic' : 'topics'}
+            {loading || error
+              ? ' '
+              : `${visible.length} ${visible.length === 1 ? 'topic' : 'topics'}`}
           </Text>
         </View>
       </View>
@@ -310,7 +324,26 @@ export default function CommunityScreen() {
           // already had fifty topics on it.
           error ? (
             <DataError error={error} subject="the community board" onRetry={retry} />
-          ) : loading ? null : (
+          ) : loading ? (
+            // Was `null`: a blank body for as long as the read took, with no
+            // spinner, no rows and — once the count above stopped lying — nothing
+            // on the screen at all. The board can sit here well past the SDK's
+            // ten-second offline threshold, and `SkeletonScreen` is what every
+            // other screen in this app uses to say so out loud.
+            <View style={{ padding: Spacing.md, gap: Spacing.md }}>
+              <SkeletonScreen
+                label="the community board"
+                slowNotice="Still loading. The app cannot reach the server — the board will fill in as soon as it can.">
+                {[0, 1, 2].map((i) => (
+                  <View key={i} style={{ gap: Spacing.sm }}>
+                    <SkeletonBlock width="35%" height={12} />
+                    <SkeletonBlock width="80%" height={18} />
+                    <SkeletonBlock width="60%" height={14} />
+                  </View>
+                ))}
+              </SkeletonScreen>
+            </View>
+          ) : (
             <EmptyState
               icon="bubble.left.and.bubble.right"
               title={search.trim() ? 'No matching topics' : category ? 'Nothing here yet' : 'No topics yet'}

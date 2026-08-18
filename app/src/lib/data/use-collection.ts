@@ -107,6 +107,24 @@ export function useCollection<T>(
       buildQuery(),
       (snap) => {
         try {
+          // An *empty* snapshot served `fromCache` is not an answer.
+          //
+          // The SDK gives the backend ten seconds and then raises whatever the
+          // local cache holds; on a cold start that cache is empty, so the first
+          // snapshot for every query is a confident, well-formed, wrong "none".
+          // `useDocument` already refuses to settle on this — the reasoning is in
+          // its snapshot handler, written after it made a missing profile look
+          // like an opt-out — and the same hazard was never closed here, where it
+          // is worse: this hook backs the agenda, the attendee directory,
+          // announcements and the community board, and an empty *list* renders as
+          // a perfectly ordinary "No topics yet" rather than as anything wrong.
+          // It showed up as a community board that read "0 topics" on roughly
+          // one cold load in two, with 6 posts sitting in Firestore.
+          //
+          // A cached snapshot with rows in it is still worth showing: stale data
+          // beats a spinner, and that is the whole point of the cache. It is only
+          // the empty one that has to wait for the server to confirm it.
+          if (snap.empty && snap.metadata.fromCache) return;
           const rows = snap.docs.map((d) => map(d.id, d.data()));
           if (sort) rows.sort(sort);
           setState({ data: rows, status: 'ready', error: null });
