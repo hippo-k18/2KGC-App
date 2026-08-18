@@ -13,8 +13,8 @@ import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, TIME_ZONE, threadIdFor } from '@
 import { Timestamp } from 'firebase-admin/firestore';
 
 import {
-  ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, ROOMS, SPONSORS,
-  TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
+  ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
+  SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
 } from './lib/fixtures.js';
 import { commitAll, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
 import {
@@ -207,23 +207,32 @@ async function main() {
       });
     });
 
-    const options = [
-      { id: 'opt-a', label: 'Already in production' },
-      { id: 'opt-b', label: 'Piloting this year' },
-      { id: 'opt-c', label: 'Still evaluating' },
-      { id: 'opt-d', label: 'Not on the roadmap' },
-    ];
+  });
+
+  // A poll on every session that advertises one.
+  //
+  // `pollsEnabled` is set on all fourteen keynotes and panels above, but polls
+  // were seeded onto three of them — so the app's Polls index, which correctly
+  // lists every session with the flag, offered fourteen rows of which eleven
+  // opened onto nothing. The flag is what the index can see; the subcollection is
+  // what the session screen renders; they have to agree or the index is a list of
+  // disappointments.
+  const pollable = sessions.filter((s) => s.format === 'keynote' || s.format === 'panel');
+  pollable.forEach((s, pi) => {
+    const q = POLL_QUESTIONS[pi % POLL_QUESTIONS.length];
     writes.push({
-      collection: `${COLLECTIONS.sessions}/${sid}/${SUBCOLLECTIONS.polls}`,
-      id: `seed-poll-${ki}`,
+      collection: `${COLLECTIONS.sessions}/${sessionId(s.title, s.startsAtLocal)}/${SUBCOLLECTIONS.polls}`,
+      id: `seed-poll-${pi}`,
       data: {
         eventId: EVENT_ID,
-        question: 'Where is your organisation with knowledge graphs?',
-        options,
+        question: q.question,
+        options: q.options,
         // One key per option, zeroed. This is what the ballot rule checks against.
-        tallies: Object.fromEntries(options.map((o) => [o.id, 0])),
+        tallies: Object.fromEntries(q.options.map((o) => [o.id, 0])),
         totalVotes: 0,
-        open: ki === 0,
+        // Only the first is taking votes. A room full of open polls on sessions
+        // that have not started would be the wrong picture of a live conference.
+        open: pi === 0,
         createdAt: now(),
       },
     });
@@ -339,7 +348,7 @@ async function main() {
   console.log(`  ${SPONSORS.length} sponsors`);
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts with ${replyTotal} replies, ${ANNOUNCEMENTS.length} announcements`);
-  console.log(`  Q&A and a poll on ${keynotes.length} keynotes`);
+  console.log(`  Q&A on ${keynotes.length} keynotes, a poll on all ${pollable.length} pollable sessions`);
   console.log(`  ${CONVERSATIONS.length} conversations in the inbox`);
   console.log(`\n  ${count} documents written${pruned ? `, ${pruned} stale removed` : ''}.\n`);
   console.log('  Tracks, rooms, ticket tiers and sponsor tiers are REAL.');

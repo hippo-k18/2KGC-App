@@ -48,6 +48,79 @@ export const TICKET_TYPES = [
 ];
 
 /**
+ * Poll questions, one per session that has polls switched on.
+ *
+ * Rotated by index so fourteen sessions do not all ask the same thing. Four
+ * options each, because the ballot rule validates a vote against `tallies`
+ * keys and the poll component lays out four comfortably on a phone.
+ */
+export const POLL_QUESTIONS: { question: string; options: { id: string; label: string }[] }[] = [
+  {
+    question: 'Where is your organisation with knowledge graphs?',
+    options: [
+      { id: 'opt-a', label: 'Already in production' },
+      { id: 'opt-b', label: 'Piloting this year' },
+      { id: 'opt-c', label: 'Still evaluating' },
+      { id: 'opt-d', label: 'Not on the roadmap' },
+    ],
+  },
+  {
+    question: 'What is the hardest part of the work, honestly?',
+    options: [
+      { id: 'opt-a', label: 'Getting the model right' },
+      { id: 'opt-b', label: 'Keeping it right afterwards' },
+      { id: 'opt-c', label: 'Funding it' },
+      { id: 'opt-d', label: 'Finding people who can do it' },
+    ],
+  },
+  {
+    question: 'Who owns the ontology where you work?',
+    options: [
+      { id: 'opt-a', label: 'A dedicated team' },
+      { id: 'opt-b', label: 'One person, unofficially' },
+      { id: 'opt-c', label: 'Whoever touched it last' },
+      { id: 'opt-d', label: 'Nobody' },
+    ],
+  },
+  {
+    question: 'How are you using LLMs alongside your graph?',
+    options: [
+      { id: 'opt-a', label: 'Graph-grounded retrieval' },
+      { id: 'opt-b', label: 'Extracting entities into the graph' },
+      { id: 'opt-c', label: 'Experimenting, nothing shipped' },
+      { id: 'opt-d', label: 'Not at all' },
+    ],
+  },
+  {
+    question: 'Which standard has earned its keep?',
+    options: [
+      { id: 'opt-a', label: 'SHACL' },
+      { id: 'opt-b', label: 'SKOS' },
+      { id: 'opt-c', label: 'OWL' },
+      { id: 'opt-d', label: 'None of them, yet' },
+    ],
+  },
+  {
+    question: 'What triggered your first graph project?',
+    options: [
+      { id: 'opt-a', label: 'Search that would not improve' },
+      { id: 'opt-b', label: 'A regulatory or provenance need' },
+      { id: 'opt-c', label: 'A merger or migration' },
+      { id: 'opt-d', label: 'An AI initiative' },
+    ],
+  },
+  {
+    question: 'How big is the graph you work with?',
+    options: [
+      { id: 'opt-a', label: 'Under 10 million triples' },
+      { id: 'opt-b', label: '10–500 million' },
+      { id: 'opt-c', label: 'Over half a billion' },
+      { id: 'opt-d', label: 'We have stopped counting' },
+    ],
+  },
+];
+
+/**
  * Real companies from this field, arranged into a plausible tier structure.
  *
  * The names are real, the sponsorship is invented — none of these organisations
