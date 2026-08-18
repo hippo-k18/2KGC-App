@@ -66,7 +66,6 @@ export default async function HomePage() {
     listSponsors(),
     listAgenda(),
   ]);
-  const cheapest = TIERS.reduce((a, b) => (b.priceCents < a.priceCents ? b : a));
 
   return (
     <>
@@ -87,25 +86,14 @@ export default async function HomePage() {
             {SITE.datesLong} &nbsp;|&nbsp; {SITE.venueShort}
           </p>
 
-          <div className="meta">
-            <div>
-              <strong>Dates</strong>
-              {SITE.datesLong}
-            </div>
-            <div>
-              <strong>Venue</strong>
-              {SITE.venueShort}
-            </div>
-            <div>
-              <strong>City</strong>
-              {SITE.city}
-            </div>
-            <div>
-              <strong>From</strong>
-              {formatPrice(cheapest.priceCents)} ({cheapest.name.toLowerCase()})
-            </div>
-          </div>
-
+          {/*
+            The four-cell Dates / Venue / City / From strip that used to sit here
+            is gone. Two of its four cells repeated the line directly above it
+            word for word, the live site's hero carries no such strip, and it was
+            the single biggest reason ours read as cluttered next to theirs. The
+            price it carried now has to be found on the ticket cards, which is
+            where someone looking for a price goes anyway.
+          */}
           <div className="cta">
             <Link href="/tickets" className="btn btn-primary">
               Register now
@@ -208,7 +196,12 @@ export default async function HomePage() {
             heading: '#2 Networking Opportunities',
             photo: '/kgc/photos/1747294709286.jpeg',
             alt: 'Attendees talking in small groups between sessions.',
-            aspect: '4 / 3',
+            // `3 / 2`, matching its neighbour. These two sit side by side in one
+            // row, and at `4 / 3` this photo was 43px taller than the other — so
+            // its heading, body, note and link all sat lower than the matching
+            // ones beside them. Two cards in a pair have to share a ratio; which
+            // ratio matters far less than that they agree.
+            aspect: '3 / 2',
             body: (
               <>
                 Build relationships, trade notes and find the people solving the problem you are
@@ -322,14 +315,14 @@ export default async function HomePage() {
                   >
                     <span>
                       {s.name}
-                      <span className="tier">{s.tier}</span>
+                      <span className="logo-tier">{s.tier}</span>
                     </span>
                   </a>
                 ) : (
                   <div key={s.id} className="logo-tile">
                     <span>
                       {s.name}
-                      <span className="tier">{s.tier}</span>
+                      <span className="logo-tier">{s.tier}</span>
                     </span>
                   </div>
                 ),

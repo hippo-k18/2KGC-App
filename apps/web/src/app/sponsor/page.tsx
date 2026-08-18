@@ -113,14 +113,14 @@ export default async function SponsorPage() {
                   >
                     <span>
                       {s.name}
-                      <span className="tier">{s.tier}</span>
+                      <span className="logo-tier">{s.tier}</span>
                     </span>
                   </a>
                 ) : (
                   <div className="logo-tile" key={s.id}>
                     <span>
                       {s.name}
-                      <span className="tier">{s.tier}</span>
+                      <span className="logo-tier">{s.tier}</span>
                     </span>
                   </div>
                 ),

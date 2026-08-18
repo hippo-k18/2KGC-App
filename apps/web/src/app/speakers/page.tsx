@@ -44,7 +44,7 @@ function Speaker({ s }: { s: SpeakerCard }) {
           {initials(s.name)}
         </div>
       )}
-      <div>
+      <div className="speaker-body">
         <div className="name">{s.name}</div>
         {role && <div className="role">{role}</div>}
         {s.bio && <p className="bio">{s.bio}</p>}
@@ -80,7 +80,14 @@ export default async function SpeakersPage() {
 
   return (
     <section>
-      <div className="wrap">
+      {/*
+        Centred, matching the live speakers page — and matching the cards below,
+        which are themselves centred. A left-aligned heading over a centred grid
+        was the "framing" that read as wrong: at a desktop width the heading and
+        its lede sat in the left two-thirds with a large empty right side, above
+        a grid that was balanced.
+      */}
+      <div className="wrap page-head-centred">
         <p className="eyebrow">2027 programme</p>
         <h1>Speakers</h1>
         <p className="lede">

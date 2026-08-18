@@ -101,6 +101,13 @@
    * saying "no constraint" rather than a measured line length. Its narrow width
    * of 842px is a real measurement, and prose is held near it.
    */
+  /*
+   * The announcement bar (50px) plus the header bar (96px). Named because the
+   * hero subtracts it to end exactly at the fold, and a magic 146 in one rule
+   * would silently stop being true the moment either bar is resized.
+   */
+  --chrome-height: 146px;
+
   --max: 1120px;
   --narrow: 842px;
   --edge-padding: 1.5rem;
@@ -605,21 +612,63 @@ section.tint {
   background: rgb(20 28 46 / 62%);
 }
 
+/*
+ * The hero ends exactly where the viewport does.
+ *
+ * It used to be padding-driven, so its height depended on how much text was in
+ * it and the fold landed somewhere arbitrary in the middle of the photograph —
+ * scrolling revealed more sky before it revealed anything. Sizing it to the
+ * viewport minus the chrome above it means the first scroll moves straight from
+ * the photograph to the content, which is what the live site does.
+ *
+ * `100svh`, not `100vh`: on mobile Safari `vh` is the *largest* viewport, so a
+ * `100vh` hero sits partly behind the browser's own toolbar until you scroll.
+ * `--chrome-height` is the announcement bar plus the header, both of which are
+ * in normal flow above this.
+ */
 .hero .wrap {
-  padding-block: clamp(72px, 12vw, 132px);
+  min-height: calc(100svh - var(--chrome-height));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* Still floored, for the short-and-wide window where the viewport sum is small. */
+  padding-block: clamp(48px, 6vw, 96px);
 }
 
 /*
  * The hero headline is the one italic heading on the site, and it is set far
  * larger than the theme's 32px `h1` — it is the only place the page shouts.
  */
+/*
+ * Centred, like the live site's. Ours was left-aligned against a photograph that
+ * is composed centre-out, which is most of why the two look unalike at a desktop
+ * width even though the type is nearly the same size.
+ */
+.hero .wrap > * {
+  text-align: center;
+}
+
 .hero h1 {
   color: var(--white);
   font-style: italic;
   font-weight: 800;
-  font-size: clamp(2.6rem, 7vw, 5rem);
+  /*
+   * Capped at 4.4rem — measured, not guessed. The `h1` box is 1072px (the 1120px
+   * measure less its padding), and "The Knowledge Graph Conference" set on one
+   * line needs 1094px at 4.6rem and 1178px at the 5rem this used to be. Both
+   * wrapped it to two lines at every desktop width, including the widths where
+   * the live site sets it on one — which is the shape the whole hero is built
+   * around. 4.4rem needs 1046px and fits with room to spare.
+   */
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
   line-height: 1.1;
-  max-width: 14ch;
+  /*
+   * No `max-width: 14ch`. "The Knowledge Graph Conference" is 29 characters and
+   * fits one line inside the 1120px measure from about 1180px up; the 14ch cap
+   * broke it into three lines at every width, including the widths where the
+   * live site sets it on one.
+   */
+  margin-inline: auto;
   margin-bottom: 0.25em;
 }
 
@@ -665,6 +714,7 @@ section.tint {
 }
 
 .hero .cta {
+  justify-content: center;
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -765,10 +815,22 @@ section.tint {
 
 /* --------------------------------------------------------------- speakers - */
 
+/*
+ * A speaker card, framed the way the live site frames one.
+ *
+ * It was a 44px avatar floated left of a block of left-aligned text — a contact
+ * row, not a speaker card — and against knowledgegraph.tech/2026-speakers, where
+ * every card is a large circular portrait centred over a centred name, it read
+ * as a different site entirely. The portrait is the point of this page; it was
+ * the smallest thing on it.
+ */
 .speaker {
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 32px 24px;
 }
 
 .avatar {
@@ -786,21 +848,32 @@ section.tint {
   object-fit: cover;
 }
 
+/* The portrait, at the size the live site draws it. */
+.speaker .avatar {
+  width: 168px;
+  height: 168px;
+  font-size: 2.6rem;
+  margin-bottom: 18px;
+}
+
 .speaker .name {
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.25;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--heading);
+  line-height: 1.3;
 }
 
 .speaker .role {
-  font-size: 0.9rem;
-  color: var(--muted);
+  font-size: 0.95rem;
+  color: var(--body);
 }
 
 .speaker .bio {
   font-size: 0.9rem;
-  margin: 8px 0 0;
-  color: var(--body);
+  margin: 14px 0 0;
+  color: var(--muted);
+  /* Held to a readable measure inside a centred card. */
+  max-width: 34ch;
 }
 
 .speaker .links {
@@ -1328,7 +1401,18 @@ a.logo-tile:hover {
   background: var(--wash);
 }
 
-.logo-tile .tier {
+/*
+ * `.logo-tier`, not `.tier`.
+ *
+ * A sponsor tile's tier label and a ticket *card* are two unrelated things that
+ * were sharing one class name, so every sponsor tile was drawing a ticket card
+ * inside itself: `.tier` carries a border, a white background and 24px of
+ * padding. It had always been wrong and was merely subtle — until `padding-top:
+ * 44px` was added to the ticket card to make room for its "Most popular" badge,
+ * which turned the collision into an 87px empty bordered box under fifteen
+ * sponsor names on two different pages.
+ */
+.logo-tile .logo-tier {
   display: block;
   font-size: 0.68rem;
   text-transform: uppercase;
@@ -1430,12 +1514,18 @@ a.logo-tile:hover {
 
 /* --------------------------------------------------------------- consent -- */
 
+/*
+ * Bottom left, not bottom centre.
+ *
+ * Centred, it landed squarely on the hero's "Register now" and "See the agenda"
+ * — the two controls the front page exists to offer — on the very first view,
+ * before anyone had scrolled anything.
+ */
 .consent {
   position: fixed;
-  inset: auto 16px 16px;
+  inset: auto auto 16px 16px;
   z-index: 40;
-  max-width: 520px;
-  margin-inline: auto;
+  max-width: 460px;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -2150,4 +2240,78 @@ a.logo-tile:hover {
   .kgc-faq {
     padding-block: 44px;
   }
+}
+
+/*
+ * The centred speaker card's text column.
+ *
+ * `.speaker` is a centring flex column, which shrink-wraps its children — so the
+ * text block sized itself to its longest word and the centring had nothing to
+ * work against. Full width, and the card's own `text-align: center` carries.
+ */
+.speaker .speaker-body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A page heading block centred over a centred grid — see `speakers/page.tsx`. */
+.page-head-centred > .eyebrow,
+.page-head-centred > h1,
+.page-head-centred > .lede {
+  text-align: center;
+}
+
+.page-head-centred > .lede {
+  margin-inline: auto;
+}
+
+/* The live speakers page sets its title far larger than the body `h1`. */
+.page-head-centred > h1 {
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  margin-bottom: 0.3em;
+}
+
+/*
+ * Speaker cards, all one height.
+ *
+ * Bios vary from one sentence to three, so the cards ended at three different
+ * heights across a row and the grid read as ragged — the "sloppy" of a page
+ * whose parts are individually fine. The bio is clamped to four lines and the
+ * session count is pushed to the bottom, so every card in a row ends level and
+ * the portraits stay on one line across the top.
+ */
+.grid .card.speaker {
+  height: 100%;
+}
+
+.speaker .bio {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+.speaker .speaker-body {
+  flex: 1;
+}
+
+/* The session count lives in `.links`; pin that row to the bottom of the card. */
+.speaker .links {
+  margin-top: auto;
+  padding-top: 12px;
+  justify-content: center;
+}
+
+/*
+ * The agenda band's heading, centred — the live site centres "KGC 2026 Full
+ * Agenda" over its schedule and ours sat hard left over a full-width panel,
+ * which is the kind of small disagreement that reads as carelessness.
+ */
+.kgc-wide > .wrap > h2:first-child,
+.kgc-wide > .wrap > .hero-headline {
+  text-align: center;
 }
