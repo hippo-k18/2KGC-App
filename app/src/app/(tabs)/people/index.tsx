@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { threadIdFor } from '@kgc/shared';
 
@@ -92,7 +92,20 @@ export default function PeopleScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const [segment, setSegment] = useState(0);
+  /**
+   * Which segment to open on, from `?segment=speakers|sponsors`.
+   *
+   * The home grid has separate Speakers, Sponsors and Attendees tiles, and all
+   * three used to `router.push('/people')` — so two of the three took you
+   * somewhere other than the thing you had just tapped, and the only clue was a
+   * segmented control you then had to notice and change. Read once, as the
+   * initial value: after that the control owns the state, and a tab you have
+   * switched by hand should not jump back when the screen re-renders.
+   */
+  const { segment: segmentParam } = useLocalSearchParams<{ segment?: string }>();
+  const [segment, setSegment] = useState(
+    segmentParam === 'speakers' ? 1 : segmentParam === 'sponsors' ? 2 : 0,
+  );
   const [search, setSearch] = useState('');
   const [interest, setInterest] = useState<string | null>(null);
   const listRef = useRef<FlatList<Row>>(null);
@@ -351,11 +364,16 @@ export default function PeopleScreen() {
                       : []
                   }
                   onPress={
-                    // Only a speaker who also holds a ticket has a directory
-                    // profile to open. There is no speaker detail route yet.
+                    // A speaker who also holds a ticket gets the richer attendee
+                    // card — it carries their interests and a Message button,
+                    // neither of which exists for someone with no account. Every
+                    // other speaker gets the speaker screen, which reads the
+                    // `speakers` document directly. None of the forty-five seeded
+                    // speakers has a `userId`, so before that second route
+                    // existed this whole segment was inert.
                     s.userId
                       ? () => router.push({ pathname: '/people/[uid]', params: { uid: s.userId! } })
-                      : undefined
+                      : () => router.push({ pathname: '/people/speaker/[id]', params: { id: s.id } })
                   }
                 />
               );
@@ -372,6 +390,9 @@ export default function PeopleScreen() {
                     s.boothLocation ? `Booth ${s.boothLocation}` : undefined,
                   ]}
                   tags={s.offers?.slice(0, 2) ?? []}
+                  onPress={() =>
+                    router.push({ pathname: '/people/sponsor/[id]', params: { id: s.id } })
+                  }
                 />
               );
             }

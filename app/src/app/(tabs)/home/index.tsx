@@ -455,8 +455,16 @@ function ResourceGrid({ unread }: { unread: number }) {
       onPress: () =>
         router.push({ pathname: '/home/session-feature', params: { feature: 'polls' } }),
     },
-    { label: 'Speakers', onPress: () => router.push('/people') },
-    { label: 'Sponsors', onPress: () => router.push('/people') },
+    // All three used to push a bare `/people`, which opens on Attendees — so two
+    // of these three tiles showed you something other than what you tapped.
+    {
+      label: 'Speakers',
+      onPress: () => router.push({ pathname: '/people', params: { segment: 'speakers' } }),
+    },
+    {
+      label: 'Sponsors',
+      onPress: () => router.push({ pathname: '/people', params: { segment: 'sponsors' } }),
+    },
     { label: 'Attendees', onPress: () => router.push('/people') },
     { label: 'Community', onPress: () => router.push('/community') },
     { label: 'My schedule', onPress: () => router.push('/me/schedule') },
