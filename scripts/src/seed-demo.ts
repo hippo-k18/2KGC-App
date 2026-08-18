@@ -119,8 +119,8 @@ async function main() {
   for (const s of SPONSORS) {
     push(COLLECTIONS.sponsors, sponsorId(s.name), {
       ...base(), name: s.name, tier: s.tier, boothLocation: s.booth,
-      description: `${s.name} — placeholder description, replace before the demo.`,
-      website: 'https://www.knowledgegraph.tech/',
+      description: s.description,
+      website: s.website,
     });
   }
 

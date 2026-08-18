@@ -47,23 +47,60 @@ export const TICKET_TYPES = [
   { name: 'Virtual', priceCents: 34900, includesVideoLibrary: true, includesWorkshops: false },
 ];
 
-/** PLACEHOLDER sponsor names, real tier structure. */
-export const SPONSORS: { name: string; tier: string; booth: string }[] = [
-  { name: 'Graphwise', tier: 'diamond', booth: 'D1' },
-  { name: 'Stardog', tier: 'diamond', booth: 'D2' },
-  { name: 'Neo4j', tier: 'platinum', booth: 'P1' },
-  { name: 'TigerGraph', tier: 'platinum', booth: 'P2' },
-  { name: 'Metaphacts', tier: 'platinum', booth: 'P3' },
-  { name: 'data.world', tier: 'gold', booth: 'G1' },
-  { name: 'Cambridge Semantics', tier: 'gold', booth: 'G2' },
-  { name: 'Enterprise Knowledge', tier: 'gold', booth: 'G3' },
-  { name: 'Semantic Web Company', tier: 'gold', booth: 'G4' },
-  { name: 'AllegroGraph', tier: 'silver', booth: 'S1' },
-  { name: 'Ontotext', tier: 'silver', booth: 'S2' },
-  { name: 'Diffbot', tier: 'silver', booth: 'S3' },
-  { name: 'Kurrawong AI', tier: 'startup', booth: 'T1' },
-  { name: 'Cognee', tier: 'startup', booth: 'T2' },
-  { name: 'WhyHow.AI', tier: 'startup', booth: 'T3' },
+/**
+ * Real companies from this field, arranged into a plausible tier structure.
+ *
+ * The names are real, the sponsorship is invented — none of these organisations
+ * has agreed to anything, and the booth numbers are made up. That is the same
+ * bargain the rest of this file strikes, and it is the right one here: a
+ * sponsor list of invented vendor names would look wrong to anyone who works in
+ * this field, and this list is shown to exactly those people.
+ *
+ * `description` and `website` used to be generated: every sponsor got
+ * "<name> — placeholder description, replace before the demo." and every single
+ * one linked to `knowledgegraph.tech`. Fifteen rows announcing themselves as
+ * unfinished, in the app's Sponsors tab and across five tables in the console's
+ * Sponsor Manager, and fifteen "Visit website" links that all went to the
+ * conference's own homepage.
+ *
+ * One anachronism, left deliberately rather than fixed: Graphwise is the company
+ * formed by the Ontotext / Semantic Web Company merger, so listing all three is
+ * not a state of the world that ever existed. Untangling it would cost three
+ * rows of demo data and buy nothing.
+ */
+export const SPONSORS: {
+  name: string; tier: string; booth: string; website: string; description: string;
+}[] = [
+  { name: 'Graphwise', tier: 'diamond', booth: 'D1', website: 'https://graphwise.ai',
+    description: 'Graph database and text analytics for organisations putting a semantic layer under their AI, from the team behind GraphDB.' },
+  { name: 'Stardog', tier: 'diamond', booth: 'D2', website: 'https://www.stardog.com',
+    description: 'An enterprise knowledge graph platform built on virtualisation — query the sources where they live rather than copying them first.' },
+  { name: 'Neo4j', tier: 'platinum', booth: 'P1', website: 'https://neo4j.com',
+    description: 'The property-graph database and Cypher, with a graph data science library for people who want algorithms rather than queries.' },
+  { name: 'TigerGraph', tier: 'platinum', booth: 'P2', website: 'https://www.tigergraph.com',
+    description: 'A distributed graph database aimed at deep multi-hop analytics on graphs too large to sit on one machine.' },
+  { name: 'Metaphacts', tier: 'platinum', booth: 'P3', website: 'https://metaphacts.com',
+    description: 'metaphactory: a knowledge-graph platform for building end-user applications on RDF without writing SPARQL by hand.' },
+  { name: 'data.world', tier: 'gold', booth: 'G1', website: 'https://data.world',
+    description: 'A data catalogue with a knowledge graph underneath it, focused on governance and on finding what your organisation already has.' },
+  { name: 'Cambridge Semantics', tier: 'gold', booth: 'G2', website: 'https://cambridgesemantics.com',
+    description: 'AnzoGraph and the Anzo data fabric — in-memory graph analytics for large-scale enterprise integration work.' },
+  { name: 'Enterprise Knowledge', tier: 'gold', booth: 'G3', website: 'https://enterprise-knowledge.com',
+    description: 'A consultancy specialising in taxonomy, ontology and knowledge-graph strategy — the people brought in when the model is the problem.' },
+  { name: 'Semantic Web Company', tier: 'gold', booth: 'G4', website: 'https://semantic-web.com',
+    description: 'PoolParty: taxonomy and ontology management for teams who have to keep a controlled vocabulary alive across many systems.' },
+  { name: 'AllegroGraph', tier: 'silver', booth: 'S1', website: 'https://allegrograph.com',
+    description: 'Franz Inc’s RDF store, with document and vector storage alongside the triples for retrieval-augmented work.' },
+  { name: 'Ontotext', tier: 'silver', booth: 'S2', website: 'https://www.ontotext.com',
+    description: 'GraphDB and the text-analytics tooling around it, long used in publishing and life sciences for linking documents to entities.' },
+  { name: 'Diffbot', tier: 'silver', booth: 'S3', website: 'https://www.diffbot.com',
+    description: 'A knowledge graph built by crawling and structuring the public web, offered as an API rather than as a database to run.' },
+  { name: 'Kurrawong AI', tier: 'startup', booth: 'T1', website: 'https://kurrawong.ai',
+    description: 'Australian consultancy and open-source tooling for linked data, vocabularies and catalogue infrastructure in the public sector.' },
+  { name: 'Cognee', tier: 'startup', booth: 'T2', website: 'https://www.cognee.ai',
+    description: 'Open-source memory for AI agents: builds a graph out of what an agent has seen so retrieval is structured rather than nearest-neighbour.' },
+  { name: 'WhyHow.AI', tier: 'startup', booth: 'T3', website: 'https://www.whyhow.ai',
+    description: 'Tooling for schema-constrained graph construction from unstructured text, aimed at making RAG answers traceable.' },
 ];
 
 /** PLACEHOLDER names. Deliberately fictional — see the header comment. */

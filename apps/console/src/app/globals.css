@@ -331,6 +331,17 @@ button {
   border-color: #111;
 }
 
+/*
+ * The selected chip inverts to white-on-near-black, and `.muted` does not know
+ * that: `#666` on `#111` is 3.29:1, so the kind qualifier on the *currently
+ * selected* check-in list — "KGC 2027 — Main Door (event)" — was the one word on
+ * the chip you could not read. It is the screen staffed at the door, where the
+ * scope you are scanning against is the thing worth being sure of.
+ */
+.filters a[aria-current='true'] .muted {
+  color: #bbb;
+}
+
 code {
   font-size: 12px;
   background: #f5f5f5;
