@@ -4,7 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { ANNOUNCEMENT, NAV } from '@/lib/site';
+import { NAV, NAV_MORE } from '@/lib/site';
+import { Ticker } from '@/components/ticker';
 
 /**
  * The site chrome above the fold: the orange announcement bar, then the navy
@@ -72,6 +73,23 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
+            {/*
+              The secondary items. On the live site these live behind the
+              hamburger rather than in the primary row, so here they are visible
+              only once the menu is open — which on a desktop it never is, and on
+              a phone it is the same list the live site shows.
+            */}
+            {NAV_MORE.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="nav-more"
+                aria-current={path === item.href ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
             <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
               Register now
             </Link>
@@ -88,7 +106,7 @@ export function SiteHeader() {
         </div>
       </header>
 
-      {ANNOUNCEMENT ? <div className="announce">{ANNOUNCEMENT}</div> : null}
+      <Ticker />
     </>
   );
 }

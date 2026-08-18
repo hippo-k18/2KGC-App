@@ -303,7 +303,18 @@ export const ATTENDEE_BIOS = [
 export function makeSpeakers(n: number): SeedSpeaker[] {
   const out: SeedSpeaker[] = [];
   for (let i = 0; i < n; i++) {
-    const name = `${FIRST[i % FIRST.length]} ${LAST[Math.floor(i / FIRST.length) % LAST.length + (i % 3)]}`;
+    /*
+     * Stride 7 through the surnames, because 7 and 20 are coprime and so visit
+     * all twenty before repeating.
+     *
+     * This was `LAST[Math.floor(i / FIRST.length) % LAST.length + (i % 3)]`,
+     * which for every one of the first thirty speakers evaluates to `0 + (i % 3)`
+     * — three surnames, total. Forty-five speakers shared four between them, and
+     * because the speakers page sorts by surname the result was eight
+     * consecutive cards reading "Lindqvist". The pair repeats every 60, so all
+     * forty-five names here are distinct.
+     */
+    const name = `${FIRST[i % FIRST.length]} ${LAST[(i * 7) % LAST.length]}`;
     const company = ORGS[i % ORGS.length];
     const title = TITLES[i % TITLES.length];
     out.push({

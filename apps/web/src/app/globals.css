@@ -102,18 +102,19 @@
    * of 842px is a real measurement, and prose is held near it.
    */
   /*
-   * Everything above the hero, measured: the 96px header plus the 30px
-   * announcement strip that now sits under it. Named because the hero subtracts
+   * Everything above the hero, measured: the 96px header plus the 36px ticker
+   * strip that now sits under it. Named because the hero subtracts
    * it to end exactly at the fold, and a magic number in one rule would silently
    * stop being true the moment either bar is resized.
    *
-   * If `ANNOUNCEMENT` in `lib/site.ts` is set to `null` the strip is not
-   * rendered and this has to drop to 96px. That is a deliberate one-line edit in
+   * If both `ANNOUNCEMENT` and `TICKER` in `lib/site.ts` are emptied the strip is
+   * not rendered and this has to drop to 96px. That is a deliberate one-line edit in
    * the same spirit as the constant itself, not an oversight — the alternative
    * is measuring the chrome in JavaScript on every resize to save one line.
    */
   --header-height: 96px;
-  --announce-height: 30px;
+  /* The ticker strip. Measured, not assumed — it was 30 here and renders 36. */
+  --announce-height: 36px;
   --chrome-height: calc(var(--header-height) + var(--announce-height));
 
   /*
@@ -137,34 +138,38 @@
  * consent problem in order to solve a typography one.
  */
 /*
- * `font-weight: 400`, not the `300 800` range this used to declare.
+ * Open Sans, self-hosted, as two variable files.
  *
- * The range is a variable-font descriptor and these two files are static: no
- * `fvar` table, one weight each. Declaring 300–800 told the browser this face
- * already covers 800, so a heading asking for 800 got the 400 file and *no
- * synthetic bolding either* — the descriptor suppresses the synthesis that would
- * otherwise have stood in. Measured: an h1 at 400, 700 and 800 all set to the
- * same 539.47px. The heading scale this file spends a paragraph justifying as
- * "blunt and heavy" was rendering at Regular on every page, and it looked
- * plausible because everything was equally wrong.
+ * The file this replaces was the problem behind "fix the fonts". It was named
+ * `open-sans-400.woff2` and declared at `font-weight: 400`, and it was **Open
+ * Sans Bold** — `usWeightClass: 700`, subfamily "Bold", checked with fontTools.
+ * So every word of body copy on the site was being set in the Bold cut, and
+ * every heading asking for 700 or 800 got that same Bold file with nothing left
+ * to escalate to. The whole site rendered at one heavy weight, which is exactly
+ * the flat, blunt look it had: no contrast between a paragraph and the heading
+ * above it, because there was only ever one weight on the page.
  *
- * Naming the real weight restores synthesis, which is the honest fallback rather
- * than the intended end state: the live site serves genuine 600/700/800 cuts and
- * this should too, once those woff2 files are in `public/kgc/fonts/`. Until then
- * a synthesised bold is visibly bold, which the current state is not.
+ * These two are the genuine variable faces, `wght` axis 300–800, one upright and
+ * one italic. That makes the `300 800` descriptor correct — an earlier commit
+ * removed exactly that range and was right to at the time, because the file it
+ * described was static and claiming a range it could not serve. The file has
+ * changed; the descriptor follows it.
+ *
+ * Still self-hosted rather than linked from Google: the site ships a
+ * cookie-consent banner and a third-party font request is another entry in it.
  */
 @font-face {
   font-family: 'Open Sans';
-  src: url('/kgc/fonts/open-sans-400.woff2') format('woff2');
-  font-weight: 400;
+  src: url('/kgc/fonts/open-sans-var.woff2') format('woff2-variations');
+  font-weight: 300 800;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
   font-family: 'Open Sans';
-  src: url('/kgc/fonts/open-sans-italic.woff2') format('woff2');
-  font-weight: 400;
+  src: url('/kgc/fonts/open-sans-var-italic.woff2') format('woff2-variations');
+  font-weight: 300 800;
   font-style: italic;
   font-display: swap;
 }
@@ -1619,9 +1624,31 @@ a.logo-tile:hover {
 
 /* ---- the three pale stat cards ---- */
 
+/*
+ * The stat row rides up over the bottom of the hero photograph.
+ *
+ * On the live site these three cards straddle the edge of the image — roughly
+ * their top third sits on the photo and the rest on the page — which is what
+ * stitches the hero to the content below it. Ours sat squarely underneath, so
+ * the photo ended, a band of grey began, and the two looked like separate
+ * pages. `z-index` because the hero establishes a stacking context for its own
+ * scrim and canvas.
+ */
 .kgc-stats {
-  background: var(--palette-8);
-  padding-block: 8px 40px;
+  background: transparent;
+  padding-block: 0 48px;
+  margin-top: -84px;
+  position: relative;
+  z-index: 2;
+}
+
+@media (width <= 620px) {
+  /* No overlap on a phone: the cards stack, and a stacked column riding up over
+     the photo covers the headline rather than the empty bottom edge of it. */
+  .kgc-stats {
+    margin-top: 0;
+    padding-top: 40px;
+  }
 }
 
 .kgc-stats-row {
@@ -1643,11 +1670,13 @@ a.logo-tile:hover {
 }
 
 .kgc-stat {
-  background: var(--palette-8);
-  border: 1px solid var(--line);
+  /* Opaque and lifted: it is standing on a photograph now, not on the page. */
+  background: var(--white);
+  border: 1px solid rgb(255 255 255 / 55%);
   border-radius: var(--radius);
-  padding: 40px 24px;
+  padding: 36px 28px;
   text-align: center;
+  box-shadow: 0 18px 48px rgb(16 36 58 / 18%);
 }
 
 /*
@@ -1663,15 +1692,27 @@ a.logo-tile:hover {
   margin: 0 0 8px;
 }
 
-.kgc-stat h2 b {
-  font-weight: 700;
+/*
+ * `strong`, not `b`. This rule was written against a `<b>` the component has
+ * never rendered, so the numeral was taking its weight from the browser's
+ * default bold rather than from here — which happened to look right and would
+ * have stopped looking right the moment either value changed.
+ */
+.kgc-stat h2 strong {
+  font-weight: 800;
 }
 
 .kgc-stat p {
-  color: var(--highlight);
-  font-size: 20px;
-  line-height: 1.6;
+  /* `--palette-12`, the theme's own blue, at regular weight — the live cards set
+     their body copy noticeably lighter than their heading, and ours was reading
+     as a second heading. */
+  color: var(--palette-12);
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.65;
   margin: 0;
+  max-width: 34ch;
+  margin-inline: auto;
 }
 
 /* ---- photo beside prose: "Why Attend", HCLS ---- */
@@ -2330,7 +2371,7 @@ a.logo-tile:hover {
  * Agenda" over its schedule and ours sat hard left over a full-width panel,
  * which is the kind of small disagreement that reads as carelessness.
  */
-.kgc-wide > .wrap > h2:first-child,
+.kgc-wide > .wrap > h2,
 .kgc-wide > .wrap > .hero-headline {
   text-align: center;
 }
@@ -2404,4 +2445,169 @@ a.logo-tile:hover {
   border-left: 2px solid var(--highlight);
   border-bottom: 2px solid var(--highlight);
   transform: rotate(-45deg);
+}
+
+/* ---------------------------------------------------------------- ticker -- */
+
+.ticker {
+  background: var(--orange);
+  color: var(--white);
+  overflow: hidden;
+  /* Its own containing block, so the track can be translated without escaping. */
+  position: relative;
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  /* Half of the doubled track, so the loop lands on the duplicate exactly. */
+  animation: ticker-slide 46s linear infinite;
+}
+
+/* A moving target you cannot read is worse than a static one. */
+.ticker:hover .ticker-track,
+.ticker:focus-within .ticker-track {
+  animation-play-state: paused;
+}
+
+.ticker-run {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ticker-run li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 0;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The separator is a node, not a bullet — the same motif as the hero canvas. */
+.ticker-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 75%);
+  margin: 0 26px;
+  flex: none;
+}
+
+@keyframes ticker-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/*
+ * Reduced motion: removed rather than slowed. The strip becomes an ordinary
+ * scrollable row, so every fact is still reachable — it simply holds still.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+
+  .ticker {
+    overflow-x: auto;
+  }
+}
+
+/* Secondary nav items: in the hamburger only, as on the live site. */
+.nav-more {
+  display: none;
+}
+
+.site-header nav.open .nav-more {
+  display: block;
+}
+
+/* --------------------------------------------- speaker cards, less boxy -- */
+
+/*
+ * The speakers grid was forty-five identical bordered rectangles — correct, and
+ * dull. This keeps the information exactly where it was and changes what the
+ * card *is*: no border and no box until you touch it, a portrait ringed the way
+ * a node is ringed on the hero canvas, and a connecting line that draws itself
+ * between the portrait and the name on hover.
+ *
+ * The motif is deliberate rather than decorative. The hero says "this is a
+ * graph"; a directory of people is the most graph-shaped thing on the site, and
+ * these are its nodes.
+ */
+.grid .card.speaker {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.grid .card.speaker:hover,
+.grid .card.speaker:focus-within {
+  background: var(--white);
+  border-color: var(--line);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow);
+}
+
+/* The portrait as a node: a ring that lights up, and a short edge below it. */
+.speaker .avatar {
+  position: relative;
+  box-shadow: 0 0 0 1px var(--line), 0 0 0 8px rgb(23 85 106 / 0%);
+  transition: box-shadow 0.22s ease;
+}
+
+.grid .card.speaker:hover .avatar,
+.grid .card.speaker:focus-within .avatar {
+  box-shadow: 0 0 0 1px var(--highlight), 0 0 0 8px rgb(23 85 106 / 9%);
+}
+
+/*
+ * The edge. A hairline that grows out of the bottom of the portrait toward the
+ * name — the same gesture the hero canvas makes when the cursor comes close
+ * enough to join a node.
+ */
+.speaker .speaker-body {
+  position: relative;
+}
+
+.speaker .speaker-body::before {
+  content: '';
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  width: 1px;
+  height: 0;
+  background: var(--highlight);
+  transform: translateX(-50%);
+  transition: height 0.22s ease;
+}
+
+.grid .card.speaker:hover .speaker-body::before,
+.grid .card.speaker:focus-within .speaker-body::before {
+  height: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grid .card.speaker,
+  .speaker .avatar,
+  .speaker .speaker-body::before {
+    transition: none;
+  }
+
+  .grid .card.speaker:hover,
+  .grid .card.speaker:focus-within {
+    transform: none;
+  }
 }

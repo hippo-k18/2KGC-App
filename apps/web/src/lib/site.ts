@@ -56,6 +56,28 @@ export const SITE = {
 export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
 
 /**
+ * What scrolls past in the ticker under the header.
+ *
+ * The bar was one static sentence. It is the widest, most persistent element on
+ * every page of the site and it was spending all of that on six words, so it now
+ * carries the handful of facts a visitor is actually deciding on — when, where,
+ * how much, how big — and moves, which is what makes a strip that thin worth
+ * reading at all.
+ *
+ * `ANNOUNCEMENT` still leads the loop, so the one line the owner edits by hand
+ * is the first thing anyone sees. Keep these short: they are read in passing.
+ */
+export const TICKER: string[] = [
+  '3–7 May 2027',
+  'Cornell Tech, Roosevelt Island, NYC',
+  '1,000+ attendees expected',
+  'Workshops Mon–Tue · Conference Wed–Fri',
+  'Every session recorded',
+  'Virtual tickets from $349',
+  'HCLS symposium included with any in-person ticket',
+];
+
+/**
  * The badge on the healthcare & life sciences panel.
  *
  * The live site renders "HCLS sold out" — true of the finished 2026 symposium,
@@ -112,11 +134,26 @@ export const APP_DISTRIBUTION =
  * `/knowledge-graph-learning-program`, `/blog`, and the 2019–2025 archive pages.
  */
 export const NAV = [
-  { href: '/speakers', label: 'Speakers' },
-  { href: '/agenda', label: 'Agenda' },
-  { href: '/hcls', label: 'HCLS' },
+  { href: '/speakers', label: `${2027} Speakers` },
   { href: '/sponsor', label: 'Sponsor KGC' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/learn', label: 'Learn' },
   { href: '/about', label: 'About KGC' },
+] as const;
+
+/**
+ * The rest of the live site's navigation, behind the hamburger — which is where
+ * the live site puts it too, rather than in the primary row.
+ *
+ * Agenda and HCLS live here rather than in `NAV` for exactly that reason: the
+ * live site's primary row is five items and does not include either, and
+ * matching that row was an explicit instruction. They are one tap away, and the
+ * homepage links to both directly.
+ */
+export const NAV_MORE = [
+  { href: '/agenda', label: 'Agenda' },
+  { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
+  { href: '/tickets', label: 'Tickets' },
 ] as const;
 
 /** `2027-05-05` → `Wednesday 5 May`. Parsed as a plain date, never as an instant. */
