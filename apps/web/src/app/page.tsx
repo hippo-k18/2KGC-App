@@ -221,12 +221,17 @@ export default async function HomePage() {
       />
 
       {/* HCLS — equal columns and a navy ground on the live page. */}
+      {/*
+        `5 / 4`, not the `4 / 3` this passed: the file is 1919x1536 = 1.249, and
+        under `object-fit: cover` a 1.333 box cropped 6% off its height.
+        `photo-split.tsx` already documented this photo as 5/4.
+      */}
       <PhotoSplit
         id="hcls"
         heading="Healthcare and Life Sciences (HCLS) symposium"
         photo="/kgc/photos/1746718624050.jpeg"
         alt="A packed symposium room during a healthcare and life sciences session."
-        aspect="4 / 3"
+        aspect="5 / 4"
         photoSide="right"
         tone="navy"
         columns="equal"
@@ -260,8 +265,18 @@ export default async function HomePage() {
           </p>
 
           <div className="grid g4">
+            {/*
+              All four carry `card tier`; only the highlight is conditional. The
+              featured card used to be the only one with `tier`, which brought
+              `.tier`'s 24px padding and `display: flex` while its three siblings
+              kept `.card`'s 22px and normal flow — so it sat 2px out, and flex
+              suppressed the margin collapse between the tagline and the price,
+              pushing the price and the button a further 10px down. The result was
+              a four-card row whose prices did not line up, on the one card the
+              eye is meant to land on.
+            */}
             {TIERS.map((t) => (
-              <div key={t.id} className={`card${t.featured ? ' tier featured' : ''}`}>
+              <div key={t.id} className={`card tier${t.featured ? ' featured' : ''}`}>
                 <h3>{t.name}</h3>
                 <p className="muted" style={{ fontSize: '0.9rem' }}>
                   {t.tagline}

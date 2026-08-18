@@ -47,7 +47,10 @@ export function CookieConsent() {
         We use one first-party cookie to keep your ticket checkout session together. No advertising
         trackers, no third-party analytics.
       </p>
-      <button type="button" className="btn btn-primary btn-sm" onClick={dismiss}>
+      {/* Not `btn-sm`: at 8px padding this was 34.9px tall, the only control on
+          the page under the 44px minimum — on a banner that covers the page
+          until it is dismissed. */}
+      <button type="button" className="btn btn-primary" onClick={dismiss}>
         Got it
       </button>
     </div>

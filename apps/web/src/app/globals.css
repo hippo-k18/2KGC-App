@@ -337,6 +337,37 @@ section.tint {
   background: rgb(255 255 255 / 12%);
 }
 
+/*
+ * The header's "Register now" is a `.btn.btn-primary.btn-sm` that lives *inside*
+ * `.site-header nav`, and the two rules above were quietly eating it.
+ *
+ * `.btn-primary` paints `--blue`, which is `--palette-2` — the same navy as the
+ * header itself. Measured contrast of the button against its own header: 1.00:1.
+ * It rendered as bare white text, indistinguishable from the four nav links
+ * beside it. Hover made it worse rather than better: `.site-header nav a:hover`
+ * is specificity 0-2-1 and `.btn-primary:hover` is 0-2-0, so the CTA got the
+ * ordinary nav-link wash, and `.site-header nav a`'s `padding: 8px 12px` beat
+ * `.btn-sm`'s `8px 14px` too, leaving it 36px tall next to 40px nav links.
+ *
+ * Inverted instead: white plate, navy label. That is unmistakably a button on a
+ * navy bar, it cannot be confused with the text links, and it needs no new
+ * colour — both values are already in the palette.
+ */
+.site-header nav a.btn-primary {
+  background: var(--white);
+  color: var(--navy);
+  padding: 10px 18px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+}
+
+.site-header nav a.btn-primary:hover {
+  background: var(--btn-bg-hover);
+  color: var(--palette-1);
+}
+
 .site-header nav a[aria-current='page'] {
   font-weight: 700;
   box-shadow: inset 0 -2px 0 var(--orange);
@@ -419,6 +450,16 @@ section.tint {
   transition: background 0.12s ease;
 }
 
+/*
+ * `:focus-visible`, because the nine buttons on the homepage were all falling
+ * back to Chrome's default `auto 1px` ring while `.kgc-faq summary` and the
+ * quotes strip defined a real 2px one — two focus languages on a single page.
+ */
+.btn:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
 .btn-primary {
   background: var(--blue);
   color: var(--white);
@@ -459,9 +500,53 @@ section.tint {
 }
 
 .btn-block {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   text-align: center;
+}
+
+/*
+ * Two lines' worth, always — but only inside the two card grids.
+ *
+ * At 1280 the columns are ~253px and only two of the four labels wrap: "Choose
+ * All Access (VIP)" and "Choose Main Conference" measured 63.6px against the
+ * others' 44.8px, an 18.8px step across a row the eye reads as one line of
+ * buttons. Reserving the taller box equalises them whether they wrap or not.
+ * Scoped to the grids because `.btn-block` is also the checkout submit, which
+ * has to match the form fields above it instead.
+ */
+.tiers .btn-block,
+.g4 .btn-block {
+  min-height: 63.6px;
+}
+
+/*
+ * Two lines reserved for the tagline, so the prices line up.
+ *
+ * Equalising the cards' padding fixed the featured card, and then exposed the
+ * remaining cause: the four taglines wrap to different numbers of lines at a
+ * 253px column, so "Main Conference" still carried its price 36px below its
+ * neighbours'. The price is the number these cards exist to be compared on; it
+ * has to sit on one line across the row whatever the sentence above it does.
+ */
+.tiers .tier > .muted,
+.g4 .card > .muted {
+  min-height: 46px;
+}
+
+/*
+ * And two lines for the name, for the same reason and by the same arithmetic:
+ * an h3 line box here is 36px, which is exactly the offset that was left between
+ * "Main Conference" and its neighbours once the taglines were equalised. Which
+ * of the four names wraps depends on the column width, so this is reserved
+ * rather than tuned to the one that happened to wrap at 1280.
+ */
+.tiers .tier > h2,
+.tiers .tier > h3,
+.g4 .card > h3 {
+  min-height: 72px;
 }
 
 /* ------------------------------------------------------------------- hero - */
@@ -596,11 +681,39 @@ section.tint {
 }
 
 .g3 {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /*
+   * `minmax(260px, 1fr)` needed 3x260 + 2x16 = 812px and the container is 720 at
+   * a 768 viewport, so the three stats broke two-and-one with "45 Speakers"
+   * orphaned beside a half-width gap. Three abreast is the whole point of a
+   * three-stat band; below 620 they stack.
+   */
+  grid-template-columns: repeat(3, 1fr);
 }
 
+@media (width <= 620px) {
+  .kgc-stats-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * Explicit, for the same reason as `.tiers`: `auto-fit` with a 230px floor drops
+ * to three columns through the whole mid band and strands the fourth card.
+ */
 .g4 {
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: 1fr;
+}
+
+@media (width >= 560px) {
+  .g4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width >= 1040px) {
+  .g4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .card {
@@ -699,7 +812,9 @@ section.tint {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  scroll-margin-top: 90px;
+  /* 96px is the measured height of `.site-header .bar`, not the 90 this guessed:
+     an anchored jump left the target's top border behind the header. */
+  scroll-margin-top: 104px;
 }
 
 .day-head h2 {
@@ -787,8 +902,30 @@ section.tint {
 .tiers {
   display: grid;
   gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  align-items: start;
+  /*
+   * Explicit breakpoints, not `auto-fit`/`minmax(250px, 1fr)`.
+   *
+   * Four columns need 4x250 + 3x20 = 1060px of container, i.e. a viewport of
+   * about 1108 — so every width from 838 to 1107 fell back to three, leaving
+   * the fourth tier alone on its own row beside 664px of nothing. That band is
+   * where most laptops sit. Two-by-two is the correct answer for a four-item
+   * pricing grid at those widths, and it is not something `auto-fit` can be
+   * asked for.
+   */
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+@media (width >= 560px) {
+  .tiers {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width >= 1108px) {
+  .tiers {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .tier {
@@ -806,8 +943,31 @@ section.tint {
   box-shadow: var(--shadow);
 }
 
+/*
+ * Out of flow, pinned to the card's top edge.
+ *
+ * In normal flow this badge — which only the featured card has — pushed that
+ * card's entire contents down by its own height plus its margin, measured at
+ * 33.9px. So the one card the eye is meant to land on was the one whose price
+ * did not line up with the other three, in a grid whose only purpose is
+ * comparing those prices. `.tier` reserves the space with extra top padding so
+ * the absolute badge never sits on top of the heading.
+ */
+.tier {
+  position: relative;
+  /*
+   * The badge's lane, reserved on every card rather than only the one that has
+   * a badge. Padding it on `.featured` alone just moved the misalignment from
+   * 33.9px to 20px — the cards have to be structurally identical for their
+   * prices to line up, whatever is or is not pinned to the top of each.
+   */
+  padding-top: 44px;
+}
+
 .tier .badge {
-  display: inline-block;
+  position: absolute;
+  top: 12px;
+  left: 24px;
   background: var(--blue);
   color: var(--white);
   font-size: 0.7rem;
@@ -816,7 +976,6 @@ section.tint {
   text-transform: uppercase;
   border-radius: 4px;
   padding: 3px 8px;
-  margin-bottom: 10px;
 }
 
 .tier h2 {
@@ -890,6 +1049,15 @@ section.tint {
 }
 
 /*
+ * The submit button matches the fields above it. `.btn`'s `12px 22px` against
+ * `.field input`'s `11px 12px` plus a smaller font left the CTA 44.8px under
+ * three 49.6px controls — the one button in the form that had to look deliberate.
+ */
+.checkout .btn[type='submit'] {
+  min-height: 49.6px;
+}
+
+/*
  * A `select` renders at its native control height and ignores the padding above
  * unless `appearance` is cleared — so the tier picker, the first control in the
  * purchase form, came out 27px tall on a phone next to two 44px text inputs.
@@ -925,7 +1093,9 @@ section.tint {
   padding: 26px;
   background: var(--white);
   box-shadow: var(--shadow);
-  scroll-margin-top: 90px;
+  /* 96px is the measured height of `.site-header .bar`, not the 90 this guessed:
+     an anchored jump left the target's top border behind the header. */
+  scroll-margin-top: 104px;
 }
 
 .summary {
@@ -1025,6 +1195,12 @@ section.tint {
   margin: 26px 0;
 }
 
+/* `--muted` on the claim block's `--wash` is 4.23:1, and this is the sentence
+   telling the buyer to write the code down. */
+.claim .muted {
+  color: var(--body);
+}
+
 .claim .code {
   font-size: 2.6rem;
   font-weight: 800;
@@ -1101,6 +1277,7 @@ section.tint {
 
 .logo-tile:hover {
   border-color: var(--blue);
+  background: var(--wash);
 }
 
 .logo-tile .tier {
@@ -1416,6 +1593,10 @@ section.tint {
   color: var(--palette-4);
   font-weight: 700;
   text-decoration: none;
+  /* Was a bare inline anchor: a 22px-high target, the worst on the page. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 .kgc-pair-link a:hover {
@@ -1509,6 +1690,11 @@ section.tint {
 }
 
 /* A rotating chevron, so open/closed is visible and not only announced. */
+/* Both of these had `cursor: pointer` and no other response to the pointer. */
+.kgc-faq summary:hover {
+  background: var(--wash);
+}
+
 .kgc-faq summary::after {
   content: '';
   flex: 0 0 auto;
@@ -1711,12 +1897,20 @@ section.tint {
   gap: 8px;
   margin-top: 18px;
   overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 2px;
+  /*
+   * A thin scrollbar rather than none. Five day tabs need 452px and a 393px
+   * phone gives the strip 307, so two of the five sit off-screen — and hiding
+   * the scrollbar removed the only cue that they exist. The day picker is the
+   * primary control of this panel; losing Thursday and Friday to an invisible
+   * overflow is not a rounding error.
+   */
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
 }
 
-.schedule-days::-webkit-scrollbar {
-  display: none;
+.day-tab {
+  scroll-snap-align: start;
 }
 
 .day-tab {
@@ -1849,5 +2043,27 @@ section.tint {
 
   .schedule-filter select {
     width: 100%;
+  }
+}
+
+
+/*
+ * Mobile section padding, restated last.
+ *
+ * Two things defeated the earlier attempt at this. A type selector (`section`,
+ * 0-0-1) cannot override a class (`.kgc-split`, 0-1-0), so the original rule
+ * never reached the class-styled bands at all; and naming those classes inside
+ * the media query higher up the file still lost, because the `.kgc-*` band
+ * definitions are appended *after* it and win on source order at equal
+ * specificity. The effect either way was that at 393 the generic bands dropped
+ * to 44px while the class-styled ones stayed at 56 — inverting the desktop
+ * hierarchy, where 64 is the roomier value and 56 the tighter one.
+ */
+@media (width <= 620px) {
+  .kgc-split,
+  .kgc-pair,
+  .kgc-quotes,
+  .kgc-faq {
+    padding-block: 44px;
   }
 }
