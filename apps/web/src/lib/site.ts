@@ -135,6 +135,14 @@ export const APP_DISTRIBUTION =
  */
 export const NAV = [
   { href: '/speakers', label: `${2027} Speakers` },
+  /*
+   * Agenda is here and not in `NAV_MORE`, which is the one deliberate departure
+   * from the live site's five tabs. Its agenda is a homepage widget; ours is a
+   * page, and `NAV_MORE` computes to `display: none` at desktop widths — so the
+   * single thing people come to a conference site for was reachable only from a
+   * magnifying-glass icon, and no nav item ever highlighted while you were on it.
+   */
+  { href: '/agenda', label: 'Agenda' },
   { href: '/sponsor', label: 'Sponsor KGC' },
   { href: '/blog', label: 'Blog' },
   { href: '/learn', label: 'Learn' },
@@ -151,7 +159,6 @@ export const NAV = [
  * homepage links to both directly.
  */
 export const NAV_MORE = [
-  { href: '/agenda', label: 'Agenda' },
   { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
   { href: '/tickets', label: 'Tickets' },
 ] as const;

@@ -28,7 +28,7 @@ export default function AboutPage() {
           </p>
           <p>
             KGC is independent. The programme is chosen by a committee of practitioners, sponsors buy
-            booths rather than keynotes, and the schedule leaves real gaps because the hallway is
+            their placement on the programme, not its content, and the schedule leaves real gaps because the hallway is
             half the value.
           </p>
         </div>

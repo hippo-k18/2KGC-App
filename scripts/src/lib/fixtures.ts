@@ -223,6 +223,61 @@ const TOPICS = [
   'Knowledge Graphs Behind Search Ranking',
   'Curating a Materials Science Graph',
   'When Not to Use a Knowledge Graph',
+  /*
+   * Everything below extends the list from thirty to seventy-five.
+   *
+   * `makeSessions` generates seventy-two sessions and indexed into thirty
+   * titles, so every title appeared two or three times across the week — "SHACL
+   * in Production" ran three times on three different days, under three
+   * different tracks, with three different speakers. On a scrolled agenda that
+   * does not read as a busy programme, it reads as broken seed data, which is
+   * the first thing a demo audience would notice.
+   */
+  'Reconciling Two Ontologies After a Merger',
+  'What Breaks When the Graph Doubles',
+  'Federated Queries Across Four Warehouses',
+  'Naming Things: A Practitioner’s Postmortem',
+  'Versioning an Ontology Without Breaking Consumers',
+  'Graph Embeddings for Drug Repurposing',
+  'The Case Against Reasoning at Query Time',
+  'Provenance That Survives a Pipeline Rewrite',
+  'Teaching a Team to Read SPARQL',
+  'Schema Drift and How We Detected It',
+  'Mapping Legacy Codes to a Shared Vocabulary',
+  'A Knowledge Graph for Clinical Trial Matching',
+  'When the Reasoner Stops Terminating',
+  'Shapes as Documentation',
+  'Bitemporal Modelling for Regulated Data',
+  'Deduplicating a Supplier Master at Scale',
+  'Graph Analytics for Fraud Rings',
+  'Ontology Governance With Fifteen Stakeholders',
+  'Retrieval Quality: Measuring What Users Actually Got',
+  'From Spreadsheets to a Controlled Vocabulary',
+  'Streaming Updates Into a Live Graph',
+  'Access Control on a Shared Knowledge Graph',
+  'The Cost Model Nobody Budgeted For',
+  'Linking Publications to Datasets to People',
+  'Query Patterns That Age Badly',
+  'A Taxonomy the Editors Actually Use',
+  'Entity Linking Against a Noisy Catalogue',
+  'Explaining a Graph Answer to a Regulator',
+  'Migrating Off a Triple Store',
+  'Modelling Uncertainty Without Losing Your Nerve',
+  'Building a Graph From Support Tickets',
+  'Two Years of Continuous Ontology Integration',
+  'Rules Engines and Where They Still Win',
+  'Geospatial Joins in a Semantic Layer',
+  'The Ontology Review Meeting, Improved',
+  'Indexing Strategy for Multi-Hop Queries',
+  'Curation at the Speed of the Newsroom',
+  'A Graph Catalogue for Machine Learning Features',
+  'Reference Data as a Product',
+  'When Two Teams Disagree About a Class',
+  'Testing a Knowledge Graph Like Software',
+  'Ontology Alignment With Language Models',
+  'Cardinality Constraints That Earn Their Keep',
+  'Serving a Graph to Ten Thousand Analysts',
+  'The Migration We Would Not Repeat',
 ];
 
 const FORMATS = ['talk', 'talk', 'talk', 'panel', 'workshop', 'keynote'] as const;
@@ -364,8 +419,18 @@ export function makeSessions(speakerCount: number): SeedSession[] {
     });
 
     slots.forEach(([from, to], s) => {
-      // Workshops on day one and day five run long, in one room.
-      const isWorkshopDay = d === 0 || d === 4;
+      /*
+       * Workshops open the week: Monday and Tuesday.
+       *
+       * This was `d === 0 || d === 4` — Monday and *Friday* — while `SITE.
+       * workshopDays`, the ticker, `/learn` and the $699 Workshops ticket all
+       * said Monday and Tuesday. The data was the only thing telling the truth
+       * about itself and it disagreed with every page that described it, so a
+       * Workshops buyer was sold Monday and Tuesday, given Monday's six
+       * workshops plus twelve parallel talks on Tuesday they had not bought, and
+       * missed Friday's six entirely.
+       */
+      const isWorkshopDay = d === 0 || d === 1;
       const width = isWorkshopDay ? 1 : parallelRooms.length;
       for (let p = 0; p < width; p++) {
         const format = isWorkshopDay ? 'workshop' : FORMATS[(topic + p) % FORMATS.length];
@@ -388,9 +453,16 @@ export function makeSessions(speakerCount: number): SeedSession[] {
       }
     });
 
-    // The Monday reception: 21:00 local is 01:00 UTC the next day. If this ends
-    // up on the wrong day tab, the `day` derivation is broken.
-    if (d === 1) {
+    /*
+     * The Monday reception: 21:00 local is 01:00 UTC the next day. If this ends
+     * up on the wrong day tab, the `day` derivation is broken — which is the
+     * whole reason this session exists, so do not move it out of the evening.
+     *
+     * It was on `d === 1`, i.e. Tuesday, directly contradicting the comment
+     * above it and putting a *welcome* reception on the second evening of a
+     * five-day event.
+     */
+    if (d === 0) {
       sessions.push({
         title: 'Welcome Reception',
         format: 'social',

@@ -389,19 +389,7 @@ export default async function HomePage() {
           </div>
         </details>
 
-        <details>
-          <summary>
-            Are discounted tickets available for students, academics or non-profits?
-          </summary>
-          <div className="answer">
-            <p>
-              Yes. Academic, student and non-profit rates are available — see the{' '}
-              <Link href="/tickets">ticket page</Link> for the current tiers, or write to us at{' '}
-              {SITE.contactEmail ?? 'contact@knowledgegraph.tech'} if your situation does not fit
-              one of them.
-            </p>
-          </div>
-        </details>
+        
 
         <details>
           <summary>Will the in-person presentations be available online?</summary>

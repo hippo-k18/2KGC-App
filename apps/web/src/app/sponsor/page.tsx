@@ -18,7 +18,7 @@ const PACKAGES = [
       'Largest booth, front of the exhibition hall',
       'Ten full-conference passes',
       'Logo on the badge lanyard and the app home screen',
-      'Lead capture through the KGC app for the whole week',
+      'Booth staff badges, and your scanned leads exported after the event',
     ],
   },
   {
@@ -28,7 +28,7 @@ const PACKAGES = [
       'Premium booth position',
       'Six full-conference passes',
       'Logo on stage screens and in the app',
-      'Lead capture through the KGC app',
+      'Booth staff badges, and your scanned leads exported after the event',
     ],
   },
   {

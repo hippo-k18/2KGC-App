@@ -43,9 +43,10 @@ export default function LearnPage() {
             out.
           </p>
           <p>
-            Levels are marked on <Link href="/agenda">the agenda</Link>. Beginner assumes you have
-            seen a graph database and nothing more; advanced assumes you have one in production and
-            a problem with it.
+            Levels are not marked on the schedule yet — the committee sets them once the
+            programme is fixed. As a rough guide, beginner sessions assume you have seen a graph
+            database and nothing more; advanced ones assume you have one in production and a
+            problem with it.
           </p>
 
           <h3>What to read first</h3>

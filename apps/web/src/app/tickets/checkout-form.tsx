@@ -119,7 +119,7 @@ function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: str
         ? 'Working…'
         : stripeReady
           ? `Pay ${price} with Stripe`
-          : 'Complete test purchase (no payment taken)'}
+          : 'Register — no payment taken'}
     </button>
   );
 }

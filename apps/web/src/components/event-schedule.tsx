@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AgendaDay } from '@/lib/data';
 import { formatDayTab, localTime, SITE } from '@/lib/site';
 
@@ -215,7 +215,23 @@ export function EventSchedule({
  * nothing here needs a consent banner entry.
  */
 function ScheduleActions() {
-  const url = 'https://www.knowledgegraph.tech/';
+  /*
+   * The page being shared, not a hard-coded homepage.
+   *
+   * This was `https://www.knowledgegraph.tech/`, so every share button on this
+   * site posted a link to a *different* site — a visitor sharing our agenda sent
+   * their followers to the incumbent's front page.
+   *
+   * Read in an effect rather than inline. A bare
+   * `typeof window === 'undefined' ? '' : location.href` is the first cause
+   * listed in React's own hydration-mismatch error, and it produced exactly
+   * that: the server rendered an empty href and the client rendered a real one,
+   * so the tree hydrated dirty on every page. Starting at `''` and filling it
+   * after mount means server and first client render agree, and the intent URLs
+   * are only ever followed by a human afterwards.
+   */
+  const [url, setUrl] = useState('');
+  useEffect(() => setUrl(window.location.href), []);
   const text = `${SITE.name} — ${SITE.datesShort}`;
   return (
     <div className="schedule-actions">

@@ -38,7 +38,7 @@ export const TIERS: readonly Tier[] = [
     inPerson: true,
     includes: [
       'Every in-person session, Monday to Friday',
-      'Both workshop days and all masterclasses',
+      'Both workshop days, Monday and Tuesday',
       'VIP community happy hour with the programme committee',
       'All evening networking events, including the Friday watch party',
       'Live streams and recordings of every virtual session',
@@ -68,7 +68,7 @@ export const TIERS: readonly Tier[] = [
     tagline: 'Two days of hands-on practice.',
     inPerson: true,
     includes: [
-      'Every in-person workshop and masterclass, Monday and Tuesday',
+      'Every in-person workshop, Monday and Tuesday',
       'Instructor-led labs at beginner, intermediate and advanced level',
       'Workshop materials and datasets to take home',
       'Community happy hour',
@@ -85,7 +85,7 @@ export const TIERS: readonly Tier[] = [
       'Live streams of every conference and workshop session',
       'Watch Monday through Friday in your own time zone',
       'On-demand replays for at least a month afterwards',
-      'Virtual hallway track and Q&A in the KGC app',
+      'The virtual hallway track, and session Q&A in the KGC app',
     ],
   },
 ] as const;

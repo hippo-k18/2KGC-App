@@ -93,7 +93,13 @@
    */
   --blue-deep: var(--palette-1);
 
-  --radius: 10px;
+  /*
+   * Two radii, not four. The site had 4px, 7px, 8px and 10px in play, so a
+   * 1464x600 band and a 60x20 tag were rounded by nearly the same absolute
+   * amount — which reads as indecision rather than restraint.
+   */
+  --radius: 16px;
+  --radius-sm: 4px;
   --shadow: 0 1px 2px rgb(16 36 58 / 6%), 0 8px 24px rgb(16 36 58 / 6%);
 
   /*
@@ -221,16 +227,30 @@ h4 {
   margin: 0 0 0.5em;
 }
 
+/*
+ * The scale, widened.
+ *
+ * The live theme declares a flat 32/28/24, and reproducing it left every
+ * interior page with a page title only 1.14x its own section headings and twice
+ * its body — no hierarchy above 32px anywhere, which is most of why the site
+ * read as bland. The hero already departs from the theme at 70px; these follow
+ * it. Weight now carries level too: h3 drops to 600 so that size is not the only
+ * signal distinguishing three ranks of heading.
+ */
 h1 {
-  font-size: 32px;
+  font-size: clamp(2.4rem, 4.2vw, 3.4rem);
+  line-height: 1.15;
 }
 
 h2 {
-  font-size: 28px;
+  font-size: clamp(1.75rem, 2.4vw, 2rem);
+  line-height: 1.25;
 }
 
 h3 {
-  font-size: 24px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 h4 {
@@ -2856,4 +2876,180 @@ a.logo-tile:hover {
   .speaker-tile:hover {
     transform: none;
   }
+}
+
+/* ------------------------------------------ orange, in the page not the chrome -- */
+
+/*
+ * The brand's one warm colour had nine usages in the whole stylesheet and every
+ * one of them was chrome — the ticker, the search icon, the nav underline.
+ * Nothing in the body of any page was ever orange, so the content read as navy
+ * on white with grey, which is the palette of a template. These are the places
+ * where a number or a label is doing real work and deserves the accent.
+ */
+.kgc-stat h2 strong {
+  color: var(--orange);
+}
+
+.tier .price {
+  color: var(--orange);
+}
+
+/* A short rule under every eyebrow, so the 25 of them across the site read as a
+   deliberate device rather than as small navy capitals. */
+.eyebrow::after {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 2px;
+  margin-top: 8px;
+  background: var(--orange);
+}
+
+.page-head-centred > .eyebrow::after {
+  margin-inline: auto;
+}
+
+/* ---------------------------------------------- cards that answer the pointer -- */
+
+/*
+ * Blog cards are fully clickable and gave nothing back; schedule rows and day
+ * tabs likewise. The transition machinery was already present and simply unwired.
+ */
+.card.media,
+.blog-card {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.card.media:hover,
+.blog-card:hover,
+.card.media:focus-within,
+.blog-card:focus-within {
+  border-color: var(--navy);
+  box-shadow: var(--shadow);
+  transform: translateY(-3px);
+}
+
+/* A track-coloured bar slides in on the left of a schedule row. */
+.schedule-item {
+  position: relative;
+  padding-left: 0;
+  transition: padding-left 0.16s ease, background 0.16s ease;
+}
+
+.schedule-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--track, var(--highlight));
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.schedule-item:hover::before,
+.schedule-item:focus-within::before {
+  opacity: 1;
+}
+
+.schedule-item:hover,
+.schedule-item:focus-within {
+  padding-left: 14px;
+}
+
+.day-tab {
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.day-tab:not(.is-selected):hover {
+  background: var(--wash);
+}
+
+/* ------------------------------------------------------- vertical rhythm -- */
+
+/*
+ * Three steps instead of one. `section { padding: 64px 0 }` was the only section
+ * spacing rule in the file, so 22 of 31 sections were identical top and bottom:
+ * a heading sat the same distance from the section above it as from its own
+ * body, and nothing was ever compressed or given air. The tint bands get the
+ * largest step, so they read as chapter breaks rather than as stripes.
+ */
+section.tint {
+  padding-block: 104px;
+}
+
+@media (width <= 620px) {
+  section.tint {
+    padding-block: 56px;
+  }
+}
+
+/* ------------------------------------------------------- quotes as text -- */
+
+.kgc-quote {
+  scroll-snap-align: start;
+  flex: 0 0 min(430px, 82vw);
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 34px 30px 28px;
+  display: flex;
+}
+
+.kgc-quote figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.kgc-quote blockquote {
+  margin: 0;
+  flex: 1;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+/* The opening quotation mark, drawn large and in the accent. */
+.kgc-quote blockquote::before {
+  content: '\201C';
+  display: block;
+  font-size: 3.2rem;
+  line-height: 0.6;
+  color: var(--orange);
+  margin-bottom: 12px;
+}
+
+.kgc-quote figcaption {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.kgc-quote-mark {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--highlight) 100%);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.kgc-quote-who {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.kgc-quote-who strong {
+  color: var(--ink);
+  font-weight: 700;
 }
