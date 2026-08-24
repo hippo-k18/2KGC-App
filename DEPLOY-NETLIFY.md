@@ -78,12 +78,12 @@ Do **not** set `FIRESTORE_EMULATOR_HOST`.
 | `FIREBASE_SERVICE_ACCOUNT` | The whole service-account JSON, as one line |
 | `CONSOLE_ALLOWLIST` | Comma-separated organizer identities. Emails, or a bare username like `demo` |
 | `CONSOLE_PASSPHRASE` | **Required in production.** `openssl rand -base64 24` |
+| `CONSOLE_SESSION_SECRET` | A fresh `openssl rand -hex 32` — never the dev value |
 
 A short passphrase such as `123` is allowed **only** when the dashboard is
 pointed at a Firestore emulator. Against the live project, anything under
 twelve characters refuses to sign anyone in — the rule is not "the secret must
 be strong", it is "a weak secret may only guard invented data".
-| `CONSOLE_SESSION_SECRET` | A fresh `openssl rand -hex 32` — never the dev value |
 
 ---
 
