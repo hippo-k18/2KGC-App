@@ -1,0 +1,32 @@
+'use client';
+
+import { useActionState } from 'react';
+import { loginAction, type LoginState } from './actions';
+
+export function LoginForm() {
+  const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, {});
+
+  return (
+    <form action={action}>
+      <div className="whova-form-group">
+        <div className="whova-form-label">
+          <label htmlFor="email">Organizer email</label>
+          <span className="whova-form-label-suffix">*</span>
+        </div>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          className={`whova-text-input${state.error ? ' error' : ''}`}
+          autoComplete="username"
+          required
+          autoFocus
+        />
+        {state.error ? <p className="whova-form-error-message">{state.error}</p> : null}
+      </div>
+      <button type="submit" className="whova-btn-main primary" disabled={pending}>
+        {pending ? 'Signing in…' : 'Sign in'}
+      </button>
+    </form>
+  );
+}

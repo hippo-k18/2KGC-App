@@ -1,0 +1,120 @@
+# `@kgc/organizer` — the organizer dashboard
+
+A one-to-one rebuild of **Whova's EMS** (their organizer dashboard) on KGC's own
+Firestore. Same navigation tree, same chrome, same names, same nesting — an
+organizer who has run an event on Whova should be able to find things here by
+muscle memory.
+
+Runs on **port 3200**. It is a separate site from `apps/console`; neither is a
+member of the root npm workspace, so you install and run each from its own
+directory.
+
+```bash
+cd apps/organizer
+npm install
+export FIRESTORE_EMULATOR_HOST=localhost:8080          # safe, local
+export CONSOLE_ALLOWLIST=you@example.com
+export CONSOLE_SESSION_SECRET=$(openssl rand -hex 32)
+npm run dev                                            # → http://localhost:3200
+```
+
+You need the Firestore emulator running with seeded data:
+
+```bash
+cd ../..            # repo root
+npm run dev:emulators
+npm run seed
+```
+
+The emulator needs Java. `brew install openjdk` and put
+`/opt/homebrew/opt/openjdk/bin` on your `PATH`.
+
+## Where the design came from
+
+Not from screenshots. `https://whova.com/xems/` is a public React SPA, and its
+webpack chunks are readable without an account:
+
+- **`.../webpack/index.*.css`** and three sibling chunks — the production
+  stylesheet. Every colour, dimension and font stack in `src/app/globals.css`
+  was read out of it. `#2180b2` for the tab strip, `#ecf0f5` for the page
+  background, `9.75px` for the sidebar bullets, `1060px` for the page box, the
+  `.whova-table` cell width ladder — all theirs, verbatim.
+- **`.../webpack/index.*.xems-webpack.bundle.js`** — the navigation tree as
+  data: an array of `{name, title, widthClass, children}` that the sidebar and
+  the tab bar both render. `src/lib/nav.ts` is a transcription of it, 215 paths
+  deep, with Whova's internal feature keys kept in the `name` field.
+
+That matters because `whova-rebuild/research/02-organizer-backend.md` §1
+reconstructed the same IA from ~900 help-centre article paths and got the
+nesting right but the **sequence wrong** — the live product puts Virtual &
+Hybrid second and Tickets fifth, and has a `Pay` tab the research folded into
+`Publish`. **Where the two disagree, `nav.ts` wins.**
+
+Two things Whova's own CSS revealed that are worth knowing before you edit
+anything:
+
+1. The chrome is **AdminLTE 2** underneath (`.content-wrapper`,
+   `.treeview-menu`, `#3c8dbc` on the primary button). That is why the layout is
+   a fixed-width centred box in 2026 and why the palette contains two unrelated
+   blues.
+2. The newer screens are a **separate in-house design system** on top
+   (`.whova-table`, `.whova-btn-main`, `.whova-form-*`). Whova is mid-migration,
+   so both vocabularies are live at once and a real page mixes them.
+   `globals.css` keeps both, for the same reason.
+
+## What is real
+
+Nine screens read and write real Firestore documents through the Admin SDK:
+
+| Whova path | What it does here |
+|---|---|
+| Content → Basics | Read-only. The event's identity is compile-time constants in `@kgc/shared`. |
+| Content → Agenda Center → Session Manager | Whova's hour-bucket layout, day tabs, search; edit one session. |
+| Content → Agenda Center → Track Manager | Read-only, with cross-listing counts. |
+| Content → Speaker Center → Speaker Manager | Completeness filters — the thing this list is actually for. |
+| Content → Sponsor Center → Sponsor Manager | Tier group bars, Whova's layout, read-only. |
+| Engagement → Announcements | **Writes.** One document; the app's home screen picks it up in ~1s. |
+| Attendees → Manage Attendees → Attendees | Search, role filter, the registrations-vs-profiles gap. |
+| Attendees → Check-in & Checkout → Check-in | **Writes.** Badge QR scan → idempotent check-in. |
+| Tools → Report | Ours: live numbers, audit trail, error ring. |
+
+The other **206 paths resolve rather than 404**. A group renders an index of its
+children; a leaf renders what Whova does there, what this repo would need, and
+roughly how big that is (`src/lib/gaps.ts`). That is deliberate: an empty state
+implying "this half-works" is worse than one that names the gap.
+
+## Security
+
+⚠️ **Do not deploy this.** `src/lib/auth.ts` is an email allowlist with no
+password, no SSO and no MFA, and the Admin SDK behind it **bypasses
+`firestore.rules` entirely**. Knowing an allowlisted address is currently
+sufficient for full write access to the event. That is acceptable for a tool
+bound to localhost on one laptop and for nothing else. Google SSO with enforced
+MFA (DECISIONS.md #5) lands before this is reachable over a network.
+
+No Firebase credential of any kind may reach the browser. Every read is a server
+component and every write is a server action; `server-only` in `src/lib/*` turns
+a mistaken client import into a build error rather than a leak.
+
+## Relationship to `apps/console`
+
+`apps/console` is the earlier, deliberately-plain version of the same idea —
+sixty lines of CSS, no design system, on the theory that the console has ten
+users and the app has a thousand. This app is the answer to the owner's
+instruction that the organizer dashboard end up *almost identical to Whova's*.
+
+They share the session cookie (`kgc_console_session`), so signing in to one
+signs you in to the other on localhost. The nine real screens here are ported
+from there, so the console can be retired once this replaces it — but nothing
+here deletes it yet.
+
+## Conventions
+
+- Colours come from the custom properties at the top of `globals.css`. Never
+  hard-code a hex in a component.
+- Whova's strings are Whova's. Do not rename a nav node to something clearer or
+  flatten a level because it looks redundant — the point is that an organizer
+  finds things where they expect them.
+- Deviate only where there is a reason, and say so **on the page**. The three
+  current deviations are: the check-in desk's 40px verdict, `Tools → Report`
+  replacing a 10-day PDF, and the absence of scheduled announcements.

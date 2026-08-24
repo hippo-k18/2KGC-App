@@ -1,0 +1,279 @@
+import Link from 'next/link';
+import { COLLECTIONS } from '@kgc/shared';
+import { requireOrganizer } from '@/lib/auth';
+import { countWhereEvent, listAttendees } from '@/lib/data';
+import { ROUTES } from '@/lib/nav';
+import {
+  PER_PAGE,
+  PageHeader,
+  Pagination,
+  Panel,
+  SearchInput,
+  Table,
+  Tag,
+  listParams,
+  paginate,
+  sortRows,
+} from '../../../ui';
+import { Dropdown, RowActions } from '../../../menu';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * Attendees > Manage Attendees > Attendees.
+ *
+ * Whova's columns, in Whova's order: avatar, Name, Title, Company, Category,
+ * Audience, "Signed into the event", actions. `Audience` is their in-person /
+ * remote split; KGC 2027 is in-person only, so every row reads `In Person` and
+ * the column is kept because removing it is a decision an organizer should make
+ * rather than find already made.
+ *
+ * The stats block above the table is Whova's too — attendee limit, total, and
+ * the sign-in count — and it is the single most-watched number on this screen
+ * in the fortnight before doors open, which is why it sits above the fold
+ * rather than in an analytics tab.
+ *
+ * Search filters the whole list in memory, deliberately. At these volumes an
+ * in-memory pass beats any query, needs no search service, and cannot fail with
+ * `failed-precondition` because it declares no index. The single
+ * `where('eventId', '==', …)` behind it is served by Firestore's automatic
+ * single-field index.
+ */
+export default async function AttendeesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  await requireOrganizer();
+
+  const sp = await searchParams;
+  const q = typeof sp.q === 'string' ? sp.q : undefined;
+  const role = typeof sp.role === 'string' ? sp.role : undefined;
+  const { page, sort, baseParams } = listParams(sp);
+  const [all, registrations] = await Promise.all([
+    listAttendees(),
+    countWhereEvent(COLLECTIONS.registrations),
+  ]);
+
+  const needle = (q ?? '').trim().toLowerCase();
+  const matched = all.filter((a) => {
+    if (role && !a.roles.includes(role)) return false;
+    if (!needle) return true;
+    return [a.name, a.email, a.title, a.company, ...a.interests]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(needle));
+  });
+
+  const rows = sortRows(matched, sort.by, sort.dir, {
+    name: (a) => a.name,
+    title: (a) => a.title ?? '',
+    company: (a) => a.company ?? '',
+    category: (a) => a.roles.join(', '),
+    directory: (a) => (a.visibleInDirectory ? 1 : 0),
+  });
+  const pageRows = paginate(rows, page, PER_PAGE);
+
+  const roles = [...new Set(all.flatMap((a) => a.roles))].sort();
+  const hidden = all.filter((a) => !a.visibleInDirectory).length;
+  const href = (next: { q?: string; role?: string }) => {
+    const p = new URLSearchParams();
+    if (next.q) p.set('q', next.q);
+    if (next.role) p.set('role', next.role);
+    const s = p.toString();
+    return s ? `?${s}` : ROUTES.attendees;
+  };
+
+  return (
+    <>
+      <PageHeader
+        title="Attendees"
+        links={[
+          <Link key="ma" href="/attendees/manage-attendees">
+            Manage Attendees
+          </Link>,
+          <Link key="ci" href={ROUTES.checkIn}>
+            Check-in
+          </Link>,
+        ]}
+      />
+
+      <Panel>
+        <div
+          style={{
+            background: 'var(--surface-alt)',
+            border: '1px solid var(--hairline)',
+            borderRadius: 4,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 32,
+            marginBottom: 16,
+            padding: '14px 18px',
+          }}
+        >
+          <div className="body-2">
+            <div>
+              Total number of attendees: <strong>{all.length}</strong>
+            </div>
+            <div>
+              Number of attendees with email: <strong>{all.filter((a) => a.email).length}</strong>
+            </div>
+            <div>
+              Signed into the event: <strong>{all.length}</strong> of {registrations} registrations
+            </div>
+          </div>
+          <div className="body-2">
+            <div style={{ fontWeight: 500 }}>Audience</div>
+            <div>● in-person: {all.length} (100.0%)</div>
+            <div className="muted">● remote: 0 (0%)</div>
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <button type="button" className="btn btn-primary" disabled title="Not built — see below">
+            Import attendees
+          </button>
+          <button type="button" className="btn btn-primary" disabled title="Not built — see below">
+            Add an attendee
+          </button>
+          <Dropdown
+            label="Export attendees"
+            className="btn btn-primary"
+            items={[
+              { label: 'Export basic attendee list', disabled: true },
+              { label: 'Export attendee analytics', disabled: true },
+            ]}
+          />
+          <Link className="btn btn-primary" href={ROUTES.announcements}>
+            Send announcement
+          </Link>
+        </div>
+
+        <form method="get" className="toolbar">
+          {role ? <input type="hidden" name="role" value={role} /> : null}
+          <SearchInput
+            defaultValue={q}
+            width={460}
+            placeholder="Enter name, email, company, titles, location or category"
+          />
+          <button type="submit" className="btn btn-default">
+            Search
+          </button>
+          {q ? (
+            <Link className="btn btn-default" href={href({ role })}>
+              Clear
+            </Link>
+          ) : null}
+        </form>
+
+        <div className="toolbar">
+          <Link
+            className={`whova-tag-main ${!role ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+            href={href({ q })}
+            style={{ textDecoration: 'none' }}
+          >
+            All Attendees ({all.length})
+          </Link>
+          {roles.map((r) => (
+            <Link
+              key={r}
+              className={`whova-tag-main ${r === role ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+              href={href({ q, role: r })}
+              style={{ textDecoration: 'none' }}
+            >
+              {r} ({all.filter((a) => a.roles.includes(r)).length})
+            </Link>
+          ))}
+        </div>
+
+        <Table
+          cols={[
+            { key: 'n', label: 'Name', className: 'cell-mdsm', sortKey: 'name' },
+            { key: 't', label: 'Title', className: 'cell-fill', sortKey: 'title' },
+            { key: 'c', label: 'Company', className: 'cell-mdsm cell-truncate', sortKey: 'company' },
+            { key: 'cat', label: 'Category', className: 'cell-sm', sortKey: 'category' },
+            { key: 'a', label: 'Audience', className: 'cell-xs' },
+            { key: 's', label: 'Directory', className: 'cell-xs', sortKey: 'directory' },
+            { key: 'act', label: '', className: 'cell-xs cell-end-align' },
+          ]}
+          sort={sort}
+          empty="No attendee matches that search"
+          rows={pageRows.map((a) => [
+            <span key="n">
+              <strong>{a.name}</strong>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {a.email}
+              </div>
+            </span>,
+            a.title ?? <span className="muted">—</span>,
+            a.company ?? <span className="muted">—</span>,
+            a.roles.join(', ') || <span className="muted">—</span>,
+            'In Person',
+            a.visibleInDirectory ? (
+              'Yes'
+            ) : (
+              <Tag key="d" color="red">
+                opted out
+              </Tag>
+            ),
+            <RowActions
+              key="act"
+              items={[
+                { label: 'Edit attendee', disabled: true },
+                { label: 'Send announcement', href: ROUTES.announcements },
+                { label: 'Remove from event', danger: true, disabled: true },
+              ]}
+            />,
+          ])}
+        />
+        <Pagination total={rows.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Why this is not the ticket list</h2>
+        <p className="body-2">
+          Whova has one attendee list that every registration product feeds. We have two collections
+          doing different jobs. <code>registrations</code> is the imported ticket list, keyed by an
+          opaque server-minted id rather than by email — because addresses change, because{' '}
+          <code>&ldquo;a/b@example.com&rdquo;</code> is a legal address and an illegal Firestore
+          path segment, and because an email-keyed collection is a membership oracle for anyone who
+          can attempt a read. <code>users</code> is the profile someone creates when they sign in
+          and claim a registration. The {registrations} and {all.length} above differ because not
+          every ticket holder has signed in, which is exactly the number an organizer watches in
+          the week before doors open.
+        </p>
+        <p className="body-2">
+          The {hidden > 0 ? `${hidden} attendees marked "opted out" are` : 'opted-out column is'}{' '}
+          about <code>directory/&#123;uid&#125;</code>, the slim ~450-byte projection every attendee
+          may read. Opting out does not filter the profile out of the directory — it deletes the
+          projection outright, so the record never reaches another device. Rules can hide documents
+          but not fields, which is why the directory is a separate collection at all. The trigger
+          that maintains it is unbuilt (Spark plan), so the projection is whatever the seed wrote.
+        </p>
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Not built here</h2>
+        <ul className="body-2" style={{ paddingLeft: 18 }}>
+          <li>
+            <strong>Import.</strong> Three modes in Whova, including a real column mapper and a
+            24-hour sync from Eventbrite, RegFox and Constant Contact, with row-by-row error
+            reporting. The research says build one generic importer — header detection, column
+            mapping, validation, row-level errors, upsert with a declared key: 6–9 days once and
+            half a day per entity afterwards, against 25+ days for eight bespoke ones. Note Whova&apos;s
+            own trap, that a blank Ticket Type column overwrites while every other blank merges.
+          </li>
+          <li>
+            <strong>Add and edit an attendee.</strong> Editing a profile from here means writing to
+            a document the attendee also owns, so it needs a rule about who wins.
+          </li>
+          <li>
+            <strong>Categories and Segments.</strong> Segments are the sharpest idea in the whole
+            product — registration answers becoming operational cohorts that feed comms, badges and
+            check-in counts with no configuration — and they need registration answers to derive
+            from, which means Question Forms lands first.
+          </li>
+        </ul>
+      </Panel>
+    </>
+  );
+}

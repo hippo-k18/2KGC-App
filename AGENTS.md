@@ -31,9 +31,20 @@ replies, reactions) and Me (profile, my schedule, privacy). Messages is a header
 icon with an unread badge rather than a tab.
 
 There is also a marketing/ticketing website at `apps/web/` (Next.js, Stripe
-Checkout) and an organizer console at `apps/console/`. **Neither is a root
+Checkout), an organizer console at `apps/console/`, and the **organizer
+dashboard at `apps/organizer/`** — a one-to-one rebuild of Whova's EMS chrome
+and information architecture, port 3200. **None of the three is a root
 workspace member** — that is deliberate, and it means you install and run each
 from its own directory.
+
+`apps/organizer` supersedes `apps/console`: same nine real screens, same
+`lib/`, same session cookie, but Whova's navigation tree (215 paths, lifted
+from Whova's own shipped bundle rather than reconstructed from help articles)
+and Whova's visual chrome. Read `apps/organizer/README.md` before touching it —
+in particular the note that where `nav.ts` and
+`whova-rebuild/research/02-organizer-backend.md` §1 disagree about tab order,
+**`nav.ts` wins**, because it came from the live product. `apps/console` is not
+deleted yet but nothing new should be built there.
 
 **Built end to end:** the check-in loop. Ticket purchase on the website →
 confirmation page behind an HMAC capability token → sign-in → the badge QR at
@@ -41,8 +52,7 @@ confirmation page behind an HMAC capability token → sign-in → the badge QR a
 with the badge reflecting it live. Verified as one continuous run, not screen by
 screen.
 
-**Not built or only partly wired:** the organizer console is close to empty, push
-notifications do not exist, badge *printing* (`badgeTemplates`,
+**Not built or only partly wired:** push notifications do not exist, badge *printing* (`badgeTemplates`,
 `badgePrintJobs`) is still only modelled, and Session Q&A and polls render but
 their tallies never move. See `whova-rebuild/STATUS.md`
 and the parity tables beside it for a measured breakdown — the honest headline is
@@ -444,10 +454,16 @@ standing between this file and 1,000 attendees' data.
    every counter, every poll tally, the directory mirror, push — into working
    features, and unblocks the seven aggregate triggers at once. Then deploy rules
    and indexes, which are written but have **never been applied**.
-2. The organizer console (`apps/console/`) is the weakest area by far and the one
-   the owner has said must end up "almost identical" to Whova's. Its
-   `src/lib/nav.ts` encodes Whova's IA as 163 nodes and mislabels many of them
-   "built" when they are view-only — do not trust it as a progress map.
+2. The organizer dashboard now lives at `apps/organizer/` and is "almost
+   identical to Whova's" as the owner asked: the dark utility bar, the 1060px
+   boxed layout, the nine-tab strip at `#2180b2`, the three-box 200px rail, and
+   Whova's own `.whova-table` / `.whova-btn-main` design system, all transcribed
+   from Whova's production CSS. Nine screens carry real Firestore data; the
+   other 206 nav paths resolve to an honest gap note (`src/lib/gaps.ts`) rather
+   than a 404 or a fake empty table. The next screens worth building, cheapest
+   first, are **Conflict Check** (1–2 days, needs no new data), the **agenda
+   webpage** (2–3 days, public read of data that already exists), and the
+   **generic importer** (6–9 days once, then half a day per entity).
 3. Nothing creates `users/{uid}` on first sign-in, which is the gap between the
    seeded demo working and a real attendee working. See the note above.
 4. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`

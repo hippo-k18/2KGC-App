@@ -1,0 +1,10 @@
+# Next.js build output and dev cache.
+.next/
+out/
+next-env.d.ts
+
+# This app has its own lockfile and its own node_modules — it is deliberately
+# not a member of the root npm workspace, same as apps/web and apps/console.
+node_modules/
+
+.env*.local

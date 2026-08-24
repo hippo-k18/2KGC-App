@@ -1,0 +1,2292 @@
+/*
+ * Whova's EMS stylesheet, rebuilt.
+ *
+ * Every colour, dimension and font stack below was read out of Whova's own
+ * shipped CSS (`d16w97s1o4b4t8.cloudfront.net/static-p/frontend/webpack/*.css`,
+ * linked from the public `https://whova.com/xems/` shell), not eyeballed from a
+ * screenshot. Where a value looks arbitrary — `#2180b2` for the tab strip,
+ * `9.75px` for the sidebar bullets, `1060px` for the page box — it is arbitrary,
+ * and it is theirs.
+ *
+ * Two things about their stack that explain shapes here:
+ *
+ *   - The chrome is AdminLTE 2 underneath (`.content-wrapper`, `.treeview-menu`,
+ *     `#3c8dbc` on the primary button are all AdminLTE tells), with a custom
+ *     skin. That is why the layout is a fixed-width centred box in 2026 and why
+ *     the palette has two unrelated blues in it.
+ *   - The newer screens are a separate in-house design system on top
+ *     (`.whova-table`, `.whova-btn-main`, `.whova-form-*`), Helvetica Neue,
+ *     4px radii, `rgba(0,0,0,.12)` borders. Whova is mid-migration, so both
+ *     vocabularies are live at once and a real page mixes them. This file keeps
+ *     both for the same reason.
+ *
+ * Deliberate departures from Whova, and only these:
+ *   - Icon glyphs are FontAwesome in Whova and inline SVG here, because the
+ *     bundle references icons by minified export name (`l.YBv`) and the mapping
+ *     is not recoverable. Shapes are chosen to match; they are not pixel copies.
+ *   - No `min-width: 1020px` on the page box. Whova's forces a horizontal
+ *     scrollbar on a 13" laptop and organizers complain about it.
+ */
+
+:root {
+  /* AdminLTE-era chrome */
+  --page-bg: #ecf0f5;
+  --topnav-bg: #2180b2;
+  --topnav-active: #2dacee;
+  --topnav-hover: #165576;
+  --topnav-divider: #3c8dbc;
+  --adminlte-blue: #3c8dbc;
+  --adminlte-blue-dark: #367fa9;
+
+  /* Design-system era */
+  --interactive: #2069bc;
+  --interactive-dark: #184f8d;
+  --surface: #fff;
+  --surface-alt: #f4f6f8;
+  --hairline: rgba(0, 0, 0, 0.12);
+  --line: #ddd;
+  --line-strong: #d2d9e2;
+  --row-hover: #edf0f3;
+
+  --ink: #262626;
+  --body: #333;
+  --muted: #666;
+  --faint: #858585;
+
+  --danger: #d03026;
+  --danger-alt: #dd4b39;
+  --success: #13845b;
+  --success-alt: #00a65a;
+  --warning: #f39c12;
+  --alert: #ffdb00;
+
+  --font: 'Helvetica Neue', Helvetica, 'Source Sans Pro', Arial, sans-serif;
+  --box: 1060px;
+  --rail: 200px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--page-bg);
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--body);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--interactive);
+}
+
+/* Whova's page box. Everything — masthead, tab strip, content — is this wide. */
+.layout-boxed {
+  margin: 0 auto;
+  max-width: var(--box);
+  padding: 0 10px;
+}
+
+/* ───────────────────── #main-header — the dark utility bar ──────────────── */
+
+/*
+ * Whova's outermost chrome: a full-bleed 50px #444 bar carrying the logo block,
+ * a feature search, a few links, a notification bell and the account menu. It
+ * is the one band that is NOT inside `.layout-boxed`, and reproducing it
+ * matters more than it looks — without it the page starts with a pale event
+ * name floating on grey, which is the single clearest "this is not Whova" tell.
+ */
+
+#main-header {
+  background-color: #444;
+  width: 100%;
+}
+
+#main-header .main-header {
+  align-items: center;
+  display: flex;
+  height: 50px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--box);
+  padding: 0 10px;
+}
+
+#main-header a.logo {
+  align-items: center;
+  color: #fff;
+  display: flex;
+  gap: 7px;
+  height: 50px;
+  text-decoration: none;
+  width: 200px;
+}
+
+#main-header .logo-whova {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+#main-header .logo-project {
+  font-size: 13px;
+  font-weight: 300;
+  margin-left: 1px;
+}
+
+#main-header .header-search {
+  background: var(--page-bg);
+  border: 1px solid #d2d6de;
+  border-radius: 0;
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 13px;
+  height: 34px;
+  padding: 0 10px;
+  width: 220px;
+}
+
+#main-header .header-links {
+  align-items: center;
+  display: flex;
+  margin-left: auto;
+}
+
+#main-header .header-links a,
+#main-header .header-links span.user-name {
+  color: #fff;
+  font-size: 13px;
+  line-height: 50px;
+  padding: 0 15px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#main-header .header-links a:hover {
+  background: #333;
+}
+
+#main-header .readcount-badge {
+  background: var(--warning);
+  border-radius: 3px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  height: 18px;
+  line-height: 18px;
+  margin-left: -8px;
+  min-width: 18px;
+  padding: 0 4px;
+  text-align: center;
+}
+
+.main-footer {
+  background: #fff;
+  border-top: 1px solid #ccc;
+  color: #444;
+  font-size: 12px;
+  margin: 0 auto;
+  max-width: var(--box);
+  padding: 15px 10px;
+}
+
+/* ───────────── Whova's type scale, for pages that reach for it ──────────── */
+
+.headline-5 {
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 28px;
+}
+
+.headline-6 {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 24px;
+}
+
+.subtitle-1 {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 20px;
+}
+
+.subtitle-2 {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  line-height: 16px;
+}
+
+.caption {
+  color: var(--body);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  line-height: 16px;
+  max-width: 580px;
+}
+
+.overline {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+/* ───────────────────────── masthead (#top-event-name) ───────────────────── */
+
+#top-event-name {
+  min-height: 100px;
+  padding: 15px 0 5px;
+}
+
+#top-event-name .event-title {
+  margin-bottom: 2px;
+}
+
+#top-event-name .event-title .event-name {
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--body);
+}
+
+.event-status-badge {
+  display: inline-block;
+  vertical-align: middle;
+  background-color: #adb0b6;
+  border-radius: 15px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 11px;
+  margin-left: 4px;
+  margin-top: -1px;
+  padding: 4px 8px 3px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.event-status-badge.badge-alert {
+  background-color: var(--alert);
+  color: #333;
+}
+.event-status-badge.badge-success {
+  background-color: #00cc52;
+}
+.event-status-badge.badge-danger {
+  background-color: var(--danger-alt);
+}
+.event-status-badge.badge-info {
+  background-color: var(--topnav-active);
+  color: #fff;
+}
+
+#top-event-name .buttons-cards {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 90px;
+  gap: 16px;
+}
+
+#top-event-name .buttons {
+  flex: 1;
+  min-width: 0;
+}
+
+#top-event-name .additional-info {
+  font-size: 14px;
+  font-weight: 400;
+  margin: 10px 0 12px;
+  color: var(--body);
+}
+
+#top-event-name .additional-info .tutorial-video {
+  cursor: pointer;
+  margin: 0 4px;
+  color: var(--body);
+  text-decoration: none;
+}
+
+#top-event-name .additional-info .tutorial-video u {
+  text-underline-offset: 2px;
+}
+
+#top-event-name .guide-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#top-event-name .guide-info .btn {
+  margin: 5px 4px 5px 0;
+  height: 35px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#top-event-name .event-title-btn {
+  background-color: #fff;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* The two 232×84 stat cards Whova floats right of the masthead. */
+#top-event-name .cards {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.widget-card {
+  background-color: #fff;
+  border-radius: 2px;
+  height: 84px;
+  width: 232px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--hairline);
+}
+
+.widget-card .widget-label {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.widget-card .widget-value {
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.widget-card .widget-sub {
+  color: var(--faint);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* ─────────────────────────── tab strip (#top-nav) ───────────────────────── */
+
+#top-nav {
+  background-color: var(--topnav-bg);
+  border: 0;
+  border-radius: 3px;
+  font-size: 15px;
+  padding: 0;
+}
+
+#top-nav .nav-menus {
+  display: flex;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+#top-nav .menu-item {
+  font-size: 12px;
+  position: relative;
+  min-width: 0;
+}
+
+/* Whova's widthClass percentages, as flex ratios — see the note in nav.ts. */
+#top-nav .menu-item.small {
+  flex: 10;
+}
+#top-nav .menu-item.medium {
+  flex: 12.5;
+}
+#top-nav .menu-item.large {
+  flex: 15;
+}
+
+#top-nav .menu-item:not(:last-child) {
+  border-right: 1px solid var(--topnav-divider);
+}
+
+#top-nav .menu-item a {
+  color: #fff;
+  display: block;
+  padding: 10px 0;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#top-nav .menu-item a:hover {
+  background: var(--topnav-hover);
+  box-shadow: inset -0.5px 0 0 hsla(0, 0%, 100%, 0.25);
+}
+
+#top-nav .menu-item.active {
+  background-color: var(--topnav-active);
+}
+
+#top-nav .menu-item:first-child.active {
+  border-radius: 3px 0 0 3px;
+}
+#top-nav .menu-item:last-child.active {
+  border-radius: 0 3px 3px 0;
+}
+
+#top-nav .menu-title {
+  font-weight: 500;
+  margin: 0 3px 0 7px;
+}
+
+#top-nav .menu-item .event-status-badge {
+  font-size: 8px;
+  line-height: 8px;
+  padding: 4px 8px 3px;
+  margin-top: -2px;
+}
+
+#top-nav .menu-item svg {
+  vertical-align: -2px;
+}
+
+/* ───────────────────────────── frame + sidebar ──────────────────────────── */
+
+.frame-wrapper {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-start;
+  padding-bottom: 60px;
+}
+
+.frame-left-side {
+  width: var(--rail);
+  flex: none;
+  margin-right: 10px;
+}
+
+.frame-right-side {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar {
+  background-color: #fff;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  width: var(--rail);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.sidebar .sidebar-header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  line-height: 38px;
+  overflow: hidden;
+  padding: 0 5px 0 12px;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--body);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.sidebar .sidebar-menu,
+.sidebar .treeview-menu,
+.sidebar .treeview-submenu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar li:hover {
+  background-color: #f2f2f2;
+}
+
+.sidebar li.active {
+  background-color: #eaeaea;
+}
+
+.sidebar .sidebar-menu-item {
+  font-weight: 600;
+  line-height: 42px;
+}
+
+.sidebar .treeview-menu-item,
+.sidebar .treeview-submenu-item {
+  display: flex;
+  line-height: 28px;
+}
+
+.sidebar .treeview-menu-item.active > a,
+.sidebar .treeview-submenu-item.active > a,
+.sidebar .sidebar-menu-item.active > .firstlevel > a {
+  color: var(--body);
+  font-weight: 600;
+}
+
+.sidebar .firstlevel {
+  display: flex;
+}
+
+.sidebar .firstlevel-name {
+  align-items: center;
+  color: var(--adminlte-blue);
+  cursor: pointer;
+  display: flex;
+  padding-left: 12px;
+  padding-right: 4px;
+  text-decoration: none;
+  width: 100%;
+  font-size: 13px;
+}
+
+.sidebar .firstlevel-name .feature-icon {
+  margin-right: 7px;
+  text-align: center;
+  width: 15px;
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.sidebar .secondlevel-name {
+  align-items: center;
+  color: #086888;
+  display: flex;
+  padding-left: 15px;
+  padding-right: 4px;
+  text-decoration: none;
+  width: 100%;
+  font-size: 12.5px;
+}
+
+.sidebar .secondlevel-name .circle-icon,
+.sidebar .thirdlevel-name .square-icon {
+  font-size: 9.75px;
+  flex: none;
+  line-height: 1;
+}
+
+.sidebar .secondlevel-name .circle-icon {
+  margin-right: 4px;
+}
+
+.sidebar .thirdlevel-name {
+  align-items: center;
+  color: #086888;
+  display: flex;
+  padding-left: 30px;
+  padding-right: 4px;
+  text-decoration: none;
+  width: 100%;
+  font-size: 12.5px;
+}
+
+.sidebar .thirdlevel-name .square-icon {
+  margin-right: 3px;
+}
+
+.sidebar .menu-tag {
+  color: #fff;
+  line-height: 12px;
+  margin: auto 0 auto 8px;
+  padding: 2px 3px;
+  font-size: 9px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  flex: none;
+}
+
+.menu-tag.hot {
+  background-color: var(--danger-alt);
+}
+.menu-tag.new {
+  background-color: var(--success-alt);
+}
+.menu-tag.step {
+  background-color: var(--topnav-bg);
+  border-radius: 20px;
+  padding: 4px 6px;
+}
+.menu-tag.enhanced {
+  background-color: #6f42c1;
+}
+/* Ours, not Whova's: marks a screen that is nav-only so far. */
+.menu-tag.stub {
+  background-color: #adb0b6;
+}
+.menu-tag.ours {
+  background-color: var(--interactive);
+}
+
+.sidebar-footnote {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 15px;
+  padding: 8px 12px 10px;
+}
+
+/* ──────────────────────────────── content ──────────────────────────────── */
+
+.content-wrapper {
+  padding-top: 20px;
+}
+
+.frame-border {
+  border-bottom: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.whova-header {
+  background: #fff;
+  border-bottom: 1px solid var(--hairline);
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+}
+
+.whova-header .whova-header__blue-bar {
+  background: var(--interactive);
+  border-radius: 4px 4px 0 0;
+  height: 4px;
+}
+
+.whova-header__container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 24px;
+}
+
+.whova-header__top {
+  align-items: center;
+  display: flex;
+  min-height: 32px;
+}
+
+.whova-header__feature {
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 28px;
+}
+
+.whova-header__tag-group {
+  align-items: center;
+  display: flex;
+  margin-left: 8px;
+  gap: 4px;
+}
+
+.whova-header__action-group {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.whova-header__bottom {
+  align-items: center;
+  display: flex;
+}
+
+.whova-header__link-group {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.whova-header__vertical-bar {
+  color: var(--line-strong);
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+  padding: 20px 24px 24px;
+}
+
+.panel + .panel {
+  border-top: 1px solid var(--hairline);
+  border-radius: 4px;
+  margin-top: 16px;
+}
+
+.page-header {
+  font-size: 22px;
+  margin: 10px 0 20px;
+  font-weight: 400;
+}
+
+.page-header > small {
+  color: var(--muted);
+  display: block;
+  margin-top: 5px;
+  font-size: 13px;
+}
+
+.section-header {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 20px;
+  margin: 0 0 12px;
+}
+
+.body-1 {
+  color: var(--body);
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.25px;
+  max-width: 680px;
+}
+
+.body-2 {
+  color: var(--body);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  max-width: 600px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* ──────────────────────────────── buttons ──────────────────────────────── */
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  box-shadow: none;
+  font-size: 14px;
+  white-space: nowrap;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #fff;
+  text-decoration: none;
+  display: inline-block;
+  line-height: 20px;
+}
+
+.btn:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.btn:active {
+  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+}
+
+.btn-default {
+  background-color: #f4f4f4;
+  border-color: var(--line);
+  color: #444;
+}
+.btn-default:hover,
+.btn-default:active {
+  background-color: #e7e7e7;
+}
+
+.btn-primary {
+  background-color: var(--adminlte-blue);
+  border-color: var(--adminlte-blue-dark);
+}
+.btn-primary:hover,
+.btn-primary:active {
+  background-color: var(--adminlte-blue-dark);
+}
+.btn-primary:focus {
+  background-color: #286090;
+}
+
+.btn-secondary {
+  background-color: #fff;
+  border-color: var(--topnav-bg);
+  color: var(--topnav-bg);
+}
+.btn-secondary:hover {
+  background-color: var(--line-strong);
+}
+.btn-secondary:focus {
+  box-shadow: 0 0 0 3px rgba(33, 128, 178, 0.4);
+}
+
+.btn-success {
+  background-color: var(--success-alt);
+  border-color: #008d4c;
+}
+.btn-success:hover {
+  background-color: #008d4c;
+}
+
+.btn-danger {
+  background-color: var(--danger-alt);
+  border-color: #d73925;
+}
+.btn-danger:hover {
+  background-color: #d73925;
+}
+
+.btn-warning {
+  background-color: var(--warning);
+  border-color: #e08e0b;
+  color: #fff;
+}
+
+.btn:disabled,
+.btn.disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.btn-sm {
+  font-size: 12px;
+  padding: 4px 10px;
+  line-height: 18px;
+}
+
+/* The newer design-system button, for screens built after the migration. */
+.whova-btn-main {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--body);
+  display: inline-flex;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 400;
+  gap: 8px;
+  justify-content: center;
+  line-height: 16px;
+  height: 40px;
+  min-width: 88px;
+  padding: 12px 20px;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 0.2s linear,
+    border 0.2s linear,
+    box-shadow 0.2s linear;
+}
+
+.whova-btn-main.small {
+  height: 32px;
+  min-width: 80px;
+  padding: 8px 16px;
+}
+
+.whova-btn-main.primary {
+  background-color: var(--interactive);
+  color: #fff;
+}
+.whova-btn-main.primary:hover {
+  background-color: var(--interactive-dark);
+}
+
+.whova-btn-main.secondary {
+  background-color: #fff;
+  border-color: var(--interactive);
+  color: var(--interactive);
+}
+.whova-btn-main.secondary:hover {
+  background-color: #e9ecf1;
+}
+
+.whova-btn-main:focus-visible {
+  box-shadow: 0 0 0 3px rgba(32, 105, 188, 0.4);
+  outline: 0;
+}
+
+.whova-btn-main:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ───────────────────────────────── tables ──────────────────────────────── */
+
+.whova-table {
+  background-color: #fff;
+  border: 1px solid var(--hairline);
+  border-bottom: 0;
+  border-collapse: separate;
+  border-radius: 4px;
+  border-spacing: 0;
+  width: 100%;
+  display: block;
+}
+
+.whova-table-head {
+  background-color: var(--surface-alt);
+  display: block;
+}
+
+.whova-table-body {
+  display: block;
+}
+
+.whova-table-row {
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  padding-left: 8px;
+  padding-right: 8px;
+  transition: background-color 0.5s;
+}
+
+.whova-table-body .whova-table-row:hover {
+  background-color: var(--row-hover);
+}
+
+.whova-table-row.row-error {
+  background-color: #fdf5f4;
+}
+.whova-table-row.row-warning {
+  background-color: #fffcf7;
+}
+
+.whova-table-cell,
+.whova-table-header {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  overflow-wrap: anywhere;
+  padding: 12px 8px;
+  font-size: 14px;
+  line-height: 16px;
+}
+
+.whova-table-header {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.whova-table-cell {
+  color: var(--body);
+  font-weight: 400;
+}
+
+.cell-xs {
+  max-width: 68px;
+  min-width: 68px;
+}
+.cell-sm {
+  max-width: 136px;
+  min-width: 136px;
+}
+.cell-mdsm {
+  max-width: 204px;
+  min-width: 204px;
+}
+.cell-md {
+  max-width: 272px;
+  min-width: 272px;
+}
+.cell-lg {
+  max-width: 340px;
+  min-width: 340px;
+}
+.cell-fill {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.cell-truncate,
+.cell-truncate > div {
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.cell-end-align {
+  justify-content: flex-end;
+  text-align: end;
+}
+.cell-center-align {
+  justify-content: center;
+  text-align: center;
+}
+
+.whova-empty-table {
+  align-items: center;
+  background-color: var(--surface-alt);
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  height: 400px;
+  justify-content: center;
+  color: var(--faint);
+  flex-direction: column;
+  gap: 8px;
+}
+
+.whova-empty-table .description {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+/* ───────────────────────────────── forms ───────────────────────────────── */
+
+.whova-form-group {
+  margin-bottom: 20px;
+  max-width: 680px;
+}
+
+.whova-form-label {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  line-height: 16px;
+  margin-bottom: 8px;
+}
+
+.whova-form-label-suffix {
+  margin-left: 2px;
+  color: var(--danger);
+}
+
+.whova-form-helper-text {
+  color: var(--muted);
+  font-size: 14px;
+  letter-spacing: 0.25px;
+  line-height: 20px;
+  margin-bottom: 8px;
+  max-width: 600px;
+}
+
+.whova-form-description {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  line-height: 16px;
+  margin-top: 4px;
+  max-width: 580px;
+}
+
+.whova-form-error-message {
+  align-items: flex-start;
+  color: var(--danger);
+  display: flex;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  line-height: 16px;
+  margin-top: 4px;
+}
+
+.whova-text-input {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--body);
+  display: flex;
+  font-family: var(--font);
+  font-size: 14px;
+  height: 40px;
+  line-height: 16px;
+  max-width: 100%;
+  padding: 12px;
+  width: 100%;
+}
+
+textarea.whova-text-input {
+  height: auto;
+  min-height: 96px;
+  display: block;
+  line-height: 20px;
+}
+
+select.whova-text-input {
+  padding: 0 8px;
+}
+
+.whova-text-input::placeholder {
+  color: var(--muted);
+}
+
+.whova-text-input:focus {
+  border-color: var(--interactive);
+  box-shadow: 0 0 0 3px rgba(32, 105, 188, 0.4);
+  outline: 0;
+}
+
+.whova-text-input.error {
+  border-color: var(--danger);
+}
+
+.whova-text-input:disabled,
+.whova-text-input:read-only {
+  background: var(--surface-alt);
+  color: var(--muted);
+}
+
+.whova-input-sm {
+  width: 172px;
+}
+.whova-input-lg {
+  width: 394px;
+}
+.whova-input-xl {
+  width: 680px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.form-row > .whova-form-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* ─────────────────────────── banners and tags ──────────────────────────── */
+
+.whova-banner {
+  border-radius: 4px;
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+}
+
+.whova-banner.info {
+  background: #eef3f9;
+  border: 1px solid #a6c3e4;
+  color: var(--body);
+}
+
+.whova-banner.warning {
+  background: #fffcf7;
+  border: 1px solid #ffbc57;
+  color: var(--body);
+}
+
+.whova-banner.danger {
+  background: #fdf5f4;
+  border: 1px solid var(--danger);
+  color: var(--body);
+}
+
+.whova-banner.success {
+  background: #f1f8f4;
+  border: 1px solid var(--success);
+  color: var(--body);
+}
+
+.whova-tag {
+  align-items: center;
+  background-color: var(--surface-alt);
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  color: var(--body);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 500;
+  height: 24px;
+  letter-spacing: -0.1px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.whova-tag.solid {
+  background-color: var(--interactive);
+  border-color: var(--interactive);
+  color: #fff;
+}
+
+.whova-tag.good {
+  background: #e9f5ef;
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.whova-tag.bad {
+  background: #fdf5f4;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.whova-tag.draft {
+  background: #fffcf7;
+  border-color: #ffbc57;
+  color: #8a5a00;
+}
+
+/* The numbered step chips on the Tickets tab. */
+.whova-step-number {
+  align-items: center;
+  background-color: var(--line-strong);
+  border-radius: 50%;
+  color: var(--body);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+  flex: none;
+}
+
+.whova-step-number.in-progress {
+  background-color: var(--interactive);
+  color: #fff;
+}
+
+/* ─────────────────────────────── login page ─────────────────────────────── */
+
+.login-shell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.login-card {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  max-width: 420px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.login-card .whova-header__blue-bar {
+  background: var(--interactive);
+  height: 4px;
+}
+
+.login-card .login-body {
+  padding: 24px;
+}
+
+/* ───────────────────────── placeholder (not built) ─────────────────────── */
+
+.gap-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 120px 1fr;
+  font-size: 14px;
+  line-height: 20px;
+  margin-top: 4px;
+}
+
+.gap-grid dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.gap-grid dd {
+  margin: 0;
+  color: var(--body);
+}
+
+.index-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.index-card {
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 12px 14px;
+  text-decoration: none;
+  display: block;
+  background: #fff;
+}
+
+.index-card:hover {
+  background: var(--surface-alt);
+}
+
+.index-card .index-title {
+  color: var(--interactive);
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.index-card .index-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* ────────────────── the check-in desk (ours, not Whova's) ───────────────── */
+
+/*
+ * The one place in this dashboard where size is a requirement rather than a
+ * preference, and the one place that deliberately breaks Whova's visual scale.
+ *
+ * Everything else here is read by an organizer sitting at a laptop. This is
+ * read across a table, at arm's length, by someone who is simultaneously
+ * talking to the next person in a queue of a thousand. The verdict is 40px and
+ * the colour carries the same information as the words, because a glance is all
+ * anyone gets. Whova's equivalent is a 14px table cell, and it is worse.
+ */
+
+.scan-desk {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 16px 0;
+}
+
+.scan-left {
+  flex: 1 1 320px;
+  min-width: 300px;
+}
+
+.scan-right {
+  flex: 1 1 380px;
+  min-width: 320px;
+}
+
+.scan-video {
+  background: #000;
+  border: 1px solid var(--line);
+  margin-top: 12px;
+  max-width: 360px;
+  width: 100%;
+}
+
+.scan-result {
+  border: 2px solid var(--line);
+  border-left-width: 10px;
+  border-radius: 4px;
+  height: 100%;
+  padding: 16px 18px;
+}
+
+.scan-verdict {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.scan-name {
+  font-size: 26px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.scan-sub {
+  color: var(--body);
+  font-size: 17px;
+  margin-top: 2px;
+}
+
+.scan-meta {
+  font-size: 14px;
+  margin-top: 12px;
+  max-width: 46ch;
+}
+
+.scan-foot {
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+.scan-ok {
+  background: #f0fdf4;
+  border-color: var(--success);
+}
+.scan-ok .scan-verdict {
+  color: var(--success);
+}
+
+/*
+ * Amber, not red. A second scan is not an error and staff must not read it as
+ * one — the person is a legitimate attendee who has already been through the
+ * door, and the correct action is to wave them through, not to investigate.
+ */
+.scan-duplicate {
+  background: #fffbeb;
+  border-color: #b45309;
+}
+.scan-duplicate .scan-verdict {
+  color: #b45309;
+}
+
+.scan-unknown,
+.scan-cancelled {
+  background: #fef2f2;
+  border-color: var(--danger);
+}
+.scan-unknown .scan-verdict,
+.scan-cancelled .scan-verdict {
+  color: var(--danger);
+}
+
+.scan-idle {
+  background: #fafafa;
+}
+.scan-idle .scan-verdict {
+  color: var(--muted);
+}
+
+/* The scanner is a copied component and still reaches for these two. */
+.error {
+  color: var(--danger);
+}
+
+.ok {
+  color: var(--success);
+}
+
+/*
+ * Bare-element defaults, scoped to the check-in desk.
+ *
+ * `scanner.tsx` is lifted from the earlier console, which styled `input`,
+ * `button` and `label` globally. This dashboard does not — Whova's own CSS
+ * styles nothing bare, and a global `button { … }` here would fight every
+ * `.btn` and `.whova-btn-main` on nine other screens. Scoping the old defaults
+ * to `.scan-desk` keeps that component working untouched, which is what you
+ * want for the one screen that is load-bearing at 08:55 on day one.
+ */
+.scan-desk label {
+  color: var(--ink);
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  margin-bottom: 8px;
+}
+
+.scan-desk input {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--body);
+  display: block;
+  font-family: var(--font);
+  font-size: 16px;
+  height: 44px;
+  margin-bottom: 12px;
+  padding: 12px;
+  width: 100%;
+}
+
+.scan-desk input:focus {
+  border-color: var(--interactive);
+  box-shadow: 0 0 0 3px rgba(32, 105, 188, 0.4);
+  outline: 0;
+}
+
+.scan-desk button {
+  background: var(--interactive);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 14px;
+  margin-right: 8px;
+  padding: 11px 20px;
+}
+
+.scan-desk button:hover:not(:disabled) {
+  background: var(--interactive-dark);
+}
+
+.scan-desk button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/*
+ * Long labels wrap; rows grow to fit them.
+ *
+ * Whova's own rows are fixed-height (`line-height: 42px` at the first level,
+ * `28px` below) which is fine until a label is "Artifact Center
+ * (Poster/Pitch/Gallery)" — at which point a 42px line-height opens a
+ * two-storey gap in the rail. Whova patches those individually in markup with
+ * inline `lineHeight: 100%`; converting the fixed height to a minimum does the
+ * same job for every label instead of the four they remembered.
+ */
+.sidebar .sidebar-menu-item {
+  line-height: 1.3;
+  min-height: 42px;
+}
+
+.sidebar .treeview-menu-item,
+.sidebar .treeview-submenu-item {
+  line-height: 1.3;
+  min-height: 28px;
+}
+
+.sidebar .firstlevel,
+.sidebar .firstlevel-name,
+.sidebar .secondlevel-name,
+.sidebar .thirdlevel-name {
+  align-items: center;
+  padding-bottom: 4px;
+  padding-top: 4px;
+}
+
+.sidebar .nav-label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.sidebar .firstlevel-arrow {
+  background: none;
+  border: 0;
+  color: #086888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.sidebar .menu-tag.stub {
+  font-size: 8px;
+  letter-spacing: 0.3px;
+  opacity: 0.75;
+}
+
+/*
+ * Tables scroll rather than crush.
+ *
+ * `.cell-*` widths are absolute pixel min/max pairs, so a table whose fixed
+ * columns sum past the 850px frame leaves `cell-fill` at zero and the browser
+ * breaks its text one character per line. The floor plus the scroll container
+ * is Whova's own answer (`.whova-table-wrapper.table-scroll`) and it fails in
+ * the readable direction.
+ */
+.whova-table-wrapper {
+  overflow-x: auto;
+  scrollbar-color: var(--line-strong) var(--surface-alt);
+  width: 100%;
+}
+
+.cell-fill {
+  min-width: 96px;
+}
+
+/* ═══════════════════ components transcribed in a second pass ═══════════════
+ *
+ * The first pass built the shell. This one closes the gaps found by diffing
+ * Whova's own class inventory against ours: the pieces below appear on screens
+ * we had already built, and their absence was showing.
+ */
+
+/* ───────────────────────── #live-stats (under the tabs) ────────────────────── */
+
+/*
+ * Whova's live-stats strip: a 62px white band holding an 805px `#f4f6f8` pill of
+ * `LABEL: value` pairs separated by hairline dividers. It sits between the tab
+ * bar and the content and is the only place in the product showing how the event
+ * is actually going without navigating anywhere.
+ */
+/*
+ * `margin: 10px auto`, not `10px 0` — this is an id selector and it therefore
+ * beats `.layout-boxed`'s `margin: 0 auto`, so writing `0` here silently
+ * un-centres the whole band while every other boxed row stays centred.
+ */
+#live-stats {
+  background-color: #fff;
+  margin: 10px auto;
+  min-height: 62px;
+  position: relative;
+  z-index: 20;
+}
+
+#live-stats .live-stats-title {
+  align-items: center;
+  display: flex;
+  min-height: 62px;
+  padding: 12px 16px;
+}
+
+#live-stats .subtitle-1 {
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
+/*
+ * One row, scrolling if it must. Whova's is a fixed 805px with
+ * `space-evenly`, which fits because they run seven short labels; wrapping
+ * instead produces a ragged second line that makes the 62px band jump to 90.
+ */
+#live-stats .stats-list {
+  align-items: center;
+  background-color: var(--surface-alt);
+  border-radius: 4px;
+  display: flex;
+  flex: 1;
+  flex-wrap: nowrap;
+  gap: 10px;
+  justify-content: space-evenly;
+  overflow-x: auto;
+  padding: 8px 12px;
+}
+
+#live-stats .stats-list > div {
+  flex: 0 0 auto;
+}
+
+#live-stats .stats-tag-title,
+#live-stats .stats-value {
+  white-space: nowrap;
+}
+
+#live-stats .stats-list .divider {
+  background-color: var(--hairline);
+  flex: 0 0 auto;
+  height: 24px;
+  width: 1px;
+}
+
+#live-stats .stats-tag-title {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  line-height: 12px;
+  text-transform: uppercase;
+}
+
+#live-stats .stats-value {
+  color: var(--interactive);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 24px;
+  margin-left: 6px;
+}
+
+/* ──────────────────────────── in-page tabs ─────────────────────────────── */
+
+.whova-tabs {
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 16px;
+}
+
+.whova-tabs .nav-link {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 6px;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.whova-tabs.solid {
+  background-color: var(--surface-alt);
+  border-radius: 32px;
+  padding-inline: 4px;
+  width: fit-content;
+}
+
+.whova-tabs.solid .nav-link {
+  background: var(--surface-alt);
+  border: 0;
+  border-radius: 32px;
+  color: var(--body);
+  margin-block: 4px;
+  padding: 8px 16px;
+}
+
+.whova-tabs.solid .nav-link:hover {
+  background: #e9ecf1;
+}
+
+.whova-tabs.solid .nav-link.active {
+  background: var(--interactive);
+  color: #fff;
+}
+
+.whova-tabs.underline .nav-link {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  color: var(--body);
+  padding: 8px 12px;
+}
+
+.whova-tabs.underline .nav-link:hover {
+  background: #e9ecf1;
+}
+
+.whova-tabs.underline .nav-link.active {
+  border-bottom: 2px solid var(--interactive);
+  color: var(--interactive);
+}
+
+/* ─────────────────────── checkbox and radio ────────────────────────────── */
+
+.whova-checkbox-label,
+.whova-radio-label {
+  align-items: flex-start;
+  color: var(--body);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 16px;
+  margin: 0;
+  width: fit-content;
+}
+
+.whova-checkbox-input,
+.whova-radio-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  flex: 0 0 16px;
+  height: 16px;
+  margin: 0 8px 0 0;
+  place-content: center;
+  width: 16px;
+}
+
+.whova-checkbox-input {
+  border-radius: 3px;
+}
+
+.whova-radio-input {
+  border-radius: 50%;
+}
+
+.whova-checkbox-input:checked,
+.whova-radio-input:checked {
+  border-color: var(--interactive);
+}
+
+.whova-checkbox-input::after {
+  border: solid var(--interactive);
+  border-width: 0 2px 2px 0;
+  content: '';
+  display: none;
+  height: 10px;
+  margin-bottom: 3px;
+  transform: rotate(45deg);
+  width: 6px;
+}
+
+.whova-radio-input::after {
+  background: var(--interactive);
+  border-radius: 50%;
+  content: '';
+  display: none;
+  height: 8px;
+  width: 8px;
+}
+
+.whova-checkbox-input:checked::after,
+.whova-radio-input:checked::after {
+  display: block;
+}
+
+.whova-checkbox-input:focus-visible,
+.whova-radio-input:focus-visible {
+  box-shadow: 0 0 0 3px rgba(32, 105, 188, 0.4);
+  outline: 0;
+}
+
+.whova-checkbox-input:disabled,
+.whova-radio-input:disabled {
+  background: var(--surface-alt);
+  cursor: not-allowed;
+}
+
+.whova-checkbox-input:disabled + span,
+.whova-radio-input:disabled + span {
+  color: var(--faint);
+}
+
+.whova-checkbox-description,
+.whova-radio-description {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  line-height: 16px;
+  margin: 4px 0 0 24px;
+}
+
+.whova-checkbox-group > *:not(:last-child),
+.whova-radio-group > *:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+/* ─────────────────────────── tags, Whova's real set ────────────────────── */
+
+/*
+ * `.whova-tag-main` with a colour and a fill. Whova's scheme is two axes —
+ * colour (red / orange / green / purple / blue / grey) × fill (`outline-tag`
+ * for a tinted pill with a coloured border, `solid-tag` for a filled one) —
+ * and the pairs below are their exact values, not approximations of them.
+ */
+.whova-tag-main {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  box-sizing: border-box;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 4px;
+  height: 20px;
+  justify-content: center;
+  letter-spacing: -0.01px;
+  line-height: 14px;
+  max-width: 200px;
+  padding: 2px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.whova-tag-main.small {
+  border-radius: 16px;
+  font-size: 10px;
+  height: 16px;
+  line-height: 12px;
+  padding: 1px 6px;
+}
+
+.red-tag.outline-tag {
+  background-color: #fdf5f4;
+  border-color: #dc645c;
+  color: #d03026;
+}
+.red-tag.solid-tag {
+  background-color: #d03026;
+  color: #fff;
+}
+.orange-tag.outline-tag {
+  background-color: #fffcf7;
+  border-color: #ffcd81;
+  color: #333;
+}
+.orange-tag.solid-tag {
+  background-color: #ffbc57;
+  color: #333;
+}
+.green-tag.outline-tag {
+  background-color: #f3f9f7;
+  border-color: #4ea384;
+  color: #13845b;
+}
+.green-tag.solid-tag {
+  background-color: #13845b;
+  color: #fff;
+}
+.purple-tag.outline-tag {
+  background-color: #f8f6fc;
+  border-color: #9371d0;
+  color: #6f42c1;
+}
+.purple-tag.solid-tag {
+  background-color: #6f42c1;
+  color: #fff;
+}
+.blue-tag.outline-tag {
+  background-color: #f4f8fc;
+  border-color: #588fcd;
+  color: #2281b2;
+}
+.blue-tag.solid-tag {
+  background-color: #2281b2;
+  color: #fff;
+}
+.grey-tag.outline-tag {
+  background-color: #fdfdfe;
+  border-color: #9ea3a9;
+  color: #666;
+}
+.grey-tag.solid-tag {
+  background-color: #666;
+  color: #fff;
+}
+
+/* ───────────────────────── dropdown menus ──────────────────────────────── */
+
+.whova-dropdown {
+  display: inline-block;
+  position: relative;
+  width: fit-content;
+}
+
+.whova-menu {
+  background: #fff;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(51, 51, 51, 0.1);
+  left: 0;
+  list-style: none;
+  margin: 4px 0 0;
+  max-width: 560px;
+  min-width: 174px;
+  padding: 0;
+  position: absolute;
+  top: 100%;
+  width: max-content;
+  z-index: 60;
+}
+
+.whova-menu.align-end {
+  left: auto;
+  right: 0;
+}
+
+.whova-menu .whova-menu-item {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--body);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--font);
+  font-size: 14px;
+  gap: 8px;
+  height: 40px;
+  justify-content: space-between;
+  line-height: 16px;
+  padding: 0 12px;
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
+}
+
+.whova-menu .whova-menu-item:hover {
+  background-color: #e9ecf1;
+}
+
+.whova-menu .whova-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.whova-menu .whova-menu-item.danger {
+  color: var(--danger);
+}
+
+.whova-menu .whova-section-header {
+  align-items: flex-end;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 500;
+  height: 32px;
+  letter-spacing: 1.5px;
+  line-height: 16px;
+  padding: 0 12px 4px;
+  text-transform: uppercase;
+}
+
+/* The `⋮` trigger Whova puts at the end of every table row. */
+.row-actions-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  height: 28px;
+  line-height: 1;
+  width: 28px;
+}
+
+.row-actions-btn:hover {
+  background: #e9ecf1;
+}
+
+/* ─────────────────────────── toasts ────────────────────────────────────── */
+
+.whova-toasts-container {
+  align-items: stretch;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  left: 0;
+  padding-inline: 16px;
+  pointer-events: none;
+  position: fixed;
+  width: 100%;
+  z-index: 9999;
+}
+
+.whova-toast {
+  align-items: center;
+  align-self: center;
+  background-color: #333;
+  border-radius: 8px;
+  color: #fff;
+  display: flex;
+  gap: 16px;
+  max-width: 600px;
+  padding: 16px;
+  pointer-events: all;
+  width: 100%;
+}
+
+.whova-toast.error {
+  background-color: var(--danger);
+}
+
+.whova-toast .toast-text {
+  flex: 1;
+  font-size: 16px;
+  letter-spacing: 0.25px;
+  line-height: 24px;
+}
+
+.whova-toast button {
+  background: none;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* ──────────────────── help tooltips (the `?` affordance) ───────────────── */
+
+/*
+ * Whova hangs a `?` off nearly every label. Ours is a `<details>` rather than a
+ * popper: no positioning library, no portal, and it survives the page being
+ * server-rendered. The panel is theirs — 8px radius, dark 85% ground, 12/16
+ * text.
+ */
+.help-tip {
+  display: inline-block;
+  position: relative;
+}
+
+.help-tip > summary {
+  align-items: center;
+  background: var(--line-strong);
+  border-radius: 50%;
+  color: var(--body);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  height: 15px;
+  justify-content: center;
+  list-style: none;
+  margin-left: 4px;
+  user-select: none;
+  width: 15px;
+}
+
+.help-tip > summary::-webkit-details-marker {
+  display: none;
+}
+
+.help-tip[open] > summary {
+  background: var(--interactive);
+  color: #fff;
+}
+
+.help-tip .help-tip-body {
+  background-color: rgba(51, 51, 51, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(51, 51, 51, 0.1);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  left: 0;
+  letter-spacing: 0.4px;
+  line-height: 16px;
+  padding: 8px 12px;
+  position: absolute;
+  top: 20px;
+  width: 280px;
+  z-index: 70;
+}
+
+/* ─────────────────── divider, empty state, progress bar ────────────────── */
+
+.whova-divider {
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  margin: 24px 0;
+  width: 100%;
+}
+
+.whova-empty-state {
+  align-items: center;
+  background: var(--surface-alt);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--faint);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  padding: 24px 80px;
+}
+
+.whova-empty-state.default {
+  height: 280px;
+}
+.whova-empty-state.compact {
+  height: 168px;
+}
+
+.whova-empty-state__icon {
+  font-size: 32px;
+  line-height: 32px;
+}
+
+.whova-empty-state__content {
+  color: var(--faint);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  line-height: 24px;
+  text-align: center;
+}
+
+.whova-progress-bar {
+  background-color: var(--line-strong);
+  border-radius: 6px;
+  height: 12px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.whova-progress-bar .progress-bar-estimated {
+  background: repeating-linear-gradient(90deg, #2069bc 0, #2dacee 45%, #2dacee 55%, #2069bc);
+  border-radius: 6px;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* ───────────────── sortable headers and working pagination ─────────────── */
+
+.whova-table-header.sortable-header {
+  cursor: pointer;
+}
+
+.whova-table-header.sortable-header .sort-glyph {
+  color: #c3c3c3;
+  font-size: 10px;
+  margin-left: 6px;
+}
+
+.whova-table-header.sortable-header.sorted .sort-glyph {
+  color: var(--muted);
+}
+
+.pager-btn {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  color: var(--interactive);
+  cursor: pointer;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pager-btn[aria-disabled='true'] {
+  color: var(--faint);
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ───────────────── search input with a magnifier, and counters ─────────── */
+
+.whova-search-input {
+  position: relative;
+}
+
+.whova-search-input .search-glyph {
+  color: var(--muted);
+  left: 12px;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.whova-search-input input {
+  padding-left: 34px;
+}
+
+.whova-char-limit {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-align: right;
+}
+
+/* The button Whova puts in a sidebar box header, e.g. "Step-by-step guide ›". */
+.sidebar-header-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  line-height: 18px;
+}
