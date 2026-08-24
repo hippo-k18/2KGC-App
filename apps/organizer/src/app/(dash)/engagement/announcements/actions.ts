@@ -95,7 +95,7 @@ export async function sendAnnouncementAction(
 
     let pushNote: string | undefined;
     if (push) {
-      pushNote = (await announcementPush({ announcementId: ref.id, title })).detail;
+      pushNote = (await announcementPush({ announcementId: ref.id, title, body })).detail;
     }
 
     revalidatePath(ROUTES.announcements);

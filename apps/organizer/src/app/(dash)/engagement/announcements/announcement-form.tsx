@@ -104,9 +104,9 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
               <span>Also send as a push notification</span>
             </label>
             <div className="whova-checkbox-description">
-              Sets <code>push: true</code> on the document and logs what would have been sent. The
-              FCM broadcast is a marked seam in <code>src/lib/push.ts</code>; no device is
-              contacted.
+              One FCM topic send from this server via the Admin SDK — no Cloud Function, so this
+              works on the free plan. It refuses while the dashboard is pointed at the emulator and
+              tells you so, rather than pretending to have sent.
             </div>
           </div>
           <div>
@@ -115,7 +115,8 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
               <span>Send email as well</span>
             </label>
             <div className="whova-checkbox-description">
-              Needs a transactional email provider with a verified sending domain. None exists yet.
+              Still the one genuinely missing channel — needs a transactional provider with a
+              verified sending domain. Unlike push, no plan upgrade unblocks it.
             </div>
           </div>
         </div>

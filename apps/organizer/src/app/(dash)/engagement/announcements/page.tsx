@@ -26,8 +26,9 @@ export const dynamic = 'force-dynamic';
  * post in the "Organizer Announcements" thread on the Community Board with a
  * red badge, so that someone with notifications off still sees it. We do the
  * third — the one that always arrives — because it is a Firestore write the app
- * is already listening to. The push is a marked seam; the email needs a
- * provider on the Blaze plan.
+ * is already listening to, and the first, because FCM's send API is in the
+ * Admin SDK and this is a trusted server. Email is the one still missing, and
+ * it needs a provider rather than a plan upgrade.
  *
  * Whova's page is four buttons over a Drafts table and a Sent table, with
  * compose in a modal. Compose is inline here instead: with one live path and no
@@ -92,10 +93,13 @@ export default async function AnnouncementsPage({
           </button>
         </div>
 
-        <Banner kind="warning">
-          <strong>Push is not wired.</strong> Sending writes an <code>announcements</code> document,
-          which the app&apos;s home screen is already listening to, so it appears in the app within
-          about a second. Nothing is emailed and no device is contacted.
+        <Banner kind="info">
+          <strong>Push sends from this server, not a Cloud Function.</strong> FCM&apos;s send API is
+          part of the Admin SDK, so the free plan is no obstacle — Blaze is only required to
+          <em> deploy a Cloud Function</em>. Sending also writes an <code>announcements</code>{' '}
+          document, which the app&apos;s home screen is already listening to, so it appears in the
+          app within about a second even for someone with notifications off. Email is still
+          unbuilt.
         </Banner>
 
         <AnnouncementForm recipientCount={attendees} />

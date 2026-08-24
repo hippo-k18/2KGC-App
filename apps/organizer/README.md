@@ -73,7 +73,7 @@ Nine screens read and write real Firestore documents through the Admin SDK:
 | Content → Agenda Center → Track Manager | Read-only, with cross-listing counts. |
 | Content → Speaker Center → Speaker Manager | Completeness filters — the thing this list is actually for. |
 | Content → Sponsor Center → Sponsor Manager | Tier group bars, Whova's layout, read-only. |
-| Engagement → Announcements | **Writes.** One document; the app's home screen picks it up in ~1s. |
+| Engagement → Announcements | **Writes.** One document; the app's home screen picks it up in ~1s. Push sends via the Admin SDK — no Cloud Function, so no Blaze. |
 | Attendees → Manage Attendees → Attendees | Search, role filter, the registrations-vs-profiles gap. |
 | Attendees → Check-in & Checkout → Check-in | **Writes.** Badge QR scan → idempotent check-in. |
 | Tools → Report | Ours: live numbers, audit trail, error ring. |
@@ -118,3 +118,36 @@ here deletes it yet.
 - Deviate only where there is a reason, and say so **on the page**. The three
   current deviations are: the check-in desk's 40px verdict, `Tools → Report`
   replacing a 10-day PDF, and the absence of scheduled announcements.
+
+## Push, and why it does not need the Blaze plan
+
+`src/lib/push.ts` sends Firebase Cloud Messaging directly with the Admin SDK,
+from this server. There is no Cloud Function involved, which matters because
+**Blaze is required to deploy a Cloud Function and for nothing else in this
+project** — unconditionally so since February 2026. FCM's send API is part of
+`firebase-admin`, and this dashboard is already a trusted Node process holding
+credentials, so the free plan is no obstacle.
+
+Two sends:
+
+- `announcementPush()` — one topic send to `event-{EVENT_ID}-announcements`,
+  never a per-device fan-out. The per-user `notificationPrefs.announcements`
+  switch is honoured at *subscribe* time, so it costs nothing at send time.
+- `roomChangePush()` — targeted, not a topic. A collection-group query over
+  `savedSessions` filtered on `remind` and `sessionId` (the composite index for
+  it is already in `firestore.indexes.json`), then each user's `fcmTokens`,
+  minus anyone with `sessionReminders: false`, sent in chunks of 500.
+
+**What is verified and what is not.** The targeting half runs against the
+emulator and is correct — a seeded fixture of 12 users returns 8 saved, 1 opted
+out, 10 devices, which is what the fixture describes. The FCM call itself has
+never reached Google: `canSend()` returns false whenever
+`FIRESTORE_EMULATOR_HOST` is set or credentials are absent, and every function
+then returns `wired: false` with the audience it *would* have reached. Finishing
+it needs service-account credentials and a development build of the app, because
+Expo Go cannot receive push.
+
+The refusal is deliberate. A push path that silently no-ops while reporting
+success is the defect class `AGENTS.md` catalogues fourteen instances of; one
+that says "10 devices, not sent, pointed at the emulator" is useful on the way
+to being finished.

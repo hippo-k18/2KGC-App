@@ -449,11 +449,21 @@ standing between this file and 1,000 attendees' data.
 
 ## Suggested next steps
 
-1. Upgrade `kgc-database` to Blaze (currently Spark). It is the single
-   highest-leverage change available: it converts roughly twelve inert fields —
-   every counter, every poll tally, the directory mirror, push — into working
-   features, and unblocks the seven aggregate triggers at once. Then deploy rules
-   and indexes, which are written but have **never been applied**.
+1. Deploy rules and indexes, which are written but have **never been applied**.
+   Then decide about Blaze — but note the plan question is narrower than this
+   file used to claim. **Blaze is required to deploy a Cloud Function and for
+   nothing else here**; since February 2026 that is unconditional, even at zero
+   traffic. Firestore, Auth, Storage and FCM all work on Spark. Specifically:
+   **push is not blocked** — FCM's send API is in the Admin SDK and
+   `apps/organizer/src/lib/push.ts` now sends from the dashboard itself; OTP
+   sign-in and custom claims need *a trusted server*, which `apps/web` and
+   `scripts/` already are. What genuinely wants a trigger is reacting to a write
+   made by *a client*: the counters (`replyCount`, `reactionCount`,
+   `upvoteCount`) and the `directory/{uid}` mirror, and of those the counters
+   have a Spark-compatible substitute in Firestore `count()` aggregation at read
+   time. Poll `tallies` are the one feature that is genuinely worse without a
+   trigger. Blaze's free quotas equal Spark's, so the real cost of upgrading is
+   a card on file, not money.
 2. The organizer dashboard now lives at `apps/organizer/` and is "almost
    identical to Whova's" as the owner asked: the dark utility bar, the 1060px
    boxed layout, the nine-tab strip at `#2180b2`, the three-box 200px rail, and
