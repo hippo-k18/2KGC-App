@@ -2,6 +2,7 @@ import 'server-only';
 
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { demoFirestore, isDemoMode } from './demo/store';
 
 /**
  * Admin SDK access for the organizer console.
@@ -21,6 +22,15 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
  * mistaken client import into a build error rather than a leak.
  */
 export function db(): Firestore {
+  /**
+   * No emulator and no credential means no database to talk to at all, which is
+   * how this runs when it is deployed for a demonstration. Rather than throw on
+   * every page, serve the seeded fixture through an in-memory stand-in — see
+   * `demo/store.ts`. Every screen then runs its real query logic, which is the
+   * whole point: a screen that works in the demo works against Firestore.
+   */
+  if (isDemoMode()) return demoFirestore();
+
   if (!getApps().length) {
     const emulator = process.env.FIRESTORE_EMULATOR_HOST;
     const projectId = process.env.GCLOUD_PROJECT ?? 'kgc-database';
@@ -83,6 +93,7 @@ export function db(): Firestore {
 }
 
 export function targetDescription(): string {
+  if (isDemoMode()) return 'demo data (no database — nothing is saved)';
   return process.env.FIRESTORE_EMULATOR_HOST
     ? `emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`
     : `PROJECT ${process.env.GCLOUD_PROJECT ?? 'kgc-database'} (LIVE)`;

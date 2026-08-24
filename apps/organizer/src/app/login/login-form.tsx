@@ -28,7 +28,7 @@ export function LoginForm({ needsPassphrase }: { needsPassphrase: boolean }) {
       {needsPassphrase ? (
         <div className="whova-form-group">
           <div className="whova-form-label">
-            <label htmlFor="passphrase">Passphrase</label>
+            <label htmlFor="passphrase">Password</label>
             <span className="whova-form-label-suffix">*</span>
           </div>
           <input

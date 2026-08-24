@@ -193,14 +193,14 @@ export async function signIn(
       };
     }
     if (!passphraseMatches(supplied)) {
-      return { ok: false, error: 'That address and passphrase do not match.' };
+      return { ok: false, error: 'That email and password do not match.' };
     }
   }
 
   if (!isAllowed(normalised)) {
     // Deliberately the same message either way — a sign-in form should not be
     // an oracle for who the organizers are.
-    return { ok: false, error: 'That address and passphrase do not match.' };
+    return { ok: false, error: 'That email and password do not match.' };
   }
 
   const session: ConsoleSession = { email: normalised, expiresAt: Date.now() + SESSION_TTL_MS };
