@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { listAgenda, listSponsors, programmeCounts } from '@/lib/data';
+import { listAgenda, listSponsorsByTier, programmeCounts } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
 import { formatPrice, TIERS } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
+import { SponsorTiers } from '@/components/sponsor-tiers';
 import { GraphField } from '@/components/graph-field';
 import { HighlightPair } from '@/components/home/highlight-pair';
 import { PhotoSplit } from '@/components/home/photo-split';
@@ -61,12 +62,68 @@ const TESTIMONIALS = [
   },
 ];
 
-export default async function HomePage() {
-  const [counts, sponsors, agenda] = await Promise.all([
-    programmeCounts(),
-    listSponsors(),
-    listAgenda(),
+/**
+ * A hard deadline on the database.
+ *
+ * Firestore's client does not fail fast when it cannot authenticate — it
+ * retries with backoff, so a serverless function sits there until the platform
+ * kills it. On Netlify that is thirty seconds, and the visitor gets a 502 after
+ * half a minute of blank screen, which is a far worse outcome than a page
+ * missing its programme section.
+ *
+ * Six seconds is chosen to be longer than any healthy read here (the whole
+ * agenda is a single query over ~72 documents) and far shorter than the
+ * platform's patience.
+ */
+const DB_DEADLINE_MS = 6_000;
+
+function withDeadline<T>(work: Promise<T>): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Firestore did not answer within ${DB_DEADLINE_MS}ms`)),
+        DB_DEADLINE_MS,
+      ),
+    ),
   ]);
+}
+
+/**
+ * The three Firestore reads this page makes, with a floor under them.
+ *
+ * A marketing homepage must not 502 because a database is unreachable. Every
+ * other section here — the hero, the pitch, the testimonials, the ticket tiers
+ * — is static content that is correct whether or not Firestore answers, and
+ * returning nothing at all because the programme could not be fetched trades a
+ * complete page for a broken one.
+ *
+ * So a failure degrades to empty and the sections that need data hide
+ * themselves. It is emphatically *not* a fallback that invents an agenda: an
+ * empty programme is honest, a plausible fake one is not.
+ *
+ * The error is still recorded, because "the homepage quietly lost its
+ * programme" must be visible to us even while it is invisible to a visitor.
+ */
+async function programmeOrNothing() {
+  try {
+    const [counts, sponsorBands, agenda] = await withDeadline(
+      Promise.all([programmeCounts(), listSponsorsByTier(), listAgenda()]),
+    );
+    return { counts, sponsorBands, agenda, live: true };
+  } catch (err) {
+    console.error('[home] programme unavailable, rendering without it:', err);
+    return {
+      counts: { speakers: 0, sessions: 0, sponsors: 0 },
+      sponsorBands: [] as Awaited<ReturnType<typeof listSponsorsByTier>>,
+      agenda: [] as Awaited<ReturnType<typeof listAgenda>>,
+      live: false,
+    };
+  }
+}
+
+export default async function HomePage() {
+  const { counts, sponsorBands, agenda } = await programmeOrNothing();
 
   return (
     <>
@@ -146,12 +203,14 @@ export default async function HomePage() {
         page: the thing being demonstrated sits exactly where the incumbent used
         to be. Capped per day, because the homepage teases and `/agenda` does not.
       */}
-      <section className="kgc-wide" aria-labelledby="schedule-heading">
-        <h2 id="schedule-heading" className="hero-headline" style={{ fontSize: 32 }}>
-          KGC {SITE.year} Full Agenda
-        </h2>
-        <EventSchedule days={agenda} limitPerDay={4} moreHref="/agenda" />
-      </section>
+      {agenda.length > 0 && (
+        <section className="kgc-wide" aria-labelledby="schedule-heading">
+          <h2 id="schedule-heading" className="hero-headline" style={{ fontSize: 32 }}>
+            KGC {SITE.year} Full Agenda
+          </h2>
+          <EventSchedule days={agenda} limitPerDay={4} moreHref="/agenda" />
+        </section>
+      )}
 
       {/* "Why Attend" — photograph left, prose right, as on the live page. */}
       <PhotoSplit
@@ -304,40 +363,21 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {sponsors.length > 0 && (
+      {sponsorBands.length > 0 && (
         <section>
           <div className="wrap">
+            {/*
+              Heading and standfirst are the live site's own words, not ours —
+              its sponsor block is headed "OUR SPONSORS" over this sentence.
+            */}
             <p className="eyebrow">Sponsors &amp; partners</p>
-            <h2>Who backs KGC</h2>
+            <h2>Our sponsors</h2>
             <p className="lede" style={{ marginBottom: 28 }}>
-              The organisations funding the conference, in tier order. Want to join them?{' '}
-              <Link href="/sponsor">See the sponsorship packages</Link>.
+              We are proud to be supported by a distinguished group of sponsors, each playing a
+              pivotal role in advancing knowledge graph technologies and their applications. Want to
+              join them? <Link href="/sponsor">See the sponsorship packages</Link>.
             </p>
-            <div className="logos">
-              {sponsors.map((s) =>
-                s.website ? (
-                  <a
-                    key={s.id}
-                    className="logo-tile"
-                    href={s.website}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    <span>
-                      {s.name}
-                      <span className="logo-tier">{s.tier}</span>
-                    </span>
-                  </a>
-                ) : (
-                  <div key={s.id} className="logo-tile">
-                    <span>
-                      {s.name}
-                      <span className="logo-tier">{s.tier}</span>
-                    </span>
-                  </div>
-                ),
-              )}
-            </div>
+            <SponsorTiers bands={sponsorBands} />
           </div>
         </section>
       )}

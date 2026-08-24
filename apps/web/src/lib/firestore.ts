@@ -31,16 +31,50 @@ export function db(): Firestore {
     if (emulator) {
       initializeApp({ projectId });
     } else {
+      // Two ways to hold the same service account, because two hosts differ.
+      //
+      // `GOOGLE_APPLICATION_CREDENTIALS` is a *path*, which is the convention
+      // on a laptop and useless on Netlify or any other serverless host: there
+      // is no filesystem to put the file on. `FIREBASE_SERVICE_ACCOUNT` carries
+      // the JSON itself, so the same credential travels in an environment
+      // variable. The path wins when both are set, because a developer who has
+      // deliberately exported a path is pointing at a specific key and should
+      // get that one.
       const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      if (!keyPath) {
+      const inline = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+      if (keyPath) {
+        initializeApp({ credential: cert(keyPath), projectId });
+      } else if (inline) {
+        let parsed: Record<string, string>;
+        try {
+          parsed = JSON.parse(inline) as Record<string, string>;
+        } catch {
+          throw new Error(
+            'FIREBASE_SERVICE_ACCOUNT is set but is not valid JSON. Paste the whole ' +
+              'service-account file, including its newlines escaped as \\n.',
+          );
+        }
+        initializeApp({
+          credential: cert({
+            projectId: parsed.project_id,
+            clientEmail: parsed.client_email,
+            // Netlify's UI stores the value literally, so the PEM's newlines
+            // arrive as the two characters backslash-n and must be restored or
+            // the key fails to parse with an opaque OpenSSL error.
+            privateKey: (parsed.private_key ?? '').replace(/\\n/g, '\n'),
+          }),
+          projectId: parsed.project_id ?? projectId,
+        });
+      } else {
         throw new Error(
           'Refusing to run the website against the real project without credentials.\n' +
-            'Either:\n' +
-            '  export FIRESTORE_EMULATOR_HOST=localhost:8080   (safe, local)\n' +
-            '  export GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json',
+            'Use one of:\n' +
+            '  FIRESTORE_EMULATOR_HOST=localhost:8080          (safe, local)\n' +
+            '  GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json (a laptop)\n' +
+            '  FIREBASE_SERVICE_ACCOUNT={...}                   (a serverless host)',
         );
       }
-      initializeApp({ credential: cert(keyPath), projectId });
     }
 
     // Many model fields are genuinely optional (`roomId` on a session with no

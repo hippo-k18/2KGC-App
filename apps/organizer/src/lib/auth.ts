@@ -129,20 +129,32 @@ export function requirePassphrase(): boolean {
 /**
  * A short passphrase is fine for a demo and unacceptable against live data.
  *
- * `123` is a perfectly reasonable secret when the dashboard is pointed at a
- * Firestore emulator full of invented attendees — the whole point of that
- * deployment is that strangers get in and click around. It is not a reasonable
- * secret in front of the Admin SDK on the real project, where it guards the
- * actual ticket list and bypasses every security rule.
+ * `123` is a perfectly reasonable secret when the dashboard is showing invented
+ * attendees — the whole point of that deployment is that strangers get in and
+ * click around. It is not a reasonable secret in front of the Admin SDK on the
+ * real project, where the same form guards the actual ticket list and bypasses
+ * every security rule.
  *
- * So the rule is not "the passphrase must be strong", it is "a weak passphrase
- * may only guard demo data". Pointed at the emulator, anything goes. Pointed
- * anywhere else, fewer than twelve characters refuses to sign anyone in.
+ * So the test is not "is this the emulator" but **"can this process reach real
+ * data"**, which is exactly the presence of a service-account credential. A
+ * dashboard with no credential can read nothing whatever the passphrase is, so
+ * a weak one costs nothing; the moment somebody sets FIREBASE_SERVICE_ACCOUNT
+ * the same weak passphrase starts refusing every sign-in, without anyone having
+ * to remember to tighten it. The dangerous configuration becomes unreachable by
+ * accident rather than merely discouraged.
  */
 const MIN_LIVE_PASSPHRASE = 12;
 
-function weakSecretAgainstLiveData(): boolean {
+/** True when this process holds a credential that can read the real project. */
+export function hasLiveCredentials(): boolean {
   if (process.env.FIRESTORE_EMULATOR_HOST) return false;
+  return Boolean(
+    process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_SERVICE_ACCOUNT,
+  );
+}
+
+function weakSecretAgainstLiveData(): boolean {
+  if (!hasLiveCredentials()) return false;
   const p = passphrase();
   return Boolean(p) && p!.length < MIN_LIVE_PASSPHRASE;
 }
@@ -177,7 +189,7 @@ export async function signIn(
         ok: false,
         error:
           `CONSOLE_PASSPHRASE is shorter than ${MIN_LIVE_PASSPHRASE} characters and this ` +
-          'dashboard is not pointed at an emulator. Short secrets may only guard demo data.',
+          'dashboard holds live credentials. Short secrets may only guard demo data.',
       };
     }
     if (!passphraseMatches(supplied)) {
