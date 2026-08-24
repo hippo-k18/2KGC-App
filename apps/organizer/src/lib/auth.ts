@@ -33,7 +33,15 @@ export interface ConsoleSession {
   expiresAt: number;
 }
 
-/** `CONSOLE_ALLOWLIST` — comma-separated emails. Ten users; an env var is the right size. */
+/**
+ * `CONSOLE_ALLOWLIST` — comma-separated identities. Ten users; an env var is
+ * the right size.
+ *
+ * Entries are normally email addresses, but a bare username like `demo` is
+ * allowed so a demonstration does not require inventing a mailbox. Nothing
+ * downstream parses this value — it is only compared and then recorded as the
+ * audit actor — so the two forms cost nothing to support.
+ */
 export function allowlist(): string[] {
   return (process.env.CONSOLE_ALLOWLIST ?? '')
     .split(',')
@@ -118,6 +126,27 @@ export function requirePassphrase(): boolean {
   return Boolean(passphrase()) || process.env.NODE_ENV === 'production';
 }
 
+/**
+ * A short passphrase is fine for a demo and unacceptable against live data.
+ *
+ * `123` is a perfectly reasonable secret when the dashboard is pointed at a
+ * Firestore emulator full of invented attendees — the whole point of that
+ * deployment is that strangers get in and click around. It is not a reasonable
+ * secret in front of the Admin SDK on the real project, where it guards the
+ * actual ticket list and bypasses every security rule.
+ *
+ * So the rule is not "the passphrase must be strong", it is "a weak passphrase
+ * may only guard demo data". Pointed at the emulator, anything goes. Pointed
+ * anywhere else, fewer than twelve characters refuses to sign anyone in.
+ */
+const MIN_LIVE_PASSPHRASE = 12;
+
+function weakSecretAgainstLiveData(): boolean {
+  if (process.env.FIRESTORE_EMULATOR_HOST) return false;
+  const p = passphrase();
+  return Boolean(p) && p!.length < MIN_LIVE_PASSPHRASE;
+}
+
 /** Constant-time compare, so the form is not a timing oracle for the secret. */
 function passphraseMatches(supplied: string): boolean {
   const expected = passphrase();
@@ -141,6 +170,14 @@ export async function signIn(
       return {
         ok: false,
         error: 'CONSOLE_PASSPHRASE is not set on the server. Sign-in is disabled.',
+      };
+    }
+    if (weakSecretAgainstLiveData()) {
+      return {
+        ok: false,
+        error:
+          `CONSOLE_PASSPHRASE is shorter than ${MIN_LIVE_PASSPHRASE} characters and this ` +
+          'dashboard is not pointed at an emulator. Short secrets may only guard demo data.',
       };
     }
     if (!passphraseMatches(supplied)) {
