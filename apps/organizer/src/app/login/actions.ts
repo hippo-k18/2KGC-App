@@ -8,7 +8,10 @@ export interface LoginState {
 }
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  const result = await signIn(String(formData.get('email') ?? ''));
+  const result = await signIn(
+    String(formData.get('email') ?? ''),
+    String(formData.get('passphrase') ?? ''),
+  );
   if (!result.ok) return { error: result.error };
   redirect('/content/basics');
 }

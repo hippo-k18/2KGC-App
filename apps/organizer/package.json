@@ -2,7 +2,7 @@
   "name": "@kgc/organizer",
   "version": "0.1.0",
   "private": true,
-  "description": "Organizer dashboard \u2014 a 1:1 rebuild of Whova's EMS chrome and information architecture, on KGC's own data.",
+  "description": "Organizer dashboard — a 1:1 rebuild of Whova's EMS chrome and information architecture, on KGC's own data.",
   "scripts": {
     "dev": "next dev --port 3200",
     "build": "next build",
@@ -21,6 +21,7 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.13",
     "@types/node": "^22.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

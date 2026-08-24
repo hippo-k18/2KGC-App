@@ -1,0 +1,45 @@
+# Netlify build for the organizer dashboard.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# READ THIS BEFORE DEPLOYING.
+#
+# This app holds a Firebase service-account credential and uses the Admin SDK,
+# which bypasses firestore.rules completely. Anyone who gets past its sign-in
+# can read and write every document in the event, including the ticket list.
+#
+# Its sign-in is an email allowlist plus a shared passphrase. That is enough to
+# put behind a URL and is NOT the shipping design (DECISIONS.md #5 is Google
+# SSO with enforced MFA). Before this goes anywhere public:
+#
+#   1. CONSOLE_PASSPHRASE must be set to something long and random. The app
+#      refuses every sign-in in production without it, deliberately.
+#   2. CONSOLE_SESSION_SECRET must be a fresh 32-byte random value, not the
+#      development one.
+#   3. Consider Netlify's own password protection on top, so the dashboard is
+#      not reachable at all without a second secret.
+#
+# Do NOT set FIRESTORE_EMULATOR_HOST here. It exists so a developer can point
+# at a local emulator; on a deployed host it would silently do nothing useful.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build]
+  base = "apps/organizer"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# An organizer dashboard should never be indexed, cached at the edge, or
+# framed. The pages are all `force-dynamic` already; this makes it explicit at
+# the CDN too.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"

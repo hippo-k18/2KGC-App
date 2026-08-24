@@ -1,0 +1,29 @@
+# Netlify build for the public conference website.
+#
+# `base` is this directory but Netlify checks out the whole repository, which
+# matters: package.json depends on `@kgc/shared` and `@kgc/scripts` through
+# `file:../../…`, so those paths must exist at install time. A build configured
+# with only this folder as the source will fail to resolve them.
+#
+# @netlify/plugin-nextjs is what turns the App Router's server components,
+# server actions and the Stripe webhook route into Netlify Functions. Without
+# it you get a static export, and every server action 404s.
+
+[build]
+  base = "apps/web"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Match the toolchain the app is developed and verified against. Netlify
+  # defaults to a newer Node than Expo SDK 54's tooling is tested with.
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Stripe posts here and signs the raw body. Never rewrite or redirect it.
+[[headers]]
+  for = "/api/stripe/webhook"
+  [headers.values]
+    Cache-Control = "no-store"

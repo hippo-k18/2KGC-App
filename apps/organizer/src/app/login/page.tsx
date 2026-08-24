@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { EVENT } from '@kgc/shared';
-import { currentSession } from '@/lib/auth';
+import { currentSession, requirePassphrase } from '@/lib/auth';
 import { targetDescription } from '@/lib/firestore';
 import { LoginForm } from './login-form';
 
@@ -21,15 +21,14 @@ export default async function LoginPage() {
             {EVENT.name}. Writing to {targetDescription()}.
           </p>
 
-          <LoginForm />
+          <LoginForm needsPassphrase={requirePassphrase()} />
 
-          <div className="whova-banner danger" style={{ marginTop: 24, marginBottom: 0 }}>
+          <div className="whova-banner warning" style={{ marginTop: 24, marginBottom: 0 }}>
             <div>
-              <strong>v0 sign-in.</strong> Email allowlist only — no password, no SSO, no MFA.
-              Adequate for a tool bound to localhost during Phase&nbsp;0 and for nothing else.
-              Google SSO with enforced MFA (DECISIONS.md&nbsp;#5) must land before this is
-              reachable over a network, because the Admin SDK behind it bypasses every security
-              rule.
+              <strong>v0 sign-in.</strong> An email allowlist plus a shared passphrase — no SSO,
+              no MFA, and no per-person revocation. Enough to put behind a URL; not the shipping
+              design. Google SSO with enforced MFA (DECISIONS.md&nbsp;#5) is what replaces it,
+              and it matters because the Admin SDK behind this bypasses every security rule.
             </div>
           </div>
         </div>

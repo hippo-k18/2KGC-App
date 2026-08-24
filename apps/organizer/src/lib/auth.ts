@@ -93,13 +93,65 @@ function decode(token: string | undefined): ConsoleSession | null {
  * Replace the body with Google ID-token verification + an MFA assertion check
  * and nothing else in the console needs to change.
  */
-export async function signIn(email: string): Promise<{ ok: true } | { ok: false; error: string }> {
+/**
+ * A shared passphrase, required whenever one is configured.
+ *
+ * The allowlist alone is not a credential: an email address is public
+ * information, so on a localhost-only tool it is a convenience and on a
+ * reachable URL it is nothing at all. `CONSOLE_PASSPHRASE` closes that, and
+ * `requirePassphrase()` makes it mandatory in production so that deploying
+ * without one is a startup failure rather than a silent open door.
+ *
+ * This is not the shipping design — DECISIONS.md #5 is Google SSO with enforced
+ * MFA, and a shared secret has no per-person revocation and no audit identity
+ * beyond the email typed alongside it. It is the difference between "anyone who
+ * knows an address" and "anyone who knows an address and a secret", which is
+ * the difference that matters before this is reachable over a network.
+ */
+function passphrase(): string | undefined {
+  const p = process.env.CONSOLE_PASSPHRASE;
+  return p && p.length > 0 ? p : undefined;
+}
+
+/** True when a passphrase must be supplied — always, once off localhost. */
+export function requirePassphrase(): boolean {
+  return Boolean(passphrase()) || process.env.NODE_ENV === 'production';
+}
+
+/** Constant-time compare, so the form is not a timing oracle for the secret. */
+function passphraseMatches(supplied: string): boolean {
+  const expected = passphrase();
+  if (!expected) return false;
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export async function signIn(
+  email: string,
+  supplied = '',
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const normalised = email.trim().toLowerCase();
   if (!normalised) return { ok: false, error: 'Enter an email address.' };
+
+  if (requirePassphrase()) {
+    if (!passphrase()) {
+      // Deploying to a public host without a secret is a configuration error,
+      // and it must fail loudly at the door rather than let everybody in.
+      return {
+        ok: false,
+        error: 'CONSOLE_PASSPHRASE is not set on the server. Sign-in is disabled.',
+      };
+    }
+    if (!passphraseMatches(supplied)) {
+      return { ok: false, error: 'That address and passphrase do not match.' };
+    }
+  }
+
   if (!isAllowed(normalised)) {
     // Deliberately the same message either way — a sign-in form should not be
     // an oracle for who the organizers are.
-    return { ok: false, error: 'That address is not on the organizer allowlist.' };
+    return { ok: false, error: 'That address and passphrase do not match.' };
   }
 
   const session: ConsoleSession = { email: normalised, expiresAt: Date.now() + SESSION_TTL_MS };
