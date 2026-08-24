@@ -79,10 +79,49 @@ export async function startCheckout(
             product_data: {
               name: `KGC 2027 — ${tier.name}`,
               description: tier.tagline,
+              /**
+               * `txcd_20030000` is Stripe's "General - Services" code, which is
+               * what their own ticketing guide specifies for admission.
+               *
+               * The subtlety worth knowing: an event ticket is taxed where the
+               * *event happens*, not where the buyer lives — unlike almost
+               * everything else Stripe Tax handles. KGC is at Cornell Tech on
+               * Roosevelt Island, so the relevant jurisdiction is New York, and
+               * a buyer in Berlin owes New York's treatment rather than German
+               * VAT. That is configured on the Stripe side by setting the
+               * event's location; getting it wrong is a filing problem, not a
+               * display bug.
+               */
+              tax_code: 'txcd_20030000',
             },
           },
         },
       ],
+
+      /**
+       * Let Stripe compute tax rather than us.
+       *
+       * `automatic_tax` is inert until tax is registered and enabled in the
+       * Stripe dashboard, so turning it on here is safe before that happens and
+       * removes a code change from the day it does. Nexus monitoring — being
+       * told when ticket sales cross a state's registration threshold — is the
+       * part that is genuinely hard to do by hand.
+       */
+      automatic_tax: { enabled: true },
+
+      /**
+       * Discount codes, which a conference always ends up needing: speakers,
+       * sponsors' allocations, early-bird, academic rates. Stripe owns the
+       * codes and their limits, so there is no coupon table here to keep in
+       * step with theirs.
+       */
+      allow_promotion_codes: true,
+
+      /**
+       * A billing address is not vanity — it is what `automatic_tax` needs to
+       * reason about the buyer, and what a company needs on an invoice.
+       */
+      billing_address_collection: 'required',
       // Carried through to the webhook, which has no other way to learn the
       // attendee's name or which tier was bought.
       metadata: { tier: tier.id, ticketType: tier.name, name },

@@ -211,3 +211,87 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
     created: false,
   };
 }
+
+/**
+ * Withdraw a registration because the money went back.
+ *
+ * The gap this closes is not cosmetic. Until now the webhook ignored every
+ * event except `checkout.session.completed`, so a refunded ticket stayed
+ * `active` — and `active` is exactly what the check-in desk scans for. Someone
+ * who bought a ticket, refunded it, and kept the confirmation email would have
+ * walked through the door.
+ *
+ * Cancelling rather than deleting, for three reasons: the badge QR is already
+ * in circulation and must resolve to *something* the desk can explain; the
+ * scan log references the registration id; and "cancelled" is the answer the
+ * person at the desk needs ("talk to registration"), whereas a missing document
+ * gives them "who are you".
+ *
+ * `qrSecret` and `claimCode` are deliberately left alone. Rotating them buys
+ * nothing — the ticket is void by status, not by secrecy — and clearing them
+ * would break the desk's ability to identify the person standing in front of
+ * it.
+ */
+export async function cancelRegistrationByOrder(input: {
+  externalId: string;
+  reason: 'refunded' | 'disputed' | 'payment_failed';
+}): Promise<{ registrationId: string | null; orderId: string }> {
+  const oid = orderIdFor(input.externalId);
+  const orderRef = db().collection(COLLECTIONS.orders).doc(oid);
+  const snap = await orderRef.get();
+
+  const orderStatus = input.reason === 'refunded' ? 'refunded' : 'cancelled';
+
+  if (!snap.exists) {
+    // A refund for something we never recorded. Write the order anyway so the
+    // finance trail is complete and the discrepancy is visible, rather than
+    // silently dropping it.
+    await orderRef.set(
+      {
+        eventId: EVENT_ID,
+        externalId: input.externalId,
+        provider: 'stripe',
+        email: '',
+        status: orderStatus,
+        totalCents: 0,
+        currency: 'usd',
+        purchasedAt: Timestamp.now(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return { registrationId: null, orderId: oid };
+  }
+
+  const order = snap.data() as OrderDoc;
+  await orderRef.update({ status: orderStatus, updatedAt: FieldValue.serverTimestamp() });
+
+  if (!order.email) return { registrationId: null, orderId: oid };
+
+  /**
+   * Only withdraw the registration if this order is the reason it exists.
+   *
+   * Someone who bought twice — a workshop upgrade after a main-conference
+   * ticket — has one registration backed by two orders, and refunding the
+   * first must not revoke a ticket the second still pays for. So the
+   * registration is cancelled only when no other paid order shares its email.
+   */
+  const rid = registrationId(order.email);
+  const stillPaid = await db()
+    .collection(COLLECTIONS.orders)
+    .where('eventId', '==', EVENT_ID)
+    .where('email', '==', order.email)
+    .where('status', '==', 'paid')
+    .get();
+
+  const otherPaid = stillPaid.docs.filter((d) => d.id !== oid);
+  if (otherPaid.length > 0) return { registrationId: null, orderId: oid };
+
+  await db()
+    .collection(COLLECTIONS.registrations)
+    .doc(rid)
+    .update({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
+
+  return { registrationId: rid, orderId: oid };
+}
