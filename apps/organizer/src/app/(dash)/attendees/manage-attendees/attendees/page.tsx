@@ -59,7 +59,7 @@ export default async function AttendeesPage({
   const matched = all.filter((a) => {
     if (role && !a.roles.includes(role)) return false;
     if (!needle) return true;
-    return [a.name, a.email, a.title, a.company, ...a.interests]
+    return [a.name, a.email, a.title, a.company, a.ticketType, ...a.interests]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(needle));
   });
@@ -69,12 +69,16 @@ export default async function AttendeesPage({
     title: (a) => a.title ?? '',
     company: (a) => a.company ?? '',
     category: (a) => a.roles.join(', '),
+    ticket: (a) => a.ticketType ?? '',
+    signedin: (a) => (a.signedIn ? 1 : 0),
     directory: (a) => (a.visibleInDirectory ? 1 : 0),
   });
   const pageRows = paginate(rows, page, PER_PAGE);
 
   const roles = [...new Set(all.flatMap((a) => a.roles))].sort();
-  const hidden = all.filter((a) => !a.visibleInDirectory).length;
+  const hidden = all.filter((a) => a.signedIn && !a.visibleInDirectory).length;
+  const signedIn = all.filter((a) => a.signedIn).length;
+  const ticketHolders = all.filter((a) => a.registrationId).length;
   const href = (next: { q?: string; role?: string }) => {
     const p = new URLSearchParams();
     if (next.q) p.set('q', next.q);
@@ -115,10 +119,22 @@ export default async function AttendeesPage({
               Total number of attendees: <strong>{all.length}</strong>
             </div>
             <div>
-              Number of attendees with email: <strong>{all.filter((a) => a.email).length}</strong>
+              Holding a ticket: <strong>{ticketHolders}</strong> of {registrations} registrations
             </div>
+            {/*
+              The number an organizer actually watches in the fortnight before
+              doors open, and the reason this screen had to stop reading `users`
+              alone: it used to be the *only* number, so a ticket holder who had
+              not signed in did not appear at all.
+            */}
             <div>
-              Signed into the event: <strong>{all.length}</strong> of {registrations} registrations
+              Signed into the app: <strong>{signedIn}</strong>
+              {all.length > 0 && (
+                <span className="muted">
+                  {' '}
+                  ({Math.round((signedIn / all.length) * 100)}%) — {all.length - signedIn} have not
+                </span>
+              )}
             </div>
           </div>
           <div className="body-2">
@@ -190,8 +206,9 @@ export default async function AttendeesPage({
             { key: 'n', label: 'Name', className: 'cell-mdsm', sortKey: 'name' },
             { key: 't', label: 'Title', className: 'cell-fill', sortKey: 'title' },
             { key: 'c', label: 'Company', className: 'cell-mdsm cell-truncate', sortKey: 'company' },
+            { key: 'tk', label: 'Ticket', className: 'cell-sm', sortKey: 'ticket' },
             { key: 'cat', label: 'Category', className: 'cell-sm', sortKey: 'category' },
-            { key: 'a', label: 'Audience', className: 'cell-xs' },
+            { key: 'app', label: 'App', className: 'cell-xs', sortKey: 'signedin' },
             { key: 's', label: 'Directory', className: 'cell-xs', sortKey: 'directory' },
             { key: 'act', label: '', className: 'cell-xs cell-end-align' },
           ]}
@@ -206,14 +223,46 @@ export default async function AttendeesPage({
             </span>,
             a.title ?? <span className="muted">—</span>,
             a.company ?? <span className="muted">—</span>,
-            a.roles.join(', ') || <span className="muted">—</span>,
-            'In Person',
-            a.visibleInDirectory ? (
-              'Yes'
+            a.ticketType ? (
+              <span key="tk">
+                {a.ticketType}
+                {a.registrationStatus === 'cancelled' && (
+                  <div>
+                    <Tag color="red" small>
+                      refunded
+                    </Tag>
+                  </div>
+                )}
+              </span>
             ) : (
-              <Tag key="d" color="red">
-                opted out
+              // No registration at all: staff, or a seeded account. Said plainly
+              // rather than shown as a blank, which reads as missing data.
+              <span key="tk" className="muted">
+                no ticket
+              </span>
+            ),
+            a.roles.join(', ') || <span className="muted">—</span>,
+            a.signedIn ? (
+              <Tag key="app" color="green" fill="outline" small>
+                yes
               </Tag>
+            ) : (
+              <Tag key="app" color="grey" fill="outline" small>
+                not yet
+              </Tag>
+            ),
+            a.signedIn ? (
+              a.visibleInDirectory ? (
+                'Yes'
+              ) : (
+                <Tag key="d" color="red">
+                  opted out
+                </Tag>
+              )
+            ) : (
+              <span key="d" className="muted">
+                —
+              </span>
             ),
             <RowActions
               key="act"
@@ -229,7 +278,7 @@ export default async function AttendeesPage({
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Why this is not the ticket list</h2>
+        <h2 className="section-header">Why this is two collections merged</h2>
         <p className="body-2">
           Whova has one attendee list that every registration product feeds. We have two collections
           doing different jobs. <code>registrations</code> is the imported ticket list, keyed by an
@@ -237,9 +286,12 @@ export default async function AttendeesPage({
           <code>&ldquo;a/b@example.com&rdquo;</code> is a legal address and an illegal Firestore
           path segment, and because an email-keyed collection is a membership oracle for anyone who
           can attempt a read. <code>users</code> is the profile someone creates when they sign in
-          and claim a registration. The {registrations} and {all.length} above differ because not
-          every ticket holder has signed in, which is exactly the number an organizer watches in
-          the week before doors open.
+          and claim a registration. This screen shows the <strong>union</strong> of the two, joined
+          on the email address — the only key they share, and the reason{' '}
+          <code>registrationId</code> is derived from a normalised address at all. It used to read{' '}
+          <code>users</code> alone, which meant somebody who had bought a ticket five minutes ago
+          was invisible here until they opened the app. The &ldquo;App&rdquo; column now carries
+          that distinction instead of it deciding who appears.
         </p>
         <p className="body-2">
           The {hidden > 0 ? `${hidden} attendees marked "opted out" are` : 'opted-out column is'}{' '}
