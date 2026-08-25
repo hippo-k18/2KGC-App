@@ -371,6 +371,16 @@ export const IMPLEMENTED = new Set<string>([
   'tools/admin-control/code-access-control',
   'engagement/surveys',
   'engagement/session-feedback',
+  'tickets/ticket-setup/memberclicks-connection-guide',
+  'tickets/ticket-setup/imis-connection-guide',
+  'tickets/ticket-setup/yourmembership-connection-guide',
+  'tickets/ticket-setup/neon-crm-connection-guide',
+  'tickets/hubspot-connection-guide',
+  'tickets/memberclicks-connection-guide',
+  'tickets/export-to-ams-crm',
+  'attendees/integrations/mailchimp',
+  'attendees/integrations/constant-contact',
+  'attendees/integrations/crm-integration-via-zapier',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
