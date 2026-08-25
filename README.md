@@ -7,6 +7,26 @@ Expo and React Native. **Runs on both iPhone and Android** from one codebase.
 > versions, architecture, conventions, and the version-specific traps that have
 > already caused bugs here — is in [`AGENTS.md`](./AGENTS.md). Claude Code loads
 > it automatically via `CLAUDE.md`. Keep it up to date when things change.
+>
+> **This file covers the attendee app in `app/` only.** This repo is an npm
+> workspace monorepo with three other pieces, each set up and run from its own
+> folder — see [What's in this repo](#whats-in-this-repo) below.
+
+---
+
+## What's in this repo
+
+| Folder | What it is | Status |
+| --- | --- | --- |
+| `app/` | The attendee mobile app (Expo/React Native) — this README | All 5 tabs built, real Firestore data |
+| `apps/web/` | Public ticketing & marketing site (Next.js + Stripe Checkout) | Ticket purchase → check-in verified end to end |
+| `apps/console/` | Organizer console (Next.js) | Weakest part of the project — most screens are still view-only or unbuilt placeholders |
+| `functions/` | Cloud Functions (counters, directory mirror, push) | Empty — blocked on upgrading the Firebase project off the Spark plan |
+| `packages/shared/` | Shared TypeScript types and collection names | Used by `app/`, `functions/` and `scripts/` |
+| `scripts/` | Admin SDK tooling: demo seeding, Whova CSV import | — |
+
+`apps/web/` and `apps/console/` are **not** root workspace members — install and
+run each from inside its own folder (`cd apps/console && npm install`, etc.).
 
 ---
 
@@ -134,41 +154,45 @@ screen means adding a file.
 ```
 src/app/
   _layout.tsx              Root stack, theme, auth providers, splash
-  index.tsx                Decides between /login and /home
-  login.tsx                Demo sign-in screen
+  index.tsx                Routes to /login or /home
+  login.tsx                Real sign-in screen (email + password)
   +not-found.tsx           Fallback for unknown routes
   (tabs)/
-    _layout.tsx            The five native tabs live here
-    home/
-      _layout.tsx
-      index.tsx            blank
-    agenda/
-      _layout.tsx          Stack, so future detail screens keep the tab bar
-      index.tsx            blank
-    attendees/
-      _layout.tsx
-      index.tsx            blank
-    community/
-      _layout.tsx
-      index.tsx            blank
-    messages/
-      _layout.tsx
-      index.tsx            blank
+    _layout.tsx            Home · Agenda · People · Community · Me
+    home/                  Now/next, announcements, resource grid
+    agenda/                Day tabs, track filters, search, session detail
+    people/                Attendees / speakers / sponsors segments,
+                            [uid] detail route
+    community/             Posting, replies, reactions, [id] detail route
+    me/                    Profile, my schedule, privacy, badge.tsx (check-in QR)
+  messages/                Inbox + [threadId] — a header icon, deliberately
+                            not a tab
 ```
 
-The tab set mirrors Whova: **Home, Agenda, Attendees, Community, Messages**.
-Headers are hidden on every tab, so each screen is bare from the status bar
-down to the tab bar. Turn one back on with `headerShown: true` in that tab's
-`_layout.tsx`.
+The tab set mirrors Whova: **Home, Agenda, People, Community, Me**. Messages is
+reached from a header icon with an unread badge rather than being a sixth tab.
+Headers are hidden on every tab; turn one back on with `headerShown: true` in
+that tab's `_layout.tsx`.
 
 `(tabs)` is a **route group** — the parentheses mean it does not appear in the
 URL.
 
-**Every tab is intentionally blank.** Each renders only the words
-`KGC WHOVA DEMO`, from `src/components/demo-screen.tsx`. Navigation, theming,
-the data model and the security rules are all in place; no feature UI has been
-built yet. To start a screen, replace `<DemoScreen />` in that tab's
-`index.tsx`.
+**All five tabs are built and read real data from Firestore** — this is not a
+shell anymore. What is *not* finished, precisely:
+
+- **`users/{uid}` is never created on a real sign-in.** The seed script writes
+  50 demo profiles, which is why the app looks complete when signed in as a
+  seeded user. A first-time real attendee has no profile document yet, so their
+  name and privacy switches silently fall back to defaults instead of erroring.
+- **Offline does not work**, despite some comments in the codebase claiming it
+  does. The Firebase JS SDK has no disk persistence on React Native, so the
+  cache is memory-only — a cold start with no network renders nothing.
+- **Push notifications are not implemented.** The `fcmTokens` subcollection and
+  `PushTokenDoc` type exist; nothing writes to or reads from them yet, and push
+  needs a development build anyway (Expo Go cannot receive it).
+- Session Q&A and live polls render, but their vote/reply counters never move —
+  they are meant to be maintained by Cloud Function triggers that do not exist
+  yet (see [Firebase setup](#firebase-setup)).
 
 To add a detail screen, drop an `[id].tsx` beside an `index.tsx` — the stack
 layout is already there for it, and `[id]` is a dynamic segment read with
@@ -182,10 +206,10 @@ layout is already there for it, and `[id]` is a dynamic segment read with
 | `src/hooks/use-theme.ts` | `useTheme()` returns the palette for light or dark mode |
 | `src/components/text.tsx` | Typography. `<Text variant="title" tone="secondary">` |
 | `src/components/screen.tsx` | Standard screen wrapper with correct iOS insets |
-| `src/components/card.tsx` | Rounded container for list rows. Unused while tabs are blank |
-| `src/components/avatar.tsx` | Initials circle, until real photos exist. Unused for now |
-| `src/components/empty-state.tsx` | Placeholder for screens with no data yet |
-| `src/components/demo-screen.tsx` | The blank `KGC WHOVA DEMO` screen every tab currently renders |
+| `src/components/card.tsx` | Rounded container for list rows |
+| `src/components/avatar.tsx` | Initials circle, until real photos exist |
+| `src/components/empty-state.tsx` | Shown when a real query returns nothing |
+| `src/lib/data/*` | One data-fetching hook per domain, all built on the same error-safe Firestore listener |
 
 Every screen uses `useTheme()` rather than hard-coded colours, so dark mode
 needs no per-screen work.
@@ -231,75 +255,82 @@ follow a newer tutorial.
 
 ## Demo login
 
-The app opens on a sign-in screen. Use:
+Auth is real — this is genuine Firebase Authentication, not a hard-coded
+check. `src/config/demo.ts` and `src/lib/auth/demo-auth.tsx` (the old
+string-comparison stand-in) have been deleted.
 
-| | |
-| --- | --- |
-| Username | `demo@kgc.tech` |
-| Password | `kgc2026` |
+What is still temporary is the **sign-in method**: the login screen takes an
+email + password and checks them against the Auth **emulator**, because the
+production design — a 6-digit code, requested and verified through a Cloud
+Function (no password to remember, no deep-link setup) — needs the project on
+the Blaze plan to deploy. See [Firebase setup](#firebase-setup).
 
-The credentials are also printed on the login screen itself, so nobody
-demonstrating the app has to remember them.
+To get a working local account, run against the emulator (see below), then
+from the repo root:
 
-**This is not real authentication.** It is a string comparison against
-`src/config/demo.ts`. There is no server, no verification and no security —
-anyone can read the credentials straight out of the app bundle.
+```bash
+npm run claims -- --emulator
+```
 
-The session is held in memory and **deliberately not persisted**, so every
-reload and every fresh launch returns to the login screen. That keeps the
-sign-in flow repeatable when demonstrating the app. There is no sign-out
-control; reloading is the way back.
-
-To remove the demo login once Firebase Auth is wired up, delete
-`src/config/demo.ts` and `src/lib/auth/demo-auth.tsx`, then point
-`src/app/index.tsx` at the real `useAuth()` from
-`src/lib/auth/auth-provider.tsx`.
+This creates the 50 seeded demo accounts and stamps each with the
+`registered` / `roles` custom claims that `firestore.rules` checks — the same
+claims a `verifyOtp` Cloud Function will set automatically in production. The
+shared local demo password is `kgcdemo2027`. Without running this once, seeded
+Firestore documents exist but there is no Auth account allowed to read them.
 
 ---
 
 ## Firebase setup
 
-The app runs without Firebase — it starts with the demo login and blank tabs,
-which is why you can browse the shell immediately. Connect it when you are
-ready for real data.
+The app runs without Firebase configured — `isFirebaseConfigured()` returns
+`false` and the app renders a browsable "design mode" instead of trapping you
+on the login screen. Connect it when you are ready for real data.
 
-1. Create a project at <https://console.firebase.google.com>.
-2. Add a **Web app** (yes, web — the Firebase JS SDK is what runs inside React
-   Native). Copy its config values.
-3. `cp .env.example .env.local` and paste them in.
+**For local development, use the emulator — this is the normal path and needs
+no credentials or paid plan:**
+
+1. From the repo root: `npm run dev:emulators` (needs the Firebase CLI and a
+   JRE — the emulator runs on Java). Leave this running.
+2. In another terminal, seed data and create demo accounts:
+   ```bash
+   export FIRESTORE_EMULATOR_HOST=localhost:8080
+   export FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
+   npm run seed
+   npm run claims -- --emulator
+   ```
+3. In `app/.env.local` (copy from `app/.env.example`), set
+   `EXPO_PUBLIC_USE_EMULATOR=1`. On a physical device, also set
+   `EXPO_PUBLIC_EMULATOR_HOST` to your computer's LAN IP — `localhost` on a
+   phone resolves to the phone itself.
 4. Restart with a cleared cache: `npm start -- -c`. Env vars are compiled into
    the bundle, so a plain restart is not enough.
-5. Authentication → Sign-in method → enable **Email/Password**, then enable
-   **Email link (passwordless sign-in)** within it.
-6. Firestore → create a database in **production mode**.
-7. Deploy the rules: `npm run deploy:rules`.
-8. Import your ticket list into the `registrations` collection, keyed by
-   lowercased email, before anyone tries to sign in.
+
+**To connect the real `kgc-database` project instead** (for anything beyond
+local development):
+
+1. Get the six `EXPO_PUBLIC_FIREBASE_*` values from Firebase console → Project
+   settings → Your apps, and put them in `app/.env.local`.
+2. Deploy the security rules and indexes — **as of this writing they are
+   written but not yet deployed**: `npm run deploy:rules`.
+3. Leave `EXPO_PUBLIC_USE_EMULATOR` unset or `0`.
 
 `EXPO_PUBLIC_*` values are embedded in the app bundle. That is expected for
 Firebase — access control comes from `firestore.rules`, not from hiding them.
 
-### Auth is not finished
+### The registration gate
 
-`src/app/login.tsx` is the real screen, but its submit button is not yet wired
-to Firebase. Passwordless email links need deep linking configured on a native
-build (an `applinks:` associated domain), which cannot be tested in Expo Go.
-Decide between:
+A native app has no server of its own, so ticket-holder gating lives in
+`firestore.rules` as `isRegistered()`. It checks the **`registered` custom
+claim on the ID token** — not a document lookup, which is what an earlier
+version did. Being signed in is not enough: anyone can create a Firebase
+account, but the claim is only minted for people who bought a ticket
+(`registrations`).
 
-- **Email link** — matches the plan, best experience, needs deep-link setup.
-- **6-digit code** — no deep linking, easy in Expo Go, needs a Cloud Function.
-
-### The registration gate moved
-
-The earlier web build checked the ticket list in a server route using the
-Firebase Admin SDK. A native app has no server, so that check now lives in
-`firestore.rules` as `isRegistered()`, which looks the signed-in user's email up
-in `registrations`. Being signed in is not enough — anyone can create a Firebase
-account, but only ticket holders appear on that list.
-
-The trade-off is one extra document lookup per rule evaluation. When you add
-Cloud Functions, set a custom claim at first sign-in and check
-`request.auth.token.registered` instead.
+**Nothing mints that claim automatically yet.** `npm run claims` is a manual,
+laptop-run stand-in for the `verifyOtp` Cloud Function that will eventually do
+this at the moment of real sign-in. Until that function exists, a real
+attendee who was never run through `npm run claims` can sign in but will fail
+every rule that checks `isRegistered()`.
 
 ---
 
@@ -342,15 +373,34 @@ Nine composite indexes are declared in `firestore.indexes.json`.
 
 ## Known gaps
 
-- **Auth is not wired.** See above.
-- **No feature UI.** Every tab is a blank `KGC WHOVA DEMO` screen by design, and
-  nothing reads from Firestore yet.
-- **Push notifications not implemented.** `PushTokenDoc` and the `fcmTokens`
-  subcollection exist, but nothing writes to them. Note that push cannot be
-  tested in Expo Go — it needs a development build.
-- **No rules tests.** `firestore.rules` is the entire security boundary and is
-  currently unverified. `@firebase/rules-unit-testing` against the emulator is
-  the natural next step.
+*Last checked against the code on 2026-08-18. If you're reading this later,
+skim `AGENTS.md`'s "Current state" and "Known gaps" sections too — that file
+is meant to be kept current for AI assistants and is usually the freshest
+source, but cross-check it against the actual code before trusting a status
+claim, this file included. This project has a recurring problem with docs and
+comments describing capabilities the code doesn't actually have yet.*
+
+- **`users/{uid}` is never created on a real sign-in.** Only seeded demo
+  accounts have a profile document. See [Working on the GUI](#working-on-the-gui).
+- **Nothing mints the `registered` custom claim automatically.** `npm run
+  claims` is a manual stand-in for a Cloud Function that doesn't exist yet. See
+  [The registration gate](#the-registration-gate).
+- **Offline does not work**, despite some in-code comments claiming it does.
+  Needs the `@react-native-firebase/*` migration (no disk persistence in the
+  Firebase JS SDK on React Native).
+- **Push notifications are not implemented.** Modelled, nothing writes to or
+  reads from it.
+- **The Firebase project is still on the Spark plan.** `functions/` is empty —
+  zero Cloud Function triggers exist yet, which is also why Session Q&A/poll
+  counters, the `directory/{uid}` mirror, and the OTP sign-in above are all
+  blocked, independent of any billing decision.
+- **Security rules and indexes are written but not deployed** to the real
+  `kgc-database` project. `tests/rules/firestore.test.ts` has 134 tests against
+  the emulator, which is not the same as being live in production.
+- **The organizer console (`apps/console/`) is the least finished part of the
+  whole system** — most of its screens are still view-only or unbuilt. See its
+  own `src/lib/nav.ts`, but per `AGENTS.md`, don't take its "implemented" count
+  at face value as a progress metric.
 - **App icon and splash are still Expo's defaults**, in `assets/images/`.
 - **`src/types/firebase-auth-rn.d.ts`** patches a missing type in the Firebase
   SDK. Delete it once firebase-js-sdk fixes its export map.
