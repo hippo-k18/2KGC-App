@@ -204,9 +204,33 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
           <input type="checkbox" name="inPerson" defaultChecked={existing ? existing.inPerson : true} />{' '}
           In-person ticket
         </label>
-        <label style={{ display: 'block' }}>
+        <label style={{ display: 'block', marginBottom: 6 }}>
           <input type="checkbox" name="featured" defaultChecked={existing?.featured ?? false} />{' '}
           Highlight on the tickets page
+        </label>
+        {/*
+          Entitlements, not decoration. `includesWorkshops` is what
+          Attendees › Ticket Session Mapping reads to decide whether this tier
+          admits the workshop sessions — and until these controls existed, a
+          tier created here could never grant that, because the action defaulted
+          both to false and no field could change them.
+        */}
+        <label style={{ display: 'block', marginBottom: 6 }}>
+          <input
+            type="checkbox"
+            name="includesWorkshops"
+            defaultChecked={existing?.includesWorkshops ?? false}
+          />{' '}
+          Admits the workshop sessions
+        </label>
+        <label style={{ display: 'block' }}>
+          <input
+            type="checkbox"
+            name="includesVideoLibrary"
+            defaultChecked={existing?.includesVideoLibrary ?? false}
+          />{' '}
+          Includes the video library
+          <span className="muted"> — sold, but nothing serves it yet</span>
         </label>
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           A hidden ticket can still be bought by direct link — that is how a comp or speaker rate

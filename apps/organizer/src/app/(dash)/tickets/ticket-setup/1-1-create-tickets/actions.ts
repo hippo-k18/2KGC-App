@@ -91,6 +91,8 @@ export async function saveTicketTypeAction(
   const visible = formData.get('visible') === 'on';
   const inPerson = formData.get('inPerson') === 'on';
   const featured = formData.get('featured') === 'on';
+  const includesWorkshops = formData.get('includesWorkshops') === 'on';
+  const includesVideoLibrary = formData.get('includesVideoLibrary') === 'on';
   const opensRaw = String(formData.get('salesOpenAt') ?? '').trim();
   const closesRaw = String(formData.get('salesCloseAt') ?? '').trim();
 
@@ -154,10 +156,20 @@ export async function saveTicketTypeAction(
     sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
     audience: 'attendee' as const,
     taxCode: existing?.taxCode ?? 'txcd_20030000',
-    // Booleans the public site does not use yet but the model declares. Kept in
-    // step with the tier's contents so they never contradict the bullet list.
-    includesWorkshops: existing?.includesWorkshops ?? false,
-    includesVideoLibrary: existing?.includesVideoLibrary ?? false,
+    /**
+     * Entitlement booleans, now actually editable.
+     *
+     * These were carried forward from the existing document and defaulted to
+     * `false` on create, with a comment claiming the public site did not use
+     * them. Both halves were wrong: `attendees/ticket-session-mapping` derives
+     * workshop access from `includesWorkshops`, and defaulting on create meant
+     * **a tier created from this dashboard could never grant workshop access at
+     * all** — the flag arrived only from `npm run seed`. An organizer would have
+     * had no way to sell a workshop ticket, and nothing on screen would have
+     * said why.
+     */
+    includesWorkshops,
+    includesVideoLibrary,
     quantityTotal: capacity,
     salesOpenAt,
     salesCloseAt,

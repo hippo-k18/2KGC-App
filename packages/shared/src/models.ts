@@ -234,7 +234,23 @@ export interface SessionDoc extends BaseDoc {
   /** Organizers toggle these per session. */
   qaEnabled: boolean;
   pollsEnabled: boolean;
-  /** Absent means uncapped; enforced in a transaction, not by rules. */
+  /**
+   * Absent means uncapped.
+   *
+   * ⚠️ **Nothing enforces this.** This comment used to read "enforced in a
+   * transaction, not by rules"; there is no such transaction. Nothing in
+   * `app/`, `apps/web/`, `apps/organizer/` or `functions/` reads this field
+   * except `conflicts-core.ts`, which only warns when a cap exceeds what the
+   * room seats. Adding a session to a schedule writes a private
+   * `savedSessions` bookmark with no count and no ceiling, so an attendee can
+   * save a full workshop and nothing objects.
+   *
+   * It is therefore a **stated intent**, useful for planning and for the
+   * over-capacity warning, and it is not a limit. `attendees/session-cap` says
+   * so on screen. Making it real needs a counter and a transaction that does
+   * not exist yet — and a decision about what happens at the door when somebody
+   * turns up to a session they were never counted into.
+   */
   capacity?: number;
 }
 

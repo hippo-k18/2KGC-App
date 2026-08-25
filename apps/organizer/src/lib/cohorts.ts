@@ -7,8 +7,6 @@ import {
   type SessionDoc,
   type TicketTypeDoc,
 } from '@kgc/shared';
-import { listAttendees, type AttendeeRow } from './data';
-import { listTicketTypes, type TicketTypeRow } from './commerce';
 import { db } from './firestore';
 
 /**

@@ -281,6 +281,14 @@ export interface TicketTypeRow {
   quantitySold: number;
   audience: string;
   includes: string[];
+  /**
+   * Entitlements, not display copy. `attendees/ticket-session-mapping` derives
+   * workshop access from `includesWorkshops` — deriving it by pattern-matching
+   * the `includes` bullet list instead would grant access to any tier whose
+   * prose happened to mention the word.
+   */
+  includesWorkshops: boolean;
+  includesVideoLibrary: boolean;
   salesOpenAt?: string;
   salesCloseAt?: string;
 }
@@ -300,6 +308,8 @@ function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
     quantitySold: t.quantitySold ?? 0,
     audience: t.audience ?? 'attendee',
     includes: t.includes ?? [],
+    includesWorkshops: t.includesWorkshops === true,
+    includesVideoLibrary: t.includesVideoLibrary === true,
     salesOpenAt: iso(t.salesOpenAt),
     salesCloseAt: iso(t.salesCloseAt),
   };

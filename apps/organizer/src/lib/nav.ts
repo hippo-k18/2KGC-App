@@ -362,6 +362,13 @@ export const IMPLEMENTED = new Set<string>([
   'attendees/segments',
   'attendees/session-cap',
   'attendees/ticket-session-mapping',
+  'tools/app-adoption/app-adoption-email',
+  'tools/app-adoption/app-download-button',
+  'tools/app-adoption/social-media',
+  'tools/app-adoption/web-app-link',
+  'tools/app-adoption/downloadable-graphics',
+  'tools/admin-control/post-event-access-duration',
+  'tools/admin-control/code-access-control',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
