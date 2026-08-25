@@ -1509,3 +1509,49 @@ describe('event content is organizer-only', () => {
     );
   });
 });
+
+/**
+ * The money collections are server-only, and the rules say so by saying nothing.
+ *
+ * `orders`, `ticketTypes`, `emailLog` and `auditLog` have no `match` block in
+ * `firestore.rules` at all, so Firestore's default deny covers them. That is the
+ * correct design — every one of them is written by the Admin SDK, which bypasses
+ * rules entirely — but "secure because nobody wrote a rule" is a property that a
+ * future edit can remove without anyone noticing.
+ *
+ * So it is asserted here. Each of these holds something that must never reach a
+ * client: what people paid and their billing details, the prices the website
+ * charges against, attendees' email addresses alongside their claim codes, and
+ * the record of which organizer refunded what.
+ */
+describe('the money collections are closed to every client', () => {
+  const closed = [
+    ['orders', 'ord_1'],
+    ['ticketTypes', 'main-conference'],
+    ['emailLog', 'mail_1'],
+    ['auditLog', 'audit_1'],
+  ] as const;
+
+  for (const [collectionName, id] of closed) {
+    it(`refuses every client a read of ${collectionName}`, async () => {
+      // An organizer too. An organizer is a client with a role, not a server —
+      // the dashboard reads these with the Admin SDK, not from a browser.
+      await assertFails(getDoc(doc(unauth(), `${collectionName}/${id}`)));
+      await assertFails(getDoc(doc(noClaim(), `${collectionName}/${id}`)));
+      await assertFails(getDoc(doc(asA(), `${collectionName}/${id}`)));
+      await assertFails(getDoc(doc(asOrg(), `${collectionName}/${id}`)));
+    });
+
+    it(`refuses every client a write to ${collectionName}`, async () => {
+      await assertFails(setDoc(doc(asA(), `${collectionName}/${id}`), { eventId: 'kgc-2027' }));
+      await assertFails(setDoc(doc(asOrg(), `${collectionName}/${id}`), { eventId: 'kgc-2027' }));
+    });
+  }
+
+  it('refuses an attendee a listing of who bought what', async () => {
+    // The one that matters most: a `list` on `orders` is the entire buyer
+    // database — names, addresses, companies and amounts — in one query.
+    await assertFails(getDocs(collection(asA(), 'orders')));
+    await assertFails(getDocs(collection(asOrg(), 'orders')));
+  });
+});
