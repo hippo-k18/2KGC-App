@@ -6,7 +6,7 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 /**
  * Admin SDK access for the public website.
  *
- * A deliberate mirror of `apps/console/src/lib/firestore.ts` and
+ * A deliberate mirror of `apps/organizer/src/lib/firestore.ts` and
  * `scripts/src/lib/firestore.ts` — the same two modes, chosen by environment
  * rather than by a flag, so it is impossible to point this at production by
  * forgetting an argument:

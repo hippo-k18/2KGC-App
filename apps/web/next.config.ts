@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
 
 /**
- * Same shape as `apps/console/next.config.ts`, and for the same reasons — see
+ * Same shape as `apps/organizer/next.config.ts`, and for the same reasons — see
  * the comments there. Both apps are self-contained (own lockfile, own
  * `node_modules`) and both consume `@kgc/shared` / `@kgc/scripts` as raw
  * TypeScript, so both need the same four accommodations.

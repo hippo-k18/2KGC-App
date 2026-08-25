@@ -5,7 +5,8 @@ Firestore. Same navigation tree, same chrome, same names, same nesting — an
 organizer who has run an event on Whova should be able to find things here by
 muscle memory.
 
-Runs on **port 3200**. It is a separate site from `apps/console`; neither is a
+Runs on **port 3100**, leaving 3200 for `apps/web` so the website and the
+dashboard can run side by side. It is not a
 member of the root npm workspace, so you install and run each from its own
 directory.
 
@@ -15,7 +16,7 @@ npm install
 export FIRESTORE_EMULATOR_HOST=localhost:8080          # safe, local
 export CONSOLE_ALLOWLIST=you@example.com
 export CONSOLE_SESSION_SECRET=$(openssl rand -hex 32)
-npm run dev                                            # → http://localhost:3200
+npm run dev                                            # → http://localhost:3100
 ```
 
 You need the Firestore emulator running with seeded data:
@@ -95,18 +96,6 @@ MFA (DECISIONS.md #5) lands before this is reachable over a network.
 No Firebase credential of any kind may reach the browser. Every read is a server
 component and every write is a server action; `server-only` in `src/lib/*` turns
 a mistaken client import into a build error rather than a leak.
-
-## Relationship to `apps/console`
-
-`apps/console` is the earlier, deliberately-plain version of the same idea —
-sixty lines of CSS, no design system, on the theory that the console has ten
-users and the app has a thousand. This app is the answer to the owner's
-instruction that the organizer dashboard end up *almost identical to Whova's*.
-
-They share the session cookie (`kgc_console_session`), so signing in to one
-signs you in to the other on localhost. The nine real screens here are ported
-from there, so the console can be retired once this replaces it — but nothing
-here deletes it yet.
 
 ## Conventions
 
