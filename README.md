@@ -20,13 +20,19 @@ Expo and React Native. **Runs on both iPhone and Android** from one codebase.
 | --- | --- | --- |
 | `app/` | The attendee mobile app (Expo/React Native) — this README | All 5 tabs built, real Firestore data |
 | `apps/web/` | Public ticketing & marketing site (Next.js + Stripe Checkout) | Ticket purchase → check-in verified end to end |
-| `apps/console/` | Organizer console (Next.js) | Weakest part of the project — most screens are still view-only or unbuilt placeholders |
+| `apps/organizer/` | Organizer dashboard (Next.js) — a rebuild of Whova's EMS | 17 of 173 screens carry real data; the rest render an honest gap note. See `ROADMAP.md` |
 | `functions/` | Cloud Functions (counters, directory mirror, push) | Empty — blocked on upgrading the Firebase project off the Spark plan |
 | `packages/shared/` | Shared TypeScript types and collection names | Used by `app/`, `functions/` and `scripts/` |
 | `scripts/` | Admin SDK tooling: demo seeding, Whova CSV import | — |
 
-`apps/web/` and `apps/console/` are **not** root workspace members — install and
-run each from inside its own folder (`cd apps/console && npm install`, etc.).
+`apps/web/` (port 3200) and `apps/organizer/` (port 3100) are **not** root
+workspace members — install and run each from inside its own folder
+(`cd apps/organizer && npm install`, etc.). They use different ports so both can
+run at once, which the Stripe webhook needs.
+
+⚠️ Because they are not workspace members, each resolves **its own copy of
+`firebase-admin`** — see gotcha 8 in `AGENTS.md` before writing anything that
+crosses between them and a Firestore write.
 
 ---
 
@@ -395,12 +401,16 @@ comments describing capabilities the code doesn't actually have yet.*
   counters, the `directory/{uid}` mirror, and the OTP sign-in above are all
   blocked, independent of any billing decision.
 - **Security rules and indexes are written but not deployed** to the real
-  `kgc-database` project. `tests/rules/firestore.test.ts` has 134 tests against
+  `kgc-database` project. `tests/rules/firestore.test.ts` has 143 tests against
   the emulator, which is not the same as being live in production.
-- **The organizer console (`apps/console/`) is the least finished part of the
-  whole system** — most of its screens are still view-only or unbuilt. See its
-  own `src/lib/nav.ts`, but per `AGENTS.md`, don't take its "implemented" count
-  at face value as a progress metric.
+- **The organizer dashboard (`apps/organizer/`) is the least finished part of
+  the whole system** — 17 of Whova's 173 screens carry real data and the rest
+  render a gap note naming what is missing. `ROADMAP.md` measures the remainder
+  and sequences it. `apps/console/`, its predecessor, was deleted in August 2026.
+- **No live Stripe transaction has ever been run.** The money path is built,
+  tested and verified against the emulator, but the webhook has never received a
+  real event. `SETUP-PAYMENTS.md` §4 closes that in about ten minutes and should
+  happen before any real money does.
 - **App icon and splash are still Expo's defaults**, in `assets/images/`.
 - **`src/types/firebase-auth-rn.d.ts`** patches a missing type in the Firebase
   SDK. Delete it once firebase-js-sdk fixes its export map.
