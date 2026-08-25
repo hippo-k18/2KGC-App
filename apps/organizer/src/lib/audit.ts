@@ -39,7 +39,27 @@ export interface AuditEntry {
      */
     | 'checkin.manual'
     | 'checkin.undo'
-    | 'checkinList.create';
+    | 'checkinList.create'
+    /**
+     * The money actions. These are the entries that matter most in this log —
+     * `order.refund` moves real money out of the account and cannot be undone
+     * from anywhere in this product, and `invoice.markPaid` issues tickets
+     * against an invoice nobody has paid. Both are decisions a person made, and
+     * the only record of *which* person is here.
+     */
+    | 'order.refund'
+    | 'invoice.markPaid'
+    | 'ticketType.create'
+    | 'ticketType.update'
+    /**
+     * A bulk email. Recorded because it is the one action here that cannot be
+     * undone *at all* — a refund can at least be explained, an email in a
+     * thousand inboxes cannot be recalled.
+     */
+    | 'message.send'
+    /** Discount codes live in Stripe, so this records a write we made there. */
+    | 'discountCode.create'
+    | 'discountCode.update';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

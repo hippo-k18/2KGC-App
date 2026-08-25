@@ -58,7 +58,7 @@ function secret(): string {
   if (!s || s.length < 16) {
     throw new Error(
       'CONSOLE_SESSION_SECRET is missing or too short. Set at least 16 characters in ' +
-        'apps/console/.env.local — it signs the session cookie, and an unsigned cookie ' +
+        'apps/organizer/.env.local — it signs the session cookie, and an unsigned cookie ' +
         'is a text field that says "I am an organizer".',
     );
   }
@@ -230,4 +230,28 @@ export async function requireOrganizer(): Promise<string> {
   const session = await currentSession();
   if (!session) redirect('/login');
   return session.email;
+}
+
+/**
+ * Prove it is still you, for an action that cannot be undone.
+ *
+ * A session cookie lasts eight hours, which is right for editing an agenda and
+ * wrong for sending money back. An unattended laptop at a registration desk is
+ * the normal state of a conference, not an edge case, and "refund" sitting one
+ * click away behind an eight-hour session is an accident waiting for a passer-by.
+ *
+ * So the refund action asks for the passphrase again. This is genuinely weak —
+ * it is a shared secret with no per-person revocation, and anyone who can sign
+ * in at all knows it — but it raises the bar from *a stray click* to *a
+ * deliberate act*, which is the specific failure being defended against here.
+ * When Google SSO with enforced MFA lands (DECISIONS.md #5), this becomes a
+ * step-up assertion and the call sites do not change.
+ *
+ * Returns true when no passphrase is configured at all, which is only possible
+ * on localhost: `requirePassphrase()` makes one mandatory in production, so a
+ * deployment cannot reach this and get a free pass.
+ */
+export function reauthenticate(supplied: string): boolean {
+  if (!requirePassphrase()) return true;
+  return passphraseMatches(supplied);
 }

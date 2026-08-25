@@ -328,6 +328,14 @@ export const IMPLEMENTED = new Set<string>([
   'attendees/manage-attendees/attendees',
   'attendees/check-in-and-checkout/check-in',
   'tools/report',
+  'tickets/ticket-setup/1-1-create-tickets',
+  'tickets/orders-and-transactions/summary',
+  'tickets/orders-and-transactions/attendee-orders',
+  'tickets/orders-and-transactions/transaction-history',
+  'content/agenda-center/conflict-check',
+  'content/speaker-center/message-speakers',
+  'content/sponsor-center/message-sponsors',
+  'tickets/ticket-setup/discount-codes',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
@@ -390,6 +398,14 @@ export const ROUTES = {
   report: '/tools/report',
   /** Kept under its Whova-era name so copied server actions revalidate correctly. */
   warRoom: '/tools/report',
+  createTickets: '/tickets/ticket-setup/1-1-create-tickets',
+  ordersSummary: '/tickets/orders-and-transactions/summary',
+  attendeeOrders: '/tickets/orders-and-transactions/attendee-orders',
+  transactionHistory: '/tickets/orders-and-transactions/transaction-history',
+  conflictCheck: '/content/agenda-center/conflict-check',
+  messageSpeakers: '/content/speaker-center/message-speakers',
+  messageSponsors: '/content/sponsor-center/message-sponsors',
+  discountCodes: '/tickets/ticket-setup/discount-codes',
 } as const;
 
 /**

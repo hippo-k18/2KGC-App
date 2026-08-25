@@ -4,6 +4,7 @@ import {
   COLLECTIONS,
   EVENT_ID,
   type AnnouncementDoc,
+  type RegistrationDoc,
   type RoomDoc,
   type SessionDoc,
   type SpeakerDoc,
@@ -262,7 +263,8 @@ export async function listSponsors(): Promise<SponsorRow[]> {
 }
 
 export interface AttendeeRow {
-  uid: string;
+  /** Absent until they sign in — a ticket holder who has not is still an attendee. */
+  uid?: string;
   name: string;
   email: string;
   title?: string;
@@ -272,27 +274,109 @@ export interface AttendeeRow {
   visibleInDirectory: boolean;
   messagingEnabled: boolean;
   interests: string[];
+
+  /** True when a `users` profile exists — i.e. they have opened the app. */
+  signedIn: boolean;
+  /** Present for anyone holding a ticket. Absent for staff added by hand. */
+  registrationId?: string;
+  ticketType?: string;
+  /** `cancelled` after a refund. A cancelled ticket must stay visible. */
+  registrationStatus?: RegistrationDoc['status'];
 }
 
+/**
+ * Every attendee: ticket holders **and** signed-in users, merged.
+ *
+ * ── Why this is a union and not just `users` ────────────────────────────────
+ *
+ * This read `users` alone, which meant somebody who bought a ticket five
+ * minutes ago was **invisible on the Attendees screen until they opened the
+ * app**. Measured on seeded data plus one live purchase: 51 ticket holders, 50
+ * rows. The missing one was the person who had just paid.
+ *
+ * That is the wrong way round. Whova's attendee list *is* the registration
+ * list, and the organizer's question in the fortnight before doors open is
+ * "who is coming, and have they got the app yet?" — which needs both halves.
+ * Reading `users` answered only the second.
+ *
+ * ── Joined on the email address ─────────────────────────────────────────────
+ *
+ * `registrations` is keyed by an opaque server-minted id and `users` by Firebase
+ * uid, so email is the only join key the two share — which is precisely why
+ * `registrationId(email)` is derived from a normalised address in the first
+ * place. Both sides are lower-cased here rather than trusted: the importer
+ * normalises, but a `users` document written by the app on first sign-in
+ * carries whatever Firebase Auth had.
+ *
+ * ── Both directions ─────────────────────────────────────────────────────────
+ *
+ * A registration with no user is a ticket holder who has not signed in. A user
+ * with no registration is staff, a speaker with a comp, or a seeded demo
+ * account. Both are attendees and both appear; the `signedIn` and `ticketType`
+ * columns say which is which rather than one of them being silently dropped.
+ */
 export async function listAttendees(): Promise<AttendeeRow[]> {
-  const snap = await db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get();
-  return snap.docs
-    .map((d) => {
-      const u = d.data() as UserDoc;
-      return {
-        uid: d.id,
-        name: u.name,
-        email: u.email,
-        title: u.title,
-        company: u.company,
-        roles: u.roles ?? [],
-        onboarded: Boolean(u.onboarded),
-        visibleInDirectory: Boolean(u.visibleInDirectory),
-        messagingEnabled: Boolean(u.messagingEnabled),
-        interests: u.interests ?? [],
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const [userSnap, regSnap] = await Promise.all([
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const key = (e: string | undefined) => (e ?? '').trim().toLowerCase();
+  const rows = new Map<string, AttendeeRow>();
+
+  // Users first, so their profile fields are the richer starting point.
+  for (const d of userSnap.docs) {
+    const u = d.data() as UserDoc;
+    rows.set(key(u.email) || d.id, {
+      uid: d.id,
+      name: u.name,
+      email: u.email,
+      title: u.title,
+      company: u.company,
+      roles: u.roles ?? [],
+      onboarded: Boolean(u.onboarded),
+      visibleInDirectory: Boolean(u.visibleInDirectory),
+      messagingEnabled: Boolean(u.messagingEnabled),
+      interests: u.interests ?? [],
+      signedIn: true,
+    });
+  }
+
+  for (const d of regSnap.docs) {
+    const r = d.data() as RegistrationDoc;
+    const k = key(r.email);
+    const existing = rows.get(k);
+
+    if (existing) {
+      // Attach the ticket to the profile that already exists.
+      existing.registrationId = d.id;
+      existing.ticketType = r.ticketType;
+      existing.registrationStatus = r.status;
+      continue;
+    }
+
+    /**
+     * A ticket holder with no profile yet. Everything a profile would supply is
+     * genuinely unknown rather than defaulted to something flattering —
+     * `visibleInDirectory: false` because there is no directory projection to
+     * be in, not because they opted out.
+     */
+    rows.set(k || d.id, {
+      name: r.name ?? '(no name yet)',
+      email: r.email,
+      roles: [],
+      onboarded: false,
+      visibleInDirectory: false,
+      messagingEnabled: false,
+      interests: [],
+      signedIn: false,
+      registrationId: d.id,
+      ticketType: r.ticketType,
+      registrationStatus: r.status,
+    });
+  }
+
+  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function countWhereEvent(collection: string): Promise<number> {
