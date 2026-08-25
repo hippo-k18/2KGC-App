@@ -7,58 +7,62 @@ import {
   type SessionDoc,
   type TicketTypeDoc,
 } from '@kgc/shared';
+import { listAttendees, type AttendeeRow } from './data';
+import { listTicketTypes, type TicketTypeRow } from './commerce';
 import { db } from './firestore';
 
 /**
- * The reads behind Categories, Segments, Session Cap and Ticket Session
- * Mapping — and only the ones `data.ts` and `commerce.ts` do not already do.
+ * Cohorts — the four Attendees screens that derive rather than store.
  *
- * Those two modules project their documents down to what their screens need,
- * and three fields these four screens are entirely about did not survive the
- * projection: `SessionDoc.capacity` and `RoomDoc.capacity` are absent from
- * `SessionRow` and `RoomOption`, and `TicketTypeDoc.includesWorkshops` /
- * `includesVideoLibrary` are absent from `TicketTypeRow`. Rather than widen
- * three row types that a dozen other screens depend on, this module fetches the
- * missing fields as thin side-tables that a page joins onto the rows it already
- * has by document id.
+ * ── Everything here is computed, and every screen says so ───────────────────
  *
- * ── Why every query here is one equality filter ─────────────────────────────
+ * Whova's Categories and Segments are *authored*: an organizer defines a
+ * segment from registration answers and it becomes a real thing that comms and
+ * badges target. We have no registration answers — Question Forms is unbuilt —
+ * so nothing here can be authored, and pretending otherwise would be the
+ * fifteenth instance of this codebase's recurring defect (AGENTS.md: "the app
+ * claims capabilities it does not have", fourteen known cases).
  *
- * `where('eventId', '==', EVENT_ID)` and nothing else. That is served by
- * Firestore's automatic single-field index, so it needs no entry in
- * `firestore.indexes.json`. Add an `orderBy` and it becomes a composite-index
- * query that this repo does not declare — and the emulator does not enforce
- * index configuration at all, so it would pass every local run and fail in
- * production with `failed-precondition`. AGENTS.md records that exact bug
- * shipping twice. Sorting happens in memory, where 72 sessions and 4 ticket
- * tiers cost nothing.
+ * What we can do honestly is derive the cohorts the data already supports, and
+ * label them as derived. That is genuinely useful — "who has not opened the
+ * app" is a list an organizer acts on — and it is not the same product.
  */
 
-/** Room capacity, by room id. `capacity` is optional in the model and often unset. */
+/**
+ * ── One API, not two ────────────────────────────────────────────────────────
+ *
+ * An earlier draft of this file exported a parallel set of readers
+ * (`readCategories`, `readSegments`, `readSessionCaps`, `readTicketAccess`)
+ * that computed the same things in a slightly different shape. Nothing called
+ * them: the four screens use the three functions below plus `listAttendees()`.
+ *
+ * They are deleted rather than left in place. Two functions that answer the
+ * same question are two answers that eventually disagree, and the one nobody
+ * calls is the one nobody notices drifting — which is the exact failure this
+ * codebase has already had with `ensureRegistration` and with the sponsor tier
+ * list.
+ */
+
 export interface RoomCapacity {
   name: string;
-  /** Absent means nobody has recorded how many the room seats — not that it is uncapped. */
   capacity?: number;
 }
 
 export interface CapacityIndex {
-  /** Session id → `SessionDoc.capacity`. A session with no cap is simply absent. */
+  /** Session id → `SessionDoc.capacity`. An uncapped session is simply absent. */
   sessionCapacity: Map<string, number>;
   roomCapacity: Map<string, RoomCapacity>;
-  /** Sessions considered, so a screen can say what it actually looked at. */
+  /** Sessions read, so a screen can say what it actually looked at. */
   sessionsRead: number;
 }
 
 /**
  * The two capacity numbers, keyed for joining onto `listSessions()`.
  *
- * `conflicts-core.ts` already compares these two — a session capped above its
- * room is one of the five conflicts it detects — and this deliberately does not
- * import it. That module takes whole `SessionDoc`s and returns a conflict list
- * sorted for a different screen; the Session Cap page needs the underlying
- * numbers for *every* capped session, including the ones that fit. Reusing
- * `detectConflicts` would give a list of the failures with the passes thrown
- * away, which is the wrong half.
+ * Deliberately not `detectConflicts()` from `conflicts-core.ts`, which makes the
+ * same comparison: that returns only the sessions that fail, and the question
+ * on the Session Cap screen — how tight is every cap we have set — needs the
+ * ones that pass as well.
  */
 export async function capacityIndex(): Promise<CapacityIndex> {
   const [sessionSnap, roomSnap] = await Promise.all([
@@ -69,8 +73,8 @@ export async function capacityIndex(): Promise<CapacityIndex> {
   const sessionCapacity = new Map<string, number>();
   for (const d of sessionSnap.docs) {
     const s = d.data() as SessionDoc;
-    // `capacity` is `number | undefined`, and 0 would mean "nobody may attend",
-    // which no organizer means. Both are treated as uncapped.
+    // 0 would mean "nobody may attend", which no organizer means. Treated as
+    // uncapped alongside undefined.
     if (typeof s.capacity === 'number' && s.capacity > 0) sessionCapacity.set(d.id, s.capacity);
   }
 
@@ -84,13 +88,13 @@ export async function capacityIndex(): Promise<CapacityIndex> {
 }
 
 /**
- * What a ticket tier grants, as the model actually records it.
+ * What a ticket tier grants, as the model records it rather than as the
+ * marketing copy describes it.
  *
- * Two booleans. That is the whole of it — `TicketTypeDoc` has
- * `includesWorkshops` and `includesVideoLibrary` and no third field, no
- * per-session list and no per-track list. The mapping screen is built on these
- * and says so; inventing a richer entitlement here would put a matrix on screen
- * that nothing in the purchase path, the app or the rules would honour.
+ * Read from `includesWorkshops` / `includesVideoLibrary` and not from the
+ * `includes` bullet list, which is prose an organizer types: a tier whose
+ * bullets happen to mention the word "workshop" in another sentence would grant
+ * workshop access, and a tier that grants it without saying so would not.
  */
 export interface TicketEntitlementRow {
   id: string;
@@ -98,11 +102,10 @@ export interface TicketEntitlementRow {
   includesWorkshops: boolean;
   includesVideoLibrary: boolean;
   /**
-   * The tickets-page display flag, carried so the mapping screen can show it
-   * *and* label it as not an entitlement. `TicketTypeRow.inPerson` defaults to
-   * `true` when the field is absent, which is right for a catalogue card and
-   * wrong for an access decision: the seeded `Virtual` tier has no `inPerson`
-   * field at all and therefore reads as in-person here.
+   * Carried so a screen can show the flag *and* label it as not an entitlement.
+   * `TicketTypeRow.inPerson` reads it as `t.inPerson ?? true`, which is right
+   * for a catalogue card and wrong for an access decision — the seeded
+   * `virtual` tier has no such field and would read as in-person.
    */
   inPersonFlag?: boolean;
 }
@@ -119,9 +122,9 @@ export async function listTicketEntitlements(): Promise<TicketEntitlementRow[]> 
       return {
         id: d.id,
         name: t.name,
-        // No `?? true` anywhere in here. An absent boolean means the tier was
-        // written before the field existed, and defaulting it to "granted"
-        // would hand out workshop access on the strength of a missing key.
+        // No `?? true` anywhere here. An absent boolean means the tier predates
+        // the field, and defaulting it to "granted" hands out workshop access on
+        // the strength of a missing key.
         includesWorkshops: t.includesWorkshops === true,
         includesVideoLibrary: t.includesVideoLibrary === true,
         inPersonFlag: typeof t.inPerson === 'boolean' ? t.inPerson : undefined,
@@ -133,12 +136,11 @@ export async function listTicketEntitlements(): Promise<TicketEntitlementRow[]> 
 /**
  * The uids that actually have a `directory/{uid}` projection.
  *
- * `UserDoc.visibleInDirectory` is a *preference*; the projection is the thing
- * another attendee's device can read. The trigger that keeps the two in step is
- * unbuilt (Spark plan), so they can disagree, and a Segments screen that
- * reported the preference as though it were the directory would be asserting a
- * capability this project does not have. Reading both lets it report the drift
- * instead.
+ * `UserDoc.visibleInDirectory` is a preference; the projection is the thing
+ * another attendee's device can read. The trigger that keeps them in step is
+ * unbuilt (Spark), so they drift — and reporting the preference as though it
+ * were the directory would assert a capability this project does not have.
+ * Reading both lets a screen report the drift instead.
  */
 export async function directoryUids(): Promise<Set<string>> {
   const snap = await db().collection(COLLECTIONS.directory).where('eventId', '==', EVENT_ID).get();

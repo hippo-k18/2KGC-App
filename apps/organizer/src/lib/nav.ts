@@ -355,6 +355,13 @@ export const IMPLEMENTED = new Set<string>([
   'pay/order-details',
   'pay/billing-information',
   'publish',
+  'content/exhibitor-center/exhibitor-manager',
+  'content/exhibitor-center/passport-contest',
+  'content/exhibitor-center/exhibitor-trivia',
+  'attendees/categories',
+  'attendees/segments',
+  'attendees/session-cap',
+  'attendees/ticket-session-mapping',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */

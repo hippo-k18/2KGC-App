@@ -28,9 +28,10 @@ export const dynamic = 'force-dynamic';
  * also an attendee, surfaced as the cohorts they already are.
  *
  * That is a smaller thing than Whova's and it is labelled as one. What it is
- * not is invented — six role values exist in the model, five of them appear in
- * the rules, and an organizer asking "how many speakers are coming" gets a real
- * answer here rather than a form for typing one in.
+ * not is invented — `Role` is a closed union of six, exactly one of which
+ * (`organizer`) `firestore.rules` branches on, and an organizer asking "how
+ * many speakers are coming" gets a real answer here rather than a form for
+ * typing one into.
  *
  * ── Why there is no edit button ─────────────────────────────────────────────
  *
@@ -48,6 +49,15 @@ export const dynamic = 'force-dynamic';
  * someone remembered to run the script, claims only land in a token at sign-in,
  * so the person would keep the old one for up to an hour. Read-only is the
  * honest shape until claim minting has a server to live on.
+ *
+ * ── One read, one equality filter ───────────────────────────────────────────
+ *
+ * `listAttendees()` is the only fetch, and it is two `where('eventId', '==',
+ * EVENT_ID)` queries merged in memory. That filter is served by Firestore's
+ * automatic single-field index; adding an `orderBy` would make it a
+ * composite-index query this repo does not declare, and the emulator does not
+ * enforce index configuration, so it would pass locally and fail in production
+ * with `failed-precondition`. Grouping fifty attendees costs nothing.
  */
 
 /**
