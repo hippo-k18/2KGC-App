@@ -369,6 +369,8 @@ export const IMPLEMENTED = new Set<string>([
   'tools/app-adoption/downloadable-graphics',
   'tools/admin-control/post-event-access-duration',
   'tools/admin-control/code-access-control',
+  'engagement/surveys',
+  'engagement/session-feedback',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
