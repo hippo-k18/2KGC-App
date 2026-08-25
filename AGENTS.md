@@ -31,20 +31,38 @@ replies, reactions) and Me (profile, my schedule, privacy). Messages is a header
 icon with an unread badge rather than a tab.
 
 There is also a marketing/ticketing website at `apps/web/` (Next.js, Stripe
-Checkout), an organizer console at `apps/console/`, and the **organizer
-dashboard at `apps/organizer/`** — a one-to-one rebuild of Whova's EMS chrome
-and information architecture, port 3200. **None of the three is a root
-workspace member** — that is deliberate, and it means you install and run each
-from its own directory.
+Checkout, port 3200) and the **organizer dashboard at `apps/organizer/`** — a
+one-to-one rebuild of Whova's EMS chrome and information architecture, port
+3100. **Neither is a root workspace member** — that is deliberate, and it means
+you install and run each from its own directory.
 
-`apps/organizer` supersedes `apps/console`: same nine real screens, same
-`lib/`, same session cookie, but Whova's navigation tree (215 paths, lifted
-from Whova's own shipped bundle rather than reconstructed from help articles)
-and Whova's visual chrome. Read `apps/organizer/README.md` before touching it —
-in particular the note that where `nav.ts` and
-`whova-rebuild/research/02-organizer-backend.md` §1 disagree about tab order,
-**`nav.ts` wins**, because it came from the live product. `apps/console` is not
-deleted yet but nothing new should be built there.
+`apps/organizer` replaced an earlier, deliberately-plain console at
+`apps/console/`, which was **deleted in August 2026** once the dashboard carried
+the same screens. A reference to `apps/console` anywhere is stale. The dashboard
+has Whova's navigation tree (215 paths, lifted from Whova's own shipped bundle
+rather than reconstructed from help articles) and Whova's visual chrome. Read
+`apps/organizer/README.md` before touching it — in particular the note that
+where `nav.ts` and `whova-rebuild/research/02-organizer-backend.md` §1 disagree
+about tab order, **`nav.ts` wins**, because it came from the live product.
+
+**The money path.** Ticketing came in-house in August 2026 and is real:
+`ticketTypes` in Firestore is the single source of truth for prices (there is
+**no hard-coded fallback** — an empty collection throws rather than charging a
+stale price, so `npm run seed` is required for local work), Stripe hosted
+Checkout and Stripe Invoicing both write `orders`, and the dashboard's Tickets
+tab reads and refunds them. Three things are easy to get wrong here and are
+documented in place: a webhook replay must not un-refund an order or restamp its
+`purchasedAt`; a *partial* refund leaves the ticket valid; and an invoice is
+**one** order with several `items`, not one order per seat.
+
+Shared server-side domain logic — `ensureRegistration`, the email templates and
+the order-token HMAC — lives in **`@kgc/scripts/src/lib/`**, not in either
+website, because `apps/web` and `apps/organizer` both need it and neither can
+import the other. The package's name is now a poor description of its job. A
+second copy of `ensureRegistration` would own `qrSecret` and `claimCode`, and the
+day the copies disagreed is the day a badge stops scanning while somebody holds
+it at the desk. `SETUP-PAYMENTS.md` lists the accounts and keys that turn it on;
+`PAYMENTS.md` records why Stripe rather than Eventbrite.
 
 **Built end to end:** the check-in loop. Ticket purchase on the website →
 confirmation page behind an HMAC capability token → sign-in → the badge QR at
@@ -148,7 +166,7 @@ completely, so the query passes every local run. `scanEvents.scannedAt` was
 overridden to `[]` while `recentScanEvents()` ordered by it: the console's scan log
 would have failed the first time it was opened live. The override has been removed
 (DESCENDING re-enabled) and the reasoning is recorded in the `recentScanEvents()`
-docblock in `apps/console/src/lib/checkin.ts`, because JSON cannot hold a comment.
+docblock in `apps/organizer/src/lib/checkin.ts`, because JSON cannot hold a comment.
 When you read an override, check nothing orders by that field.
 
 ## How to verify a change
@@ -158,8 +176,24 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 134 tests against firestore.rules
-npm test                             # 35 unit tests: timezone derivation and the QR encoder
+npm run test:rules                   # 143 tests against firestore.rules
+npm test                             # 49 unit tests: timezones, the QR encoder, conflict check
+npm run test:commerce                # 13 tests: fulfilment, refunds, invoice splitting
+npm run test:programme               # 14 tests: agenda conflict detection
+```
+
+**`server-only` and Vitest do not mix.** A module importing it throws outside a
+Server Component, so logic worth testing has to live beside the fetch rather
+than inside it — `lib/conflicts-core.ts` (pure, tested) versus
+`lib/conflicts.ts` (`server-only`, fetches). Follow that split for anything with
+arithmetic in it.
+
+The two websites are not workspace members, so they are checked from their own
+directories:
+
+```bash
+cd apps/web       && npm run typecheck && npm run build
+cd apps/organizer && npm run typecheck && npm run build
 ```
 
 `test:rules` runs the Firestore emulator, which **requires Java**. If you see
@@ -241,6 +275,24 @@ confusing ways.
 `app/src/lib/firebase/client.ts` initialises inside functions, never at module
 scope. Eager initialisation crashes the app when `.env.local` is absent.
 
+**8. Three copies of `firebase-admin` exist, and sentinels do not cross them.**
+`apps/web`, `apps/organizer` and `scripts` each resolve their own install —
+deliberate, because the two websites are not workspace members. But
+`FieldValue.serverTimestamp()` and `Timestamp.now()` are **class instances** that
+Firestore validates with `instanceof`, so one built in `@kgc/scripts` and handed
+to a store created in `apps/web` fails the entire write:
+
+```
+Value for argument "data" is not a valid Firestore document.
+Couldn't serialize object of type "l" (found in field "createdAt").
+```
+
+This took the whole purchase flow down in August 2026 and **the 205 tests did not
+catch it**, because they resolve a single copy. Only running the real app found
+it. Rule: **never construct a Firestore sentinel inside `@kgc/scripts`** — use a
+native `Date`, which is a global and converts on write. Sentinels are fine inside
+an app that owns its own store.
+
 **7. Env vars need the `EXPO_PUBLIC_` prefix** and are compiled into the bundle.
 After changing them restart with `npx expo start -c`; a plain restart will not
 pick them up.
@@ -252,9 +304,15 @@ names live in `packages/shared/src/collections.ts` — **never** spell them as
 string literals.
 
 **Top-level:** `registrations`, `users`, `directory`, `sessions`, `speakers`,
-`sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`, plus
-the modelled-but-unbuilt `checkInLists`, `checkInStations`, `scanEvents`,
-`badgeTemplates`, `badgePrintJobs`, `ticketTypes`, `orders`.
+`sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`,
+`ticketTypes`, `orders`, `emailLog`, plus the modelled-but-unbuilt
+`checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+
+`ticketTypes`, `orders` and `emailLog` are **live, not modelled** as of August
+2026 — see "The money path" under Current state. They have no `match` block in
+`firestore.rules` and must not get one: every write is Admin-SDK, and
+`tests/rules/firestore.test.ts` asserts that no client can read or list them.
+An `orders` `list` is the entire buyer database in one query.
 
 **Subcollections:** `users/{uid}/savedSessions`, `savedContacts`,
 `notifications`, `fcmTokens`, `entitlements`; `sessions/{id}/questions`
@@ -464,16 +522,22 @@ standing between this file and 1,000 attendees' data.
    time. Poll `tallies` are the one feature that is genuinely worse without a
    trigger. Blaze's free quotas equal Spark's, so the real cost of upgrading is
    a card on file, not money.
-2. The organizer dashboard now lives at `apps/organizer/` and is "almost
+2. **`ROADMAP.md` is the current parity plan** — 173 real screens, 17 built, and
+   the five missing capabilities that each block a whole cluster of the rest.
+   Read it before picking anything up: the generic entity CRUD it names in
+   Phase 2 makes roughly forty screens cheap, and every screen built before it
+   exists is a screen that will want rewriting afterwards.
+
+   The organizer dashboard lives at `apps/organizer/` and is "almost
    identical to Whova's" as the owner asked: the dark utility bar, the 1060px
    boxed layout, the nine-tab strip at `#2180b2`, the three-box 200px rail, and
    Whova's own `.whova-table` / `.whova-btn-main` design system, all transcribed
-   from Whova's production CSS. Nine screens carry real Firestore data; the
-   other 206 nav paths resolve to an honest gap note (`src/lib/gaps.ts`) rather
-   than a 404 or a fake empty table. The next screens worth building, cheapest
-   first, are **Conflict Check** (1–2 days, needs no new data), the **agenda
-   webpage** (2–3 days, public read of data that already exists), and the
-   **generic importer** (6–9 days once, then half a day per entity).
+   from Whova's production CSS. Seventeen screens carry real Firestore data; the
+   rest resolve to an honest gap note (`src/lib/gaps.ts`) rather than a 404 or a
+   fake empty table. Conflict Check, Message Speakers, Message Sponsors and
+   Discount Codes were built in August 2026 — the three messaging screens
+   because the ticket-receipt work removed the "there is no email sender
+   anywhere in this project" blocker that `gaps.ts` records against them.
 3. Nothing creates `users/{uid}` on first sign-in, which is the gap between the
    seeded demo working and a real attendee working. See the note above.
 4. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`

@@ -105,8 +105,17 @@ have already attended and gone home. If KGC decides a PO is sufficient, that is
 a policy decision and belongs in an organizer action that marks an invoice paid
 out-of-band — not in the code quietly treating unpaid as paid.
 
-**Still to build:** the buyer-facing form that calls `raiseInvoice()`. The
-function is done and typed; nothing on the website reaches it yet.
+**Built since:** the buyer-facing form is live at `/tickets/invoice`, linked
+from the tickets page beside the card checkout. It prices every seat on the
+server from a tier id, rejects duplicate addresses (two seats on one email is
+one badge), records the invoice as a `pending` order so the dashboard can chase
+it, and redirects to Stripe's hosted invoice page rather than printing a total
+of its own that could disagree with it.
+
+The out-of-band escape hatch this section argues for also exists now: **Mark
+paid** on the orders screen registers every attendee and records `markedPaidBy`
+on the order, leaving the Stripe invoice open because the money genuinely has
+not arrived.
 
 ---
 
@@ -138,30 +147,42 @@ order shares its email.
 | | Status |
 |---|---|
 | Hosted Checkout, PCI SAQ A | ✅ built |
-| Idempotent fulfilment, badge secrets preserved across repeat purchase | ✅ built |
+| Idempotent fulfilment, badge secrets preserved across repeat purchase | ✅ built, 13 tests |
 | Refunds, disputes, async payments, expired sessions | ✅ built |
+| Partial refunds leave the ticket valid | ✅ built + tested |
 | Stripe Tax with the ticketing tax code | ✅ in code, **needs dashboard setup** |
 | Discount codes (`allow_promotion_codes`) | ✅ built — codes live in Stripe |
-| Corporate invoicing, PO numbers, net-30 | ✅ library built, **no UI yet** |
-| Organizer-facing orders screen | ❌ `orders` is written but nothing reads it |
-| Group / team self-service checkout | ❌ |
-| Refund initiated from the dashboard | ❌ Stripe dashboard only |
-| Receipts and confirmation emails | ❌ no email provider anywhere in the project |
+| Corporate invoicing, PO numbers, net terms | ✅ built, buyer form at `/tickets/invoice` |
+| Ticket types editable by an organizer | ✅ built — `ticketTypes` is now the source of truth |
+| Organizer-facing orders screens | ✅ built — Summary, Attendee Orders, Transaction History |
+| Refund initiated from the dashboard | ✅ built, audited, passphrase-confirmed |
+| Mark an invoice paid out of band | ✅ built |
+| Receipts, invoice and refund emails | ✅ built on Resend, every attempt logged |
+| Group / team self-service checkout beyond 10 seats | ❌ |
+| Exhibitor and sponsor ticket catalogues | ❌ modelled, no screens |
+| Refunding an invoice (credit notes) | ❌ Stripe dashboard only |
 
-**The honest headline: the money path works and the paperwork around it does
-not yet.** Selling a ticket, taking payment, handling a refund and issuing a
-badge are all real. Telling an organizer what has sold, letting them refund
-without opening Stripe, and emailing anybody anything are not.
+**The headline has moved.** Selling a ticket, taking payment, handling a refund,
+issuing a badge, telling an organizer what has sold, refunding without opening
+Stripe, invoicing a company and emailing everybody involved are all real now.
+
+What is left is breadth rather than depth: the exhibitor and sponsor catalogues,
+groups larger than ten, and credit notes. See `SETUP-PAYMENTS.md` for the
+accounts and keys that turn all of it on.
 
 ---
 
 ## What nobody has tested
 
-The Stripe webhook has never received a live event. Every path above is
-verified by typecheck and build only — no test-mode transaction has been run
-end to end, because that needs a Stripe account and a publicly reachable
-endpoint at the same time.
+**The Stripe webhook has still never received a live event.** That is the one
+claim on this page that no amount of code changes.
+
+Everything above is verified by typecheck, production build, 35 unit tests, 143
+`firestore.rules` tests, 13 new commerce tests against the emulator, and a
+rendered check of every new screen against seeded orders. None of that involves
+Stripe. The fulfilment logic is exercised directly; the *event delivery* that
+triggers it is not.
 
 `stripe listen --forward-to localhost:3200/api/stripe/webhook` against a test
-key is the cheapest way to close that, and it should happen before any real
-money does.
+key closes it in about ten minutes, and it should happen before any real money
+does. Step 4 of `SETUP-PAYMENTS.md` is the script for it.
