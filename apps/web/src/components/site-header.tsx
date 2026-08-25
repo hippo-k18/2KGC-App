@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { NAV, NAV_MORE } from '@/lib/site';
+import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 import { Ticker } from '@/components/ticker';
 
 /**
@@ -74,11 +74,49 @@ export function SiteHeader() {
               </Link>
             ))}
             {/*
-              The secondary items. On the live site these live behind the
-              hamburger rather than in the primary row, so here they are visible
-              only once the menu is open — which on a desktop it never is, and on
-              a phone it is the same list the live site shows.
+              About KGC, as a dropdown — the live site's own arrangement, and the
+              reason it works: everything that used to be hidden at desktop
+              widths now has a visible route to it.
+
+              Open on hover *and* on focus, so it is reachable from the keyboard;
+              `:focus-within` in CSS handles the latter without any state here.
+              On a phone the panel is always expanded inline instead, because a
+              hover menu inside an already-open hamburger is a trap.
             */}
+            <div className="has-menu">
+              <Link
+                href="/about"
+                className="menu-parent"
+                aria-current={path.startsWith('/about') ? 'page' : undefined}
+                aria-haspopup="true"
+                onClick={() => setOpen(false)}
+              >
+                About KGC
+                <ChevronIcon />
+              </Link>
+
+              <div className="submenu" role="group" aria-label="About KGC">
+                {ABOUT_MENU.map((item) =>
+                  item.todo ? (
+                    // Not built here yet. Rendered so the shape of the live menu
+                    // is visible, but inert — a link to a 404 is worse than none.
+                    <span key={item.href} className="submenu-todo" aria-disabled="true">
+                      {item.label}
+                      <em>not built yet</em>
+                    </span>
+                  ) : item.external ? (
+                    <a key={item.href} href={item.href} target="_blank" rel="noreferrer">
+                      {item.label}
+                    </a>
+                  ) : (
+                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
+                      {item.label}
+                    </Link>
+                  ),
+                )}
+              </div>
+            </div>
+
             {NAV_MORE.map((item) => (
               <Link
                 key={item.href}
@@ -106,8 +144,25 @@ export function SiteHeader() {
         </div>
       </header>
 
-      <Ticker />
+      {/*
+        The announcement bar is the homepage's, and only the homepage's.
+        Measured across seven live pages: `/` carries it, and `/community`,
+        `/team`, `/hcls`, `/tickets`, `/about-kgc` and `/2026-speakers` carry no
+        orange bar at all. Ours ran it on all sixteen routes, which put a 34px
+        band of scrolling capitals between the header and the first heading of
+        every interior page — the most visible structural difference left
+        between the two builds, and on every page but one.
+      */}
+      {path === '/' && <Ticker />}
     </>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="chev">
+      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

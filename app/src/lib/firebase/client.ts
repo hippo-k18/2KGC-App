@@ -10,6 +10,7 @@ import {
 import {
   connectFirestoreEmulator,
   getFirestore,
+  initializeFirestore,
   type Firestore,
 } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
@@ -47,6 +48,24 @@ const config = {
  */
 const useEmulator = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
 const emulatorHost = process.env.EXPO_PUBLIC_EMULATOR_HOST || 'localhost';
+
+/**
+ * Optional full `https://` origins for the emulators, used instead of
+ * `EXPO_PUBLIC_EMULATOR_HOST` when set.
+ *
+ * A LAN address only works for a device on the same wifi. To demo to someone in
+ * another country the emulators have to be reachable over the public internet,
+ * which in practice means an HTTPS reverse tunnel (`app/scripts/public-demo.sh`
+ * opens one per emulator with cloudflared). Those terminate TLS on 443, so the
+ * host:port form cannot express them — hence a whole origin, and hence the
+ * separate Firestore path below, because `connectFirestoreEmulator` hard-codes
+ * `ssl: false` for every host except Cloud Workstations.
+ *
+ * Each emulator needs its own variable: a quick tunnel is one process per local
+ * port, so Auth and Firestore land on unrelated hostnames.
+ */
+const authEmulatorUrl = process.env.EXPO_PUBLIC_EMULATOR_AUTH_URL || '';
+const firestoreEmulatorUrl = process.env.EXPO_PUBLIC_EMULATOR_FIRESTORE_URL || '';
 
 /**
  * True once the Firebase project details are present.
@@ -98,7 +117,9 @@ export function getFirebaseAuth(): Auth {
   // Same Fast Refresh hazard as Firestore below — see `emulatorState`.
   if (useEmulator && !emulatorState.__kgcAuthEmulator) {
     try {
-      connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+      connectAuthEmulator(auth, authEmulatorUrl || `http://${emulatorHost}:9099`, {
+        disableWarnings: true,
+      });
       emulatorState.__kgcAuthEmulator = true;
     } catch (e) {
       // Deliberately not latching on failure. See the note on `emulatorState`.
@@ -131,8 +152,38 @@ const emulatorState = globalThis as typeof globalThis & {
 };
 
 export function getDb(): Firestore {
-  const store = getFirestore(firebaseApp());
-  if (useEmulator && !emulatorState.__kgcFirestoreEmulator) {
+  const app = firebaseApp();
+
+  /*
+   * The tunnelled emulator cannot go through `connectFirestoreEmulator`: that
+   * helper derives `ssl` from the host and only ever returns true for Cloud
+   * Workstations, so an `https://` tunnel would be dialled as plain HTTP on port
+   * 443 and every read would hang rather than fail. `initializeFirestore` takes
+   * `ssl` directly.
+   *
+   * Long polling is forced because the default transport probes for WebChannel
+   * streaming support first, and a reverse proxy that buffers the probe turns
+   * that negotiation into a stall on first read — the same symptom as an
+   * unreachable host, with none of the same cause.
+   */
+  if (useEmulator && firestoreEmulatorUrl && !emulatorState.__kgcFirestoreEmulator) {
+    try {
+      const store = initializeFirestore(app, {
+        host: firestoreEmulatorUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+        ssl: true,
+        experimentalForceLongPolling: true,
+      });
+      emulatorState.__kgcFirestoreEmulator = true;
+      console.log(`[firebase] Firestore emulator at ${firestoreEmulatorUrl}`);
+      return store;
+    } catch (e) {
+      // Already initialised (Fast Refresh) — fall through and reuse it.
+      console.warn('[firebase] Firestore tunnel connect skipped:', (e as Error).message);
+    }
+  }
+
+  const store = getFirestore(app);
+  if (useEmulator && !firestoreEmulatorUrl && !emulatorState.__kgcFirestoreEmulator) {
     try {
       connectFirestoreEmulator(store, emulatorHost, 8080);
       emulatorState.__kgcFirestoreEmulator = true;

@@ -1,104 +1,194 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
-import { HCLS_BADGE, SITE } from '@/lib/site';
+import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Healthcare & Life Sciences Symposium',
   description:
-    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Cornell Tech — health knowledge graphs in practice.',
+    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Cornell Tech.',
 };
 
 /**
- * The Healthcare and Life Sciences Symposium.
+ * Rebuilt against the live /hcls page on 2026-08-18.
  *
- * `/hcls/` is a real page on the live site and a real part of the programme, and
- * it was the most conspicuous thing missing here: the homepage carries a whole
- * navy band about the symposium whose only destination was an `#hcls` anchor
- * back to itself. A band that describes an event and links nowhere is worse than
- * no band.
+ * Structure, in the live page's order: a pale split hero with the title set in
+ * four short lines beside a photograph; a navy "About The Event" band; the
+ * call for contributions with its four numbered objectives; a stats band with
+ * three cards; and a partner call to action.
  *
- * The structure follows the live page — what it is, what it wants from
- * contributors, the scale of it, and how to take part — with the figures driven
- * from `SITE` and the sale state from `HCLS_BADGE`, so this page cannot end up
- * claiming something the rest of the site contradicts.
+ * The live page also embeds a Whova agenda widget below all this. It is
+ * deliberately not reproduced — replacing that widget is the point of this
+ * project, and /agenda is where its replacement lives.
  */
+
+const OBJECTIVES = [
+  'Characterisation of healthcare and life sciences knowledge graphs',
+  'Opportunities for applying knowledge graphs in healthcare and life sciences',
+  'Challenges of creating and maintaining such knowledge graphs',
+  'Opportunities for knowledge graph research in this space',
+];
+
+const STATS = [
+  {
+    n: '2,000+',
+    label: 'Attendees',
+    body: 'Leading experts and award winners across hybrid AI, LLMs, NLP, machine learning and data management make an annual visit to the conference.',
+    href: '/tickets',
+    cta: 'Get tickets →',
+  },
+  {
+    n: '40+',
+    label: 'Partners',
+    body: 'We are supported by a distinguished group of sponsors, each playing a pivotal role in advancing knowledge graph technologies and their applications.',
+    href: '/sponsor',
+    cta: 'Partner with us →',
+  },
+  {
+    n: '150+',
+    label: 'Speakers',
+    body: 'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists have spoken at our conferences.',
+    href: '/speakers',
+    cta: 'Become a speaker →',
+  },
+];
+
 export default function HclsPage() {
   return (
     <>
-      <section>
-        <div className="wrap narrow">
-          <p className="eyebrow">Co-located symposium</p>
-          <h1>Healthcare &amp; Life Sciences Symposium</h1>
-          <p className="lede">
-            One day inside {SITE.shortName} {SITE.year}, at {SITE.venueShort}, for the people
-            building and maintaining health knowledge graphs — and for the people who have to keep
-            them correct once clinicians depend on them.
-          </p>
-          {HCLS_BADGE ? (
-            <p className="notice">
-              <strong>{HCLS_BADGE.label}.</strong> The symposium is included with any in-person
-              ticket; there is no separate registration.
+      <section className="band band-wash">
+        <div className="wrap split-hero">
+          <div>
+            <h1>
+              The
+              <br />
+              Healthcare and
+              <br />
+              Life Sciences
+              <br />
+              Symposium (HCLS)
+            </h1>
+            <p className="when">
+              {SITE.datesLong} | {SITE.venueShort} + Virtual
             </p>
-          ) : null}
+            <div className="cta">
+              <Link href="/tickets" className="btn btn-primary">
+                Grab a seat now
+              </Link>
+              <Link href="/speakers" className="btn btn-outline">
+                Become a speaker
+              </Link>
+            </div>
+          </div>
+          <Image
+            src="/kgc/hcls-hero.jpeg"
+            alt="A panel discussion at the Healthcare and Life Sciences Symposium"
+            width={1536}
+            height={1024}
+            priority
+          />
         </div>
       </section>
 
-      <section className="tint">
+      <section className="band band-navy band-centred" style={{ padding: '44px 0' }}>
         <div className="wrap narrow">
-          <h2>About the symposium</h2>
-          <p>
-            HCLS invites original contributions describing theoretical and practical methods for
-            building and maintaining health knowledge graphs. Healthcare is where the field&rsquo;s
-            hardest problems are unavoidable rather than academic: identifiers that do not resolve,
-            vocabularies that disagree, provenance that has to survive an audit, and a cost of being
-            wrong that is measured in people rather than in dashboards.
+          <h2>About the event</h2>
+          <p style={{ margin: 0 }}>
+            The Healthcare and Life Sciences Symposium is co-located with the{' '}
+            {SITE.name}.
           </p>
-
-          <h3>What the programme is looking for</h3>
-          <ul className="ticks">
-            <li>
-              Characterising health knowledge graphs — what is actually in them, how they are
-              modelled, and where the models break.
-            </li>
-            <li>
-              Applications in the clinic, in research and in industry, described concretely enough to
-              be argued with.
-            </li>
-            <li>
-              The challenges nobody has solved: entity resolution across coding systems, keeping
-              provenance accurate through a pipeline rewrite, and governance once more than one team
-              depends on the graph.
-            </li>
-            <li>
-              Where the research opportunities are, from people who have hit the wall rather than
-              read about it.
-            </li>
-          </ul>
         </div>
       </section>
 
-      <section>
+      <section className="band band-centred hcls-cfp">
         <div className="wrap narrow">
-          <h2>Taking part</h2>
           <p>
-            <strong>Speaking.</strong> The call for contributions runs alongside the main
-            conference&rsquo;s. Sessions are chosen by the same practitioner committee, on the same
-            standard — a talk with a system diagram and a post-mortem in it beats a talk with a
-            roadmap in it. <Link href="/sponsor#speak">Pitch a talk</Link>.
+            We seek original contributions describing theoretical and practical methods and
+            techniques for building and maintaining health knowledge graphs for the healthcare and
+            life sciences domain. The symposium covers data integration, data profiling, data
+            curation, querying, knowledge discovery, ontology mapping, matching, reconciliation,
+            machine learning approaches and applications. Several invited speakers are thought
+            leaders in the healthcare and life sciences space, and a panel discussion brings together
+            experts from industry, government and academia.
           </p>
-          <p>
-            <strong>Attending.</strong> HCLS runs inside the main conference, so any in-person ticket
-            admits you. <Link href="/tickets">Tickets</Link> · <Link href="/agenda">the agenda</Link>.
+          <p>In summary, the symposium is a platform to discuss:</p>
+        </div>
+
+        {/*
+          The four objectives sit at full content width on the live page, not
+          inside the prose measure — at 842px the fourth column wraps onto its
+          own row and the set stops reading as four peers.
+        */}
+        <div className="wrap">
+          <div className="pillars">
+            {OBJECTIVES.map((o, i) => (
+              <div key={o}>
+                <p className="n">{i + 1}.</p>
+                <p>{o}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="band band-pale band-centred">
+        <div className="wrap">
+          <h2>It’s a call for speakers and partners.</h2>
+          <p className="lede">We’d love to see you here in May.</p>
+
+          <div className="stat-cards">
+            {STATS.map((s) => (
+              <div key={s.label} className="stat-card">
+                <h3>
+                  <strong>{s.n}</strong> {s.label}
+                </h3>
+                <p>{s.body}</p>
+                <Link href={s.href}>{s.cta}</Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="band band-wash band-centred">
+        <div className="wrap narrow">
+          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {SITE.year}</h2>
+          <p className="lede" style={{ marginBottom: 24 }}>
+            Below you’ll find our partners. We welcome any enquiries or feedback.
           </p>
-          <p>
-            <strong>Partnering.</strong> Organisations working in this area can support the symposium
-            specifically rather than the conference generally.{' '}
-            <Link href="/sponsor">Sponsorship packages</Link>.
-          </p>
-          <p className="muted">
-            Questions about the symposium go to{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
-          </p>
+          <Link href="/sponsor" className="btn btn-primary">
+            Learn more
+          </Link>
+        </div>
+      </section>
+
+      <section className="band">
+        <div className="wrap">
+          <div className="find-us">
+            <h2>Find us</h2>
+            <div className="cols">
+              <div>
+                <p className="k">Email</p>
+                <p className="v">
+                  <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+                </p>
+              </div>
+              {/* Three columns, as on the live page — Email, Phone, Address. The
+                  phone column was missing entirely. */}
+              <div>
+                <p className="k">Phone</p>
+                <p className="v">
+                  <a href={`tel:${SITE.contactPhone.replace(/[^0-9+]/g, '')}`}>
+                    {SITE.contactPhone}
+                  </a>
+                </p>
+              </div>
+              <div>
+                <p className="k">Address</p>
+                <p className="v">Cornell Tech &amp; globally online</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </>

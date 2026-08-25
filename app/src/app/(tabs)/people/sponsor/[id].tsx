@@ -4,7 +4,7 @@ import { doc } from 'firebase/firestore';
 
 import { COLLECTIONS, type SponsorDoc, type WithId } from '@kgc/shared';
 
-import { Avatar } from '@/components/avatar';
+import { SponsorLogo } from '@/components/sponsor-logo';
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
@@ -112,7 +112,7 @@ export default function SponsorScreen() {
       {header}
       <Screen grouped>
         <View style={{ alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm }}>
-          <Avatar name={sponsor.name} photoURL={sponsor.logoURL} size={LOGO} />
+          <SponsorLogo name={sponsor.name} logoURL={sponsor.logoURL} size={LOGO} />
           <Text variant="title3">{sponsor.name}</Text>
           <Text tone="secondary" style={{ textAlign: 'center' }}>
             {[`${tier} sponsor`, sponsor.boothLocation ? `Booth ${sponsor.boothLocation}` : null]

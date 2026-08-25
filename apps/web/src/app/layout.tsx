@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import dynamic from 'next/dynamic';
 import { CookieConsent } from '@/components/cookie-consent';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
@@ -27,6 +28,32 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * The live-site comparison overlay — development only, and genuinely absent
+ * from production rather than merely hidden there.
+ *
+ * The obvious form, a static import rendered behind
+ * `{process.env.NODE_ENV === 'development' && <ReferenceOverlay />}`, does not
+ * do that. Next does inline `NODE_ENV`, so the element never renders — but the
+ * import is still a static dependency of this module, so webpack bundles the
+ * component anyway. Checked, not assumed: the built `layout` chunk contained
+ * the overlay's markup strings.
+ *
+ * A ternary around `dynamic()` fixes it. The condition folds to `false` at build
+ * time, the `dynamic()` call is removed with the dead branch, and the only
+ * reference to the component is the `import()` inside it — so nothing pulls the
+ * module into any chunk.
+ *
+ * No `ssr: false`: this is a Server Component and Next rejects that option here.
+ * It is not needed — the overlay is a client component that renders only its
+ * small toggle button until an effect reads the saved state, so there is nothing
+ * for the server to get wrong.
+ */
+const ReferenceOverlay =
+  process.env.NODE_ENV === 'development'
+    ? dynamic(() => import('@/components/reference-overlay').then((m) => m.ReferenceOverlay))
+    : () => null;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -35,6 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main>{children}</main>
         <SiteFooter />
         <CookieConsent />
+        <ReferenceOverlay />
       </body>
     </html>
   );

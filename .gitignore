@@ -57,3 +57,11 @@ database-debug.log
 ui-debug.log
 pubsub-debug.log
 firebase-debug.*.log
+
+# Side-by-side page comparisons written by apps/web/scripts/compare-pages.mjs.
+# Regenerable scratch output, and megabytes of screenshots — unlike the live
+# reference plates in apps/web/public/reference/, which are committed on purpose.
+.compare/
+
+# Local Netlify folder
+.netlify

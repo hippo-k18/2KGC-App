@@ -89,7 +89,7 @@ export function useSpeakers() {
   return { speakers: data, error, loading, retry };
 }
 
-const TIER_ORDER = ['diamond', 'platinum', 'gold', 'silver', 'startup'];
+const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
 
 export function useSponsors() {
   const { data, error, loading, retry } = useCollection<Sponsor>(

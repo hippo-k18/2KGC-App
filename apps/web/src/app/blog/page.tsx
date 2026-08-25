@@ -205,7 +205,10 @@ function PostCard({ post }: { post: Post }) {
         </p>
         <p
           style={{
-            fontSize: '0.94rem',
+            // 22px, matching the live excerpt. `0.94rem` was 15px against the
+            // old 16px root and 20.68px against the current 22px one — right by
+            // accident once, wrong by accident since.
+            fontSize: '1rem',
             // Four lines, so cards in a row stay the same height whether the
             // excerpt is WordPress's 55 words or a two-sentence stub.
             display: '-webkit-box',

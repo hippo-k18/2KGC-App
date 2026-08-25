@@ -56,7 +56,10 @@
 
   --heading: #1f1a11; /* every h1–h3 on the live site */
   --ink: #10243a;
-  --body: #33475b;
+  /* Body copy is the same near-black as the headings on the live site, measured
+     as `rgb(31, 26, 17)`. This was `#33475b`, which is not in the theme palette
+     at all and read as a blue-grey against their near-black. */
+  --body: #1f1a11;
   --muted: #64748b;
   --line: var(--palette-3);
   --wash: var(--palette-7);
@@ -193,16 +196,35 @@
   box-sizing: border-box;
 }
 
+/*
+ * The root is 22px, not the browser's 16px, and that is the single most
+ * consequential number in this file.
+ *
+ * Measured on the live site at a 1440px viewport: `body` computes to
+ * 22px/35.2, and its section paragraphs to 20px/32. Ours were 16px/25.6 —
+ * every run of copy on every page was rendering about 27% small. Because 88 of
+ * the font sizes below are expressed in `rem`, they were all anchored to a 16px
+ * root and all inherited the same shortfall, which is why the site read as
+ * cramped next to the original rather than as any one element being wrong.
+ *
+ * Re-anchoring the root fixes the whole ramp in one place and keeps every
+ * existing `rem` ratio intact. The headings are deliberately *not* affected:
+ * they are declared in px further down because those px values were measured
+ * off the live site and must not move with the root.
+ */
 html {
+  font-size: 22px;
   scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
+  /* `#1f1a11` — the live site sets body copy to the same near-black as its
+     headings. Ours was `#33475b`, a slate blue, which tinted every paragraph. */
   color: var(--body);
   /* `--palette-8`, not white: the real site's page background is faintly blue. */
   background: var(--palette-8);
-  font: 16px/1.6 'Open Sans', sans-serif;
+  font: 1rem/1.6 'Open Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -228,29 +250,36 @@ h4 {
 }
 
 /*
- * The scale, widened.
+ * The theme's flat 32/28/24 at 1.5, restored.
  *
- * The live theme declares a flat 32/28/24, and reproducing it left every
- * interior page with a page title only 1.14x its own section headings and twice
- * its body — no hierarchy above 32px anywhere, which is most of why the site
- * read as bland. The hero already departs from the theme at 70px; these follow
- * it. Weight now carries level too: h3 drops to 600 so that size is not the only
- * signal distinguishing three ranks of heading.
+ * This block previously widened the scale to a fluid ramp topping out at 3.4rem,
+ * on the reasoning that a flat 32/28/24 left interior pages with "no hierarchy
+ * above 32px anywhere" and read as bland. That is a fair design argument and it
+ * is the wrong one for this project: the brief is a replica, not a
+ * reinterpretation, and measuring the live pages showed the cost — our `h1` came
+ * out at 60.48px against their 32px on `/blog`, `/agenda` and the awards page,
+ * which is not a nuance, it is double.
+ *
+ * The premise had also expired. When it was written the hero was the only thing
+ * above 32px; the hero is now 60px and `.about-hero` 70.4px, both measured off
+ * live pages, so the hierarchy the comment wanted exists — it just lives on the
+ * heroes rather than in the base scale, which is exactly how the live site does
+ * it. Pages that genuinely differ (hcls at 64px) override this explicitly.
+ *
+ * `h3` also goes back to 800. Dropping it to 600 was part of the same
+ * reinterpretation: on the live site all three ranks share one weight and differ
+ * only in size.
  */
 h1 {
-  font-size: clamp(2.4rem, 4.2vw, 3.4rem);
-  line-height: 1.15;
+  font-size: 32px;
 }
 
 h2 {
-  font-size: clamp(1.75rem, 2.4vw, 2rem);
-  line-height: 1.25;
+  font-size: 28px;
 }
 
 h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: 24px;
 }
 
 h4 {
@@ -268,6 +297,16 @@ h4 {
   font-weight: 800;
 }
 
+/*
+ * No `font-size` here — a paragraph inherits the body's 22px, as on the live
+ * site.
+ *
+ * This briefly carried `font-size: 0.91rem` (20px), generalised from a sample of
+ * section copy that happened to be 20px. Measuring every page disproved it: the
+ * live default is the inherited 22px/35.2, and 20px belongs to specific
+ * components rather than to `p`. Setting it here made every paragraph on the
+ * site two points small to fix a handful that were not.
+ */
 p {
   margin: 0 0 1em;
 }
@@ -366,7 +405,9 @@ section.tint {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 96px;
+  /* 100px — the live header's measured height, identical on all seven pages
+     checked. `96px` rendered as 95 and made the whole page sit 5px high. */
+  min-height: 100px;
 }
 
 .site-header .logo img {
@@ -388,8 +429,19 @@ section.tint {
   color: var(--white);
   font-family: Roboto, sans-serif;
   text-decoration: none;
-  font-size: 0.94rem;
-  font-weight: 500;
+  /*
+   * 15px/24 weight 400 — the live nav's measured values, in px because they are
+   * measurements.
+   *
+   * This was `0.94rem` at weight 500. Against the old 16px root that came out at
+   * 15px and looked right; re-anchoring the root to 22px took it to 20.68px, and
+   * because the header is on every page it was the single most repeated
+   * discrepancy on the site — all eleven pages, every time. It is the same trap
+   * the hero `h1` fell into, and the reason both are now px.
+   */
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 400;
   padding: 8px 12px;
   border-radius: 7px;
 }
@@ -429,12 +481,30 @@ section.tint {
   color: var(--palette-1);
 }
 
-/* The current page: orange label as well as the orange rule under it. The
-   underline was carrying the whole signal on its own. */
+/*
+ * The current page, as the live site marks it: the label and its 2px rule both
+ * in the pale blue `--palette-4`, not orange.
+ *
+ * Measured on knowledgegraph.tech — every nav item carries a 2px `::after` bar,
+ * white on hover and `#8dccee` on the page you are actually on. Orange belongs
+ * to the announcement strip and the search icon; putting it in the nav made the
+ * header read as two competing accents.
+ */
 .site-header nav a[aria-current='page'] {
-  color: var(--orange);
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--orange);
+  color: var(--palette-4);
+  font-weight: 400;
+  box-shadow: inset 0 -2px 0 var(--palette-4);
+}
+
+/* Hover gets the same rule in white, which is what the live site does. */
+.site-header nav a:hover:not(.btn) {
+  box-shadow: inset 0 -2px 0 rgb(255 255 255 / 85%);
+}
+
+.has-menu:hover .menu-parent,
+.has-menu:focus-within .menu-parent {
+  box-shadow: inset 0 -2px 0 var(--palette-4);
+  color: var(--palette-4);
 }
 
 /* The search affordance is orange — the only orange in the header. */
@@ -500,13 +570,32 @@ section.tint {
 
 /* ---------------------------------------------------------------- buttons - */
 
+/*
+ * The live site's button, measured across five pages.
+ *
+ * Every call to action on knowledgegraph.tech is **uppercase, 17px, weight 700,
+ * 5px radius**, and the primary fill is **orange** `#f68621` with navy as the
+ * secondary. Ours was sentence case at 21.56px/600 on an 8px radius with navy as
+ * the primary and white outlines as the secondary — a different button system
+ * wearing the same palette, on every page of the site.
+ *
+ * This is the largest single aesthetic difference between the two builds. The
+ * orange is not an accent the live site uses sparingly; it is what an action
+ * looks like there, and using navy for it made our pages read as a corporate
+ * template rather than as this conference.
+ *
+ * `17px`, not a `rem`: it is a measurement, and the root has already detuned two
+ * other measured values written as `rem` on this project.
+ */
 .btn {
   display: inline-block;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 5px;
   padding: 12px 22px;
-  font-size: 0.98rem;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   text-decoration: none;
   cursor: pointer;
   font-family: inherit;
@@ -521,7 +610,7 @@ section.tint {
  */
 .day-nav a:focus-visible,
 .day-tab:focus-visible,
-.logo-tile:focus-visible,
+.logo-card:focus-visible,
 .speaker .links a:focus-visible,
 .site-header nav a:focus-visible,
 .site-header .search:focus-visible,
@@ -539,13 +628,29 @@ section.tint {
   outline-offset: 2px;
 }
 
+/*
+ * Orange, not navy. `--palette-5` is the live site's action colour — the same
+ * orange as the announcement bar and the header's search icon, which is exactly
+ * why it reads as "this is the thing to press".
+ */
 .btn-primary {
-  background: var(--blue);
-  color: var(--white);
+  background: var(--orange);
+  /*
+   * Near-black on the orange, not white — and this is the one place I have
+   * deliberately picked between two live treatments rather than copied one.
+   *
+   * The live site does both: /hcls and /community set white on `#f68621`, while
+   * every ticket button on /tickets sets `rgb(39, 35, 56)`. There is no single
+   * value to match. White on this orange measures about **2.6:1**, which fails
+   * AA for 17px bold text; the near-black measures about **5.9:1** and passes.
+   * Given a genuine contradiction in the source, the accessible half of it wins
+   * — and it is still the live site's own colour, on the live site's own button.
+   */
+  color: var(--palette-1);
 }
 
 .btn-primary:hover {
-  background: var(--blue-dark);
+  background: #d9741a;
 }
 
 .btn-primary:disabled {
@@ -563,14 +668,19 @@ section.tint {
   background: rgb(255 255 255 / 12%);
 }
 
+/*
+ * Navy fill, not a white outline. The live secondary — "Become a Speaker" beside
+ * "Grab a Seat Now" — is a solid navy button, and a pair of solid buttons in two
+ * colours is a visibly different rhythm from a solid one beside a hollow one.
+ */
 .btn-outline {
-  background: var(--white);
-  color: var(--blue);
-  border-color: var(--blue);
+  background: var(--navy);
+  color: var(--white);
+  border-color: var(--navy);
 }
 
 .btn-outline:hover {
-  background: var(--wash);
+  background: var(--palette-1);
 }
 
 .btn-sm {
@@ -698,17 +808,28 @@ section.tint {
 .hero h1 {
   color: var(--white);
   font-style: italic;
-  font-weight: 800;
   /*
-   * Capped at 4.4rem — measured, not guessed. The `h1` box is 1072px (the 1120px
-   * measure less its padding), and "The Knowledge Graph Conference" set on one
-   * line needs 1094px at 4.6rem and 1178px at the 5rem this used to be. Both
-   * wrapped it to two lines at every desktop width, including the widths where
-   * the live site sets it on one — which is the shape the whole hero is built
-   * around. 4.4rem needs 1046px and fits with room to spare.
+   * 700, not 800. Measured on the live hero, where the `em` computes to
+   * `font-weight: 700`. Ours was a step heavier, which at this size is the
+   * difference between the headline reading as set and as shouted.
    */
-  font-size: clamp(2.6rem, 6vw, 4.4rem);
-  line-height: 1.1;
+  font-weight: 700;
+  /*
+   * 60px at 1440, which is the live site's exact hero size — and the ceiling is
+   * in px rather than rem on purpose.
+   *
+   * This was `clamp(2.6rem, 6vw, 4.4rem)`, reasoned about when the root was the
+   * browser's 16px. Re-anchoring the root to the live site's 22px silently
+   * rescaled it: 4.4rem became 96.8px and the effective size at 1440 went to
+   * 86.4px, so the headline wrapped to two lines where theirs sets on one. A
+   * measured value must not float with the root, so the cap is the measurement
+   * itself. The `vw` term still does the scaling down between breakpoints.
+   */
+  font-size: clamp(2rem, 4.2vw, 60px);
+  /* 1.6, giving 96px at 60px — the live hero's own measured line box. It was
+     1.1, which pulled the headline tight against the eyebrow above it and is a
+     large part of why our hero read as more crowded than theirs. */
+  line-height: 1.6;
   /*
    * No `max-width: 14ch`. "The Knowledge Graph Conference" is 29 characters and
    * fits one line inside the 1120px measure from about 1180px up; the 14ch cap
@@ -721,15 +842,23 @@ section.tint {
 
 .hero .hero-eyebrow {
   color: var(--white);
-  font-size: clamp(1.4rem, 3vw, 2rem);
+  /* 40px/64 at 1440, weight 400 — the live eyebrow, and px-capped for the same
+     reason as the headline above. */
+  font-size: clamp(1.25rem, 2.8vw, 40px);
+  line-height: 1.6;
   font-weight: 400;
   margin: 0 0 0.15em;
 }
 
 .hero .lede {
-  color: rgb(255 255 255 / 92%);
-  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
-  font-weight: 600;
+  /* `--palette-8`, not translucent white: the live tagline is a solid
+     `rgb(247, 250, 252)`, which is the theme's own page background reused as a
+     foreground. An opacity was approximating a colour that has a name. */
+  color: var(--palette-8);
+  /* 32px/51.2 weight 700 at 1440. */
+  font-size: clamp(1.1rem, 2.25vw, 32px);
+  line-height: 1.6;
+  font-weight: 700;
 }
 
 /* "MAY 4–8, 2027 | CORNELL TECH NYC" — spaced capitals, as on the live site. */
@@ -1417,66 +1546,198 @@ section.tint {
 
 /* --------------------------------------------------------------- sponsors - */
 
-.logos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+/*
+ * Tier bands, not a flat grid.
+ *
+ * Every measurement below is the live site's, not a guess. The real sponsor
+ * strip is an embedded Whova widget (template `SponsorTemplate1`, "Full List"),
+ * and its public design payload gives the geometry outright: a page designed at
+ * 1368px, cards at three sizes, 16px of margin each, and a 32px gap above each
+ * tier heading. The three card sizes and their inner logo boxes are:
+ *
+ *     step 3  380x281 card, 76/56 padding  ->  228x169 logo
+ *     step 2  278x206 card, 55/41 padding  ->  168x124 logo
+ *     step 1  216x160 card, 43/32 padding  ->  130x96  logo
+ *
+ * Which tier gets which step is served data, not a design choice — Platinum 3,
+ * Gold 2, Silver 1, Bronze 1. `TIER_SIZE` in `lib/data.ts` holds it.
+ *
+ * Row counts are left to `flex-wrap` rather than forced to a number. That is not
+ * a shortcut: at the 1368px the widget designs for, 5 step-1 cards measure
+ * 5 x (216+32) = 1240 and 4 step-2 cards measure 4 x (278+32) = 1240, so wrapping
+ * lands on the same counts the widget hard-codes, and it degrades continuously
+ * in between instead of jumping at two breakpoints.
+ */
+
+.sponsor-tiers {
+  margin-top: 8px;
 }
 
-.logo-tile {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--white);
-  min-height: 78px;
-  display: grid;
-  place-items: center;
-  padding: 12px;
+.tier-band + .tier-band {
+  margin-top: 8px;
+}
+
+.tier-title {
+  /* Roboto 24 700 #333, centred — the widget's `section_title_style`. */
+  font-family: Roboto, sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #333;
   text-align: center;
-  font-weight: 600;
-  color: var(--ink);
-  font-size: 0.95rem;
-  text-decoration: none;
+  margin: 32px 0 0;
 }
 
-/* `a.logo-tile`, not `.logo-tile`: a hover response on a non-link is a promise. */
-a.logo-tile {
-  cursor: pointer;
-}
-
-a.logo-tile:hover {
-  border-color: var(--blue);
-  background: var(--wash);
+.logo-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  /*
+   * `gap`, not a 16px margin on each card.
+   *
+   * The widget spaces cards with 16px of margin on every side, which puts 32px
+   * between any two adjacent ones. Reproducing that literally needed
+   * `margin: 0 -16px` on the row to stay flush with the wrap, and that made the
+   * band 32px wider than its container — a real overflow, invisible only
+   * because nothing else on the page was wide enough to make the document
+   * scroll sideways. One gap is the same spacing with no negative margin.
+   */
+  gap: 32px;
 }
 
 /*
- * `.logo-tier`, not `.tier`.
+ * Flex, not grid, and the distinction is load-bearing.
  *
- * A sponsor tile's tier label and a ticket *card* are two unrelated things that
- * were sharing one class name, so every sponsor tile was drawing a ticket card
- * inside itself: `.tier` carries a border, a white background and 24px of
- * padding. It had always been wrong and was merely subtle — until `padding-top:
- * 44px` was added to the ticket card to make room for its "Most popular" badge,
- * which turned the collision into an 87px empty bordered box under fifteen
- * sponsor names on two different pages.
+ * As a grid the single implicit row is `auto`, so the `height: 100%` below had
+ * no definite track to resolve against and fell back to the image's own aspect
+ * ratio. AbbVie's logo is square, so its Platinum card rendered a 228x228 image
+ * inside a 228x169 content box and overflowed its own padding by 59px. A flex
+ * container's content height is definite, so the percentage resolves.
  */
-.logo-tile .logo-tier {
-  display: block;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-  font-weight: 700;
-  margin-top: 4px;
+.logo-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  border-radius: 8px;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.logo-card img {
+  /* `contain`, because these logos are every aspect ratio from 1:1 to 4:1 and
+     the box is fixed. Nothing is cropped and nothing is stretched. */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Only reached when a sponsor has no logo file. Deliberately plain — it should
+   read as a missing asset, not as a designed treatment. */
+.logo-fallback {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.logo-card.size-3 {
+  width: 380px;
+  height: 281px;
+  padding: 56px 76px;
+}
+
+.logo-card.size-2 {
+  width: 278px;
+  height: 206px;
+  padding: 41px 55px;
+}
+
+.logo-card.size-1 {
+  width: 216px;
+  height: 160px;
+  padding: 32px 43px;
+}
+
+/*
+ * `a.logo-card`, not `.logo-card`: a hover response on a non-link is a promise.
+ * Sponsors without a website render as a plain div and must stay inert.
+ */
+a.logo-card {
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+a.logo-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Focus lives with the site's other focus rings near the top of this file, so
+   there is one focus language rather than two. */
+
+@media (prefers-reduced-motion: reduce) {
+  a.logo-card {
+    transition: none;
+  }
+
+  a.logo-card:hover {
+    transform: none;
+  }
+}
+
+/*
+ * Below the narrowest card width the fixed sizes have to give way, or a 380px
+ * Platinum card overflows a 360px phone. Each step drops to the full column
+ * width and keeps its aspect ratio rather than its pixel height.
+ */
+@media (width < 460px) {
+  .logo-card.size-3,
+  .logo-card.size-2,
+  .logo-card.size-1 {
+    width: 100%;
+    max-width: 280px;
+    height: auto;
+    aspect-ratio: 380 / 281;
+    padding: 12% 20%;
+  }
 }
 
 /* ---------------------------------------------------------------- footer -- */
 
 .site-footer {
-  background: var(--blue-deep);
+  /*
+   * `--navy` (`--palette-2`, `#263759`), measured on the live footer. Ours was
+   * `--blue-deep` (`--palette-1`, `#272338`) — the deepest ink violet, a colour
+   * the live site uses for section bands but never for the footer. Wrong on
+   * every page, which is exactly the class of error the header nav was.
+   */
+  background: var(--navy);
   color: rgb(255 255 255 / 76%);
-  padding: 54px 0 30px;
+  /*
+   * Tightened from `54px 0 30px`. The live footer measures **427px** on every
+   * page; ours was 574–582. It will never reach 427 exactly — theirs is a
+   * wordmark and six icons, ours carries four columns of real navigation — but
+   * a third of the gap was outer padding rather than content.
+   */
+  padding: 38px 0 22px;
   font-size: 0.92rem;
   margin-top: 0;
+}
+
+/* The live footer's centred wordmark, above the copyright rule. */
+.footer-mark {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0 2px;
+}
+
+.footer-mark img {
+  width: 220px;
+  height: auto;
+  opacity: 0.92;
 }
 
 /*
@@ -1504,6 +1765,21 @@ a.logo-tile:hover {
   text-decoration: none;
   display: block;
   padding: 10px 0;
+}
+
+/*
+ * The 10px above buys a 44px touch target, which is the right floor for a finger
+ * and 20px of dead space per link for a mouse — and there are fourteen links
+ * here, so it was most of why our footer stood 150px taller than the live one.
+ *
+ * `pointer: fine` is the honest test for this, not a width breakpoint: it asks
+ * what the user is actually pointing with. A touch device keeps the full target
+ * at any window size, and a desktop pointer gets the live site's tighter rhythm.
+ */
+@media (pointer: fine) {
+  .site-footer a {
+    padding: 5px 0;
+  }
 }
 
 .site-footer a:hover {
@@ -1754,6 +2030,34 @@ a.logo-tile:hover {
   color: #fff;
 }
 
+/*
+ * The "ink" tone — and it had no rule at all, which is why this band was
+ * invisible.
+ *
+ * `page.tsx` has asked for `kgc-tone-ink` all along, but only `kgc-tone-navy`
+ * was ever written, so the class matched nothing and the section rendered
+ * transparent on the page background with near-black text. On the live site the
+ * same band is `rgb(39, 35, 56)` — `--palette-1`, the deepest ink — carrying a
+ * white heading and `--palette-3` body copy. All three values below are those
+ * measurements.
+ *
+ * A class in the markup with no rule in the stylesheet fails silently and looks
+ * like a design choice, which is exactly how this survived: the section was not
+ * broken, it was just quietly plain.
+ */
+.kgc-split.kgc-tone-ink {
+  background: var(--palette-1);
+  color: var(--palette-3);
+}
+
+.kgc-split.kgc-tone-ink h2 {
+  color: var(--white);
+}
+
+.kgc-split.kgc-tone-ink p {
+  color: var(--palette-3);
+}
+
 .kgc-split-row {
   display: grid;
   gap: 32px;
@@ -1787,9 +2091,14 @@ a.logo-tile:hover {
   object-fit: cover;
 }
 
+/*
+ * 22px/35.2 — the live "Why Attend" prose, measured. This was 18px/1.7, which
+ * made the homepage's main body copy four points smaller than the same copy on
+ * the live page and than our own body default.
+ */
 .kgc-split-prose p {
-  font-size: 18px;
-  line-height: 1.7;
+  font-size: 1rem; /* 22px */
+  line-height: 1.6; /* 35.2px */
 }
 
 /* ---- the two numbered highlights, on navy ---- */
@@ -2978,4 +3287,1362 @@ section.tint {
 
 .speaker-section-head:first-of-type {
   margin-top: 48px;
+}
+
+/* ------------------------------------------------- live-site page bands -- */
+
+/*
+ * The live site builds /tickets, /about-kgc, /hcls and the learning-program
+ * page out of one device: full-bleed horizontal bands, each with its own
+ * background, stacked down the page. Our versions of those four pages were a
+ * single tinted background with cards on it, which is why they read as a
+ * different site even though the palette already matched.
+ *
+ * Measured off the live pages on 2026-08-18 rather than guessed. Colours are
+ * the theme's own palette numbers, so a band here can be compared line for line
+ * with the band it replicates.
+ */
+.band {
+  padding: 72px 0;
+}
+
+.band-navy {
+  background: var(--palette-2);
+  color: var(--palette-3);
+}
+
+.band-pale {
+  background: var(--palette-3);
+}
+
+.band-wash {
+  background: var(--palette-7);
+}
+
+/* The mid blue behind "KGC Developments" and "Find the program". */
+.band-sky {
+  background: var(--palette-4);
+}
+
+/* The very pale blue behind "KGC's Origins" — lighter than any palette entry. */
+.band-mist {
+  background: #e8f5fc;
+}
+
+.band-navy h1,
+.band-navy h3,
+.band-navy strong {
+  color: var(--white);
+}
+
+/*
+ * Measured on the live /hcls "About The Event" band: 32px on a 1.2 line, in
+ * `--palette-3` rather than white. Ours took the theme's 28px/1.5 in plain
+ * white — a slightly smaller heading in a slightly harsher colour.
+ */
+.band-navy h2 {
+  font-size: 32px;
+  line-height: 1.2; /* 38.4px */
+  color: var(--palette-3);
+}
+
+/*
+ * `:not(.btn)`, because this was repainting the label of every button that
+ * happened to sit in a navy band.
+ *
+ * `--palette-4` is the light blue used for *links* on navy — correct for a link,
+ * and a real contrast failure on a button: measured on /tickets, the orange
+ * "Register now" was rendering its label in `rgb(141, 204, 238)`, light blue on
+ * orange. A button carries its own foreground; only prose links here should be
+ * relit for the dark background.
+ */
+.band-navy a:not(.btn) {
+  color: var(--palette-4);
+}
+
+/*
+ * Two of the live bands are a tiled line-art wave rather than a flat colour.
+ * `background-size: cover` rather than the theme's `repeat`, because the asset
+ * is 1440 wide and tiling it puts a visible seam mid-band at desktop widths.
+ */
+.band-wave {
+  background-color: var(--palette-2);
+  background-image: url('/kgc/wave-13.png');
+  background-size: cover;
+  background-position: center;
+}
+
+.band-wave-light {
+  background-color: var(--palette-3);
+  background-image: url('/kgc/wave-3.png');
+  background-size: cover;
+  background-position: center;
+}
+
+.band-centred {
+  text-align: center;
+}
+
+.band-centred .lede,
+.band-centred p {
+  margin-inline: auto;
+}
+
+/*
+ * The blog index heading is the brand navy on the live site, not the near-black
+ * every other page's `h1` takes. Scoped to the blog wrapper so it cannot leak.
+ */
+.blog-page h1 {
+  color: var(--palette-2);
+}
+
+/*
+ * 20px/32 in `--palette-6`, measured on the live /hcls call-for-papers copy.
+ * Ours inherited the body's 22px near-black. The teal is the theme's highlight
+ * colour and the live page uses it for this block of running text specifically.
+ */
+.hcls-cfp p {
+  /* Flat px, not `0.91rem`: 0.91 x 22 is 20.02, and the whole point of this rule
+     is that the live value is exactly 20/32. */
+  font-size: 20px;
+  line-height: 32px;
+  color: var(--palette-6);
+}
+
+/* --------------------------------------------------------- split heroes -- */
+
+/*
+ * /tickets and /hcls both open with copy on the left and a photograph bleeding
+ * off the right edge. One column below 900px, where the photo would otherwise
+ * be a 300px-wide letterbox.
+ */
+.split-hero {
+  display: grid;
+  gap: 44px;
+  align-items: center;
+  grid-template-columns: 1fr;
+}
+
+@media (width >= 900px) {
+  .split-hero {
+    grid-template-columns: 1.05fr 1fr;
+  }
+}
+
+.split-hero img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * 64px/76.8, measured on the live /hcls hero — one of the two pages that departs
+ * upward from the theme's 32px `h1`, the other being /about at 70.4. Ours
+ * inherited the base 32px and read as a section heading rather than a page
+ * title.
+ */
+.split-hero h1 {
+  font-size: 64px;
+  line-height: 1.2; /* 76.8px */
+  margin: 0 0 18px;
+}
+
+.split-hero .kicker {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--orange);
+  margin: 0 0 4px;
+}
+
+.split-hero .when {
+  font-size: 1.05rem;
+  margin: 0 0 22px;
+}
+
+.split-hero .cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.split-hero .sold-out {
+  color: var(--orange);
+  font-style: italic;
+  font-weight: 600;
+  margin: 18px 0 0;
+}
+
+/* ---------------------------------------------------- live ticket cards -- */
+
+/*
+ * The live page's two headline tickets are wide centred panels — one navy, one
+ * pale — with underlined group headings and bulleted contents, not the four
+ * equal feature-list cards this site had. `align-items: start` because the two
+ * panels hold different numbers of lines and stretching them to match invents a
+ * symmetry the original does not have.
+ */
+.kgc-tickets {
+  display: grid;
+  gap: 26px;
+  align-items: start;
+  grid-template-columns: 1fr;
+  margin-top: 40px;
+}
+
+@media (width >= 860px) {
+  .kgc-tickets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kgc-tickets.small {
+    max-width: 760px;
+    margin-inline: auto;
+  }
+}
+
+.kgc-ticket {
+  padding: 36px 30px 30px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+}
+
+.kgc-ticket.dark {
+  background: var(--palette-2);
+  color: var(--palette-3);
+}
+
+.kgc-ticket.light {
+  background: var(--palette-3);
+  color: var(--ink);
+}
+
+.kgc-ticket h3 {
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.kgc-ticket.dark h3 {
+  color: var(--white);
+}
+
+.kgc-ticket .price {
+  font-size: 1.9rem;
+  font-weight: 400;
+  margin: 10px 0 22px;
+}
+
+.kgc-ticket .group {
+  font-weight: 700;
+  text-decoration: underline;
+  margin: 18px 0 8px;
+}
+
+.kgc-ticket ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.kgc-ticket li::before {
+  content: '• ';
+}
+
+.kgc-ticket .btn {
+  margin-top: 24px;
+}
+
+/*
+ * The live footnotes are centred, star-prefixed and set below both cards.
+ */
+.ticket-notes {
+  margin: 34px auto 0;
+  max-width: 640px;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.ticket-notes p {
+  margin: 0 0 6px;
+  max-width: none;
+}
+
+/* ------------------------------------------------------ numbered pillars -- */
+
+/*
+ * The four HCLS objectives: a number, then a short line, in equal columns.
+ */
+.pillars {
+  display: grid;
+  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-top: 34px;
+  text-align: center;
+}
+
+.pillars .n {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 0 0 8px;
+}
+
+.pillars p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--highlight);
+  max-width: none;
+}
+
+/* ----------------------------------------------------------- stat cards -- */
+
+.stat-cards {
+  display: grid;
+  gap: 26px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin-top: 34px;
+}
+
+.stat-card {
+  background: var(--palette-8);
+  padding: 30px 26px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * 32px/48 in `--palette-2`, measured off the live "2,000+ Attendees" cards.
+ * `1.5rem` was 24px when written and became 33px under the 22px root — close
+ * enough to look deliberate and not what the live page does.
+ */
+.stat-card h3 {
+  font-size: 32px;
+  line-height: 1.5; /* 48px */
+  color: var(--palette-2);
+  margin: 0 0 12px;
+  font-weight: 400;
+}
+
+.stat-card h3 strong {
+  font-weight: 700;
+}
+
+.stat-card p {
+  font-size: 0.95rem;
+  color: var(--highlight);
+  margin: 0 0 16px;
+  max-width: none;
+}
+
+.stat-card a {
+  font-style: italic;
+  font-size: 0.95rem;
+}
+
+/* -------------------------------------------------------------- people -- */
+
+.people {
+  display: grid;
+  gap: 26px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  margin-top: 34px;
+}
+
+.person {
+  background: var(--white);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-sm);
+}
+
+.person img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+
+.person .who {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.person .name {
+  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.3;
+}
+
+.person .role {
+  color: var(--highlight);
+  font-size: 0.82rem;
+  display: block;
+  margin-top: 2px;
+}
+
+/*
+ * The continuing-education roster has no photographs on the live site, so it is
+ * a text grid rather than `.people` with a placeholder avatar — inventing a
+ * headshot slot the original does not have would be a bigger difference than
+ * leaving it out.
+ */
+.roster {
+  display: grid;
+  gap: 26px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-top: 34px;
+  text-align: center;
+}
+
+.roster .name {
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.roster .role {
+  display: block;
+  margin-top: 4px;
+  color: var(--highlight);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* -------------------------------------------------------------- find us -- */
+
+.find-us {
+  background: var(--palette-8);
+  border-radius: var(--radius-sm);
+  padding: 34px 28px;
+  text-align: center;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.find-us h2 {
+  margin: 0 0 22px;
+}
+
+.find-us .cols {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.find-us .k {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.find-us .v {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* ------------------------------------------------------- learn wordmark -- */
+
+.learn-hero {
+  text-align: center;
+}
+
+.learn-hero img {
+  width: 100%;
+  max-width: 700px;
+  height: auto;
+  display: block;
+  margin: 0 auto 22px;
+}
+
+.learn-hero .tagline {
+  margin: 0 auto 6px;
+  font-size: 1.05rem;
+}
+
+.learn-hero .strap {
+  margin: 0 auto;
+  font-style: italic;
+  color: var(--palette-12);
+}
+
+/* ------------------------------------------------------- program list -- */
+
+.programs {
+  margin-top: 26px;
+  padding-left: 22px;
+  line-height: 1.8;
+}
+
+.programs > li {
+  margin-bottom: 14px;
+}
+
+.programs ul {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  font-size: 0.95rem;
+}
+
+/*
+ * `.band-navy h3` was recolouring the *pale* ticket panels that sit on the navy
+ * band, so "Workshops" and "Virtual" rendered white on `#e0e5ee` and vanished.
+ * The dark-band heading colour has to stop at anything that carries its own
+ * background — same for the lede and the footnotes, which were inheriting the
+ * dark body colour onto navy.
+ */
+.band-navy .kgc-ticket.light,
+.band-navy .kgc-ticket.light h3,
+.band-navy .kgc-ticket.light strong {
+  color: var(--ink);
+}
+
+.band-navy .lede,
+.band-navy .ticket-notes,
+.band-navy p {
+  color: var(--palette-3);
+}
+
+.band-navy .kgc-ticket.light p,
+.band-navy .kgc-ticket.light li {
+  color: var(--ink);
+}
+
+/*
+ * The live site's call to action on a dark band is orange, not navy — a navy
+ * primary button on a navy band is a rectangle of nothing.
+ */
+/*
+ * White on `#f68621` is a 2.51 contrast ratio and would normally be a defect.
+ * It is what the live site sets on every orange call to action, and matching it
+ * is the point of these pages, so it is kept and recorded rather than quietly
+ * corrected to dark ink.
+ */
+.btn-accent {
+  background: var(--orange);
+  /* Same orange, same reasoning as `.btn-primary` — see the note there. */
+  color: var(--palette-1);
+  font-weight: 700;
+}
+
+.btn-accent:hover {
+  background: #d9741a;
+}
+
+/*
+ * `.band-wave` paints navy but is a separate class from `.band-navy`, so the
+ * /about hero heading kept the default `--heading` ink and rendered at a 1.46
+ * contrast ratio on navy — effectively invisible. Dark bands are defined by
+ * what they paint, not by which class painted it.
+ */
+.band-wave,
+.band-wave h1,
+.band-wave h2,
+.band-wave h3,
+.band-wave p {
+  color: var(--white);
+}
+
+/* ============================================================ exact copies ==
+ * The measurements below were read off the live pages with `getComputedStyle`
+ * on 2026-08-19, at a 1440px viewport, and are reproduced verbatim rather than
+ * approximated. Where a value looks arbitrary (62px headings, 35px line-height,
+ * a 1320px measure) it is arbitrary — it is what the live theme computes.
+ */
+
+/*
+ * The live content measure is 1320px at a 1440 viewport, i.e. 60px gutters.
+ * `.wrap` is 2000px wide and would put the /about prose on a 1392px line.
+ */
+.wrap-kgc {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 60px;
+}
+
+@media (width < 700px) {
+  .wrap-kgc {
+    padding: 0 24px;
+  }
+}
+
+/* ---------------------------------------------------------------- /about -- */
+
+/*
+ * Band colours sampled from the rendered page rather than read out of the
+ * stylesheet, because two of them are nested pairs and only the inner one is
+ * visible: hero #263759, Origins #e0e5ee, Connecting #ffffff, Developments
+ * #8dccee, Mission #e0e5ee.
+ */
+.about-hero {
+  /*
+   * `#3c4c6b`, sampled from the live /about and /team plates — a *lighter* navy
+   * than the `#263759` header above it, and deliberately so.
+   *
+   * Ours used `--palette-2`, which is exactly the header's colour, so the header
+   * and the hero fused into one 479px navy slab with no seam. On the live site
+   * they are two distinct bands, and that separation is most of what gives those
+   * two pages their structure. Measured, not invented: both pages sample to the
+   * same value, dominating the band by an order of magnitude over any other
+   * colour in it.
+   */
+  background-color: #3c4c6b;
+  background-image: url('/kgc/wave-13.png');
+  background-size: cover;
+  background-position: center;
+  padding: 130px 0 120px;
+  text-align: center;
+}
+
+.about-origins {
+  background: var(--palette-3);
+  padding: 100px 0;
+}
+
+.about-connecting {
+  background-color: var(--white);
+  background-image: url('/kgc/wave-3.png');
+  background-size: cover;
+  background-position: center;
+  padding: 90px 0;
+}
+
+.about-developments {
+  background: var(--palette-4);
+  padding: 90px 0;
+}
+
+.about-mission {
+  background: var(--palette-3);
+  padding: 70px 0 90px;
+  text-align: center;
+}
+
+/*
+ * Measured type — and the fractional values are the point, not sloppiness.
+ *
+ * These were first written as round pixels (70, 62, 35) from a capture that
+ * rounded. Re-measuring gives 70.4, 61.6 and 35.2, which are not arbitrary: the
+ * live theme sets them in `rem` against its own 22px root, so 3.2rem is exactly
+ * 70.4px there. Our root is now that same 22px, which means `rem` here
+ * reproduces the live values exactly rather than approximating them — the
+ * opposite of the situation in the hero, where a `rem` was standing in for a
+ * value that had been measured against a *different* root.
+ */
+.about-hero h1 {
+  font-size: 3.2rem; /* 70.4px */
+  font-weight: 700;
+  line-height: 3.2rem;
+  color: var(--white);
+  margin: 0 0 46px;
+  letter-spacing: 0;
+}
+
+/*
+ * The same banner without the 70.4px display heading.
+ *
+ * `/about` and `/team` are the only two live pages whose `h1` is set that large;
+ * every other page using this banner takes the theme's ordinary 32px/48/800. The
+ * awards page had the oversized one purely because it reused the class.
+ *
+ * It has to sit *after* `.about-hero h1` — the two selectors have identical
+ * specificity, so source order is the only thing deciding them, and this rule
+ * did nothing at all while it was declared earlier in the file.
+ */
+.about-hero-plain h1 {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.5; /* 48px */
+}
+
+.kgc-h2-xl {
+  font-size: 2.8rem; /* 61.6px */
+  font-weight: 800;
+  line-height: 2.8rem;
+  /*
+   * Pure black, and measured — `rgb(0, 0, 0)` on the live /about page, not the
+   * `#1f1a11` the theme uses for every other heading. It was briefly "corrected"
+   * to `var(--heading)` on the assumption that a bare `#000` was an oversight;
+   * re-measuring put it back. The live site is inconsistent here and the brief
+   * is to match it, not to tidy it.
+   */
+  color: #000;
+  text-align: center;
+  margin: 0 0 34px;
+}
+
+.kgc-h2-md {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 63px;
+  color: var(--heading);
+  text-align: center;
+  margin: 0;
+}
+
+.kgc-h2-sm {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 48px;
+  color: var(--heading);
+  text-align: center;
+  margin: 0;
+}
+
+.about-prose p,
+.about-prose li {
+  font-size: 1rem; /* 22px */
+  line-height: 1.6; /* 35.2px */
+  color: var(--heading);
+  max-width: none;
+  margin: 0 0 26px;
+}
+
+.about-prose a {
+  color: var(--highlight);
+}
+
+.about-prose ul {
+  margin: 0;
+  padding-left: 26px;
+}
+
+/*
+ * "Connecting the Knowledge Ecosystem" and "KGC Developments" are two-column:
+ * a centred heading held in a narrow left column, prose at 790px on the right.
+ */
+.about-split {
+  display: grid;
+  gap: 40px 110px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (width >= 940px) {
+  .about-split {
+    grid-template-columns: 340px minmax(0, 790px);
+  }
+}
+
+.about-mission .mission-copy {
+  font-family: Roboto, sans-serif;
+  font-size: 26px;
+  line-height: 42px;
+  color: var(--heading);
+  max-width: 620px;
+  margin: 0 auto 40px;
+}
+
+/* The live calls to action are 22px bold and set in capitals. */
+.btn-kgc {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 35px;
+  text-transform: uppercase;
+  padding: 12px 26px;
+  border-radius: var(--radius-sm);
+}
+
+@media (width < 760px) {
+  .about-hero h1 { font-size: 42px; line-height: 46px; }
+  .kgc-h2-xl { font-size: 38px; line-height: 42px; }
+  .kgc-h2-md { font-size: 30px; line-height: 40px; }
+  .about-prose p, .about-prose li { font-size: 18px; line-height: 30px; }
+  .about-mission .mission-copy { font-size: 20px; line-height: 32px; }
+  .btn-kgc { font-size: 17px; padding: 10px 18px; }
+}
+
+/* ------------------------------------------------------------- /speakers -- */
+
+/*
+ * The live speaker card, measured inside the Whova iframe: a 371x350 panel at
+ * #f6f6f6 with an 8px radius and 25px/0/15px padding, a 150px circular
+ * portrait, and three lines of Roboto beneath it.
+ *
+ * The widget sets its heading in Raleway, which is the widget's face and not
+ * the site's — this uses Open Sans 800 at the same 48/56, because Raleway
+ * appears nowhere else on knowledgegraph.tech.
+ */
+.speakers-head {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 56px;
+  color: #333;
+  text-align: center;
+  margin: 0 0 40px;
+}
+
+.speaker-tile {
+  background: #f6f6f6;
+  border-radius: 8px;
+  padding: 25px 16px 15px;
+}
+
+.speaker-tile:hover {
+  background: #efefef;
+  transform: none;
+}
+
+.speaker-portrait {
+  width: 150px;
+  height: 150px;
+  box-shadow: none;
+}
+
+.speaker-tile:hover .speaker-portrait {
+  box-shadow: none;
+}
+
+.speaker-portrait.is-fallback {
+  font-size: 2.4rem;
+}
+
+.speaker-name {
+  margin: 22px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 34px;
+  color: #333;
+}
+
+.speaker-org {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: #5a5a5a;
+}
+
+.speaker-role {
+  margin: 2px 0 0;
+  font-size: 16px;
+  line-height: 23px;
+  color: #5a5a5a;
+}
+
+/*
+ * Three across, then the remaining two centred on a second row — the live
+ * page's shape, which falls out of `flex-wrap` plus `justify-content: center`
+ * once the basis is a third.
+ */
+.featured-speakers {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.speakers-more {
+  text-align: center;
+  margin-top: 40px;
+}
+
+/*
+ * `#2dacee` is the Whova widget's blue, not a theme colour — kept because this
+ * button is the one control the live page has and the shape is the point. It is
+ * deliberately not added to the palette in `:root`.
+ *
+ * White on it is a 2.55 contrast ratio, which fails AA. That is the live
+ * widget's own value and is kept for the same reason as the orange buttons: an
+ * exact copy was asked for. Both are the two places on this site where fidelity
+ * was chosen over contrast, and they are the two to revisit first if that
+ * trade is ever reversed.
+ */
+.btn-viewall {
+  background: #2dacee;
+  color: var(--white);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  padding: 18px 26px;
+}
+
+.btn-viewall:hover {
+  background: #1f9bd8;
+}
+
+@media (width < 760px) {
+  .speakers-head { font-size: 34px; line-height: 42px; }
+  .speaker-name { font-size: 20px; line-height: 28px; }
+}
+
+/* ------------------------------------------------------- About KGC menu -- */
+
+/*
+ * The dropdown, measured off the live site on 2026-08-19: a navy panel dropping
+ * from the header, 12px items in the pale `#f7fafc`, the hovered row picking up
+ * the light blue.
+ *
+ * Opened by `:hover` and `:focus-within` together — the second is what makes it
+ * reachable from the keyboard, and costs one selector rather than a state hook.
+ */
+.has-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-header nav .menu-parent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.menu-parent .chev {
+  transition: transform 0.16s ease;
+}
+
+.has-menu:hover .chev,
+.has-menu:focus-within .chev {
+  transform: rotate(180deg);
+}
+
+.submenu {
+  position: absolute;
+  top: 100%;
+  /*
+   * Left-aligned to the trigger, which is what the live site does: measured
+   * there, the panel's left edge and the "About KGC" item's left edge are both
+   * at x=1105. Centring it — as this did — pushed it out over the page.
+   */
+  left: 0;
+  transform: translateY(-6px);
+  min-width: 268px;
+  background: var(--palette-2);
+  border-top: 2px solid var(--palette-4);
+  box-shadow: 0 14px 34px rgb(16 36 58 / 34%);
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 60;
+}
+
+.has-menu:hover .submenu,
+.has-menu:focus-within .submenu {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/*
+ * The panel and its trigger are separated by the header's own bottom padding, so
+ * without this the menu closes while the pointer crosses the gap.
+ */
+.has-menu::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 14px;
+}
+
+.site-header nav .submenu a,
+.submenu .submenu-todo {
+  display: block;
+  padding: 11px 20px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--palette-8);
+  text-decoration: none;
+  white-space: normal;
+  border-radius: 0;
+}
+
+.site-header nav .submenu a:hover {
+  background: var(--palette-4);
+  color: var(--palette-1);
+}
+
+/* Listed so the live menu's shape is visible, but deliberately not a link. */
+.submenu .submenu-todo {
+  color: #7f8ca6;
+  cursor: default;
+}
+
+.submenu .submenu-todo em {
+  display: block;
+  font-size: 10.5px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5f6c86;
+  margin-top: 2px;
+}
+
+/*
+ * On a phone the panel is already inside an open hamburger, so a hover menu
+ * would be unreachable. It becomes a plain indented list instead.
+ */
+@media (width < 900px) {
+  .has-menu {
+    display: block;
+    width: 100%;
+  }
+
+  .submenu {
+    position: static;
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    box-shadow: none;
+    border-top: 0;
+    border-left: 2px solid var(--palette-4);
+    margin: 2px 0 6px 12px;
+    min-width: 0;
+    background: transparent;
+  }
+
+  .has-menu::after { display: none; }
+  .menu-parent .chev { display: none; }
+}
+
+/* ---------------------------------------------------------------- /learn -- */
+
+/*
+ * Measured off the live learning-program page on 2026-08-19. The band colours
+ * are sampled from rendered pixels rather than read from CSS, because the wave
+ * texture sits over them and the declared colour is not what you see: the
+ * continuing-education band computes to #8dccee and *renders* #e3f5fd.
+ *
+ *   hero              #e0e5ee + wave-13
+ *   team              #ffffff + wave-3
+ *   continuing ed     #e3f5fd + wave-3
+ *   programmes        #8dccee
+ */
+.learn-hero-band {
+  background-color: var(--palette-3);
+  background-image: url('/kgc/wave-13.png');
+  background-size: cover;
+  background-position: center;
+  padding: 112px 0 124px;
+  text-align: center;
+}
+
+.learn-team-band {
+  background-color: var(--white);
+  background-image: url('/kgc/wave-3.png');
+  background-size: cover;
+  background-position: center;
+  padding: 125px 0 137px;
+}
+
+.learn-ce-band {
+  background-color: #e3f5fd;
+  background-image: url('/kgc/wave-3.png');
+  background-size: cover;
+  background-position: center;
+  padding: 128px 0 140px;
+  text-align: center;
+}
+
+.learn-programs-band {
+  background: var(--palette-4);
+  padding: 88px 0 96px;
+}
+
+/* The wordmark is 1000x275 on the live page and dominates the hero. */
+.learn-hero-band img {
+  width: 100%;
+  max-width: 1000px;
+  height: auto;
+  display: block;
+  margin: 0 auto 46px;
+}
+
+.learn-hero-band .tagline {
+  font-size: 22px;
+  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
+  color: var(--heading);
+  margin: 0 auto 22px;
+  max-width: 1070px;
+}
+
+.learn-hero-band .strap {
+  font-size: 22px;
+  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
+  font-style: italic;
+  color: var(--palette-12);
+  margin: 0 auto;
+}
+
+/*
+ * The live headings are one 57px line with two weights inside them — 700 for
+ * "Meet the" and "Team", 800 for the "KGC | Learn" in the middle.
+ */
+.learn-h2 {
+  /* 2.6rem = 57.2px against the 22px root, which is what the live heading
+     computes to. It was 57px flat, from a capture that rounded. */
+  font-size: 2.6rem;
+  line-height: 2.6rem;
+  /* 800. The comment above describes a 700/800 split inside the line, but the
+     measured weight of the line itself is 800 — the `b` carries no extra step. */
+  font-weight: 800;
+  /* Pure black, measured. Like `.kgc-h2-xl`, the live site uses `rgb(0, 0, 0)`
+     here rather than the `#1f1a11` its other headings take. Matched, not tidied. */
+  color: #000;
+  text-align: center;
+  margin: 0 0 26px;
+  max-width: none;
+}
+
+.learn-h2 b {
+  font-weight: 800;
+}
+
+.learn-intro {
+  font-size: 22px;
+  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
+  color: var(--heading);
+  max-width: 880px;
+  margin: 0 auto 54px;
+  text-align: center;
+}
+
+/* Founder cards: a 191px SQUARE portrait, not the circle this had before. */
+.learn-people {
+  display: grid;
+  gap: 40px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.learn-person {
+  text-align: left;
+}
+
+.learn-person img {
+  width: 191px;
+  height: 191px;
+  object-fit: cover;
+  display: block;
+  border-radius: 0;
+  margin-bottom: 22px;
+}
+
+.learn-person .row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: 191px;
+}
+
+.learn-person .name {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 30px;
+  color: var(--heading);
+}
+
+.learn-person .role {
+  font-size: 14px;
+  line-height: 23px;
+  color: var(--highlight);
+  margin: 2px 0 0;
+}
+
+.li-icon {
+  color: var(--palette-1);
+  flex: none;
+  display: inline-flex;
+  margin-top: 4px;
+}
+
+.li-icon:hover {
+  color: var(--highlight);
+}
+
+/*
+ * The continuing-education roster carries no photographs on the live page, so
+ * it is a text grid. Four across, then the remaining two centred — which falls
+ * out of flex-wrap plus centre justification.
+ */
+.learn-roster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 44px 40px;
+  max-width: 1060px;
+  margin: 0 auto;
+}
+
+.learn-roster > div {
+  flex: 0 1 184px;
+  text-align: center;
+}
+
+.learn-roster .name {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 30px;
+  color: var(--palette-2);
+  display: block;
+}
+
+.learn-roster .role {
+  font-family: Roboto, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 27px;
+  text-transform: uppercase;
+  color: var(--highlight);
+  display: block;
+  margin-top: 4px;
+}
+
+.learn-roster .li-icon {
+  margin-top: 12px;
+  color: var(--highlight);
+}
+
+.learn-programs {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.learn-programs p {
+  font-size: 22px;
+  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
+  color: var(--heading);
+  max-width: none;
+  margin: 0 0 26px;
+}
+
+.learn-programs ul {
+  margin: 0;
+  padding-left: 26px;
+}
+
+.learn-programs > ul > li {
+  font-size: 22px;
+  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
+  color: var(--heading);
+  margin-bottom: 18px;
+}
+
+.learn-programs ul ul {
+  margin: 10px 0 0;
+}
+
+.learn-programs ul ul li {
+  font-size: 19px;
+  line-height: 31px;
+}
+
+.learn-programs a {
+  color: var(--highlight);
+}
+
+@media (width < 860px) {
+  .learn-h2 { font-size: 34px; line-height: 40px; }
+  .learn-hero-band .tagline,
+  .learn-hero-band .strap,
+  .learn-intro,
+  .learn-programs p,
+  .learn-programs > ul > li { font-size: 18px; line-height: 30px; }
+  .learn-person img { width: 100%; height: auto; aspect-ratio: 1; }
+  .learn-person .row { max-width: none; }
+}
+
+/* -------------------------------------------------- team, community, awards -- */
+
+.team-grid {
+  display: grid;
+  gap: 46px 36px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  max-width: 1060px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.channels {
+  display: grid;
+  gap: 26px;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  max-width: 1060px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+/* 48px/800 in `--palette-1`, measured on the live /community heading. */
+.community-title {
+  font-size: 48px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--palette-1);
+  text-align: center;
+}
+
+.channel {
+  background: var(--palette-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 30px 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The live page gives Slack the filled treatment; the others are outlined. */
+.channel.featured {
+  background: var(--palette-4);
+  border-color: var(--palette-4);
+}
+
+/*
+ * 35px/800 in the orange, measured on the live /community page.
+ *
+ * Its channel headings — "YouTube Channel", "Twitter", "Vimeo" — are the one
+ * place on the site where a heading is set in `--palette-5`, and it is what
+ * gives that page its character. Ours were 26px in the same near-black as every
+ * other heading, which is why the page read as a generic card grid.
+ */
+.channel h2 {
+  font-size: 35px;
+  line-height: 1.2;
+  font-weight: 800;
+  margin: 0 0 12px;
+  color: var(--orange);
+}
+
+.channel p {
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--body);
+  margin: 0 0 22px;
+  flex: 1;
+  max-width: none;
+}
+
+.channel .btn {
+  align-self: flex-start;
+}
+
+.laureates {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.laureate {
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 20px 30px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--palette-2);
 }

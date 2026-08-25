@@ -49,6 +49,27 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  * an ordinary email box.
  */
 const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
+
+/**
+ * Open sign-in: anything typed in either field signs you in as the demo
+ * attendee, and both fields may be left empty.
+ *
+ * This exists for the public tunnel demo, where the audience has no account and
+ * no way to be given one — the production sign-in is a six-digit code mailed by
+ * a Cloud Function that cannot be deployed on the Spark plan, so there is no
+ * path by which a stranger could legitimately obtain a credential.
+ *
+ * **It is a real bypass, not a shortcut, so it is gated three ways.** It needs
+ * `EXPO_PUBLIC_OPEN_SIGNIN=1`, it needs emulator mode, and — because the two are
+ * set together in `.env.local` and could plausibly be copied to a production
+ * config by hand — it refuses to arm unless the Auth instance it would sign into
+ * is an emulator one. What it grants is an account carrying the `organizer` role
+ * against a database of synthetic seed data; against a real attendee list the
+ * same flag would be a total compromise, which is why the third check does not
+ * trust the first two.
+ */
+const OPEN_SIGNIN = USE_EMULATOR && process.env.EXPO_PUBLIC_OPEN_SIGNIN === '1';
+
 const DEMO_USERNAME = 'demo';
 const DEMO_PASSCODE = '123';
 const DEMO_EMAIL = 'amara.okonkwo@example.test';
@@ -71,6 +92,10 @@ const DEMO_REAL_PASSWORD = 'kgcdemo2027';
 function resolveCredentials(username: string, password: string) {
   const u = username.trim().toLowerCase();
 
+  // Deliberately first, and deliberately ignoring both arguments.
+  if (OPEN_SIGNIN) {
+    return { email: DEMO_EMAIL, password: DEMO_REAL_PASSWORD };
+  }
   if (USE_EMULATOR && u === DEMO_USERNAME && password === DEMO_PASSCODE) {
     return { email: DEMO_EMAIL, password: DEMO_REAL_PASSWORD };
   }
@@ -97,8 +122,16 @@ export default function LoginScreen() {
     setError(null);
     setBusy(true);
     try {
+      const auth = getFirebaseAuth();
+      // The third gate described on OPEN_SIGNIN. `emulatorConfig` is null unless
+      // `connectAuthEmulator` actually took effect, so a config that claims
+      // emulator mode but reaches the live project cannot open the bypass.
+      if (OPEN_SIGNIN && !auth.emulatorConfig) {
+        setError('Open sign-in is only available against the emulator.');
+        return;
+      }
       const creds = resolveCredentials(email, password);
-      await signInWithEmailAndPassword(getFirebaseAuth(), creds.email, creds.password);
+      await signInWithEmailAndPassword(auth, creds.email, creds.password);
       // No navigation here — `useAuth` flips and the redirect above fires.
     } catch (e) {
       const code = (e as { code?: string }).code ?? '';
@@ -189,12 +222,13 @@ export default function LoginScreen() {
 
         <Pressable
           onPress={submit}
-          disabled={busy || !email || !password}
+          // Open sign-in accepts empty fields, so the button must not gate on them.
+          disabled={busy || (!OPEN_SIGNIN && (!email || !password))}
           accessibilityRole="button"
           accessibilityLabel="Sign in"
           style={({ pressed }) => ({
             backgroundColor: colors.accent,
-            opacity: busy || !email || !password ? 0.5 : pressed ? 0.85 : 1,
+            opacity: busy || (!OPEN_SIGNIN && (!email || !password)) ? 0.5 : pressed ? 0.85 : 1,
             borderRadius: Radius.md,
             alignItems: 'center',
             height: 50,
@@ -209,7 +243,15 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
-        {USE_EMULATOR ? (
+        {OPEN_SIGNIN ? (
+          <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
+            Demo mode — just tap{' '}
+            <Text variant="caption" tone="tint">
+              Sign in
+            </Text>
+            . Any email and password work, including none at all.
+          </Text>
+        ) : USE_EMULATOR ? (
           <View style={{ gap: 4 }}>
             {/*
               Printed rather than remembered. The fields arrive prefilled, so this

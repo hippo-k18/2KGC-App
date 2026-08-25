@@ -49,22 +49,119 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const style = document.createElement('style');
     style.id = WEB_TAB_BAR_STYLE_ID;
     style.textContent = `
+      /*
+       * Rebuild the web tab bar as the bar the device actually draws.
+       *
+       * Two things were wrong with the preview, and both mislead anyone judging
+       * the app from it — or from a recording of it.
+       *
+       * First, position. expo-router's web stylesheet pins the tab list to
+       * "top: 24px"; iOS and Android both draw it along the bottom. "top: auto"
+       * is required as well as "bottom", or both edges pin and the bar stretches
+       * down the whole screen.
+       *
+       * Second, and worse: **the web build renders no icons at all.** The
+       * "<Icon sf=… androidSrc=… />" children are read by the native tab bars and
+       * dropped by "NativeTabsView.web", which emits a Radix tab list of bare
+       * text labels in a floating pill. That is not a small cosmetic gap; it is a
+       * different control. The icons below are the same Material glyphs the
+       * Android bar uses, applied as masks so a single rule can recolour them for
+       * the selected state.
+       *
+       * All of this is web-only and inert on device — it is behind
+       * "Platform.OS === 'web'", and the bar it targets is not the one either
+       * platform draws. Their rules are single classes, so these attribute pairs
+       * outrank them without "!important".
+       */
       [role='tablist'][aria-label='Main'] {
-        max-width: calc(100vw - 16px);
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transform: none;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        border-radius: 0;
+        background: rgba(255, 255, 255, 0.94);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
+        border-top: 0.5px solid rgba(0, 0, 0, 0.18);
+        box-shadow: none;
+        display: flex;
+        gap: 0;
+        padding: 7px 0 calc(7px + env(safe-area-inset-bottom, 0px));
+        overflow: visible;
       }
+
       [role='tablist'][aria-label='Main'] > button {
+        flex: 1 1 0;
         min-width: 0;
-        flex-shrink: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 3px;
+        height: auto;
+        padding: 0 2px;
+        background: none;
+        border-radius: 0;
+        color: #8e8e93;
       }
+
+      /* The glyph the web build never renders. */
+      [role='tablist'][aria-label='Main'] > button::before {
+        content: '';
+        width: 25px;
+        height: 25px;
+        background-color: currentColor;
+        -webkit-mask-repeat: no-repeat;
+                mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+                mask-position: center;
+        -webkit-mask-size: contain;
+                mask-size: contain;
+      }
+
       [role='tablist'][aria-label='Main'] > button > span {
         display: block;
+        font-size: 10px;
+        line-height: 12px;
+        letter-spacing: 0.01em;
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
       }
-      @media (max-width: 520px) {
-        [role='tablist'][aria-label='Main'] > button {
-          padding: 0 5px;
-        }
+
+      [role='tablist'][aria-label='Main'] > button[aria-selected='true'] {
+        color: #1d5fbf;
+      }
+
+      /* The pill highlight the web build draws behind the active tab. */
+      [role='tablist'][aria-label='Main'] > button[aria-selected='true']::after {
+        display: none;
+      }
+
+      [role='tablist'][aria-label='Main'] > button:nth-child(1)::before {
+        -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'/></svg>");
+                mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'/></svg>");
+      }
+      [role='tablist'][aria-label='Main'] > button:nth-child(2)::before {
+        -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 002 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z'/></svg>");
+                mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 002 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z'/></svg>");
+      }
+      [role='tablist'][aria-label='Main'] > button:nth-child(3)::before {
+        -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'/></svg>");
+                mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'/></svg>");
+      }
+      [role='tablist'][aria-label='Main'] > button:nth-child(4)::before {
+        -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z'/></svg>");
+                mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z'/></svg>");
+      }
+      [role='tablist'][aria-label='Main'] > button:nth-child(5)::before {
+        -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>");
+                mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>");
       }
     `;
     document.head.appendChild(style);

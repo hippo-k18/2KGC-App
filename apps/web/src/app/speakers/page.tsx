@@ -1,110 +1,75 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { SITE } from '@/lib/site';
 import { FEATURED_2026, REST_2026, SPEAKERS_2026 } from '@/lib/speakers-2026';
-import { SpeakerCard, SpeakerGrid } from '@/components/speaker-grid';
+import { SpeakerCard, ViewAllSpeakers } from '@/components/speaker-grid';
 
 export const metadata: Metadata = {
   title: 'Speakers',
   description:
-    'The people speaking at the Knowledge Graph Conference 2027, from the conference database.',
+    'The speakers at the Knowledge Graph Conference, led by the five highlighted on the conference’s own speaker page.',
 };
 
 /**
- * The speaker list.
+ * A close copy of the live /2026-speakers page.
  *
- * ## Why this shows 2026 people on a 2027 site, and says so
+ * That page is not really a page: its whole body is one embedded Whova speaker
+ * widget, which is why these speakers do not appear in search results and
+ * cannot be linked to. It renders a single heading, five highlighted people as
+ * three cards then two, and a "View All Speakers" button. Everything here is
+ * measured from inside that iframe on 2026-08-19 — the 371x350 `#f6f6f6` card
+ * at an 8px radius, the 150px circular portrait, 24/700 name over 14/400
+ * company over 16/400 role, and the `#2dacee` button.
  *
- * The 2027 programme has not been selected — the seeded `speakers` collection
- * holds invented names, which is the right thing for testing the app and the
- * wrong thing for a public page. So this renders the **real KGC 2026 roster**,
- * scraped from the live site, and the copy states plainly which year these
- * people spoke in. Showing 137 real practitioners under an accurate label is
- * worth more than 45 invented ones under a flattering one, and quietly
- * presenting last year's line-up as this year's would be the exact defect this
- * repository keeps finding in itself.
+ * Two deliberate departures, both because the widget is the thing this project
+ * replaces. The heading is set in Open Sans rather than the widget's Raleway,
+ * which appears nowhere else on knowledgegraph.tech. And the other 132 are
+ * revealed on this page rather than behind a navigation to `?view_all=true`,
+ * because here they are server-rendered and indexable.
  *
- * ## Why five of them come first
+ * ## Why 2026 people are shown on a 2027 site
  *
- * The live widget leads with five highlighted speakers under the heading "Our
- * First Speakers" and hides the other 132 behind a "View All Speakers…" button.
- * That editorial choice is the organisers', it is recorded in Whova's own
- * `design.highlight_speakers`, and it survives here — a page that dropped the
- * five and opened straight into an alphabetical wall of 137 would be a
- * different page. The 132 keep the "show more" batching instead of a link,
- * because unlike the widget they are already on this page and already indexed.
+ * The 2027 programme has not been selected, and the seeded `speakers`
+ * collection holds invented names — right for testing the app, wrong for a
+ * public page. These are the real KGC 2026 roster, and the page says so.
  *
- * ## The joke in the provenance
+ * ## Which five come first, and how that was established
  *
- * The incumbent site's speaker page is not a page. It is an embedded **Whova**
- * widget, which is why those speakers do not appear in search results and cannot
- * be linked to — and Whova is the product this whole project replaces. Here the
- * same people are server-rendered, indexable and linkable. See
- * `lib/speakers-2026.ts` for how the data was actually obtained.
+ * Whova's own payload names them: `design.highlight_speakers` is an array of
+ * exactly five profile ids resolving to Bertails, Hendler, Ivie, Khattar and
+ * Pakiman. See `lib/speakers-2026.ts`.
  */
 export const dynamic = 'force-dynamic';
 
-export default async function SpeakersPage() {
-  const speakers = SPEAKERS_2026;
+export default function SpeakersPage() {
+  const tiles = (list: typeof FEATURED_2026) =>
+    list.map((s, i) => ({
+      // Whova gives no stable public id, so the name is the key. The index
+      // disambiguates the two people who share one.
+      id: `${s.name}-${i}`,
+      name: s.name,
+      company: s.company,
+      role: s.role,
+      photoURL: s.photo,
+      width: s.width,
+      height: s.height,
+    }));
 
   return (
-    <section>
-      {/*
-        Centred, matching the live speakers page — and matching the cards below,
-        which are themselves centred. A left-aligned heading over a centred grid
-        was the "framing" that read as wrong: at a desktop width the heading and
-        its lede sat in the left two-thirds with a large empty right side, above
-        a grid that was balanced.
-      */}
-      <div className="wrap page-head-centred">
-        <p className="eyebrow">KGC 2026</p>
-        <h1>Speakers</h1>
-        <p className="lede">
-          The {speakers.length} people who spoke at KGC 2026, listed by surname. The {SITE.year}{' '}
-          programme is still with the committee — when it is settled it appears here and on the{' '}
-          <Link href="/agenda">agenda</Link>.
-        </p>
+    <section style={{ padding: '72px 0 96px' }}>
+      <div className="wrap-kgc">
+        <h1 className="speakers-head">Our First Speakers</h1>
 
-        {speakers.length === 0 ? (
-          <p className="notice">
-            The speaker list is not published yet. Check back shortly — or{' '}
-            <Link href="/tickets">register</Link> and we will mail you when it goes live.
-          </p>
+        {SPEAKERS_2026.length === 0 ? (
+          <p className="notice">The speaker list is not published yet.</p>
         ) : (
           <>
-            <h2 className="speaker-section-head">Our First Speakers</h2>
+            {/* Three across, then the remaining two centred beneath them. */}
             <div className="featured-speakers">
-              {FEATURED_2026.map((s, i) => (
-                <SpeakerCard
-                  key={`${s.name}-${i}`}
-                  eager
-                  speaker={{
-                    id: `${s.name}-${i}`,
-                    name: s.name,
-                    company: s.company,
-                    role: s.role,
-                    photoURL: s.photo,
-                    width: s.width,
-                    height: s.height,
-                  }}
-                />
+              {tiles(FEATURED_2026).map((s) => (
+                <SpeakerCard key={s.id} eager speaker={s} />
               ))}
             </div>
 
-            <h2 className="speaker-section-head">The other {REST_2026.length}</h2>
-            <SpeakerGrid
-              speakers={REST_2026.map((s, i) => ({
-                // Whova gives no stable public id, so the name is the key. The
-                // index disambiguates the two people who share one.
-                id: `${s.name}-${i}`,
-                name: s.name,
-                company: s.company,
-                role: s.role,
-                photoURL: s.photo,
-                width: s.width,
-                height: s.height,
-              }))}
-            />
+            <ViewAllSpeakers speakers={tiles(REST_2026)} />
           </>
         )}
       </div>

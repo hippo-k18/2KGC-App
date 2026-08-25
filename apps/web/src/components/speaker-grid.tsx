@@ -138,3 +138,46 @@ export function SpeakerGrid({
     </>
   );
 }
+
+/**
+ * The live page's shape: five highlighted speakers, then one blue button, and
+ * the remaining 132 only exist once it is pressed.
+ *
+ * The widget behind the live page navigates away to `?view_all=true` at this
+ * point. Here the rest are already on the same page and already indexed, so the
+ * button reveals them in place — and, as in `SpeakerGrid`, they are absent from
+ * the DOM until asked for rather than hidden with CSS, so nothing tabs into a
+ * card nobody can see.
+ */
+export function ViewAllSpeakers({ speakers }: { speakers: SpeakerTile[] }) {
+  const [open, setOpen] = useState(false);
+
+  if (!speakers.length) return null;
+
+  return (
+    <>
+      {!open && (
+        <div className="speakers-more">
+          <button
+            type="button"
+            className="btn btn-viewall"
+            aria-expanded={false}
+            onClick={() => setOpen(true)}
+          >
+            View All Speakers
+            <span className="sr-only"> — {speakers.length} more</span>
+          </button>
+        </div>
+      )}
+
+      {open && (
+        <>
+          <h2 className="speakers-head" style={{ marginTop: 64 }}>
+            All {speakers.length + 5} Speakers
+          </h2>
+          <SpeakerGrid speakers={speakers} initial={24} />
+        </>
+      )}
+    </>
+  );
+}

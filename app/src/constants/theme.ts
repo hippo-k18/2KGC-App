@@ -80,6 +80,14 @@ export const Colors = {
     textSecondary: '#48484A',
     /** 5.99:1 on surface · 5.37 on background · 4.77 on pressed. */
     textTertiary: '#636366',
+    /**
+     * The white plate a sponsor logo sits on, and the one colour that is
+     * deliberately identical in both schemes. Sponsor logos are supplied as
+     * transparent PNGs drawn in dark ink; on a dark surface several of them
+     * disappear entirely. A brand mark is also not ours to re-tint, so the plate
+     * stays white and the logo stays as its owner drew it.
+     */
+    logoPlate: '#FFFFFF',
     border: '#D1D1D6',
     separator: '#E5E5EA',
     /** Brand as *foreground*: links, tinted text. 5.51:1 on surface. */
@@ -112,6 +120,14 @@ export const Colors = {
     textSecondary: '#AEAEB2',
     /** 5.94:1 on surface · 7.33 on background. */
     textTertiary: '#98989F',
+    /**
+     * The white plate a sponsor logo sits on, and the one colour that is
+     * deliberately identical in both schemes. Sponsor logos are supplied as
+     * transparent PNGs drawn in dark ink; on a dark surface several of them
+     * disappear entirely. A brand mark is also not ours to re-tint, so the plate
+     * stays white and the logo stays as its owner drew it.
+     */
+    logoPlate: '#FFFFFF',
     border: '#38383A',
     separator: '#2C2C2E',
     /**

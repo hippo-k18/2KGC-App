@@ -36,7 +36,12 @@ export function SiteFooter() {
             <h2>Participate</h2>
             <Link href="/sponsor">Sponsor KGC</Link>
             <Link href="/sponsor#speak">Speak at KGC</Link>
-            <Link href="/about#code-of-conduct">Code of conduct</Link>
+            <Link href="/call-for-posters">Poster track</Link>
+            <Link href="/startup-pitch">Startup pitch</Link>
+            {/* `/code-of-conduct`, not `/about#code-of-conduct`. It is a policy
+                people are asked to agree to, and the live site gives it a page
+                of its own rather than a fragment on another one. */}
+            <Link href="/code-of-conduct">Code of conduct</Link>
           </div>
 
           <div>
@@ -47,6 +52,25 @@ export function SiteFooter() {
               </a>
             ))}
           </div>
+        </div>
+
+        {/*
+          The live footer's signature: the white KGC wordmark, centred, above the
+          copyright line. Its whole footer is only that plus a row of social
+          icons — no link columns at all.
+          We keep the columns, because deleting the only route to the poster
+          track, the startup pitch and the code of conduct would be trading real
+          navigation for a resemblance. The wordmark is added because it is the
+          one element that makes the live footer recognisable at a glance, and it
+          is the same asset the live site serves.
+        */}
+        <div className="footer-mark">
+          <Image
+            src="/kgc/cropped-White-Wordmark-2.png"
+            alt="Knowledge Graph Conference"
+            width={220}
+            height={73}
+          />
         </div>
 
         <div className="fine">

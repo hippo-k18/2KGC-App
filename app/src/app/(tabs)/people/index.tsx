@@ -10,6 +10,7 @@ import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { FilterChip } from '@/components/filter-chip';
 import { Chevron, Icon } from '@/components/icon';
+import { SponsorLogo } from '@/components/sponsor-logo';
 import { Text } from '@/components/text';
 import { WhovaHeader } from '@/components/whova-header';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -391,7 +392,7 @@ export default function PeopleScreen() {
               return (
                 <DirectoryRow
                   name={s.name}
-                  photoURL={s.logoURL}
+                  logoURL={s.logoURL}
                   lines={[
                     s.tier[0].toUpperCase() + s.tier.slice(1),
                     s.boothLocation ? `Booth ${s.boothLocation}` : undefined,
@@ -497,6 +498,7 @@ export default function PeopleScreen() {
 function DirectoryRow({
   name,
   photoURL,
+  logoURL,
   lines,
   tags,
   onPress,
@@ -507,6 +509,12 @@ function DirectoryRow({
 }: {
   name: string;
   photoURL?: string;
+  /**
+   * A sponsor's logo, which is not a photo and must not be drawn as one — see
+   * `SponsorLogo`. Mutually exclusive with `photoURL` in practice: attendees and
+   * speakers have faces, sponsors have wordmarks.
+   */
+  logoURL?: string;
   lines: (string | undefined)[];
   tags: string[];
   onPress?: () => void;
@@ -532,7 +540,11 @@ function DirectoryRow({
         // 84 — half again as tall as the directory row Whova draws.
         paddingVertical: Spacing.md - Spacing.xs,
       }}>
-      <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
+      {logoURL === undefined ? (
+        <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
+      ) : (
+        <SponsorLogo name={name} logoURL={logoURL} size={ROW_AVATAR} />
+      )}
 
       <View style={{ flex: 1, gap: Spacing.xs }}>
         <Text variant="heading" numberOfLines={2}>

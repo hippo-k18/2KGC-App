@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { listSponsors } from '@/lib/data';
+import { listSponsorsByTier } from '@/lib/data';
+import { SponsorTiers } from '@/components/sponsor-tiers';
 import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -10,11 +11,21 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
+/*
+ * Four tiers, because four is what the conference sells.
+ *
+ * This listed Diamond and Startup as well, which the real event has never had —
+ * and the sponsor bands below are grouped from live data, so the page was
+ * offering two packages that no sponsor on the same screen held. The line items
+ * are still ours rather than the prospectus's: the real prospectus is a Coda doc
+ * the live nav links out to, and it is the authority on what a tier includes.
+ * No prices are quoted here for that reason.
+ */
 const PACKAGES = [
   {
-    tier: 'Diamond',
+    tier: 'Platinum',
     what: [
-      'Keynote slot on the main stage',
+      'Keynote or main-stage session slot',
       'Largest booth, front of the exhibition hall',
       'Ten full-conference passes',
       'Logo on the badge lanyard and the app home screen',
@@ -22,9 +33,9 @@ const PACKAGES = [
     ],
   },
   {
-    tier: 'Platinum',
+    tier: 'Gold',
     what: [
-      'Main-stage session slot',
+      'Track session slot',
       'Premium booth position',
       'Six full-conference passes',
       'Logo on stage screens and in the app',
@@ -32,25 +43,17 @@ const PACKAGES = [
     ],
   },
   {
-    tier: 'Gold',
-    what: ['Track session slot', 'Standard booth', 'Four full-conference passes', 'Logo in the app'],
-  },
-  {
     tier: 'Silver',
-    what: ['Exhibition table', 'Two full-conference passes', 'Logo in the app'],
+    what: ['Standard booth', 'Four full-conference passes', 'Logo in the app'],
   },
   {
-    tier: 'Startup',
-    what: [
-      'Shared startup alley table',
-      'One full-conference pass',
-      'For companies under three years old with fewer than twenty staff',
-    ],
+    tier: 'Bronze',
+    what: ['Exhibition table', 'Two full-conference passes', 'Logo in the app'],
   },
 ];
 
 export default async function SponsorPage() {
-  const sponsors = await listSponsors();
+  const bands = await listSponsorsByTier();
 
   return (
     <>
@@ -92,40 +95,11 @@ export default async function SponsorPage() {
         </div>
       </section>
 
-      {sponsors.length > 0 && (
+      {bands.length > 0 && (
         <section>
           <div className="wrap">
-            <h2>Confirmed for 2027</h2>
-            <div className="logos" style={{ marginTop: 20 }}>
-              {/*
-                Links, matching the homepage's identical strip. These were plain
-                `div`s while `.logo-tile:hover` still applied, so fifteen tiles
-                lit up under the pointer and led nowhere.
-              */}
-              {sponsors.map((s) =>
-                s.website ? (
-                  <a
-                    key={s.id}
-                    className="logo-tile"
-                    href={s.website}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    <span>
-                      {s.name}
-                      <span className="logo-tier">{s.tier}</span>
-                    </span>
-                  </a>
-                ) : (
-                  <div className="logo-tile" key={s.id}>
-                    <span>
-                      {s.name}
-                      <span className="logo-tier">{s.tier}</span>
-                    </span>
-                  </div>
-                ),
-              )}
-            </div>
+            <h2>Our sponsors</h2>
+            <SponsorTiers bands={bands} />
           </div>
         </section>
       )}
