@@ -336,6 +336,9 @@ export const IMPLEMENTED = new Set<string>([
   'content/speaker-center/message-speakers',
   'content/sponsor-center/message-sponsors',
   'tickets/ticket-setup/discount-codes',
+  'attendees/manage-attendees/analytics-and-exports',
+  'tools/moderator-tools/community-board',
+  'content/agenda-center/session-qanda-manager',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
@@ -406,6 +409,9 @@ export const ROUTES = {
   messageSpeakers: '/content/speaker-center/message-speakers',
   messageSponsors: '/content/sponsor-center/message-sponsors',
   discountCodes: '/tickets/ticket-setup/discount-codes',
+  analyticsExports: '/attendees/manage-attendees/analytics-and-exports',
+  moderateBoard: '/tools/moderator-tools/community-board',
+  qaManager: '/content/agenda-center/session-qanda-manager',
 } as const;
 
 /**

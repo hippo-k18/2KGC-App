@@ -233,6 +233,14 @@ export interface SponsorRow {
   hasLogo: boolean;
   offerCount: number;
   downloadCount: number;
+  /**
+   * The person the sponsorship team actually deals with. Added when Message
+   * Sponsors needed somewhere to send to — a sponsor record that describes a
+   * logo but not a relationship cannot be contacted, and chasing a missing logo
+   * is the commonest reason to try.
+   */
+  contactName?: string;
+  contactEmail?: string;
 }
 
 /** Whova orders tiers by value and that ordering drives three surfaces (§9.2). */
@@ -252,6 +260,8 @@ export async function listSponsors(): Promise<SponsorRow[]> {
         boothLocation: s.boothLocation,
         logoURL: s.logoURL,
         hasLogo: Boolean(s.logoURL),
+        contactName: s.contactName,
+        contactEmail: s.contactEmail,
         offerCount: s.offers?.length ?? 0,
         downloadCount: s.downloads?.length ?? 0,
       };

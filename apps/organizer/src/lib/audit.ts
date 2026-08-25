@@ -59,7 +59,14 @@ export interface AuditEntry {
     | 'message.send'
     /** Discount codes live in Stripe, so this records a write we made there. */
     | 'discountCode.create'
-    | 'discountCode.update';
+    | 'discountCode.update'
+    /**
+     * Hiding or restoring community content and Q&A questions. Recorded because
+     * moderation is contested by definition — "who hid my post, and when?" has
+     * to have an answer that is not a shrug.
+     */
+    | 'moderation.setStatus'
+    | 'session.qaSettings';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;
