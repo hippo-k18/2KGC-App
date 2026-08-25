@@ -9,56 +9,58 @@ both were true then and are not now).
 
 ## The honest numbers
 
-`apps/organizer/src/lib/nav.ts` transcribes Whova's own navigation tree from
-their shipped bundle: **215 paths**. That figure overstates the work, because
-42 of them are section headers rather than screens.
+Updated **2026-08-25**, after a large build-out. `apps/organizer/src/lib/nav.ts`
+transcribes Whova's own navigation tree from their shipped bundle: **215 paths**.
+That overstates the work, because 42 of them are section headers rather than
+screens.
 
 | | Count |
 |---|---:|
 | Nav paths in Whova's tree | 215 |
 | — of which section headers, not screens | 42 |
 | **Real screens** | **173** |
-| Built and reading live data | **17** |
-| **Remaining** | **156** |
+| Built and reading live data | **62** |
+| **Remaining** | **111** |
 
 By tab, built / total paths:
 
 | Tab | Built | Note |
 |---|---|---|
-| Content | 8 / 44 | Agenda, speakers, sponsors done; exhibitors and artifacts untouched |
-| Tickets | 5 / 60 | The money path is done; 3 parallel catalogues are not |
-| Attendees | 2 / 28 | List and check-in done |
-| Engagement | 1 / 21 | Announcements only |
-| Tools | 1 / 16 | Report only |
-| Marketing | 0 / 25 | Nothing |
-| Virtual & Hybrid | 0 / 15 | Nothing |
-| Pay | 0 / 5 | Nothing |
-| Publish | 0 / 1 | Nothing |
+| Content | 16 / 44 | Agenda, speakers, sponsors, exhibitors, documents, checklists |
+| Tickets | 12 / 60 | Money path complete; three parallel catalogues are not |
+| Attendees | 10 / 28 | List, check-in, exports, four derived cohorts, integrations |
+| Tools | 9 / 16 | App adoption, admin control, board moderation, report |
+| Engagement | 7 / 21 | Announcements, community views, matchmaking, surveys |
+| Marketing | 4 / 25 | Webpage readiness reports |
+| Pay | 3 / 5 | Balance, billing, orders |
+| Publish | 1 / 1 | ✅ complete |
+| Virtual & Hybrid | 0 / 15 | Untouched, and a candidate to cut |
 
-The website is separate and in much better shape: **19 pages, and all 17 links
-the nav declares resolve.** There are no broken pages. What it lacks is
-content-management — every page is a React file, so editing the code of conduct
-is a deploy. That is Whova's `marketing/event-webpages/*`, listed below.
+Every one of the 62 is smoke-tested under `next start` against seeded data —
+200, no runtime error — and the whole tree is validated so no `IMPLEMENTED`
+path can name a route that does not exist in Whova's nav.
 
-⚠️ **This is a multi-month programme, not a sprint.** At a sustained pace of
-roughly one screen a day — which is optimistic for the ones needing new data
-models — 156 screens is six to eight months of solo work. The sequencing below
-matters more than the total.
+The website is separate and in better shape: **19 pages, all 17 nav links
+resolving**. What it lacks is content management — every page is a React file,
+so editing the code of conduct is a deploy. That is Phase 5 below.
+
+⚠️ **111 screens is still months, not weeks.** The sequencing below matters more
+than the total.
 
 ---
 
 ## The five things that block everything else
 
-Most of the 156 are not blocked on effort. They are blocked on one of five
+Most of the 111 are not blocked on effort. They are blocked on one of five
 missing capabilities, and unblocking a capability makes a whole cluster cheap at
 once. This is the single most useful way to read the list.
 
 | Blocker | Screens behind it | Status |
 |---|---:|---|
-| **1. An email sender** | ~14 | ✅ **Unblocked Aug 2026** |
+| **1. An email sender** | ~14 | ✅ **Unblocked, and spent** |
 | **2. Cloud Functions (Blaze plan)** | ~22 | ❌ Project is on Spark |
 | **3. File upload + image pipeline** | ~18 | ❌ Storage rules exist, no UI |
-| **4. A generic entity CRUD + importer** | ~40 | ❌ Written once per entity today |
+| **4. A generic entity CRUD + importer** | ~40 | ⚠️ **Export half built**; importer still missing |
 | **5. Streaming infrastructure** | ~15 | ❌ And arguably out of scope |
 
 ★ **Blocker 1 fell as a side effect of building ticket receipts**, which is why
@@ -77,15 +79,12 @@ Written one at a time, that cluster alone is four months.
 
 ## Sequencing
 
-### Phase 1 — finish what the email sender unblocked · ~1 week
+### Phase 1 — ✅ done
 
-Cheapest possible value, because the hard part already exists.
-
-- `content/exhibitor-center/message-exhibitors`
-- `content/artifact-center-.../message-presenters`
-- `content/project-management/message-team-members`
-- `tickets/ticket-setup/1-3-confirmation-emails` — edit the receipt copy
-- `engagement/session-feedback` — post-session survey mail
+The messaging screens the email sender unblocked are built. What remains of this
+phase is three more of the same, now roughly a day each because the audience
+abstraction exists: `message-exhibitors`, `message-presenters`,
+`message-team-members`, plus `1-3-confirmation-emails` to edit the receipt copy.
 
 ### Phase 2 — the generic table · ~2 weeks, then everything is cheaper
 
@@ -107,13 +106,16 @@ The money path is done; the catalogue around it is not.
 - Refunding an invoice (credit notes)
 - `Pay` tab (5 paths) — payout settings, mostly links into Stripe
 
-### Phase 4 — Attendees and Engagement · ~4 weeks
+### Phase 4 — Attendees and Engagement · ~2 weeks remaining
 
-- Attendee analytics and exports
-- Meet-ups, discussion topics, social groups — generic table again
-- Surveys, session feedback
-- Moderator tools (photos, chats, board, Q&A)
-- Admin control, code access
+Analytics and exports, the community views, surveys, session feedback, board
+moderation, admin control and code access are **all built**. What is left here:
+
+- Moderator tools for photos and session chats — neither feature exists in the
+  app, so there is nothing to queue
+- Name badges and certificates — the highest-value pair remaining in this tab
+- Check-in variants: self check-in, kiosk, session self check-in, checkout
+- Volunteers, release and consent forms
 
 ⚠️ Live polling and Q&A tallies sit behind **blocker 2**. They render in the app
 today and their counters never move. Upgrading to Blaze is a card on file, not
@@ -162,8 +164,8 @@ than quietly skipping them:
 - **Attendee Limit Upgrade** — a Whova billing screen. We have no tiers to
   upsell.
 
-Cutting those removes roughly **28 screens**, taking the real remainder from
-156 to about **128**.
+Cutting those removes roughly **26 screens** from what is left, taking the real
+remainder from 111 to about **85**.
 
 ---
 
@@ -185,9 +187,25 @@ For comparison with `whova-rebuild/STATUS.md` (16 August):
 
 | | Then | Now |
 |---|---|---|
-| Organizer screens with live data | 9 | **17** |
+| Organizer screens with live data | 9 | **62** |
 | Ticketing | external | **in-house, end to end** |
 | Transactional email | none anywhere | **built, logged per recipient** |
+| CSV exports | none | **six, injection-safe** |
 | Website pages | 19, some links broken | **19, all links resolve** |
-| Test count | 169 | **206** |
+| Test count | 169 | **222** |
 | `apps/console` | superseded, still tracked | **deleted** |
+
+### What the build-out changed about the plan
+
+**Phase 1 is done.** The messaging screens the email sender unblocked are built.
+
+**Phase 2 is half done.** The export side exists — six CSVs behind one registry,
+so a seventh is an entry rather than a module. **The importer does not**, and it
+is still the highest-leverage thing left: roughly forty screens collapse into
+"map these columns" once it exists, and every entity screen built before it will
+want revisiting.
+
+**One integration would answer ten screens.** Both Zapier guides land on the same
+point: a single outbound webhook on fulfilment lets Zapier fan out to thousands
+of products, which is about a day against five to twelve for any individual
+integration. The Stripe webhook already has the hook point.
