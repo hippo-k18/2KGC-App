@@ -26,6 +26,13 @@ export const COLLECTIONS = {
    * read by the dashboard to answer "did the confirmation actually go out?".
    */
   emailLog: "emailLog",
+  /** Organizer-authored preference bags, one document per feature area. */
+  settings: "settings",
+  exhibitors: "exhibitors",
+  /** The organizing team's own checklist — not attendee-facing. */
+  tasks: "tasks",
+  surveys: "surveys",
+  documents: "documents",
   /** Server-only: written and read by Cloud Functions with the Admin SDK. */
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",
@@ -49,6 +56,7 @@ export const SUBCOLLECTIONS = {
   materials: "materials",
   leads: "leads",
   checkIns: "checkIns",
+  responses: "responses",
 } as const;
 
 /** The single document inside `sessions/{id}/qaBoard`. */

@@ -823,3 +823,142 @@ export interface EntitlementDoc {
   grantedAt: Timestamp;
   expiresAt?: Timestamp;
 }
+
+// ---------------------------------------------------------------------------
+// Settings, and the entities the remaining organizer screens need
+//
+// Added August 2026 while building out the dashboard. Everything here is
+// authored by organizers through the console and read by the app or the public
+// website — none of it is imported from anywhere.
+// ---------------------------------------------------------------------------
+
+/**
+ * `settings/{key}` — a namespaced bag of organizer preferences.
+ *
+ * ── Why one collection and not a field on each feature ──────────────────────
+ *
+ * A third of Whova's remaining screens are settings forms: branding, the event
+ * website, registration rules, post-event access, code access. Each holds a
+ * handful of values that only an organizer writes and only one screen reads.
+ * Modelling each as its own collection would be a dozen collections with one
+ * document in them; modelling them as fields on `EVENT` would make every read
+ * of the event fetch all of it.
+ *
+ * So: one collection, keyed by a stable string (`branding`, `registration`,
+ * `access`), each holding a flat `values` map. The screen owns the shape and
+ * validates it; this type deliberately does not try to describe every key,
+ * because a union of twelve settings shapes is a union that is edited on every
+ * screen and therefore always slightly wrong.
+ */
+export interface SettingsDoc extends BaseDoc {
+  /** Matches the document id. Duplicated so a query result is self-describing. */
+  key: string;
+  values: Record<string, string | number | boolean | null>;
+  /** Who last changed it, for the same reason the audit log exists. */
+  updatedBy?: string;
+}
+
+/**
+ * `exhibitors/{id}` — a booth in the exhibition hall.
+ *
+ * Distinct from `SponsorDoc` even though the two overlap, because Whova treats
+ * them as separate products with separate ticket catalogues and separate
+ * messaging, and because they genuinely differ: a sponsor buys visibility, an
+ * exhibitor buys floor space. An exhibitor has a booth number, staff passes and
+ * a lead-scanning entitlement; a sponsor has a tier and a logo placement.
+ */
+export interface ExhibitorDoc extends BaseDoc {
+  name: string;
+  boothNumber?: string;
+  logoURL?: string;
+  description?: string;
+  website?: string;
+  contactName?: string;
+  contactEmail?: string;
+  /** How many staff passes the package includes. */
+  passesAllocated?: number;
+  passesUsed?: number;
+  status: "confirmed" | "provisional" | "cancelled";
+}
+
+/**
+ * `tasks/{id}` — the organizing team's own checklist.
+ *
+ * Whova calls this Projects & Checklists. It is the one feature in the console
+ * that is not about attendees at all — it is about the six people running the
+ * event remembering to book the AV company.
+ *
+ * `assignee` is a free-text name rather than a uid on purpose: half the people
+ * on a conference checklist are volunteers and suppliers who will never hold an
+ * account, and requiring one would mean the tasks that matter most cannot be
+ * assigned to anybody.
+ */
+export interface TaskDoc extends BaseDoc {
+  title: string;
+  notes?: string;
+  /** Groups tasks into Whova's project buckets. */
+  project: string;
+  assignee?: string;
+  dueOn?: string;
+  status: "todo" | "doing" | "done" | "blocked";
+  /** Lower sorts first within a project. */
+  order: number;
+  completedAt?: Timestamp;
+  completedBy?: string;
+}
+
+/**
+ * `surveys/{id}` — session feedback and post-event surveys.
+ *
+ * One shape for both, because they differ only in what they are attached to:
+ * a survey with a `sessionId` is session feedback, one without is an event
+ * survey. Whova has them as separate screens and they share this document.
+ */
+export interface SurveyDoc extends BaseDoc {
+  title: string;
+  description?: string;
+  /** Present for session feedback, absent for an event-wide survey. */
+  sessionId?: string;
+  questions: {
+    id: string;
+    prompt: string;
+    kind: "rating" | "single" | "multi" | "text";
+    /** Absent for `rating` and `text`. */
+    options?: string[];
+    required: boolean;
+  }[];
+  status: PublishStatus;
+  opensAt?: Timestamp;
+  closesAt?: Timestamp;
+  /** Maintained by a trigger; unbuilt on Spark, so it may lag. */
+  responseCount: number;
+}
+
+/** `surveys/{surveyId}/responses/{uid}` — one per respondent, keyed by uid. */
+export interface SurveyResponseDoc {
+  uid: string;
+  /** Question id → answer. A rating is a number; multi is a joined string. */
+  answers: Record<string, string | number>;
+  submittedAt: Timestamp;
+}
+
+/**
+ * `documents/{id}` — a file or link offered to attendees.
+ *
+ * ⚠️ `url` is a link, not an upload. Storage rules exist but no upload UI does,
+ * so today an organizer pastes a URL to something hosted elsewhere. That is a
+ * real limitation and the screen says so rather than implying a file picker
+ * that is not there.
+ */
+export interface DocumentDoc extends BaseDoc {
+  title: string;
+  description?: string;
+  url: string;
+  kind: "pdf" | "slides" | "video" | "link";
+  /** Restricts visibility to holders of a ticket type, by name. Empty = all. */
+  visibleToTicketTypes: string[];
+  sessionId?: string;
+  status: PublishStatus;
+  order: number;
+}
+

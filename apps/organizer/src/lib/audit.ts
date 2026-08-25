@@ -66,7 +66,18 @@ export interface AuditEntry {
      * to have an answer that is not a shrug.
      */
     | 'moderation.setStatus'
-    | 'session.qaSettings';
+    | 'session.qaSettings'
+    /** Organizer settings bags — branding, the event website, access rules. */
+    | 'settings.update'
+    /** The entities the later dashboard screens author. */
+    | 'exhibitor.create'
+    | 'exhibitor.update'
+    | 'task.create'
+    | 'task.update'
+    | 'survey.create'
+    | 'survey.update'
+    | 'document.create'
+    | 'document.update';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

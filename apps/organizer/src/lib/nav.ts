@@ -339,6 +339,22 @@ export const IMPLEMENTED = new Set<string>([
   'attendees/manage-attendees/analytics-and-exports',
   'tools/moderator-tools/community-board',
   'content/agenda-center/session-qanda-manager',
+  'content/project-management/projects-and-checklists',
+  'content/documents-and-videos/documents',
+  'content/documents-and-videos/video-hosting',
+  'content/documents-and-videos/attendee-video-access',
+  'engagement/community/meet-ups',
+  'engagement/community/discussion-topics',
+  'engagement/community/social-groups',
+  'engagement/community/attendee-matchmaking',
+  'marketing/event-webpages/agenda-webpage/general-purpose',
+  'marketing/event-webpages/speaker-webpage',
+  'marketing/event-webpages/sponsor-webpage/sponsor-list',
+  'marketing/event-website',
+  'pay/balance',
+  'pay/order-details',
+  'pay/billing-information',
+  'publish',
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
