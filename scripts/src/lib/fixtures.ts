@@ -40,12 +40,16 @@ export const ROOMS: { name: string; building: string; capacity: number }[] = [
 ];
 
 /** Real ticket tiers. */
-export const TICKET_TYPES = [
-  { name: 'All Access', priceCents: 119900, includesVideoLibrary: true, includesWorkshops: true },
-  { name: 'Main Conference', priceCents: 79900, includesVideoLibrary: true, includesWorkshops: false },
-  { name: 'Workshops Only', priceCents: 69900, includesVideoLibrary: false, includesWorkshops: true },
-  { name: 'Virtual', priceCents: 34900, includesVideoLibrary: true, includesWorkshops: false },
-];
+/**
+ * The ticket catalogue, re-exported from its single definition.
+ *
+ * These four were invented here once, and the invented names ("All Access",
+ * "Workshops Only") did not match the four the website actually sells ("All
+ * Access (VIP)", "Workshops"). Since `RegistrationDoc.ticketType` stores the
+ * *name* and the badge prints it, that mismatch put a tier on a badge that no
+ * tier in the catalogue was called. One definition now, in `ticket-types.ts`.
+ */
+export { TICKET_TYPE_SEED as TICKET_TYPES } from './ticket-types.js';
 
 /**
  * Poll questions, one per session that has polls switched on.
@@ -121,59 +125,107 @@ export const POLL_QUESTIONS: { question: string; options: { id: string; label: s
 ];
 
 /**
- * Real companies from this field, arranged into a plausible tier structure.
+ * The real KGC sponsor list, scraped from the live site on 2026-08-20.
  *
- * The names are real, the sponsorship is invented — none of these organisations
- * has agreed to anything, and the booth numbers are made up. That is the same
- * bargain the rest of this file strikes, and it is the right one here: a
- * sponsor list of invented vendor names would look wrong to anyone who works in
- * this field, and this list is shown to exactly those people.
+ * These are not arranged, invented or plausible — they are the 18 sponsors the
+ * conference actually has, in the four tiers it actually sells. The live site
+ * does not put them in its own HTML: the strip is an embedded Whova widget, and
+ * the data comes from Whova's public endpoint
+ * `xems/apis/event_webpage/sponsor/public/get_sponsors/?event_id=...`. That is
+ * why the original scrape of the site came back with no logos at all and this
+ * list had to be invented in the first place.
  *
- * `description` and `website` used to be generated: every sponsor got
- * "<name> — placeholder description, replace before the demo." and every single
- * one linked to `knowledgegraph.tech`. Fifteen rows announcing themselves as
- * unfinished, in the app's Sponsors tab and across five tables in the console's
- * Sponsor Manager, and fifteen "Visit website" links that all went to the
- * conference's own homepage.
+ * Two logo fields, because two clients need different things from one asset.
+ * `logo` is a path into the website's own `public/`, and `logoRemote` is the
+ * original absolute URL. The seed writes `logoRemote` into `logoURL`, because a
+ * root-relative path means nothing to React Native and the Expo app would
+ * silently fall back to initials; the website then prefers its local copy, which
+ * keeps a third-party request off a public page that already ships a consent
+ * banner. The honest fix for both is Firebase Storage, so that neither client
+ * depends on a CloudFront bucket we do not control — see `GAPS-WEB.md`.
  *
- * One anachronism, left deliberately rather than fixed: Graphwise is the company
- * formed by the Ontotext / Semantic Web Company merger, so listing all three is
- * not a state of the world that ever existed. Untangling it would cost three
- * rows of demo data and buy nothing.
+ * `description` is the sponsor's own copy, trimmed to its first sentences. Five
+ * of them wrote nothing, so five are `undefined` — that is the honest state and
+ * generating filler for them is what this file used to do wrong. Booth codes
+ * are the one invented field, because the real feed leaves `location` empty and
+ * the app's sponsor detail screen has a booth row to fill.
  */
 export const SPONSORS: {
-  name: string; tier: string; booth: string; website: string; description: string;
+  name: string; tier: string; booth: string; website: string;
+  logo: string; logoRemote: string; description?: string;
 }[] = [
-  { name: 'Graphwise', tier: 'diamond', booth: 'D1', website: 'https://graphwise.ai',
-    description: 'Graph database and text analytics for organisations putting a semantic layer under their AI, from the team behind GraphDB.' },
-  { name: 'Stardog', tier: 'diamond', booth: 'D2', website: 'https://www.stardog.com',
-    description: 'An enterprise knowledge graph platform built on virtualisation — query the sources where they live rather than copying them first.' },
-  { name: 'Neo4j', tier: 'platinum', booth: 'P1', website: 'https://neo4j.com',
-    description: 'The property-graph database and Cypher, with a graph data science library for people who want algorithms rather than queries.' },
-  { name: 'TigerGraph', tier: 'platinum', booth: 'P2', website: 'https://www.tigergraph.com',
-    description: 'A distributed graph database aimed at deep multi-hop analytics on graphs too large to sit on one machine.' },
-  { name: 'Metaphacts', tier: 'platinum', booth: 'P3', website: 'https://metaphacts.com',
-    description: 'metaphactory: a knowledge-graph platform for building end-user applications on RDF without writing SPARQL by hand.' },
-  { name: 'data.world', tier: 'gold', booth: 'G1', website: 'https://data.world',
-    description: 'A data catalogue with a knowledge graph underneath it, focused on governance and on finding what your organisation already has.' },
-  { name: 'Cambridge Semantics', tier: 'gold', booth: 'G2', website: 'https://cambridgesemantics.com',
-    description: 'AnzoGraph and the Anzo data fabric — in-memory graph analytics for large-scale enterprise integration work.' },
-  { name: 'Enterprise Knowledge', tier: 'gold', booth: 'G3', website: 'https://enterprise-knowledge.com',
-    description: 'A consultancy specialising in taxonomy, ontology and knowledge-graph strategy — the people brought in when the model is the problem.' },
-  { name: 'Semantic Web Company', tier: 'gold', booth: 'G4', website: 'https://semantic-web.com',
-    description: 'PoolParty: taxonomy and ontology management for teams who have to keep a controlled vocabulary alive across many systems.' },
-  { name: 'AllegroGraph', tier: 'silver', booth: 'S1', website: 'https://allegrograph.com',
-    description: 'Franz Inc’s RDF store, with document and vector storage alongside the triples for retrieval-augmented work.' },
-  { name: 'Ontotext', tier: 'silver', booth: 'S2', website: 'https://www.ontotext.com',
-    description: 'GraphDB and the text-analytics tooling around it, long used in publishing and life sciences for linking documents to entities.' },
-  { name: 'Diffbot', tier: 'silver', booth: 'S3', website: 'https://www.diffbot.com',
-    description: 'A knowledge graph built by crawling and structuring the public web, offered as an API rather than as a database to run.' },
-  { name: 'Kurrawong AI', tier: 'startup', booth: 'T1', website: 'https://kurrawong.ai',
-    description: 'Australian consultancy and open-source tooling for linked data, vocabularies and catalogue infrastructure in the public sector.' },
-  { name: 'Cognee', tier: 'startup', booth: 'T2', website: 'https://www.cognee.ai',
-    description: 'Open-source memory for AI agents: builds a graph out of what an agent has seen so retrieval is structured rather than nearest-neighbour.' },
-  { name: 'WhyHow.AI', tier: 'startup', booth: 'T3', website: 'https://www.whyhow.ai',
-    description: 'Tooling for schema-constrained graph construction from unstructured text, aimed at making RAG answers traceable.' },
+  { name: 'Abbvie', tier: 'platinum', booth: 'P1', website: 'https://www.abbvie.com/',
+    logo: '/kgc/sponsors/abbvie.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/38fc9096dd94bd8fcdd04a8fd30f4ed6796e8189e4e6ce3ec3fc0cd746a0c388_1/AbbVieLogo_AbbVie_dark_blue.png',
+    description: 'AbbVie’s mission is to discover and deliver innovative medicines that solve serious health issues today and address the medical challenges of tomorrow.' },
+  { name: 'Stardog', tier: 'platinum', booth: 'P2', website: 'https://www.stardog.com/',
+    logo: '/kgc/sponsors/stardog.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/7e008a9cc85ec34ada23eafbd61c717998813aaeb52d5c1d64cd064c3d5e908d_1/6b8933f4_5c32_41b8_a830_48097d97f27b_1597932161144.png',
+    description: 'Stardog is an enterprise knowledge graph platform that unifies data across warehouses, lakehouses, and other enterprise sources without requiring data movement, applying semantic context at query time.' },
+  { name: 'Accenture', tier: 'gold', booth: 'G1', website: 'https://accenture.com',
+    logo: '/kgc/sponsors/accenture.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/weste_202502/0a6a001ba2d1993c28b9c8ec2fa09c65441595527d95b79841edccb36d68be0c_1/cropped_img_weste_202502_1740522750550.png',
+    description: undefined },
+  { name: 'Amazon Web Services', tier: 'gold', booth: 'G2', website: 'https://aws.amazon.com/',
+    logo: '/kgc/sponsors/amazon-web-services.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/a7ba7ae9810511fa0b94519f867984983bd814ea33e23c40bdb471213f353e65_1/Amazon_Web_Services_Logo.svg.png',
+    description: undefined },
+  { name: 'Graphwise', tier: 'gold', booth: 'G3', website: 'https://graphwise.ai/',
+    logo: '/kgc/sponsors/graphwise.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/b09d1b97463dcc3284722dca2bdd7ac8dde04ce3e3bf26e9bd4c5b4c02135051_1/graphwise_vertical_1200.png',
+    description: 'Graphwise empowers enterprises to make their data and content truly AI-ready. We provide the trusted semantic backbone that connects data silos and grounds search, analytics, and AI in a reliable, governed context.' },
+  { name: 'Metaphacts', tier: 'gold', booth: 'G4', website: 'https://metaphacts.com',
+    logo: '/kgc/sponsors/metaphacts.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl1_202409/41fdccc0709ebcf555a09b6bddcc5ebb5bd13c6a612b38f560943d81304f117b_1/cropped_img_knowl1_202409_1729558904164.png',
+    description: 'metaphacts is an AI-first knowledge graph company helping global enterprises transform data into consumable, contextual and actionable knowledge.' },
+  { name: 'Neo4j', tier: 'gold', booth: 'G5', website: 'https://neo4j.com',
+    logo: '/kgc/sponsors/neo4j.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/Z2IidtUMQp3jEF2jOLcKEU1AWx0gKKJN7vjZGyKZQI8=/b4007344ea27412f1c224cd25288bf18d2fa017e078c4e13c67239cd5af92f75_1/logo_lockup_stacked_black.png',
+    description: 'Neo4j is the graph intelligence platform that transforms data into knowledge to power the next generation of intelligent applications and AI systems.' },
+  { name: 'Senzing', tier: 'gold', booth: 'G6', website: 'https://senzing.com/',
+    logo: '/kgc/sponsors/senzing.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/e3802382e8048ab58144ee26cdfdcf2b854ad45dd7a0e8bf8b2f2e6edb2f7027_1/Senzing_Logo_b_r_.png',
+    description: 'Senzing delivers the identity intelligence organizations need to achieve their agentic AI aspirations.' },
+  { name: 'TopQuadrant', tier: 'gold', booth: 'G7', website: 'https://topquadrant.com',
+    logo: '/kgc/sponsors/topquadrant.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/073d8b8c9f4006819913a327187f85734b5738e69909d44a2426f4b04718e269_1/7b2639b7_3393_4200_81a3_6188298cdbb1.png',
+    description: 'TopQuadrant builds knowledge graph software for enterprise data governance and AI readiness, anchored by its flagship product TopBraid Enterprise Data Governance (EDG).' },
+  { name: 'Bloomberg', tier: 'silver', booth: 'S1', website: 'https://www.bloomberg.com/',
+    logo: '/kgc/sponsors/bloomberg.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/c60c60f666b1d42b7f301b36587ce18b322d677377f9c192cd90b268937d950f_1/BBGEngineering_black_2026.png',
+    description: undefined },
+  { name: 'DataHub', tier: 'silver', booth: 'S2', website: 'https://datahub.com/',
+    logo: '/kgc/sponsors/datahub.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/96e20e447163f8675370cff22ec9c94fc19c7c9a5f81384c08ec3b65a8b86085_1/datahub_logo_color_black.png',
+    description: undefined },
+  { name: 'Fluree', tier: 'silver', booth: 'S3', website: 'https://flur.ee/',
+    logo: '/kgc/sponsors/fluree.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl1_202409/44c20b8ed845eace2c089056a7ceab6b856896aa49b4cbe8df4bca65ff402628_1/stacked_safezone_deep_3x.png',
+    description: 'Fluree enables you to integrate GenAI with live data sources, so every decision is informed and reliable.' },
+  { name: 'Oracle', tier: 'silver', booth: 'S4', website: 'https://www.oracle.com',
+    logo: '/kgc/sponsors/oracle.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/ec8185c9bcde3b7fd1ef3bb00aea650ff933c4a2b79ac5fb72d47c1b7d57b23d_1/Oracle_Database_rgb.png',
+    description: undefined },
+  { name: 'Oxford Semantic Technologies', tier: 'silver', booth: 'S5', website: 'https://www.oxfordsemantic.tech/',
+    logo: '/kgc/sponsors/oxford-semantic-technologies.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/813df98f8f1b3df49b178d031dbbca95003f37825e177c911f9f580222e9c5ad_1/logo_1_.png',
+    description: 'Oxford Semantic Technologies (OST) is a spin-out from the University of Oxford’s Computer Science Department, founded in 2016 and acquired by Samsung in 2024.' },
+  { name: 'Progress Software', tier: 'silver', booth: 'S6', website: 'https://www.progress.com/',
+    logo: '/kgc/sponsors/progress-software.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/dce849fb3915eb2bf34f3625a1e7a329726d1d386c27c68993e7d65ca8bb077f_1/Progress_Software_iddhatECy4_1.png',
+    description: 'The Progress Data Platform turns fragmented enterprise information into a unified, governed knowledge layer, so AI responses are accurate and explainable.The Progress Data Platform combines knowledge ' },
+  { name: 'Cloudera', tier: 'bronze', booth: 'B1', website: 'http://www.cloudera.com/',
+    logo: '/kgc/sponsors/cloudera.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/1751314f37497d0c0d8e831fda64376026fd45cee0ec26c50001759cbb31ec72_1/cloudera.png',
+    description: 'We empower the largest enterprises to transform any data anywhere into valuable insights they can trust.' },
+  { name: 'gdotv', tier: 'bronze', booth: 'B2', website: 'https://gdotv.com/',
+    logo: '/kgc/sponsors/gdotv.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/nqO7FnYJCiFWGmFcpWAJ@NQ5hKYbD9Z55ReHI5sX@qY=/e8fa4f6c2a2107cfb33a73518b8d22c03399fdb492027d6ac51a21d7c7d42ce1_1/gdotv_blue_lockup.png',
+    description: 'gdotv – that’s “gee dot vee” – helps developers get more done with graph technology.' },
+  { name: 'Process Tempo', tier: 'bronze', booth: 'B3', website: 'https://www.processtempo.com/',
+    logo: '/kgc/sponsors/process-tempo.png',
+    logoRemote: 'https://d1keuthy5s86c8.cloudfront.net/knowl_202605/ef99a7e16a680b8777043ada15188c9152aa887a119dc0d935dfcf65bf27cb03_1/6890c0cc31b7f97463a832cf_Process_Tempo_Logo_p_500.png',
+    description: 'Process Tempo Inc. is a data and analytics company that focuses on enabling organizations to build data-driven, enterprise-ready applications.' },
 ];
 
 /** PLACEHOLDER names. Deliberately fictional — see the header comment. */

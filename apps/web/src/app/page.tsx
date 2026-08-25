@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { listAgenda, listSponsorsByTier, programmeCounts } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
-import { formatPrice, TIERS } from '@/lib/tickets';
+import { listTiers } from '@/lib/catalogue';
+import { formatPrice } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
 import { SponsorTiers } from '@/components/sponsor-tiers';
 import { GraphField } from '@/components/graph-field';
@@ -123,6 +124,9 @@ async function programmeOrNothing() {
 }
 
 export default async function HomePage() {
+  // The ticket catalogue lives in Firestore now, so the homepage's price row
+  // reads it like any other data rather than importing a frozen array.
+  const tiers = await listTiers();
   const { counts, sponsorBands, agenda } = await programmeOrNothing();
 
   return (
@@ -337,14 +341,14 @@ export default async function HomePage() {
               a four-card row whose prices did not line up, on the one card the
               eye is meant to land on.
             */}
-            {TIERS.map((t) => (
+            {tiers.map((t) => (
               <div key={t.id} className={`card tier${t.featured ? ' featured' : ''}`}>
                 <h3>{t.name}</h3>
                 <p className="muted" style={{ fontSize: '0.9rem' }}>
                   {t.tagline}
                 </p>
                 <p style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--ink)', margin: '10px 0 14px' }}>
-                  {formatPrice(t.priceCents)}
+                  {formatPrice(t.priceCents, t.currency)}
                 </p>
                 {/*
                   `?tier=` matters: the tickets page reads it and preselects the

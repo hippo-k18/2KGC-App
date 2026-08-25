@@ -40,7 +40,17 @@ export interface BaseDoc {
   updatedAt: Timestamp;
 }
 
-export type SponsorTier = "diamond" | "platinum" | "gold" | "silver" | "startup";
+/**
+ * The four tiers the real conference actually sells, in descending order.
+ *
+ * This was `diamond | platinum | gold | silver | startup`, which was invented.
+ * The live site's sponsor strip is a Whova widget, and its public design payload
+ * (`event_webpage/sponsor/public/get_sponsor_design`) names exactly four tiers
+ * with a size weight each — Platinum 3, Gold 2, Silver 1, Bronze 1. There is no
+ * Diamond tier and no startup tier. Read in that order, this union is also the
+ * sort order, so nothing needs a separate ranking table beyond `TIER_ORDER`.
+ */
+export type SponsorTier = "platinum" | "gold" | "silver" | "bronze";
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 export type SessionFormat =
   | "keynote"
@@ -239,6 +249,21 @@ export interface SpeakerDoc extends BaseDoc {
   sessionIds: string[];
   /** Set when the speaker also holds a ticket, so the two identities join up. */
   userId?: string;
+  /**
+   * How to reach them before they hold a ticket.
+   *
+   * Contact details otherwise live only on `users`, joined by `userId` — which
+   * is correct for an attendee and backwards for a speaker. You have a
+   * speaker's address from the call for papers, months before they ever sign
+   * in, and chasing a bio or a slide deck is precisely the thing you need it
+   * for. Requiring them to claim a ticket first would mean the organizer cannot
+   * email the people they most need to email.
+   *
+   * Read in preference to the `users` record: this is the address the programme
+   * committee actually corresponds with, and it may deliberately differ from
+   * whichever address they later bought a ticket with.
+   */
+  contactEmail?: string;
 }
 
 /** `sessions/{sessionId}/materials/{id}` */
@@ -462,6 +487,23 @@ export interface SponsorDoc extends BaseDoc {
   boothLocation?: string;
   offers?: string[];
   downloads?: { label: string; url: string }[];
+
+  /**
+   * The person the organizer actually deals with.
+   *
+   * Whova's Sponsor Manager renders a "Main Contact" caption on every row and
+   * its Message Sponsors screen mails exactly this address. Both were missing
+   * here, which meant a sponsor record described a *logo* rather than a
+   * relationship — and chasing a missing logo is the single commonest reason to
+   * contact a sponsor at all.
+   *
+   * Optional because the sponsor list is imported from the sales spreadsheet and
+   * arrives incomplete. `resolveAudience` counts anyone without an address as
+   * excluded and the screen says so, rather than quietly mailing fewer people
+   * than it claims.
+   */
+  contactName?: string;
+  contactEmail?: string;
 }
 
 /** `sponsors/{sponsorId}/leads/{uid}` — attendee requested info. */
@@ -551,10 +593,37 @@ export interface BadgePrintJobDoc {
 }
 
 // ---------------------------------------------------------------------------
-// Commerce — modelled, not built. Ticketing stays external for 2027.
+// Commerce — ours now. Ticketing came in-house in August 2026.
+//
+// This block used to be headed "modelled, not built — ticketing stays external
+// for 2027", and every shape below was sized for *mirroring* someone else's
+// records. It is now the authoring model: the website sells against
+// `ticketTypes`, Stripe Checkout and Stripe Invoicing both write `orders`, and
+// the organizer dashboard reads and refunds them. Two consequences follow, and
+// both are load-bearing.
+//
+// **Money is integer minor units, everywhere, with no exceptions.** Not one
+// field below is a float. `119900` is unambiguous; `1199.00` is a rounding bug
+// waiting for its first currency conversion.
+//
+// **Fields added in the in-house move are optional.** Orders written by the
+// external-mirror era are still in Firestore and have none of them, so a
+// required field here would be a type that lies about documents that exist.
+// Readers default (`refundedCents ?? 0`); they do not assume.
 // ---------------------------------------------------------------------------
 
-/** `ticketTypes/{id}` */
+/** Whova sells three parallel catalogues. Only `attendee` is wired today. */
+export type TicketAudience = "attendee" | "exhibitor" | "sponsor";
+
+/**
+ * `ticketTypes/{id}` — the catalogue the website renders and Checkout charges.
+ *
+ * The document id **is** the tier slug (`all-access`, `main-conference`), not a
+ * generated id. That is deliberate: the id travels in a URL (`/tickets?tier=…`),
+ * in Checkout metadata and in `OrderLine.ticketTypeId`, and a human-readable
+ * one makes a Stripe dashboard row legible a year later. It also makes the
+ * seeder idempotent for free — re-seeding rewrites the same four documents.
+ */
 export interface TicketTypeDoc extends BaseDoc {
   name: string;
   /** Minor units. Never a float — this is money. */
@@ -562,17 +631,181 @@ export interface TicketTypeDoc extends BaseDoc {
   currency: string;
   includesVideoLibrary: boolean;
   includesWorkshops: boolean;
+
+  /** One line under the price on the tickets page. */
+  tagline: string;
+  /** Flat bullet list, used wherever `groups` is absent. */
+  includes: string[];
+  /** The same contents grouped as the live site's two headline panels group them. */
+  groups?: { heading: string; items?: string[] }[];
+  inPerson: boolean;
+  /** Rendered with more emphasis on the tickets page. */
+  featured?: boolean;
+  /**
+   * Hidden tiers stay purchasable by direct link but do not render in the
+   * catalogue — which is how a comp tier or a late speaker rate works without
+   * a separate code path.
+   */
+  visible: boolean;
+  sortOrder: number;
+  audience: TicketAudience;
+
+  /**
+   * Capacity. `quantityTotal` absent means unlimited, which is the honest
+   * default — a conference that has not decided its cap should not have this
+   * file inventing one.
+   */
+  quantityTotal?: number;
+  /**
+   * Incremented on fulfilment, never decremented on refund.
+   *
+   * ⚠️ This is a **sold counter, not an inventory lock.** Firestore gives no
+   * way to reserve a seat across the Checkout redirect, so two buyers can pass
+   * the capacity check and both pay. At KGC's volumes the correct response to
+   * that is a refund and an apology, not a distributed lock; if a tier ever
+   * genuinely sells out, close it in the dashboard rather than trusting this
+   * number to do it.
+   */
+  quantitySold: number;
+
+  salesOpenAt?: Timestamp;
+  salesCloseAt?: Timestamp;
+
+  /**
+   * Stripe's tax code. `txcd_20030000` ("General – Services") is what Stripe's
+   * own ticketing guide specifies for admission. Stored per tier rather than
+   * hard-coded at the call site because a workshop and a video-library add-on
+   * are not necessarily the same product for tax purposes.
+   */
+  taxCode: string;
 }
 
-/** `orders/{id}` — mirrored from the external ticketing provider, not authored here. */
+/**
+ * One line on an order. A quantity of seats at one price, from one tier.
+ *
+ * `attendeeEmail` is per line rather than per order because a company buying
+ * four seats names four different people, and each of those becomes its own
+ * registration keyed on its own address.
+ */
+export interface OrderLine {
+  ticketTypeId: string;
+  /** Denormalised: the tier may be renamed or deleted after the sale. */
+  ticketTypeName: string;
+  quantity: number;
+  unitPriceCents: number;
+  attendeeName?: string;
+  attendeeEmail?: string;
+}
+
+/**
+ * `orders/{id}` — one purchase, however it was paid.
+ *
+ * The id is a hash of the Stripe object that caused it (Checkout Session, or
+ * invoice-plus-seat-index), so a webhook replay rewrites one document instead
+ * of creating a second. See `orderIdFor()` in `apps/web/src/lib/registrations.ts`.
+ */
 export interface OrderDoc extends BaseDoc {
   externalId: string;
   provider: "cvent" | "stripe" | "tito" | "manual";
+  /**
+   * How the money was taken. `demo` is the no-Stripe-account fallback and is
+   * the reason this field exists at all: a demo order must be impossible to
+   * mistake for a real one in an export, and `status: 'pending'` alone does not
+   * say *why* it is pending.
+   */
+  channel?: "checkout" | "invoice" | "manual" | "demo";
   email: string;
-  status: "paid" | "refunded" | "pending" | "cancelled";
+  buyerName?: string;
+  /** Set when finance, not the attendee, is the counterparty. */
+  companyName?: string;
+  /**
+   * `partially_refunded` is separate from `refunded` because they mean
+   * different things at the door: a partial refund (one seat of four) leaves a
+   * valid ticket, a full one does not.
+   */
+  status: "paid" | "refunded" | "partially_refunded" | "pending" | "cancelled";
+
+  items?: OrderLine[];
+  subtotalCents?: number;
+  taxCents?: number;
+  discountCents?: number;
   totalCents: number;
+  /** Cumulative. Absent on legacy documents; read as `?? 0`. */
+  refundedCents?: number;
   currency: string;
+
   purchasedAt: Timestamp;
+  refundedAt?: Timestamp;
+
+  stripeCustomerId?: string;
+  stripePaymentIntentId?: string;
+  stripeChargeId?: string;
+  stripeInvoiceId?: string;
+  /** The page finance pays on. Kept so the dashboard can re-send a link. */
+  hostedInvoiceUrl?: string;
+  invoicePdfUrl?: string;
+  /** Printed on the invoice; the commonest reason finance rejects one. */
+  poNumber?: string;
+  dueAt?: Timestamp;
+
+  /** Stripe's code, if the buyer used one. The coupon table lives in Stripe. */
+  promotionCode?: string;
+
+  /** Every registration this order paid for, so refunds know what to withdraw. */
+  registrationIds?: string[];
+
+  /**
+   * An organizer accepting a purchase order as payment, out of band.
+   *
+   * This is the deliberate escape hatch for "the PO is good enough" — and it is
+   * an *organizer's* recorded decision, with a name attached, rather than the
+   * code quietly treating unpaid as paid. Nothing else in the money path may
+   * promote an invoice to `paid`.
+   */
+  markedPaidBy?: string;
+  markedPaidAt?: Timestamp;
+}
+
+/**
+ * `emailLog/{id}` — every transactional email attempted, sent or not.
+ *
+ * Exists because the commonest support question a conference gets is "I never
+ * got my confirmation", and the only useful answers are "we sent it at 14:02,
+ * check spam" or "we tried and the provider rejected it". Without a log the
+ * answer is a shrug.
+ *
+ * Failures are recorded, not thrown. A send that fails must never fail the
+ * webhook that triggered it — a non-2xx makes Stripe retry the event for ever
+ * and eventually disable the endpoint, taking fulfilment down with it.
+ */
+export interface EmailLogDoc {
+  eventId: string;
+  to: string;
+  template:
+    | "purchase-confirmation"
+    | "invoice-raised"
+    | "refund-confirmation"
+    /**
+     * One recipient of an organizer's bulk message. Written once **per person**,
+     * not once per campaign — "did Ada get it?" is the question this log exists
+     * to answer, and a single row saying "sent to 45 speakers" cannot.
+     */
+    | "bulk-message";
+  subject: string;
+  status: "sent" | "failed" | "skipped";
+  /** Resend's message id, for correlating with their dashboard. */
+  providerId?: string;
+  /** Present only on `failed`. The provider's message, not a stack trace. */
+  error?: string;
+  /** Why a send was skipped — usually "no RESEND_API_KEY configured". */
+  reason?: string;
+  orderId?: string;
+  registrationId?: string;
+  /** Groups every row of one bulk send, so a campaign can be counted. */
+  campaignId?: string;
+  /** Who pressed send. Absent on automated transactional mail. */
+  actor?: string;
+  at: Timestamp;
 }
 
 /**

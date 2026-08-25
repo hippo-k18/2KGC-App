@@ -12,13 +12,8 @@ import {
 // The importer's id helpers, imported rather than re-implemented. A second
 // copy of `registrationId` would drift, and the day it drifted the importer
 // and this site would start writing two documents per attendee.
-import {
-  claimCode,
-  emailHash,
-  normaliseEmail,
-  qrSecret,
-  registrationId,
-} from '@kgc/scripts/src/lib/ids';
+import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { ensureRegistration as sharedEnsureRegistration } from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
 
 /**
@@ -69,6 +64,29 @@ export interface FulfilInput {
   currency: string;
   /** False in demo mode. An order is only ever marked paid when it was. */
   paid: boolean;
+
+  // ── Everything below is optional because it did not exist when orders were
+  // ── mirrored from an external provider, and documents from that era are
+  // ── still in Firestore. The dashboard reads them with defaults.
+
+  /** `ticketTypes` document id. Lets the orders screen group by tier. */
+  tierId?: string;
+  /** How the money was taken. Absent means `checkout`. */
+  channel?: OrderDoc['channel'];
+  buyerName?: string;
+  companyName?: string;
+  /** Stripe's own breakdown, so the dashboard need not recompute tax. */
+  subtotalCents?: number;
+  taxCents?: number;
+  discountCents?: number;
+  promotionCode?: string;
+  stripeCustomerId?: string;
+  stripePaymentIntentId?: string;
+  stripeChargeId?: string;
+  stripeInvoiceId?: string;
+  hostedInvoiceUrl?: string;
+  invoicePdfUrl?: string;
+  poNumber?: string;
 }
 
 /**
@@ -90,111 +108,132 @@ function orderIdFor(externalId: string): string {
   return `ord_${createHash('sha256').update(externalId).digest('hex').slice(0, 24)}`;
 }
 
+/**
+ * The registration half of fulfilment, with no order attached.
+ *
+ * Delegates to `@kgc/scripts/src/lib/fulfilment`, which is where the logic
+ * lives because three callers need it and no two of them can import each
+ * other: this webhook, the organizer dashboard's mark-invoice-paid action, and
+ * the Whova importer. A second copy would own `qrSecret` and `claimCode`, and
+ * the day the copies disagreed about when to mint them is the day somebody's
+ * badge stops scanning while they hold it at the desk.
+ *
+ * Split from `fulfilPurchase` because the two callers want different finance
+ * records. A Checkout session is one payment for one ticket, so one order per
+ * registration is right. **An invoice is one payment for several tickets** — a
+ * company sending four people — and four orders would make "what did Acme
+ * pay?" unanswerable and strand the pending record written when it was raised.
+ * The invoice path therefore calls this per seat and writes a single order.
+ */
+export function ensureRegistration(input: {
+  email: string;
+  name: string;
+  ticketType: string;
+}): Promise<FulfilledRegistration> {
+  return sharedEnsureRegistration(db(), input);
+}
+
+/**
+ * One purchase: a registration plus the order that paid for it.
+ *
+ * This is the Checkout path. `ensureRegistration` does the ticket; everything
+ * below is the finance record.
+ */
 export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegistration> {
   const email = normaliseEmail(input.email);
   const rid = registrationId(email);
   const oid = orderIdFor(input.externalId);
-
-  const regRef = db().collection(COLLECTIONS.registrations).doc(rid);
   const orderRef = db().collection(COLLECTIONS.orders).doc(oid);
 
-  const result = await db().runTransaction(async (tx) => {
-    const existing = await tx.get(regRef);
-    const now = FieldValue.serverTimestamp();
-
-    if (existing.exists) {
-      const prev = existing.data() as RegistrationDoc;
-
-      // Update in place. `createdAt`, `qrSecret`, `claimCode`, `altEmails` and
-      // `claimedByUid` are all deliberately absent from this write: the badge
-      // secrets must survive a repeat purchase, and an attendee who has
-      // already claimed their registration in the app must not be unclaimed by
-      // buying a second ticket.
-      tx.update(regRef, {
-        email,
-        emailHash: emailHash(email),
-        name: input.name,
-        ticketType: input.ticketType,
-        status: 'active',
-        updatedAt: now,
-      });
-
-      return {
-        registrationId: rid,
-        email,
-        name: input.name,
-        ticketType: input.ticketType,
-        // Older imported registrations may predate claim codes; mint one if so.
-        claimCode: prev.claimCode ?? claimCode(),
-        created: false,
-        backfillClaimCode: prev.claimCode ? undefined : true,
-      };
-    }
-
-    const fresh: Omit<RegistrationDoc, 'createdAt' | 'updatedAt'> = {
-      eventId: EVENT_ID,
-      email,
-      emailHash: emailHash(email),
-      altEmails: [],
-      name: input.name,
-      ticketType: input.ticketType,
-      status: 'active',
-      claimCode: claimCode(),
-      // Random and opaque, and the only value that ever goes into a badge QR.
-      // A uid here would let anyone who photographs a badge learn an identity.
-      qrSecret: qrSecret(),
-    };
-
-    tx.set(regRef, { ...fresh, createdAt: now, updatedAt: now });
-
-    return {
-      registrationId: rid,
-      email,
-      name: input.name,
-      ticketType: input.ticketType,
-      claimCode: fresh.claimCode!,
-      created: true,
-      backfillClaimCode: undefined,
-    };
+  const result = await ensureRegistration({
+    email,
+    name: input.name,
+    ticketType: input.ticketType,
   });
-
-  if (result.backfillClaimCode) {
-    await regRef.update({ claimCode: result.claimCode });
-  }
 
   // The order is a separate, non-transactional write on purpose: it is a
   // record of the payment, not a precondition of the ticket. If this throws,
   // the attendee still has a valid registration and the finance record can be
   // reconciled from Stripe, which is the right way round to fail.
+  //
+  // ── Read before write, for two reasons that are both replay bugs ──────────
+  //
+  // Stripe retries a webhook for up to three days, and this write merges. Two
+  // fields must therefore survive a replay rather than be re-derived:
+  //
+  //   `status` / `refundedCents` — a `checkout.session.completed` redelivered
+  //   *after* a refund would otherwise flip the order back to `paid` and zero
+  //   the refunded total, resurrecting a ticket that the check-in desk would
+  //   then happily scan. Terminal states are terminal.
+  //
+  //   `purchasedAt` — stamping `Timestamp.now()` unconditionally moves the
+  //   purchase date to whenever the retry happened, which quietly corrupts
+  //   every revenue-by-day figure the dashboard draws.
+  const existingOrder = await orderRef.get();
+  const prevOrder = existingOrder.exists ? (existingOrder.data() as OrderDoc) : null;
+  const TERMINAL: OrderDoc['status'][] = ['refunded', 'partially_refunded', 'cancelled'];
+  const settled = prevOrder && TERMINAL.includes(prevOrder.status);
+
   const order: Omit<OrderDoc, 'createdAt' | 'updatedAt' | 'purchasedAt'> = {
     eventId: EVENT_ID,
     externalId: input.externalId,
     provider: 'stripe',
+    channel: input.channel ?? 'checkout',
     email,
-    status: input.paid ? 'paid' : 'pending',
+    buyerName: input.buyerName ?? input.name,
+    companyName: input.companyName,
+    status: settled ? prevOrder!.status : input.paid ? 'paid' : 'pending',
+    /**
+     * One line, one seat. Checkout sells a single ticket at a time and an
+     * invoice raises one order per seat, so quantity is always 1 today — but
+     * the shape is a list because "four seats on one order" is the next thing
+     * a company asks for, and retrofitting a list onto a scalar means
+     * rewriting every reader.
+     */
+    items: [
+      {
+        ticketTypeId: input.tierId ?? '',
+        // Denormalised deliberately: the tier can be renamed or deleted after
+        // the sale, and an order that then prints a blank ticket name is
+        // useless to the finance person reconciling it.
+        ticketTypeName: input.ticketType,
+        quantity: 1,
+        unitPriceCents: input.amountCents,
+        attendeeName: input.name,
+        attendeeEmail: email,
+      },
+    ],
+    subtotalCents: input.subtotalCents ?? input.amountCents,
+    taxCents: input.taxCents ?? 0,
+    discountCents: input.discountCents ?? 0,
     totalCents: input.amountCents,
+    // Explicitly zero on a first write rather than absent, so every reader can
+    // add without a null check — but carried forward on a replay, because a
+    // refund that already happened is not undone by Stripe resending the sale.
+    refundedCents: prevOrder?.refundedCents ?? 0,
     currency: input.currency,
+    promotionCode: input.promotionCode,
+    stripeCustomerId: input.stripeCustomerId,
+    stripePaymentIntentId: input.stripePaymentIntentId,
+    stripeChargeId: input.stripeChargeId,
+    stripeInvoiceId: input.stripeInvoiceId,
+    hostedInvoiceUrl: input.hostedInvoiceUrl,
+    invoicePdfUrl: input.invoicePdfUrl,
+    poNumber: input.poNumber,
+    registrationIds: [rid],
   };
   await orderRef.set(
     {
       ...order,
-      purchasedAt: Timestamp.now(),
-      createdAt: FieldValue.serverTimestamp(),
+      // First write wins. A retry three days later must not restamp the sale.
+      purchasedAt: prevOrder?.purchasedAt ?? Timestamp.now(),
+      createdAt: prevOrder ? undefined : FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
   );
 
-  // `backfillClaimCode` is transaction bookkeeping and has no business on the
-  // confirmation page, so it is stripped rather than returned.
-  return {
-    registrationId: result.registrationId,
-    email: result.email,
-    name: result.name,
-    ticketType: result.ticketType,
-    claimCode: result.claimCode,
-    created: result.created,
-  };
+  return result;
 }
 
 /** Read a registration back for the confirmation page. Server-side only. */
@@ -232,42 +271,111 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
  * would break the desk's ability to identify the person standing in front of
  * it.
  */
+export interface RefundOutcome {
+  registrationId: string | null;
+  orderId: string;
+  /** Whose ticket it was, so the caller can email them. Null if unknown. */
+  email: string | null;
+  name?: string;
+  ticketType?: string;
+  /** Cumulative refunded total after this event, in minor units. */
+  refundedCents: number;
+  currency: string;
+  /** False for a partial refund, which leaves the ticket valid. */
+  fullyRefunded: boolean;
+}
+
 export async function cancelRegistrationByOrder(input: {
   externalId: string;
   reason: 'refunded' | 'disputed' | 'payment_failed';
-}): Promise<{ registrationId: string | null; orderId: string }> {
+  /**
+   * Cumulative amount refunded on the charge, in minor units, as Stripe reports
+   * it (`charge.amount_refunded`). Absent means "treat as a full refund", which
+   * is the right reading for a dispute or a failed payment.
+   */
+  refundedCents?: number;
+}): Promise<RefundOutcome> {
   const oid = orderIdFor(input.externalId);
   const orderRef = db().collection(COLLECTIONS.orders).doc(oid);
   const snap = await orderRef.get();
-
-  const orderStatus = input.reason === 'refunded' ? 'refunded' : 'cancelled';
 
   if (!snap.exists) {
     // A refund for something we never recorded. Write the order anyway so the
     // finance trail is complete and the discrepancy is visible, rather than
     // silently dropping it.
+    const orphanStatus = input.reason === 'refunded' ? 'refunded' : 'cancelled';
     await orderRef.set(
       {
         eventId: EVENT_ID,
         externalId: input.externalId,
         provider: 'stripe',
         email: '',
-        status: orderStatus,
+        status: orphanStatus,
         totalCents: 0,
+        refundedCents: input.refundedCents ?? 0,
         currency: 'usd',
         purchasedAt: Timestamp.now(),
+        refundedAt: Timestamp.now(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
-    return { registrationId: null, orderId: oid };
+    return {
+      registrationId: null,
+      orderId: oid,
+      email: null,
+      refundedCents: input.refundedCents ?? 0,
+      currency: 'usd',
+      fullyRefunded: true,
+    };
   }
 
   const order = snap.data() as OrderDoc;
-  await orderRef.update({ status: orderStatus, updatedAt: FieldValue.serverTimestamp() });
 
-  if (!order.email) return { registrationId: null, orderId: oid };
+  /**
+   * A partial refund is not a cancelled ticket.
+   *
+   * Refunding $200 of an $800 registration — a workshop day dropped, a
+   * goodwill gesture over a hotel mix-up — leaves someone who is still coming
+   * to the conference. Revoking their badge for it would be a worse bug than
+   * the one this function was written to fix, because it is silent until they
+   * are standing at the door.
+   *
+   * `amount_refunded` from Stripe is cumulative, so this reads correctly when a
+   * second partial refund follows a first.
+   */
+  const refunded = input.refundedCents ?? order.totalCents;
+  const fullyRefunded = input.reason !== 'refunded' || refunded >= order.totalCents;
+
+  const orderStatus: OrderDoc['status'] =
+    input.reason === 'refunded'
+      ? fullyRefunded
+        ? 'refunded'
+        : 'partially_refunded'
+      : 'cancelled';
+
+  await orderRef.update({
+    status: orderStatus,
+    refundedCents: refunded,
+    refundedAt: Timestamp.now(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const details = {
+    orderId: oid,
+    email: order.email || null,
+    name: order.buyerName ?? order.items?.[0]?.attendeeName,
+    ticketType: order.items?.[0]?.ticketTypeName,
+    refundedCents: refunded,
+    currency: order.currency,
+    fullyRefunded,
+  };
+
+  if (!order.email) return { ...details, registrationId: null };
+
+  // Partial refund: money moved, the ticket did not. Nothing further to do.
+  if (!fullyRefunded) return { ...details, registrationId: null };
 
   /**
    * Only withdraw the registration if this order is the reason it exists.
@@ -278,20 +386,212 @@ export async function cancelRegistrationByOrder(input: {
    * registration is cancelled only when no other paid order shares its email.
    */
   const rid = registrationId(order.email);
-  const stillPaid = await db()
+
+  /**
+   * Status is filtered in memory, not in the query.
+   *
+   * `partially_refunded` still paid for a ticket, so the set that keeps a
+   * registration alive is two statuses rather than one — and `where('status',
+   * 'in', [...])` would be a third filter shape to reason about against
+   * `firestore.indexes.json`. One person has a handful of orders; filtering
+   * after the read costs nothing and cannot fail with `failed-precondition`.
+   */
+  const sameEmail = await db()
     .collection(COLLECTIONS.orders)
     .where('eventId', '==', EVENT_ID)
     .where('email', '==', order.email)
-    .where('status', '==', 'paid')
     .get();
 
-  const otherPaid = stillPaid.docs.filter((d) => d.id !== oid);
-  if (otherPaid.length > 0) return { registrationId: null, orderId: oid };
+  const stillPaidElsewhere = sameEmail.docs
+    .filter((d) => d.id !== oid)
+    .some((d) => {
+      const o = d.data() as OrderDoc;
+      return o.status === 'paid' || o.status === 'partially_refunded';
+    });
+
+  if (stillPaidElsewhere) return { ...details, registrationId: null };
 
   await db()
     .collection(COLLECTIONS.registrations)
     .doc(rid)
     .update({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
 
-  return { registrationId: rid, orderId: oid };
+  return { ...details, registrationId: rid };
+}
+
+// ---------------------------------------------------------------------------
+// Invoicing
+//
+// An invoice is one payment for several tickets, so it gets **one** order with
+// several `items` — not one order per seat. Two things follow from that.
+//
+// The order is written when the invoice is *raised*, with `status: 'pending'`,
+// so the dashboard can show what is outstanding. That is the whole reason a
+// pending record exists: an invoice nobody can see is an invoice nobody chases.
+//
+// It becomes `paid` only on the `invoice.paid` webhook, never here. An invoice
+// is a promise to pay, and issuing badges against a promise is how conferences
+// end up chasing money from people who have already attended and gone home.
+// ---------------------------------------------------------------------------
+
+/** The order id for an invoice. Stable, so raising and paying converge. */
+export function invoiceOrderId(invoiceId: string): string {
+  return orderIdFor(invoiceId);
+}
+
+export interface InvoiceOrderInput {
+  invoiceId: string;
+  billingEmail: string;
+  companyName: string;
+  seats: { name: string; email: string; ticketType: string; ticketTypeId: string; priceCents: number }[];
+  currency: string;
+  totalCents: number;
+  hostedInvoiceUrl?: string;
+  invoicePdfUrl?: string;
+  poNumber?: string;
+  dueAt?: Date;
+}
+
+/** Record a raised invoice as an outstanding order. */
+export async function recordInvoiceOrder(input: InvoiceOrderInput): Promise<string> {
+  const oid = invoiceOrderId(input.invoiceId);
+  const order: Omit<OrderDoc, 'createdAt' | 'updatedAt' | 'purchasedAt'> = {
+    eventId: EVENT_ID,
+    externalId: input.invoiceId,
+    provider: 'stripe',
+    channel: 'invoice',
+    // The billing contact, who is often not any of the attendees. The seats
+    // carry the people; this carries who pays.
+    email: normaliseEmail(input.billingEmail),
+    companyName: input.companyName,
+    status: 'pending',
+    items: input.seats.map((seat) => ({
+      ticketTypeId: seat.ticketTypeId,
+      ticketTypeName: seat.ticketType,
+      quantity: 1,
+      unitPriceCents: seat.priceCents,
+      attendeeName: seat.name,
+      attendeeEmail: normaliseEmail(seat.email),
+    })),
+    subtotalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
+    // Stripe computes tax at finalisation; the paid webhook carries the real
+    // figure. Zero here is honest rather than a guess — the dashboard shows an
+    // outstanding invoice, not a tax return.
+    taxCents: 0,
+    discountCents: 0,
+    totalCents: input.totalCents,
+    refundedCents: 0,
+    currency: input.currency,
+    stripeInvoiceId: input.invoiceId,
+    hostedInvoiceUrl: input.hostedInvoiceUrl,
+    invoicePdfUrl: input.invoicePdfUrl,
+    poNumber: input.poNumber,
+    // Nobody is registered yet, and this list is what says so.
+    registrationIds: [],
+  };
+
+  await db()
+    .collection(COLLECTIONS.orders)
+    .doc(oid)
+    .set(
+      {
+        ...order,
+        // The date the money was *asked for*. Reset to the payment date when it
+        // clears, so revenue lands in the period it was received.
+        purchasedAt: Timestamp.now(),
+        dueAt: input.dueAt ? Timestamp.fromDate(input.dueAt) : undefined,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+  return oid;
+}
+
+/**
+ * An invoice cleared. Flip the order and attach the registrations it bought.
+ *
+ * Merges rather than overwrites, and leaves a terminal status alone, for the
+ * same reason the Checkout path does: Stripe retries for up to three days and a
+ * replayed `invoice.paid` must not un-refund anything.
+ */
+export async function markInvoiceOrderPaid(input: {
+  invoiceId: string;
+  registrationIds: string[];
+  totalCents: number;
+  taxCents?: number;
+  currency: string;
+  hostedInvoiceUrl?: string;
+  invoicePdfUrl?: string;
+  /** Set when an organizer accepted a PO out of band rather than Stripe reporting payment. */
+  markedPaidBy?: string;
+}): Promise<string> {
+  const oid = invoiceOrderId(input.invoiceId);
+  const ref = db().collection(COLLECTIONS.orders).doc(oid);
+  const snap = await ref.get();
+  const prev = snap.exists ? (snap.data() as OrderDoc) : null;
+
+  const TERMINAL: OrderDoc['status'][] = ['refunded', 'partially_refunded', 'cancelled'];
+  if (prev && TERMINAL.includes(prev.status)) return oid;
+
+  await ref.set(
+    {
+      // An invoice paid for a company that never went through `recordInvoiceOrder`
+      // — raised straight in the Stripe dashboard, say — still gets a record.
+      eventId: EVENT_ID,
+      externalId: input.invoiceId,
+      provider: 'stripe',
+      channel: 'invoice',
+      stripeInvoiceId: input.invoiceId,
+      status: 'paid',
+      totalCents: input.totalCents,
+      taxCents: input.taxCents ?? prev?.taxCents ?? 0,
+      currency: input.currency,
+      refundedCents: prev?.refundedCents ?? 0,
+      registrationIds: input.registrationIds,
+      hostedInvoiceUrl: input.hostedInvoiceUrl ?? prev?.hostedInvoiceUrl,
+      invoicePdfUrl: input.invoicePdfUrl ?? prev?.invoicePdfUrl,
+      markedPaidBy: input.markedPaidBy,
+      markedPaidAt: input.markedPaidBy ? Timestamp.now() : undefined,
+      // Revenue is recognised when the money arrives, not when it was asked for.
+      purchasedAt: Timestamp.now(),
+      createdAt: prev ? undefined : FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  return oid;
+}
+
+/**
+ * The seats an invoice covers, read from our own order record.
+ *
+ * `invoicing.ts` also stashes the attendee list in Stripe invoice metadata, and
+ * that was the only source until this existed. It is not a safe one: Stripe
+ * caps a metadata value at 500 characters and `raiseInvoice` truncates to 480,
+ * so an invoice for enough people produces a **cut-off JSON string**. The parse
+ * then throws, `seatsFromInvoice` returns an empty list by design, and the
+ * webhook registers nobody — silently, at the exact moment a company has just
+ * paid for eight tickets.
+ *
+ * The order document has no such limit and is written before the invoice is
+ * sent, so it is the primary source. Metadata stays as the fallback for an
+ * invoice raised straight in the Stripe dashboard, which has no order record.
+ */
+export async function seatsFromOrder(
+  invoiceId: string,
+): Promise<{ name: string; email: string; ticketType: string; ticketTypeId: string }[]> {
+  const snap = await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoiceId)).get();
+  if (!snap.exists) return [];
+  const order = snap.data() as OrderDoc;
+  return (order.items ?? [])
+    .filter((i) => i.attendeeEmail)
+    .map((i) => ({
+      name: i.attendeeName ?? '',
+      email: i.attendeeEmail as string,
+      ticketType: i.ticketTypeName,
+      ticketTypeId: i.ticketTypeId,
+    }));
 }

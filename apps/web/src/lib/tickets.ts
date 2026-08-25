@@ -1,97 +1,63 @@
 /**
- * The ticket catalogue.
+ * The shape of a ticket tier, and how to print a price. No data, no imports.
  *
- * Prices are in **minor units**, never floats — same rule as
- * `TicketTypeDoc.priceCents` in `@kgc/shared`. `119900` is unambiguous;
- * `1199.00` is a rounding bug waiting for a currency conversion.
+ * ── Why this file no longer holds the catalogue ──────────────────────────────
  *
- * This file is plain data with no server imports, so the client checkout form
- * can render the catalogue without dragging the Admin SDK into a browser
- * chunk. It is intentionally *not* read from the `ticketTypes` collection:
- * a public price list that renders from a database is a price list that shows
- * "$0" when the database is unreachable, and the four tiers change once a year.
+ * It used to export a frozen `TIERS` array, on the argument that a public price
+ * list rendering from a database is a price list that shows "$0" when the
+ * database is unreachable. That was right while nothing could edit the prices.
+ * It stopped being right when the organizer dashboard grew a Create Tickets
+ * screen: two places that both believe they own the price will eventually
+ * disagree, and the failure mode of *that* is charging the wrong amount —
+ * worse than an outage, because it is silent.
+ *
+ * The catalogue now lives in Firestore (`ticketTypes`) and is read by
+ * `catalogue.ts`, which is `server-only`. This file stays pure precisely so the
+ * client checkout form can import `Tier` and `formatPrice` without dragging the
+ * Admin SDK into a browser chunk — the tiers themselves arrive as props.
  */
 
-export type TicketId = 'all-access' | 'main-conference' | 'workshops' | 'virtual';
+/**
+ * A tier id is the Firestore document id, which is a human-readable slug
+ * (`all-access`, `main-conference`). It was a closed union of four literals;
+ * it is a string now because the dashboard can create a fifth, and a union
+ * that has to be edited to add a ticket is a union that will be wrong.
+ */
+export type TicketId = string;
 
 export interface Tier {
   id: TicketId;
   /** Stored on `RegistrationDoc.ticketType` and printed on the badge. */
   name: string;
+  /** Minor units. Never a float — `1199.00` is a rounding bug waiting to happen. */
   priceCents: number;
-  currency: 'usd';
+  currency: string;
   tagline: string;
   includes: string[];
+  /**
+   * The same contents as `includes`, but grouped the way the live site's two
+   * headline ticket panels group them: an underlined heading, then bullets.
+   * Only the in-person headline tiers have it.
+   */
+  groups?: { heading: string; items?: string[] }[];
   /** Rendered with a little more emphasis on the tickets page. */
   featured?: boolean;
   inPerson: boolean;
-}
-
-export const TIERS: readonly Tier[] = [
-  {
-    id: 'all-access',
-    name: 'All Access (VIP)',
-    priceCents: 119_900,
-    currency: 'usd',
-    tagline: 'The whole week, in the room and on demand.',
-    featured: true,
-    inPerson: true,
-    includes: [
-      'Every in-person session, Monday to Friday',
-      'Both workshop days, Monday and Tuesday',
-      'VIP community happy hour with the programme committee',
-      'All evening networking events, including the Friday watch party',
-      'Live streams and recordings of every virtual session',
-      'Three months of the KGC Video Library',
-    ],
-  },
-  {
-    id: 'main-conference',
-    name: 'Main Conference',
-    priceCents: 79_900,
-    currency: 'usd',
-    tagline: 'Wednesday to Friday at Cornell Tech.',
-    inPerson: true,
-    includes: [
-      'Every main conference session, Wednesday to Friday',
-      'Community happy hour',
-      'All evening networking events, including the Friday watch party',
-      'Virtual conference sessions on demand',
-      'Three months of the KGC Video Library',
-    ],
-  },
-  {
-    id: 'workshops',
-    name: 'Workshops',
-    priceCents: 69_900,
-    currency: 'usd',
-    tagline: 'Two days of hands-on practice.',
-    inPerson: true,
-    includes: [
-      'Every in-person workshop, Monday and Tuesday',
-      'Instructor-led labs at beginner, intermediate and advanced level',
-      'Workshop materials and datasets to take home',
-      'Community happy hour',
-    ],
-  },
-  {
-    id: 'virtual',
-    name: 'Virtual',
-    priceCents: 34_900,
-    currency: 'usd',
-    tagline: 'Every session, from wherever you are.',
-    inPerson: false,
-    includes: [
-      'Live streams of every conference and workshop session',
-      'Watch Monday through Friday in your own time zone',
-      'On-demand replays for at least a month afterwards',
-      'The virtual hallway track, and session Q&A in the KGC app',
-    ],
-  },
-] as const;
-
-export function tierById(id: string): Tier | undefined {
-  return TIERS.find((t) => t.id === id);
+  /**
+   * False when capacity is reached or the sales window has closed. The tier
+   * still renders — a sold-out ticket that vanishes reads as a bug — but it
+   * cannot be selected and the server refuses it too.
+   */
+  onSale: boolean;
+  /** Why it is not on sale, for the one line under a disabled option. */
+  unavailableReason?: string;
+  /**
+   * Stripe's tax code for this tier. Carried on the display shape rather than
+   * fetched separately because `startCheckout` already holds the tier and a
+   * second read to learn one string is a second way to be wrong. It is public
+   * information — `txcd_20030000` is in Stripe's own published table.
+   */
+  taxCode: string;
 }
 
 /** `119900` → `$1,199`. Whole dollars, because every tier is a whole number. */

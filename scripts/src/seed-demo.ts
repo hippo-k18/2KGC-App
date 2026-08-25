@@ -16,7 +16,7 @@ import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
 } from './lib/fixtures.js';
-import { commitAll, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
+import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
 import {
   claimCode, emailHash, normaliseEmail, qrSecret, registrationId,
   roomId, sessionId, speakerId, sponsorId, stableGuid, trackId as slugTrack,
@@ -59,10 +59,42 @@ async function main() {
     push(COLLECTIONS.rooms, id, { ...base(), name: r.name, building: r.building, capacity: r.capacity });
   }
 
+  /**
+   * Ticket types are the live catalogue, not demo furniture — the website reads
+   * these documents to decide what to sell and Checkout reads them to decide
+   * what to charge. Three details matter.
+   *
+   * **The document id is the tier slug**, not `roomId(name)`. It travels in
+   * `/tickets?tier=all-access`, in Stripe metadata and in `OrderLine`, so it has
+   * to be stable and readable. Deriving it from the name meant renaming a tier
+   * silently orphaned every order that pointed at it.
+   *
+   * **`quantitySold` is carried forward, never reset.** It counts real
+   * purchases. `commitAll` merges, so simply omitting the field would preserve
+   * it — but a *new* document would then have no counter at all, and
+   * `quantitySold ?? 0` at every read site is a default waiting to be forgotten.
+   * Reading first costs one query and makes the field always present.
+   *
+   * **Currency is lower-case.** Stripe rejects `USD`.
+   */
+  const soldByTier = new Map<string, number>();
+  {
+    const existing = await db()
+      .collection(COLLECTIONS.ticketTypes)
+      .where('eventId', '==', EVENT_ID)
+      .get();
+    for (const d of existing.docs) {
+      const sold = (d.data() as { quantitySold?: number }).quantitySold;
+      if (typeof sold === 'number') soldByTier.set(d.id, sold);
+    }
+  }
+
   for (const t of TICKET_TYPES) {
-    push(COLLECTIONS.ticketTypes, roomId(t.name), {
-      ...base(), name: t.name, priceCents: t.priceCents, currency: 'USD',
-      includesVideoLibrary: t.includesVideoLibrary, includesWorkshops: t.includesWorkshops,
+    const { id, ...fields } = t;
+    push(COLLECTIONS.ticketTypes, id, {
+      ...base(),
+      ...fields,
+      quantitySold: soldByTier.get(id) ?? 0,
     });
   }
 
@@ -70,8 +102,24 @@ async function main() {
   const speakers = makeSpeakers(SPEAKER_COUNT);
   const speakerIds = speakers.map((s) => speakerId(s.name, s.company));
   speakers.forEach((s, i) => {
+    /**
+     * A contact address for every speaker.
+     *
+     * `SpeakerDoc.contactEmail` is what Message Speakers mails, and it exists
+     * precisely because a speaker has an address from the call for papers long
+     * before they ever claim a ticket. Seeding it makes the messaging screen
+     * demonstrable; without it the screen correctly but uselessly reports that
+     * all forty-five speakers are unreachable.
+     *
+     * `@example.invalid` is reserved by RFC 2606 and can never be delivered to,
+     * which is the point: a demo send must be impossible to accidentally
+     * deliver to a real mailbox.
+     */
+    const speakerEmail = `${s.name.toLowerCase().replace(/[^a-z]+/g, '.')}@example.invalid`;
+
     push(COLLECTIONS.speakers, speakerIds[i], {
       ...base(), name: s.name, title: s.title, company: s.company, bio: s.bio, sessionIds: [],
+      contactEmail: speakerEmail,
     });
   });
 
@@ -117,10 +165,28 @@ async function main() {
 
   // --- sponsors -----------------------------------------------------------
   for (const s of SPONSORS) {
+    /**
+     * A main contact per sponsor, for the same reason as speakers above — and
+     * likewise on the undeliverable `@example.invalid` domain. Chasing a
+     * missing logo is the commonest reason to email a sponsor, which is why
+     * `SponsorDoc` grew `contactEmail` at all.
+     */
+    const sponsorSlug = s.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
     push(COLLECTIONS.sponsors, sponsorId(s.name), {
       ...base(), name: s.name, tier: s.tier, boothLocation: s.booth,
-      description: s.description,
+      contactName: `${s.name} events team`,
+      contactEmail: `events@${sponsorSlug}.example.invalid`,
+      // Five sponsors published no copy of their own. Firestore rejects an
+      // explicit `undefined`, so the key is omitted rather than written empty.
+      ...(s.description ? { description: s.description } : {}),
       website: s.website,
+      // The absolute URL, not the website's local path. Firestore is read by the
+      // Expo app and the console as well, and a root-relative `/kgc/...` resolves
+      // to nothing outside the website — the app would fall back to initials and
+      // look like it simply had no logos. The website overrides this with its own
+      // self-hosted copy in `listSponsors()`.
+      logoURL: s.logoRemote,
     });
   }
 

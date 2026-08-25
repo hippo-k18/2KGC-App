@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { formatPrice, TIERS, type TicketId } from '@/lib/tickets';
+import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { startCheckout, type CheckoutState } from './actions';
 
 /**
@@ -17,7 +17,22 @@ import { startCheckout, type CheckoutState } from './actions';
  * is derived from it, and the attendee later signs into the mobile app with
  * the same address to claim the ticket. That is why the label says so.
  */
-export function CheckoutForm({ initialTier, stripeReady }: { initialTier: TicketId; stripeReady: boolean }) {
+export function CheckoutForm({
+  tiers,
+  initialTier,
+  stripeReady,
+}: {
+  /**
+   * The catalogue, passed in rather than imported.
+   *
+   * Tiers live in Firestore now, and this is a client component — it has no
+   * Admin SDK and must not gain one. Props are the boundary that keeps a
+   * service-account credential out of a browser chunk.
+   */
+  tiers: Tier[];
+  initialTier: TicketId;
+  stripeReady: boolean;
+}) {
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
   const [tier, setTier] = useState<TicketId>(initialTier);
   // Controlled, not merely `defaultValue`: React resets an uncontrolled form
@@ -26,7 +41,10 @@ export function CheckoutForm({ initialTier, stripeReady }: { initialTier: Ticket
   // least inclined to.
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const selected = TIERS.find((t) => t.id === tier)!;
+  // `?? tiers[0]` rather than a non-null assertion: the preselected id comes
+  // from a query string, and a tier hidden in the dashboard between page load
+  // and this render would otherwise crash the whole form.
+  const selected = tiers.find((t) => t.id === tier) ?? tiers[0];
 
   return (
     <form action={action} className="checkout" id="buy">
@@ -49,9 +67,10 @@ export function CheckoutForm({ initialTier, stripeReady }: { initialTier: Ticket
       <div className="field">
         <label htmlFor="tier">Ticket</label>
         <select id="tier" name="tier" value={tier} onChange={(e) => setTier(e.target.value as TicketId)}>
-          {TIERS.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} — {formatPrice(t.priceCents)}
+          {tiers.map((t) => (
+            <option key={t.id} value={t.id} disabled={!t.onSale}>
+              {t.name} — {formatPrice(t.priceCents, t.currency)}
+              {t.onSale ? '' : ` (${t.unavailableReason ?? 'unavailable'})`}
             </option>
           ))}
         </select>
@@ -91,10 +110,10 @@ export function CheckoutForm({ initialTier, stripeReady }: { initialTier: Ticket
 
       <div className="summary">
         <span>{selected.name}</span>
-        <span>{formatPrice(selected.priceCents)}</span>
+        <span>{formatPrice(selected.priceCents, selected.currency)}</span>
       </div>
 
-      <SubmitButton stripeReady={stripeReady} price={formatPrice(selected.priceCents)} />
+      <SubmitButton stripeReady={stripeReady} price={formatPrice(selected.priceCents, selected.currency)} />
 
       <p className="hint" style={{ marginTop: 12 }}>
         {stripeReady

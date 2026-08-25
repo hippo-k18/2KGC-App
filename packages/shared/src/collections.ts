@@ -21,6 +21,11 @@ export const COLLECTIONS = {
   badgePrintJobs: "badgePrintJobs",
   ticketTypes: "ticketTypes",
   orders: "orders",
+  /**
+   * Server-only. Written by the website when it sends a transactional email,
+   * read by the dashboard to answer "did the confirmation actually go out?".
+   */
+  emailLog: "emailLog",
   /** Server-only: written and read by Cloud Functions with the Admin SDK. */
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",

@@ -32,6 +32,12 @@ export const SITE = {
 
   tagline: 'Where enterprise data becomes something a machine can reason about.',
   contactEmail: 'contact@knowledgegraph.tech',
+  /*
+   * The conference's real switchboard, read off the live /hcls "Find us" block.
+   * Not invented — a wrong phone number on a conference site is worse than none,
+   * which is why this had been left out entirely rather than guessed.
+   */
+  contactPhone: '1-833-857-0355 x 156',
 
   social: [
     { label: 'LinkedIn', href: 'https://www.linkedin.com/company/knowledge-graph-conference/' },
@@ -136,30 +142,63 @@ export const APP_DISTRIBUTION =
 export const NAV = [
   { href: '/speakers', label: `${2027} Speakers` },
   /*
-   * Agenda is here and not in `NAV_MORE`, which is the one deliberate departure
-   * from the live site's five tabs. Its agenda is a homepage widget; ours is a
-   * page, and `NAV_MORE` computes to `display: none` at desktop widths — so the
-   * single thing people come to a conference site for was reachable only from a
-   * magnifying-glass icon, and no nav item ever highlighted while you were on it.
+   * Agenda is here and not behind the dropdown, which is the one deliberate
+   * departure from the live site's row. Its agenda is a homepage widget; ours
+   * is a page, and the single thing people come to a conference site for should
+   * not be two interactions away.
    */
   { href: '/agenda', label: 'Agenda' },
   { href: '/sponsor', label: 'Sponsor KGC' },
   { href: '/blog', label: 'Blog' },
   { href: '/learn', label: 'Learn' },
-  { href: '/about', label: 'About KGC' },
 ] as const;
 
+export interface NavChild {
+  href: string;
+  label: string;
+  /** Opens in a new tab and gets the external affordance. */
+  external?: boolean;
+  /** Rendered but not yet built here — see the note below. */
+  todo?: boolean;
+}
+
 /**
- * The rest of the live site's navigation, behind the hamburger — which is where
- * the live site puts it too, rather than in the primary row.
+ * The "About KGC" dropdown, transcribed from the live site's own menu on
+ * 2026-08-19 by opening it and reading the rendered anchors.
  *
- * Agenda and HCLS live here rather than in `NAV` for exactly that reason: the
- * live site's primary row is five items and does not include either, and
- * matching that row was an explicit instruction. They are one tap away, and the
- * homepage links to both directly.
+ * This exists because the previous arrangement hid real pages. `NAV_MORE`
+ * computed to `display: none` at desktop widths, so `/hcls` and `/tickets` were
+ * reachable only from the hamburger — which desktop visitors never open. The
+ * live site solves the same problem with this dropdown, and so do we.
+ *
+ * Every entry resolves. Community, Meet the Team and the Lifetime Achievement
+ * Award were built on 2026-08-20 for exactly this reason — a menu entry with
+ * nowhere to point is worse than no entry. The `todo` flag stays on the type
+ * because the next entry added may well arrive before its page does.
  */
-export const NAV_MORE = [
+export const ABOUT_MENU: readonly NavChild[] = [
+  { href: '/about', label: 'About KGC' },
+  { href: '/community', label: 'Community' },
+  { href: 'https://hub.knowledgegraph.tech/', label: 'Resource Hub', external: true },
   { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
+  { href: '/team', label: 'Meet the Team' },
+  { href: '/blog', label: 'KGC Talks' },
+  { href: '/kgc-lifetime-achievement-awards', label: 'Lifetime Achievement Award' },
+  /*
+   * The live menu expands this into seven per-edition links. Ours is one index
+   * page that links out to the same seven archives — see `previous-events/page.tsx`
+   * for why they are not rebuilt here.
+   */
+  { href: '/previous-events', label: 'Previous Events' },
+  {
+    href: 'https://the-knowledge-graph-conference.myspreadshop.com/',
+    label: 'KGC Store',
+    external: true,
+  },
+] as const;
+
+/** Kept for the mobile menu, which shows everything in one flat list. */
+export const NAV_MORE = [
   { href: '/tickets', label: 'Tickets' },
 ] as const;
 

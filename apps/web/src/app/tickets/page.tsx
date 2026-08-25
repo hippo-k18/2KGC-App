@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
-import { formatPrice, TIERS, tierById, type TicketId } from '@/lib/tickets';
+import { listTiers } from '@/lib/catalogue';
+import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
 import { CheckoutForm } from './checkout-form';
 
@@ -18,25 +20,108 @@ export const metadata: Metadata = {
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * The live site's headline ticket panel: a centred card, one navy and one pale,
+ * with underlined group headings above bulleted contents. Falls back to the
+ * flat `includes` list for a tier that carries no groups.
+ */
+function TicketPanel({ tier, tone }: { tier: Tier; tone: 'dark' | 'light' }) {
+  const groups = tier.groups ?? [{ heading: 'Includes', items: [...tier.includes] }];
+
+  return (
+    <div className={`kgc-ticket ${tone}`}>
+      <h3>{tier.name}</h3>
+      <p className="price">{formatPrice(tier.priceCents)}</p>
+
+      {groups.map((g) => (
+        <div key={g.heading}>
+          <p className="group">{g.heading}</p>
+          {g.items && (
+            <ul>
+              {g.items.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+
+      <Link
+        href={`/tickets?tier=${tier.id}#buy`}
+        className={`btn ${tone === 'dark' ? 'btn-accent' : 'btn-primary'}`}
+      >
+        Choose {tier.name}
+      </Link>
+    </div>
+  );
+}
+
 export default async function TicketsPage({
   searchParams,
 }: {
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
   const params = await searchParams;
-  const preselected = (tierById(params.tier ?? '')?.id ?? 'all-access') as TicketId;
+
+  /**
+   * The catalogue is read once here and threaded down, rather than looked up
+   * per panel. It now comes from Firestore, so each `tierById` call would be a
+   * network round trip — and the checkout form is a client component that
+   * cannot read Firestore at all, so it needs the tiers as props regardless.
+   */
+  const tiers = await listTiers();
+  const byId = new Map(tiers.map((t) => [t.id, t]));
+
+  const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
+
+  /**
+   * The two headline panels are still addressed by slug, because the layout is
+   * genuinely bespoke to them — a dark panel and a light one, side by side.
+   * `?? tiers[n]` keeps the page rendering if a tier is renamed or hidden in
+   * the dashboard, instead of throwing on a non-null assertion.
+   */
+  const allAccess = byId.get('all-access') ?? tiers[0];
+  const mainConf = byId.get('main-conference') ?? tiers[1];
+  const smaller = tiers.filter((t) => t.id !== allAccess?.id && t.id !== mainConf?.id);
 
   return (
     <>
-      <section>
+      {/*
+        The live page opens on a dark band: orange kicker, the conference name,
+        the dates, a call to action, and a photograph bleeding off the right.
+      */}
+      <section className="band band-navy">
+        <div className="wrap split-hero">
+          <div>
+            <p className="kicker">Tickets for</p>
+            <h1>{SITE.name}</h1>
+            <p className="when">
+              {SITE.datesLong} | {SITE.venueShort}
+            </p>
+            <div className="cta">
+              <Link href="#buy" className="btn btn-accent">
+                Register now
+              </Link>
+              <Link href="/agenda" className="btn btn-ghost">
+                See the agenda
+              </Link>
+            </div>
+            <p className="sold-out">✦ Every ticket includes the KGC app for the whole week ✦</p>
+          </div>
+          <Image
+            src="/kgc/tickets-hero.jpeg"
+            alt="Attendees at the Knowledge Graph Conference"
+            width={1024}
+            height={768}
+            priority
+          />
+        </div>
+      </section>
+
+      {/* The two headline tickets. */}
+      <section className="band band-centred">
         <div className="wrap">
-          <p className="eyebrow">{SITE.datesLong} · {SITE.venue}</p>
-          <h1>Tickets</h1>
-          <p className="lede">
-            One price, no early-bird games. Every in-person ticket includes the community happy hour
-            and the evening networking events, and every ticket — including virtual — includes the
-            KGC app for the whole week.
-          </p>
+          <h2>Main Ticket Types</h2>
 
           {params.cancelled && (
             <p className="notice warn" style={{ marginTop: 20 }}>
@@ -45,36 +130,76 @@ export default async function TicketsPage({
             </p>
           )}
 
-          <div className="tiers" style={{ marginTop: 36 }}>
-            {TIERS.map((t) => (
-              <div key={t.id} className={`tier${t.featured ? ' featured' : ''}`}>
-                {t.featured && <span className="badge">Most popular</span>}
-                <h2>{t.name}</h2>
-                <p className="muted" style={{ fontSize: '0.9rem', margin: 0 }}>
-                  {t.tagline}
-                </p>
-                <div className="price">
-                  {formatPrice(t.priceCents)} <small>per person</small>
-                </div>
+          <div className="kgc-tickets">
+            {allAccess && <TicketPanel tier={allAccess} tone="dark" />}
+            {mainConf && <TicketPanel tier={mainConf} tone="light" />}
+          </div>
+
+          <div className="ticket-notes">
+            <p>
+              ✶ <strong>All Access (VIP)</strong> — entry to <em>all</em> in-person sessions,
+              including the limited-availability workshops, plus virtual streaming and recordings.
+            </p>
+            <p>
+              ✶ <strong>Main Conference</strong> — covers every main conference session, but{' '}
+              <strong>does not include the workshops</strong> (space is limited).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* The two lighter tickets, on the live site's dark band. */}
+      <section className="band band-navy band-centred">
+        <div className="wrap">
+          <h2>Two smaller tickets, big impact.</h2>
+          <p className="lede">Ideal if you would like to start with a lighter commitment.</p>
+
+          <div className="kgc-tickets small">
+            {smaller.map((t) => (
+              <div key={t.id} className="kgc-ticket light">
+                <h3>{t.name}</h3>
+                <p className="price">{formatPrice(t.priceCents)}</p>
                 <ul>
                   {t.includes.map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-                <Link
-                  href={`/tickets?tier=${t.id}#buy`}
-                  className={`btn btn-block ${t.featured ? 'btn-primary' : 'btn-outline'}`}
-                >
+                <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-primary">
                   Choose {t.name}
                 </Link>
               </div>
             ))}
           </div>
+
+          <p className="ticket-notes">
+            All sessions are available on demand for at least one month after the conference.
+          </p>
         </div>
       </section>
 
-      <section className="tint">
-        <div className="wrap" style={{ display: 'grid', gap: 40, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', alignItems: 'start' }}>
+      {/* Where it happens — the live page's location band. */}
+      <section className="band band-wave-light band-centred">
+        <div className="wrap">
+          <h2>It’s happening at {SITE.venueShort}.</h2>
+          <p className="lede">We’d love to see you here in May.</p>
+        </div>
+      </section>
+
+      {/*
+        Ours, and not on the live site, which hands checkout to a third party.
+        It stays because it is the only place on this site where a ticket is
+        actually bought.
+      */}
+      <section className="band band-wash" id="buy">
+        <div
+          className="wrap"
+          style={{
+            display: 'grid',
+            gap: 40,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            alignItems: 'start',
+          }}
+        >
           <div>
             <p className="eyebrow">How it works</p>
             <h2>Buy once, and your ticket follows you</h2>
@@ -118,9 +243,42 @@ export default async function TicketsPage({
               <strong>What if I use a different email at work?</strong> Sign in with either and use
               the claim code; we can attach alternate addresses to one registration.
             </p>
+            {/*
+              Put beside the card form rather than hidden in a footer link. A
+              company that cannot pay by card and cannot find an invoice option
+              does not email to ask — it quietly does not come, which is the
+              expensive failure this whole flow exists to prevent.
+            */}
+            <p>
+              <strong>Can we pay by invoice?</strong> Yes —{' '}
+              <Link href="/tickets/invoice">request one here</Link>. We&rsquo;ll email a payable
+              invoice with a PO number on it, on net-14 to net-60 terms. Useful for groups, and for
+              anywhere procurement has to sign off.
+            </p>
           </div>
 
-          <CheckoutForm initialTier={preselected} stripeReady={stripeEnabled()} />
+          <CheckoutForm tiers={tiers} initialTier={preselected} stripeReady={stripeEnabled()} />
+        </div>
+      </section>
+
+      {/* The live site closes every page of this kind with "Find us". */}
+      <section className="band">
+        <div className="wrap">
+          <div className="find-us">
+            <h2>Find us</h2>
+            <div className="cols">
+              <div>
+                <p className="k">Email</p>
+                <p className="v">
+                  <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+                </p>
+              </div>
+              <div>
+                <p className="k">Address</p>
+                <p className="v">Cornell Tech &amp; globally online</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </>

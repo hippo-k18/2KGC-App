@@ -152,12 +152,73 @@ export interface SponsorCard {
 }
 
 const TIER_ORDER: Record<SponsorTier, number> = {
-  diamond: 0,
-  platinum: 1,
-  gold: 2,
-  silver: 3,
-  startup: 4,
+  platinum: 0,
+  gold: 1,
+  silver: 2,
+  bronze: 3,
 };
+
+/**
+ * How large each tier's logo renders, as a step from 1 to 3.
+ *
+ * These are not chosen — they are the `tier_size` map the live site's own
+ * sponsor widget serves, and they are why Platinum reads as bought-bigger while
+ * Silver and Bronze deliberately share a size. `.logo-row` turns a step into
+ * pixels; see the sponsors block in `globals.css`.
+ */
+export const TIER_SIZE: Record<SponsorTier, 1 | 2 | 3> = {
+  platinum: 3,
+  gold: 2,
+  silver: 1,
+  bronze: 1,
+};
+
+/**
+ * The local copy of a sponsor's logo, if this site ships one.
+ *
+ * `logoURL` in Firestore is the absolute original, because the Expo app and the
+ * console read the same document and a root-relative path is meaningless to
+ * them. This site does better: it self-hosts all eighteen under
+ * `public/kgc/sponsors/`, so it serves its own copy and makes no request to a
+ * third-party CDN from a public page. Falls through to whatever Firestore holds
+ * for any sponsor added later without a local file.
+ */
+function localLogo(name: string, remote?: string): string | undefined {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return SELF_HOSTED_LOGOS.has(slug) ? `/kgc/sponsors/${slug}.png` : remote;
+}
+
+/**
+ * Which slugs actually exist in `public/kgc/sponsors/`.
+ *
+ * Listed rather than probed: this runs per request on a server-rendered page,
+ * and hitting the filesystem eighteen times to answer a question whose answer
+ * only changes when someone commits a file would be the wrong trade. Add the
+ * slug here when you add the file.
+ */
+const SELF_HOSTED_LOGOS = new Set([
+  'abbvie',
+  'accenture',
+  'amazon-web-services',
+  'bloomberg',
+  'cloudera',
+  'datahub',
+  'fluree',
+  'gdotv',
+  'graphwise',
+  'metaphacts',
+  'neo4j',
+  'oracle',
+  'oxford-semantic-technologies',
+  'process-tempo',
+  'progress-software',
+  'senzing',
+  'stardog',
+  'topquadrant',
+]);
 
 export async function listSponsors(): Promise<SponsorCard[]> {
   const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
@@ -165,9 +226,36 @@ export async function listSponsors(): Promise<SponsorCard[]> {
   return snap.docs
     .map((d) => {
       const s = d.data() as SponsorDoc;
-      return { id: d.id, name: s.name, tier: s.tier, website: s.website, logoURL: s.logoURL };
+      return {
+        id: d.id,
+        name: s.name,
+        tier: s.tier,
+        website: s.website,
+        logoURL: localLogo(s.name, s.logoURL),
+      };
     })
     .sort((a, b) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9) || a.name.localeCompare(b.name));
+}
+
+/**
+ * The same sponsors, grouped into tier bands in descending tier order.
+ *
+ * The homepage and the sponsor page both render tier-headed rows rather than one
+ * flat grid, because that is what the live site does and because a flat grid
+ * silently throws away the thing a sponsor paid for. Empty tiers are dropped, so
+ * a conference with no Bronze sponsors shows no Bronze heading.
+ */
+export async function listSponsorsByTier(): Promise<
+  { tier: SponsorTier; size: 1 | 2 | 3; sponsors: SponsorCard[] }[]
+> {
+  const all = await listSponsors();
+  return (Object.keys(TIER_ORDER) as SponsorTier[])
+    .map((tier) => ({
+      tier,
+      size: TIER_SIZE[tier],
+      sponsors: all.filter((s) => s.tier === tier),
+    }))
+    .filter((band) => band.sponsors.length > 0);
 }
 
 /** Headline numbers for the home page, counted from the real collections. */

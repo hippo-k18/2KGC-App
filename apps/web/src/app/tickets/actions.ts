@@ -5,7 +5,8 @@ import { redirect } from 'next/navigation';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilPurchase } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
-import { tierById } from '@/lib/tickets';
+import { incrementSold, tierById } from '@/lib/catalogue';
+import { sendPurchaseConfirmation } from '@/lib/email';
 
 /**
  * Starting a purchase.
@@ -30,8 +31,25 @@ export async function startCheckout(
   const email = String(form.get('email') ?? '').trim();
   const tierId = String(form.get('tier') ?? '');
 
-  const tier = tierById(tierId);
+  /**
+   * The price comes from Firestore, keyed by the id the form posted — never
+   * from the form itself. A price in a form field is a price the buyer can
+   * edit, and the classic version of that bug charges $1 for a $1,199 ticket.
+   */
+  const tier = await tierById(tierId);
   if (!tier) return { error: 'Choose a ticket type.' };
+
+  /**
+   * Re-check availability here, not only in the UI.
+   *
+   * The tickets page disables a sold-out option, but the form posts a tier id
+   * and anything that can POST can post a closed one. This is the check that
+   * counts; the disabled option is a courtesy.
+   */
+  if (!tier.onSale) {
+    return { error: `${tier.name} is not available — ${(tier.unavailableReason ?? 'sales closed').toLowerCase()}.` };
+  }
+
   if (name.length < 2) return { error: 'Enter the attendee’s full name.' };
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
 
@@ -56,7 +74,41 @@ export async function startCheckout(
       amountCents: tier.priceCents,
       currency: tier.currency,
       paid: false,
+      // `channel: 'demo'` is the field that makes a test purchase impossible to
+      // mistake for a real one in an export. `status: 'pending'` alone says the
+      // money has not arrived; it does not say no money was ever asked for.
+      channel: 'demo',
+      tierId: tier.id,
     });
+
+    /**
+     * The demo path has to do the webhook's other two jobs itself.
+     *
+     * With Stripe configured, `incrementSold` and the confirmation email both
+     * happen in `api/stripe/webhook` — which never runs here, because there is
+     * no Stripe to call it. Leaving them out made the demo quietly incomplete
+     * in two ways that only showed up when somebody looked: a tier could never
+     * appear to sell out, and "buy a ticket, get an email" did not work even
+     * with an email provider configured.
+     *
+     * Both are after the fact and neither may break the purchase — the ticket
+     * already exists and is valid.
+     */
+    if (result.created) await incrementSold(tier.id);
+
+    await sendPurchaseConfirmation({
+      to: result.email,
+      name: result.name ?? '',
+      ticketType: result.ticketType ?? tier.name,
+      amountCents: tier.priceCents,
+      currency: tier.currency,
+      orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId, demo: true })}`,
+      claimCode: result.claimCode,
+      registrationId: result.registrationId,
+      // The receipt must never imply money changed hands when it did not.
+      demo: true,
+    });
+
     redirect(`/order/${mintOrderToken({ rid: result.registrationId, demo: true })}`);
   }
 
@@ -92,7 +144,7 @@ export async function startCheckout(
                * event's location; getting it wrong is a filing problem, not a
                * display bug.
                */
-              tax_code: 'txcd_20030000',
+              tax_code: tier.taxCode,
             },
           },
         },

@@ -35,8 +35,20 @@ export interface InvoiceRequest {
   /** Who signs for it — finance, not necessarily the attendee. */
   billingEmail: string;
   companyName: string;
-  /** Attendees this invoice covers. One line item each, so seats are countable. */
-  seats: { name: string; email: string; ticketType: string; priceCents: number }[];
+  /**
+   * Attendees this invoice covers. One line item each, so seats are countable.
+   *
+   * `ticketTypeId` rides along so fulfilment can count the sale against the
+   * right tier's capacity — the name alone is a display string and a renamed
+   * tier would break the link.
+   */
+  seats: {
+    name: string;
+    email: string;
+    ticketType: string;
+    ticketTypeId: string;
+    priceCents: number;
+  }[];
   currency: string;
   /** Printed on the invoice; the single most common reason finance rejects one. */
   purchaseOrder?: string;
@@ -96,8 +108,16 @@ export async function raiseInvoice(req: InvoiceRequest): Promise<InvoiceResult> 
     metadata: {
       kgcKind: 'group-registration',
       seats: String(req.seats.length),
-      // The webhook needs to know who to register when this is paid, and an
-      // invoice carries no line-item metadata back through `invoice.paid`.
+      /**
+       * A best-effort copy of the attendee list.
+       *
+       * ⚠️ Stripe caps a metadata value at 500 characters, so this truncates —
+       * and a truncated JSON string does not parse. It is therefore **not** the
+       * source of truth: `seatsFromOrder()` reads the order document, which has
+       * no such limit, and this is only the fallback for an invoice raised
+       * straight in the Stripe dashboard. Do not add a seat field here
+       * expecting it to survive.
+       */
       attendees: JSON.stringify(
         req.seats.map((x) => ({ n: x.name, e: x.email, t: x.ticketType })),
       ).slice(0, 480),
