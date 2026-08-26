@@ -67,9 +67,15 @@ structurant, touche à la confidentialité) → push → `verifyOtp`.
 Ces points sont indépendants des Cloud Functions et peuvent être traités
 en parallèle de la Phase 1 :
 
-- **`users/{uid}` n'est jamais créé à la vraie première connexion.** Seuls
-  les comptes seedés ont un profil. C'est la différence entre « la démo
-  marche » et « un vrai participant peut utiliser l'app ».
+- ~~`users/{uid}` n'est jamais créé à la vraie première connexion.~~ **Déjà
+  résolu, pas un trou.** `AuthProvider` (`useCreateProfileOnFirstSignIn`,
+  `app/src/lib/auth/auth-provider.tsx`) l'écrit depuis le commit `fadee27`
+  (« Close the gaps an adversarial audit found in the rules and data
+  layer », 2026-08-16) — avant même le début de la Phase 0 de ce fichier.
+  Cette ligne était fausse depuis le premier jour de ce document ; découvert
+  le 2026-08-26 en vérifiant si le fan-out de la fonction #7
+  (`onAnnouncementCreate`) pouvait atteindre un vrai participant non seedé.
+  C'est le cas — aucune étape de cette phase ne bloque plus #7.
 - **Les règles de check-in bloquent tout le monde, y compris les
   organisateurs, en écriture.** `checkInLists`, `checkIns`, `scanEvents` et
   `checkInStations` ont `allow write: if false` pour tout client — seul

@@ -401,10 +401,16 @@ standing between this file and 1,000 attendees' data.
   genuine — but the login screen uses email + password against the Auth
   emulator, because the production design (a six-digit code verified by a Cloud
   Function) needs Blaze. The hard-coded `demo-auth.tsx` is deleted.
-- **Nothing creates `users/{uid}`.** The seed writes 50 profiles, which is why
-  the demo works; a real attendee signing in has no profile document, so their
-  name and privacy switches fall back to defaults. `AuthProvider` should create
-  it on first sign-in — the rules already permit exactly that shape.
+- **`users/{uid}` creation on first sign-in is resolved, not a gap.**
+  `AuthProvider`'s `useCreateProfileOnFirstSignIn`
+  (`app/src/lib/auth/auth-provider.tsx`) has written it since commit
+  `fadee27` ("Close the gaps an adversarial audit found in the rules and
+  data layer", 2026-08-16) — before this file's Phase 0/1 backend work even
+  started. A stale claim to the contrary sat here and in
+  `BACKEND-ROADMAP.md`'s Phase 2 until 2026-08-26, discovered while
+  reasoning about whether `onAnnouncementCreate`'s fan-out (which treats
+  every `users/{uid}` doc as a registered attendee) could reach a real,
+  non-seeded participant. It can.
 - **Offline does not work yet.** Several comments claim it does; they are
   aspirational. The Firebase **JS** SDK has no disk persistence on React Native,
   so the cache is memory-only and a cold start with no network renders nothing.
@@ -453,10 +459,8 @@ standing between this file and 1,000 attendees' data.
    the owner has said must end up "almost identical" to Whova's. Its
    `src/lib/nav.ts` encodes Whova's IA as 163 nodes and mislabels many of them
    "built" when they are view-only — do not trust it as a progress map.
-3. Nothing creates `users/{uid}` on first sign-in, which is the gap between the
-   seeded demo working and a real attendee working. See the note above.
-4. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`
+3. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`
    are modelled and have **no rules at all**, so default-deny is currently the
    only thing protecting them.
-5. Session Q&A and live polls exist as components but their tallies are inert
+4. Session Q&A and live polls exist as components but their tallies are inert
    until (1).

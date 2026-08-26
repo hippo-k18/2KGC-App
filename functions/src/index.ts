@@ -22,6 +22,7 @@ initializeApp(
 );
 
 export { mirrorDirectory } from './triggers/mirror-directory.js';
+export { onAnnouncementCreate } from './triggers/on-announcement-create.js';
 export { onPollVoteWrite } from './triggers/on-poll-vote-write.js';
 export { onQuestionUpvoteWrite } from './triggers/on-question-upvote-write.js';
 export { onQuestionWrite } from './triggers/on-question-write.js';

@@ -76,12 +76,28 @@ threads stays client-managed, as today — nothing changes there.
   a `functions` emulator on port 5001. `npm run dev:emulators` and
   `npm run test:functions` both include it.
 - `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite`,
-  `onPollVoteWrite`/`tallyPoll`, `onQuestionWrite`/`rebuildQaBoard` and
-  `mirrorDirectory` (#1–#6) are built and tested against the emulator with
-  seeded data — `tests/functions/`, run via `npm run test:functions`. Each
-  Cloud Tasks queue is auto-detected and emulated by the Firebase CLI as
-  soon as its `onTaskDispatched` function exists in the codebase — no extra
-  emulator config was needed beyond what #1–#3 already required.
+  `onPollVoteWrite`/`tallyPoll`, `onQuestionWrite`/`rebuildQaBoard`,
+  `mirrorDirectory` and `onAnnouncementCreate` (#1–#7) are built and tested
+  against the emulator with seeded data — `tests/functions/`, run via
+  `npm run test:functions`. Each Cloud Tasks queue is auto-detected and
+  emulated by the Firebase CLI as soon as its `onTaskDispatched` function
+  exists in the codebase — no extra emulator config was needed beyond what
+  #1–#3 already required.
+- `onAnnouncementCreate` treats "every doc in `users`" as "every registered
+  attendee" rather than checking the `registered` custom claim directly —
+  there is no queryable Firestore field for that claim, and checking it for
+  ~1,000 users would mean ~1,000 Admin Auth lookups. A `users/{uid}` doc
+  only exists once a real sign-in creates it, which only happens after the
+  claim is minted, so the collection is a sound proxy. It writes the
+  notification at the announcement's own document id, so a retried
+  dispatch overwrites the same 1,000 documents rather than duplicating
+  them. The FCM branch is written and typechecked but effectively
+  untested: there is no Cloud Messaging emulator, this repo has no
+  credentials to call real FCM from a test, and no code anywhere writes
+  `fcmTokens` yet (a Known Gap in `AGENTS.md`) — so the only thing
+  `tests/functions/onAnnouncementCreate.test.ts` proves about `push: true`
+  is that the code path completes when the token list is empty, which is
+  also the true state of the whole app today.
 - `mirrorDirectory` bounds `name`/`title`/`company`/`interests` to the same
   limits `validDirectoryEntry()` enforces on the client write path, even
   though nothing enforces them on `users/{uid}` itself — the directory is
@@ -138,5 +154,5 @@ threads stays client-managed, as today — nothing changes there.
   console can reach them; the functions emulator is only ever called by other
   local emulators (Cloud Tasks, Eventarc) and the CLI itself, never directly
   by a device.
-- Remaining: `onAnnouncementCreate` (#7), `onSessionAgendaChange` (#8), and
-  `requestOtp`/`verifyOtp` (#9–#10).
+- Remaining: `onSessionAgendaChange` (#8) and `requestOtp`/`verifyOtp`
+  (#9–#10).
