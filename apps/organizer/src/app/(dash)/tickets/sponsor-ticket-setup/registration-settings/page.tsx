@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapScreen } from '../../gap-screen';
+import { GapScreen } from '../../../gap-screen';
 
 export const dynamic = 'force-dynamic';
 

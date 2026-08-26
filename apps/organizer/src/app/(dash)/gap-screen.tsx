@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react';
-import { Banner, PageHeader, Panel } from '../ui';
+import { Banner, PageHeader, Panel } from './ui';
 
 /**
- * The shell every unbuilt Tickets screen shares.
+ * The shell every unbuilt screen shares.
+ *
+ * Moved up from `tickets/` once four other tabs wanted it. It sits beside
+ * `ui.tsx` because that is what it is: furniture, not a feature.
  *
  * Fifteen of the exhibitor and sponsor setup screens have no implementation and
  * are not going to grow one by being written out fifteen times. What differs
