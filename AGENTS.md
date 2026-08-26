@@ -532,9 +532,13 @@ standing between this file and 1,000 attendees' data.
    identical to Whova's" as the owner asked: the dark utility bar, the 1060px
    boxed layout, the nine-tab strip at `#2180b2`, the three-box 200px rail, and
    Whova's own `.whova-table` / `.whova-btn-main` design system, all transcribed
-   from Whova's production CSS. Seventeen screens carry real Firestore data; the
-   rest resolve to an honest gap note (`src/lib/gaps.ts`) rather than a 404 or a
-   fake empty table. Conflict Check, Message Speakers, Message Sponsors and
+   from Whova's production CSS. **All 173 leaf screens in Whova's nav now exist**; the other 42 paths are
+   section headers served by the catch-all. Roughly a third read and write real
+   data and the rest are honest gap notes naming what Whova does, what we would
+   need and how big that is. `npm run smoke` proves every one of them renders
+   against a seeded emulator in one command — use it after any change to the
+   dashboard, because `tsc` and `next build` both pass on a screen that throws
+   the moment it reads Firestore. Conflict Check, Message Speakers, Message Sponsors and
    Discount Codes were built in August 2026 — the three messaging screens
    because the ticket-receipt work removed the "there is no email sender
    anywhere in this project" blocker that `gaps.ts` records against them.

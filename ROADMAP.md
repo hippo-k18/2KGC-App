@@ -9,43 +9,52 @@ both were true then and are not now).
 
 ## The honest numbers
 
-Updated **2026-08-25**, after a large build-out. `apps/organizer/src/lib/nav.ts`
-transcribes Whova's own navigation tree from their shipped bundle: **215 paths**.
-That overstates the work, because 42 of them are section headers rather than
-screens.
+Updated **2026-08-25**. **Every leaf screen in Whova's navigation tree now
+exists and renders.**
 
 | | Count |
 |---|---:|
 | Nav paths in Whova's tree | 215 |
 | — of which section headers, not screens | 42 |
 | **Real screens** | **173** |
-| Built and reading live data | **62** |
-| **Remaining** | **111** |
+| **Built and rendering** | **173** |
+| Remaining | **0** |
 
-By tab, built / total paths:
+`npm run smoke` boots the emulator, seeds it, builds the dashboard and requests
+every registered path. All 173 return 200 against real data with no server-side
+throw. That is the check; it takes one command.
 
-| Tab | Built | Note |
+### ⚠️ What "built" means, because the number alone is misleading
+
+Roughly **a third read and write real data**: the money path end to end, the
+programme, attendees, exhibitors, the team checklist, surveys, moderation,
+exports, imports, name badges.
+
+The rest are **honest gap notes** — what Whova does on that screen, what this
+repo would need, and roughly how big that is. That is deliberate. An organizer
+evaluating the move can click any nav item and get a straight answer rather
+than a spinner, an empty table, or a feature that half-works; an empty state
+implying "this nearly works" is worse than one that names the gap.
+
+**So the parity number is not 100%.** By nav coverage it is complete. By
+capability it is closer to a third, and the sections below are still the plan
+for the rest.
+
+| Tab | Screens | Substantially real |
 |---|---|---|
-| Content | 16 / 44 | Agenda, speakers, sponsors, exhibitors, documents, checklists |
-| Tickets | 12 / 60 | Money path complete; three parallel catalogues are not |
-| Attendees | 10 / 28 | List, check-in, exports, four derived cohorts, integrations |
-| Tools | 9 / 16 | App adoption, admin control, board moderation, report |
-| Engagement | 7 / 21 | Announcements, community views, matchmaking, surveys |
-| Marketing | 4 / 25 | Webpage readiness reports |
-| Pay | 3 / 5 | Balance, billing, orders |
-| Publish | 1 / 1 | ✅ complete |
-| Virtual & Hybrid | 0 / 15 | Untouched, and a candidate to cut |
+| Tickets | 53 | Money path, catalogue, orders, refunds, discounts |
+| Content | 34 | Agenda, speakers, sponsors, exhibitors, documents, checklist |
+| Attendees | 23 | List, check-in, exports, imports, badges, cohorts |
+| Marketing | 18 | Webpage readiness reports |
+| Engagement | 17 | Announcements, community, matchmaking, surveys, moderation |
+| Tools | 12 | App adoption, admin control, board moderation, report |
+| Virtual & Hybrid | 11 | None — argued as a candidate to cut |
+| Pay | 4 | Balance, billing |
+| Publish | 1 | Pre-flight check |
 
-Every one of the 62 is smoke-tested under `next start` against seeded data —
-200, no runtime error — and the whole tree is validated so no `IMPLEMENTED`
-path can name a route that does not exist in Whova's nav.
-
-The website is separate and in better shape: **19 pages, all 17 nav links
-resolving**. What it lacks is content management — every page is a React file,
-so editing the code of conduct is a deploy. That is Phase 5 below.
-
-⚠️ **111 screens is still months, not weeks.** The sequencing below matters more
-than the total.
+The website is separate: **19 pages, all 17 nav links resolving.** What it lacks
+is content management — every page is a React file, so editing the code of
+conduct is a deploy. That is Phase 5.
 
 ---
 
