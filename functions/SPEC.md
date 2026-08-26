@@ -76,12 +76,25 @@ threads stays client-managed, as today — nothing changes there.
   a `functions` emulator on port 5001. `npm run dev:emulators` and
   `npm run test:functions` both include it.
 - `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite`,
-  `onPollVoteWrite`/`tallyPoll` and `onQuestionWrite`/`rebuildQaBoard`
-  (#1–#5) are built and tested against the emulator with seeded data —
-  `tests/functions/`, run via `npm run test:functions`. Each Cloud Tasks
-  queue is auto-detected and emulated by the Firebase CLI as soon as its
-  `onTaskDispatched` function exists in the codebase — no extra emulator
-  config was needed beyond what #1–#3 already required.
+  `onPollVoteWrite`/`tallyPoll`, `onQuestionWrite`/`rebuildQaBoard` and
+  `mirrorDirectory` (#1–#6) are built and tested against the emulator with
+  seeded data — `tests/functions/`, run via `npm run test:functions`. Each
+  Cloud Tasks queue is auto-detected and emulated by the Firebase CLI as
+  soon as its `onTaskDispatched` function exists in the codebase — no extra
+  emulator config was needed beyond what #1–#3 already required.
+- `mirrorDirectory` bounds `name`/`title`/`company`/`interests` to the same
+  limits `validDirectoryEntry()` enforces on the client write path, even
+  though nothing enforces them on `users/{uid}` itself — the directory is
+  ~1,000 documents fetched whole by every attendee, and bypassing rules
+  must not mean bypassing that budget too. It also only ever mirrors
+  `photoURL` when the value's hostname is `firebasestorage.googleapis.com`
+  — `firestore.rules` lets an attendee write any string into their own
+  `users/{uid}.photoURL` with no format check, so this is the one place
+  deciding whether that string is allowed to become a fetched URL on 1,000
+  other screens. `seed-demo.ts`'s directory write is confirmed to still be
+  a genuine second writer, not a stale Spark-only fallback: this trigger
+  now runs on the emulator like every other function here and recomputes
+  the same document moments after seeding finishes.
 - `onPollVoteWrite`'s and `onQuestionWrite`'s debounce is a deterministic,
   hashed, time-bucketed Cloud Tasks id (one 5s bucket per poll or session,
   used at most once ever) rather than a lock document — see the docblock on
@@ -125,5 +138,5 @@ threads stays client-managed, as today — nothing changes there.
   console can reach them; the functions emulator is only ever called by other
   local emulators (Cloud Tasks, Eventarc) and the CLI itself, never directly
   by a device.
-- Remaining: `mirrorDirectory` (#6), `onAnnouncementCreate` (#7),
-  `onSessionAgendaChange` (#8), and `requestOtp`/`verifyOtp` (#9–#10).
+- Remaining: `onAnnouncementCreate` (#7), `onSessionAgendaChange` (#8), and
+  `requestOtp`/`verifyOtp` (#9–#10).

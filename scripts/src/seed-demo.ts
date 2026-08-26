@@ -126,11 +126,15 @@ async function main() {
 
   // --- synthetic attendees, registrations and directory -------------------
   //
-  // The directory projection is normally written by the `mirrorDirectory`
-  // trigger. That trigger needs Cloud Functions, which needs Blaze, so while we
-  // are on Spark the seed writes it directly — same shape, same rules, just a
-  // different writer. The opt-out case is honoured here too: a hidden attendee
-  // gets no directory document at all.
+  // The directory projection now has two writers: the `mirrorDirectory`
+  // trigger (functions/SPEC.md #6), which needs the functions emulator
+  // running but not Blaze, and this seed script, kept as the Phase 1
+  // dual-write fallback documented in firestore.rules. Seeding still writes
+  // it directly so the demo works even without the functions emulator
+  // running; when it is, mirrorDirectory recomputes the same document
+  // moments later from the profile just written, so there is nothing to
+  // keep in sync by hand. The opt-out case is honoured here too: a hidden
+  // attendee gets no directory document at all.
   for (let i = 0; i < ATTENDEE_COUNT; i++) {
     const name = `${FIRST[i % FIRST.length]} ${LAST[i % LAST.length]}`;
     const email = normaliseEmail(`${name.replace(/\s+/g, '.').toLowerCase()}@example.test`);
