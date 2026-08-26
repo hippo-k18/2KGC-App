@@ -612,3 +612,101 @@ export const ANNOUNCEMENTS = [
 ];
 
 export { FIRST, LAST, ORGS, TITLES };
+
+// ---------------------------------------------------------------------------
+// The collections the dashboard build-out added
+//
+// Exhibitors, the organizing team's checklist, attendee documents and a session
+// feedback survey. All invented, like everything else here except the tracks,
+// rooms, ticket tiers and sponsor tiers.
+//
+// Seeded because a screen that only ever renders its empty state is a screen
+// nobody can evaluate — an organizer looking at the console cannot tell "built
+// and waiting for data" from "not built". Every entity below is shaped to
+// exercise the interesting branch of its screen rather than just to exist.
+// ---------------------------------------------------------------------------
+
+export const EXHIBITORS: {
+  name: string; booth?: string; contactName: string; website?: string;
+  description: string; passes?: number; used: number;
+  status: 'confirmed' | 'provisional' | 'cancelled';
+}[] = [
+  { name: 'Graphwise', booth: 'E01', contactName: 'Priya Raman', website: 'https://example.invalid/graphwise',
+    description: 'Graph database tooling and managed RDF hosting.', passes: 4, used: 4, status: 'confirmed' },
+  { name: 'Ontotext Labs', booth: 'E02', contactName: 'Marek Novak', website: 'https://example.invalid/ontotext',
+    description: 'Text analytics over enterprise knowledge graphs.', passes: 3, used: 2, status: 'confirmed' },
+  { name: 'Cornell Tech Careers', booth: 'E03', contactName: 'Dana Whitfield',
+    description: 'Graduate recruitment for the Jacobs Institute.', passes: 2, used: 2, status: 'confirmed' },
+  // Over-allocated on purpose: this is the row that makes the warning banner
+  // and the progress bar on Exhibitor Manager mean something.
+  { name: 'Semantic Foundry', booth: 'E04', contactName: 'Luis Ferreira', website: 'https://example.invalid/foundry',
+    description: 'Consulting for ontology-led data platforms.', passes: 2, used: 5, status: 'confirmed' },
+  // No booth: exercises the "not on the floor plan" count.
+  { name: 'Provenance.io', contactName: 'Aiko Tanaka',
+    description: 'Lineage and provenance tracking for ML pipelines.', passes: 2, used: 0, status: 'provisional' },
+  { name: 'Withdrawn Systems', booth: 'E06', contactName: 'Sam Oduya',
+    description: 'Pulled out in March; kept so the booth history is explicable.',
+    passes: 2, used: 0, status: 'cancelled' },
+];
+
+export const TASKS: {
+  project: string; title: string; assignee?: string; status: 'todo' | 'doing' | 'done' | 'blocked';
+  dueOn?: string; notes?: string;
+}[] = [
+  { project: 'Venue', title: 'Confirm room layouts with Cornell Tech facilities', assignee: 'Ana', status: 'done', dueOn: '2027-03-01' },
+  { project: 'Venue', title: 'Walk the building with the AV lead', assignee: 'Ana', status: 'doing', dueOn: '2027-04-10' },
+  // Overdue on purpose: the red tag and the "overdue" tile need a row.
+  { project: 'Venue', title: 'Confirm loading dock access for exhibitors', assignee: 'Ana', status: 'todo', dueOn: '2027-04-01',
+    notes: 'Exhibitors set up Tuesday evening. Security needs names in advance.' },
+  { project: 'AV', title: 'Book recording crew for the three keynotes', assignee: 'Tom', status: 'done', dueOn: '2027-02-15' },
+  { project: 'AV', title: 'Test the stream for the Virtual ticket tier', assignee: 'Tom', status: 'blocked', dueOn: '2027-04-20',
+    notes: 'Blocked: no streaming provider chosen. The Virtual tier is on sale and promises live streams.' },
+  { project: 'AV', title: 'Collect speaker slides', assignee: 'Tom', status: 'todo', dueOn: '2027-04-20' },
+  { project: 'Catering', title: 'Final headcount to the caterer', assignee: 'Ravi', status: 'todo', dueOn: '2027-04-25',
+    notes: 'Use the badge and catering export, not the full attendee list.' },
+  { project: 'Catering', title: 'Confirm dietary requirements process', assignee: 'Ravi', status: 'blocked',
+    notes: 'Blocked: registration Question Forms is unbuilt, so nothing collects them.' },
+  { project: 'Registration', title: 'Print badges', assignee: 'Ana', status: 'todo', dueOn: '2027-04-28' },
+  { project: 'Registration', title: 'Brief the desk volunteers on the scanner', status: 'todo', dueOn: '2027-05-02' },
+  { project: 'Registration', title: 'Run one live-mode Stripe transaction end to end', assignee: 'Tom', status: 'todo', dueOn: '2027-03-15',
+    notes: 'The webhook has never received a real event. SETUP-PAYMENTS.md section 4.' },
+];
+
+export const DOCUMENTS: {
+  title: string; description: string; url: string;
+  kind: 'pdf' | 'slides' | 'video' | 'link'; restrictTo: string[];
+  status: 'draft' | 'published';
+}[] = [
+  { title: 'Code of conduct', description: 'What we expect of everyone, and how to report a problem.',
+    url: 'https://www.knowledgegraph.tech/code-of-conduct', kind: 'link', restrictTo: [], status: 'published' },
+  { title: 'Venue map — Bloomberg Center', description: 'Rooms, the exhibition hall and the quiet room.',
+    url: 'https://example.invalid/kgc-2027-venue-map.pdf', kind: 'pdf', restrictTo: [], status: 'published' },
+  { title: 'Getting to Roosevelt Island', description: 'Tram, subway and where not to park.',
+    url: 'https://example.invalid/kgc-2027-travel.pdf', kind: 'pdf', restrictTo: [], status: 'published' },
+  // Restricted: exercises the "visible to" column and the honest note that the
+  // link itself is still public.
+  { title: 'Workshop datasets', description: 'The RDF dumps used in Monday and Tuesday labs.',
+    url: 'https://example.invalid/kgc-2027-workshop-data.zip', kind: 'link',
+    restrictTo: ['Workshops', 'All Access (VIP)'], status: 'published' },
+  { title: 'Sponsor prospectus 2028', description: 'Not for attendees — draft for the sales conversation.',
+    url: 'https://example.invalid/kgc-2028-prospectus.pdf', kind: 'pdf', restrictTo: [], status: 'draft' },
+];
+
+/** One published feedback survey, so the results view has something to render. */
+export const FEEDBACK_QUESTIONS = [
+  { id: 'q1', prompt: 'How useful was this session?', kind: 'rating' as const, required: false },
+  { id: 'q2', prompt: 'How well did it match its description?', kind: 'rating' as const, required: false },
+  {
+    id: 'q3', prompt: 'Would you recommend it to a colleague?', kind: 'single' as const,
+    options: ['Yes', 'Maybe', 'No'], required: false,
+  },
+  { id: 'q4', prompt: 'What would have made it better?', kind: 'text' as const, required: false },
+];
+
+export const FEEDBACK_COMMENTS = [
+  'More time for questions — the last ten minutes were rushed.',
+  'The worked example was the best part. More of that.',
+  'Slides were dense. Happy to read them afterwards, but hard to follow live.',
+  'Would have liked the dataset in advance.',
+  'Good level. Assumed I knew SPARQL, which I did.',
+];

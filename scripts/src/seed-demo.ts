@@ -15,6 +15,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
+  DOCUMENTS, EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
 } from './lib/fixtures.js';
 import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
 import {
@@ -395,6 +396,102 @@ async function main() {
     });
   });
 
+  // --- the collections the dashboard build-out added ----------------------
+  //
+  // Seeded because a screen that only ever renders its empty state cannot be
+  // evaluated — an organizer cannot tell "built and waiting for data" from
+  // "not built". Each entity below exercises the interesting branch of its
+  // screen: an over-allocated exhibitor, an overdue task, a restricted
+  // document, a survey with real answers.
+
+  EXHIBITORS.forEach((e, i) => {
+    push(COLLECTIONS.exhibitors, `seed-exhibitor-${i}`, {
+      ...base(),
+      name: e.name,
+      boothNumber: e.booth,
+      contactName: e.contactName,
+      contactEmail: `${e.contactName.split(' ')[0].toLowerCase()}@${e.name.toLowerCase().replace(/[^a-z0-9]+/g, '')}.example.invalid`,
+      website: e.website,
+      description: e.description,
+      passesAllocated: e.passes,
+      passesUsed: e.used,
+      status: e.status,
+    });
+  });
+
+  TASKS.forEach((t, i) => {
+    push(COLLECTIONS.tasks, `seed-task-${i}`, {
+      ...base(),
+      project: t.project,
+      title: t.title,
+      notes: t.notes,
+      assignee: t.assignee,
+      dueOn: t.dueOn,
+      status: t.status,
+      order: i,
+      ...(t.status === 'done' ? { completedAt: now(), completedBy: t.assignee ?? 'seed' } : {}),
+    });
+  });
+
+  DOCUMENTS.forEach((d, i) => {
+    push(COLLECTIONS.documents, `seed-document-${i}`, {
+      ...base(),
+      title: d.title,
+      description: d.description,
+      url: d.url,
+      kind: d.kind,
+      visibleToTicketTypes: d.restrictTo,
+      status: d.status,
+      order: i,
+    });
+  });
+
+  /**
+   * One feedback survey against the opening session, with real answers.
+   *
+   * `responseCount` is written to the true number here, unlike `replyCount`
+   * above which stays at zero. The difference is deliberate: the survey screen
+   * counts the subcollection itself and only falls back to this field, so a
+   * correct value cannot paper over a missing trigger the way a reply count
+   * would.
+   */
+  // Derived the same way every other session reference here is, so the survey
+  // attaches to a session that actually exists rather than to a guessed id.
+  const feedbackSessionId = sessions[0]
+    ? sessionId(sessions[0].title, sessions[0].startsAtLocal)
+    : undefined;
+  if (feedbackSessionId) {
+    const RATINGS_1 = [5, 4, 5, 3, 4, 5, 4, 4, 5, 2, 4, 5];
+    const RATINGS_2 = [4, 4, 5, 3, 4, 4, 3, 5, 4, 3, 4, 5];
+    const RECOMMEND = ['Yes', 'Yes', 'Yes', 'Maybe', 'Yes', 'Yes', 'Maybe', 'Yes', 'Yes', 'No', 'Yes', 'Yes'];
+
+    push(COLLECTIONS.surveys, 'seed-survey-keynote', {
+      ...base(),
+      title: 'Opening session — your feedback',
+      description: 'Two minutes. It decides what we programme next year.',
+      sessionId: feedbackSessionId,
+      questions: FEEDBACK_QUESTIONS,
+      status: 'published',
+      responseCount: RATINGS_1.length,
+    });
+
+    RATINGS_1.forEach((r1, i) => {
+      const uid = `demo_${String(i).padStart(3, '0')}`;
+      push(`${COLLECTIONS.surveys}/seed-survey-keynote/${SUBCOLLECTIONS.responses}`, uid, {
+        uid,
+        answers: {
+          q1: r1,
+          q2: RATINGS_2[i],
+          q3: RECOMMEND[i],
+          // Only five of the twelve left a comment, which is the realistic rate
+          // and makes the answered count differ per question.
+          ...(i < FEEDBACK_COMMENTS.length ? { q4: FEEDBACK_COMMENTS[i] } : {}),
+        },
+        submittedAt: now(),
+      });
+    });
+  }
+
   const count = await commitAll(writes);
 
   // Remove anything a previous run wrote that this one did not. Derived ids mean
@@ -411,7 +508,8 @@ async function main() {
   console.log(`  ${TRACKS.length} tracks, ${ROOMS.length} rooms, ${TICKET_TYPES.length} ticket types`);
   console.log(`  ${speakers.length} speakers`);
   console.log(`  ${sessions.length} sessions across 5 days (${sessions[0].startsAtLocal.slice(0, 10)} → 2027-05-07)`);
-  console.log(`  ${SPONSORS.length} sponsors`);
+  console.log(`  ${SPONSORS.length} sponsors, ${EXHIBITORS.length} exhibitors`);
+  console.log(`  ${TASKS.length} team tasks, ${DOCUMENTS.length} documents, 1 feedback survey`);
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts with ${replyTotal} replies, ${ANNOUNCEMENTS.length} announcements`);
   console.log(`  Q&A on ${keynotes.length} keynotes, a poll on all ${pollable.length} pollable sessions`);
