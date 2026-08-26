@@ -79,6 +79,22 @@ describe('onPollVoteWrite + tallyPoll', () => {
   }, 30_000);
 
   it('counts a multi-select ballot as one voter spread across several options', async () => {
+    // The local Cloud Tasks emulator does not honor `scheduleDelaySeconds` —
+    // it dispatches within about a second regardless of what was requested,
+    // rather than genuinely waiting out the debounce window like production
+    // Cloud Tasks does. `onPollVoteWrite`'s bucketing (see that file's
+    // docblock) is only collision-safe because production really does wait:
+    // a second vote sharing a bucket is mathematically guaranteed to arrive
+    // before that bucket's task fires, since the task fires no earlier than
+    // (first-vote-time + 5s) and the bucket has already closed by then. The
+    // emulator's fast dispatch breaks that guarantee, so without this wait,
+    // voter B's ballot can land in the *same* bucket as voter A's — already
+    // spent by an earlier recompute — get `task-already-exists`, and never
+    // get tallied. Forcing a new 5s bucket sidesteps the emulator gap rather
+    // than the design; see functions/SPEC.md's Phase 1 status for the
+    // production-timing argument this relies on.
+    await new Promise((r) => setTimeout(r, 5_500));
+
     await pollRef
       .collection(SUBCOLLECTIONS.votes)
       .doc(VOTER_B)
@@ -91,5 +107,5 @@ describe('onPollVoteWrite + tallyPoll', () => {
     const state = await pollState();
     expect(state.tallies[optionIds[0]]).toBe(2);
     expect(state.tallies[optionIds[1]]).toBe(1);
-  }, 30_000);
+  }, 40_000);
 });

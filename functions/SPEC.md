@@ -75,17 +75,55 @@ threads stays client-managed, as today — nothing changes there.
 - `firebase.json` has a `functions` block (source, codebase, ignore list) and
   a `functions` emulator on port 5001. `npm run dev:emulators` and
   `npm run test:functions` both include it.
-- `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite` and
-  `onPollVoteWrite`/`tallyPoll` (#1–#4) are built and tested against the
-  emulator with seeded data — `tests/functions/`, run via
-  `npm run test:functions`. The Cloud Tasks queue `tallyPoll` needs is
-  auto-detected and emulated by the Firebase CLI as soon as an
+- `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite`,
+  `onPollVoteWrite`/`tallyPoll` and `onQuestionWrite`/`rebuildQaBoard`
+  (#1–#5) are built and tested against the emulator with seeded data —
+  `tests/functions/`, run via `npm run test:functions`. Each Cloud Tasks
+  queue is auto-detected and emulated by the Firebase CLI as soon as its
   `onTaskDispatched` function exists in the codebase — no extra emulator
   config was needed beyond what #1–#3 already required.
-- `onPollVoteWrite`'s debounce is a deterministic, hashed, time-bucketed
-  Cloud Tasks id (`sha256(pollId:bucket)`, one 5s bucket per poll, used at
-  most once ever) rather than a lock document — see the docblock on that
-  file for why a *reused* fixed id per poll would have gone silently stale
-  after its first debounce window.
-- `rebuildQaBoard` (#5) still needs to be built, reusing the same debounce
-  mechanism as `tallyPoll`.
+- `onPollVoteWrite`'s and `onQuestionWrite`'s debounce is a deterministic,
+  hashed, time-bucketed Cloud Tasks id (one 5s bucket per poll or session,
+  used at most once ever) rather than a lock document — see the docblock on
+  `on-poll-vote-write.ts` for why a *reused* fixed id would have gone
+  silently stale after its first debounce window.
+- `rebuildQaBoard` reads every question under a session and filters to
+  `state == 'approved'` in memory rather than with an indexed query — a
+  session's live Q&A runs a few dozen questions deep at most, well under
+  what would justify adding another composite index for this.
+- **`initializeApp()` sets an explicit `serviceAccountId` under
+  `FUNCTIONS_EMULATOR`.** Without it, `getFunctions().taskQueue(...).enqueue()`
+  resolves the service account email from the GCE metadata server on every
+  call — instant on real Cloud Functions infrastructure, but in this
+  environment that server is unreachable in a way that hangs rather than
+  fails fast, which was observed to block a function for its full 60s
+  timeout and starve every other trigger sharing the emulator's worker pool.
+  See the docblock in `functions/src/index.ts`.
+- **The local Cloud Tasks emulator does not honor `scheduleDelaySeconds`.**
+  It dispatches a task within about a second regardless of what was
+  requested, instead of genuinely waiting out the delay the way production
+  Cloud Tasks does. `onPollVoteWrite`'s and `onQuestionWrite`'s bucketed
+  debounce ids are only collision-safe *because* production really waits: a
+  second event sharing a bucket is mathematically guaranteed to arrive before
+  that bucket's task fires, since the task can't fire before
+  (first-event-time + 5s) and the bucket has already closed by then. Under
+  the emulator's fast dispatch that guarantee breaks — a bucket's task can
+  fire and complete before a later event in the *same* bucket even exists,
+  so that event's own `enqueue()` gets `functions/task-already-exists` for a
+  task that already ran, and nothing ever picks it up. This is an emulator
+  fidelity gap, not a design flaw — see the composite-index and
+  `fieldOverrides` gaps already documented in `AGENTS.md` for the same
+  category of problem elsewhere in this project. `tallyPoll.test.ts` and
+  `rebuildQaBoard.test.ts` work around it with a deliberate ~5.5s wait before
+  writes that need a guaranteed-fresh bucket; see the comments at each wait.
+- `npm run test:functions` runs `vitest` with `--no-file-parallelism`. These
+  are integration tests against one shared emulator instance, not independent
+  unit tests — running the files concurrently fights the emulator's own
+  concurrency rather than saving real time.
+- `firebase.json`'s `functions` emulator has no `host: "0.0.0.0"`, unlike
+  firestore/auth/storage/ui. Those need LAN reachability so a phone or the
+  console can reach them; the functions emulator is only ever called by other
+  local emulators (Cloud Tasks, Eventarc) and the CLI itself, never directly
+  by a device.
+- Remaining: `mirrorDirectory` (#6), `onAnnouncementCreate` (#7),
+  `onSessionAgendaChange` (#8), and `requestOtp`/`verifyOtp` (#9–#10).
