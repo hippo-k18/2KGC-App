@@ -9,13 +9,14 @@
  * database whose rules have not been through a full review — the guest list is
  * the most sensitive asset here, and a prototype is exactly where it leaks.
  */
+import { createHash } from 'node:crypto';
 import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, TIME_ZONE, threadIdFor } from '@kgc/shared';
 import { Timestamp } from 'firebase-admin/firestore';
 
 import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
-  DOCUMENTS, BOOTHS,
+  CAMPAIGN_LINKS, CONTACTS, DOCUMENTS, BOOTHS,
   EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
 } from './lib/fixtures.js';
 import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
@@ -450,6 +451,44 @@ async function main() {
     });
   });
 
+  /**
+   * Contacts, keyed by a hash of the address exactly as `campaigns.ts` derives
+   * it — so re-seeding converges on one document per person, and so a CSV
+   * import of the same people updates these rather than doubling the list.
+   *
+   * The hash is recomputed here rather than imported: `@kgc/scripts` must not
+   * depend on `apps/organizer`, which is not a workspace member. If the two
+   * derivations ever disagree the symptom is a duplicated contact list, which
+   * is why both spell out the same 32 hex characters of sha256.
+   */
+  CONTACTS.forEach((c) => {
+    const id = `contact_${createHash('sha256').update(c.email.toLowerCase()).digest('hex').slice(0, 32)}`;
+    push(COLLECTIONS.contacts, id, {
+      ...base(),
+      email: c.email,
+      ...(c.name ? { name: c.name } : {}),
+      ...(c.company ? { company: c.company } : {}),
+      ...(c.source ? { source: c.source } : {}),
+      lists: c.lists,
+      ...(c.unsubscribed ? { unsubscribedAt: new Date('2026-11-14T09:12:00Z') } : {}),
+      ...(c.bounced ? { bouncedAt: new Date('2026-12-02T17:40:00Z') } : {}),
+    });
+  });
+
+  CAMPAIGN_LINKS.forEach((l) => {
+    push(COLLECTIONS.campaignLinks, l.code, {
+      ...base(),
+      code: l.code,
+      label: l.label,
+      destination: l.destination,
+      ...(l.owner ? { owner: l.owner } : {}),
+      ...(l.channel ? { channel: l.channel } : {}),
+      clicks: l.clicks,
+      active: l.active !== false,
+      ...(l.clicks > 0 ? { lastClickedAt: new Date('2027-02-18T11:03:00Z') } : {}),
+    });
+  });
+
   TASKS.forEach((t, i) => {
     push(COLLECTIONS.tasks, `seed-task-${i}`, {
       ...base(),
@@ -531,6 +570,7 @@ async function main() {
   for (const c of [
     COLLECTIONS.speakers, COLLECTIONS.sessions, COLLECTIONS.tracks,
     COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes, COLLECTIONS.booths,
+    COLLECTIONS.contacts, COLLECTIONS.campaignLinks,
   ]) {
     const keep = new Set(writes.filter((w) => w.collection === c).map((w) => w.id));
     pruned += await pruneStale(c, EVENT_ID, keep);

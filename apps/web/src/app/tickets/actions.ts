@@ -1,11 +1,12 @@
 'use server';
 
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilPurchase } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { incrementSold, tierById } from '@/lib/catalogue';
+import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
 import { sendPurchaseConfirmation } from '@/lib/email';
 
 /**
@@ -56,6 +57,22 @@ export async function startCheckout(
   const h = await headers();
   const origin = siteOrigin(h.get('host'), h.get('x-forwarded-proto'));
 
+  /**
+   * Which tracked link, if any, this buyer arrived through.
+   *
+   * Set by `/r/{code}` up to thirty days ago and read here rather than passed
+   * through the form, because a form field is a field the buyer can edit and
+   * attribution that a visitor can forge is attribution that decides a referral
+   * contest incorrectly.
+   *
+   * Re-validated even though the redirect route wrote it: a cookie is client
+   * storage, so its contents arrive from the browser and are not trustworthy
+   * merely because we put them there. An unparseable value is dropped rather
+   * than carried into Stripe metadata.
+   */
+  const ref = (await cookies()).get(ATTRIBUTION_COOKIE)?.value ?? '';
+  const campaignCode = validCode(ref) ? ref : undefined;
+
   // ---------------------------------------------------------------------
   // No Stripe account configured: complete the purchase as a clearly
   // labelled test, taking no money. The registration written is byte-for-byte
@@ -79,6 +96,7 @@ export async function startCheckout(
       // money has not arrived; it does not say no money was ever asked for.
       channel: 'demo',
       tierId: tier.id,
+      campaignCode,
     });
 
     /**
@@ -176,7 +194,23 @@ export async function startCheckout(
       billing_address_collection: 'required',
       // Carried through to the webhook, which has no other way to learn the
       // attendee's name or which tier was bought.
-      metadata: { tier: tier.id, ticketType: tier.name, name },
+      /**
+       * Carried through to the webhook, which has no other way to learn the
+       * attendee's name or which tier was bought — the buyer left this origin
+       * and the session is all that comes back.
+       *
+       * `campaignCode` is only added when there is one. Stripe rejects an
+       * `undefined` metadata value, and writing an empty string instead would
+       * put `campaignCode: ''` on every unattributed order, which reads as "no
+       * campaign" in a way that is indistinguishable from "field not set" only
+       * until somebody filters on it.
+       */
+      metadata: {
+        tier: tier.id,
+        ticketType: tier.name,
+        name,
+        ...(campaignCode ? { campaignCode } : {}),
+      },
       success_url: `${origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/tickets?cancelled=1#buy`,
     });

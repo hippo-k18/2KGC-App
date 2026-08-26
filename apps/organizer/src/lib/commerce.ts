@@ -72,6 +72,8 @@ export interface OrderRow {
   purchasedAt: string;
   refundedAt?: string;
   promotionCode?: string;
+  /** The tracked link this purchase came through. See `OrderDoc.campaignCode`. */
+  campaignCode?: string;
   poNumber?: string;
   stripePaymentIntentId?: string;
   stripeInvoiceId?: string;
@@ -118,6 +120,7 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     purchasedAt: iso(o.purchasedAt) ?? new Date(0).toISOString(),
     refundedAt: iso(o.refundedAt),
     promotionCode: o.promotionCode,
+    campaignCode: o.campaignCode,
     poNumber: o.poNumber,
     stripePaymentIntentId: o.stripePaymentIntentId,
     stripeInvoiceId: o.stripeInvoiceId,

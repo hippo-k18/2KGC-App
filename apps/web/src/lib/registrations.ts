@@ -80,6 +80,8 @@ export interface FulfilInput {
   taxCents?: number;
   discountCents?: number;
   promotionCode?: string;
+  /** The tracked link this purchase came through. See `OrderDoc.campaignCode`. */
+  campaignCode?: string;
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;
   stripeChargeId?: string;
@@ -213,6 +215,15 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
     refundedCents: prevOrder?.refundedCents ?? 0,
     currency: input.currency,
     promotionCode: input.promotionCode,
+    /**
+     * First attribution wins, not last.
+     *
+     * `?? input.campaignCode` rather than the other way round: a webhook replay
+     * arriving after the cookie has moved on would otherwise re-credit a
+     * completed sale to a different link. The purchase happened once and was
+     * caused once.
+     */
+    campaignCode: prevOrder?.campaignCode ?? input.campaignCode,
     stripeCustomerId: input.stripeCustomerId,
     stripePaymentIntentId: input.stripePaymentIntentId,
     stripeChargeId: input.stripeChargeId,

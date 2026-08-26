@@ -365,6 +365,16 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     taxCents: session.total_details?.amount_tax ?? 0,
     discountCents: session.total_details?.amount_discount ?? 0,
     promotionCode: detail.promotionCode,
+    /**
+     * The tracked link this purchase came through, put into metadata by
+     * `startCheckout` and coming back out here — the only way across the Stripe
+     * redirect, because the buyer left our origin entirely.
+     *
+     * Undefined when the buyer arrived directly, which is most of them.
+     * Undefined is *unattributed*, not organic: an ad blocker, a cleared
+     * cookie, or a link shared onward as plain text all land here too.
+     */
+    campaignCode: session.metadata?.campaignCode || undefined,
     stripeCustomerId: typeof customer === 'string' ? customer : (customer?.id ?? undefined),
     stripePaymentIntentId:
       typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),

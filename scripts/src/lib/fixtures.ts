@@ -685,6 +685,59 @@ export const BOOTHS: {
   { number: 'T04', size: 'Poseur table', zone: 'Startup row', status: 'available', ticketTypeId: 'exhibitor-startup-table' },
 ];
 
+/**
+ * A marketing contact list, and the tracked links that would carry a campaign.
+ *
+ * Seeded because a campaign screen that only ever renders its empty state
+ * cannot be evaluated — an organizer cannot tell "built and waiting for data"
+ * from "not built". Each row exercises a branch that matters:
+ *
+ *   One unsubscribed and one bounced, so the suppression count is not zero and
+ *   the difference between "on this list" and "will receive this" is visible.
+ *   Somebody on two lists, so the merge behaviour of a re-import is observable.
+ *   One link with clicks and no orders, one with both, one retired.
+ */
+export const CONTACTS: {
+  email: string; name?: string; company?: string; source?: string;
+  lists: string[]; unsubscribed?: boolean; bounced?: boolean;
+}[] = [
+  { email: 'rowan.hale@example.invalid', name: 'Rowan Hale', company: 'Meridian Data',
+    source: 'KGC 2026 delegate list', lists: ['KGC 2026 attendees'] },
+  { email: 'sofia.marchetti@example.invalid', name: 'Sofia Marchetti', company: 'Northwind Health',
+    source: 'KGC 2026 delegate list', lists: ['KGC 2026 attendees', 'Workshop waitlist'] },
+  { email: 'j.okonkwo@example.invalid', name: 'Jide Okonkwo', company: 'Lagos Institute of Technology',
+    source: 'Notify-me form', lists: ['Notify me'] },
+  { email: 'hlin@example.invalid', name: 'Hana Lin', company: 'Cobalt Semantics',
+    source: 'KGC 2026 delegate list', lists: ['KGC 2026 attendees'] },
+  { email: 'p.desai@example.invalid', name: 'Priya Desai', company: 'Argo Pharma',
+    source: 'Partner list — SemWeb Europe', lists: ['Partner: SemWeb Europe'] },
+  // Unsubscribed on purpose: makes "938 of 1,000" mean something on screen, and
+  // proves the re-import guard has something to guard.
+  { email: 'no.thanks@example.invalid', name: 'Erik Sandberg', company: 'Vantage Logistics',
+    source: 'KGC 2026 delegate list', lists: ['KGC 2026 attendees'], unsubscribed: true },
+  // A dead mailbox rather than a decision. Counted separately because only one
+  // of the two is the recipient's choice.
+  { email: 'left.the.company@example.invalid', name: 'Marcus Webb', company: 'Halcyon Analytics',
+    source: 'KGC 2026 delegate list', lists: ['KGC 2026 attendees'], bounced: true },
+  { email: 'team@example.invalid', company: 'Ridgeline Consulting',
+    source: 'Notify-me form', lists: ['Notify me'] },
+];
+
+export const CAMPAIGN_LINKS: {
+  code: string; label: string; destination: string;
+  owner?: string; channel?: string; clicks: number; active?: boolean;
+}[] = [
+  { code: 'spring-mail', label: 'February announcement email', destination: '/tickets', clicks: 214 },
+  { code: 'li-feb', label: 'LinkedIn post, tickets open', destination: '/tickets', channel: 'linkedin', clicks: 88 },
+  { code: 'semweb-eu', label: 'SemWeb Europe newsletter', destination: '/tickets', channel: 'partner', clicks: 47 },
+  { code: 'ada-lovelace', label: 'Speaker referral — Ada Lovelace', destination: '/tickets', owner: 'Ada Lovelace', clicks: 63 },
+  { code: 'marek-novak', label: 'Speaker referral — Marek Novak', destination: '/tickets', owner: 'Marek Novak', clicks: 19 },
+  { code: 'exhibit-outreach', label: 'Exhibitor sales outreach', destination: '/tickets/exhibitor', channel: 'email', clicks: 31 },
+  // Retired rather than deleted: the clicks are the only record of what the
+  // January campaign achieved, and a retired link 404s.
+  { code: 'jan-teaser', label: 'January teaser — superseded', destination: '/', clicks: 12, active: false },
+];
+
 export const TASKS: {
   project: string; title: string; assignee?: string; status: 'todo' | 'doing' | 'done' | 'blocked';
   dueOn?: string; notes?: string;

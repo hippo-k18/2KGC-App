@@ -31,6 +31,10 @@ export const COLLECTIONS = {
   exhibitors: "exhibitors",
   /** The exhibition floor plan, one document per sellable space. */
   booths: "booths",
+  /** Marketing contacts — people to email who hold no ticket. */
+  contacts: "contacts",
+  /** Tracked short links, counted by the redirect route itself. */
+  campaignLinks: "campaignLinks",
   /** The organizing team's own checklist — not attendee-facing. */
   tasks: "tasks",
   surveys: "surveys",

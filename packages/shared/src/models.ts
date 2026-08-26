@@ -767,6 +767,17 @@ export interface OrderDoc extends BaseDoc {
   /** Stripe's code, if the buyer used one. The coupon table lives in Stripe. */
   promotionCode?: string;
 
+  /**
+   * The tracked link this purchase came through, if any.
+   *
+   * Carried from `/r/{code}` into Checkout metadata and back out in the
+   * webhook, because there is no other way across the Stripe redirect — the
+   * buyer leaves our origin entirely, which is what keeps this project in PCI
+   * SAQ A. Absent on every purchase that arrived directly, which is most of
+   * them, and absent is *not* zero: it means unattributed, not organic.
+   */
+  campaignCode?: string;
+
   /** Every registration this order paid for, so refunds know what to withdraw. */
   registrationIds?: string[];
 
@@ -895,6 +906,101 @@ export interface ExhibitorDoc extends BaseDoc {
   passesAllocated?: number;
   passesUsed?: number;
   status: "confirmed" | "provisional" | "cancelled";
+}
+
+/**
+ * `contacts/{id}` — somebody an organizer wants to email who is not an attendee.
+ *
+ * ── Why this is not `users` or `registrations` ──────────────────────────────
+ *
+ * A contact has not bought anything and may never sign in. Last year's
+ * delegates, a partner association's list, everyone who filled in the "notify
+ * me" form: these are prospects, and folding them into `registrations` would
+ * put people who hold no ticket into the collection that decides who gets
+ * through the door. It would also make "how many attendees do we have?"
+ * unanswerable.
+ *
+ * The id is `contact_` + sha256 of the lower-cased address, the same derivation
+ * `registrations` uses. Importing the same CSV twice therefore converges on one
+ * document per person rather than doubling the list, and re-importing an
+ * updated file is the normal way to correct a name.
+ *
+ * ── `unsubscribedAt` is the field that keeps the sending domain alive ───────
+ *
+ * ⚠️ A conference that mails people who asked it to stop gets its domain
+ * blocked, and the damage lands on the transactional mail — the receipts and
+ * claim codes — not on the newsletter. So this is checked before every bulk
+ * send, and an unsubscribed contact is excluded rather than merely hidden.
+ * Nothing anywhere may clear it except an explicit re-subscribe.
+ */
+export interface ContactDoc extends BaseDoc {
+  email: string;
+  name?: string;
+  company?: string;
+  /** Where the address came from. Free text, because provenance always is. */
+  source?: string;
+  /**
+   * Named lists this contact belongs to. An array rather than one list id
+   * because the same person is legitimately on "KGC 2026 attendees" and
+   * "workshop waitlist", and duplicating them to express that is how a person
+   * receives the same email twice.
+   */
+  lists: string[];
+  /** Set once, never cleared except by a deliberate re-subscribe. */
+  unsubscribedAt?: Timestamp;
+  /**
+   * A hard bounce. Kept separate from an unsubscribe because they mean
+   * different things: one is a person's decision, the other is a dead mailbox,
+   * and only the first is permanent from the recipient's side.
+   */
+  bouncedAt?: Timestamp;
+  /** True once this address appears in `registrations` — computed at import. */
+  converted?: boolean;
+}
+
+/**
+ * `campaignLinks/{code}` — one tracked link.
+ *
+ * A short code that redirects to a page on the marketing site, counting the
+ * click on the way through. Whova splits this across three screens — Campaign
+ * Link Tracking, Referral Contest, Social Sharing — and they are one mechanism
+ * with three reasons for existing, so they are one document with an `owner`.
+ *
+ * ── The code is the id ──────────────────────────────────────────────────────
+ *
+ * `campaignLinks/spring-mail` rather than a generated id, so the public URL is
+ * `/r/spring-mail` — readable in an email, and idempotent to re-create.
+ *
+ * ── Counting happens without a Cloud Function ───────────────────────────────
+ *
+ * The redirect route runs on the server with the Admin SDK, so it increments
+ * the counter itself. That matters: the project is on the Spark plan and this
+ * would otherwise be one more thing waiting on Blaze.
+ *
+ * `clicks` is raw hits, not unique visitors. Deduplicating would mean storing
+ * something per visitor, which is a tracking cookie with a retention question
+ * attached — and for deciding whether an email worked, the raw number compared
+ * against other links is enough.
+ */
+export interface CampaignLinkDoc extends BaseDoc {
+  /** The short code. Matches the document id. */
+  code: string;
+  /** Path on the marketing site, always relative — never an absolute URL. */
+  destination: string;
+  /** What this link is for, in an organizer's words. */
+  label: string;
+  /**
+   * Who gets credit. A speaker's name for a referral contest, a partner's for
+   * co-marketing, absent for a plain campaign link. This is the only thing
+   * separating Campaign Link Tracking from Referral Contest.
+   */
+  owner?: string;
+  /** Which surface it was made for: "email", "linkedin", "partner". */
+  channel?: string;
+  clicks: number;
+  lastClickedAt?: Timestamp;
+  /** Set to stop counting without deleting the history. A dead link 404s. */
+  active: boolean;
 }
 
 /**

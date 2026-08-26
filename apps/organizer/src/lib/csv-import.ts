@@ -269,3 +269,30 @@ export const ATTENDEE_FIELDS: FieldSpec[] = [
   { key: 'company', label: 'Company', aliases: ['organisation', 'organization', 'employer'] },
   { key: 'title', label: 'Job title', aliases: ['position', 'role at company'] },
 ];
+
+/**
+ * A marketing contact list — last year's delegates, a partner's export, the
+ * "notify me" form.
+ *
+ * Only the address is required. A contact list arrives from wherever it arrives
+ * and half of them are an email column and nothing else; refusing those would
+ * mean the organizer strips the file by hand before uploading it, which is the
+ * work this importer exists to remove.
+ *
+ * There is no `unsubscribed` field here on purpose. ⚠️ An import must never be
+ * able to clear a suppression — see `importContacts` in `campaigns.ts` — and
+ * the surest way to guarantee that is for the importer to have no vocabulary
+ * for it at all.
+ */
+export const CONTACT_FIELDS: FieldSpec[] = [
+  {
+    key: 'email',
+    label: 'Email',
+    aliases: ['email address', 'e-mail', 'contact email', 'work email'],
+    required: true,
+    validate: (v) => (EMAIL.test(v) ? undefined : `“${v}” is not a valid email address.`),
+  },
+  { key: 'name', label: 'Name', aliases: ['full name', 'contact name', 'first name last name'] },
+  { key: 'company', label: 'Company', aliases: ['organisation', 'organization', 'employer', 'account'] },
+  { key: 'source', label: 'Source', aliases: ['origin', 'how they found us', 'campaign', 'list'] },
+];
