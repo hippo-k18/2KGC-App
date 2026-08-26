@@ -79,6 +79,31 @@ export interface AuditEntry {
     | 'document.create'
     | 'document.update'
     /**
+     * Floor-plan allocation. `booth.assign` is here for the same reason
+     * `order.refund` is: two exhibitors sent to one space is discovered on the
+     * morning of day one, when the only useful question is who moved whom and
+     * when. `booth.hold` matters separately because a hold is a promise made
+     * before any money arrived.
+     */
+    | 'booth.create'
+    | 'booth.update'
+    | 'booth.assign'
+    | 'booth.hold'
+    | 'booth.release'
+    | 'booth.block'
+    | 'booth.unblock'
+    /**
+     * A payment recorded by an organizer rather than taken by Stripe — a
+     * cheque, a wire, a comped package. It issues a ticket against money this
+     * system never saw, so the person who decided it is the only record there
+     * is.
+     */
+    | 'order.manual'
+    /** Campaign contacts, tracked links and the sends that use them. */
+    | 'campaign.create'
+    | 'campaign.update'
+    | 'contact.import'
+    /**
      * A bulk attendee import. One entry for the whole run rather than one per
      * row — four hundred audit entries for one action is a log nobody reads,
      * and the per-row outcome is reported on screen at the time.

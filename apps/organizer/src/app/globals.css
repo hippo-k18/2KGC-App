@@ -1493,6 +1493,39 @@ select.whova-text-input {
 }
 
 /*
+ * A submit button that reads as a link.
+ *
+ * Several row actions — release a booth, block one, toggle a tier's visibility
+ * — change state and therefore must be a POST, but they belong in a table cell
+ * beside "Edit" and would look absurd as buttons. This was inline styles
+ * repeated at each call site until there were four of them; it is one class
+ * now.
+ *
+ * Deliberately not `.btn`-shaped: it must not grow a background, or a table row
+ * turns into a row of buttons.
+ */
+.linkish {
+  background: none;
+  border: 0;
+  color: var(--link, #2180b2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  text-align: left;
+}
+
+.linkish:hover {
+  text-decoration: underline;
+}
+
+.linkish:disabled {
+  color: var(--muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+/*
  * Bare-element defaults, scoped to the check-in desk.
  *
  * `scanner.tsx` is lifted from the earlier console, which styled `input`,

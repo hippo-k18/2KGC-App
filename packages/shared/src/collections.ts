@@ -29,6 +29,8 @@ export const COLLECTIONS = {
   /** Organizer-authored preference bags, one document per feature area. */
   settings: "settings",
   exhibitors: "exhibitors",
+  /** The exhibition floor plan, one document per sellable space. */
+  booths: "booths",
   /** The organizing team's own checklist — not attendee-facing. */
   tasks: "tasks",
   surveys: "surveys",

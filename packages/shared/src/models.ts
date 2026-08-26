@@ -898,6 +898,69 @@ export interface ExhibitorDoc extends BaseDoc {
 }
 
 /**
+ * `booths/{id}` — one sellable space on the exhibition floor.
+ *
+ * Whova prices an exhibitor package *per booth size* and then allocates a
+ * specific space afterwards, and those really are two decisions: the catalogue
+ * is priced months before the venue confirms a floor plan. So a `ticketTypes`
+ * entry sells "a 3m × 2m booth" and this document is the particular one an
+ * exhibitor ends up standing in.
+ *
+ * ── Why the assignment lives here and not on the exhibitor ──────────────────
+ *
+ * A booth has exactly one occupant and an exhibitor may hold several (a premium
+ * booth plus an overflow table is normal). Storing `boothNumber` on the
+ * exhibitor — which `ExhibitorDoc` also does, for display — cannot express the
+ * second case and cannot answer "which spaces are still free?" without reading
+ * every exhibitor. Occupancy is a property of the space.
+ *
+ * `ExhibitorDoc.boothNumber` stays as a denormalised label for the app's
+ * exhibitor list, written when an assignment is made. Nothing is ever decided
+ * from it.
+ *
+ * ── The number is the id ────────────────────────────────────────────────────
+ *
+ * `booths/A12` rather than a generated id. Booth numbers are printed on floor
+ * plans, spoken over radios and written on packing crates, so an opaque id
+ * would need translating at every one of those moments. It also makes seeding
+ * idempotent and makes a double-assignment a failed `create` rather than a
+ * race.
+ */
+export interface BoothDoc extends BaseDoc {
+  /** As printed on the floor plan: "A12". Matches the document id. */
+  number: string;
+  /** Free text, matching the package that sells it: "3m × 2m". */
+  size: string;
+  /** Which aisle or zone, for grouping a long list into something walkable. */
+  zone?: string;
+  /**
+   * The package this space is sold as. Optional because a venue floor plan
+   * arrives before the catalogue is finalised, and a booth with no package yet
+   * is a real state rather than an error.
+   */
+  ticketTypeId?: string;
+  /**
+   * Occupancy. All three are absent on a free booth, and all three are written
+   * together — a booth with an exhibitor but no order is how an allocation made
+   * by hand becomes indistinguishable from one made by a purchase.
+   */
+  exhibitorId?: string;
+  exhibitorName?: string;
+  orderId?: string;
+  assignedAt?: Timestamp;
+  assignedBy?: string;
+  /**
+   * `held` is neither free nor sold: a space promised in a sales conversation
+   * that has not been paid for. Without it an organizer either double-sells the
+   * booth or marks it occupied and loses track of the fact that no money has
+   * arrived.
+   */
+  status: "available" | "held" | "assigned" | "blocked";
+  /** Why a booth is blocked — a pillar, a fire exit, the AV desk. */
+  note?: string;
+}
+
+/**
  * `tasks/{id}` — the organizing team's own checklist.
  *
  * Whova calls this Projects & Checklists. It is the one feature in the console

@@ -1,7 +1,8 @@
 import type { TicketTypeDoc } from "@kgc/shared";
 
 /**
- * The four tiers KGC actually sells, as seed data.
+ * The tiers KGC sells, as seed data — four for attendees, three exhibitor
+ * packages and four sponsorship levels.
  *
  * ── Why this moved here ──────────────────────────────────────────────────────
  *
@@ -159,6 +160,187 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "Watch Monday through Friday in your own time zone",
       "On-demand replays for at least a month afterwards",
       "The virtual hallway track, and session Q&A in the KGC app",
+    ],
+  },
+
+  /**
+   * ── Exhibitor packages ────────────────────────────────────────────────────
+   *
+   * Priced per booth size, which is how every trade floor prices, and capped by
+   * `quantityTotal` because floor space is the one thing at a conference that
+   * genuinely runs out. The cap is a **sold counter, not a reservation** (see
+   * `TicketTypeDoc.quantitySold`) — two exhibitors can pass the check and both
+   * pay for the last booth. At three to twenty booths the right answer to that
+   * is a refund and an apology, not a distributed lock.
+   *
+   * `visible: true` puts them on `/tickets/exhibitor`, which is a different
+   * page from `/tickets` — `listTiers` takes the audience as a parameter, so
+   * these never appear in the attendee catalogue.
+   */
+  {
+    id: "exhibitor-startup-table",
+    name: "Startup Table",
+    priceCents: 149_900,
+    currency: "usd",
+    tagline: "A high table in the hall, for companies under three years old.",
+    inPerson: true,
+    visible: true,
+    sortOrder: 10,
+    audience: "exhibitor",
+    includesVideoLibrary: false,
+    includesWorkshops: false,
+    quantityTotal: 12,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "One poseur table in the exhibition hall, Wednesday to Friday",
+      "One Main Conference pass for booth staff",
+      "Exhibitor listing in the KGC app with your materials",
+      "Lead capture by badge scan, with no per-lead fee",
+    ],
+  },
+  {
+    id: "exhibitor-standard-booth",
+    name: "Standard Booth",
+    priceCents: 349_900,
+    currency: "usd",
+    tagline: "A 3m × 2m booth on the main aisle.",
+    inPerson: true,
+    visible: true,
+    sortOrder: 20,
+    audience: "exhibitor",
+    includesVideoLibrary: false,
+    includesWorkshops: false,
+    quantityTotal: 16,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "3m × 2m booth space with power and a wired network drop",
+      "Two Main Conference passes for booth staff",
+      "Exhibitor listing in the KGC app with your materials",
+      "Lead capture by badge scan, with no per-lead fee",
+      "Your logo on the exhibition-hall floor plan",
+    ],
+  },
+  {
+    id: "exhibitor-premium-booth",
+    name: "Premium Booth",
+    priceCents: 649_900,
+    currency: "usd",
+    tagline: "A 6m × 2m corner booth beside the coffee.",
+    featured: true,
+    inPerson: true,
+    visible: true,
+    sortOrder: 30,
+    audience: "exhibitor",
+    includesVideoLibrary: false,
+    includesWorkshops: false,
+    quantityTotal: 6,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "6m × 2m corner booth in the catering aisle, with power and network",
+      "Four All Access passes for booth staff",
+      "Featured exhibitor listing, pinned above the rest in the app",
+      "Lead capture by badge scan, with no per-lead fee",
+      "A ten-minute demo slot on the exhibition-hall stage",
+    ],
+  },
+
+  /**
+   * ── Sponsorship levels ────────────────────────────────────────────────────
+   *
+   * The four ids match `SponsorTier` exactly (`platinum | gold | silver |
+   * bronze`), because `SponsorDoc.tier` is that union and a sponsorship
+   * purchase has to be able to set it without a mapping table in between. A
+   * fifth level here would need the union widened first, which is the correct
+   * order — the model should refuse a tier the app cannot render.
+   *
+   * Platinum is capped at one. That is the product: exclusivity is the thing
+   * being sold, and a second platinum sponsor devalues the first one's
+   * purchase retroactively.
+   */
+  {
+    id: "sponsor-bronze",
+    name: "Bronze",
+    priceCents: 500_000,
+    currency: "usd",
+    tagline: "Your name in the app and on the sponsor wall.",
+    inPerson: true,
+    visible: true,
+    sortOrder: 40,
+    audience: "sponsor",
+    includesVideoLibrary: false,
+    includesWorkshops: false,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "Sponsor listing in the KGC app for the whole week",
+      "Your logo on the sponsor wall and the website",
+      "Two Main Conference passes",
+      "Post-event attendee demographics",
+    ],
+  },
+  {
+    id: "sponsor-silver",
+    name: "Silver",
+    priceCents: 1_200_000,
+    currency: "usd",
+    tagline: "Bronze, plus a presence attendees walk past all week.",
+    inPerson: true,
+    visible: true,
+    sortOrder: 50,
+    audience: "sponsor",
+    includesVideoLibrary: false,
+    includesWorkshops: false,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "Everything in Bronze",
+      "A banner in the KGC app's sponsor rotation",
+      "Your logo on session-room signage",
+      "Four All Access passes",
+      "Opt-in contact details from attendees who save your listing",
+    ],
+  },
+  {
+    id: "sponsor-gold",
+    name: "Gold",
+    priceCents: 2_500_000,
+    currency: "usd",
+    tagline: "A session on the programme, not a banner beside it.",
+    inPerson: true,
+    visible: true,
+    sortOrder: 60,
+    audience: "sponsor",
+    includesVideoLibrary: true,
+    includesWorkshops: true,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "Everything in Silver",
+      "A 30-minute sponsored session, listed in the agenda like any other",
+      "Your logo on the main-stage backdrop",
+      "Eight All Access passes",
+      "A standard booth in the exhibition hall",
+    ],
+  },
+  {
+    id: "sponsor-platinum",
+    name: "Platinum",
+    priceCents: 5_000_000,
+    currency: "usd",
+    tagline: "One per year. Named on the conference itself.",
+    featured: true,
+    inPerson: true,
+    visible: true,
+    sortOrder: 70,
+    audience: "sponsor",
+    includesVideoLibrary: true,
+    includesWorkshops: true,
+    quantityTotal: 1,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "Everything in Gold",
+      "Named presenting sponsor on every conference surface",
+      "A keynote-adjacent 45-minute session",
+      "The lanyards every attendee wears for five days",
+      "Sixteen All Access passes",
+      "A premium booth in the exhibition hall",
     ],
   },
 ] as const;

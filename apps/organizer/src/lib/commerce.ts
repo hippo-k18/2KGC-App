@@ -5,6 +5,7 @@ import {
   EVENT_ID,
   type EmailLogDoc,
   type OrderDoc,
+  type TicketAudience,
   type TicketTypeDoc,
   type WithId,
 } from '@kgc/shared';
@@ -43,6 +44,21 @@ export interface OrderRow {
   status: OrderDoc['status'];
   channel: NonNullable<OrderDoc['channel']>;
   ticketNames: string[];
+  /**
+   * The tier ids behind `ticketNames`, in the same order.
+   *
+   * Carried because the *name* cannot answer "was this an exhibitor order?" —
+   * audience lives on the ticket type and the only path to it is the id. This
+   * was dropped from the read model originally, and the cost was three screens
+   * (Exhibitor Orders, Sponsor Orders, and the per-audience confirmation logs)
+   * that could describe the join they needed but not perform it.
+   *
+   * Possibly empty on an order written before the field existed, and possibly
+   * pointing at a deleted tier. Both are handled by treating an unresolvable id
+   * as "unknown audience" rather than as "attendee", because guessing here
+   * moves money into the wrong column of a ledger.
+   */
+  ticketTypeIds: string[];
   seatCount: number;
   subtotalCents: number;
   taxCents: number;
@@ -90,6 +106,7 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     // through Checkout, so that is the honest default rather than 'manual'.
     channel: o.channel ?? 'checkout',
     ticketNames: items.map((i) => i.ticketTypeName).filter(Boolean),
+    ticketTypeIds: items.map((i) => i.ticketTypeId).filter(Boolean),
     seatCount: items.reduce((n, i) => n + (i.quantity || 1), 0) || 1,
     subtotalCents: o.subtotalCents ?? o.totalCents,
     taxCents: o.taxCents ?? 0,
@@ -279,7 +296,12 @@ export interface TicketTypeRow {
   featured: boolean;
   quantityTotal?: number;
   quantitySold: number;
-  audience: string;
+  /**
+   * Typed as the union, not as `string`. It decides which public page sells the
+   * tier and which ledger an order lands in, so a widened type here means every
+   * caller has to re-narrow it — and one of them will forget.
+   */
+  audience: TicketAudience;
   includes: string[];
   /**
    * Entitlements, not display copy. `attendees/ticket-session-mapping` derives
@@ -345,6 +367,15 @@ export interface EmailRow {
   status: EmailLogDoc['status'];
   error?: string;
   reason?: string;
+  /**
+   * The order a receipt belongs to, when it is a receipt.
+   *
+   * Absent on `bulk-message` rows, which is the distinction that matters: it is
+   * the only way to tell an organizer's newsletter from a transactional receipt
+   * without matching on the template name, and it is what lets a per-audience
+   * confirmation log join through the order to the ticket type.
+   */
+  orderId?: string;
   at: string;
 }
 
@@ -368,6 +399,7 @@ export async function recentEmails(limit = 100): Promise<EmailRow[]> {
         status: e.status,
         error: e.error,
         reason: e.reason,
+        orderId: e.orderId,
         at: iso(e.at) ?? new Date(0).toISOString(),
       };
     })

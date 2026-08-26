@@ -1,83 +1,44 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { ROUTES } from '@/lib/nav';
-import { GapScreen } from '../../../gap-screen';
+import { AudienceRegistrationSettings } from '../../audience-registration';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Tickets › Exhibitor Ticket Setup › Registration Settings.
  *
- * ── Settings that have nowhere to live ──────────────────────────────────────
- *
- * There is no event settings document in this project. Where Whova keeps a
- * registration policy, this repo keeps either a per-tier field or a constant:
- * the sale window is `salesOpenAt` / `salesCloseAt` on each ticket type, the
- * currency is per tier, and the refund policy is prose on the website. That is
- * a defensible arrangement — a window that differs per tier is more useful than
- * one global window — but it means &ldquo;settings for the exhibitor
- * registration&rdquo; has no home rather than an empty form.
+ * The two extra rows below are the ones that are genuinely exhibitor-shaped —
+ * booth allocation and load-in logistics have no home in the data model, and
+ * naming them here is more useful than a generic note about settings.
  */
 export default async function ExhibitorRegistrationSettingsPage() {
   await requireOrganizer();
 
   return (
-    <GapScreen
+    <AudienceRegistrationSettings
+      audience="exhibitor"
       title="Registration Settings"
       links={[
-        <Link key="t" href="/tickets/exhibitor-ticket-setup/2-1-exhibitor-tickets">
-          2.1 Exhibitor Tickets
+        <Link key="b" href="/tickets/exhibitor-ticket-setup/2-3-booth-selection">
+          2.3 Booth Selection
         </Link>,
-        <Link key="b" href={ROUTES.basics}>
-          Event Basics
+        <Link key="p" href="/tickets/exhibitor-ticket-setup/pre-paid-exhibitors">
+          Pre-paid Exhibitors
         </Link>,
       ]}
-      lead={
-        <>
-          <strong>No settings document exists for any audience.</strong> The only registration
-          policy this system enforces is the per-tier sale window on the ticket type itself.
-        </>
-      }
-      whova={
-        <>
-          Per-audience registration controls: an open and close date for the whole flow, a total
-          capacity, required buyer fields, terms an exhibitor must accept, a refund policy shown at
-          checkout, an approval step before a registration becomes live, and whether one company may
-          register twice.
-        </>
-      }
-      needs={
-        <>
-          An event settings document, an editor for it, and — the part that decides whether it means
-          anything — enforcement at the point of sale, which lives in the website&rsquo;s checkout
-          rather than here. A setting the checkout does not read is a preference, not a rule, and
-          this dashboard should not be the place that pretends otherwise.
-        </>
-      }
-      size="2–3 days for the document and editor; enforcement is a change to the checkout"
-      refs={
-        <>
-          <code>packages/shared/src/models.ts</code> — <code>TicketTypeDoc.salesOpenAt</code> /{' '}
-          <code>salesCloseAt</code>, the only registration policy currently modelled.
-        </>
-      }
-      notBuilt={[
-        <li key="window">
-          <strong>An audience-wide window.</strong> Set it per tier on 2.1 instead; several tiers
-          means setting it several times.
-        </li>,
-        <li key="cap">
-          <strong>A total exhibitor cap.</strong> Only per-tier <code>quantityTotal</code> exists,
-          and it is a counter rather than a lock — two buyers can pass the same check.
-        </li>,
-        <li key="approve">
-          <strong>Approval before a registration goes live.</strong> Fulfilment is automatic on
-          payment; there is no pending-approval state.
-        </li>,
-        <li key="terms">
-          <strong>Terms and refund policy at checkout.</strong> Both are static copy on the public
-          site, not a field an organizer can edit.
-        </li>,
+      extraGaps={[
+        [
+          'Which booth a purchase allocates',
+          'A package sells a booth size, not a specific space. Assignment happens on 2.3 Booth Selection, after the sale, because a floor plan is agreed with the venue later than the catalogue is priced.',
+        ],
+        [
+          'Load-in and load-out windows',
+          'The single most-asked exhibitor question, and it is not modelled anywhere. It belongs on the exhibitor record rather than the ticket type — two exhibitors buying the same package can have different slots.',
+        ],
+        [
+          'Staff pass allocation',
+          'Every package names a number of passes in its inclusion list, and nothing enforces it. The passes are prose today; making them real means issuing registrations against the exhibitor order, which is what Pre-paid Exhibitors does by hand.',
+        ],
       ]}
     />
   );

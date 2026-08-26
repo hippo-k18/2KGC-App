@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { COLLECTIONS, EVENT_ID, type TicketTypeDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type TicketAudience, type TicketTypeDoc } from '@kgc/shared';
 import { db } from './firestore';
 import type { Tier } from './tickets';
 
@@ -75,13 +75,27 @@ async function loadAll(): Promise<{ id: string; doc: TicketTypeDoc }[]> {
 }
 
 /**
- * Every tier an attendee may see, in catalogue order.
+ * Every tier one audience may see, in catalogue order.
  *
  * Hidden tiers (`visible: false`) are excluded — that is how a comp rate or a
  * late speaker price exists without appearing on the public page — but they are
  * still purchasable by direct id through `tierById`, which is the point.
+ *
+ * ── Why the audience is a parameter rather than a constant ──────────────────
+ *
+ * This filtered to `attendee` unconditionally, which meant an exhibitor or
+ * sponsor tier created in the dashboard had **no page anywhere that would sell
+ * it**. The organizer could price a booth and nobody could buy one, and the
+ * only symptom was an empty catalogue on a screen nobody had reason to open.
+ * Exhibitor and sponsor registration are genuinely different conversations —
+ * different copy, different questions, different audiences — so they are
+ * different pages over the same price list, which is exactly what Whova does.
+ *
+ * A tier with no `audience` at all counts as an attendee tier: the field was
+ * added after the first seed, and documents written before it must not vanish
+ * from the page that has always sold them.
  */
-export async function listTiers(): Promise<Tier[]> {
+export async function listTiers(audience: TicketAudience = 'attendee'): Promise<Tier[]> {
   const now = new Date();
   const rows = await loadAll();
   if (rows.length === 0) {
@@ -94,7 +108,7 @@ export async function listTiers(): Promise<Tier[]> {
   }
 
   return rows
-    .filter(({ doc }) => doc.audience === 'attendee' || doc.audience === undefined)
+    .filter(({ doc }) => (doc.audience ?? 'attendee') === audience)
     .filter(({ doc }) => doc.visible !== false)
     .sort(
       (a, b) =>

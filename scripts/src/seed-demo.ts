@@ -15,7 +15,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
-  DOCUMENTS, EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
+  DOCUMENTS, BOOTHS,
+  EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
 } from './lib/fixtures.js';
 import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
 import {
@@ -419,6 +420,36 @@ async function main() {
     });
   });
 
+  /**
+   * The floor plan, keyed by booth number rather than a generated id — that is
+   * what makes re-seeding idempotent and makes a double-assignment a failed
+   * `create` rather than a race. The exhibitor id is looked up by name from the
+   * documents written immediately above, so the plan and the exhibitor list
+   * cannot disagree in a freshly seeded database.
+   */
+  const exhibitorIdByName = new Map(EXHIBITORS.map((e, i) => [e.name, `seed-exhibitor-${i}`]));
+
+  BOOTHS.forEach((b) => {
+    const exhibitorId = b.exhibitor ? exhibitorIdByName.get(b.exhibitor) : undefined;
+    push(COLLECTIONS.booths, b.number, {
+      ...base(),
+      number: b.number,
+      size: b.size,
+      zone: b.zone,
+      status: b.status,
+      ...(b.ticketTypeId ? { ticketTypeId: b.ticketTypeId } : {}),
+      ...(b.note ? { note: b.note } : {}),
+      ...(exhibitorId
+        ? {
+            exhibitorId,
+            exhibitorName: b.exhibitor,
+            assignedAt: new Date(),
+            assignedBy: 'seed',
+          }
+        : {}),
+    });
+  });
+
   TASKS.forEach((t, i) => {
     push(COLLECTIONS.tasks, `seed-task-${i}`, {
       ...base(),
@@ -499,7 +530,7 @@ async function main() {
   let pruned = 0;
   for (const c of [
     COLLECTIONS.speakers, COLLECTIONS.sessions, COLLECTIONS.tracks,
-    COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes,
+    COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes, COLLECTIONS.booths,
   ]) {
     const keep = new Set(writes.filter((w) => w.collection === c).map((w) => w.id));
     pruned += await pruneStale(c, EVENT_ID, keep);

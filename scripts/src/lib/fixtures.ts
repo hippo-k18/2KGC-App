@@ -649,6 +649,42 @@ export const EXHIBITORS: {
     passes: 2, used: 0, status: 'cancelled' },
 ];
 
+/**
+ * The exhibition floor, as the venue confirmed it.
+ *
+ * Deliberately not one row per exhibitor: the point of a floor plan is that it
+ * exists before the spaces are sold, so most of these are free. The numbers
+ * match `EXHIBITORS[].booth` where an exhibitor has one, because a seeded
+ * database in which the exhibitor list and the floor plan disagree is a
+ * database that makes the reconciliation screen look broken rather than useful.
+ *
+ * Three deliberate awkward cases, so the screens have something to say:
+ * `E05` is blocked by a pillar, `E07` is held but unpaid, and `E06`'s occupant
+ * cancelled — which is why the number still exists and stands empty.
+ */
+export const BOOTHS: {
+  number: string; size: string; zone: string;
+  exhibitor?: string;
+  status: 'available' | 'held' | 'assigned' | 'blocked';
+  note?: string;
+  ticketTypeId?: string;
+}[] = [
+  { number: 'E01', size: '6m × 2m', zone: 'Catering aisle', exhibitor: 'Graphwise', status: 'assigned', ticketTypeId: 'exhibitor-premium-booth' },
+  { number: 'E02', size: '3m × 2m', zone: 'Catering aisle', exhibitor: 'Ontotext Labs', status: 'assigned', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E03', size: '3m × 2m', zone: 'Main aisle', exhibitor: 'Cornell Tech Careers', status: 'assigned', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E04', size: '3m × 2m', zone: 'Main aisle', exhibitor: 'Semantic Foundry', status: 'assigned', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E05', size: '3m × 2m', zone: 'Main aisle', status: 'blocked', note: 'Structural pillar takes half the space — unsellable.' },
+  { number: 'E06', size: '3m × 2m', zone: 'Main aisle', status: 'available', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E07', size: '3m × 2m', zone: 'Main aisle', exhibitor: 'Provenance.io', status: 'held', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E08', size: '3m × 2m', zone: 'Back wall', status: 'available', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E09', size: '3m × 2m', zone: 'Back wall', status: 'available', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'E10', size: '3m × 2m', zone: 'Back wall', status: 'available', ticketTypeId: 'exhibitor-standard-booth' },
+  { number: 'T01', size: 'Poseur table', zone: 'Startup row', status: 'available', ticketTypeId: 'exhibitor-startup-table' },
+  { number: 'T02', size: 'Poseur table', zone: 'Startup row', status: 'available', ticketTypeId: 'exhibitor-startup-table' },
+  { number: 'T03', size: 'Poseur table', zone: 'Startup row', status: 'available', ticketTypeId: 'exhibitor-startup-table' },
+  { number: 'T04', size: 'Poseur table', zone: 'Startup row', status: 'available', ticketTypeId: 'exhibitor-startup-table' },
+];
+
 export const TASKS: {
   project: string; title: string; assignee?: string; status: 'todo' | 'doing' | 'done' | 'blocked';
   dueOn?: string; notes?: string;

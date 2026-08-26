@@ -38,8 +38,20 @@ export default async function CreateTicketsPage({
   await requireOrganizer();
   const { edit, new: creating } = await searchParams;
 
-  const tickets = await listTicketTypes();
-  const editing = edit ? tickets.find((t) => t.id === edit) : undefined;
+  const all = await listTicketTypes();
+
+  /**
+   * The list is the attendee catalogue; the editor is universal.
+   *
+   * Whova's 1.1 is the attendee flow — exhibitor and sponsor packages have
+   * their own numbered trees, and mixing all three into one table makes "how
+   * many tickets do we sell?" unanswerable. But there is exactly one ticket
+   * editor in this dashboard, so `editing` looks in the full catalogue: the
+   * Edit links on 2.1 Exhibitor Tickets and Sponsor Tickets land here, and the
+   * save action preserves `audience` so a round trip does not reclassify them.
+   */
+  const tickets = all.filter((t) => t.audience === 'attendee');
+  const editing = edit ? all.find((t) => t.id === edit) : undefined;
   const showForm = Boolean(creating) || Boolean(editing);
 
   const totalSold = tickets.reduce((n, t) => n + t.quantitySold, 0);
@@ -75,6 +87,20 @@ export default async function CreateTicketsPage({
           <h2 style={{ fontSize: 15, marginTop: 0 }}>
             {editing ? `Edit ${editing.name}` : 'New ticket type'}
           </h2>
+          {editing && editing.audience !== 'attendee' && (
+            /*
+              Arrived from 2.1 Exhibitor Tickets or Sponsor Tickets. Saying so
+              matters because the surrounding screen is titled "1.1 Create
+              Tickets" and every other tier on it is an attendee tier — an
+              organizer who does not notice which record they opened is one Save
+              away from editing the wrong price list.
+            */
+            <Banner kind="info">
+              <strong>This is a {editing.audience} package, not an attendee ticket.</strong> It
+              sells at <code>/tickets/{editing.audience}</code> and stays a {editing.audience}{' '}
+              package when you save — the Audience field below is what decides that.
+            </Banner>
+          )}
           {editing && editing.quantitySold > 0 && (
             <Banner kind="info">
               <strong>{editing.quantitySold} of these have already been sold.</strong> Changing the
