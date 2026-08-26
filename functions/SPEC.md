@@ -75,9 +75,17 @@ threads stays client-managed, as today — nothing changes there.
 - `firebase.json` has a `functions` block (source, codebase, ignore list) and
   a `functions` emulator on port 5001. `npm run dev:emulators` and
   `npm run test:functions` both include it.
-- `onReplyWrite`, `onReactionWrite` and `onQuestionUpvoteWrite` (#1–#3) are
-  built and tested against the emulator with seeded data —
-  `tests/functions/`, run via `npm run test:functions`.
-- `tallyPoll` and `rebuildQaBoard` (#4, #5) still need their Cloud Tasks
-  wiring, which has its own emulator configuration — to be validated when
-  those are built, not assumed here.
+- `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite` and
+  `onPollVoteWrite`/`tallyPoll` (#1–#4) are built and tested against the
+  emulator with seeded data — `tests/functions/`, run via
+  `npm run test:functions`. The Cloud Tasks queue `tallyPoll` needs is
+  auto-detected and emulated by the Firebase CLI as soon as an
+  `onTaskDispatched` function exists in the codebase — no extra emulator
+  config was needed beyond what #1–#3 already required.
+- `onPollVoteWrite`'s debounce is a deterministic, hashed, time-bucketed
+  Cloud Tasks id (`sha256(pollId:bucket)`, one 5s bucket per poll, used at
+  most once ever) rather than a lock document — see the docblock on that
+  file for why a *reused* fixed id per poll would have gone silently stale
+  after its first debounce window.
+- `rebuildQaBoard` (#5) still needs to be built, reusing the same debounce
+  mechanism as `tallyPoll`.
