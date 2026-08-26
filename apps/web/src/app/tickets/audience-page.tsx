@@ -5,6 +5,7 @@ import { listTiers } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 import { formatPrice, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
+import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
 
 /**
@@ -57,7 +58,10 @@ export async function AudienceTicketsPage({
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
   const params = await searchParams;
-  const tiers = await listTiers(copy.audience);
+  const [tiers, form] = await Promise.all([
+    listTiers(copy.audience),
+    activeForm(copy.audience),
+  ]);
 
   const byId = new Map(tiers.map((t) => [t.id, t]));
   const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
@@ -169,7 +173,12 @@ export async function AudienceTicketsPage({
           </div>
 
           {tiers.length > 0 ? (
-            <CheckoutForm tiers={tiers} initialTier={preselected} stripeReady={stripeEnabled()} />
+            <CheckoutForm
+              tiers={tiers}
+              initialTier={preselected}
+              stripeReady={stripeEnabled()}
+              questions={form.fields}
+            />
           ) : (
             /*
               An empty slice is a normal state, not an error: the organizer has

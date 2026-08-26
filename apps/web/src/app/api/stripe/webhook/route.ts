@@ -4,6 +4,7 @@ import { incrementSold } from '@/lib/catalogue';
 import { sendPurchaseConfirmation, sendRefundConfirmation } from '@/lib/email';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
+import { claimAnswers } from '@/lib/question-forms';
 import {
   cancelRegistrationByOrder,
   ensureRegistration,
@@ -375,6 +376,16 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
      * cookie, or a link shared onward as plain text all land here too.
      */
     campaignCode: session.metadata?.campaignCode || undefined,
+    /**
+     * The registration questions, answered on our page before the redirect and
+     * held in `pendingAnswers` until now.
+     *
+     * Claimed and deleted in one step. A webhook replay finds nothing there and
+     * passes `undefined`, which leaves the answers already on the registration
+     * untouched — the correct outcome, and the reason the merge above is a
+     * merge rather than a set.
+     */
+    answers: await claimAnswers(session.metadata?.answersRef),
     stripeCustomerId: typeof customer === 'string' ? customer : (customer?.id ?? undefined),
     stripePaymentIntentId:
       typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),

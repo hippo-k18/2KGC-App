@@ -17,6 +17,8 @@
  * Admin SDK into a browser chunk — the tiers themselves arrive as props.
  */
 
+import type { TicketAudience } from '@kgc/shared';
+
 /**
  * A tier id is the Firestore document id, which is a human-readable slug
  * (`all-access`, `main-conference`). It was a closed union of four literals;
@@ -43,6 +45,14 @@ export interface Tier {
   /** Rendered with a little more emphasis on the tickets page. */
   featured?: boolean;
   inPerson: boolean;
+  /**
+   * Which registration flow this tier belongs to.
+   *
+   * Carried on the display shape because `startCheckout` needs it to pick the
+   * right question form, and it already holds the tier — a second read to learn
+   * one string is a second way to be wrong.
+   */
+  audience: TicketAudience;
   /**
    * False when capacity is reached or the sales window has closed. The tier
    * still renders — a sold-out ticket that vanishes reads as a bug — but it

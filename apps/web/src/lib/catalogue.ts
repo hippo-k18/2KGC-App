@@ -64,6 +64,9 @@ function toTier(id: string, t: TicketTypeDoc, now: Date): Tier {
     groups: optional(t.groups),
     featured: optional(t.featured),
     inPerson: t.inPerson ?? true,
+    // Absent on documents written before the field existed; those are all
+    // attendee tiers, which is the only slice that was sellable at the time.
+    audience: t.audience ?? 'attendee',
     taxCode: t.taxCode ?? 'txcd_20030000',
     ...availability(t, now),
   };

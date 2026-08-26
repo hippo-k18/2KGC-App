@@ -738,6 +738,85 @@ export const CAMPAIGN_LINKS: {
   { code: 'jan-teaser', label: 'January teaser — superseded', destination: '/', clicks: 12, active: false },
 ];
 
+/**
+ * The attendee registration questions, seeded on but switched off.
+ *
+ * Switched off is the honest seed state: a demo database that silently asks
+ * every buyer for their dietary requirements would change what the checkout
+ * does without anybody choosing that. The organizer turns it on from 1.2
+ * Question Forms, which is also the demo of that screen.
+ *
+ * The ids are the slugs `fieldId()` produces, spelled out rather than derived,
+ * because they are what answers are stored under — a seed that generated them
+ * differently from the editor would produce a form whose existing answers are
+ * all orphaned.
+ */
+export const QUESTION_FIELDS: {
+  id: string; prompt: string;
+  kind: 'short-text' | 'long-text' | 'choice' | 'multi-choice' | 'checkbox' | 'consent';
+  options?: string[]; required: boolean; helpText?: string;
+  ticketTypeIds?: string[]; order: number;
+}[] = [
+  {
+    id: 'dietary-requirements',
+    prompt: 'Do you have any dietary requirements?',
+    kind: 'choice',
+    // "No requirements" is listed explicitly: a blank answer and a stated "no"
+    // look identical in an export and mean different things to a caterer.
+    options: ['No requirements', 'Vegetarian', 'Vegan', 'Gluten-free', 'Halal', 'Kosher', 'Other'],
+    required: false,
+    helpText: 'Anything else, tell us in the next box.',
+    order: 0,
+  },
+  {
+    id: 'accessibility-needs',
+    prompt: 'Anything we should know to make the week work for you?',
+    kind: 'long-text',
+    required: false,
+    helpText: 'Step-free access, a quiet space, captioning, a dietary detail the list above missed.',
+    order: 10,
+  },
+  {
+    id: 'job-function',
+    prompt: 'What best describes your role?',
+    kind: 'choice',
+    options: ['Engineer', 'Data / ML scientist', 'Architect', 'Researcher', 'Product', 'Leadership', 'Student', 'Other'],
+    required: false,
+    order: 20,
+  },
+  // Tier-restricted on purpose: only workshop attendees need to say which
+  // track, and asking everybody would collect an answer that means nothing
+  // for three quarters of the buyers.
+  {
+    id: 'workshop-track',
+    prompt: 'Which workshop track are you aiming for?',
+    kind: 'choice',
+    options: ['Beginner', 'Intermediate', 'Advanced', 'Not decided'],
+    required: false,
+    helpText: 'Not a booking — it tells us how many rooms each level needs.',
+    ticketTypeIds: ['all-access', 'workshops'],
+    order: 30,
+  },
+  // A plain checkbox rather than a consent box, and required: this is a
+  // condition of attending, not something that can be withheld. The editor
+  // refuses a required consent for exactly this reason.
+  {
+    id: 'code-of-conduct',
+    prompt: 'I have read the code of conduct',
+    kind: 'checkbox',
+    required: true,
+    helpText: 'knowledgegraph.tech/code-of-conduct',
+    order: 40,
+  },
+  {
+    id: 'photo-consent',
+    prompt: 'You may use photographs of me in KGC marketing',
+    kind: 'consent',
+    required: false,
+    order: 50,
+  },
+];
+
 export const TASKS: {
   project: string; title: string; assignee?: string; status: 'todo' | 'doing' | 'done' | 'blocked';
   dueOn?: string; notes?: string;

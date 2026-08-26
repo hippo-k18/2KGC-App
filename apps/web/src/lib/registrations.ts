@@ -82,6 +82,14 @@ export interface FulfilInput {
   promotionCode?: string;
   /** The tracked link this purchase came through. See `OrderDoc.campaignCode`. */
   campaignCode?: string;
+  /**
+   * Answers to the registration questions, already validated.
+   *
+   * Written onto the *registration*, never onto the order — a dietary
+   * requirement belongs to the person, survives a transferred ticket, and must
+   * not be readable by anything querying orders. See `RegistrationDoc.answers`.
+   */
+  answers?: Record<string, string | string[] | boolean>;
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;
   stripeChargeId?: string;
@@ -152,6 +160,30 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
     name: input.name,
     ticketType: input.ticketType,
   });
+
+  /**
+   * The registration questions, merged onto the registration.
+   *
+   * A separate write rather than a field on `ensureRegistration`, because that
+   * function is shared with the invoice path and the badge printer and owns
+   * `qrSecret` and `claimCode` — widening it to carry form answers would put a
+   * marketing concern inside the one function that must never change shape.
+   *
+   * Merged, not replaced: a second purchase by the same person must not blank
+   * the dietary requirement they gave the first time. And it can never throw
+   * upward — the ticket is already valid, and losing an answer must not lose a
+   * registration.
+   */
+  if (input.answers && Object.keys(input.answers).length > 0) {
+    try {
+      await db()
+        .collection(COLLECTIONS.registrations)
+        .doc(rid)
+        .set({ answers: input.answers, updatedAt: Timestamp.now() }, { merge: true });
+    } catch (err) {
+      console.error('[registrations] could not store question answers for', rid, err);
+    }
+  }
 
   // The order is a separate, non-transactional write on purpose: it is a
   // record of the payment, not a precondition of the ticket. If this throws,

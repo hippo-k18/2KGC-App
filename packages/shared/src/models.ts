@@ -157,6 +157,128 @@ export interface RegistrationDoc extends BaseDoc {
    * QR payload would let anyone who photographs a badge learn an identity.
    */
   qrSecret: string;
+
+  /**
+   * Answers to the registration question form, keyed by `QuestionFieldDef.id`.
+   *
+   * ── Why these live on the registration and not on the order ────────────────
+   *
+   * A dietary requirement belongs to the *person*. It survives a transferred
+   * ticket, it is still true if the order is refunded and re-bought, and it must
+   * not be readable by anything querying orders — an `orders` list is the entire
+   * buyer database in one query. Putting answers on the order because that is
+   * where the form posted is the mistake this comment exists to prevent.
+   *
+   * Keyed by field id rather than by prompt text, so rewording a question does
+   * not orphan every answer already given to it.
+   */
+  answers?: Record<string, string | string[] | boolean>;
+}
+
+/**
+ * One question on a registration form.
+ *
+ * A closed set of kinds, deliberately. An open builder with conditional logic
+ * is the project Whova has been iterating on for years; a fixed set covers
+ * dietary requirements, t-shirt size, job function and a consent box, which is
+ * what a conference actually asks.
+ */
+export interface QuestionFieldDef {
+  /**
+   * Stable for the life of the question, and the key answers are stored under.
+   * Generated once from the prompt; never regenerated, because rewording a
+   * question must not orphan the answers already given to it.
+   */
+  id: string;
+  prompt: string;
+  kind:
+    | "short-text"
+    | "long-text"
+    /** One of `options`. */
+    | "choice"
+    /** Any of `options`. Stored as an array. */
+    | "multi-choice"
+    /** A plain yes/no. Stored as a boolean. */
+    | "checkbox"
+    /**
+     * A consent box, which is a checkbox with a different meaning: it records a
+     * decision rather than a preference, so it may not be pre-ticked and a
+     * "required" consent is a contradiction the editor refuses.
+     */
+    | "consent";
+  /** For `choice` and `multi-choice`. Ignored otherwise. */
+  options?: string[];
+  required: boolean;
+  helpText?: string;
+  /**
+   * Ask only on these tiers. Empty or absent means every tier for the
+   * form's audience — which is what most questions want.
+   */
+  ticketTypeIds?: string[];
+  order: number;
+}
+
+/**
+ * `questionForms/{audience}` — the registration questions for one audience.
+ *
+ * One document per audience rather than per ticket type, because the questions
+ * a conference asks are overwhelmingly the same across its tiers and
+ * `QuestionFieldDef.ticketTypeIds` handles the exceptions. A form per tier
+ * would mean editing the dietary question four times and getting it wrong once.
+ *
+ * ── Answers are collected before Checkout, never during it ─────────────────
+ *
+ * Stripe's hosted Checkout supports at most three custom fields, text/numeric/
+ * dropdown only — enough for a t-shirt size, not for a consent flow. So the
+ * form is rendered on our own page before the redirect, and the answers are
+ * held in `pendingAnswers` until the webhook confirms the payment.
+ */
+export interface QuestionFormDoc extends BaseDoc {
+  audience: TicketAudience;
+  fields: QuestionFieldDef[];
+  /** Off means the questions are not asked. Editing a live form is not a draft. */
+  active: boolean;
+  /**
+   * Who last changed the questions, and when.
+   *
+   * On the document rather than only in the audit log, because the question an
+   * organizer asks about a form is "is this current?" — and that is answered by
+   * a date on the screen they are already looking at.
+   */
+  updatedBy?: string;
+}
+
+/**
+ * `pendingAnswers/{checkoutRef}` — answers waiting for a payment to confirm.
+ *
+ * ── Why this collection has to exist ───────────────────────────────────────
+ *
+ * The buyer answers the questions on our page, then leaves for Stripe. The
+ * registration they belong to does not exist yet and will not until the webhook
+ * fires — which may be seconds later, or after a retry, or never if they
+ * abandon. The answers cannot ride in Stripe metadata (500 characters per
+ * value) and cannot be held in a session (there isn't one).
+ *
+ * So they are written here first, keyed by a reference the checkout carries,
+ * and copied onto the registration at fulfilment.
+ *
+ * ── It is server-only and it holds personal data ───────────────────────────
+ *
+ * Dietary requirements and accessibility needs are among the most sensitive
+ * things a conference collects. This has no `firestore.rules` match block and
+ * must not get one: it is written by the website's server action and read by
+ * its webhook, both with the Admin SDK.
+ *
+ * A row for an abandoned checkout is orphaned by design. `expiresAt` marks it
+ * for deletion — nothing prunes it yet, and that is recorded as a gap rather
+ * than pretended away.
+ */
+export interface PendingAnswersDoc extends BaseDoc {
+  answers: Record<string, string | string[] | boolean>;
+  email: string;
+  ticketTypeId: string;
+  /** After this, the row is junk. Nothing deletes it yet — see the docblock. */
+  expiresAt: Timestamp;
 }
 
 // ---------------------------------------------------------------------------

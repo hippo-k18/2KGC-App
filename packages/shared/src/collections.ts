@@ -35,6 +35,14 @@ export const COLLECTIONS = {
   contacts: "contacts",
   /** Tracked short links, counted by the redirect route itself. */
   campaignLinks: "campaignLinks",
+  /** Registration question forms, one document per audience. */
+  questionForms: "questionForms",
+  /**
+   * Server-only. Question answers held between the checkout form and the
+   * webhook that confirms payment. Holds dietary and accessibility data; it has
+   * no rules match block and must not get one.
+   */
+  pendingAnswers: "pendingAnswers",
   /** The organizing team's own checklist — not attendee-facing. */
   tasks: "tasks",
   surveys: "surveys",

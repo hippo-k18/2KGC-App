@@ -7,6 +7,8 @@ import { fulfilPurchase } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { incrementSold, tierById } from '@/lib/catalogue';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
+import { activeForm, stashAnswers } from '@/lib/question-forms';
+import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import { sendPurchaseConfirmation } from '@/lib/email';
 
 /**
@@ -20,6 +22,11 @@ import { sendPurchaseConfirmation } from '@/lib/email';
 
 export interface CheckoutState {
   error?: string;
+  /**
+   * Per-question problems, keyed by field id, so each renders beside its own
+   * input rather than as one sentence at the top listing four things.
+   */
+  fieldErrors?: Record<string, string>;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -53,6 +60,45 @@ export async function startCheckout(
 
   if (name.length < 2) return { error: 'Enter the attendee’s full name.' };
   if (!EMAIL.test(email)) return { error: 'Enter a valid email address.' };
+
+  /**
+   * The organizer's registration questions.
+   *
+   * Validated here rather than trusting the browser — `required` on an input is
+   * a courtesy, and anything that can POST can post without it. The shared
+   * validator in `@kgc/scripts` is the same code the organizer's editor checks
+   * against, so a question the dashboard accepts cannot be one this rejects.
+   *
+   * Fields the chosen tier does not ask are *dropped*, not rejected: a buyer who
+   * filled the form and then changed tier has done nothing wrong.
+   */
+  const { fields } = await activeForm(tier.audience);
+  const posted: Record<string, AnswerValue | undefined> = {};
+  for (const f of fields) {
+    const values = form.getAll(`q_${f.id}`).map((v) => String(v));
+    if (values.length === 0) continue;
+    posted[f.id] = f.kind === 'multi-choice' ? values : values[0];
+  }
+
+  const checked = validateAnswers(fields, tier.id, posted);
+  if (!checked.ok) {
+    return {
+      error: 'Some of the registration questions need an answer.',
+      fieldErrors: checked.errors,
+    };
+  }
+
+  /**
+   * Stashed before the redirect, because the registration these belong to does
+   * not exist yet — it is created by the webhook, seconds or retries later.
+   * Returns undefined when there is nothing to store or the write failed; a
+   * failure to record a dietary preference must never stop a ticket being sold.
+   */
+  const answersRef = await stashAnswers({
+    answers: checked.answers,
+    email,
+    ticketTypeId: tier.id,
+  });
 
   const h = await headers();
   const origin = siteOrigin(h.get('host'), h.get('x-forwarded-proto'));
@@ -97,6 +143,9 @@ export async function startCheckout(
       channel: 'demo',
       tierId: tier.id,
       campaignCode,
+      // No webhook runs on this path, so the answers are applied directly
+      // rather than through the pending-answers hop.
+      answers: checked.answers,
     });
 
     /**
@@ -210,6 +259,9 @@ export async function startCheckout(
         ticketType: tier.name,
         name,
         ...(campaignCode ? { campaignCode } : {}),
+        // A reference, not the answers themselves: metadata caps at 500
+        // characters per value, and a long-text answer would silently truncate.
+        ...(answersRef ? { answersRef } : {}),
       },
       success_url: `${origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/tickets?cancelled=1#buy`,

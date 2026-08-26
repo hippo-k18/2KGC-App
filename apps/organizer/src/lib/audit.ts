@@ -99,6 +99,13 @@ export interface AuditEntry {
      * is.
      */
     | 'order.manual'
+    /**
+     * Registration questions. Recorded because the field id is what answers are
+     * stored under — an edit that changed it would orphan every answer already
+     * given, and this is the trail that shows an edit did not.
+     */
+    | 'questionForm.create'
+    | 'questionForm.update'
     /** Campaign contacts, tracked links and the sends that use them. */
     | 'campaign.create'
     | 'campaign.update'

@@ -16,7 +16,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
-  CAMPAIGN_LINKS, CONTACTS, DOCUMENTS, BOOTHS,
+  CAMPAIGN_LINKS, CONTACTS, DOCUMENTS, BOOTHS, QUESTION_FIELDS,
   EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
 } from './lib/fixtures.js';
 import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
@@ -489,6 +489,20 @@ async function main() {
     });
   });
 
+  /**
+   * The attendee question form, seeded inactive. See `QUESTION_FIELDS`.
+   *
+   * The document id is the audience, matching `questionForms/{audience}` — so
+   * re-seeding rewrites one document rather than accumulating them, and the
+   * organizer dashboard and the checkout both address it without a lookup.
+   */
+  push(COLLECTIONS.questionForms, 'attendee', {
+    ...base(),
+    audience: 'attendee',
+    fields: QUESTION_FIELDS,
+    active: false,
+  });
+
   TASKS.forEach((t, i) => {
     push(COLLECTIONS.tasks, `seed-task-${i}`, {
       ...base(),
@@ -570,7 +584,7 @@ async function main() {
   for (const c of [
     COLLECTIONS.speakers, COLLECTIONS.sessions, COLLECTIONS.tracks,
     COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes, COLLECTIONS.booths,
-    COLLECTIONS.contacts, COLLECTIONS.campaignLinks,
+    COLLECTIONS.contacts, COLLECTIONS.campaignLinks, COLLECTIONS.questionForms,
   ]) {
     const keep = new Set(writes.filter((w) => w.collection === c).map((w) => w.id));
     pruned += await pruneStale(c, EVENT_ID, keep);

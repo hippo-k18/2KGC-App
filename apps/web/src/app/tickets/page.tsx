@@ -5,6 +5,7 @@ import { SITE } from '@/lib/site';
 import { listTiers } from '@/lib/catalogue';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
+import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
 
 export const metadata: Metadata = {
@@ -69,7 +70,7 @@ export default async function TicketsPage({
    * network round trip — and the checkout form is a client component that
    * cannot read Firestore at all, so it needs the tiers as props regardless.
    */
-  const tiers = await listTiers();
+  const [tiers, form] = await Promise.all([listTiers(), activeForm('attendee')]);
   const byId = new Map(tiers.map((t) => [t.id, t]));
 
   const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
@@ -257,7 +258,12 @@ export default async function TicketsPage({
             </p>
           </div>
 
-          <CheckoutForm tiers={tiers} initialTier={preselected} stripeReady={stripeEnabled()} />
+          <CheckoutForm
+            tiers={tiers}
+            initialTier={preselected}
+            stripeReady={stripeEnabled()}
+            questions={form.fields}
+          />
         </div>
       </section>
 

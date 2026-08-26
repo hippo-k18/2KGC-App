@@ -2,8 +2,10 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import type { QuestionFieldDef } from '@kgc/shared';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { startCheckout, type CheckoutState } from './actions';
+import { Questions } from './questions';
 
 /**
  * The purchase form.
@@ -21,6 +23,7 @@ export function CheckoutForm({
   tiers,
   initialTier,
   stripeReady,
+  questions = [],
 }: {
   /**
    * The catalogue, passed in rather than imported.
@@ -32,6 +35,13 @@ export function CheckoutForm({
   tiers: Tier[];
   initialTier: TicketId;
   stripeReady: boolean;
+  /**
+   * The organizer's registration questions, or none.
+   *
+   * Passed as props like the tiers, and for the same reason: this is a client
+   * component with no Admin SDK, and it must not gain one.
+   */
+  questions?: QuestionFieldDef[];
 }) {
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
   const [tier, setTier] = useState<TicketId>(initialTier);
@@ -107,6 +117,13 @@ export function CheckoutForm({
           them. You can add alternates later.
         </p>
       </div>
+
+      {/*
+        The organizer's questions, between the buyer's details and the total.
+        Above the price rather than below it, because a question appearing after
+        somebody has read the amount reads as a hurdle placed in front of paying.
+      */}
+      <Questions fields={questions} ticketTypeId={tier} errors={state.fieldErrors} />
 
       <div className="summary">
         <span>{selected.name}</span>
