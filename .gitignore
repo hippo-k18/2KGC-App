@@ -43,6 +43,10 @@ serviceAccountKey.json
 # typescript
 *.tsbuildinfo
 
+# Cloud Functions build output — esbuild regenerates this from functions/src;
+# see functions/SPEC.md for why there's a bundling step at all.
+functions/lib/
+
 example
 
 # generated native folders

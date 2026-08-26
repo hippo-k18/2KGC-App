@@ -195,11 +195,15 @@ async function main() {
 
   // --- synthetic attendees, registrations and directory -------------------
   //
-  // The directory projection is normally written by the `mirrorDirectory`
-  // trigger. That trigger needs Cloud Functions, which needs Blaze, so while we
-  // are on Spark the seed writes it directly — same shape, same rules, just a
-  // different writer. The opt-out case is honoured here too: a hidden attendee
-  // gets no directory document at all.
+  // The directory projection now has two writers: the `mirrorDirectory`
+  // trigger (functions/SPEC.md #6), which needs the functions emulator
+  // running but not Blaze, and this seed script, kept as the Phase 1
+  // dual-write fallback documented in firestore.rules. Seeding still writes
+  // it directly so the demo works even without the functions emulator
+  // running; when it is, mirrorDirectory recomputes the same document
+  // moments later from the profile just written, so there is nothing to
+  // keep in sync by hand. The opt-out case is honoured here too: a hidden
+  // attendee gets no directory document at all.
   for (let i = 0; i < ATTENDEE_COUNT; i++) {
     const name = `${FIRST[i % FIRST.length]} ${LAST[i % LAST.length]}`;
     const email = normaliseEmail(`${name.replace(/\s+/g, '.').toLowerCase()}@example.test`);
@@ -365,11 +369,13 @@ async function main() {
     push(COLLECTIONS.communityPosts, `seed-post-${i}`, {
       ...base(), authorId: `demo_${String((i * 5) % ATTENDEE_COUNT).padStart(3, '0')}`,
       category: p.category, title: p.title, body: p.body,
-      // `replyCount` stays at zero on purpose even though replies are seeded
-      // below. The field is function-owned and the rules forbid a client from
-      // writing it; seeding it to the real number would paper over the fact that
-      // nothing maintains it, and the next person to add a reply through the app
-      // would silently drift. The board counts the subcollection instead.
+      // `replyCount` and `reactionCount` are function-owned — the rules forbid
+      // a client from writing them — so this script always seeds 0 regardless
+      // of how many replies land below. `onReplyWrite` (functions/SPEC.md #1)
+      // corrects `replyCount` to the real count within moments of a fresh
+      // seed, the same trigger a reply added through the app fires. No
+      // reactions are seeded, so `reactionCount` stays 0 until
+      // `onReactionWrite` exists too.
       status: 'visible', replyCount: 0, reactionCount: 0,
     });
 

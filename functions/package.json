@@ -1,0 +1,23 @@
+{
+  "name": "@kgc/functions",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --external:firebase-admin --external:firebase-admin/* --external:firebase-functions --external:firebase-functions/* --outfile=lib/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^6.4.0"
+  },
+  "devDependencies": {
+    "@kgc/shared": "*",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.2",
+    "typescript": "~6.0.3"
+  }
+}

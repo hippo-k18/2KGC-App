@@ -88,7 +88,10 @@ package.json               workspaces: ["app", "functions", "packages/*", "scrip
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
 tests/rules/                134 tests — the security boundary
 tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
-functions/                  empty — WP-02 fills this, once the project is on Blaze
+functions/                  the aggregate triggers, written and tested against the
+                            emulator. `npm run test:functions`. NOT deployed —
+                            deploying needs Blaze; running them locally does not.
+  SPEC.md                   what each trigger writes, and what it must not do
 packages/shared/
   package.json              "@kgc/shared" — plain TS, no React, no Firebase SDK import.
                             "type": "module", so index.ts re-exports use `.js`
@@ -180,6 +183,7 @@ npm run test:rules                   # 143 tests against firestore.rules
 npm test                             # 119 unit tests: timezones, QR, question-form validation
 npm run test:commerce                # 16 tests: fulfilment, refunds, invoice splitting
 npm run test:programme               # 66 tests: conflict detection, CSV, speed-networking pairs
+npm run test:functions               # 14 tests: the aggregate triggers, on the emulator
 npm run smoke                        # every dashboard screen, against a seeded emulator
 ```
 
@@ -476,6 +480,11 @@ standing between this file and 1,000 attendees' data.
 - Colours come from `useTheme()`. Never hard-code a hex value in a screen.
 - Match the surrounding style. Comments explain reasoning, not mechanics.
 - Prefer editing existing files over adding new ones.
+- **Everything that ends up in a file is written in English** — code,
+  comments, identifiers, commit messages, and documentation such as
+  `functions/SPEC.md`. This holds even when the person you're working with
+  writes to you in another language; reply to them in their language, but
+  write the file in English, for consistency with the rest of the project.
 
 ## Known gaps
 
@@ -503,13 +512,17 @@ standing between this file and 1,000 attendees' data.
   Spark plan**, so Cloud Functions cannot be deployed yet — that blocks WP-02
   until it's upgraded to Blaze. Rules and indexes are written but **never
   deployed**.
-- **The aggregate triggers do not exist yet.** The model says `replyCount`,
-  `reactionCount`, `upvoteCount`, `tallies`, `totalVotes` and `directory/{uid}`
-  are function-owned, and the rules enforce that no client may write them — but
-  the seven Cloud Function triggers that *should* write them are unbuilt, because
-  the project is on Spark. Until they exist those fields stay at their seeded
-  values and the directory is not mirrored. Nothing is wrong; it is simply
-  half-wired, and the half that is wired is the half that protects data.
+- **The aggregate triggers exist and are not deployed**, which is a narrower
+  gap than this file claimed for months. `replyCount`, `reactionCount`,
+  `upvoteCount`, `tallies`, `totalVotes` and `directory/{uid}` are all
+  function-owned, the rules enforce that no client may write them, and the
+  triggers that do write them are in `functions/` with 14 tests
+  (`npm run test:functions`). They run against the **emulator**, which needs no
+  Blaze plan — see `BACKEND-ROADMAP.md`, which makes the point that everything
+  through Phase 4 is free and local. What Blaze buys is *deployment*, and until
+  that happens these fields stay at their seeded values in the real project.
+  `scripts/src/seed-demo.ts` therefore still dual-writes `directory/{uid}`, so
+  the demo works whether or not the functions emulator is running.
 - **`SessionDoc` carries denormalised caches** (`speakerNames`, `roomName`,
   `primaryTrackName`, `primaryTrackColor`) so the agenda list renders without N
   extra reads. Nothing is ever *decided* from them — they are display-only, and

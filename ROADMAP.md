@@ -53,7 +53,7 @@ Five capabilities remain genuinely absent, and the screens that need them now
 | Blocker | Screens behind it | Status |
 |---|---:|---|
 | **1. An email sender** | ~14 | ✅ **Unblocked, and spent** |
-| **2. Cloud Functions (Blaze plan)** | ~8 | ❌ Project is on Spark |
+| **2. Cloud Functions** | ~8 | ⚠️ **Written and tested, not deployed** |
 | **3. File upload + image pipeline** | ~6 | ❌ Storage rules exist, nothing writes through them |
 | **4. A generic entity CRUD + importer** | ~0 | ✅ **Done** — export registry and CSV importer both exist |
 | **5. Streaming infrastructure** | ~15 | ❌ And argued as a candidate to cut |
@@ -64,10 +64,18 @@ components together did what "the generic table" was meant to do — the exhibit
 and sponsor clusters cost days rather than the four months a screen-at-a-time
 build would have.
 
-★ **Blocker 3 is now the binding one.** Six screens wait on it: app branding,
-banner artwork, exhibitor logos, and the three photo screens. It is also the
-cheapest remaining fix with a real payoff — 61 hotlinked images currently break
-when somebody else's domain moves.
+★ **Blocker 2 moved while this was being written**, and the correction matters:
+the aggregate triggers are no longer unbuilt. `functions/` holds them with 14
+tests, and they run against the **emulator**, which needs no Blaze plan —
+`BACKEND-ROADMAP.md` makes the point that everything through its Phase 4 is free
+and local. What Blaze buys is *deployment*. So the eight screens behind this are
+waiting on a card on file rather than on code, which is a different kind of
+blocked and a much cheaper one.
+
+★ **Blocker 3 is the binding one.** Six screens wait on it: app branding, banner
+artwork, exhibitor logos, and the three photo screens. It is also the cheapest
+remaining fix with a real payoff — 61 hotlinked images currently break when
+somebody else's domain moves.
 
 The website is separate: **21 pages, all nav links resolving**, now including
 `/tickets/exhibitor`, `/tickets/sponsor` and `/r/{code}`. What it lacks is
@@ -199,7 +207,7 @@ For comparison with `whova-rebuild/STATUS.md` (16 August):
 | Registration questions | none | **asked before checkout, stored on the registration** |
 | CSV exports / imports | none | **six exports, generic importer** |
 | Website pages | 19, some links broken | **21, all links resolve** |
-| Test count | 169 | **201** |
+| Tests | 169 | **358** — 119 unit · 66 programme · 143 rules · 16 commerce · 14 triggers |
 
 ### What is genuinely different about the remaining work
 
@@ -208,8 +216,9 @@ written them yet". That is no longer the shape of it. What remains is five
 **capabilities**, each gating a cluster, and three of the five are one decision
 each rather than a backlog:
 
-- Blaze is a card on file, not money — the free quotas equal Spark's.
-- Storage is written and never deployed.
+- Blaze is a card on file, not money — the free quotas equal Spark's, and the
+  triggers it would deploy are already written and tested against the emulator.
+- Storage rules are written and never deployed.
 - Streaming is a scope question, not an engineering one.
 
 The screens waiting on them now measure the gap instead of describing it, which
