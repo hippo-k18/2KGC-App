@@ -106,6 +106,9 @@ export interface AuditEntry {
      */
     | 'questionForm.create'
     | 'questionForm.update'
+    /** Round tables and bookable meeting slots. */
+    | 'gathering.create'
+    | 'gathering.update'
     /** Campaign contacts, tracked links and the sends that use them. */
     | 'campaign.create'
     | 'campaign.update'

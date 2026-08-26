@@ -16,7 +16,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
-  CAMPAIGN_LINKS, CONTACTS, DOCUMENTS, BOOTHS, QUESTION_FIELDS,
+  CAMPAIGN_LINKS, CONTACTS, DOCUMENTS, BOOTHS, GATHERINGS, QUESTION_FIELDS,
   EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
 } from './lib/fixtures.js';
 import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
@@ -503,6 +503,33 @@ async function main() {
     active: false,
   });
 
+  /**
+   * The room *name* is seeded and the id comes from `roomIdByName`, built when
+   * the rooms were written above — so a booking cannot point at a room that does
+   * not exist. A gathering whose room is not on the plan keeps the name and
+   * loses the id, which is exactly the state an organizer produces by typing a
+   * venue the programme has never heard of.
+   */
+  GATHERINGS.forEach((g, i) => {
+    push(COLLECTIONS.gatherings, `seed-gathering-${i}`, {
+      ...base(),
+      kind: g.kind,
+      title: g.title,
+      ...(g.host ? { host: g.host } : {}),
+      ...(g.roomName ? { roomName: g.roomName } : {}),
+      ...(g.roomName && roomIdByName.has(g.roomName)
+        ? { roomId: roomIdByName.get(g.roomName) }
+        : {}),
+      ...(g.day ? { day: g.day } : {}),
+      ...(g.startsAtLocal ? { startsAtLocal: g.startsAtLocal } : {}),
+      ...(g.endsAtLocal ? { endsAtLocal: g.endsAtLocal } : {}),
+      capacity: g.capacity,
+      attendees: g.attendees,
+      ...(g.notes ? { notes: g.notes } : {}),
+      status: g.status,
+    });
+  });
+
   TASKS.forEach((t, i) => {
     push(COLLECTIONS.tasks, `seed-task-${i}`, {
       ...base(),
@@ -585,6 +612,7 @@ async function main() {
     COLLECTIONS.speakers, COLLECTIONS.sessions, COLLECTIONS.tracks,
     COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes, COLLECTIONS.booths,
     COLLECTIONS.contacts, COLLECTIONS.campaignLinks, COLLECTIONS.questionForms,
+    COLLECTIONS.gatherings,
   ]) {
     const keep = new Set(writes.filter((w) => w.collection === c).map((w) => w.id));
     pruned += await pruneStale(c, EVENT_ID, keep);

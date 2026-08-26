@@ -817,6 +817,60 @@ export const QUESTION_FIELDS: {
   },
 ];
 
+/**
+ * Round tables and meeting-room bookings, so both planning screens render
+ * against something.
+ *
+ * One deliberate clash: `Ontology governance` and the sponsor meeting slot are
+ * both in Bloomberg 165 at 14:00 on Wednesday. The clash detector is the most
+ * valuable thing on those screens and a seeded database where nothing clashes
+ * cannot demonstrate it.
+ */
+export const GATHERINGS: {
+  kind: 'round-table' | 'meeting-slot';
+  title: string; host?: string; roomName?: string;
+  day?: string; startsAtLocal?: string; endsAtLocal?: string;
+  capacity: number; attendees: string[]; notes?: string;
+  status: 'planned' | 'confirmed' | 'cancelled';
+}[] = [
+  {
+    kind: 'round-table', title: 'Ontology governance in regulated industries',
+    host: 'Priya Raman', roomName: 'Bloomberg 165',
+    day: '2027-05-05', startsAtLocal: '14:00', endsAtLocal: '15:00',
+    capacity: 8, attendees: ['Rowan Hale', 'Sofia Marchetti', 'Hana Lin'],
+    status: 'confirmed',
+  },
+  {
+    kind: 'round-table', title: 'LLMs and graphs: what actually works',
+    host: 'Marek Novak', roomName: 'Bloomberg 271',
+    day: '2027-05-05', startsAtLocal: '14:00', endsAtLocal: '15:00',
+    capacity: 10, attendees: ['Jide Okonkwo', 'Priya Desai'],
+    status: 'confirmed',
+  },
+  {
+    kind: 'round-table', title: 'Getting a graph project funded',
+    roomName: 'Bloomberg 165',
+    day: '2027-05-06', startsAtLocal: '11:00', endsAtLocal: '12:00',
+    capacity: 8, attendees: [],
+    notes: 'No host yet — ask the programme committee.',
+    status: 'planned',
+  },
+  {
+    kind: 'meeting-slot', title: 'Graphwise — customer meetings',
+    host: 'Graphwise', roomName: 'Bloomberg 165',
+    day: '2027-05-05', startsAtLocal: '14:00', endsAtLocal: '16:00',
+    capacity: 4, attendees: ['Priya Raman'],
+    status: 'confirmed',
+  },
+  {
+    kind: 'meeting-slot', title: 'Ontotext Labs — press briefing',
+    host: 'Ontotext Labs', roomName: 'Bloomberg 271',
+    day: '2027-05-06', startsAtLocal: '09:30', endsAtLocal: '10:30',
+    capacity: 6, attendees: [],
+    status: 'planned',
+  },
+];
+
 export const TASKS: {
   project: string; title: string; assignee?: string; status: 'todo' | 'doing' | 'done' | 'blocked';
   dueOn?: string; notes?: string;

@@ -1031,6 +1031,57 @@ export interface ExhibitorDoc extends BaseDoc {
 }
 
 /**
+ * `gatherings/{id}` — a table, a room or a slot that people are placed into.
+ *
+ * ── Why round tables and meeting slots are one document ────────────────────
+ *
+ * A round table is a topic, a host, a cap and a time. A bookable meeting slot
+ * is a room, an owner, a cap of two and a time. They differ in what they are
+ * called and in nothing else, and Whova ships them as separate products only
+ * because it grew them separately. Two collections here would mean two capacity
+ * checks, two clash checks and two screens that drift.
+ *
+ * `kind` separates them for display and for nothing else.
+ *
+ * ── This is an organizer's plan, not an attendee-facing feature ────────────
+ *
+ * ⚠️ Nothing in the mobile app reads this. An attendee cannot see a table, join
+ * one, or request a meeting — those need an app surface that does not exist.
+ * What this *is* is the artefact an organizer actually produces: the table
+ * cards that get printed, the room grid that goes on the wall, the list the
+ * front desk works from. That is genuinely useful without an app, and claiming
+ * more than that would be the defect class `AGENTS.md` records fourteen
+ * instances of.
+ *
+ * `attendees` is therefore a list of names typed or picked by an organizer, not
+ * a set of uids that signed up. Names rather than uids because half the people
+ * at a sponsor meeting are not attendees at all.
+ */
+export interface GatheringDoc extends BaseDoc {
+  kind: "round-table" | "meeting-slot";
+  /** The topic, or what the meeting is about. */
+  title: string;
+  /** Whoever runs the table, or holds the booking. Free text — often not a user. */
+  host?: string;
+  /** `rooms/{id}`, when it is in a room the programme knows about. */
+  roomId?: string;
+  roomName?: string;
+  /** Day key and local wall time, matching `SessionDoc` so the two can be compared. */
+  day?: string;
+  startsAtLocal?: string;
+  endsAtLocal?: string;
+  /**
+   * Seats. Enforced when people are added — this is the one cap in the product
+   * that a person, not a race, could exceed, so refusing is cheap and correct.
+   */
+  capacity: number;
+  /** Placed by an organizer. Names, not uids — see the docblock. */
+  attendees: string[];
+  notes?: string;
+  status: "planned" | "confirmed" | "cancelled";
+}
+
+/**
  * `contacts/{id}` — somebody an organizer wants to email who is not an attendee.
  *
  * ── Why this is not `users` or `registrations` ──────────────────────────────

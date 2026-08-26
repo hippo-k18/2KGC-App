@@ -1,16 +1,11 @@
 # What is left to reach Whova parity
 
-Measured against the working tree on **2026-08-25**, not against the older
-`whova-rebuild/STATUS.md` — which is from 16 August and is stale in several
-places (it says `apps/console` does not exist and that nothing is committed;
-both were true then and are not now).
+Measured against the working tree on **2026-08-26**. Supersedes the
+`whova-rebuild/STATUS.md` audit of 16 August, which is stale in several places.
 
 ---
 
 ## The honest numbers
-
-Updated **2026-08-25**. **Every leaf screen in Whova's navigation tree now
-exists and renders.**
 
 | | Count |
 |---|---:|
@@ -18,71 +13,66 @@ exists and renders.**
 | — of which section headers, not screens | 42 |
 | **Real screens** | **173** |
 | **Built and rendering** | **173** |
-| Remaining | **0** |
+| — of which read or write real data | **173** |
 
 `npm run smoke` boots the emulator, seeds it, builds the dashboard and requests
 every registered path. All 173 return 200 against real data with no server-side
 throw. That is the check; it takes one command.
 
-### ⚠️ What "built" means, because the number alone is misleading
+### ★ What changed on 2026-08-26
 
-Roughly **a third read and write real data**: the money path end to end, the
-programme, attendees, exhibitors, the team checklist, surveys, moderation,
-exports, imports, name badges.
+**The thirty `GapScreen` stubs are gone.** Every screen in the dashboard now
+reads or writes real data. `gap-screen.tsx` — the shared shell those stubs used
+— is deleted, because nothing renders it any more.
 
-The rest are **honest gap notes** — what Whova does on that screen, what this
-repo would need, and roughly how big that is. That is deliberate. An organizer
-evaluating the move can click any nav item and get a straight answer rather
-than a spinner, an empty table, or a feature that half-works; an empty state
-implying "this nearly works" is worse than one that names the gap.
+That is not the same as "Whova parity is complete", and the sections below are
+still the plan. What it means is narrower and worth stating precisely: **there
+is no longer any screen whose entire content is a description of itself.**
+Where a capability genuinely does not exist — no file upload, no camera, no app
+surface for joining a table — the screen now measures the gap against live data
+rather than asserting it. "There are 61 images, all hotlinked, 0 uploaded here"
+is a fact an organizer can plan around; "photos are not built" was not.
 
-**So the parity number is not 100%.** By nav coverage it is complete. By
-capability it is closer to a third, and the sections below are still the plan
-for the rest.
+### What was built, and what it unblocked
 
-| Tab | Screens | Substantially real |
-|---|---|---|
-| Tickets | 53 | Money path, catalogue, orders, refunds, discounts |
-| Content | 34 | Agenda, speakers, sponsors, exhibitors, documents, checklist |
-| Attendees | 23 | List, check-in, exports, imports, badges, cohorts |
-| Marketing | 18 | Webpage readiness reports |
-| Engagement | 17 | Announcements, community, matchmaking, surveys, moderation |
-| Tools | 12 | App adoption, admin control, board moderation, report |
-| Virtual & Hybrid | 11 | None — argued as a candidate to cut |
-| Pay | 4 | Balance, billing |
-| Publish | 1 | Pre-flight check |
+| Cluster | What it took |
+|---|---|
+| **Exhibitor & sponsor ticketing** (15 screens) | `listTiers()` filtered to attendees unconditionally, so an organizer could price a booth and no buyer could reach it. `/tickets/exhibitor` and `/tickets/sponsor` are real pages now. `OrderRow` dropped `ticketTypeId`, which is why three ledgers could describe a join they could not perform. |
+| **Booth allocation** (new model) | `booths/{number}` — a ticket type sells "a 3m × 2m booth", this is the particular one. The only allocation in the product that is transactional rather than an optimistic counter, because two companies who shipped a stand for one space cannot both be refunded into being happy. |
+| **Offline payment & comps** | One write, two screens. Issues a ticket against money this system cannot verify, so `channel: 'manual'`, the organizer's name and a required reason all live on the order document. |
+| **Ticket marketing** (7 screens) | Contacts, tracked links, and attribution that survives the Stripe redirect via a cookie → metadata → webhook hop. The redirect counts its own clicks, so none of it waits on Blaze. |
+| **Question forms** (3 screens) | Asked before checkout on our own page, held in `pendingAnswers`, copied onto the *registration* at fulfilment — never onto the order. 18 tests, because it gates the purchase path. |
+| **Round tables & meeting rooms** | One `gatherings` model. An organizer's plan, not an attendee feature, and the screens say so. |
+| **Speed networking** | The circle method: everybody meets everybody exactly once. 14 tests prove the no-repeat guarantee rather than a comment claiming it. |
 
-The website is separate: **19 pages, all 17 nav links resolving.** What it lacks
-is content management — every page is a React file, so editing the code of
-conduct is a deploy. That is Phase 5.
+### ⚠️ What "built" still does not mean
 
----
-
-## The five things that block everything else
-
-Most of the 111 are not blocked on effort. They are blocked on one of five
-missing capabilities, and unblocking a capability makes a whole cluster cheap at
-once. This is the single most useful way to read the list.
+Five capabilities remain genuinely absent, and the screens that need them now
+*measure* their absence instead of describing it:
 
 | Blocker | Screens behind it | Status |
 |---|---:|---|
 | **1. An email sender** | ~14 | ✅ **Unblocked, and spent** |
-| **2. Cloud Functions (Blaze plan)** | ~22 | ❌ Project is on Spark |
-| **3. File upload + image pipeline** | ~18 | ❌ Storage rules exist, no UI |
-| **4. A generic entity CRUD + importer** | ~40 | ⚠️ **Export half built**; importer still missing |
-| **5. Streaming infrastructure** | ~15 | ❌ And arguably out of scope |
+| **2. Cloud Functions (Blaze plan)** | ~8 | ❌ Project is on Spark |
+| **3. File upload + image pipeline** | ~6 | ❌ Storage rules exist, nothing writes through them |
+| **4. A generic entity CRUD + importer** | ~0 | ✅ **Done** — export registry and CSV importer both exist |
+| **5. Streaming infrastructure** | ~15 | ❌ And argued as a candidate to cut |
 
-★ **Blocker 1 fell as a side effect of building ticket receipts**, which is why
-Message Speakers and Message Sponsors were built this week for a fraction of
-the 4–6 days `gaps.ts` estimated. The remaining message screens — Exhibitors,
-Presenters, Team Members — are now roughly a day each.
+★ **Blocker 4 has fallen**, which was the highest-leverage item on this page for
+months. The CSV importer, the export registry and the per-audience screen
+components together did what "the generic table" was meant to do — the exhibitor
+and sponsor clusters cost days rather than the four months a screen-at-a-time
+build would have.
 
-★ **Blocker 4 is the highest-leverage thing on this page.** Exhibitor Manager,
-Artifact Manager, Fair Manager, Documents, Meet-ups, Discussion Topics, Social
-Groups and a dozen more are all the same screen over a different collection:
-list, filter, sort, page, edit, import CSV, export CSV. Written generically
-once — about two weeks — each of them becomes half a day instead of four days.
-Written one at a time, that cluster alone is four months.
+★ **Blocker 3 is now the binding one.** Six screens wait on it: app branding,
+banner artwork, exhibitor logos, and the three photo screens. It is also the
+cheapest remaining fix with a real payoff — 61 hotlinked images currently break
+when somebody else's domain moves.
+
+The website is separate: **21 pages, all nav links resolving**, now including
+`/tickets/exhibitor`, `/tickets/sponsor` and `/r/{code}`. What it lacks is
+content management — every page is a React file, so editing the code of conduct
+is a deploy. That is Phase 5.
 
 ---
 
@@ -90,30 +80,29 @@ Written one at a time, that cluster alone is four months.
 
 ### Phase 1 — ✅ done
 
-The messaging screens the email sender unblocked are built. What remains of this
-phase is three more of the same, now roughly a day each because the audience
-abstraction exists: `message-exhibitors`, `message-presenters`,
-`message-team-members`, plus `1-3-confirmation-emails` to edit the receipt copy.
+### Phase 2 — ✅ done, by a different route than planned
 
-### Phase 2 — the generic table · ~2 weeks, then everything is cheaper
+The plan was one parameterised CRUD screen. What actually happened was the CSV
+importer plus the export registry plus a per-audience component per screen
+family — `audience-catalogue`, `audience-orders`, `audience-registration`,
+`question-form-screen`, `gathering-screen`. Same effect, and arguably better:
+each family shares the code that would drift, and none of them pretends five
+different entities have the same columns.
 
-Build one parameterised CRUD screen (list · search · sort · page · edit ·
-CSV in · CSV out) and one generic importer. This is scaffolding, not a feature,
-and it is the difference between a six-month tail and a two-month one.
+### Phase 3 — the rest of Tickets · ~1 week remaining
 
-`scripts/src/import-whova.ts` already does the import half for agendas and
-speakers; generalising it is most of the work.
+The money path, the catalogue, the three audiences, question forms, booths,
+offline payment and payouts are all done. What is left:
 
-### Phase 3 — the rest of Tickets · ~3 weeks
-
-The money path is done; the catalogue around it is not.
-
-- Question forms (custom registration fields) — needs the generic table
-- Ticket add-ons, group tickets
-- Exhibitor and sponsor ticket catalogues — the model has `TicketAudience`
-  already, so these are the same screens filtered
-- Refunding an invoice (credit notes)
-- `Pay` tab (5 paths) — payout settings, mostly links into Stripe
+- **Group tickets** beyond the invoice path
+- **Ticket add-ons as products** — the attendee case genuinely needs them (a
+  dinner and a workshop day are independent, and a tier per combination is a
+  combinatorial price list). The Checkout session builds exactly one line item
+  with `quantity: 1`, so this changes the purchase path's shape.
+- **Refunding an invoice** (credit notes — a different Stripe API)
+- **A public unsubscribe link** — ⚠️ legally required in several jurisdictions
+  before a bulk campaign goes out, and the mechanism already exists as
+  `/order/{token}`
 
 ### Phase 4 — Attendees and Engagement · ~2 weeks remaining
 
@@ -180,13 +169,19 @@ remainder from 111 to about **85**.
 
 ## Recommended next slice
 
-Phase 1 then Phase 2, in that order. Phase 1 is a week of cheap wins that make
-the Content tab feel finished; Phase 2 is the two weeks that decides whether the
-remaining tail is two months or six.
+→ **Blocker 3 — file upload and an image pipeline.** It is the binding
+constraint now that the generic-table work is done, it gates six screens, and it
+has a payoff that is worth having on its own: the 61 images this project serves
+are all hotlinked to domains KGC does not control, and each one breaks silently
+when somebody's blog moves.
 
-→ The single highest-value thing is **the generic table in Phase 2.** Everything
-after it is faster, and every screen built before it is a screen that will want
-rewriting once it exists.
+Two things after it, in this order and for different reasons:
+
+- **A public unsubscribe link.** ⚠️ Small, and legally required in several
+  jurisdictions before the first bulk campaign goes out. The mechanism already
+  exists — `/order/{token}` is the same capability-token pattern.
+- **Name badges and certificates.** The highest-value unbuilt pair in the
+  Attendees tab, and the one an organizer notices on the morning of day one.
 
 ---
 
@@ -196,25 +191,27 @@ For comparison with `whova-rebuild/STATUS.md` (16 August):
 
 | | Then | Now |
 |---|---|---|
-| Organizer screens with live data | 9 | **62** |
-| Ticketing | external | **in-house, end to end** |
-| Transactional email | none anywhere | **built, logged per recipient** |
-| CSV exports | none | **six, injection-safe** |
-| Website pages | 19, some links broken | **19, all links resolve** |
-| Test count | 169 | **222** |
-| `apps/console` | superseded, still tracked | **deleted** |
+| Organizer screens with live data | 9 | **173** |
+| Screens that were only a gap note | 164 | **0** |
+| Ticketing | external | **in-house, three audiences, end to end** |
+| Transactional email | none anywhere | **built, logged per recipient, plus campaigns** |
+| Campaign attribution | none | **click → cookie → Stripe metadata → order** |
+| Registration questions | none | **asked before checkout, stored on the registration** |
+| CSV exports / imports | none | **six exports, generic importer** |
+| Website pages | 19, some links broken | **21, all links resolve** |
+| Test count | 169 | **201** |
 
-### What the build-out changed about the plan
+### What is genuinely different about the remaining work
 
-**Phase 1 is done.** The messaging screens the email sender unblocked are built.
+Every previous audit could say "N screens are unbuilt" and mean "nobody has
+written them yet". That is no longer the shape of it. What remains is five
+**capabilities**, each gating a cluster, and three of the five are one decision
+each rather than a backlog:
 
-**Phase 2 is half done.** The export side exists — six CSVs behind one registry,
-so a seventh is an entry rather than a module. **The importer does not**, and it
-is still the highest-leverage thing left: roughly forty screens collapse into
-"map these columns" once it exists, and every entity screen built before it will
-want revisiting.
+- Blaze is a card on file, not money — the free quotas equal Spark's.
+- Storage is written and never deployed.
+- Streaming is a scope question, not an engineering one.
 
-**One integration would answer ten screens.** Both Zapier guides land on the same
-point: a single outbound webhook on fulfilment lets Zapier fan out to thousands
-of products, which is about a day against five to twelve for any individual
-integration. The Stripe webhook already has the hook point.
+The screens waiting on them now measure the gap instead of describing it, which
+means the next audit can be run by opening them rather than by reading this
+file.

@@ -72,11 +72,11 @@ screen.
 
 **Not built or only partly wired:** push notifications do not exist, badge *printing* (`badgeTemplates`,
 `badgePrintJobs`) is still only modelled, and Session Q&A and polls render but
-their tallies never move. See `whova-rebuild/STATUS.md`
-and the parity tables beside it for a measured breakdown — the honest headline is
-**roughly 13% of Whova by feature count** (app 47 built / 25 partial of 241 rows;
-console 0 built / 7 partial of 136), and the reason so much sits at "partial" is
-almost always the Spark plan rather than missing UI.
+their tallies never move. `ROADMAP.md` is the current measurement and
+supersedes `whova-rebuild/STATUS.md`, which is from 16 August and says the
+console has 7 partial screens of 136. The dashboard side is now complete by
+screen count; what is left is capabilities, and the reason so much of the *app*
+sits at "partial" is almost always the Spark plan rather than missing UI.
 
 As of WP-01 this is an **npm workspace monorepo**, not a single Expo project at the
 repo root. `models.ts` and `collections.ts` moved out of the app into
@@ -177,9 +177,10 @@ Run from the repo root:
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
 npm run test:rules                   # 143 tests against firestore.rules
-npm test                             # 49 unit tests: timezones, the QR encoder, conflict check
-npm run test:commerce                # 13 tests: fulfilment, refunds, invoice splitting
-npm run test:programme               # 14 tests: agenda conflict detection
+npm test                             # 119 unit tests: timezones, QR, question-form validation
+npm run test:commerce                # 16 tests: fulfilment, refunds, invoice splitting
+npm run test:programme               # 66 tests: conflict detection, CSV, speed-networking pairs
+npm run smoke                        # every dashboard screen, against a seeded emulator
 ```
 
 **`server-only` and Vitest do not mix.** A module importing it throws outside a
@@ -307,6 +308,25 @@ string literals.
 `sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`,
 `ticketTypes`, `orders`, `emailLog`, plus the modelled-but-unbuilt
 `checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+
+Added by the August 2026 dashboard build-out, all **server-only** and all
+without a `firestore.rules` match block — every write is Admin-SDK, and they
+must not get one:
+
+- `booths` — the exhibition floor plan. Keyed by booth number, so a double
+  assignment is a failed transaction rather than a race. This is the one
+  allocation in the product that is **not** an optimistic counter.
+- `contacts` — marketing contacts who hold no ticket. ⚠️ `unsubscribedAt` is
+  never cleared by an import; mailing somebody who opted out takes the *ticket
+  receipts* down with the newsletter.
+- `campaignLinks` — tracked short links, counted by the `/r/{code}` redirect
+  itself rather than by a trigger, so none of it waits on Blaze.
+- `questionForms` — one document per audience. Field ids are assigned once and
+  **never regenerated**: the id is what answers are stored under.
+- `pendingAnswers` — question answers held between the checkout form and the
+  webhook that confirms payment. Holds dietary and accessibility data.
+- `gatherings` — round tables and bookable meeting slots. An organizer's plan;
+  nothing in the app reads it, and the screens say so.
 
 `ticketTypes`, `orders` and `emailLog` are **live, not modelled** as of August
 2026 — see "The money path" under Current state. They have no `match` block in
@@ -522,26 +542,30 @@ standing between this file and 1,000 attendees' data.
    time. Poll `tallies` are the one feature that is genuinely worse without a
    trigger. Blaze's free quotas equal Spark's, so the real cost of upgrading is
    a card on file, not money.
-2. **`ROADMAP.md` is the current parity plan** — 173 real screens, 17 built, and
-   the five missing capabilities that each block a whole cluster of the rest.
-   Read it before picking anything up: the generic entity CRUD it names in
-   Phase 2 makes roughly forty screens cheap, and every screen built before it
-   exists is a screen that will want rewriting afterwards.
+2. **`ROADMAP.md` is the current parity plan** — 173 real screens, all 173 built
+   and reading real data, and the capabilities that still gate the rest. Phase 2's
+   "generic entity CRUD" is done, by a different route than planned: the CSV
+   importer, the export registry, and a shared component per screen *family*
+   rather than one table for everything.
 
    The organizer dashboard lives at `apps/organizer/` and is "almost
    identical to Whova's" as the owner asked: the dark utility bar, the 1060px
    boxed layout, the nine-tab strip at `#2180b2`, the three-box 200px rail, and
    Whova's own `.whova-table` / `.whova-btn-main` design system, all transcribed
-   from Whova's production CSS. **All 173 leaf screens in Whova's nav now exist**; the other 42 paths are
-   section headers served by the catch-all. Roughly a third read and write real
-   data and the rest are honest gap notes naming what Whova does, what we would
-   need and how big that is. `npm run smoke` proves every one of them renders
-   against a seeded emulator in one command — use it after any change to the
-   dashboard, because `tsc` and `next build` both pass on a screen that throws
-   the moment it reads Firestore. Conflict Check, Message Speakers, Message Sponsors and
-   Discount Codes were built in August 2026 — the three messaging screens
-   because the ticket-receipt work removed the "there is no email sender
-   anywhere in this project" blocker that `gaps.ts` records against them.
+   from Whova's production CSS. **All 173 leaf screens exist and every one of
+   them reads or writes real data**; the other 42 paths are section headers
+   served by the catch-all. The thirty `GapScreen` stubs were finished on
+   2026-08-26 and that component is deleted.
+
+   That is not "parity is complete" — five capabilities are still genuinely
+   absent (Cloud Functions, Storage uploads, streaming, and two smaller ones).
+   What changed is that the screens waiting on them now **measure** the gap
+   against live data rather than describing it. Read `ROADMAP.md` before picking
+   anything up; the binding constraint is now file upload, not screen count.
+
+   `npm run smoke` proves every screen renders against a seeded emulator in one
+   command — use it after any change to the dashboard, because `tsc` and
+   `next build` both pass on a screen that throws the moment it reads Firestore.
 3. Nothing creates `users/{uid}` on first sign-in, which is the gap between the
    seeded demo working and a real attendee working. See the note above.
 4. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`
