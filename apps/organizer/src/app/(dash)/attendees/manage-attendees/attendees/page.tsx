@@ -16,6 +16,7 @@ import {
   sortRows,
 } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
+import { ImportForm } from './import-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export default async function AttendeesPage({
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const role = typeof sp.role === 'string' ? sp.role : undefined;
   const { page, sort, baseParams } = listParams(sp);
+  const importing = typeof sp.import === 'string';
   const [all, registrations] = await Promise.all([
     listAttendees(),
     countWhereEvent(COLLECTIONS.registrations),
@@ -145,9 +147,15 @@ export default async function AttendeesPage({
         </div>
 
         <div className="toolbar">
-          <button type="button" className="btn btn-primary" disabled title="Not built — see below">
-            Import attendees
-          </button>
+          {/*
+            Import and export are both real now. `Add an attendee` stays
+            disabled: adding one by hand means writing a document the attendee
+            also owns, which needs a rule about who wins — and importing a
+            one-row CSV does the same job today.
+          */}
+          <Link className="btn btn-primary" href={importing ? ROUTES.attendees : '?import=1'}>
+            {importing ? 'Cancel import' : 'Import attendees'}
+          </Link>
           <button type="button" className="btn btn-primary" disabled title="Not built — see below">
             Add an attendee
           </button>
@@ -155,14 +163,30 @@ export default async function AttendeesPage({
             label="Export attendees"
             className="btn btn-primary"
             items={[
-              { label: 'Export basic attendee list', disabled: true },
-              { label: 'Export attendee analytics', disabled: true },
+              { label: 'Export basic attendee list', href: '/export/attendees' },
+              { label: 'Export badge and catering list', href: '/export/catering' },
+              { label: 'Export attendee analytics', href: ROUTES.analyticsExports },
             ]}
           />
           <Link className="btn btn-primary" href={ROUTES.announcements}>
             Send announcement
           </Link>
         </div>
+
+        {importing && (
+          <div
+            style={{
+              background: 'var(--surface-alt)',
+              border: '1px solid var(--hairline)',
+              borderRadius: 4,
+              marginBottom: 16,
+              padding: 16,
+            }}
+          >
+            <h2 style={{ fontSize: 15, marginTop: 0 }}>Import attendees</h2>
+            <ImportForm />
+          </div>
+        )}
 
         <form method="get" className="toolbar">
           {role ? <input type="hidden" name="role" value={role} /> : null}
@@ -307,12 +331,16 @@ export default async function AttendeesPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Import.</strong> Three modes in Whova, including a real column mapper and a
-            24-hour sync from Eventbrite, RegFox and Constant Contact, with row-by-row error
-            reporting. The research says build one generic importer — header detection, column
-            mapping, validation, row-level errors, upsert with a declared key: 6–9 days once and
-            half a day per entity afterwards, against 25+ days for eight bespoke ones. Note Whova&apos;s
-            own trap, that a blank Ticket Type column overwrites while every other blank merges.
+            <strong>Import — now built, in the shape the research recommended.</strong> Header
+            detection, loose column matching, row-level errors numbered as the spreadsheet numbers
+            them, and an upsert keyed on the email address, so re-running a file converges rather
+            than duplicating. It calls the same <code>ensureRegistration</code> the Stripe webhook
+            calls, which is what stops a fourth opinion about when to mint a badge secret.
+            <br />
+            Still missing from Whova&apos;s version: a manual column mapper for a file whose headers
+            match nothing, and the 24-hour sync from Eventbrite and RegFox. Note Whova&apos;s own trap,
+            that a blank Ticket Type column overwrites while every other blank merges — ours never
+            overwrites a ticket type with a blank.
           </li>
           <li>
             <strong>Add and edit an attendee.</strong> Editing a profile from here means writing to

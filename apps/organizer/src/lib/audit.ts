@@ -77,7 +77,13 @@ export interface AuditEntry {
     | 'survey.create'
     | 'survey.update'
     | 'document.create'
-    | 'document.update';
+    | 'document.update'
+    /**
+     * A bulk attendee import. One entry for the whole run rather than one per
+     * row — four hundred audit entries for one action is a log nobody reads,
+     * and the per-row outcome is reported on screen at the time.
+     */
+    | 'attendee.import';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;
