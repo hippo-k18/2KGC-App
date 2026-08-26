@@ -315,7 +315,8 @@ export async function cancelRegistrationByOrder(input: {
         refundedCents: input.refundedCents ?? 0,
         currency: 'usd',
         purchasedAt: Timestamp.now(),
-        refundedAt: Timestamp.now(),
+        // Only when money actually went back. See the note on the update below.
+        ...(input.reason === 'refunded' ? { refundedAt: Timestamp.now() } : {}),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -355,10 +356,23 @@ export async function cancelRegistrationByOrder(input: {
         : 'partially_refunded'
       : 'cancelled';
 
+  /**
+   * `refundedAt` is stamped only when money actually went back.
+   *
+   * This function also handles `payment_failed` and `disputed`, and it used to
+   * write `refundedAt` on all three — so an expired Checkout session, where
+   * nothing was ever charged and nothing was ever returned, came out carrying a
+   * refund date. Transaction History renders that column, which meant a row
+   * reading "refunded" on a sale that never happened.
+   *
+   * A disputed charge is deliberately excluded too: a chargeback is money held,
+   * not money returned, and it may yet come back. Stamping it would make the
+   * refunded total on Pay › Balance count a dispute as a refund.
+   */
   await orderRef.update({
     status: orderStatus,
     refundedCents: refunded,
-    refundedAt: Timestamp.now(),
+    ...(input.reason === 'refunded' ? { refundedAt: Timestamp.now() } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 

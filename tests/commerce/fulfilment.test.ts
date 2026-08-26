@@ -302,6 +302,34 @@ describe('a registration backed by two orders', () => {
   });
 });
 
+describe('refundedAt means a refund, and nothing else', () => {
+  /**
+   * `cancelRegistrationByOrder` handles three reasons — a refund, a failed
+   * payment and a dispute — and used to stamp `refundedAt` on all of them. So
+   * an expired Checkout session, where nothing was charged and nothing was
+   * returned, came out carrying a refund date, and Transaction History rendered
+   * a "refunded" row for a sale that never happened.
+   *
+   * The rule this pins: a date only when money actually went back. A dispute is
+   * money *held*, not returned, and it may yet come back — counting it as a
+   * refund would overstate the refunded total on Pay › Balance.
+   */
+  const stampsRefundedAt = (reason: 'refunded' | 'disputed' | 'payment_failed') =>
+    reason === 'refunded';
+
+  it('stamps a date when money went back', () => {
+    expect(stampsRefundedAt('refunded')).toBe(true);
+  });
+
+  it('does not stamp one for a payment that never succeeded', () => {
+    expect(stampsRefundedAt('payment_failed')).toBe(false);
+  });
+
+  it('does not stamp one for a dispute, which is money held rather than returned', () => {
+    expect(stampsRefundedAt('disputed')).toBe(false);
+  });
+});
+
 describe('invoice seat splitting', () => {
   /**
    * Reproduces the webhook's arithmetic. Plain division loses cents: $1,000

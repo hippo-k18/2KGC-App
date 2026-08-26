@@ -59,7 +59,11 @@ export default async function AbandonedRegistrationPage() {
       <StatTiles
         tiles={[
           { label: 'Abandoned', value: abandoned.length, sub: 'expired or failed at Stripe' },
-          { label: 'With a contactable address', value: withEmail.length, sub: 'the rest are anonymous' },
+          {
+            label: 'With a contactable address',
+            value: withEmail.length,
+            sub: `${orphans} placeholder${orphans === 1 ? '' : 's'} with no email`,
+          },
           {
             label: 'Invoices still unpaid',
             value: pendingInvoices.length,
