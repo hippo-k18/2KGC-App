@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type TicketAudience } from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getTicketType } from '@/lib/commerce';
@@ -91,6 +91,12 @@ export async function saveTicketTypeAction(
   const visible = formData.get('visible') === 'on';
   const inPerson = formData.get('inPerson') === 'on';
   const featured = formData.get('featured') === 'on';
+  const audienceRaw = String(formData.get('audience') ?? '');
+  const audience: TicketAudience = (['attendee', 'exhibitor', 'sponsor'] as const).includes(
+    audienceRaw as TicketAudience,
+  )
+    ? (audienceRaw as TicketAudience)
+    : 'attendee';
   const includesWorkshops = formData.get('includesWorkshops') === 'on';
   const includesVideoLibrary = formData.get('includesVideoLibrary') === 'on';
   const opensRaw = String(formData.get('salesOpenAt') ?? '').trim();
@@ -154,7 +160,16 @@ export async function saveTicketTypeAction(
     featured,
     visible,
     sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
-    audience: 'attendee' as const,
+    /**
+     * Preserved, never assumed.
+     *
+     * This wrote `'attendee'` unconditionally, which meant opening an exhibitor
+     * or sponsor tier in this form and pressing Save **silently moved it into
+     * the attendee catalogue** — with nothing on screen saying so, and the tier
+     * then appearing on the public tickets page. The form now carries the
+     * field, and an edit keeps whatever the tier already was.
+     */
+    audience,
     taxCode: existing?.taxCode ?? 'txcd_20030000',
     /**
      * Entitlement booleans, now actually editable.

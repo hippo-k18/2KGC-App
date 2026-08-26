@@ -179,6 +179,27 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
       </div>
 
       <div className="whova-form-row">
+        <label className="whova-form-label" htmlFor="audience">
+          Catalogue
+        </label>
+        <select id="audience" name="audience" defaultValue={existing?.audience ?? 'attendee'} style={{ maxWidth: 240 }}>
+          <option value="attendee">Attendees</option>
+          <option value="exhibitor">Exhibitors</option>
+          <option value="sponsor">Sponsors</option>
+        </select>
+        {/*
+          This field had no control and the action wrote 'attendee'
+          unconditionally, so saving an exhibitor tier silently moved it into
+          the attendee catalogue — and onto the public tickets page.
+        */}
+        <p className="muted" style={{ fontSize: 12 }}>
+          ⚠️ Only <strong>attendee</strong> tiers appear on the public website — `catalogue.ts`
+          filters to them. An exhibitor or sponsor tier is recorded here and has nothing selling it
+          yet.
+        </p>
+      </div>
+
+      <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="sortOrder">
           Sort order
         </label>

@@ -270,9 +270,9 @@ export default async function NameBadgesPage({
           <li>
             <strong>A badge designer.</strong> Whova has ten templates, a drag-and-drop layout and
             segment fields printable on the badge. This is one fixed template.{' '}
-            <code>badgeTemplates</code> is modelled in <code>packages/shared/src/models.ts</code> and
-            nothing writes it — a saved template plus a renderer that reads it is the work, and the
-            renderer is the part above.
+            <code>badgeTemplates</code> is modelled and nothing writes it — and note it is not the
+            same shape as this sheet: it holds raw ZPL for a thermal printer, which a browser
+            cannot emit. A designer would have to produce both, or the two paths drift.
           </li>
           <li>
             <strong>Print-on-demand at check-in.</strong> A paid add-on in Whova, and here{' '}
