@@ -296,11 +296,13 @@ async function main() {
     push(COLLECTIONS.communityPosts, `seed-post-${i}`, {
       ...base(), authorId: `demo_${String((i * 5) % ATTENDEE_COUNT).padStart(3, '0')}`,
       category: p.category, title: p.title, body: p.body,
-      // `replyCount` stays at zero on purpose even though replies are seeded
-      // below. The field is function-owned and the rules forbid a client from
-      // writing it; seeding it to the real number would paper over the fact that
-      // nothing maintains it, and the next person to add a reply through the app
-      // would silently drift. The board counts the subcollection instead.
+      // `replyCount` and `reactionCount` are function-owned — the rules forbid
+      // a client from writing them — so this script always seeds 0 regardless
+      // of how many replies land below. `onReplyWrite` (functions/SPEC.md #1)
+      // corrects `replyCount` to the real count within moments of a fresh
+      // seed, the same trigger a reply added through the app fires. No
+      // reactions are seeded, so `reactionCount` stays 0 until
+      // `onReactionWrite` exists too.
       status: 'visible', replyCount: 0, reactionCount: 0,
     });
 

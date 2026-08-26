@@ -388,6 +388,11 @@ standing between this file and 1,000 attendees' data.
 - Colours come from `useTheme()`. Never hard-code a hex value in a screen.
 - Match the surrounding style. Comments explain reasoning, not mechanics.
 - Prefer editing existing files over adding new ones.
+- **Everything that ends up in a file is written in English** — code,
+  comments, identifiers, commit messages, and documentation such as
+  `functions/SPEC.md`. This holds even when the person you're working with
+  writes to you in another language; reply to them in their language, but
+  write the file in English, for consistency with the rest of the project.
 
 ## Known gaps
 
