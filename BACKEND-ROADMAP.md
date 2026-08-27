@@ -83,23 +83,21 @@ en parallèle de la Phase 1 :
   collections « n'ont aucune règle du tout », ce qui est faux — les règles
   existent, elles ferment juste tout accès client. Corriger cette phrase dans
   AGENTS.md en même temps.
-- **`users/{uid}.photoURL` n'a aucune validation de format dans
-  `firestore.rules`.** La règle `allow update` ne vérifie que l'ensemble des
-  clés changées (`changed().hasOnly([...])`), jamais la valeur d'aucun champ —
-  un attendee peut écrire n'importe quelle chaîne dans son propre `photoURL`.
-  `mirrorDirectory` (functions/SPEC.md #6) valide déjà que le hostname est
-  `firebasestorage.googleapis.com` avant de copier vers `directory/{uid}`,
-  mais ça ne protège que la projection : `users/{uid}` lui-même reste
-  écrivable sans contrainte. Un audit du 2026-08-26 (voir l'historique de ce
-  fichier) a confirmé qu'aucun écran actuel n'affiche le `photoURL` d'un
-  *autre* attendee autrement qu'en passant par `directory/{uid}` — donc rien
-  n'est exposé aujourd'hui — mais c'est un fait de l'app actuelle, pas une
-  garantie de la règle : le premier écran qui lira `users/{uid}.photoURL`
-  d'un tiers (organisateur, futur outil console, etc.) hérite du trou sans
-  qu'on s'en aperçoive. Ajouter la même contrainte de hostname directement
-  dans `allow create`/`allow update` de `users/{uid}`, pour que la
-  protection existe à la source et ne dépende pas de la discipline de chaque
-  futur lecteur.
+- ~~`users/{uid}.photoURL` n'a aucune validation de format dans
+  `firestore.rules`.~~ **Corrigé le 2026-08-27 (branche
+  `fix-photourl-validation`).** `allow create` et `allow update` sur
+  `users/{uid}` exigent maintenant, quand `photoURL` est présent et modifié
+  par l'écriture, la même contrainte de hostname
+  (`firebasestorage.googleapis.com`) que `mirrorDirectory` (functions/SPEC.md
+  #6) applique déjà avant de copier vers `directory/{uid}` — sauf qu'elle
+  s'applique maintenant à la source, sur `users/{uid}` lui-même, plutôt qu'à
+  la seule projection. `changed()` gate la vérification côté `update` pour
+  qu'un profil dont le `photoURL` était déjà invalide avant ce correctif
+  reste modifiable sur ses autres champs. Quatre nouveaux tests dans
+  `tests/rules/firestore.test.ts` (134 → 138) : refus en `create`, refus en
+  `update`, acceptation d'une URL Firebase Storage légitime, et l'édition
+  d'un champ non lié qui doit continuer à passer malgré un `photoURL` déjà
+  invalide.
 
 ---
 

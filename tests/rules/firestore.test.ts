@@ -296,6 +296,37 @@ describe('profiles and the directory', () => {
     );
   });
 
+  it('refuses a malicious photoURL on your own profile', async () => {
+    // The same beacon risk `mirrorDirectory` guards against on the way into
+    // `directory/{uid}`, closed here at the source on `users/{uid}` itself —
+    // see the docblock on `isFirebaseStorageUrl()` in firestore.rules.
+    await assertFails(
+      updateDoc(doc(asA(), `users/${A}`), { photoURL: 'https://attacker.example/beacon.png' }),
+    );
+  });
+
+  it('accepts a genuine Firebase Storage photoURL on your own profile', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asA(), `users/${A}`), {
+        photoURL: 'https://firebasestorage.googleapis.com/v0/b/kgc-database.appspot.com/o/avatars%2Fa?alt=media',
+      }),
+    );
+  });
+
+  it('lets an unrelated profile edit through even if photoURL was already invalid', async () => {
+    // The photoURL check is gated on THIS write actually touching the field —
+    // an attendee whose photoURL predates this rule must still be able to
+    // rename themselves without being blocked by a field they never touched.
+    const db = env.authenticatedContext('legacy-photo', attendee('legacy-photo')).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/legacy-photo'), {
+        email: 'legacy-photo@kgc.test', roles: ['attendee'],
+        photoURL: 'https://attacker.example/beacon.png',
+      });
+    });
+    await assertSucceeds(updateDoc(doc(db, 'users/legacy-photo'), { name: 'Renamed' }));
+  });
+
   it('lets an attendee with no profile yet save a privacy switch', async () => {
     // `me/index.tsx` writes this with `setDoc(..., {merge: true})`, and a merge
     // onto a document that does not exist is a CREATE carrying two fields. The
@@ -323,6 +354,15 @@ describe('profiles and the directory', () => {
     await assertFails(
       setDoc(doc(db, 'users/newcomer'), {
         email: 'someone.else@kgc.test', name: 'N', roles: ['attendee'],
+      }),
+    );
+  });
+
+  it('refuses a malicious photoURL on a profile created client-side', async () => {
+    const db = env.authenticatedContext('newcomer', attendee('newcomer')).firestore();
+    await assertFails(
+      setDoc(doc(db, 'users/newcomer'), {
+        email: 'newcomer@kgc.test', name: 'N', photoURL: 'https://attacker.example/beacon.png',
       }),
     );
   });
