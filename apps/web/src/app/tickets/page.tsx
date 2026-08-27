@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
-import { listTiers } from '@/lib/catalogue';
+import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
 import { activeForm } from '@/lib/question-forms';
@@ -70,7 +70,15 @@ export default async function TicketsPage({
    * network round trip — and the checkout form is a client component that
    * cannot read Firestore at all, so it needs the tiers as props regardless.
    */
-  const [tiers, form] = await Promise.all([listTiers(), activeForm('attendee')]);
+  const [catalogue, form] = await Promise.all([tiersOrNull(), activeForm('attendee')]);
+
+  /**
+   * `null` means the catalogue could not be read at all — no credentials, or
+   * the database is unreachable. That is not the same as having no tickets, and
+   * it must never be rendered as a price. The page keeps its hero and its FAQ,
+   * and says plainly that sales are not open rather than returning a 500.
+   */
+  const tiers = catalogue ?? [];
   const byId = new Map(tiers.map((t) => [t.id, t]));
 
   const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
@@ -258,12 +266,26 @@ export default async function TicketsPage({
             </p>
           </div>
 
-          <CheckoutForm
-            tiers={tiers}
-            initialTier={preselected}
-            stripeReady={stripeEnabled()}
-            questions={form.fields}
-          />
+          {catalogue && catalogue.length > 0 ? (
+            <CheckoutForm
+              tiers={tiers}
+              initialTier={preselected}
+              stripeReady={stripeEnabled()}
+              questions={form.fields}
+            />
+          ) : (
+            <div className="checkout">
+              <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
+              <p className="notice warn">
+                Ticket sales for {SITE.name} have not opened. Everything else on this
+                page — the dates, the venue, what each ticket includes — is current.
+              </p>
+              <p>
+                Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and
+                we will tell you the moment they do.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

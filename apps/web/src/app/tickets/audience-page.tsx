@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
-import { listTiers } from '@/lib/catalogue';
+import { tiersOrNull } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 import { formatPrice, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
@@ -58,10 +58,14 @@ export async function AudienceTicketsPage({
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
   const params = await searchParams;
-  const [tiers, form] = await Promise.all([
-    listTiers(copy.audience),
+  const [catalogue, form] = await Promise.all([
+    tiersOrNull(copy.audience),
     activeForm(copy.audience),
   ]);
+
+  // `null` is "we cannot read the catalogue", which the empty branch below
+  // already handles correctly — it says this audience is not open yet.
+  const tiers = catalogue ?? [];
 
   const byId = new Map(tiers.map((t) => [t.id, t]));
   const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;

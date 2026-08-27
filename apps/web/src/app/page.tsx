@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { listAgenda, listSponsorsByTier, programmeCounts } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
-import { listTiers } from '@/lib/catalogue';
+import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
 import { SponsorTiers } from '@/components/sponsor-tiers';
@@ -126,7 +126,9 @@ async function programmeOrNothing() {
 export default async function HomePage() {
   // The ticket catalogue lives in Firestore now, so the homepage's price row
   // reads it like any other data rather than importing a frozen array.
-  const tiers = await listTiers();
+  // The homepage shows a price teaser. If the catalogue cannot be read the
+  // strip is simply absent — a homepage is not the place to explain an outage.
+  const tiers = (await tiersOrNull()) ?? [];
   const { counts, sponsorBands, agenda } = await programmeOrNothing();
 
   return (

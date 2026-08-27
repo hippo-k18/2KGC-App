@@ -29,7 +29,40 @@ import { db } from './firestore';
  *
  * Everything returned is a plain serialisable object — no `Timestamp`
  * instances — so it can cross into a client component without ceremony.
+ *
+ * ── A database that cannot be reached is an empty page, not a 500 ──────────
+ *
+ * Every read below goes through `safely()`. Without it, a deployment whose
+ * credentials are missing or whose project is unreachable returns a 500 on the
+ * homepage, the agenda and the sponsor page — which is what happened on
+ * production, and it is a much worse failure than it needs to be. The
+ * programme genuinely being unknown is a state this site can render: each page
+ * already has an empty state, because a conference has an empty agenda for
+ * months before it has a full one.
+ *
+ * ⚠️ **`catalogue.ts` deliberately does NOT do this.** Prices are the one
+ * thing that must never degrade quietly: a page that renders a stale or
+ * invented price is indistinguishable from a correct one at the moment a card
+ * is charged. It still throws, and the tickets page fails loudly. That
+ * asymmetry is the point — an empty speaker list is a gap, a wrong price is a
+ * chargeback.
  */
+
+/**
+ * Run a read, and treat any failure as "nothing to show".
+ *
+ * The error is logged with the caller's name, because "the agenda is empty" and
+ * "the agenda could not be loaded" look identical to a visitor and must not
+ * look identical in a log.
+ */
+async function safely<T>(what: string, read: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await read();
+  } catch (err) {
+    console.error(`[data] ${what} failed; rendering the empty state instead`, err);
+    return fallback;
+  }
+}
 
 export interface SpeakerCard {
   id: string;
@@ -45,6 +78,7 @@ export interface SpeakerCard {
 }
 
 export async function listSpeakers(): Promise<SpeakerCard[]> {
+  return safely('listSpeakers', async () => {
   const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
 
   return snap.docs
@@ -69,6 +103,7 @@ export async function listSpeakers(): Promise<SpeakerCard[]> {
       const key = (n: string) => n.split(/\s+/).pop()!.toLowerCase();
       return key(a.name).localeCompare(key(b.name)) || a.name.localeCompare(b.name);
     });
+  }, []);
 }
 
 export interface AgendaSession {
@@ -102,6 +137,7 @@ export interface AgendaDay {
  * after the fetch costs nothing and cannot fail in production.
  */
 export async function listAgenda(): Promise<AgendaDay[]> {
+  return safely('listAgenda', async () => {
   const snap = await db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get();
 
   const sessions = snap.docs
@@ -141,6 +177,7 @@ export async function listAgenda(): Promise<AgendaDay[]> {
       ),
     }))
     .sort((a, b) => a.day.localeCompare(b.day));
+  }, []);
 }
 
 export interface SponsorCard {
@@ -221,6 +258,7 @@ const SELF_HOSTED_LOGOS = new Set([
 ]);
 
 export async function listSponsors(): Promise<SponsorCard[]> {
+  return safely('listSponsors', async () => {
   const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
 
   return snap.docs
@@ -235,6 +273,7 @@ export async function listSponsors(): Promise<SponsorCard[]> {
       };
     })
     .sort((a, b) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9) || a.name.localeCompare(b.name));
+  }, []);
 }
 
 /**
@@ -260,6 +299,7 @@ export async function listSponsorsByTier(): Promise<
 
 /** Headline numbers for the home page, counted from the real collections. */
 export async function programmeCounts(): Promise<{ speakers: number; sessions: number; sponsors: number }> {
+  return safely('programmeCounts', async () => {
   const [speakers, sessions, sponsors] = await Promise.all([
     db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).count().get(),
     db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).count().get(),
@@ -270,4 +310,5 @@ export async function programmeCounts(): Promise<{ speakers: number; sessions: n
     sessions: sessions.data().count,
     sponsors: sponsors.data().count,
   };
+  }, { speakers: 0, sessions: 0, sponsors: 0 });
 }

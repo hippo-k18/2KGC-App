@@ -78,6 +78,38 @@ async function loadAll(): Promise<{ id: string; doc: TicketTypeDoc }[]> {
 }
 
 /**
+ * The catalogue, or nothing — never a guess.
+ *
+ * ── Why this exists when `data.ts` already has `safely()` ──────────────────
+ *
+ * The public site's other reads degrade to an empty page when the database is
+ * unreachable, because an unknown agenda is a state a conference genuinely has.
+ * Prices are different in kind: a stale or invented figure is indistinguishable
+ * from a correct one at the moment a card is charged, and the person who finds
+ * out is the buyer's finance department.
+ *
+ * So `listTiers` still throws on an empty collection — that is a
+ * misconfiguration and must be loud. What this adds is the narrower case of the
+ * database being *unreachable*: no credentials, a network failure, a revoked
+ * key. There the honest answer is "we cannot tell you the price right now",
+ * which the tickets page renders as a closed state rather than a 500.
+ *
+ * ⚠️ The distinction that matters: this returns `null`, never an empty array.
+ * A caller cannot mistake "the shop is closed" for "there are no tickets", and
+ * `startCheckout` is unaffected — it reads a tier by id and still refuses an
+ * unknown one, so nothing can be bought at a price this function did not
+ * produce.
+ */
+export async function tiersOrNull(audience: TicketAudience = 'attendee'): Promise<Tier[] | null> {
+  try {
+    return await listTiers(audience);
+  } catch (err) {
+    console.error('[catalogue] could not read the catalogue; the page will say so', err);
+    return null;
+  }
+}
+
+/**
  * Every tier one audience may see, in catalogue order.
  *
  * Hidden tiers (`visible: false`) are excluded — that is how a comp rate or a

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listTiers } from '@/lib/catalogue';
+import { tiersOrNull } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 import { stripeEnabled } from '@/lib/stripe';
 import { InvoiceForm } from './invoice-form';
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export default async function InvoicePage() {
-  const tiers = await listTiers();
+  const tiers = (await tiersOrNull()) ?? [];
 
   return (
     <>
