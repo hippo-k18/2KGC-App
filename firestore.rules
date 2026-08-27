@@ -229,10 +229,35 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSelf(uid) || isOrganizer();
 
+      /**
+       * The same hostname constraint `mirrorDirectory`
+       * (`functions/src/triggers/mirror-directory.ts`) applies before ever
+       * copying `photoURL` into the ~1,000-attendee-visible `directory/{uid}`
+       * projection — applied here too, directly on the source field, so the
+       * protection does not depend on every future reader of `users/{uid}`
+       * routing through that mirror. Today only the owner and organizers can
+       * read this document, but nothing stops a later organizer screen or
+       * console tool from rendering `users/{uid}.photoURL` straight into an
+       * `<Image>`, which is exactly the beacon `mirrorDirectory`'s own check
+       * exists to prevent.
+       *
+       * `matches()` requires a *full* match in this rules language, so the
+       * pattern doubles as an exact-hostname check: anything after the
+       * required `https://firebasestorage.googleapis.com/` prefix is
+       * legitimate path/query, but nothing may come *before* it, which is
+       * what rules out userinfo/subdomain tricks such as
+       * `https://firebasestorage.googleapis.com@evil.example/` or
+       * `https://firebasestorage.googleapis.com.evil.example/`.
+       */
+      function isFirebaseStorageUrl(url) {
+        return url is string
+          && url.matches('^https://firebasestorage\\.googleapis\\.com/.*$');
+      }
+
       // Created client-side on first sign-in, so it must be constrained: your
       // own document, and you cannot grant yourself a role.
       //
-      // The two field checks are conditional on the field being PRESENT, not on
+      // The field checks are conditional on the field being PRESENT, not on
       // it being supplied. `me/index.tsx` saves a privacy switch with
       // `setDoc(..., {merge: true})`, and a merge onto a document that does not
       // exist yet is a create carrying two fields — so demanding `email` and
@@ -245,16 +270,30 @@ service cloud.firestore {
         && (!('email' in request.resource.data)
             || request.resource.data.email == request.auth.token.email.lower())
         && (!('roles' in request.resource.data)
-            || request.resource.data.roles == ['attendee']);
+            || request.resource.data.roles == ['attendee'])
+        && (!('photoURL' in request.resource.data)
+            || isFirebaseStorageUrl(request.resource.data.photoURL));
 
       // An allowlist, so `roles`, `email` and `eventId` cannot move and no
       // unexpected field can be introduced.
+      //
+      // `photoURL` is validated only when THIS write actually changes it
+      // (`changed()`, not a bare presence check on the resulting document) —
+      // otherwise every unrelated edit (renaming yourself, flipping a privacy
+      // switch) on a profile that already carries a value from before this
+      // rule existed would start failing on a field the write never touched.
+      // And when it does change, an outright field *removal* is allowed
+      // through untouched: `FieldValue.delete()` makes `photoURL` disappear
+      // from `request.resource.data`, so there is nothing left to validate.
       allow update: if isSelf(uid)
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
           'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
           'notificationPrefs', 'updatedAt',
-        ]);
+        ])
+        && (!('photoURL' in changed())
+            || !('photoURL' in request.resource.data)
+            || isFirebaseStorageUrl(request.resource.data.photoURL));
       allow delete: if false;
 
       // The three subcollections below are private per-user storage, and until
