@@ -1,5 +1,37 @@
 # Deploying the two sites to Netlify
 
+## ⚠️ Move `.env.local` aside before a manual deploy
+
+Both sites are **manual-deploy only** — no repo connected, no build hook — so a
+deploy means building locally and uploading:
+
+```bash
+cd apps/organizer
+mv .env.local .env.local.hidden     # ← the step that is easy to skip
+rm -rf .next && npm run build
+npx netlify deploy --dir=.next      # a draft first; test it
+npx netlify deploy --prod --dir=.next
+mv .env.local.hidden .env.local
+```
+
+**Skipping the move produces a build that 502s on every authenticated page.**
+Next.js reads `.env.local` during `next build`, and the local file sets
+`FIRESTORE_EMULATOR_HOST=localhost:8080`. The deployed function then tries to
+reach an emulator that is not there, the Admin SDK retries, and Netlify kills
+the request at 30 seconds. Nothing in the build output says anything is wrong —
+it compiles cleanly and deploys successfully.
+
+This happened on 2026-08-27 and took production down until the previous deploy
+was restored. The tell is a 502 after exactly 30s on `/content/basics` while
+`/login` still returns 200, because the login page reads no data.
+
+**Test a draft before promoting.** `netlify deploy` without `--prod` gives a
+URL that runs the real function with the real environment; if the draft is
+healthy, promote that exact artefact from the Netlify UI or with
+`netlify api restoreSiteDeploy` rather than building a second time.
+
+---
+
 Two Next.js apps, deployed as two separate Netlify sites from this one
 repository:
 
@@ -37,7 +69,7 @@ as a root credential for the whole project.**
 
 ### 2. The live Firestore project must be prepared
 
-`kgc-database` exists, but:
+`kgc-conference-app-and-website` exists, but:
 
 - **Rules and indexes have never been deployed.** `firestore.rules` is the
   entire security boundary and it is not in force. Run
@@ -61,7 +93,7 @@ deploy, and the site needs redeploying with it.
 
 | Variable | Notes |
 |---|---|
-| `GCLOUD_PROJECT` | `kgc-database` |
+| `GCLOUD_PROJECT` | `kgc-conference-app-and-website` |
 | `FIREBASE_SERVICE_ACCOUNT` | The whole service-account JSON, as one line |
 | `STRIPE_SECRET_KEY` | Live or test key |
 | `STRIPE_WEBHOOK_SECRET` | From Stripe, after registering the endpoint |
@@ -74,7 +106,7 @@ Do **not** set `FIRESTORE_EMULATOR_HOST`.
 
 | Variable | Notes |
 |---|---|
-| `GCLOUD_PROJECT` | `kgc-database` |
+| `GCLOUD_PROJECT` | `kgc-conference-app-and-website` |
 | `FIREBASE_SERVICE_ACCOUNT` | The whole service-account JSON, as one line |
 | `CONSOLE_ALLOWLIST` | Comma-separated organizer identities. Emails, or a bare username like `demo` |
 | `CONSOLE_PASSPHRASE` | **Required in production.** `openssl rand -base64 24` |
@@ -122,7 +154,7 @@ netlify login
 # Website
 cd apps/web
 netlify init          # create a new site, or link an existing one
-netlify env:set GCLOUD_PROJECT kgc-database
+netlify env:set GCLOUD_PROJECT kgc-conference-app-and-website
 netlify env:set FIREBASE_SERVICE_ACCOUNT "$(cat /path/to/serviceAccount.json | tr -d '\n')"
 netlify env:set WEB_ORDER_SECRET "$(openssl rand -hex 32)"
 # …STRIPE_SECRET_KEY, WEB_PUBLIC_ORIGIN, then STRIPE_WEBHOOK_SECRET after the first deploy
@@ -131,7 +163,7 @@ netlify deploy --build --prod
 # Dashboard
 cd ../organizer
 netlify init
-netlify env:set GCLOUD_PROJECT kgc-database
+netlify env:set GCLOUD_PROJECT kgc-conference-app-and-website
 netlify env:set FIREBASE_SERVICE_ACCOUNT "$(cat /path/to/serviceAccount.json | tr -d '\n')"
 netlify env:set CONSOLE_ALLOWLIST "you@example.com"
 netlify env:set CONSOLE_PASSPHRASE "$(openssl rand -base64 24)"
