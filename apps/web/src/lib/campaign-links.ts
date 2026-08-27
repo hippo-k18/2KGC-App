@@ -55,10 +55,18 @@ export function validCode(code: string): boolean {
 export async function resolveAndCount(code: string): Promise<ResolvedLink | null> {
   if (!validCode(code)) return null;
 
-  const ref = db().collection(COLLECTIONS.campaignLinks).doc(code);
-
+  /**
+   * `db()` is inside the try, not above it.
+   *
+   * It throws when the deployment has no credentials, and an uncaught throw
+   * here is a 500 on a link somebody clicked in an email. A tracked link that
+   * cannot be resolved is a 404 — the same answer an unknown code gets — which
+   * is both the honest status and the one that gets a typo noticed.
+   */
+  let ref;
   let doc: CampaignLinkDoc | undefined;
   try {
+    ref = db().collection(COLLECTIONS.campaignLinks).doc(code);
     const snap = await ref.get();
     if (!snap.exists) return null;
     doc = snap.data() as CampaignLinkDoc;
