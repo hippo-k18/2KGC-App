@@ -1,12 +1,37 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
+const PROJECT_ID = 'kgc-database';
+const FUNCTIONS_REGION = 'us-central1';
+
 export function connectToEmulator(): Firestore {
   if (!process.env.FIRESTORE_EMULATOR_HOST) {
     throw new Error('This test must run against the Firestore emulator (see npm run test:functions).');
   }
-  if (!getApps().length) initializeApp({ projectId: 'kgc-database' });
+  if (!getApps().length) initializeApp({ projectId: PROJECT_ID });
   return getFirestore();
+}
+
+/**
+ * Invokes an `onCall` function against the Functions emulator over plain
+ * HTTP, using the wire format `onCall` itself implements (`{data}` in,
+ * `{result}` or `{error: {status, message}}` out — see
+ * `firebase-functions/lib/common/providers/https.js`). There is no callable
+ * client SDK in this repo's dependencies (only `@firebase/rules-unit-testing`,
+ * for the rules suite), and pulling one in for a single callable would be a
+ * new dependency to save one fetch call.
+ */
+export async function callCallable<T = unknown>(
+  name: string,
+  data: unknown,
+): Promise<{ status: number; result?: T; error?: { status: string; message: string } }> {
+  const res = await fetch(`http://127.0.0.1:5001/${PROJECT_ID}/${FUNCTIONS_REGION}/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data }),
+  });
+  const body = (await res.json()) as { result?: T; error?: { status: string; message: string } };
+  return { status: res.status, ...body };
 }
 
 /**

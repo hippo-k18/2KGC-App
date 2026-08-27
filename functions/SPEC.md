@@ -77,12 +77,31 @@ threads stays client-managed, as today — nothing changes there.
   `npm run test:functions` both include it.
 - `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite`,
   `onPollVoteWrite`/`tallyPoll`, `onQuestionWrite`/`rebuildQaBoard`,
-  `mirrorDirectory`, `onAnnouncementCreate` and `onSessionAgendaChange`
-  (#1–#8) are built and tested against the emulator with seeded data —
-  `tests/functions/`, run via `npm run test:functions`. Each Cloud Tasks
-  queue is auto-detected and emulated by the Firebase CLI as soon as its
-  `onTaskDispatched` function exists in the codebase — no extra emulator
+  `mirrorDirectory`, `onAnnouncementCreate`, `onSessionAgendaChange` and
+  `requestOtp` (#1–#9) are built and tested against the emulator with seeded
+  data — `tests/functions/`, run via `npm run test:functions`. Each Cloud
+  Tasks queue is auto-detected and emulated by the Firebase CLI as soon as
+  its `onTaskDispatched` function exists in the codebase — no extra emulator
   config was needed beyond what #1–#3 already required.
+- `requestOtp` lives at `functions/src/callable/`, a new sibling to
+  `triggers/` — it's an HTTPS callable, not a Firestore trigger, and the
+  directory split mirrors that. Its id scheme (`sha256(normalised email)`,
+  shared by `otpCodes/{id}` and `rateLimits/{id}`) is deliberately set up now
+  so `verifyOtp` (#10) lands on the exact same `otpCodes` document a request
+  wrote, without either function needing to query for it.
+- `OtpCodeDoc` and `RateLimitDoc` were added to `packages/shared/src/models.ts`
+  under a new "Auth — server-only" section, even though nothing outside
+  Cloud Functions ever reads or writes them — `models.ts` is documented as
+  covering every Firestore document shape, and the alternative (typing them
+  only inside `functions/`) would leave `verifyOtp` unable to import the same
+  interface `requestOtp` wrote against.
+- `tests/functions/requestOtp.test.ts` invokes the callable emulator's HTTP
+  endpoint directly (`{data}` in, `{result}`/`{error}` out) rather than
+  through a callable client SDK — this repo has no `firebase` client package
+  as a dependency (only `@firebase/rules-unit-testing`, for the rules suite),
+  and pulling one in to save one `fetch()` call didn't seem worth it. The
+  helper lives in `tests/functions/lib/emulator.ts` as `callCallable()` so
+  `verifyOtp`'s test can reuse it.
 - `onAnnouncementCreate` treats "every doc in `users`" as "every registered
   attendee" rather than checking the `registered` custom claim directly —
   there is no queryable Firestore field for that claim, and checking it for
@@ -166,4 +185,4 @@ threads stays client-managed, as today — nothing changes there.
   again later, and each change is its own notification, so collapsing them
   onto one fixed id would let a second room change silently overwrite the
   first attendee-visible notice instead of adding to it.
-- Remaining: `requestOtp`/`verifyOtp` (#9–#10).
+- Remaining: `verifyOtp` (#10).

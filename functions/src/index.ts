@@ -30,4 +30,5 @@ export { onReactionWrite } from './triggers/on-reaction-write.js';
 export { onReplyWrite } from './triggers/on-reply-write.js';
 export { onSessionAgendaChange } from './triggers/on-session-agenda-change.js';
 export { rebuildQaBoard } from './triggers/rebuild-qa-board.js';
+export { requestOtp } from './callable/request-otp.js';
 export { tallyPoll } from './triggers/tally-poll.js';
