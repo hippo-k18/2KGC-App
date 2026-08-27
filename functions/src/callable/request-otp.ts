@@ -68,6 +68,7 @@ export const requestOtp = onCall<{ email?: unknown }>(async (request) => {
     }
 
     tx.set(rateLimitRef, {
+      eventId: EVENT_ID,
       email,
       count: withinWindow ? rateData!.count + 1 : 1,
       windowStart: withinWindow ? rateData!.windowStart : now,

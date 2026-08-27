@@ -60,12 +60,6 @@ threads stays client-managed, as today — nothing changes there.
    a **newly created** Auth account. A returning account's claims are never
    rewritten, so a role granted by hand survives every sign-in after the one
    it was granted in.
-10. **`verifyOtp` brute-force cap**: 5 wrong guesses tolerated per code:
-    `otpCodes/{id}.attempts` increments on each one, and the call after the
-    fifth — regardless of what code it submits — finds `attempts` already at
-    the cap and invalidates the document outright. This is checked before
-    comparing the submitted code, so a code cannot be redeemed by guessing
-    right on the 6th call.
 7. **`qaBoard/current`**: a strict filter on `state == 'approved'` before
    writing. No unmoderated content in the public document.
 8. **Missing index**: added in this same phase — `firestore.indexes.json`
@@ -74,6 +68,12 @@ threads stays client-managed, as today — nothing changes there.
    saved a given session, across all users.
 9. **`requestOtp` thresholds**: 5 requests per email per hour; a code is
    valid for 10 minutes.
+10. **`verifyOtp` brute-force cap**: 5 wrong guesses tolerated per code:
+    `otpCodes/{id}.attempts` increments on each one, and the call after the
+    fifth — regardless of what code it submits — finds `attempts` already at
+    the cap and invalidates the document outright. This is checked before
+    comparing the submitted code, so a code cannot be redeemed by guessing
+    right on the 6th call.
 
 ## Phase 1 status
 

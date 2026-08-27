@@ -34,6 +34,9 @@ const EMAIL_ALT = 'verifyotp-alt@example.test';
 const EMAIL_ATTEMPTS = 'verifyotp-attempts@example.test';
 const EMAIL_EXPIRED = 'verifyotp-expired@example.test';
 const EMAIL_NO_CODE = 'verifyotp-no-code@example.test';
+const EMAIL_CANCELLED_WITH_ALT = 'verifyotp-cancelled-with-alt@example.test';
+const EMAIL_ALT_PRIMARY_2 = 'verifyotp-alt-primary-2@example.test';
+const EMAIL_HEAL = 'verifyotp-heal@example.test';
 
 const ALL_EMAILS = [
   EMAIL_TICKETED,
@@ -43,6 +46,9 @@ const ALL_EMAILS = [
   EMAIL_ATTEMPTS,
   EMAIL_EXPIRED,
   EMAIL_NO_CODE,
+  EMAIL_CANCELLED_WITH_ALT,
+  EMAIL_ALT_PRIMARY_2,
+  EMAIL_HEAL,
 ];
 
 let db: Firestore;
@@ -50,14 +56,14 @@ let auth: Auth;
 let otpCodesRef: CollectionReference;
 let registrationsRef: CollectionReference;
 
-function registrationFixture(email: string, altEmails: string[] = []) {
+function registrationFixture(email: string, altEmails: string[] = [], status: string = 'active') {
   const now = new Date();
   return {
     eventId: EVENT_ID,
     email,
     emailHash: 'unused-in-test',
     altEmails,
-    status: 'active',
+    status,
     qrSecret: 'test-qr-secret',
     createdAt: now,
     updatedAt: now,
@@ -98,6 +104,17 @@ beforeAll(async () => {
   await registrationsRef
     .doc(registrationId(EMAIL_ALT_PRIMARY))
     .create(registrationFixture(EMAIL_ALT_PRIMARY, [EMAIL_ALT]));
+  // A cancelled primary registration of its own, PLUS a listing as an
+  // altEmail on someone else's active one — regression coverage for
+  // findActiveRegistration() falling through to the altEmails check even
+  // when a primary match exists but isn't active.
+  await registrationsRef
+    .doc(registrationId(EMAIL_CANCELLED_WITH_ALT))
+    .create(registrationFixture(EMAIL_CANCELLED_WITH_ALT, [], 'cancelled'));
+  await registrationsRef
+    .doc(registrationId(EMAIL_ALT_PRIMARY_2))
+    .create(registrationFixture(EMAIL_ALT_PRIMARY_2, [EMAIL_CANCELLED_WITH_ALT]));
+  await registrationsRef.doc(registrationId(EMAIL_HEAL)).create(registrationFixture(EMAIL_HEAL));
 }, 20_000);
 
 afterAll(async () => {
@@ -202,5 +219,29 @@ describe('verifyOtp', () => {
     const res = await callCallable('verifyOtp', { email: 'not-an-email', code: 'abc' });
     expect(res.status).toBe(400);
     expect(res.error?.status).toBe('INVALID_ARGUMENT');
+  }, 20_000);
+
+  it('falls through to an altEmails match when the primary registration exists but is cancelled', async () => {
+    expect((await callCallable('requestOtp', { email: EMAIL_CANCELLED_WITH_ALT })).status).toBe(200);
+    const code = await codeFor(EMAIL_CANCELLED_WITH_ALT);
+
+    const res = await callCallable<{ token: string }>('verifyOtp', { email: EMAIL_CANCELLED_WITH_ALT, code });
+    expect(res.status).toBe(200);
+    expect(res.result?.token.length).toBeGreaterThan(0);
+  }, 20_000);
+
+  it('repairs a claims-less existing account without resetting roles already granted', async () => {
+    const created = await auth.createUser({ email: EMAIL_HEAL, emailVerified: true });
+    expect(created.customClaims).toBeUndefined();
+
+    expect((await callCallable('requestOtp', { email: EMAIL_HEAL })).status).toBe(200);
+    const code = await codeFor(EMAIL_HEAL);
+
+    const res = await callCallable<{ token: string }>('verifyOtp', { email: EMAIL_HEAL, code });
+    expect(res.status).toBe(200);
+
+    const healed = await auth.getUserByEmail(EMAIL_HEAL);
+    expect(healed.uid).toBe(created.uid);
+    expect(healed.customClaims).toEqual({ registered: true, roles: ['attendee'], eventId: EVENT_ID });
   }, 20_000);
 });

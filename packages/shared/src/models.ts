@@ -614,6 +614,7 @@ export interface OtpCodeDoc {
 
 /** `rateLimits/{id}` — same id scheme as `otpCodes`, a fixed window per email. */
 export interface RateLimitDoc {
+  eventId: string;
   email: string;
   count: number;
   windowStart: Timestamp;
