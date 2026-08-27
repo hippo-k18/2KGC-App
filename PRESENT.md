@@ -9,18 +9,14 @@ others while the room watches.
 
 ## Before you stand up
 
-### 1. One click that has to happen first — Firebase Auth
+### 1. Firebase Auth — already done, nothing to do
 
-The attendee app cannot sign anybody in until Firebase Auth is provisioned. It
-has never been switched on for this project, and it cannot be switched on from
-a script: the API refuses on the Spark plan with `BILLING_NOT_ENABLED`, and the
-Admin SDK answers `auth/configuration-not-found`.
+Email/Password is enabled on the project and all fifty demo accounts exist with
+their claims stamped. Verified by signing in for real:
+`amara.okonkwo@example.test` returns a token carrying `registered: true`, which
+is the claim `firestore.rules` gates on.
 
-1. Open <https://console.firebase.google.com/project/kgc-conference-app-and-website/authentication>
-2. **Get started**
-3. **Email/Password** → **Enable** → **Save**. Leave "Email link" off.
-
-Then create the 50 demo accounts and stamp their claims:
+Only re-run this if the accounts are ever wiped:
 
 ```bash
 cd ~/Documents/Claude/Projects/KGC/2KGC-App
@@ -28,8 +24,10 @@ export GOOGLE_APPLICATION_CREDENTIALS="$PWD/.secrets/service-account.json"
 npm run claims -- --confirm-live
 ```
 
-Expect "50 created". **The two websites do not need this** — they were verified
-working without it. Only the phone does.
+**Do not enable Google sign-in.** The app only calls
+`signInWithEmailAndPassword`, and a Google account would arrive with a uid that
+matches no seeded attendee — so it would sign in to an empty profile with no
+`registered` claim and every rule-protected screen would come back blank.
 
 ### 2. Reset the sales, if you have rehearsed
 
@@ -148,7 +146,7 @@ Back to tab 3, and scroll the left-hand navigation.
 | Purchase button does nothing | The server action is cold-starting on Netlify | Wait five seconds; it is slow once, then fast |
 | Orders screen still says Paid 0 | Browser cache | Hard reload — ⌘⇧R |
 | Dashboard bounces back to login | Session cookie expired | Sign in again; the panel has the credentials |
-| App says "email and password do not match" | Step 1 was not done, or `npm run claims` was not run | Skip to Beat 5; the websites are unaffected |
+| App says "email and password do not match" | The account is missing, or you typed a uid like `demo_004` instead of a name | Use `demo` / `123`, or re-run `npm run claims -- --confirm-live` |
 | A dashboard page hangs, then 502s | A Netlify function timed out at 30s | Move on. Do not reload twice on stage |
 
 **Never demo a page you have not opened once today.** The dashboard has 173

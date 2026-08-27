@@ -41,14 +41,18 @@ cannot survive into a real deployment by accident.
 - [x] 1. Create the `(default)` Firestore database — `nam5`, Native, Standard.
 - [x] 2. Publish `firestore.rules` to the live project.
 - [x] 3. Apply all 16 composite indexes and 6 field overrides.
-- [ ] 4. **Provision Firebase Auth and enable Email/Password. Console only, and
-      still outstanding** — the API refuses on Spark with `BILLING_NOT_ENABLED`,
-      and the Admin SDK answers `auth/configuration-not-found` until somebody
-      clicks Get started. Blocks the phone and nothing else.
+- [x] 4. Provision Firebase Auth and enable Email/Password. **Console only** —
+      the API refuses on Spark with `BILLING_NOT_ENABLED`, and the Admin SDK
+      answers `auth/configuration-not-found` until somebody clicks Get started.
+      Done 2026-08-27; `signIn.email` is `{enabled: true, passwordRequired: true}`.
 - [x] 5. Seed the live project — 483 documents: 72 sessions, 45 speakers, 18
       sponsors, 11 ticket types, 50 synthetic attendees.
-- [ ] 6. Create the Auth accounts and stamp the `registered` claim. Waits on 4;
-      the command is in `PRESENT.md`.
+- [x] 6. Create the Auth accounts and stamp the `registered` claim — 50 created,
+      50 sets of claims. Verified by an actual REST sign-in with the app's own
+      web API key: `amara.okonkwo@example.test` returns a token carrying
+      `registered: true`, `roles: [attendee, organizer]`, `eventId: kgc-2027`.
+      Those claims are what `firestore.rules` gates on, so the app's
+      authorization path is now real rather than emulated.
 - [x] 7. Demo mode in `apps/web` — approves on click, cosmetic card box,
       credential panel with one-click fill.
 - [x] 8. Demo mode in `apps/organizer` — credential panel, and a passphrase long
