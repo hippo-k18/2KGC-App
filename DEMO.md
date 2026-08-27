@@ -41,21 +41,29 @@ cannot survive into a real deployment by accident.
 - [x] 1. Create the `(default)` Firestore database — `nam5`, Native, Standard.
 - [x] 2. Publish `firestore.rules` to the live project.
 - [x] 3. Apply all 16 composite indexes and 6 field overrides.
-- [ ] 4. Provision Firebase Auth and enable Email/Password. **Console only** —
-      the API refuses on Spark with `BILLING_NOT_ENABLED`, and the Admin SDK
-      answers `auth/configuration-not-found` until somebody clicks Get started.
-- [ ] 5. Seed the live project: agenda, speakers, sponsors, ticket types,
-      50 synthetic attendees.
-- [ ] 6. Create the Auth accounts and stamp the `registered` claim.
-- [ ] 7. Demo mode in `apps/web`: approve on click, credential panel.
-- [ ] 8. Demo mode in `apps/organizer`: credential panel, live-grade passphrase.
-- [ ] 9. Demo mode in `app/`: point Expo at the live project, keep the
-      credential hint that today is emulator-only.
-- [ ] 10. Netlify environment for both sites, dashboard included — it has no
-      service-account credential at all today and cannot read Firestore.
-- [ ] 11. Build, typecheck, test, commit, push.
-- [ ] 12. Deploy both sites and smoke-test the live URLs.
-- [ ] 13. Write `PRESENT.md` — the run sheet for the day.
+- [ ] 4. **Provision Firebase Auth and enable Email/Password. Console only, and
+      still outstanding** — the API refuses on Spark with `BILLING_NOT_ENABLED`,
+      and the Admin SDK answers `auth/configuration-not-found` until somebody
+      clicks Get started. Blocks the phone and nothing else.
+- [x] 5. Seed the live project — 483 documents: 72 sessions, 45 speakers, 18
+      sponsors, 11 ticket types, 50 synthetic attendees.
+- [ ] 6. Create the Auth accounts and stamp the `registered` claim. Waits on 4;
+      the command is in `PRESENT.md`.
+- [x] 7. Demo mode in `apps/web` — approves on click, cosmetic card box,
+      credential panel with one-click fill.
+- [x] 8. Demo mode in `apps/organizer` — credential panel, and a passphrase long
+      enough that the live-project guard accepts it.
+- [x] 9. Demo mode in `app/` — Expo points at the live project, and the
+      credential hint is no longer emulator-only.
+- [x] 10. Netlify environment for both sites. The dashboard had no
+      service-account credential at all and was serving its in-memory fixture;
+      it now reads the live project.
+- [x] 11. Typecheck (3 apps), 278 tests, commit, push.
+- [x] 12. Both sites deployed and smoke-tested — a purchase driven through the
+      deployed website appeared on the deployed dashboard as `paid`.
+- [x] 13. `PRESENT.md` — the run sheet for the day.
+- [x] 14. `scripts/ops/reset-demo-sales.mjs`, so a rehearsal does not leave the
+      counter at 1 before the real run starts.
 
 ## Things that will bite
 
