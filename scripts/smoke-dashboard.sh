@@ -68,7 +68,7 @@ npm run build >/tmp/smoke-build.log 2>&1 || {
 }
 
 FIRESTORE_EMULATOR_HOST="localhost:$EMULATOR_PORT" \
-GCLOUD_PROJECT=kgc-database \
+GCLOUD_PROJECT=kgc-conference-app-and-website \
 CONSOLE_SESSION_SECRET="$SECRET" \
 CONSOLE_ALLOWLIST=smoke \
   npx next start --port "$PORT" >/tmp/smoke-server.log 2>&1 &

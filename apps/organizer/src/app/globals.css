@@ -2323,3 +2323,112 @@ select.whova-text-input {
   padding: 2px 8px;
   line-height: 18px;
 }
+
+/* ------------------------------------------------------------ demo panel --
+   The credentials strip pinned to the bottom of the sign-in screen while
+   `DEMO_MODE=1`. Styled unlike the rest of the dashboard on purpose — dark and
+   tagged — so nobody reads it as part of the product. See lib/demo-mode.ts.
+   ------------------------------------------------------------------------ */
+.demo-panel {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 16px;
+  z-index: 900;
+  width: min(460px, calc(100vw - 32px));
+  background: #1d2733;
+  color: #f2f5f9;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 36px rgba(15, 22, 33, 0.4);
+  font-size: 0.86rem;
+  overflow: hidden;
+}
+
+.demo-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.demo-panel-tag {
+  background: #f0a500;
+  color: #1a1206;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+
+.demo-panel-toggle {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: inherit;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.demo-panel-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.demo-panel-body {
+  padding: 0 12px 12px;
+}
+
+.demo-panel-note {
+  margin: 0 0 8px;
+  color: rgba(242, 245, 249, 0.7);
+  font-size: 0.8rem;
+}
+
+.demo-panel-rows {
+  display: grid;
+  gap: 4px;
+}
+
+.demo-panel-row {
+  display: grid;
+  grid-template-columns: 74px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.demo-panel-row:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.demo-panel-label {
+  color: rgba(242, 245, 249, 0.6);
+  font-size: 0.76rem;
+}
+
+.demo-panel-value {
+  font-weight: 600;
+}
+
+.demo-panel-value.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.demo-panel-copy {
+  color: rgba(242, 245, 249, 0.45);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}

@@ -69,3 +69,7 @@ firebase-debug.*.log
 
 # Local Netlify folder
 .netlify
+
+# Service-account credentials pulled down from Netlify so the seed scripts can
+# reach the live project. A root credential for the whole Firebase project.
+.secrets/

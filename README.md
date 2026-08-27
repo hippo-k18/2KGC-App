@@ -311,7 +311,7 @@ no credentials or paid plan:**
 4. Restart with a cleared cache: `npm start -- -c`. Env vars are compiled into
    the bundle, so a plain restart is not enough.
 
-**To connect the real `kgc-database` project instead** (for anything beyond
+**To connect the real `kgc-conference-app-and-website` project instead** (for anything beyond
 local development):
 
 1. Get the six `EXPO_PUBLIC_FIREBASE_*` values from Firebase console → Project
@@ -401,7 +401,7 @@ comments describing capabilities the code doesn't actually have yet.*
   counters, the `directory/{uid}` mirror, and the OTP sign-in above are all
   blocked, independent of any billing decision.
 - **Security rules and indexes are written but not deployed** to the real
-  `kgc-database` project. `tests/rules/firestore.test.ts` has 143 tests against
+  `kgc-conference-app-and-website` project. `tests/rules/firestore.test.ts` has 143 tests against
   the emulator, which is not the same as being live in production.
 - **The organizer dashboard (`apps/organizer/`) is the least finished part of
   the whole system** — 17 of Whova's 173 screens carry real data and the rest

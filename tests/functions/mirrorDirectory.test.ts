@@ -74,7 +74,7 @@ describe('mirrorDirectory', () => {
 
   it('mirrors a genuine Firebase Storage photoURL', async () => {
     const storageUrl =
-      'https://firebasestorage.googleapis.com/v0/b/kgc-database.appspot.com/o/avatars%2Fdemo_001%2Favatar.jpg?alt=media';
+      'https://firebasestorage.googleapis.com/v0/b/kgc-conference-app-and-website.appspot.com/o/avatars%2Fdemo_001%2Favatar.jpg?alt=media';
 
     await userRef.update({ photoURL: storageUrl });
 

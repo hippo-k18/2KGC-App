@@ -502,16 +502,26 @@ standing between this file and 1,000 attendees' data.
   so the cache is memory-only and a cold start with no network renders nothing.
   Real offline needs the `@react-native-firebase/*` migration in WP-06 — which
   is also the single most persuasive moment in the demo script.
-- **The Firebase project exists but isn't fully provisioned.** `kgc-database`
-  (display name "kgc-2026", project number `669841225737`) exists. Firestore's
-  `(default)` database exists too: **Native mode, Standard edition, location
-  `nam5`** (US multi-region) — that location is permanent and cannot be changed.
-  `.env.local` exists and is populated with all six `EXPO_PUBLIC_FIREBASE_*`
-  values (though see the note above — it needs to live in `app/.env.local`, not
-  the repo root, for Expo to actually pick it up). **The project is still on the
-  Spark plan**, so Cloud Functions cannot be deployed yet — that blocks WP-02
-  until it's upgraded to Blaze. Rules and indexes are written but **never
-  deployed**.
+- **The Firebase project is provisioned and live.** `kgc-conference-app-and-website`
+  (display name "KGC conference app and website", project number `446276480921`)
+  exists. Two facts this file asserted for months were simply wrong and are
+  corrected here: the project number was never `669841225737`, and the
+  `(default)` Firestore database **did not exist** — `firestore:databases:list`
+  returned nothing until it was created on 2026-08-27. It is now **Native mode,
+  Standard edition, location `nam5`** (US multi-region), which is permanent.
+  `app/.env.local` holds all six `EXPO_PUBLIC_FIREBASE_*` values and points at
+  the live project. **Rules and all 16 indexes are deployed** as of 2026-08-27,
+  and the project holds the seeded demo event — 483 documents. **The project is
+  still on the Spark plan**, so Cloud Functions cannot be deployed; that blocks
+  WP-02 and nothing else. See `DEMO.md`.
+- **Deploys do not go through the `firebase` CLI.** Every CLI deploy pre-flights
+  against `serviceusage.googleapis.com`, and no identity on this project holds
+  `serviceusage.services.use` — not the signed-in owner, not the Admin SDK
+  service account. `scripts/ops/deploy-rules.mjs` and
+  `scripts/ops/deploy-indexes.mjs` call the underlying Firebase Rules and
+  Firestore Admin APIs directly, which do not require that permission. Rules
+  take two identities: the service account may create a ruleset, only the human
+  may publish one.
 - **The aggregate triggers exist and are not deployed**, which is a narrower
   gap than this file claimed for months. `replyCount`, `reactionCount`,
   `upvoteCount`, `tallies`, `totalVotes` and `directory/{uid}` are all

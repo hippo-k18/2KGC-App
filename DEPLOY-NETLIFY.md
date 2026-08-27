@@ -63,22 +63,29 @@ Firebase console → Project settings → Service accounts → *Generate new pri
 key*. That gives you a JSON file.
 
 Netlify has no filesystem to point `GOOGLE_APPLICATION_CREDENTIALS` at, so the
-JSON goes in an environment variable instead and `src/lib/firestore.ts` needs
-one small change to read it — see "Known gap" at the bottom. **Treat that file
-as a root credential for the whole project.**
+JSON goes in `FIREBASE_SERVICE_ACCOUNT` instead, which both apps already read.
+**Treat that file as a root credential for the whole project.** Both sites hold
+a copy today.
 
-### 2. The live Firestore project must be prepared
+### 2. The live Firestore project — prepared, 2026-08-27
 
-`kgc-conference-app-and-website` exists, but:
+`kgc-conference-app-and-website` is ready:
 
-- **Rules and indexes have never been deployed.** `firestore.rules` is the
-  entire security boundary and it is not in force. Run
-  `npm run deploy:rules` before anything real touches the project.
-- **It has no data.** Everything verified so far ran against the emulator. A
-  deployed dashboard would open onto an empty event until the agenda is
-  imported (`npm run import:whova`).
+- The `(default)` database exists — Native, Standard, `nam5`. It did not before;
+  `AGENTS.md` claimed otherwise for months.
+- **Rules and all 16 indexes are deployed.** Not with `npm run deploy:rules` —
+  that shells out to the `firebase` CLI, which cannot get past its own
+  serviceusage precheck with the roles on this project. Use
+  `node scripts/ops/deploy-rules.mjs` and `node scripts/ops/deploy-indexes.mjs`,
+  which call the same APIs directly.
+- **It holds the seeded demo event** — 483 documents, plus whatever orders the
+  demo has since written. Replace with `npm run import:whova` when the real
+  agenda arrives.
 
-### 3. Stripe keys, for the website only
+### 3. Stripe keys, for the website only — not used by the demo
+
+`DEMO_MODE=1` approves the payment without Stripe. This section applies the day
+a real account is added.
 
 `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The webhook secret comes from
 the Stripe dashboard once you register the endpoint at
@@ -98,7 +105,8 @@ deploy, and the site needs redeploying with it.
 | `STRIPE_SECRET_KEY` | Live or test key |
 | `STRIPE_WEBHOOK_SECRET` | From Stripe, after registering the endpoint |
 | `WEB_ORDER_SECRET` | `openssl rand -hex 32`. Signs the order-confirmation capability token |
-| `WEB_PUBLIC_ORIGIN` | The deployed origin, e.g. `https://kgc-2027.netlify.app` |
+| `WEB_PUBLIC_ORIGIN` | The deployed origin, e.g. `https://kgc-2027-website.netlify.app` |
+| `DEMO_MODE` | `1` approves the payment on the button, shows the card box and prints the buyer details. Never set alongside a real `STRIPE_SECRET_KEY` |
 
 Do **not** set `FIRESTORE_EMULATOR_HOST`.
 
@@ -111,6 +119,7 @@ Do **not** set `FIRESTORE_EMULATOR_HOST`.
 | `CONSOLE_ALLOWLIST` | Comma-separated organizer identities. Emails, or a bare username like `demo` |
 | `CONSOLE_PASSPHRASE` | **Required in production.** `openssl rand -base64 24` |
 | `CONSOLE_SESSION_SECRET` | A fresh `openssl rand -hex 32` — never the dev value |
+| `DEMO_MODE` | `1` prints the sign-in credentials on the login screen. Remove it the moment the data behind the dashboard is real |
 
 A short passphrase such as `123` is allowed **only** when the dashboard is
 pointed at a Firestore emulator. Against the live project, anything under
@@ -176,24 +185,25 @@ In the Netlify UI, set each site's **base directory** to `apps/web` /
 
 ---
 
-## Known gap: credentials from an environment variable
+## Credentials from an environment variable — done
 
-`src/lib/firestore.ts` in both apps currently reads
-`GOOGLE_APPLICATION_CREDENTIALS`, a *path*. Netlify has no such file. Both need
-to accept `FIREBASE_SERVICE_ACCOUNT` — the JSON itself — and call
-`cert(JSON.parse(...))`.
+Both apps' `src/lib/firestore.ts` now accept **either** form: a path in
+`GOOGLE_APPLICATION_CREDENTIALS`, which is the convention on a laptop, or the
+service-account JSON itself in `FIREBASE_SERVICE_ACCOUNT`, which is the only
+form a serverless host can carry. The path wins when both are set. This was
+listed here as an unmade change for some time; it has been made, and both sites
+are deployed and reading the live project through it.
 
-It is a few lines in one function per app, but it is a change to the module
-that decides what credential the server runs as, and it has not been made or
-tested against the live project yet. Do it deliberately, not as part of a
-deploy.
+## Status, 2026-08-27
 
-## What has never been tested
-
-- Neither app has ever been built by Netlify. The `file:../../` workspace
-  dependencies are the most likely thing to break there.
-- Neither app has ever run against the live Firestore project. Everything
-  verified so far used the emulator, which **does not enforce composite
-  indexes** — so a query that works locally can fail in production with
-  `failed-precondition`. `AGENTS.md` records that shipping twice.
-- The Stripe webhook has never received a live event.
+- Both apps now run against the **live** Firestore project, and a purchase has
+  been driven end to end through the website: order `paid`, `quantitySold`
+  incremented, claim code issued. See `DEMO.md`.
+- All 16 composite indexes are deployed, which is what makes that true — the
+  emulator does not enforce them, so this was the outstanding risk.
+- **The Stripe webhook has still never received a live event**, and will not:
+  the demo runs with `DEMO_MODE=1` and no Stripe account. That path is
+  unexercised and should be treated as untested when a real account is added.
+- Builds are still run locally and uploaded. Neither site is built by Netlify
+  from the repository, so the `file:../../` workspace dependencies remain
+  unproven there.

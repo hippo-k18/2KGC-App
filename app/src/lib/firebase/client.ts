@@ -89,7 +89,7 @@ function firebaseApp(): FirebaseApp {
   return initializeApp({
     ...config,
     // The emulator ignores these but the SDK still requires them to be present.
-    projectId: config.projectId || 'kgc-database',
+    projectId: config.projectId || 'kgc-conference-app-and-website',
     apiKey: config.apiKey || 'emulator',
     appId: config.appId || 'emulator',
   } as Required<typeof config>);

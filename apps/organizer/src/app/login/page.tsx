@@ -3,11 +3,17 @@ import { EVENT } from '@kgc/shared';
 import { currentSession, requirePassphrase } from '@/lib/auth';
 import { targetDescription } from '@/lib/firestore';
 import { LoginForm } from './login-form';
+import { DemoPanel } from '@/components/demo-panel';
+import { demoCredentials, demoMode } from '@/lib/demo-mode';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage() {
   if (await currentSession()) redirect('/content/basics');
+
+  // Read here rather than inside the panel: `demo-mode.ts` is `server-only` and
+  // the panel is a client component, so the values have to cross as props.
+  const credentials = demoMode() ? demoCredentials() : null;
 
   return (
     <div className="login-shell">
@@ -33,6 +39,17 @@ export default async function LoginPage() {
           </div>
         </div>
       </div>
+
+      {credentials ? (
+        <DemoPanel
+          title="Organizer sign-in"
+          note="Click a value to copy it. Both fields are required."
+          rows={[
+            { label: 'Email', value: credentials.email },
+            { label: 'Password', value: credentials.passphrase, mono: true },
+          ]}
+        />
+      ) : null}
     </div>
   );
 }

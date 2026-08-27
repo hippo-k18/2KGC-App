@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
+import { demoMode } from '@/lib/demo';
 import { APP_DISTRIBUTION, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -44,7 +45,13 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
           You’re registered for KGC 2027
         </h1>
 
-        {payload.demo ? (
+        {payload.demo && demoMode() ? (
+          <p className="notice warn">
+            <strong>Payment approved — demo.</strong> The order is recorded as paid and appears on
+            the organizer dashboard exactly as a real sale would, but no card was charged and no
+            receipt was emailed. The ticket below is real: the app will accept this claim code.
+          </p>
+        ) : payload.demo ? (
           <p className="notice warn">
             <strong>No payment was taken.</strong> This deployment has no payment processor
             configured, so this was a test purchase. Your registration is real and the mobile app

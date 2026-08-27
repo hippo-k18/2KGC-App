@@ -51,6 +51,35 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
 const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
 
 /**
+ * Demo mode against the **live** project.
+ *
+ * The paragraph above says the `demo` / `123` shortcut is confined to the
+ * emulator, and until 2026-08-27 that was the whole story. It is not any more:
+ * the demo now runs on `kgc-conference-app-and-website`, because a phone in a
+ * conference room cannot reach an emulator on a laptop and the point of the
+ * demo is that the app, the website and the dashboard all see the same data.
+ *
+ * What that costs, stated plainly rather than left to be discovered: the
+ * shortcut now resolves to a **real Firebase account**, with a password printed
+ * on this screen, on a live project. Three things make that acceptable and all
+ * three have to stay true:
+ *
+ *   1. Every attendee in that project is synthetic — invented by
+ *      `scripts/src/seed-demo.ts`, not imported from the real Whova list.
+ *   2. The account carries the ordinary `attendee` role, and `firestore.rules`
+ *      is deployed and enforcing.
+ *   3. `OPEN_SIGNIN` below — the bypass that accepts *any* input — is NOT
+ *      extended here. It stays emulator-only.
+ *
+ * The moment a real attendee list is imported, this flag has to come out and be
+ * replaced by the OTP flow (WP-02).
+ */
+const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE === '1';
+
+/** Where the typing shortcuts and the printed credentials are available. */
+const SHORTCUTS = USE_EMULATOR || DEMO_MODE;
+
+/**
  * Open sign-in: anything typed in either field signs you in as the demo
  * attendee, and both fields may be left empty.
  *
@@ -96,10 +125,10 @@ function resolveCredentials(username: string, password: string) {
   if (OPEN_SIGNIN) {
     return { email: DEMO_EMAIL, password: DEMO_REAL_PASSWORD };
   }
-  if (USE_EMULATOR && u === DEMO_USERNAME && password === DEMO_PASSCODE) {
+  if (SHORTCUTS && u === DEMO_USERNAME && password === DEMO_PASSCODE) {
     return { email: DEMO_EMAIL, password: DEMO_REAL_PASSWORD };
   }
-  if (USE_EMULATOR && !u.includes('@') && u) {
+  if (SHORTCUTS && !u.includes('@') && u) {
     return { email: `${u}@example.test`, password: password || DEMO_REAL_PASSWORD };
   }
   return { email: username.trim(), password };
@@ -110,8 +139,8 @@ export default function LoginScreen() {
   const { user, loading } = useAuth();
   // Prefilled in emulator mode. The fastest sign-in on stage is one that needs
   // no typing at all, and the credentials are printed below the form anyway.
-  const [email, setEmail] = useState(USE_EMULATOR ? DEMO_USERNAME : '');
-  const [password, setPassword] = useState(USE_EMULATOR ? DEMO_PASSCODE : '');
+  const [email, setEmail] = useState(SHORTCUTS ? DEMO_USERNAME : '');
+  const [password, setPassword] = useState(SHORTCUTS ? DEMO_PASSCODE : '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -188,15 +217,15 @@ export default function LoginScreen() {
             value={email}
             onChangeText={setEmail}
             style={field}
-            placeholder={USE_EMULATOR ? 'Username' : 'Email'}
+            placeholder={SHORTCUTS ? 'Username' : 'Email'}
             placeholderTextColor={colors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
             // Not `email-address` in emulator mode: that keyboard leads with an
             // "@" key for a field whose expected value is the word "demo".
-            keyboardType={USE_EMULATOR ? 'default' : 'email-address'}
-            textContentType={USE_EMULATOR ? 'username' : 'emailAddress'}
-            accessibilityLabel={USE_EMULATOR ? 'Username' : 'Email address'}
+            keyboardType={SHORTCUTS ? 'default' : 'email-address'}
+            textContentType={SHORTCUTS ? 'username' : 'emailAddress'}
+            accessibilityLabel={SHORTCUTS ? 'Username' : 'Email address'}
             onSubmitEditing={submit}
           />
 
@@ -251,7 +280,7 @@ export default function LoginScreen() {
             </Text>
             . Any email and password work, including none at all.
           </Text>
-        ) : USE_EMULATOR ? (
+        ) : SHORTCUTS ? (
           <View style={{ gap: 4 }}>
             {/*
               Printed rather than remembered. The fields arrive prefilled, so this

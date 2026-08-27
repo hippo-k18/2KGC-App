@@ -125,7 +125,7 @@ fonctionne.
 Seulement une fois les Phases 1 à 4 testées et stables en local :
 
 1. Mettre en place une alerte de budget GCP (avant toute autre chose).
-2. Passer `kgc-database` sur Blaze.
+2. Passer `kgc-conference-app-and-website` sur Blaze.
 3. Déployer les règles et les index (`npm run deploy:rules`) — écrits depuis
    le début, jamais appliqués en prod à ce jour.
 4. Déployer les Cloud Functions.

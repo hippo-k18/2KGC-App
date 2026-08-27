@@ -45,7 +45,7 @@ beforeAll(() => {
         'never run against the live project. Use: npm run test:commerce',
     );
   }
-  if (!getApps().length) initializeApp({ projectId: 'kgc-database' });
+  if (!getApps().length) initializeApp({ projectId: 'kgc-conference-app-and-website' });
   db = getFirestore();
   db.settings({ ignoreUndefinedProperties: true });
 });

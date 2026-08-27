@@ -5,6 +5,7 @@ import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
+import { demoMode } from '@/lib/demo';
 import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
 
@@ -271,6 +272,7 @@ export default async function TicketsPage({
               tiers={tiers}
               initialTier={preselected}
               stripeReady={stripeEnabled()}
+              demo={demoMode()}
               questions={form.fields}
             />
           ) : (

@@ -10,6 +10,7 @@ import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
 import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import { sendPurchaseConfirmation } from '@/lib/email';
+import { demoMode } from '@/lib/demo';
 
 /**
  * Starting a purchase.
@@ -120,13 +121,26 @@ export async function startCheckout(
   const campaignCode = validCode(ref) ? ref : undefined;
 
   // ---------------------------------------------------------------------
-  // No Stripe account configured: complete the purchase as a clearly
-  // labelled test, taking no money. The registration written is byte-for-byte
-  // the one a real payment would write, because that data path is the whole
-  // point of the demo — but the order is recorded as `pending`, not `paid`,
-  // and the confirmation page says in as many words that nothing was charged.
+  // No Stripe account configured: complete the purchase without taking money.
+  // The registration written is byte-for-byte the one a real payment would
+  // write, because that data path is the whole point of the demo. Whether the
+  // *order* is `paid` or `pending` is the one thing DEMO_MODE changes — see
+  // `approved` below — and either way the confirmation page says plainly that
+  // no card was charged.
   // ---------------------------------------------------------------------
   if (!stripeEnabled()) {
+    /**
+     * Demo mode marks the order `paid`.
+     *
+     * Without it the order lands as `pending`, which is the honest state for a
+     * site that has no payment processor — but it also means the dashboard's
+     * revenue, its orders list and its attendee export all treat the sale as
+     * money that has not arrived, so the most persuasive thirty seconds of the
+     * demo shows nothing. `channel: 'demo'` below is what keeps it impossible
+     * to mistake for real revenue; the status is what makes the screens behave.
+     */
+    const approved = demoMode();
+
     const result = await fulfilPurchase({
       email,
       name,
@@ -136,10 +150,10 @@ export async function startCheckout(
       externalId: `demo_${tierId}_${email.toLowerCase()}`,
       amountCents: tier.priceCents,
       currency: tier.currency,
-      paid: false,
+      paid: approved,
       // `channel: 'demo'` is the field that makes a test purchase impossible to
-      // mistake for a real one in an export. `status: 'pending'` alone says the
-      // money has not arrived; it does not say no money was ever asked for.
+      // mistake for a real one in an export — and in demo mode it is the *only*
+      // one, because the status now says `paid` like any other sale.
       channel: 'demo',
       tierId: tier.id,
       campaignCode,

@@ -6,6 +6,8 @@ import type { QuestionFieldDef } from '@kgc/shared';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
+import { DemoPanel } from '@/components/demo-panel';
+import { DEMO_BUYER } from '@/lib/demo-credentials';
 
 /**
  * The purchase form.
@@ -23,6 +25,7 @@ export function CheckoutForm({
   tiers,
   initialTier,
   stripeReady,
+  demo = false,
   questions = [],
 }: {
   /**
@@ -35,6 +38,11 @@ export function CheckoutForm({
   tiers: Tier[];
   initialTier: TicketId;
   stripeReady: boolean;
+  /**
+   * Demo mode, passed down rather than read here: `demoMode()` is `server-only`
+   * and this component runs in the browser.
+   */
+  demo?: boolean;
   /**
    * The organizer's registration questions, or none.
    *
@@ -51,6 +59,18 @@ export function CheckoutForm({
   // least inclined to.
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  /**
+   * The card box, in demo mode only.
+   *
+   * These three values are held in React state and rendered into inputs that
+   * carry **no `name` attribute**, so the browser never serialises them into the
+   * FormData the server action receives. That is the whole safety property: a
+   * payment form that looks like one, that cannot transmit a card number even by
+   * accident. Nothing validates them and nothing reads them.
+   */
+  const [card, setCard] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvc, setCvc] = useState('');
   // `?? tiers[0]` rather than a non-null assertion: the preselected id comes
   // from a query string, and a tier hidden in the dashboard between page load
   // and this render would otherwise crash the whole form.
@@ -66,13 +86,19 @@ export function CheckoutForm({
         </p>
       )}
 
-      {!stripeReady && (
+      {demo ? (
+        <p className="notice warn">
+          <strong>Demo.</strong> The card box below is for show — it is never submitted and no card
+          is charged. Everything after the button is real: the registration, the order, the claim
+          code, and the sale appearing on the organizer dashboard.
+        </p>
+      ) : !stripeReady ? (
         <p className="notice warn">
           <strong>Test mode.</strong> No payment processor is configured on this deployment, so the
           button below completes the registration without taking any money. Nothing is charged and
           no card details are collected.
         </p>
-      )}
+      ) : null}
 
       <div className="field">
         <label htmlFor="tier">Ticket</label>
@@ -125,18 +151,75 @@ export function CheckoutForm({
       */}
       <Questions fields={questions} ticketTypeId={tier} errors={state.fieldErrors} />
 
+      {demo ? (
+        <fieldset className="demo-card">
+          <legend>Card</legend>
+          <div className="demo-card-grid">
+            <input
+              aria-label="Card number"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="Card number"
+              value={card}
+              onChange={(e) => setCard(e.target.value)}
+            />
+            <input
+              aria-label="Expiry"
+              autoComplete="off"
+              placeholder="MM / YY"
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+            />
+            <input
+              aria-label="CVC"
+              autoComplete="off"
+              placeholder="CVC"
+              value={cvc}
+              onChange={(e) => setCvc(e.target.value)}
+            />
+          </div>
+        </fieldset>
+      ) : null}
+
       <div className="summary">
         <span>{selected.name}</span>
         <span>{formatPrice(selected.priceCents, selected.currency)}</span>
       </div>
 
-      <SubmitButton stripeReady={stripeReady} price={formatPrice(selected.priceCents, selected.currency)} />
+      <SubmitButton
+        stripeReady={stripeReady}
+        demo={demo}
+        price={formatPrice(selected.priceCents, selected.currency)}
+      />
 
       <p className="hint" style={{ marginTop: 12 }}>
-        {stripeReady
-          ? 'You will be taken to Stripe to pay. Card details never touch this site.'
-          : 'No payment is taken. Your registration is written exactly as a paid one would be.'}
+        {demo
+          ? 'Approved on the spot. The order is recorded as a real sale and marked `demo` so it can never be counted as revenue.'
+          : stripeReady
+            ? 'You will be taken to Stripe to pay. Card details never touch this site.'
+            : 'No payment is taken. Your registration is written exactly as a paid one would be.'}
       </p>
+
+      {demo ? (
+        <DemoPanel
+          title="Buy a ticket"
+          note="Click any value to copy it, or fill the whole form at once."
+          rows={[
+            { label: 'Name', value: DEMO_BUYER.name },
+            { label: 'Email', value: DEMO_BUYER.email },
+            { label: 'Card', value: DEMO_BUYER.card, mono: true },
+            { label: 'Expiry', value: DEMO_BUYER.expiry, mono: true },
+            { label: 'CVC', value: DEMO_BUYER.cvc, mono: true },
+          ]}
+          onFill={() => {
+            setName(DEMO_BUYER.name);
+            setEmail(DEMO_BUYER.email);
+            setCard(DEMO_BUYER.card);
+            setExpiry(DEMO_BUYER.expiry);
+            setCvc(DEMO_BUYER.cvc);
+          }}
+        />
+      ) : null}
     </form>
   );
 }
@@ -147,15 +230,25 @@ export function CheckoutForm({
  * returns `pending: false`. The redirect to Stripe takes a moment, and a
  * button that does not visibly change is a button people click twice.
  */
-function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: string }) {
+function SubmitButton({
+  stripeReady,
+  demo,
+  price,
+}: {
+  stripeReady: boolean;
+  demo: boolean;
+  price: string;
+}) {
   const { pending } = useFormStatus();
   return (
     <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
       {pending
-        ? 'Working…'
-        : stripeReady
-          ? `Pay ${price} with Stripe`
-          : 'Register — no payment taken'}
+        ? 'Approving…'
+        : demo
+          ? `Pay ${price}`
+          : stripeReady
+            ? `Pay ${price} with Stripe`
+            : 'Register — no payment taken'}
     </button>
   );
 }

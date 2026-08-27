@@ -285,7 +285,7 @@ keys with a real card you then refund.
    `WEB_ORDER_SECRET` must be **the same string** on both, or confirmation links
    minted by the dashboard will not verify on the website.
 
-   Service account JSON: <https://console.firebase.google.com/project/kgc-database/settings/serviceaccounts/adminsdk>
+   Service account JSON: <https://console.firebase.google.com/project/kgc-conference-app-and-website/settings/serviceaccounts/adminsdk>
    Paste the whole file as one line; the code repairs Netlify's escaped newlines.
 
 4. **Seed ticket types into production**, once:

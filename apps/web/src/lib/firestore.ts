@@ -26,7 +26,7 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 export function db(): Firestore {
   if (!getApps().length) {
     const emulator = process.env.FIRESTORE_EMULATOR_HOST;
-    const projectId = process.env.GCLOUD_PROJECT ?? 'kgc-database';
+    const projectId = process.env.GCLOUD_PROJECT ?? 'kgc-conference-app-and-website';
 
     if (emulator) {
       initializeApp({ projectId });
@@ -88,5 +88,5 @@ export function db(): Firestore {
 export function targetDescription(): string {
   return process.env.FIRESTORE_EMULATOR_HOST
     ? `emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`
-    : `PROJECT ${process.env.GCLOUD_PROJECT ?? 'kgc-database'} (LIVE)`;
+    : `PROJECT ${process.env.GCLOUD_PROJECT ?? 'kgc-conference-app-and-website'} (LIVE)`;
 }

@@ -7,7 +7,7 @@
  * will in production.
  *
  * Requires both emulators running under the same project id the function is
- * loaded into (`kgc-database`, from `.firebaserc`) and seeded data already
+ * loaded into (`kgc-conference-app-and-website`, from `.firebaserc`) and seeded data already
  * present. Run with: npm run test:functions
  */
 import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';

@@ -5,7 +5,7 @@ export function connectToEmulator(): Firestore {
   if (!process.env.FIRESTORE_EMULATOR_HOST) {
     throw new Error('This test must run against the Firestore emulator (see npm run test:functions).');
   }
-  if (!getApps().length) initializeApp({ projectId: 'kgc-database' });
+  if (!getApps().length) initializeApp({ projectId: 'kgc-conference-app-and-website' });
   return getFirestore();
 }
 
