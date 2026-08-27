@@ -411,6 +411,19 @@ standing between this file and 1,000 attendees' data.
   reasoning about whether `onAnnouncementCreate`'s fan-out (which treats
   every `users/{uid}` doc as a registered attendee) could reach a real,
   non-seeded participant. It can.
+- **Check-in rules are resolved, not a gap.** `checkInLists`, `checkIns`,
+  `scanEvents` and `checkInStations` are not left to bare default-deny —
+  `firestore.rules` has an explicit `allow write: if false` on every one of
+  them (organizer-`read` on the first three, `get`-only plus `isMyCheckIn()`
+  on `checkIns`), by design: the console writes them with the Admin SDK,
+  which bypasses rules entirely, so a client-facing rule can safely be
+  `false` and lose nothing. See "Attendees cannot check themselves in" under
+  Security model above, and the `check-in` suite in
+  `tests/rules/firestore.test.ts`, which already exercises all four
+  collections. A stale claim that these collections "have no rules at all"
+  sat in this file's own Suggested next steps until 2026-08-27, found while
+  working `BACKEND-ROADMAP.md`'s Phase 2 — which had already flagged the
+  same line as false.
 - **Offline does not work yet.** Several comments claim it does; they are
   aspirational. The Firebase **JS** SDK has no disk persistence on React Native,
   so the cache is memory-only and a cold start with no network renders nothing.
@@ -459,8 +472,5 @@ standing between this file and 1,000 attendees' data.
    the owner has said must end up "almost identical" to Whova's. Its
    `src/lib/nav.ts` encodes Whova's IA as 163 nodes and mislabels many of them
    "built" when they are view-only — do not trust it as a progress map.
-3. Finish check-in: `checkInLists`, `checkIns`, `scanEvents` and `checkInStations`
-   are modelled and have **no rules at all**, so default-deny is currently the
-   only thing protecting them.
-4. Session Q&A and live polls exist as components but their tallies are inert
+3. Session Q&A and live polls exist as components but their tallies are inert
    until (1).
