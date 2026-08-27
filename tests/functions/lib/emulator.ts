@@ -1,4 +1,5 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 const PROJECT_ID = 'kgc-database';
@@ -10,6 +11,15 @@ export function connectToEmulator(): Firestore {
   }
   if (!getApps().length) initializeApp({ projectId: PROJECT_ID });
   return getFirestore();
+}
+
+/** For `verifyOtp` (functions/SPEC.md #10), which mints real Auth accounts. */
+export function connectAuthEmulator(): Auth {
+  if (!process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    throw new Error('This test must run against the Auth emulator (see npm run test:functions).');
+  }
+  if (!getApps().length) initializeApp({ projectId: PROJECT_ID });
+  return getAuth();
 }
 
 /**

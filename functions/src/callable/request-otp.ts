@@ -1,29 +1,17 @@
-import { createHash, randomInt } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import type { OtpCodeDoc, RateLimitDoc } from '@kgc/shared';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { normaliseEmail, otpDocId } from '../lib/otp.js';
+
 const CODE_TTL_MINUTES = 10;
 const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const normaliseEmail = (email: string) => email.trim().toLowerCase();
-
-/**
- * Deterministic across `requestOtp` and `verifyOtp` (functions/SPEC.md #10,
- * not yet written) — both must land on the same `otpCodes/{id}`, and this
- * doubles as the id for `rateLimits/{id}` since the two collections are
- * separate namespaces. Not `registrationId` from `scripts/src/lib/ids.ts`:
- * that id ties a hash to the *ticket list*, and this flow deliberately never
- * looks at `registrations` at all — see the docblock below.
- */
-function otpDocId(email: string): string {
-  return createHash('sha256').update(email).digest('hex').slice(0, 24);
-}
 
 function generateCode(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, '0');
