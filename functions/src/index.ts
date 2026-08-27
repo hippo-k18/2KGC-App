@@ -28,5 +28,6 @@ export { onQuestionUpvoteWrite } from './triggers/on-question-upvote-write.js';
 export { onQuestionWrite } from './triggers/on-question-write.js';
 export { onReactionWrite } from './triggers/on-reaction-write.js';
 export { onReplyWrite } from './triggers/on-reply-write.js';
+export { onSessionAgendaChange } from './triggers/on-session-agenda-change.js';
 export { rebuildQaBoard } from './triggers/rebuild-qa-board.js';
 export { tallyPoll } from './triggers/tally-poll.js';

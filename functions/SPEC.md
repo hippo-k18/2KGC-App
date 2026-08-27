@@ -77,12 +77,12 @@ threads stays client-managed, as today — nothing changes there.
   `npm run test:functions` both include it.
 - `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite`,
   `onPollVoteWrite`/`tallyPoll`, `onQuestionWrite`/`rebuildQaBoard`,
-  `mirrorDirectory` and `onAnnouncementCreate` (#1–#7) are built and tested
-  against the emulator with seeded data — `tests/functions/`, run via
-  `npm run test:functions`. Each Cloud Tasks queue is auto-detected and
-  emulated by the Firebase CLI as soon as its `onTaskDispatched` function
-  exists in the codebase — no extra emulator config was needed beyond what
-  #1–#3 already required.
+  `mirrorDirectory`, `onAnnouncementCreate` and `onSessionAgendaChange`
+  (#1–#8) are built and tested against the emulator with seeded data —
+  `tests/functions/`, run via `npm run test:functions`. Each Cloud Tasks
+  queue is auto-detected and emulated by the Firebase CLI as soon as its
+  `onTaskDispatched` function exists in the codebase — no extra emulator
+  config was needed beyond what #1–#3 already required.
 - `onAnnouncementCreate` treats "every doc in `users`" as "every registered
   attendee" rather than checking the `registered` custom claim directly —
   there is no queryable Firestore field for that claim, and checking it for
@@ -154,5 +154,16 @@ threads stays client-managed, as today — nothing changes there.
   console can reach them; the functions emulator is only ever called by other
   local emulators (Cloud Tasks, Eventarc) and the CLI itself, never directly
   by a device.
-- Remaining: `onSessionAgendaChange` (#8) and `requestOtp`/`verifyOtp`
-  (#9–#10).
+- `onSessionAgendaChange` (#8) is not debounced, unlike #4/#5 — a room/time/
+  day change or a cancellation is rare enough per session, and important
+  enough per attendee, that batching it behind a Cloud Tasks queue would only
+  add latency for no real benefit. It gates on `before.status`, not
+  `after.status`: a session that *was* published is the one attendees could
+  have saved, so that's the check that matters, and checking it this way
+  is also what lets a published→cancelled transition still notify on its way
+  out. The notification id is the triggering event's own id (`event.id`),
+  not `sessionId` like `onAnnouncementCreate` uses — a session can change
+  again later, and each change is its own notification, so collapsing them
+  onto one fixed id would let a second room change silently overwrite the
+  first attendee-visible notice instead of adding to it.
+- Remaining: `requestOtp`/`verifyOtp` (#9–#10).
