@@ -1,0 +1,37 @@
+# Netlify build for the attendee app, exported to the web.
+#
+# This exists so the demo does not depend on the presenter's Wi-Fi. Expo Go
+# loads its JavaScript from a Metro server on the laptop, which means the phone
+# has to be on the same network — useless in a conference room and impossible
+# over cellular. `expo export --platform web` produces a static bundle instead,
+# so anyone with the URL can open the app on any device, on any network, with
+# nothing installed.
+#
+# Built locally and uploaded, like the other two sites. There is no build
+# command here because Netlify would have to install the whole Expo toolchain
+# to run one.
+
+[build]
+  # `base` matters even with no build command: Netlify resolves `publish`
+  # from the repository root, not from this file, so a bare "dist" points at
+  # the monorepo root and the deploy fails with "directory has not been found".
+  base = "app"
+  publish = "dist"
+
+# Expo Router's static output writes a real HTML file per route, so Netlify's
+# own file serving handles almost everything. This is the fallback for the
+# routes it cannot pre-render — `/(tabs)/agenda/[id]` and friends, whose paths
+# are only known at runtime. It is last, and Netlify serves an existing file in
+# preference to a rewrite, so it cannot shadow the assets.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# The app holds no secret — its Firebase config is public by design and the
+# security boundary is firestore.rules — but it is a demo, not a product, and
+# it should not turn up in search results.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

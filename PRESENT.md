@@ -50,6 +50,7 @@ would remove first.
 | 1 — Website | <https://kgc-2027-website.netlify.app> |
 | 2 — Tickets | <https://kgc-2027-website.netlify.app/tickets#buy> |
 | 3 — Dashboard | <https://kgc-2027-dashboard.netlify.app/login> |
+| 4 — Attendee app | <https://kgc-2027-app.netlify.app> |
 
 Sign into tab 3 **before** you start talking. The credentials are printed in the
 dark panel at the bottom of the login screen — click a value to copy it.
@@ -60,15 +61,31 @@ dark panel at the bottom of the login screen — click a value to copy it.
 Leave it on **Tickets → Orders and Transactions → Attendee Orders**. That is the
 screen you will cut back to.
 
-### 4. The phone, if you are showing the app
+### 4. The phone
+
+**<https://kgc-2027-app.netlify.app>** — open it in any browser, on any device,
+on any network. Sign in with username `demo`, password `123`; both are
+prefilled and printed under the form.
+
+This is the attendee app exported to the web and hosted, which exists for one
+reason: **Expo Go loads its JavaScript from a Metro server on this laptop**, so
+the phone has to be on the same Wi-Fi. That is fine at a desk and useless in a
+conference room, impossible over cellular, and hopeless if you want anyone in
+the audience to open it on their own phone. The hosted build needs nothing
+installed and does not depend on this machine being awake.
+
+The QR for it is on the Desktop as `kgc-app-qr.png` — put it on a slide and the
+room can follow along on their own phones.
+
+Expo Go still works and is still the better *native* demo — gestures, the tab
+bar, the real thing:
 
 ```bash
 cd ~/Documents/Claude/Projects/KGC/2KGC-App
 npm start
 ```
 
-Scan the QR with Expo Go. Sign in with username `demo`, password `123` — both
-are prefilled and printed under the form. Requires step 1.
+Scan that QR with Expo Go, same Wi-Fi required.
 
 ---
 

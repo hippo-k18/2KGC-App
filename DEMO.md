@@ -15,7 +15,7 @@ Netlify sites and a phone can all reach the same data at the same time.
 | --- | --- | --- |
 | Public website | `kgc-2027-website.netlify.app` | none — anyone can buy |
 | Organizer dashboard | `kgc-2027-dashboard.netlify.app` | email allowlist + passphrase |
-| Attendee app | Expo, on the presenter's laptop or phone | Firebase Auth, email + password |
+| Attendee app | `kgc-2027-app.netlify.app`, or Expo Go on a phone | Firebase Auth, email + password |
 
 ## Decisions taken for the demo
 
@@ -68,6 +68,11 @@ cannot survive into a real deployment by accident.
 - [x] 13. `PRESENT.md` — the run sheet for the day.
 - [x] 14. `scripts/ops/reset-demo-sales.mjs`, so a rehearsal does not leave the
       counter at 1 before the real run starts.
+- [x] 15. Host the attendee app on the web — `kgc-2027-app.netlify.app`. Expo Go
+      serves its JavaScript from Metro on the presenter's laptop, so the phone
+      had to share its Wi-Fi; that rules out a conference room, cellular, and
+      anyone in the audience opening it themselves. `expo export --platform web`
+      removes the laptop from the path entirely.
 
 ## Things that will bite
 

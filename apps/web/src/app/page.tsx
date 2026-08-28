@@ -281,7 +281,7 @@ export default async function HomePage() {
         ]}
       />
 
-      {/* HCLS — equal columns and a navy ground on the live page. */}
+      {/* HCLS — equal columns, on the same deep-violet ground as "Why Attend". */}
       {/*
         `5 / 4`, not the `4 / 3` this passed: the file is 1919x1536 = 1.249, and
         under `object-fit: cover` a 1.333 box cropped 6% off its height.
@@ -294,7 +294,7 @@ export default async function HomePage() {
         alt="A packed symposium room during a healthcare and life sciences session."
         aspect="5 / 4"
         photoSide="right"
-        tone="navy"
+        tone="ink"
         columns="equal"
         footer={
           <>
