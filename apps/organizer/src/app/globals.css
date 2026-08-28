@@ -26,6 +26,21 @@
  *     is not recoverable. Shapes are chosen to match; they are not pixel copies.
  *   - No `min-width: 1020px` on the page box. Whova's forces a horizontal
  *     scrollbar on a 13" laptop and organizers complain about it.
+ *   - `--box` is 1400px, not Whova's 1060px. Theirs is an AdminLTE 2 default
+ *     from a 1366-wide era: on a 1920 monitor the content measures 1060px with
+ *     430px of empty grey either side, while the attendee table wraps its
+ *     Company column inside it. The rail is fixed and `.frame-right-side` is
+ *     `flex: 1`, so every extra pixel lands on the table, which is where it is
+ *     wanted. Below 1400 the box still shrinks to the viewport, so the 13"
+ *     case above is unchanged.
+ *   - Three elements carry KGC's brand instead of Whova's, because Whova has
+ *     no opinion worth preserving in any of them and an organizer navigates by
+ *     the nav tree rather than by the colour of the bar above it: the top
+ *     utility bar is `--kgc-navy` rather than `#444`, the logo is KGC's own
+ *     wordmark rather than a text lockup, and the status pills are
+ *     `--kgc-orange` rather than `#ffdb00`. The nine-tab strip, the tables,
+ *     the buttons, the rail and the forms are all still Whova's, which is what
+ *     the muscle-memory argument is actually about.
  */
 
 :root {
@@ -58,10 +73,23 @@
   --success: #13845b;
   --success-alt: #00a65a;
   --warning: #f39c12;
-  --alert: #ffdb00;
+  --alert: var(--kgc-orange);
+
+  /*
+   * KGC's own brand, read out of `apps/web/src/app/globals.css`, which in turn
+   * read it out of the live theme at knowledgegraph.tech. These are the same
+   * hexes the ticketing website already ships, and they are here so the two
+   * surfaces cannot drift apart by eye.
+   *
+   * They are used in exactly three places — see the deviation note below.
+   * Everything else on this page stays Whova's, deliberately.
+   */
+  --kgc-navy: #263759;
+  --kgc-navy-dark: #1b2740; /* the utility bar's hover, one step down from navy */
+  --kgc-orange: #f68621;
 
   --font: 'Helvetica Neue', Helvetica, 'Source Sans Pro', Arial, sans-serif;
-  --box: 1060px;
+  --box: 1400px;
   --rail: 200px;
 }
 
@@ -100,15 +128,17 @@ a {
 /* ───────────────────── #main-header — the dark utility bar ──────────────── */
 
 /*
- * Whova's outermost chrome: a full-bleed 50px #444 bar carrying the logo block,
- * a feature search, a few links, a notification bell and the account menu. It
+ * Whova's outermost chrome: a full-bleed 50px bar carrying the logo block,
+ * a feature search, a few links, a notification bell and the account menu.
+ * Whova's is `#444`; this one is `--kgc-navy`, which is the one band on the
+ * page where the brand costs nothing — see the deviation note at the top. It
  * is the one band that is NOT inside `.layout-boxed`, and reproducing it
  * matters more than it looks — without it the page starts with a pale event
  * name floating on grey, which is the single clearest "this is not Whova" tell.
  */
 
 #main-header {
-  background-color: #444;
+  background-color: var(--kgc-navy);
   width: 100%;
 }
 
@@ -130,6 +160,23 @@ a {
   height: 50px;
   text-decoration: none;
   width: 200px;
+}
+
+/*
+ * The wordmark, at the size the 50px bar leaves for it. Height is fixed and
+ * width follows, because the asset is 240×89 and any width rule would squash
+ * it. `display: block` kills the inline-baseline gap that would otherwise push
+ * the flex row a few pixels tall.
+ *
+ * The source is `apps/web/public/kgc/cropped-White-Wordmark-2.png` at
+ * 3022×1126 — 208 KB to paint 62 CSS pixels. `public/kgc/wordmark-white.png`
+ * is that file resampled to 240px wide, which is 3× the rendered width and
+ * 26 KB.
+ */
+#main-header .logo-mark {
+  display: block;
+  height: 23px;
+  width: auto;
 }
 
 #main-header .logo-whova {
@@ -171,8 +218,13 @@ a {
   white-space: nowrap;
 }
 
+/*
+ * Whova's hover here is `#333`, one step darker than their `#444` bar. Against
+ * navy that reads as a grey smudge rather than a darker shade of the same bar,
+ * so it follows the bar down instead.
+ */
 #main-header .header-links a:hover {
-  background: #333;
+  background: var(--kgc-navy-dark);
 }
 
 #main-header .readcount-badge {
@@ -2431,4 +2483,34 @@ select.whova-text-input {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
+}
+
+/* ─────────────────────── the loading skeleton (ours) ───────────────────── */
+
+/*
+ * `(dash)/loading.tsx` paints a static skeleton that is already correct without
+ * this rule — the bars are `--surface-alt` on `--surface`, sized inline. All
+ * this adds is the breathing, which is the difference between "the page is
+ * empty" and "the page is coming". Kept low-contrast and slow on purpose: it
+ * appears on every navigation, and anything livelier becomes the loudest thing
+ * in the dashboard within an hour of use.
+ */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-pulse {
+    animation: none;
+  }
 }

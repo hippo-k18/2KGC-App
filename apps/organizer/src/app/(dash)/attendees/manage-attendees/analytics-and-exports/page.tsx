@@ -54,7 +54,7 @@ export default async function AnalyticsAndExportsPage() {
           {
             label: 'App adoption',
             value: `${a.adoptionPct}%`,
-            sub: `${a.signedIn} of ${a.ticketHolders} ticket holders`,
+            sub: `${a.ticketHoldersSignedIn} of ${a.ticketHolders} ticket holders`,
           },
           { label: 'Net revenue', value: a.revenueNet, sub: `${a.refunded} refunded` },
           {
@@ -69,7 +69,7 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>App adoption</h2>
         <ProgressBar pct={a.adoptionPct} />
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          {a.ticketHolders - a.signedIn} ticket holders have not opened the app yet. This is the
+          {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not opened the app yet. This is the
           number worth moving before doors open — an attendee without the app has no agenda, no
           badge QR, and has to be checked in by hand at the desk.
         </p>

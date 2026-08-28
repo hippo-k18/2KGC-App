@@ -30,7 +30,7 @@ export default async function AppAdoptionEmailPage() {
   await requireOrganizer();
   const a = await eventAnalytics();
   const origin = siteOrigin();
-  const missing = a.ticketHolders - a.signedIn;
+  const missing = a.ticketHolders - a.ticketHoldersSignedIn;
 
   const subject = 'Before KGC 2027: get the app';
 
@@ -70,7 +70,7 @@ The KGC team`;
 
       <StatTiles
         tiles={[
-          { label: 'App adoption', value: `${a.adoptionPct}%`, sub: `${a.signedIn} of ${a.ticketHolders}` },
+          { label: 'App adoption', value: `${a.adoptionPct}%`, sub: `${a.ticketHoldersSignedIn} of ${a.ticketHolders}` },
           { label: 'Have not installed', value: missing, sub: 'the audience for this email' },
           { label: 'Ticket holders', value: a.ticketHolders, sub: 'total' },
         ]}

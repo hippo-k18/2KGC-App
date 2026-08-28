@@ -53,7 +53,7 @@ export default async function SocialMediaPage() {
 
       <Banner kind="info">
         Copy for the accounts KGC already posts from. Adoption is currently{' '}
-        <strong>{a.adoptionPct}%</strong> — {a.ticketHolders - a.signedIn} ticket holders have not
+        <strong>{a.adoptionPct}%</strong> — {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not
         installed the app.
       </Banner>
 

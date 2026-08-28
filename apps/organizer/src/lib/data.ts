@@ -325,19 +325,20 @@ export interface AttendeeRow {
  * account. Both are attendees and both appear; the `signedIn` and `ticketType`
  * columns say which is which rather than one of them being silently dropped.
  */
+const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
+
 export async function listAttendees(): Promise<AttendeeRow[]> {
   const [userSnap, regSnap] = await Promise.all([
     db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
     db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
   ]);
 
-  const key = (e: string | undefined) => (e ?? '').trim().toLowerCase();
   const rows = new Map<string, AttendeeRow>();
 
   // Users first, so their profile fields are the richer starting point.
   for (const d of userSnap.docs) {
     const u = d.data() as UserDoc;
-    rows.set(key(u.email) || d.id, {
+    rows.set(emailKey(u.email) || d.id, {
       uid: d.id,
       name: u.name,
       email: u.email,
@@ -354,7 +355,7 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
 
   for (const d of regSnap.docs) {
     const r = d.data() as RegistrationDoc;
-    const k = key(r.email);
+    const k = emailKey(r.email);
     const existing = rows.get(k);
 
     if (existing) {
@@ -387,6 +388,70 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
   }
 
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Tickets, profiles, and how many of the first have become the second.
+ *
+ * ── Why this exists rather than dividing two counts ─────────────────────────
+ *
+ * The masthead used to read `users / registrations`, which is not a ratio at
+ * all: a `users` document is anybody who has signed in, and organizers, staff
+ * and comped speakers hold no ticket, so the numerator was never drawn from the
+ * denominator. On seeded data plus the real accounts that came out as "51 have
+ * signed in (102%)" — a percentage over 100 on every page of the dashboard.
+ * `signedIn` here counts *registrations*, filtered from the same query that
+ * produces `registrations`, so it cannot exceed it however the two collections
+ * drift apart.
+ *
+ * ── Why the join is the email address and not `claimedByUid` ────────────────
+ *
+ * `RegistrationDoc.claimedByUid` exists for precisely this question, and it is
+ * still the wrong field to ask. Two facts about the live data outrank the
+ * model: the seed never writes it, and nothing creates `users/{uid}` on first
+ * sign-in either, so the two signals disagree in both directions. Meanwhile
+ * `listAttendees()` — and behind it the Attendees screen, the exports and the
+ * analytics block — has always joined the two collections on the address. One
+ * page load must not carry two definitions of "signed in", so this one adopts
+ * theirs; the day something backfills `claimedByUid` for every holder, that
+ * field becomes the cheaper join and both should move together.
+ *
+ * ── What it costs ──────────────────────────────────────────────────────────
+ *
+ * The two `count()` aggregates this replaces billed about one read each; two
+ * documents-in-full queries bill one read per document, and the masthead is on
+ * every screen. That is the price of an honest subset — an aggregate can size
+ * each collection but cannot intersect them — and at this event's scale it is
+ * the same pair of queries the Attendees screen already runs on the screen this
+ * number has to agree with. If the ticket list ever outgrows that, the way out
+ * is to backfill `claimedByUid` and count it with an aggregate, not to go back
+ * to dividing two unrelated totals.
+ *
+ * Only the address is read, so `select('email')` would be the obvious trim. It
+ * is left off because the demo store (`demo/store.ts`) does not implement
+ * `select`, and a masthead that throws under `DEMO_MODE` takes every screen
+ * down with it.
+ */
+export async function adoptionCounts(): Promise<{
+  registrations: number;
+  users: number;
+  signedIn: number;
+}> {
+  const [userSnap, regSnap] = await Promise.all([
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const profiles = new Set(
+    userSnap.docs.map((d) => emailKey((d.data() as UserDoc).email)).filter(Boolean),
+  );
+
+  return {
+    registrations: regSnap.size,
+    users: userSnap.size,
+    signedIn: regSnap.docs.filter((d) => profiles.has(emailKey((d.data() as RegistrationDoc).email)))
+      .length,
+  };
 }
 
 export async function countWhereEvent(collection: string): Promise<number> {

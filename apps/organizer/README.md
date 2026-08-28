@@ -86,12 +86,19 @@ implying "this half-works" is worse than one that names the gap.
 
 ## Security
 
-⚠️ **Do not deploy this.** `src/lib/auth.ts` is an email allowlist with no
-password, no SSO and no MFA, and the Admin SDK behind it **bypasses
-`firestore.rules` entirely**. Knowing an allowlisted address is currently
-sufficient for full write access to the event. That is acceptable for a tool
-bound to localhost on one laptop and for nothing else. Google SSO with enforced
-MFA (DECISIONS.md #5) lands before this is reachable over a network.
+⚠️ **The passphrase is the whole boundary.** `src/lib/auth.ts` is an email
+allowlist (`CONSOLE_ALLOWLIST`) plus a shared secret (`CONSOLE_PASSPHRASE`),
+signing an HMAC 8-hour session cookie — and the Admin SDK behind it **bypasses
+`firestore.rules` entirely**. That combination is the chosen design, decided on
+2026-08-28: one event, a handful of organizers, and an SSO integration would add
+an identity provider and a second failure mode to a tool four people sign into.
+
+What it costs is worth stating: no MFA, and no audit identity stronger than the
+address typed beside the shared secret. What it does give you is revocation —
+the allowlist is re-checked on every request, so removing an address ends that
+person's live session at the next deploy — and a fail-closed production, because
+`requirePassphrase()` refuses every sign-in when no passphrase is set. Use a long
+passphrase, keep the list short, and treat the dashboard URL as a second secret.
 
 No Firebase credential of any kind may reach the browser. Every read is a server
 component and every write is a server action; `server-only` in `src/lib/*` turns
@@ -105,8 +112,25 @@ a mistaken client import into a build error rather than a leak.
   flatten a level because it looks redundant — the point is that an organizer
   finds things where they expect them.
 - Deviate only where there is a reason, and say so **on the page**. The three
-  current deviations are: the check-in desk's 40px verdict, `Tools → Report`
+  behavioural deviations are: the check-in desk's 40px verdict, `Tools → Report`
   replacing a 10-day PDF, and the absence of scheduled announcements.
+
+### The four visual deviations
+
+These are chrome, not behaviour, so there is nowhere on the page to say them.
+They are recorded here and in the header comment of `globals.css`, and the list
+is closed — anything else stays Whova's.
+
+| What | Whova | Here | Why |
+|---|---|---|---|
+| Page box | `1060px` | `1400px` | An AdminLTE 2 default from a 1366-wide era. On a 1920 monitor it left 430px of grey either side while the attendee table wrapped its Company column. The rail is fixed and `.frame-right-side` is `flex: 1`, so the extra width lands on the table. Below 1400 it shrinks to the viewport as before. |
+| Utility bar | `#444` | `--kgc-navy` `#263759` | The one full-bleed band that carries no Whova affordance. Same hex the ticketing website already ships. |
+| Logo | text lockup | KGC's wordmark | `public/kgc/wordmark-white.png`, the brand mark resampled to 240px wide. |
+| Status pills | `#ffdb00` | `--kgc-orange` `#f68621` | KGC's accent. Keeps `#333` text, which is 4.9:1 on orange and still passes AA. |
+
+The nine-tab strip, the tables, the buttons, the rail, the forms and every
+string stay Whova's. An organizer navigates by the nav tree, not by the colour
+of the bar above it, which is what the muscle-memory argument is about.
 
 ## Push, and why it does not need the Blaze plan
 

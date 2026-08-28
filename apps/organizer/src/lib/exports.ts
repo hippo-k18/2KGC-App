@@ -196,7 +196,21 @@ export function exportByKind(kind: string): ExportDef | undefined {
 export interface EventAnalytics {
   attendees: number;
   ticketHolders: number;
+  /** Everyone with an app profile, ticket or not — organizers and staff included. */
   signedIn: number;
+  /**
+   * Ticket holders with an app profile. The subset of `signedIn` that the
+   * adoption figures are actually about.
+   *
+   * These are two different populations and conflating them was a live bug:
+   * `signedIn / ticketHolders` mixed a numerator drawn from `users` with a
+   * denominator drawn from `registrations`, so one organizer holding no ticket
+   * was enough to print "51 of 50 ticket holders", an adoption bar over 100%,
+   * and a shortfall of "-1 ticket holders have not opened the app yet". Any
+   * ratio or difference against `ticketHolders` must use this field; `signedIn`
+   * is only ever a standalone count.
+   */
+  ticketHoldersSignedIn: number;
   /** Share of ticket holders who have opened the app. The headline number. */
   adoptionPct: number;
   inDirectory: number;
@@ -220,6 +234,7 @@ export async function eventAnalytics(): Promise<EventAnalytics> {
 
   const ticketHolders = attendees.filter((a) => a.registrationId).length;
   const signedIn = attendees.filter((a) => a.signedIn).length;
+  const ticketHoldersSignedIn = attendees.filter((a) => a.registrationId && a.signedIn).length;
 
   const count = (rows: string[]) => {
     const m = new Map<string, number>();
@@ -238,11 +253,13 @@ export async function eventAnalytics(): Promise<EventAnalytics> {
     attendees: attendees.length,
     ticketHolders,
     signedIn,
-    adoptionPct: ticketHolders === 0 ? 0 : Math.round((signedIn / ticketHolders) * 100),
+    ticketHoldersSignedIn,
+    adoptionPct:
+      ticketHolders === 0 ? 0 : Math.round((ticketHoldersSignedIn / ticketHolders) * 100),
     inDirectory: attendees.filter((a) => a.visibleInDirectory).length,
     optedOut: attendees.filter((a) => a.signedIn && !a.visibleInDirectory).length,
     bySignup: [
-      { label: 'Holds a ticket and has the app', count: attendees.filter((a) => a.registrationId && a.signedIn).length },
+      { label: 'Holds a ticket and has the app', count: ticketHoldersSignedIn },
       { label: 'Holds a ticket, no app yet', count: attendees.filter((a) => a.registrationId && !a.signedIn).length },
       { label: 'Has the app, no ticket', count: attendees.filter((a) => !a.registrationId && a.signedIn).length },
     ],

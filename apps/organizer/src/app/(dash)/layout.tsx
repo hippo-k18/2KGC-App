@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { countWhereEvent, listSessions } from '@/lib/data';
+import { adoptionCounts, countWhereEvent, listSessions } from '@/lib/data';
 import { IMPLEMENTED, NAV, counts, searchIndex, type NavNode } from '@/lib/nav';
 import { logoutAction } from '../login/actions';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
@@ -59,16 +59,15 @@ function prettyDay(day: string): string {
 
 export default async function DashLayout({ children }: { children: React.ReactNode }) {
   const actor = await requireOrganizer();
-  const [sessions, registrations, users, announcements, posts, speakers, sponsors] =
-    await Promise.all([
-      listSessions(),
-      countWhereEvent(COLLECTIONS.registrations),
-      countWhereEvent(COLLECTIONS.users),
-      countWhereEvent(COLLECTIONS.announcements),
-      countWhereEvent(COLLECTIONS.communityPosts),
-      countWhereEvent(COLLECTIONS.speakers),
-      countWhereEvent(COLLECTIONS.sponsors),
-    ]);
+  const [sessions, adoption, announcements, posts, speakers, sponsors] = await Promise.all([
+    listSessions(),
+    adoptionCounts(),
+    countWhereEvent(COLLECTIONS.announcements),
+    countWhereEvent(COLLECTIONS.communityPosts),
+    countWhereEvent(COLLECTIONS.speakers),
+    countWhereEvent(COLLECTIONS.sponsors),
+  ]);
+  const { registrations, users, signedIn } = adoption;
 
   const days = [...new Set(sessions.map((s) => s.day))].sort();
   const dateRange =
@@ -87,8 +86,8 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <header id="main-header">
         <div className="main-header">
           <Link className="logo" href="/">
-            <span aria-hidden="true">⌂</span>
-            <span className="logo-whova">{EVENT.shortName}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size chrome in a server component; next/image adds a client runtime and buys nothing. */}
+            <img className="logo-mark" src="/kgc/wordmark-white.png" alt={EVENT.shortName} />
             <span className="logo-project">EMS</span>
           </Link>
           <FeatureSearch entries={searchIndex()} />
@@ -165,8 +164,18 @@ export default async function DashLayout({ children }: { children: React.ReactNo
             <div className="widget-card">
               <div className="widget-label">Registrations</div>
               <div className="widget-value">{registrations}</div>
+              {/*
+                `signedIn` is the count of *registrations* whose holder has a
+                profile, not the count of profiles: `users` includes organizers,
+                staff and comped speakers who hold no ticket, so dividing it by
+                the ticket count produced the 102% this card used to show. The
+                numerator is now filtered out of the denominator's own query and
+                the two agree with the Attendees screen, which joins the same
+                two collections on the same address.
+              */}
               <div className="widget-sub">
-                {users} have signed in ({registrations === 0 ? 0 : Math.round((users / registrations) * 100)}%)
+                {signedIn} have signed in (
+                {registrations === 0 ? 0 : Math.round((signedIn / registrations) * 100)}%)
               </div>
             </div>
             <div className="widget-card">

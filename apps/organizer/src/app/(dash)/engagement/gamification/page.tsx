@@ -111,7 +111,7 @@ export default async function GamificationPage() {
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
           One of four is scorable today. A leaderboard built on that single signal would rank
           attendees by whether they turned up, which is a list the check-in desk already has. Of{' '}
-          {a.ticketHolders} ticket holders, {a.signedIn} have opened the app at all — the ceiling on
+          {a.ticketHolders} ticket holders, {a.ticketHoldersSignedIn} have opened the app at all — the ceiling on
           how many could ever appear on a leaderboard.
         </p>
       </Panel>
