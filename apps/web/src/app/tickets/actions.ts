@@ -11,6 +11,7 @@ import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import { sendPurchaseConfirmation } from '@/lib/email';
 import { demoMode } from '@/lib/demo';
+import { provisionAppAccount } from '@/lib/app-account';
 
 /**
  * Starting a purchase.
@@ -176,6 +177,20 @@ export async function startCheckout(
      * already exists and is valid.
      */
     if (result.created) await incrementSold(tier.id);
+
+    /**
+     * Give the buyer an account they can actually sign into.
+     *
+     * Without this the confirmation page's "sign in with this address" is a
+     * promise the deployment does not keep — no Auth account exists, and the
+     * app answers "that email and password do not match an account". Demo mode
+     * only; see the docblock in `app-account.ts` for why a shared password may
+     * never be set on a real attendee list.
+     *
+     * After the fact and non-fatal, like `incrementSold` above: the ticket is
+     * already valid, and a failure here must not lose it.
+     */
+    if (approved) await provisionAppAccount({ email: result.email, name: result.name ?? name });
 
     await sendPurchaseConfirmation({
       to: result.email,

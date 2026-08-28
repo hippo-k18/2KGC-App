@@ -32,8 +32,11 @@ fails; the confirmation page carries the claim code, which is the part the demo
 actually shows.
 
 **Credentials are printed on screen.** Every sign-in and the checkout card box
-show the values to type, in a fixed panel at the bottom of the viewport. This is
-a demo affordance and it is gated on `DEMO_MODE` / `EXPO_PUBLIC_DEMO_MODE` so it
+show the values to type, in a dark panel rendered in the page next to the fields
+it fills — inside the dashboard's login card, under the website's card box. It
+used to be fixed to the bottom of the viewport and covered whatever was beneath
+it, including the pay button and the confirmation page's claim code. This is a
+demo affordance and it is gated on `DEMO_MODE` / `EXPO_PUBLIC_DEMO_MODE` so it
 cannot survive into a real deployment by accident.
 
 ## Steps

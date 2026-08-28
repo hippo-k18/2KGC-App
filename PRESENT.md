@@ -40,8 +40,9 @@ export GOOGLE_APPLICATION_CREDENTIALS="$PWD/.secrets/service-account.json"
 node scripts/ops/reset-demo-sales.mjs
 ```
 
-It only touches orders marked `channel: 'demo'`. Add `--dry-run` to see what it
-would remove first.
+It only touches orders marked `channel: 'demo'` — and the app accounts those
+purchases created, whose uid *is* the registration id, so a seeded attendee
+cannot be reached from it. Add `--dry-run` to see what it would remove first.
 
 ### 3. Open the tabs, in this order
 
@@ -53,7 +54,7 @@ would remove first.
 | 4 — Attendee app | <https://kgc-2027-app.netlify.app> |
 
 Sign into tab 3 **before** you start talking. The credentials are printed in the
-dark panel at the bottom of the login screen — click a value to copy it.
+dark panel inside the login card, under the fields — click a value to copy it.
 
 - Email · `demo@knowledgegraph.tech`
 - Password · `kgc-demo-2027`
@@ -105,8 +106,8 @@ Click into **Speakers**. Forty-five of them.
 
 Tab 2, already at the buy form.
 
-1. Click **Fill the form** in the dark panel at the bottom. Name, email and card
-   fill in one click.
+1. Click **Fill the form** in the dark panel under the card box. Name, email and
+   card fill in one click.
 2. Change the ticket dropdown to **Main Conference — $799**.
 3. Say what the audience needs to hear before you click:
 
@@ -118,25 +119,37 @@ Tab 2, already at the buy form.
 You land on the confirmation page. **Point at the claim code** — six characters,
 top of the ticket panel. Read it out; you will need it in a moment.
 
+Below it, the confirmation now prints the app URL, the email and the password.
+**Say that the account did not exist ten seconds ago** — the purchase created
+it. That is the sentence Beat 4 pays off.
+
 ### Beat 3 · "The organizer sees it immediately" (90s)
 
 Tab 3. **Reload.**
 
 - **Paid 1**, where it said 0.
-- Ada Okonkwo, Main Conference, $799.00, `paid`.
+- Demo Attendee, Main Conference, $799.00, `paid`.
 
 > "No integration, no nightly sync, no CSV. The website wrote to the database and
 > the dashboard read from it. Whova charges for this and takes a percentage of
 > every ticket."
 
-Then go to **Attendees → Manage Attendees**. She is on the list, with her ticket
-and "App: not yet" — because she has not signed in yet.
+Then go to **Attendees → Manage Attendees**. They are on the list, with the
+ticket and "App: not yet" — because they have not signed in yet.
 
 ### Beat 4 · "And the attendee has an app" (2–3 min)
 
 The phone. Sign in as `demo` / `123`.
 
-Show, in this order:
+**Sign in as the person you just registered**, not as `demo`: type the email
+from the confirmation page and the password printed beside it. This is the
+moment worth rehearsing — a ticket bought on a website ninety seconds ago is now
+an account, a profile, and a badge.
+
+Go to **Me → Badge** first: the claim code on screen is the same six characters
+you read out in Beat 2.
+
+Then show, in this order:
 
 1. **Agenda** — the same 72 sessions. Star one; it syncs.
 2. **Attendees** — the directory, 42 of 50 (the rest opted out of being listed,

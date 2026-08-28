@@ -78,4 +78,32 @@ if (stale.length) {
   await b2.commit();
 }
 
-console.log(`\nCleared ${orders.size} order(s), ${registrationIds.size} registration(s), ${stale.length} email log entries.`);
+/**
+ * The app account the purchase created, and its profile.
+ *
+ * A demo purchase provisions a real Firebase Auth account plus `users/{uid}`
+ * and `directory/{uid}` — see `apps/web/src/lib/app-account.ts`. Left behind,
+ * the buyer is already in the attendee directory before the next run buys
+ * anything, which is exactly the tell that makes an audience stop believing the
+ * numbers.
+ *
+ * Safe because the uid *is* the registration id: only an account created by
+ * this flow can have one, so a seeded attendee (uid `demo_000`) is unreachable
+ * from here even if they share an email address.
+ */
+let accounts = 0;
+for (const rid of registrationIds) {
+  try {
+    await admin.auth().deleteUser(rid);
+    accounts++;
+  } catch {
+    // No account under that uid — the purchase predates this behaviour, or the
+    // provisioning step failed at the time. Neither is worth reporting.
+  }
+  const b3 = db.batch();
+  b3.delete(db.collection('users').doc(rid));
+  b3.delete(db.collection('directory').doc(rid));
+  await b3.commit();
+}
+
+console.log(`\nCleared ${orders.size} order(s), ${registrationIds.size} registration(s), ${accounts} app account(s), ${stale.length} email log entries.`);

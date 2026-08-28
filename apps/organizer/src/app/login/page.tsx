@@ -29,6 +29,23 @@ export default async function LoginPage() {
 
           <LoginForm needsPassphrase={requirePassphrase()} />
 
+          {/*
+            The demo credentials sit inside the card, directly under the fields
+            they belong to. They used to render in a panel fixed to the bottom
+            of the viewport, which on a short window covered the sign-in button
+            itself — a hint that hides the control it describes.
+          */}
+          {credentials ? (
+            <DemoPanel
+              title="Organizer sign-in"
+              note="Click a value to copy it. Both fields are required."
+              rows={[
+                { label: 'Email', value: credentials.email },
+                { label: 'Password', value: credentials.passphrase, mono: true },
+              ]}
+            />
+          ) : null}
+
           <div className="whova-banner warning" style={{ marginTop: 24, marginBottom: 0 }}>
             <div>
               <strong>v0 sign-in.</strong> An email allowlist plus a shared passphrase — no SSO,
@@ -39,17 +56,6 @@ export default async function LoginPage() {
           </div>
         </div>
       </div>
-
-      {credentials ? (
-        <DemoPanel
-          title="Organizer sign-in"
-          note="Click a value to copy it. Both fields are required."
-          rows={[
-            { label: 'Email', value: credentials.email },
-            { label: 'Password', value: credentials.passphrase, mono: true },
-          ]}
-        />
-      ) : null}
     </div>
   );
 }

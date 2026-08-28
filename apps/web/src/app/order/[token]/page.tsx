@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
 import { demoMode } from '@/lib/demo';
-import { APP_DISTRIBUTION, SITE } from '@/lib/site';
+import { ScrollToTop } from '@/components/scroll-to-top';
+import { APP_DISTRIBUTION, APP_URL, SITE } from '@/lib/site';
+import { DEMO_APP_PASSWORD } from '@/lib/demo-credentials';
 
 export const metadata: Metadata = {
   title: 'Your ticket',
@@ -39,6 +41,13 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
 
   return (
     <section>
+      {/*
+        The buyer arrives here from a `redirect()` in the checkout server
+        action, which is a soft navigation — without this they land at whatever
+        scroll offset the tickets page was at, which is the bottom, because that
+        is where the pay button is. See `components/scroll-to-top.tsx`.
+      */}
+      <ScrollToTop />
       <div className="wrap narrow">
         <p className="eyebrow">Confirmed</p>
         <h1 style={{ fontSize: 'clamp(1.9rem, 4vw, 2.6rem)' }}>
@@ -110,15 +119,36 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
         </p>
 
         <ol className="steps" style={{ margin: '24px 0 32px' }}>
-          <li>
-            <strong>Get the KGC app</strong>
-            {APP_DISTRIBUTION}
-          </li>
-          <li>
-            <strong>Sign in with {reg.email}</strong>
-            The same address you registered with. That is what matches you to this ticket — use a
-            different one and the app will not find it.
-          </li>
+          {/*
+            In demo mode the account already exists — the purchase created it —
+            so the first two steps become one thing the reader can do now, with
+            the password printed rather than promised. Outside demo mode the
+            original copy stands, because outside demo mode no account was
+            created and telling somebody to sign in would be a lie.
+          */}
+          {demoMode() ? (
+            <li>
+              <strong>Open the app and sign in</strong>
+              <a href={APP_URL} target="_blank" rel="noreferrer">
+                {APP_URL.replace(/^https?:\/\//, '')}
+              </a>{' '}
+              — email <span className="mono">{reg.email}</span>, password{' '}
+              <span className="mono">{DEMO_APP_PASSWORD}</span>. Your account was created by this
+              purchase; nothing to install.
+            </li>
+          ) : (
+            <>
+              <li>
+                <strong>Get the KGC app</strong>
+                {APP_DISTRIBUTION}
+              </li>
+              <li>
+                <strong>Sign in with {reg.email}</strong>
+                The same address you registered with. That is what matches you to this ticket — use
+                a different one and the app will not find it.
+              </li>
+            </>
+          )}
           <li>
             <strong>If the address is wrong, bring the claim code</strong>
             Give <span className="mono">{reg.claimCode}</span> to the registration desk and they

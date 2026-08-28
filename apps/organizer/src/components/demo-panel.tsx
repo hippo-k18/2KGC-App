@@ -9,8 +9,9 @@ export interface DemoRow {
 }
 
 /**
- * The credentials strip pinned to the bottom of the sign-in screen while
- * `DEMO_MODE=1`.
+ * The credentials block inside the sign-in card while `DEMO_MODE=1`, directly
+ * under the fields it fills. It was pinned to the bottom of the viewport until
+ * it became clear it could cover the sign-in button on a short window.
  *
  * A deliberate copy of the one in `apps/web` rather than a shared component:
  * the two apps have separate `package.json` files and separate design systems —

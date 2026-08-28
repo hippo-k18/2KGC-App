@@ -181,25 +181,14 @@ export function CheckoutForm({
         </fieldset>
       ) : null}
 
-      <div className="summary">
-        <span>{selected.name}</span>
-        <span>{formatPrice(selected.priceCents, selected.currency)}</span>
-      </div>
+      {/*
+        The credentials, directly under the card box they fill.
 
-      <SubmitButton
-        stripeReady={stripeReady}
-        demo={demo}
-        price={formatPrice(selected.priceCents, selected.currency)}
-      />
-
-      <p className="hint" style={{ marginTop: 12 }}>
-        {demo
-          ? 'Approved on the spot. The order is recorded as a real sale and marked `demo` so it can never be counted as revenue.'
-          : stripeReady
-            ? 'You will be taken to Stripe to pay. Card details never touch this site.'
-            : 'No payment is taken. Your registration is written exactly as a paid one would be.'}
-      </p>
-
+        They used to render in a panel fixed to the bottom of the viewport,
+        which covered the pay button and stayed on screen for pages that had
+        nothing to do with it. In the flow, beside the fields, it is a caption
+        rather than an overlay.
+      */}
       {demo ? (
         <DemoPanel
           title="Buy a ticket"
@@ -220,6 +209,26 @@ export function CheckoutForm({
           }}
         />
       ) : null}
+
+      <div className="summary">
+        <span>{selected.name}</span>
+        <span>{formatPrice(selected.priceCents, selected.currency)}</span>
+      </div>
+
+      <SubmitButton
+        stripeReady={stripeReady}
+        demo={demo}
+        price={formatPrice(selected.priceCents, selected.currency)}
+      />
+
+      <p className="hint" style={{ marginTop: 12 }}>
+        {demo
+          ? 'Approved on the spot. The order is recorded as a real sale and marked `demo` so it can never be counted as revenue.'
+          : stripeReady
+            ? 'You will be taken to Stripe to pay. Card details never touch this site.'
+            : 'No payment is taken. Your registration is written exactly as a paid one would be.'}
+      </p>
+
     </form>
   );
 }

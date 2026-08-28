@@ -10,7 +10,7 @@ export interface DemoRow {
 }
 
 /**
- * The credentials panel that sits at the bottom of the viewport during a demo.
+ * The credentials block that sits inside the checkout form during a demo.
  *
  * It exists because of what goes wrong on a stage: the presenter is talking,
  * the room is watching a projector, and the one thing that reliably breaks the
@@ -18,12 +18,14 @@ export interface DemoRow {
  * needed to drive the screen is printed, one tap fills it, and a click on any
  * value copies it.
  *
- * Fixed rather than inline so it survives scrolling — the checkout form is
- * longer than a laptop screen with the registration questions expanded, and a
- * hint that has scrolled off is a hint that is not there.
+ * Rendered in the document flow, directly beneath the card box on the checkout
+ * form. It was `position: fixed` at the bottom of the viewport until it became
+ * clear what that cost: an opaque card sitting over the pay button, and over
+ * the confirmation screen's claim code, which is the thing the audience is
+ * meant to be looking at. A hint is not worth hiding the screen for.
  *
- * Collapsible because it covers the bottom of the page, and the confirmation
- * screen's claim code is the thing the audience is meant to be looking at.
+ * Still collapsible, because a presenter who has memorised the values should be
+ * able to get the block out of the way without it leaving a gap.
  */
 export function DemoPanel({
   title = 'Demo credentials',
@@ -53,7 +55,7 @@ export function DemoPanel({
   };
 
   return (
-    <aside className={`demo-panel${open ? '' : ' collapsed'}`} aria-label={title}>
+    <aside className="demo-panel" aria-label={title}>
       <div className="demo-panel-head">
         <span className="demo-panel-tag">Demo</span>
         <strong>{title}</strong>

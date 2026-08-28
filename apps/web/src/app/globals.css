@@ -4648,23 +4648,27 @@ section.tint {
 }
 
 /* ------------------------------------------------------------ demo panel --
-   The credentials strip pinned to the bottom of the viewport while
-   `DEMO_MODE=1`. Deliberately styled *unlike* the rest of the site — dark,
-   monospace, tagged "Demo" — so nobody in the room can mistake it for part of
-   the product. See `src/lib/demo.ts`.
+   The credentials block that sits inside the checkout form while `DEMO_MODE=1`,
+   directly under the card box it describes. Deliberately styled *unlike* the
+   rest of the site — dark, monospace, tagged "Demo" — so nobody in the room can
+   mistake it for part of the product. See `src/lib/demo.ts`.
+
+   It used to be `position: fixed` at the bottom of the viewport. That put an
+   opaque 560px card permanently over the page: it covered the pay button on a
+   laptop, it covered the claim code on the confirmation screen, and on the
+   pages it did not belong to at all it simply blocked whatever was underneath.
+   A hint that hides the thing it is a hint about is worse than no hint, so it
+   is now in the document flow, next to the fields it fills.
    ------------------------------------------------------------------------ */
 .demo-panel {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 16px;
-  z-index: 60;
-  width: min(560px, calc(100vw - 32px));
+  margin: 0 0 18px;
+  width: 100%;
   background: var(--palette-1);
   color: #f4f6fb;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 40px rgba(15, 20, 35, 0.38);
+  /* No drop shadow now that it is in the flow: a shadow is what tells the eye
+     something floats above the page, and this one no longer does. */
   font-size: 0.86rem;
   overflow: hidden;
 }

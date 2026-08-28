@@ -301,6 +301,17 @@ export default function LoginScreen() {
               Any seeded attendee also works, by name — type kwame.adeyemi, or the
               full {DEMO_EMAIL} — with the password {DEMO_REAL_PASSWORD}.
             </Text>
+            {/*
+              The buy-a-ticket-then-sign-in path. A demo purchase on the website
+              creates a real Auth account with this same password, so the address
+              somebody just typed into the checkout works here a few seconds
+              later. Printed because that is the moment the demo turns from a
+              slideshow into a product, and nobody should have to be told it
+              works — they should be able to try it.
+            */}
+            <Text variant="caption" tone="tertiary" style={{ textAlign: 'center' }}>
+              Just bought a ticket? Use that email address, with the same password.
+            </Text>
           </View>
         ) : null}
       </Screen>
