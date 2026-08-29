@@ -76,13 +76,21 @@ en parallèle de la Phase 1 :
   le 2026-08-26 en vérifiant si le fan-out de la fonction #7
   (`onAnnouncementCreate`) pouvait atteindre un vrai participant non seedé.
   C'est le cas — aucune étape de cette phase ne bloque plus #7.
-- **Les règles de check-in bloquent tout le monde, y compris les
-  organisateurs, en écriture.** `checkInLists`, `checkIns`, `scanEvents` et
-  `checkInStations` ont `allow write: if false` pour tout client — seul
-  l'Admin SDK (donc la console) peut écrire. Note : AGENTS.md dit que ces
-  collections « n'ont aucune règle du tout », ce qui est faux — les règles
-  existent, elles ferment juste tout accès client. Corriger cette phrase dans
-  AGENTS.md en même temps.
+- ~~Les règles de check-in bloquent tout le monde, y compris les
+  organisateurs, en écriture.~~ **C'était déjà le comportement voulu, pas un
+  trou.** `checkInLists`, `checkIns`, `scanEvents` et `checkInStations` ont
+  `allow write: if false` pour tout client — seul l'Admin SDK (donc la
+  console) peut écrire, et c'est documenté comme intentionnel directement
+  dans `firestore.rules` ("EVERY WRITE ON THIS PATH IS DENIED TO EVERY
+  CLIENT, INCLUDING ORGANIZERS... That is not an oversight, it is the
+  design"). Le seul vrai trou était la phrase d'AGENTS.md prétendant que ces
+  collections « n'ont aucune règle du tout » — corrigée le 2026-08-27
+  (branche `phase-2-checkin-rules`) : AGENTS.md a maintenant une entrée
+  « Check-in rules are resolved, not a gap » dans Known gaps, et l'ancienne
+  entrée correspondante dans Suggested next steps a été retirée. Les 134
+  tests de `tests/rules/firestore.test.ts` couvraient déjà les quatre
+  collections avant cette correction — rien n'a changé côté règles ou tests,
+  seule la documentation était fausse.
 - ~~`users/{uid}.photoURL` n'a aucune validation de format dans
   `firestore.rules`.~~ **Corrigé le 2026-08-27 (branche
   `fix-photourl-validation`).** `allow create` et `allow update` sur
