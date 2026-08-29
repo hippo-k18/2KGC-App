@@ -1,7 +1,52 @@
 # What is left to reach Whova parity
 
-Measured against the working tree on **2026-08-26**. Supersedes the
-`whova-rebuild/STATUS.md` audit of 16 August, which is stale in several places.
+**Measured 2026-08-28** against the working tree, by running the checks rather
+than reading the previous version of this file. It is the current status
+document for the whole project; `whova-rebuild/*` is a research and audit
+archive from 15–18 August and is superseded by this file wherever the two
+disagree.
+
+## Where the project actually is
+
+| Surface | State |
+|---|---|
+| **Attendee app** (`app/`) | Five tabs on real Firestore data. Messages behind a header icon. Badge QR → check-in verified end to end. |
+| **Website** (`apps/web/`) | 21 pages, all links resolving. Stripe Checkout, Stripe Invoicing, tracked links. **Deployed on Netlify.** |
+| **Organizer dashboard** (`apps/organizer/`) | **173 of 173** screens render real data. `npm run smoke` proves it in one command. **Deployed on Netlify.** |
+| **Cloud Functions** (`functions/`) | **8 triggers written**, 14 tests, green against the emulator. **Not deployed** — that needs Blaze. |
+| **Firestore** | Rules, 16 composite indexes and 6 field overrides **live on the real project**. 483 seeded documents, 50 Auth accounts. |
+| **Tests** | **358 passing** — 119 unit · 66 programme · 143 rules · 16 commerce · 14 triggers. |
+
+### ★ Settled since the last revision
+
+- **The dashboard's gap notes are behind a flag.** 126 "Not built here" panels,
+  8 gap cards, 8 grey tags and the sign-in banner render only under
+  `SHOW_GAP_NOTES=1`. They are still accurate and still in the source; they are
+  simply written for whoever is building this rather than for a demo audience.
+  See `apps/organizer/src/lib/gap-notes.ts`.
+- **Dashboard sign-in is settled as email + passphrase.** Not a placeholder, and
+  no SSO step is coming — the earlier "v0 sign-in / DECISIONS.md #5" framing is
+  withdrawn everywhere it appeared. What it costs (no MFA, no audit identity
+  beyond the address typed beside the shared secret) is written down in
+  `apps/organizer/src/lib/auth.ts` rather than implied.
+- **Firestore rules and indexes are deployed.** Applied through
+  `scripts/ops/deploy-rules.mjs` and `deploy-indexes.mjs`, because the Firebase
+  CLI is refused on this project with a `serviceusage` 403. Docs that still say
+  "written but never applied in production" are stale.
+- **A demo ticket purchase now provisions a real account** — Auth user,
+  `users/{uid}` and `directory/{uid}`, with the `registered` claim — so
+  buy-a-ticket-then-open-the-app works in one continuous run. Confined to demo
+  mode: it sets a publicly printed shared password. See
+  `apps/web/src/lib/app-account.ts`.
+
+### ⚠️ Corrected on 2026-08-28 — three claims here were stale toward pessimism
+
+| Claim | Said | Is |
+|---|---|---|
+| Website images | "61 hotlinked, 0 uploaded here" | 242 local files in `apps/web/public`, **0** remote image URLs in `apps/web/src` |
+| Remaining hotlinks | implied to be on shipped pages | **18**, all sponsor/exhibitor logos on Whova's CDN, in seed fixtures only |
+| Website data | "every page is a React file" | **5 of 21** read Firestore: `/`, `/agenda`, `/sponsor`, `/tickets`, `/order/{token}` |
+| Phase 5 agenda + sponsor pages | listed as to-do | already Firestore-driven |
 
 ---
 
@@ -30,8 +75,11 @@ still the plan. What it means is narrower and worth stating precisely: **there
 is no longer any screen whose entire content is a description of itself.**
 Where a capability genuinely does not exist — no file upload, no camera, no app
 surface for joining a table — the screen now measures the gap against live data
-rather than asserting it. "There are 61 images, all hotlinked, 0 uploaded here"
-is a fact an organizer can plan around; "photos are not built" was not.
+rather than asserting it. "There are N images, M of them on somebody else's
+server, and 0 uploaded here" is a fact an organizer can plan around; "photos are
+not built" was not. (Those counts come from live data — see
+`apps/organizer/src/lib/images.ts`. An earlier version of this paragraph froze
+them at 61 and was wrong within two days.)
 
 ### What was built, and what it unblocked
 
@@ -53,7 +101,7 @@ Five capabilities remain genuinely absent, and the screens that need them now
 | Blocker | Screens behind it | Status |
 |---|---:|---|
 | **1. An email sender** | ~14 | ✅ **Unblocked, and spent** |
-| **2. Cloud Functions** | ~8 | ⚠️ **Written and tested, not deployed** |
+| **2. Cloud Functions** | ~8 | ⚠️ **8 triggers written, 14 tests green, not deployed** — Blaze |
 | **3. File upload + image pipeline** | ~6 | ❌ Storage rules exist, nothing writes through them |
 | **4. A generic entity CRUD + importer** | ~0 | ✅ **Done** — export registry and CSV importer both exist |
 | **5. Streaming infrastructure** | ~15 | ❌ And argued as a candidate to cut |
@@ -72,15 +120,32 @@ and local. What Blaze buys is *deployment*. So the eight screens behind this are
 waiting on a card on file rather than on code, which is a different kind of
 blocked and a much cheaper one.
 
-★ **Blocker 3 is the binding one.** Six screens wait on it: app branding, banner
-artwork, exhibitor logos, and the three photo screens. It is also the cheapest
-remaining fix with a real payoff — 61 hotlinked images currently break when
-somebody else's domain moves.
+★ **Blocker 3 still gates six screens** — app branding, banner artwork,
+exhibitor logos and the three photo screens — but the argument that made it the
+top of this list has expired. **Re-measured 2026-08-28:**
+
+- `apps/web/public` holds **242 image files** and `apps/web/src` contains
+  **zero** remote image URLs. The website is not hotlinking anything. The
+  speaker roster says so explicitly in `lib/speakers-2026.ts`: 124 portraits,
+  all local, `width`/`height` read back from the bytes.
+- The hotlinks that remain are **18 unique sponsor and exhibitor logos** on
+  Whova's own CDN (`d1keuthy5s86c8.cloudfront.net`), and they live in
+  `scripts/src/lib/fixtures.ts` and `apps/organizer/src/lib/demo/fixture.json`
+  — **seed data, not shipped pages**.
+
+So the payoff that was doing the persuading here — "61 hotlinked images break
+when somebody's domain moves" — has largely already been banked, and what is
+left of it is demo fixtures pointing at the product being replaced. Upload is
+still the thing those six screens need; it is no longer the thing standing
+between this site and a broken page.
 
 The website is separate: **21 pages, all nav links resolving**, now including
-`/tickets/exhibitor`, `/tickets/sponsor` and `/r/{code}`. What it lacks is
-content management — every page is a React file, so editing the code of conduct
-is a deploy. That is Phase 5.
+`/tickets/exhibitor`, `/tickets/sponsor` and `/r/{code}`. **Five of the 21
+already read Firestore** — `/`, `/agenda`, `/sponsor`, `/tickets` and
+`/order/{token}` — so "every page is a React file" is no longer true of the
+pages that change most often. The sixteen that remain static are the ones whose
+content is prose: the code of conduct, the CFP, the team page. Editing those is
+still a deploy, and that is Phase 5.
 
 ---
 
@@ -112,6 +177,14 @@ offline payment and payouts are all done. What is left:
   before a bulk campaign goes out, and the mechanism already exists as
   `/order/{token}`
 
+### Phase 3.5 — sign-in, settled rather than remaining
+
+Not a phase of work; a phase closed by a decision on 2026-08-28. Dashboard
+sign-in **stays** an email allowlist plus a shared passphrase. Google SSO with
+enforced MFA was on this list for months and is now off it: one event, four
+organizers, and an identity provider is a second failure mode in front of a tool
+that is already behind a private URL. Nothing here is waiting on it any more.
+
 ### Phase 4 — Attendees and Engagement · ~2 weeks remaining
 
 Analytics and exports, the community views, surveys, session feedback, board
@@ -130,10 +203,21 @@ money — Blaze's free quotas equal Spark's.
 ### Phase 5 — Marketing and the website CMS · ~4 weeks
 
 This is where the *website* half of parity lives. Whova's
-`marketing/event-webpages/*` generates public pages from event data; ours are
-hand-written React files.
+`marketing/event-webpages/*` generates public pages from event data. Ours are
+mostly hand-written React files — **5 of 21 pages already read Firestore**, and
+the sixteen that do not are the prose ones.
 
-- Agenda, speaker, sponsor and exhibitor webpages driven from Firestore
+- ✅ **Agenda and sponsor webpages are already Firestore-driven** — `/agenda`
+  calls `listAgenda()` and `/sponsor` calls `listSponsorsByTier()`. Verified
+  2026-08-28; this bullet listed them as pending and was wrong.
+- The **speakers page is deliberately not** driven from Firestore, and this is
+  not a gap to close. `listSpeakers()` exists and works; `/speakers` ignores it
+  on purpose, because the seeded `speakers` collection holds invented names and
+  the page is public. It renders the real KGC 2026 roster instead, and says so.
+  The day a real 2027 programme exists in Firestore, swapping the import is the
+  whole change — see the docblock in `apps/web/src/app/speakers/page.tsx`.
+- Exhibitor webpage from Firestore — still to do
+- Prose pages from a CMS: code of conduct, CFP, team, about
 - Branding centre (colours, logo, banner) — needs **blocker 3**
 - Social wall, social media centre
 
@@ -177,11 +261,11 @@ remainder from 111 to about **85**.
 
 ## Recommended next slice
 
-→ **Blocker 3 — file upload and an image pipeline.** It is the binding
-constraint now that the generic-table work is done, it gates six screens, and it
-has a payoff that is worth having on its own: the 61 images this project serves
-are all hotlinked to domains KGC does not control, and each one breaks silently
-when somebody's blog moves.
+→ **Blocker 3 — file upload and an image pipeline.** It gates six screens and it
+is the largest remaining capability. ⚠️ Note that its second argument no longer
+holds: the website's 242 images are local, and the 18 hotlinks left are sponsor
+logos in seed fixtures. Pick this because the six screens are worth having, not
+because something is about to break.
 
 Two things after it, in this order and for different reasons:
 
@@ -206,7 +290,11 @@ For comparison with `whova-rebuild/STATUS.md` (16 August):
 | Campaign attribution | none | **click → cookie → Stripe metadata → order** |
 | Registration questions | none | **asked before checkout, stored on the registration** |
 | CSV exports / imports | none | **six exports, generic importer** |
-| Website pages | 19, some links broken | **21, all links resolve** |
+| Website pages | 19, some links broken | **21, all links resolve, 5 Firestore-driven** |
+| Cloud Function triggers | 0 written | **8 written, 14 tests, awaiting Blaze to deploy** |
+| Rules and indexes in production | none applied | **rules + 16 indexes + 6 overrides live** |
+| Deployment | localhost only | **both sites on Netlify, app hosted on the web** |
+| Buying a ticket | wrote a registration and stopped | **also provisions the account that signs into the app** (demo mode) |
 | Tests | 169 | **358** — 119 unit · 66 programme · 143 rules · 16 commerce · 14 triggers |
 
 ### What is genuinely different about the remaining work
@@ -217,8 +305,12 @@ written them yet". That is no longer the shape of it. What remains is five
 each rather than a backlog:
 
 - Blaze is a card on file, not money — the free quotas equal Spark's, and the
-  triggers it would deploy are already written and tested against the emulator.
-- Storage rules are written and never deployed.
+  eight triggers it would deploy are already written and tested against the
+  emulator.
+- **Firestore** rules and indexes are live now; **`storage.rules` still is not**,
+  and nothing writes through it either — that pair is blocker 3, and neither half
+  is useful without the other. `scripts/ops/deploy-rules.mjs` publishes
+  `cloud.firestore` only, so pushing storage rules needs a second release target.
 - Streaming is a scope question, not an engineering one.
 
 The screens waiting on them now measure the gap instead of describing it, which

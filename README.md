@@ -19,9 +19,9 @@ Expo and React Native. **Runs on both iPhone and Android** from one codebase.
 | Folder | What it is | Status |
 | --- | --- | --- |
 | `app/` | The attendee mobile app (Expo/React Native) — this README | All 5 tabs built, real Firestore data |
-| `apps/web/` | Public ticketing & marketing site (Next.js + Stripe Checkout) | Ticket purchase → check-in verified end to end |
-| `apps/organizer/` | Organizer dashboard (Next.js) — a rebuild of Whova's EMS | 17 of 173 screens carry real data; the rest render an honest gap note. See `ROADMAP.md` |
-| `functions/` | Cloud Functions (counters, directory mirror, push) | Empty — blocked on upgrading the Firebase project off the Spark plan |
+| `apps/web/` | Public ticketing & marketing site (Next.js + Stripe Checkout) | 21 pages. Ticket purchase → check-in verified end to end. Deployed on Netlify |
+| `apps/organizer/` | Organizer dashboard (Next.js) — a rebuild of Whova's EMS | **All 173 screens carry real data.** Deployed on Netlify. See `ROADMAP.md` |
+| `functions/` | Cloud Functions (counters, directory mirror, push) | **8 triggers written, 14 tests green** on the emulator — not deployed, which needs Blaze |
 | `packages/shared/` | Shared TypeScript types and collection names | Used by `app/`, `functions/` and `scripts/` |
 | `scripts/` | Admin SDK tooling: demo seeding, Whova CSV import | — |
 
@@ -186,8 +186,9 @@ URL.
 **All five tabs are built and read real data from Firestore** — this is not a
 shell anymore. What is *not* finished, precisely:
 
-- **`users/{uid}` is never created on a real sign-in.** The seed script writes
-  50 demo profiles, which is why the app looks complete when signed in as a
+- **`users/{uid}` is not created on an ordinary sign-in** (a demo-mode ticket
+  purchase does create one — see `apps/web/src/lib/app-account.ts`). The seed
+  script writes 50 demo profiles, which is why the app looks complete as a
   seeded user. A first-time real attendee has no profile document yet, so their
   name and privacy switches silently fall back to defaults instead of erroring.
 - **Offline does not work**, despite some comments in the codebase claiming it
@@ -316,8 +317,11 @@ local development):
 
 1. Get the six `EXPO_PUBLIC_FIREBASE_*` values from Firebase console → Project
    settings → Your apps, and put them in `app/.env.local`.
-2. Deploy the security rules and indexes — **as of this writing they are
-   written but not yet deployed**: `npm run deploy:rules`.
+2. The security rules and indexes are **already deployed** to that project as of
+   2026-08-28 — rules, 16 composite indexes, 6 field overrides. Re-publish after
+   changing them with `node scripts/ops/deploy-rules.mjs` and
+   `node scripts/ops/deploy-indexes.mjs`; ⚠️ `firebase deploy` does not work
+   here, it is refused with a `serviceusage` 403.
 3. Leave `EXPO_PUBLIC_USE_EMULATOR` unset or `0`.
 
 `EXPO_PUBLIC_*` values are embedded in the app bundle. That is expected for
@@ -379,34 +383,50 @@ Nine composite indexes are declared in `firestore.indexes.json`.
 
 ## Known gaps
 
-*Last checked against the code on 2026-08-18. If you're reading this later,
-skim `AGENTS.md`'s "Current state" and "Known gaps" sections too — that file
-is meant to be kept current for AI assistants and is usually the freshest
-source, but cross-check it against the actual code before trusting a status
-claim, this file included. This project has a recurring problem with docs and
-comments describing capabilities the code doesn't actually have yet.*
+*Last checked against the code on **2026-08-28**, by running the checks rather
+than by editing the previous version of this list. `ROADMAP.md` is the
+project-wide measurement; this list is the app-side subset plus the things that
+cut across everything. This project has a recurring problem with docs describing
+capabilities the code doesn't have yet — and, lately, the reverse, so verify
+before trusting either direction.*
 
-- **`users/{uid}` is never created on a real sign-in.** Only seeded demo
-  accounts have a profile document. See [Working on the GUI](#working-on-the-gui).
-- **Nothing mints the `registered` custom claim automatically.** `npm run
-  claims` is a manual stand-in for a Cloud Function that doesn't exist yet. See
+### Closed since the last revision
+
+- ✅ **Security rules and indexes are live** on `kgc-conference-app-and-website`
+  — rules, 16 composite indexes, 6 field overrides. Pushed with
+  `scripts/ops/deploy-rules.mjs` and `deploy-indexes.mjs`, because the Firebase
+  CLI is refused on this project with a `serviceusage` 403.
+- ✅ **The Cloud Function triggers exist.** Eight of them in
+  `functions/src/triggers/`, 14 passing tests against the emulator. They are not
+  *deployed* — that needs Blaze — but "functions/ is empty" is no longer true.
+- ✅ **The organizer dashboard is not the least-finished part any more.** All
+  **173** screens read or write real data; `npm run smoke` proves it.
+  `apps/console/`, its predecessor, was deleted in August 2026.
+- ✅ **A ticket purchase provisions the account that signs into the app** — Auth
+  user, `users/{uid}`, `directory/{uid}`, `registered` claim. **Demo mode only**:
+  it sets a publicly printed shared password, which is fine for invented
+  attendees and a total compromise of real ones. See
+  `apps/web/src/lib/app-account.ts`.
+
+### Still open
+
+- **`users/{uid}` is not created on an ordinary sign-in.** Seeded accounts and
+  demo-mode purchases have a profile document; nothing else does. See
+  [Working on the GUI](#working-on-the-gui).
+- **Nothing mints the `registered` claim automatically outside that path.**
+  `npm run claims` is still the manual stand-in. See
   [The registration gate](#the-registration-gate).
 - **Offline does not work**, despite some in-code comments claiming it does.
   Needs the `@react-native-firebase/*` migration (no disk persistence in the
   Firebase JS SDK on React Native).
-- **Push notifications are not implemented.** Modelled, nothing writes to or
-  reads from it.
-- **The Firebase project is still on the Spark plan.** `functions/` is empty —
-  zero Cloud Function triggers exist yet, which is also why Session Q&A/poll
-  counters, the `directory/{uid}` mirror, and the OTP sign-in above are all
-  blocked, independent of any billing decision.
-- **Security rules and indexes are written but not deployed** to the real
-  `kgc-conference-app-and-website` project. `tests/rules/firestore.test.ts` has 143 tests against
-  the emulator, which is not the same as being live in production.
-- **The organizer dashboard (`apps/organizer/`) is the least finished part of
-  the whole system** — 17 of Whova's 173 screens carry real data and the rest
-  render a gap note naming what is missing. `ROADMAP.md` measures the remainder
-  and sequences it. `apps/console/`, its predecessor, was deleted in August 2026.
+- **Push notifications are not implemented.** Nothing imports
+  `expo-notifications`; `fcmTokens` is modelled and never read.
+- **The project is still on Spark, so the triggers are not deployed** — which is
+  why Session Q&A and poll counters and the `directory/{uid}` mirror do not move
+  in production. Blaze's free quotas equal Spark's; this is a card on file.
+- **Nothing uploads a file.** `storage.rules` exists with no writer, and unlike
+  the Firestore rules it has not been published — `deploy-rules.mjs` targets
+  `cloud.firestore` only.
 - **No live Stripe transaction has ever been run.** The money path is built,
   tested and verified against the emulator, but the webhook has never received a
   real event. `SETUP-PAYMENTS.md` §4 closes that in about ten minutes and should

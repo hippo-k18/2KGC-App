@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, NotBuilt, PageHeader, Panel, Tag } from '../../../ui';
+import { Banner, EmptyState, GapPanel, GapTag, NotBuilt, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export default async function VolunteerConsentFormsPage() {
     <>
       <PageHeader
         title="Release & Consent Forms"
-        tags={<Tag color="grey">not built</Tag>}
+        tags={<GapTag />}
         links={[
           <Link key="v" href="/attendees/call-for-volunteers/volunteer-manager">
             Volunteer Manager
@@ -84,7 +84,7 @@ export default async function VolunteerConsentFormsPage() {
         refs="ROADMAP.md — the submission-form capability shared with Call for Speakers and Question Forms"
       />
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -99,7 +99,7 @@ export default async function VolunteerConsentFormsPage() {
             is the first missing piece above.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

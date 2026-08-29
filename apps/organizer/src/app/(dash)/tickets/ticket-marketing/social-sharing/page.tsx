@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
 
@@ -152,7 +152,7 @@ export default async function SocialSharingPage() {
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -170,7 +170,7 @@ export default async function SocialSharingPage() {
             <code>ROADMAP.md</code> records as blocker 3.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

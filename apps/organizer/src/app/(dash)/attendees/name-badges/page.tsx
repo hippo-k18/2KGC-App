@@ -2,18 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { QR_QUIET_ZONE, badgeQr, listBadgeRows } from '@/lib/badges';
 import { ROUTES } from '@/lib/nav';
-import {
-  Banner,
-  PER_PAGE,
-  PageHeader,
-  Pagination,
-  Panel,
-  SearchInput,
-  StatTiles,
-  Tag,
-  listParams,
-  paginate,
-} from '../../ui';
+import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Tag, listParams, paginate } from '../../ui';
 import { PrintButton } from './print-button';
 
 export const dynamic = 'force-dynamic';
@@ -264,7 +253,7 @@ export default async function NameBadgesPage({
         <Pagination total={matched.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -293,7 +282,7 @@ export default async function NameBadgesPage({
             against a real printer, which cannot be done from a comment.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

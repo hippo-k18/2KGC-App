@@ -65,18 +65,40 @@ it at the desk. `SETUP-PAYMENTS.md` lists the accounts and keys that turn it on;
 `PAYMENTS.md` records why Stripe rather than Eventbrite.
 
 **Built end to end:** the check-in loop. Ticket purchase on the website →
-confirmation page behind an HMAC capability token → sign-in → the badge QR at
-`me/badge` → a scan at the console's desk → an idempotent `checkIns` document,
-with the badge reflecting it live. Verified as one continuous run, not screen by
-screen.
+account provisioned from that purchase → confirmation page behind an HMAC
+capability token → sign-in → the badge QR at `me/badge` → a scan at the
+dashboard's desk → an idempotent `checkIns` document, with the badge reflecting
+it live. Verified as one continuous run, not screen by screen.
 
-**Not built or only partly wired:** push notifications do not exist, badge *printing* (`badgeTemplates`,
-`badgePrintJobs`) is still only modelled, and Session Q&A and polls render but
-their tallies never move. `ROADMAP.md` is the current measurement and
-supersedes `whova-rebuild/STATUS.md`, which is from 16 August and says the
-console has 7 partial screens of 136. The dashboard side is now complete by
-screen count; what is left is capabilities, and the reason so much of the *app*
-sits at "partial" is almost always the Spark plan rather than missing UI.
+**Deployed, as of 2026-08-28.** This is no longer a localhost project. Firestore
+rules, 16 composite indexes and 6 field overrides are **live** on
+`kgc-conference-app-and-website`, applied through `scripts/ops/deploy-rules.mjs`
+and `deploy-indexes.mjs` — the Firebase CLI is refused on this project with a
+`serviceusage` 403, so those two scripts are the deploy path and `firebase
+deploy` is not. Both websites are on Netlify and the attendee app is hosted on
+the web. Any doc that says rules are "written but never applied" is stale.
+
+**Not built or only partly wired:** push notifications do not exist (nothing
+imports `expo-notifications`; `fcmTokens` is modelled and unread), badge
+*printing* (`badgeTemplates`, `badgePrintJobs`) is still only modelled, Session
+Q&A and polls render but their tallies never move, and nothing in the project
+uploads a file — `storage.rules` exists with no writer. The eight aggregate
+triggers that would move those tallies **are written** in `functions/src/triggers/`
+with 14 passing tests; what is missing is deployment, which needs Blaze.
+`ROADMAP.md` is the current measurement (2026-08-28) and supersedes everything in
+`whova-rebuild/`, which is a research and audit archive from 15–18 August.
+
+**Two decisions that are settled, so do not re-open them:**
+
+- **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
+  docs that promised "Google SSO with enforced MFA (DECISIONS.md #5)" were
+  withdrawn on 2026-08-28; what the shared secret costs is written down in
+  `apps/organizer/src/lib/auth.ts`.
+- **The dashboard's gap notes are behind `SHOW_GAP_NOTES`.** 126 "Not built
+  here" panels, 8 gap cards, 8 grey tags and the sign-in banner render only when
+  it is `1`. Use `GapPanel` / `GapTag` from `(dash)/ui.tsx` for any new one —
+  never a bare `Panel` — or it will show up in a demo. See
+  `apps/organizer/src/lib/gap-notes.ts`.
 
 As of WP-01 this is an **npm workspace monorepo**, not a single Expo project at the
 repo root. `models.ts` and `collections.ts` moved out of the app into
@@ -86,7 +108,7 @@ the same document types and must not duplicate them.
 ```
 package.json               workspaces: ["app", "functions", "packages/*", "scripts"]
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
-tests/rules/                134 tests — the security boundary
+tests/rules/                143 tests — the security boundary
 tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
 functions/                  the aggregate triggers, written and tested against the
                             emulator. `npm run test:functions`. NOT deployed —
@@ -184,8 +206,15 @@ npm test                             # 119 unit tests: timezones, QR, question-f
 npm run test:commerce                # 16 tests: fulfilment, refunds, invoice splitting
 npm run test:programme               # 66 tests: conflict detection, CSV, speed-networking pairs
 npm run test:functions               # 14 tests: the aggregate triggers, on the emulator
-npm run smoke                        # every dashboard screen, against a seeded emulator
+npm run smoke                        # all 173 dashboard screens, against a seeded emulator
 ```
+
+**358 tests in total**, all green as of 2026-08-28. ⚠️ `npm run smoke` and
+`npm run build` in `apps/organizer` both write `.next`, so a dev server running
+on :3100 makes either of them fail with `Cannot find module for page: /_document`
+or a `MODULE_NOT_FOUND` on `webpack-runtime`. Stop the dev server first; the
+error names a page, not the collision, which is why this costs half an hour every
+time somebody rediscovers it.
 
 **`server-only` and Vitest do not mix.** A module importing it throws outside a
 Server Component, so logic worth testing has to live beside the fetch rather
@@ -465,7 +494,7 @@ Four things to know before editing it:
   the whole query. The inbox broke this way once. If a rule guards a collection
   anyone queries, test both verbs.
 
-`tests/rules/firestore.test.ts` has **134 tests, one per invariant**. It has been
+`tests/rules/firestore.test.ts` has **143 tests, one per invariant**. It has been
 mutation-checked: breaking `isRegistered()` fails exactly the test that names that
 guarantee. Add a test whenever you add a rule — the suite is the only thing
 standing between this file and 1,000 attendees' data.

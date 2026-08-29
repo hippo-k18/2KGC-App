@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { getTask, listProjects, nextStatus, projectNames, type TaskRow } from '@/lib/planning';
 import { ROUTES } from '@/lib/nav';
-import { EmptyState, PageHeader, Panel, ProgressBar, StatTiles, Tag } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Tag } from '../../../ui';
 import { advanceTaskAction } from './actions';
 import { TaskForm } from './task-form';
 
@@ -232,7 +232,7 @@ export default async function ProjectsAndChecklistsPage({
         ))
       )}
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -250,7 +250,7 @@ export default async function ProjectsAndChecklistsPage({
             link to what is blocking it.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

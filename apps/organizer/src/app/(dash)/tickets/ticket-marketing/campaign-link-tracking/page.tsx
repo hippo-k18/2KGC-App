@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { listOrders, money } from '@/lib/commerce';
-import { Banner, PageHeader, Panel, StatTiles } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
 
@@ -109,7 +109,7 @@ export default async function CampaignLinkTrackingPage() {
         <LinkForm destinations={DESTINATIONS} codePlaceholder="spring-mail" />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -133,7 +133,7 @@ export default async function CampaignLinkTrackingPage() {
             that a leaderboard built on them can be argued with.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

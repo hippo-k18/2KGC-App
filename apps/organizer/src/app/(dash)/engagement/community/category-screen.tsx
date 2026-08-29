@@ -8,7 +8,7 @@ import {
   type CommunityPostRow,
 } from '@/lib/engagement';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, StatTiles, Tag } from '../../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../ui';
 
 /**
  * One screen, rendered three times: Meet-ups, Discussion Topics, Social Groups.
@@ -88,7 +88,7 @@ export async function CategoryScreen({
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           {notBuilt.map((n) => (
@@ -99,7 +99,7 @@ export async function CategoryScreen({
             Announcements to say something to everyone.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

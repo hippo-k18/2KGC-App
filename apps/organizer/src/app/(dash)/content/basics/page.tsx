@@ -4,7 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
 import { targetDescription } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel } from '../../ui';
+import { Banner, GapPanel, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,14 +137,14 @@ export default async function BasicsPage() {
         </div>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <p className="body-2">
           Whova&apos;s Basics also carries Project Management — a checklist and team portal with
           external team members who are not event admins. That is a genuinely separate product
           surface with its own login, and it is sequenced after the demo rather than cut.
         </p>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 import { PUBLIC_PAGE } from './audience-catalogue';
 
 /**
@@ -160,7 +160,7 @@ export async function AudienceRegistrationPage({
         </p>
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -177,7 +177,7 @@ export async function AudienceRegistrationPage({
             Consent Forms.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }
@@ -252,7 +252,7 @@ export async function AudienceRegistrationWidget({
         </p>
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -265,7 +265,7 @@ export async function AudienceRegistrationWidget({
             <code>firestore.rules</code> match block on purpose.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }
@@ -378,7 +378,7 @@ export async function AudienceRegistrationSettings({
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -391,7 +391,7 @@ export async function AudienceRegistrationSettings({
             decision first and a screen second.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }
@@ -520,7 +520,7 @@ export async function AudienceConfirmationEmails({
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -540,7 +540,7 @@ export async function AudienceConfirmationEmails({
             means fixing the address on the registration and re-running fulfilment.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

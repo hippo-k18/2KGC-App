@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { Banner, NotBuilt, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { Banner, GapPanel, GapTag, NotBuilt, PageHeader, Panel, StatTiles } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +40,7 @@ export default async function SelfCheckInPage() {
     <>
       <PageHeader
         title="Self Check-in"
-        tags={<Tag color="grey">not built</Tag>}
+        tags={<GapTag />}
         links={[
           <Link key="c" href={ROUTES.checkIn}>
             Attendee Check-in
@@ -95,7 +95,7 @@ export default async function SelfCheckInPage() {
         refs="firestore.rules and AGENTS.md, “Security model” — “Attendees cannot check themselves in”"
       />
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -118,7 +118,7 @@ export default async function SelfCheckInPage() {
             .
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

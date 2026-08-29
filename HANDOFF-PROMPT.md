@@ -1,7 +1,14 @@
 # Handoff prompt — wiring Stripe and Resend
 
+**Still current as of 2026-08-28.** Neither account has been opened, so no live
+Stripe transaction has ever run and no email has ever been delivered. Everything
+downstream of them is built, tested and deployed — the demo path works because
+`DEMO_MODE` approves the payment on the spot and `emailEnabled()` makes every
+send a no-op, not because Stripe or Resend are wired.
+
 Two things are left that **cannot be done from inside the repo**, because they
-need accounts that only you can open. Everything else is built and verified.
+need accounts that only you can open. Everything else is built and verified —
+see `ROADMAP.md` for what "everything else" now covers.
 
 The fastest route is: do §1 yourself (about 20 minutes, mostly clicking), then
 paste §2 into Claude Code and let it do the wiring and testing.

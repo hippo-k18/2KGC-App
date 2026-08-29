@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,7 +90,7 @@ export default async function HybridSettingsPage() {
         </ul>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -108,7 +108,7 @@ export default async function HybridSettingsPage() {
             note covering the streaming side.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

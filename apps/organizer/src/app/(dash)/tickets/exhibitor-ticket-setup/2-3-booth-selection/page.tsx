@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listBooths, summarise } from '@/lib/booths';
 import { listOrders, listTicketTypes } from '@/lib/commerce';
 import { listExhibitors } from '@/lib/exhibitors';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { releaseBoothAction, toggleBoothBlockedAction } from './actions';
 import { AddBoothForm, AssignBoothForm } from './booth-forms';
 
@@ -240,7 +240,7 @@ export default async function BoothSelectionPage() {
         </Panel>
       </div>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -261,7 +261,7 @@ export default async function BoothSelectionPage() {
             webhook choosing a corner booth for whoever paid first is not how a floor is sold.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
 /**
  * Exhibitor Orders and Sponsor Orders.
@@ -226,7 +226,7 @@ export async function AudienceOrders({
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 className="section-header">Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -245,7 +245,7 @@ export async function AudienceOrders({
             outstanding, contract status. None is modelled anywhere yet.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

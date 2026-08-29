@@ -7,7 +7,7 @@ import {
   recentCheckIns,
 } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { Banner, NotBuilt, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, GapTag, NotBuilt, PageHeader, Panel, StatTiles, Table } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +44,7 @@ export default async function CertificatesPage() {
     <>
       <PageHeader
         title="Certificates"
-        tags={<Tag color="grey">not built</Tag>}
+        tags={<GapTag />}
         links={[
           <Link key="a" href={ROUTES.attendees}>
             Attendees
@@ -118,7 +118,7 @@ export default async function CertificatesPage() {
         refs="AGENTS.md, “The money path” — where the email templates live and why they are shared"
       />
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -143,7 +143,7 @@ export default async function CertificatesPage() {
             attendance, and today <code>checkIns</code> has no client rule at all.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

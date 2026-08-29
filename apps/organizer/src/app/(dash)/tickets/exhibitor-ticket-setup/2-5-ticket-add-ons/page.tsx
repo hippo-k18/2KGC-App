@@ -4,7 +4,7 @@ import { listBooths } from '@/lib/booths';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { listExhibitors } from '@/lib/exhibitors';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -235,7 +235,7 @@ export default async function ExhibitorAddOnsPage() {
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -260,7 +260,7 @@ export default async function ExhibitorAddOnsPage() {
             holds a ticket.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

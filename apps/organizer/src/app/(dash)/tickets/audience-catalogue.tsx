@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
 
 /**
  * The exhibitor and sponsor ticket catalogues.
@@ -205,7 +205,7 @@ export async function AudienceCatalogue({
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 className="section-header">Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -221,7 +221,7 @@ export async function AudienceCatalogue({
           </li>
           {notBuilt}
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

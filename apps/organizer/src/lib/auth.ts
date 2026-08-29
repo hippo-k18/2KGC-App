@@ -5,28 +5,41 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 /**
- * Console auth, v0.
+ * Console auth: an email allowlist plus a shared passphrase.
  *
- * DECISIONS.md #5 is Google SSO with **enforced MFA**, an email allowlist and
- * 8h sessions. This file implements the allowlist and the 8h session; SSO is
- * not wired yet. The shape is chosen so that swapping it in is a change to one
- * function: `signIn()` is the only place that decides *whether* an email is
- * authentic. Today it takes the organizer's word for it (localhost only);
- * tomorrow it verifies a Google ID token and an `amr` claim containing `mfa`,
- * and everything downstream — the cookie, `requireOrganizer()`, the audit
- * actor — is unchanged.
+ * **This is the design, not a staging post.** Earlier revisions of this file
+ * described itself as "v0" and promised Google SSO with enforced MFA. That was
+ * decided against on 2026-08-28: KGC runs one event with a handful of
+ * organizers, and an SSO integration adds an identity provider, a consent
+ * screen and a second failure mode to a tool that four people sign into.
  *
- * ⚠️ MFA IS REQUIRED BEFORE THIS IS EXPOSED ANYWHERE BEYOND LOCALHOST.
- * As written, knowing an allowlisted email address is sufficient to obtain full
- * Admin-SDK-backed write access to the event. That is acceptable for a tool
- * bound to 127.0.0.1 on one laptop during Phase 0 and is not acceptable for
- * anything reachable over a network. Do not deploy this file. The project is on
- * the Spark plan and this runs under `next dev`; if that ever changes, SSO +
- * MFA lands first.
+ * What that costs, stated plainly rather than left implied:
+ *
+ *  - **No MFA.** The passphrase is the only factor. Length is enforced against
+ *    live data (`MIN_LIVE_PASSPHRASE`), which is what stands in for it.
+ *  - **No per-person audit identity.** The recorded actor is the address typed
+ *    beside the shared secret, so the audit log tells you which organizer
+ *    *claimed* to act, not which one did.
+ *  - **Revocation runs through the environment.** Removing an address from
+ *    `CONSOLE_ALLOWLIST` does end that person's live session — `decode()`
+ *    re-checks the list on every request rather than trusting the cookie — but
+ *    the change only takes effect once the process picks up the new value,
+ *    which on Netlify means a redeploy.
+ *
+ * The shape is still worth keeping: `signIn()` is the only place that decides
+ * *whether* an email is authentic, so if that decision is ever revisited it is
+ * one function, not a rewrite.
+ *
+ * ⚠️ The Admin SDK behind this bypasses `firestore.rules` entirely. The
+ * passphrase is the whole boundary, so it must be long, it must not be shared
+ * outside the organizer team, and the dashboard URL should be treated as a
+ * second secret. `requirePassphrase()` makes a missing one a startup failure in
+ * production, so the dangerous configuration fails closed rather than silently
+ * opening the door.
  */
 
 const COOKIE = 'kgc_console_session';
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // DECISIONS.md #5: 8h sessions.
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // One working day at a registration desk.
 
 export interface ConsoleSession {
   email: string;
@@ -98,8 +111,9 @@ function decode(token: string | undefined): ConsoleSession | null {
 
 /**
  * The single point at which an email becomes an authenticated identity.
- * Replace the body with Google ID-token verification + an MFA assertion check
- * and nothing else in the console needs to change.
+ * Everything downstream — the cookie, `requireOrganizer()`, the audit actor —
+ * reads the result and not the method, so a different method stays a change to
+ * this one function.
  */
 /**
  * A shared passphrase, required whenever one is configured.
@@ -110,11 +124,10 @@ function decode(token: string | undefined): ConsoleSession | null {
  * `requirePassphrase()` makes it mandatory in production so that deploying
  * without one is a startup failure rather than a silent open door.
  *
- * This is not the shipping design — DECISIONS.md #5 is Google SSO with enforced
- * MFA, and a shared secret has no per-person revocation and no audit identity
- * beyond the email typed alongside it. It is the difference between "anyone who
- * knows an address" and "anyone who knows an address and a secret", which is
- * the difference that matters before this is reachable over a network.
+ * It is the difference between "anyone who knows an address" and "anyone who
+ * knows an address and a secret", which is the difference that matters once
+ * this is reachable over a network. What it does not give you is an audit
+ * identity stronger than the address typed alongside it — see the file header.
  */
 function passphrase(): string | undefined {
   const p = process.env.CONSOLE_PASSPHRASE;
@@ -241,11 +254,10 @@ export async function requireOrganizer(): Promise<string> {
  * click away behind an eight-hour session is an accident waiting for a passer-by.
  *
  * So the refund action asks for the passphrase again. This is genuinely weak —
- * it is a shared secret with no per-person revocation, and anyone who can sign
- * in at all knows it — but it raises the bar from *a stray click* to *a
- * deliberate act*, which is the specific failure being defended against here.
- * When Google SSO with enforced MFA lands (DECISIONS.md #5), this becomes a
- * step-up assertion and the call sites do not change.
+ * it is a shared secret, and anyone who can sign in at all knows it — but it
+ * raises the bar from *a stray click* to *a deliberate act*, which is the
+ * specific failure being defended against here. If the sign-in method is ever
+ * revisited this becomes a step-up assertion and the call sites do not change.
  *
  * Returns true when no passphrase is configured at all, which is only possible
  * on localhost: `requirePassphrase()` makes one mandatory in production, so a

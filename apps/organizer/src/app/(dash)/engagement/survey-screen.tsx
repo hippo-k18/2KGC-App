@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { feedbackTargets, listSurveys, summarise, type SurveyRow } from '@/lib/surveys';
-import { Banner, EmptyState, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { setSurveyStatusAction } from './survey-actions';
 import { SurveyForm } from './survey-form';
 
@@ -229,7 +229,7 @@ export async function SurveyScreen({
         </Panel>
       )}
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -247,7 +247,7 @@ export async function SurveyScreen({
             produces abandoned ones.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

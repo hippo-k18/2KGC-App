@@ -3,7 +3,7 @@ import { EVENT_ID } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,7 +100,7 @@ export default async function CrossEventReportPage() {
         </ul>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -118,7 +118,7 @@ export default async function CrossEventReportPage() {
             silently merges two years of attendees into one list.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

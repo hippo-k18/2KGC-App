@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { PageHeader, Panel } from '../../ui';
+import { GapPanel, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +69,7 @@ export default async function TutorialsAndTipsPage() {
         </p>
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -88,7 +88,7 @@ export default async function TutorialsAndTipsPage() {
             it — see <Link href={ROUTES.report}>Report</Link> for the fullest example.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

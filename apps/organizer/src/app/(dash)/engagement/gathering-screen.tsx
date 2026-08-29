@@ -4,7 +4,7 @@ import type { GatheringDoc } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listRooms, listSessions } from '@/lib/data';
 import { listGatherings, roomClashes } from '@/lib/gatherings';
-import { Banner, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { removeAttendeeAction, setStatusAction } from './gathering-actions';
 import { GatheringForm, PlaceForm } from './gathering-forms';
 
@@ -298,7 +298,7 @@ export async function GatheringScreen({
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -313,7 +313,7 @@ export async function GatheringScreen({
           </li>
           {notBuilt}
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

@@ -147,8 +147,10 @@ Three things make that acceptable as an interim, and all three are cheap:
    they are what protects the project from everything that is not this
    dashboard, and they are currently not in force at all.
 
-The real fix is DECISIONS.md #5 — Google SSO with enforced MFA against the
-organizer allowlist. Until that lands, treat the dashboard URL as a secret.
+There is no SSO step coming to replace this — email and passphrase is the chosen
+design (see `apps/organizer/src/lib/auth.ts`). That makes the three items above
+the whole of the boundary, so treat the dashboard URL as a secret, keep
+`CONSOLE_ALLOWLIST` short, and rotate `CONSOLE_PASSPHRASE` after the event.
 
 ---
 

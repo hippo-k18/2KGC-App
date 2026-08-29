@@ -3,19 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { directoryUids } from '@/lib/cohorts';
 import { listAttendees, type AttendeeRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import {
-  PER_PAGE,
-  Banner,
-  PageHeader,
-  Pagination,
-  Panel,
-  SearchInput,
-  Table,
-  Tag,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../ui';
+import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -425,7 +413,7 @@ export default async function SegmentsPage({
         <Pagination total={rows.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -458,7 +446,7 @@ export default async function SegmentsPage({
             products in <code>ticketTypes</code> to buy — a tier includes workshops or it does not.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

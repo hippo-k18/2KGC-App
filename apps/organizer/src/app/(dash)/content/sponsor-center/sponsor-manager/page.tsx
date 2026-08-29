@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { SponsorTier } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listSponsors, TIER_ORDER, type SponsorRow } from '@/lib/data';
-import { Banner, EmptyState, PageHeader, Panel, Tabs, Tag } from '../../../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, Tabs, Tag } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
 
 export const dynamic = 'force-dynamic';
@@ -219,7 +219,7 @@ export default async function SponsorManagerPage({
         )}
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -244,7 +244,7 @@ export default async function SponsorManagerPage({
             write the check-in desk does, against a different list.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

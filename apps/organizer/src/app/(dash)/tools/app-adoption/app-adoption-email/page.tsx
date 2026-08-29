@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, ProgressBar, StatTiles } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles } from '../../../ui';
 import { APP_DISTRIBUTION, siteOrigin } from '../adoption-context';
 
 export const dynamic = 'force-dynamic';
@@ -106,7 +106,7 @@ The KGC team`;
         </p>
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -119,7 +119,7 @@ The KGC team`;
             profile, which is the outcome rather than the proxy — and is the better number anyway.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

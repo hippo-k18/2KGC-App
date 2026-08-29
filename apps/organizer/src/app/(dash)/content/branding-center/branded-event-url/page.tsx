@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, PageHeader, Panel } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
 import { BrandedUrlForm } from '../branding-forms';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +63,7 @@ export default async function BrandedEventUrlPage() {
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -89,7 +89,7 @@ export default async function BrandedEventUrlPage() {
             build rather than Expo Go.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

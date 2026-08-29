@@ -4,7 +4,7 @@ import type { TicketAudience } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { answerSummary, getForm } from '@/lib/question-forms';
-import { Banner, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { deleteQuestionAction, moveQuestionAction, toggleFormAction } from './question-form-actions';
 import { QuestionEditor } from './question-form-editor';
 import { PUBLIC_PAGE } from './audience-catalogue';
@@ -311,7 +311,7 @@ export async function QuestionFormScreen({
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -343,7 +343,7 @@ export async function QuestionFormScreen({
             needs Cloud Functions and the project is on Spark.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

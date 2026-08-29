@@ -2,10 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { exhibitorSummary, getExhibitor, listExhibitors } from '@/lib/exhibitors';
 import { ROUTES } from '@/lib/nav';
-import {
-  Banner, EmptyState, listParams, PageHeader, paginate, Pagination, Panel, PER_PAGE,
-  ProgressBar, SearchInput, sortRows, StatTiles, Table, Tag,
-} from '../../../ui';
+import { Banner, EmptyState, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { setExhibitorStatusAction } from './actions';
 import { ExhibitorForm } from './exhibitor-form';
 
@@ -249,7 +246,7 @@ export default async function ExhibitorManagerPage({
         </Panel>
       )}
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -271,7 +268,7 @@ export default async function ExhibitorManagerPage({
             one — no screen in this dashboard can put a file into storage.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

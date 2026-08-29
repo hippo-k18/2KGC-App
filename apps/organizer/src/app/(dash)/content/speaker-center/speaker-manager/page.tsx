@@ -2,19 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSpeakers } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import {
-  PER_PAGE,
-  PageHeader,
-  Pagination,
-  Panel,
-  SearchInput,
-  StatTiles,
-  Table,
-  Tag,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../../ui';
+import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
 
 export const dynamic = 'force-dynamic';
@@ -231,7 +219,7 @@ export default async function SpeakerManagerPage({
         <Pagination total={rows.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -252,7 +240,7 @@ export default async function SpeakerManagerPage({
             publish; deleting it requires emailing their support.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

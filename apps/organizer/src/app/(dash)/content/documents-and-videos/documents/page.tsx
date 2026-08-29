@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listDocuments } from '@/lib/planning';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,7 +132,7 @@ export default async function DocumentsPage() {
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -149,7 +149,7 @@ export default async function DocumentsPage() {
             <strong>Download counts.</strong> Nothing measures whether anyone opened it.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

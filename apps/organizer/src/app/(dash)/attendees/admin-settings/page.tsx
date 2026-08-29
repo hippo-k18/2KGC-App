@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { allowlist, requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
-import { Banner, PageHeader, Panel, Table, Tag } from '../../ui';
+import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
 
 export const dynamic = 'force-dynamic';
@@ -110,14 +110,16 @@ export default async function AdminSettingsPage() {
         )}
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Adding or removing an administrator.</strong> An env var and a restart, by
-            design. Real user management needs Google SSO with enforced MFA to land first
-            (DECISIONS.md #5); the shape of <code>signIn()</code> is chosen so that lands as a
-            change to one function.
+            <strong>Adding or removing an administrator.</strong> An env var and a redeploy, by
+            design — <code>CONSOLE_ALLOWLIST</code> is re-read on every request, so a removal ends
+            that person&rsquo;s live session as soon as the process picks up the new value. Real
+            user management, with per-person credentials and an audit identity that means
+            something, would need a different sign-in method; the shape of <code>signIn()</code> is
+            chosen so that stays a change to one function.
           </li>
           <li>
             <strong>Roles that mean anything.</strong> There is one level of access. A check-in-only
@@ -137,7 +139,7 @@ export default async function AdminSettingsPage() {
             says so.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

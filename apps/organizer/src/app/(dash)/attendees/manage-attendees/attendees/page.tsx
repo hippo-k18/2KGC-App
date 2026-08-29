@@ -3,18 +3,7 @@ import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import {
-  PER_PAGE,
-  PageHeader,
-  Pagination,
-  Panel,
-  SearchInput,
-  Table,
-  Tag,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../../ui';
+import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
 import { ImportForm } from './import-form';
 
@@ -327,7 +316,7 @@ export default async function AttendeesPage({
         </p>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -353,7 +342,7 @@ export default async function AttendeesPage({
             from, which means Question Forms lands first.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

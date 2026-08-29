@@ -3,20 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import {
-  PER_PAGE,
-  Banner,
-  PageHeader,
-  Pagination,
-  Panel,
-  SearchInput,
-  StatTiles,
-  Table,
-  Tag,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../ui';
+import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -343,7 +330,7 @@ export default async function SessionCapPage({
         </p>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -376,7 +363,7 @@ export default async function SessionCapPage({
             the room it has to fit is how a session ends up 40 over.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

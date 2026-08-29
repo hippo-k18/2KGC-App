@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { EXPORTS, eventAnalytics } from '@/lib/exports';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +69,8 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>App adoption</h2>
         <ProgressBar pct={a.adoptionPct} />
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not opened the app yet. This is the
+          {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not opened the app yet.
+          This is the
           number worth moving before doors open — an attendee without the app has no agenda, no
           badge QR, and has to be checked in by hand at the desk.
         </p>
@@ -155,7 +156,7 @@ export default async function AnalyticsAndExportsPage() {
         </p>
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -170,7 +171,7 @@ export default async function AnalyticsAndExportsPage() {
             <strong>Cross-event reporting.</strong> Needs a second event to compare against.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

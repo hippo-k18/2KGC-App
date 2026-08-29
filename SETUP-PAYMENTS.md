@@ -304,9 +304,10 @@ keys with a real card you then refund.
 ❌ **`CONSOLE_PASSPHRASE` is a shared secret, and it now guards a refund
 button.**
 
-`apps/organizer/src/lib/auth.ts` says plainly that this is not the shipping
-design — DECISIONS.md #5 is Google SSO with enforced MFA. A shared passphrase has
-no per-person revocation and no audit identity beyond the email typed beside it.
+`apps/organizer/src/lib/auth.ts` sets out what a shared passphrase costs: no
+MFA, and no audit identity beyond the email typed beside it. It does revoke —
+the allowlist is re-checked on every request — but only once a redeploy picks up
+the change. That is the accepted design, not a step on the way to one.
 
 What I added on top:
 

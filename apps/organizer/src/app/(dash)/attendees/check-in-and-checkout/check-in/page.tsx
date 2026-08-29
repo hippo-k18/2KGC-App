@@ -8,7 +8,7 @@ import {
   recentCheckIns,
   recentScanEvents,
 } from '@/lib/checkin';
-import { Banner, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
 import { Dropdown } from '../../../menu';
 import { DeskTable, type DeskRow } from './desk-table';
 import { CreateListForm } from './list-form';
@@ -263,7 +263,7 @@ export default async function CheckInPage({
         <CreateListForm />
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -287,7 +287,7 @@ export default async function CheckInPage({
             writes with an <code>out</code> flag.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

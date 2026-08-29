@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listCheckInLists } from '@/lib/checkin';
 import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, NotBuilt, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, GapTag, NotBuilt, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +39,7 @@ export default async function SessionSelfCheckInPage() {
     <>
       <PageHeader
         title="Session Self Check-in"
-        tags={<Tag color="grey">not built</Tag>}
+        tags={<GapTag />}
         links={[
           <Link key="c" href={ROUTES.checkIn}>
             Attendee Check-in
@@ -113,7 +113,7 @@ export default async function SessionSelfCheckInPage() {
         refs="apps/organizer/src/lib/checkin.ts and firestore.rules"
       />
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -129,7 +129,7 @@ export default async function SessionSelfCheckInPage() {
             above.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

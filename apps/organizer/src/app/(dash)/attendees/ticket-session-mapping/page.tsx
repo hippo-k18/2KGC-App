@@ -4,7 +4,7 @@ import { listTicketEntitlements } from '@/lib/cohorts';
 import { listTicketTypes } from '@/lib/commerce';
 import { listAttendees, listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -282,7 +282,7 @@ export default async function TicketSessionMappingPage() {
         </p>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -318,7 +318,7 @@ export default async function TicketSessionMappingPage() {
             rather than here: a second place to change them is a second place for them to disagree.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

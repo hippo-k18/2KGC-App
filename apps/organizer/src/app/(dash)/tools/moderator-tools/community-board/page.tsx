@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listBoardForModeration, type ModeratedPost } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
 import { moderatePostAction, moderateReplyAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -244,7 +244,7 @@ export default async function ModerateCommunityBoardPage({
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -262,7 +262,7 @@ export default async function ModerateCommunityBoardPage({
             again, and blocking needs a claim the rules can read.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { ManualOrderForm } from '../../manual-order-form';
 
 export const dynamic = 'force-dynamic';
@@ -133,7 +133,7 @@ export default async function OfflinePaymentPage() {
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -156,7 +156,7 @@ export default async function OfflinePaymentPage() {
             a six-person conference a second signature is theatre; the audit entry is the control.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

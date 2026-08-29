@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { clockOf } from '@/lib/time';
-import { Banner, Panel, PageHeader } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -305,7 +305,7 @@ export default async function SessionManagerPage({
         </div>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -334,7 +334,7 @@ export default async function SessionManagerPage({
             <code>src/lib/push.ts</code>, targeted rather than broadcast on purpose.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

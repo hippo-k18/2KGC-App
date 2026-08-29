@@ -2,18 +2,7 @@ import Link from 'next/link';
 import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listAnnouncements } from '@/lib/data';
-import {
-  PER_PAGE,
-  Banner,
-  PageHeader,
-  Pagination,
-  Panel,
-  Table,
-  Tag,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../ui';
+import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 import { Dropdown, RowActions } from '../../menu';
 import { AnnouncementForm } from './announcement-form';
 
@@ -160,7 +149,7 @@ export default async function AnnouncementsPage({
         <Pagination total={sent.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -184,7 +173,7 @@ export default async function AnnouncementsPage({
             <strong>Sender identity</strong> — a custom from-name and reply-to.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

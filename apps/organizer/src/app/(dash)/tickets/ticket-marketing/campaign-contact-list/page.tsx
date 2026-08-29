@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listContacts, summariseContacts } from '@/lib/campaigns';
-import { listParams, paginate, PER_PAGE } from '../../../ui';
+import { GapPanel, PER_PAGE, listParams, paginate } from '../../../ui';
 import { Banner, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag } from '../../../ui';
 import { toggleSubscribedAction } from './actions';
 import { ContactImportForm } from './import-form';
@@ -239,7 +239,7 @@ export default async function CampaignContactListPage({
         <ContactImportForm existingLists={summary.lists.map((l) => l.name)} />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -265,7 +265,7 @@ export default async function CampaignContactListPage({
             one registry, so a seventh is an entry rather than a module.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

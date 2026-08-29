@@ -22,11 +22,18 @@ import { db } from './firestore';
  * importer copied, and `storage.rules` exists with nothing writing through it.
  *
  * That is worth measuring rather than asserting. A screen saying "photos are
- * not built" is a claim; a screen saying "there are 61 images, all of them URLs
- * on somebody else's server, and 0 of them uploaded here" is a fact an
- * organizer can plan around — including the awkward one, which is that a
- * conference whose speaker headshots are hotlinked has a website that breaks
- * when somebody's blog moves.
+ * not built" is a claim; a screen saying "there are N images, M of them URLs on
+ * somebody else's server, and 0 of them uploaded here" is a fact an organizer
+ * can plan around — including the awkward one, which is that a conference whose
+ * speaker headshots are hotlinked has a website that breaks when somebody's
+ * blog moves.
+ *
+ * The numbers come from the data, which is the point: an earlier version of
+ * this comment quoted "61 images, all of them URLs" as though it were fixed,
+ * and by 2026-08-28 it was not — the *website* now serves 242 local files and
+ * hotlinks nothing, and what remains offsite is sponsor and exhibitor logos on
+ * Whova's own CDN, which arrive with the seed. Whatever this screen shows is
+ * what is true when it is opened. Do not re-freeze a count into this comment.
  *
  * ── Same read rule as everywhere else ──────────────────────────────────────
  *

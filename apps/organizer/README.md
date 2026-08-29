@@ -65,7 +65,14 @@ anything:
 
 ## What is real
 
-Nine screens read and write real Firestore documents through the Admin SDK:
+**All 173 screens read or write real Firestore data**, as of 2026-08-26.
+`npm run smoke` from the repo root boots the emulator, seeds it, builds this app
+and requests every path in `nav.ts` — all 173 return 200 with no server-side
+throw. That is the check; there is no screen left whose entire content is a
+description of itself.
+
+The nine below are the ones worth knowing about, because they are where the
+writes are:
 
 | Whova path | What it does here |
 |---|---|
@@ -77,12 +84,31 @@ Nine screens read and write real Firestore documents through the Admin SDK:
 | Engagement → Announcements | **Writes.** One document; the app's home screen picks it up in ~1s. Push sends via the Admin SDK — no Cloud Function, so no Blaze. |
 | Attendees → Manage Attendees → Attendees | Search, role filter, the registrations-vs-profiles gap. |
 | Attendees → Check-in & Checkout → Check-in | **Writes.** Badge QR scan → idempotent check-in. |
-| Tools → Report | Ours: live numbers, audit trail, error ring. |
+| Tickets → Orders | **Writes.** Reads `orders`, refunds through Stripe, re-asks for the passphrase first. |
 
-The other **206 paths resolve rather than 404**. A group renders an index of its
-children; a leaf renders what Whova does there, what this repo would need, and
-roughly how big that is (`src/lib/gaps.ts`). That is deliberate: an empty state
-implying "this half-works" is worse than one that names the gap.
+Of the 215 nav paths, 42 are section headers that render an index of their
+children; the remaining 173 are the screens counted above.
+
+## The gap notes, and the flag over them
+
+126 screens carry a **"Not built here"** panel, eight carry a fuller gap card,
+and eight page headers carry a grey `not built` tag. They name what Whova does
+that this repo does not, measured against live data rather than asserted.
+
+⚠️ **They render only under `SHOW_GAP_NOTES=1`, and the default is off.** They
+are written for whoever is building this; an audience shown the dashboard reads
+"Not built here" on nearly every screen as a verdict on the whole product. The
+content stays in the source either way — deleting it to make the dashboard look
+finished would make the dashboard lie.
+
+```bash
+SHOW_GAP_NOTES=1 npm run dev     # see what is missing
+npm run dev                      # what a demo audience sees
+```
+
+**When you add one, use `GapPanel` or `GapTag` from `src/app/(dash)/ui.tsx`** —
+never a bare `Panel` — or it will appear in front of an audience. The flag is
+defined once, in `src/lib/gap-notes.ts`, so it cannot be half-applied.
 
 ## Security
 

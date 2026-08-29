@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listStations } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { Banner, NotBuilt, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, GapTag, NotBuilt, PageHeader, Panel, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +33,7 @@ export default async function KioskCheckInPage() {
     <>
       <PageHeader
         title="Kiosk Check-in"
-        tags={<Tag color="grey">not built</Tag>}
+        tags={<GapTag />}
         links={[
           <Link key="c" href={ROUTES.checkIn}>
             Attendee Check-in
@@ -103,7 +103,7 @@ export default async function KioskCheckInPage() {
         refs="packages/shared/src/models.ts — BadgeTemplateDoc, BadgePrintJobDoc"
       />
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -121,7 +121,7 @@ export default async function KioskCheckInPage() {
             <Link href="/attendees/name-badges">Name Badges</Link>, run in advance from a browser.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

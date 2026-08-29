@@ -3,7 +3,7 @@ import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requireOrganizer, requirePassphrase } from '@/lib/auth';
 import { audienceFor, listContacts, summariseContacts } from '@/lib/campaigns';
 import { listCampaigns } from '@/lib/messaging';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tabs, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tabs, Tag } from '../../../ui';
 import { CampaignForm } from './campaign-form';
 
 export const dynamic = 'force-dynamic';
@@ -184,7 +184,7 @@ export default async function EmailCampaignPage({
         />
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
@@ -212,7 +212,7 @@ export default async function EmailCampaignPage({
             collections and the obvious next piece.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

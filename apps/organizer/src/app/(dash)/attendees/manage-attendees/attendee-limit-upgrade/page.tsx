@@ -3,7 +3,7 @@ import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +81,7 @@ export default async function AttendeeLimitUpgradePage() {
         </ul>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -99,7 +99,7 @@ export default async function AttendeeLimitUpgradePage() {
             — there are two, so this is cheap when somebody wants it.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

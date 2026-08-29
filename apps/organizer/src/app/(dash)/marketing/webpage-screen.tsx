@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { pageReadiness, publicUrl, type PageReadiness } from '@/lib/webpages';
-import { Banner, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 
 /**
  * One screen, rendered for each public page: Agenda, Speakers, Sponsors.
@@ -118,7 +118,7 @@ export async function WebpageScreen({
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
+      <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           {notBuilt.map((n) => (
@@ -129,7 +129,7 @@ export async function WebpageScreen({
             site. Ours <em>is</em> the site, so there is nothing to embed it into.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

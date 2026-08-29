@@ -2,19 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listAttendees, type AttendeeRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import {
-  PER_PAGE,
-  PageHeader,
-  Pagination,
-  Panel,
-  SearchInput,
-  StatTiles,
-  Table,
-  Tag,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../ui';
+import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -329,7 +317,7 @@ export default async function CategoriesPage({
         </p>
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
@@ -355,7 +343,7 @@ export default async function CategoriesPage({
             the mirror only, with the same drift.
           </li>
         </ul>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

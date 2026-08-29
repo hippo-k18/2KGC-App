@@ -1,10 +1,32 @@
 # Backend & Organizer Console — Roadmap
 
-Rédigé le 2026-08-25, à partir d'un audit croisé de `AGENTS.md`, `firestore.rules`,
-`apps/console/src/lib/nav.ts` et du code réel de `app/`. Objectif : combler le
-vide laissé par `DECISIONS.md` et `whova-rebuild/research/`, cités partout dans
-le code mais absents du repo. À tenir à jour au fil de l'avancement — sinon ce
-fichier deviendra aussi trompeur que l'était l'ancien README.
+Rédigé le 2026-08-25. **Mis à jour le 2026-08-28** : les Phases 0, 1, 2, 3 et 4
+sont closes, et une partie de la Phase 5 aussi. Voir l'état par phase ci-dessous
+avant de lire le détail, qui décrit le plan tel qu'il était et non l'état actuel.
+
+⚠️ Deux prémisses de la version d'origine étaient fausses :
+
+- `apps/console/` **n'existe plus** — supprimé en août 2026 et remplacé par
+  `apps/organizer/`. Toute référence à `apps/console` ici est historique.
+- `DECISIONS.md` **existe bel et bien**, dans `whova-rebuild/DECISIONS.md`, un
+  niveau au-dessus de ce dépôt. Il n'était pas absent, il était ailleurs.
+
+## État par phase — 2026-08-28
+
+| Phase | État |
+|---|---|
+| **0 — Cadrage** | ✅ Close. Le livrable demandé est `functions/SPEC.md` : chaque trigger, son déclencheur, ce qu'il écrit, ce qu'il ne doit pas faire. |
+| **1 — Écrire et tester les functions** | ✅ Close. **8 triggers** dans `functions/src/triggers/`, **14 tests** verts sur l'émulateur. |
+| **2 — Trous du modèle de données** | ✅ Close. |
+| **3 — Écrans manquants de la console** | ✅ Close par comptage d'écrans : **173 / 173** rendent des données réelles (`npm run smoke`). Ce qui reste n'est plus des écrans mais des capacités — voir `ROADMAP.md`. |
+| **4 — Sécuriser la console** | ✅ Close **par décision, pas par construction**. Le 2026-08-28 il a été décidé de garder email + passphrase : pas de SSO, pas de MFA. Le coût est écrit dans `apps/organizer/src/lib/auth.ts`. La liste d'emails « sans aucune vérification » décrite plus bas n'est plus exacte : il y a un secret partagé, un cookie HMAC de 8 h, une comparaison à temps constant et un échec fermé en production. |
+| **5 — Bascule vers Blaze** | ⚠️ **À moitié faite, et pas dans l'ordre prévu.** Les règles et les 16 index **sont déployés** sur le projet réel (via `scripts/ops/deploy-rules.mjs` et `deploy-indexes.mjs` — la CLI Firebase est refusée ici avec un 403 `serviceusage`). Le projet reste sur **Spark**, donc les Cloud Functions ne sont **pas** déployées. C'est le seul point bloquant qui reste. |
+| **6 — Documentation** | ✅ Faite le 2026-08-28 : ce fichier, `ROADMAP.md`, `AGENTS.md`, `README.md`, `DEMO.md`. |
+
+Le reste du document décrit le plan d'origine. Il est conservé parce qu'il
+explique *pourquoi* chaque phase existait ; `ROADMAP.md` est la mesure actuelle.
+
+---
 
 Tout se fait **en local, gratuitement, sur l'émulateur Firebase**, jusqu'à la
 Phase 5. Rien n'oblige à passer sur Blaze avant d'y arriver.
@@ -51,7 +73,7 @@ bancaire ni Blaze. Chaque fonction listée en Phase 0, une par une :
 1. Écrire le déclencheur dans `functions/src/`.
 2. Le tester contre l'émulateur avec des données seedées (`npm run seed`).
 3. Vérifier qu'il respecte les règles déjà écrites — `tests/rules/firestore.test.ts`
-   (134 tests) doit continuer à passer, et de nouveaux tests doivent couvrir
+   (143 tests aujourd’hui) doit continuer à passer, et de nouveaux tests doivent couvrir
    chaque nouveau champ.
 4. Committer.
 

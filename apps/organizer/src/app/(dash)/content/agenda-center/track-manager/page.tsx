@@ -2,17 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTracks } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import {
-  PER_PAGE,
-  Banner,
-  PageHeader,
-  Pagination,
-  Panel,
-  Table,
-  listParams,
-  paginate,
-  sortRows,
-} from '../../../ui';
+import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, Table, listParams, paginate, sortRows } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,7 +110,7 @@ export default async function TrackManagerPage({
         <Pagination total={tracks.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
       </Panel>
 
-      <Panel>
+      <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <p className="body-2">
           Creating, renaming, recolouring and deleting a track. All four are cheap to build and
@@ -130,7 +120,7 @@ export default async function TrackManagerPage({
           cross-lists the track. Until that fan-out exists, renaming from the importer — which
           rewrites every session anyway — is the safe path.
         </p>
-      </Panel>
+      </GapPanel>
     </>
   );
 }

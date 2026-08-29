@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { gapNotesVisible } from '@/lib/gap-notes';
 
 /**
  * The page furniture every Whova screen repeats.
@@ -299,6 +300,43 @@ export function Banner({
 }
 
 /**
+ * The panel a screen uses to list what it does *not* do — "Not built here".
+ *
+ * A `Panel` that disappears when `SHOW_GAP_NOTES` is off, which is the default.
+ * Gating it here rather than at each of the 126 call sites means the flag has
+ * one definition and cannot be half-applied: a screen either renders its gap
+ * note or renders nothing where it would have been, and no screen can be left
+ * behind when the flag flips.
+ *
+ * The content stays in the source either way. It is the accurate remainder, and
+ * deleting it to make the dashboard look finished would make the dashboard lie.
+ *
+ * See `lib/gap-notes.ts` for why the default is off.
+ */
+export function GapPanel({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: React.CSSProperties;
+}) {
+  if (!gapNotesVisible()) return null;
+  return <Panel style={style}>{children}</Panel>;
+}
+
+/**
+ * A page-header tag reading "not built", hidden by the same flag as `GapPanel`.
+ *
+ * Separate from `GapPanel` because it sits in a header's `tags` slot rather than
+ * in the body, and a header with a stray empty tag renders a gap in the row.
+ * Returning `null` removes the element entirely.
+ */
+export function GapTag({ children = 'not built' }: { children?: ReactNode }) {
+  if (!gapNotesVisible()) return null;
+  return <Tag color="grey">{children}</Tag>;
+}
+
+/**
  * The honest gap note.
  *
  * Whova has a screen here and we do not. A greyed-out table or a disabled button
@@ -306,6 +344,9 @@ export function Banner({
  * this states what Whova does, what this repo would need, and roughly how big
  * that is, and it is deliberately styled as prose rather than as a broken
  * feature.
+ *
+ * Hidden by `SHOW_GAP_NOTES` along with `GapPanel`, for the same reason: it is
+ * written for whoever is building this, not for the room being shown it.
  */
 export function NotBuilt({
   whova,
@@ -318,6 +359,7 @@ export function NotBuilt({
   size?: string;
   refs?: string;
 }) {
+  if (!gapNotesVisible()) return null;
   return (
     <Panel>
       <h2 className="section-header">Not built</h2>
