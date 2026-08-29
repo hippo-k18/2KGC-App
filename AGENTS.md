@@ -60,7 +60,15 @@ package.json               workspaces: ["app", "functions", "packages/*", "scrip
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
 tests/rules/                140 tests — the security boundary
 tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
-functions/                  empty — WP-02 fills this, once the project is on Blaze
+functions/                  "@kgc/functions" — all ten Phase 1 Cloud Functions,
+                            built and tested against the emulator, never deployed
+                            (still on Spark) — see functions/SPEC.md
+  src/
+    index.ts                initializeApp() plus every function export
+    triggers/               Firestore-triggered functions: onReplyWrite,
+                            mirrorDirectory, onSessionAgendaChange, and others
+    callable/               HTTPS callables: requestOtp, verifyOtp
+    lib/otp.ts              normaliseEmail/otpDocId, shared by both callables
 packages/shared/
   package.json              "@kgc/shared" — plain TS, no React, no Firebase SDK import.
                             "type": "module", so index.ts re-exports use `.js`
