@@ -51,7 +51,7 @@ bancaire ni Blaze. Chaque fonction listée en Phase 0, une par une :
 1. Écrire le déclencheur dans `functions/src/`.
 2. Le tester contre l'émulateur avec des données seedées (`npm run seed`).
 3. Vérifier qu'il respecte les règles déjà écrites — `tests/rules/firestore.test.ts`
-   (134 tests) doit continuer à passer, et de nouveaux tests doivent couvrir
+   (140 tests) doit continuer à passer, et de nouveaux tests doivent couvrir
    chaque nouveau champ.
 4. Committer.
 
@@ -106,6 +106,19 @@ en parallèle de la Phase 1 :
   `update`, acceptation d'une URL Firebase Storage légitime, et l'édition
   d'un champ non lié qui doit continuer à passer malgré un `photoURL` déjà
   invalide.
+- **`allow update` sur `users/{uid}` ne revérifie jamais `isRegistered()`
+  après la création du compte.** Repéré le 2026-08-29 pendant l'ultra-review
+  du correctif `photoURL` ci-dessus. `allow create` exige `isRegistered()` ;
+  `allow update`, juste en dessous dans `firestore.rules`, ne demande que
+  `isSelf(uid)` et ne l'a jamais demandé. Un compte dont le claim `registered`
+  a été révoqué depuis (billet annulé) mais qui possède déjà un document
+  `users/{uid}` peut continuer à modifier indéfiniment tous les champs
+  autorisés de son profil — y compris `photoURL`, dont le format est
+  désormais validé mais pas l'éligibilité de son auteur. Volontairement
+  laissé de côté pendant le correctif `photoURL` : c'est une décision de
+  sécurité plus large que ce correctif-là, et il faudrait d'abord des tests
+  qui répondent à « un compte désinscrit peut-il encore modifier son profil
+  aujourd'hui ? » avant d'y toucher.
 
 ---
 
