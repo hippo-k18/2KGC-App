@@ -390,12 +390,14 @@ comments describing capabilities the code doesn't actually have yet.*
   Firebase JS SDK on React Native).
 - **Push notifications are not implemented.** Modelled, nothing writes to or
   reads from it.
-- **The Firebase project is still on the Spark plan.** `functions/` is empty —
-  zero Cloud Function triggers exist yet, which is also why Session Q&A/poll
-  counters, the `directory/{uid}` mirror, and the OTP sign-in above are all
-  blocked, independent of any billing decision.
+- **The Firebase project is still on the Spark plan.** `functions/` is no
+  longer empty — all ten Cloud Functions from Phase 1 (see
+  `functions/SPEC.md`) are built and tested against the emulator — but **none
+  of them are deployed**, which is why Session Q&A/poll counters, the
+  `directory/{uid}` mirror, and the OTP sign-in above are all still blocked in
+  the real app, independent of any further code changes.
 - **Security rules and indexes are written but not deployed** to the real
-  `kgc-database` project. `tests/rules/firestore.test.ts` has 134 tests against
+  `kgc-database` project. `tests/rules/firestore.test.ts` has 140 tests against
   the emulator, which is not the same as being live in production.
 - **The organizer console (`apps/console/`) is the least finished part of the
   whole system** — most of its screens are still view-only or unbuilt. See its

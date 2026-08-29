@@ -327,6 +327,34 @@ describe('profiles and the directory', () => {
     await assertSucceeds(updateDoc(doc(db, 'users/legacy-photo'), { name: 'Renamed' }));
   });
 
+  it('refuses replacing an already-valid photoURL with a malicious one', async () => {
+    const db = env.authenticatedContext('has-photo', attendee('has-photo')).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/has-photo'), {
+        email: 'has-photo@kgc.test', roles: ['attendee'],
+        photoURL: 'https://firebasestorage.googleapis.com/v0/b/kgc-database.appspot.com/o/avatars%2Fold?alt=media',
+      });
+    });
+    await assertFails(
+      updateDoc(doc(db, 'users/has-photo'), { photoURL: 'https://attacker.example/beacon.png' }),
+    );
+  });
+
+  it('lets you replace an invalid legacy photoURL with a genuine one', async () => {
+    const db = env.authenticatedContext('legacy-photo-2', attendee('legacy-photo-2')).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/legacy-photo-2'), {
+        email: 'legacy-photo-2@kgc.test', roles: ['attendee'],
+        photoURL: 'https://attacker.example/beacon.png',
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(db, 'users/legacy-photo-2'), {
+        photoURL: 'https://firebasestorage.googleapis.com/v0/b/kgc-database.appspot.com/o/avatars%2Ffixed?alt=media',
+      }),
+    );
+  });
+
   it('lets an attendee with no profile yet save a privacy switch', async () => {
     // `me/index.tsx` writes this with `setDoc(..., {merge: true})`, and a merge
     // onto a document that does not exist is a CREATE carrying two fields. The

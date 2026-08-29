@@ -58,7 +58,7 @@ the same document types and must not duplicate them.
 ```
 package.json               workspaces: ["app", "functions", "packages/*", "scripts"]
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
-tests/rules/                134 tests — the security boundary
+tests/rules/                140 tests — the security boundary
 tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
 functions/                  empty — WP-02 fills this, once the project is on Blaze
 packages/shared/
@@ -148,7 +148,7 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 134 tests against firestore.rules
+npm run test:rules                   # 140 tests against firestore.rules
 npm test                             # 35 unit tests: timezone derivation and the QR encoder
 ```
 
@@ -373,7 +373,7 @@ Four things to know before editing it:
   the whole query. The inbox broke this way once. If a rule guards a collection
   anyone queries, test both verbs.
 
-`tests/rules/firestore.test.ts` has **134 tests, one per invariant**. It has been
+`tests/rules/firestore.test.ts` has **140 tests, one per invariant**. It has been
 mutation-checked: breaking `isRegistered()` fails exactly the test that names that
 guarantee. Add a test whenever you add a rule — the suite is the only thing
 standing between this file and 1,000 attendees' data.
@@ -393,6 +393,11 @@ standing between this file and 1,000 attendees' data.
   `functions/SPEC.md`. This holds even when the person you're working with
   writes to you in another language; reply to them in their language, but
   write the file in English, for consistency with the rest of the project.
+  **Exception: `BACKEND-ROADMAP.md` stays in French.** It is the owner's
+  personal working log, not project documentation meant for a general
+  contributor audience, and it was written in French from its first line.
+  Continue in French there; do not translate it into English and do not
+  treat its language as a violation of this rule.
 
 ## Known gaps
 

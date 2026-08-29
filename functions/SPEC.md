@@ -156,10 +156,13 @@ threads stays client-managed, as today — nothing changes there.
   ~1,000 documents fetched whole by every attendee, and bypassing rules
   must not mean bypassing that budget too. It also only ever mirrors
   `photoURL` when the value's hostname is `firebasestorage.googleapis.com`
-  — `firestore.rules` lets an attendee write any string into their own
-  `users/{uid}.photoURL` with no format check, so this is the one place
-  deciding whether that string is allowed to become a fetched URL on 1,000
-  other screens. `seed-demo.ts`'s directory write is confirmed to still be
+  (and, as of `fix-photourl-validation`, scheme `https:` too) — a check that
+  used to be the only thing standing between an arbitrary attacker string and
+  1,000 attendees' screens. It no longer is: `firestore.rules` now enforces
+  the identical constraint directly on `users/{uid}.photoURL` itself, and
+  this check stays as defense in depth against any future Admin-SDK writer
+  that bypasses rules entirely. `seed-demo.ts`'s directory write is confirmed
+  to still be
   a genuine second writer, not a stale Spark-only fallback: this trigger
   now runs on the emulator like every other function here and recomputes
   the same document moments after seeding finishes.
