@@ -1422,87 +1422,18 @@ section.tint {
   color: #991b1b;
 }
 
-/* --------------------------------------------------------- confirmation -- */
+/* ------------------------------------------------ confirmation steps -- */
 
-.ticket {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  background: var(--white);
-}
-
-.ticket .top {
-  background: var(--blue-deep) url('/hero-kgc.png') center / cover;
-  color: var(--white);
-  padding: 26px;
-}
-
-.ticket .top h2 {
-  color: var(--white);
-  margin: 0 0 4px;
-  font-size: 1.5rem;
-}
-
-.ticket .top .sub {
-  color: rgb(255 255 255 / 82%);
-  font-size: 0.95rem;
-}
-
-.ticket .rows {
-  padding: 4px 26px 20px;
-}
-
-.ticket .row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.95rem;
-  flex-wrap: wrap;
-}
-
-.ticket .row:last-child {
-  border-bottom: none;
-}
-
-.ticket .row .k {
-  color: var(--muted);
-}
-
-.ticket .row .v {
-  color: var(--ink);
-  font-weight: 600;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
-.claim {
-  background: var(--wash);
-  border: 1px dashed var(--blue);
-  border-radius: var(--radius);
-  padding: 22px;
-  text-align: center;
-  margin: 26px 0;
-}
-
-/* `--muted` on the claim block's `--wash` is 4.23:1, and this is the sentence
-   telling the buyer to write the code down. */
-.claim .muted {
-  color: var(--body);
-}
-
-.claim .code {
-  font-size: 2.6rem;
-  font-weight: 800;
-  letter-spacing: 0.28em;
-  color: var(--blue-dark);
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
-  margin: 6px 0 0;
-  text-indent: 0.28em; /* letter-spacing adds a trailing gap; recentre. */
-}
-
+/*
+ * `.ticket` and `.claim` used to live here — a bordered white card of
+ * key/value rows and a dashed box around the claim code, both of them the
+ * order confirmation's. That page now renders the order as a pass instead
+ * (`.pass`, at the end of this file), so both rule sets were deleted rather
+ * than left as a second way to draw the same screen.
+ *
+ * `.steps` stays. It is still the numbered list on the exhibitor and sponsor
+ * registration pages — see `tickets/audience-page.tsx`.
+ */
 .steps {
   counter-reset: step;
   list-style: none;
@@ -4814,4 +4745,803 @@ section.tint {
   .demo-card .demo-card-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ================================================================ buying == */
+
+/*
+ * The purchase and its confirmation.
+ *
+ * These two screens are the only pages on this site with no counterpart on
+ * knowledgegraph.tech — the live site hands checkout to a third party — so they
+ * are the one place the replica brief leaves layout genuinely open. Everything
+ * below is still built from the theme's own palette numbers and its one type
+ * family; what is different is the *shape*, not the paint.
+ *
+ * Two decisions carry the whole thing:
+ *
+ *   1. The order summary is navy and the form it sits beside is white. That
+ *      contrast is the page's own device, borrowed from the two headline ticket
+ *      panels above it (`.kgc-ticket.dark` / `.light`) rather than invented: the
+ *      brand colour says "what you get", the paper says "what you type".
+ *
+ *   2. The confirmation renders the order as a physical pass with a tear line,
+ *      because the tear line is true. Left of it is a record; right of it are
+ *      the two credentials worth keeping.
+ *
+ * Radii follow the same logic. Soft UI surfaces take `--radius` (16px); the two
+ * things pretending to be printed — the ticket panels and the pass — take
+ * `--radius-sm` (4px), which is what card stock looks like.
+ */
+
+/* --------------------------------------------------------- the flow strip - */
+
+.flow-band {
+  padding: 56px 0 52px;
+}
+
+/* Held to the same 1080 as the checkout below it, so the strip's first step and
+   the order summary share a left edge. `.wrap` is otherwise allowed to run to
+   2000px, which put the two on visibly different grids. */
+.flow-band .wrap {
+  max-width: 1080px;
+}
+
+.flow-title {
+  margin-bottom: 6px;
+}
+
+/*
+ * A real sequence, so it keeps its numbers — each step is only true once the
+ * one before it has happened. What it does not keep is its old length: this was
+ * four paragraphs in a column beside the checkout form, and it is now four
+ * lines above it.
+ */
+.flow-strip {
+  counter-reset: flow;
+  list-style: none;
+  margin: 30px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 26px;
+  grid-template-columns: 1fr;
+}
+
+@media (width >= 760px) {
+  .flow-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width >= 1100px) {
+  .flow-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.flow-strip li {
+  counter-increment: flow;
+  padding-top: 16px;
+  /* A rule above each step rather than a circled numeral beside it: at four
+     across, the numerals were four heavy dots in a row and the eye read the
+     dots instead of the words. */
+  border-top: 2px solid var(--palette-2);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--body);
+}
+
+.flow-strip li::before {
+  content: counter(flow, decimal-leading-zero);
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--highlight);
+  margin-bottom: 8px;
+}
+
+.flow-strip strong {
+  display: block;
+  color: var(--heading);
+  font-size: 0.95rem;
+  margin-bottom: 3px;
+}
+
+/* ------------------------------------------------------ the buy two-column - */
+
+.buy-band {
+  padding: 64px 0 80px;
+  /* 96px is the measured height of `.site-header .bar`. The anchor is on the
+     section now and nowhere else — it used to be on the section *and* on the
+     form inside it, so `#buy` resolved to whichever the browser found first. */
+  scroll-margin-top: 104px;
+}
+
+/*
+ * Capped well inside `.wrap`, which is allowed to run to 2000px.
+ *
+ * A form stretched across a 1440px window is a form with 700px input fields,
+ * and a 700px input field looks like a mistake. 1080 puts the summary at ~460
+ * and the form at ~570, which is about as wide as a labelled field can be
+ * before the label and its value stop feeling related.
+ */
+.buy-layout {
+  display: grid;
+  gap: 40px;
+  /*
+   * `minmax(0, 1fr)`, never a bare `1fr`.
+   *
+   * A grid track defaults to `min-width: auto`, so a bare `1fr` is floored at
+   * the column's min-content width and grows the whole page rather than
+   * wrapping. On a 430px phone that put the order summary at 531px and gave the
+   * document 125px of horizontal scroll — the classic version of this bug, and
+   * invisible on a desktop window.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  max-width: 1080px;
+  margin-inline: auto;
+}
+
+@media (width >= 940px) {
+  .buy-layout {
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1fr);
+  }
+
+  /* The form is the taller column by some margin once the organizer's questions
+     are in it, so the summary follows the buyer down rather than leaving a
+     column of empty page beside the pay button. */
+  .order-rail {
+    position: sticky;
+    top: calc(var(--header-height) + 20px);
+  }
+}
+
+.order-rail {
+  display: grid;
+  gap: 18px;
+}
+
+.rail-card {
+  background: var(--palette-2);
+  color: var(--palette-3);
+  border-radius: var(--radius-sm);
+  padding: 28px 28px 24px;
+}
+
+.rail-eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+/* `h2` on the page's own scale would be 28px near-black; this is a label for a
+   card, not a section heading, and it is on navy. */
+.rail-card .rail-tier {
+  color: var(--white);
+  font-size: 26px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.rail-tagline {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--palette-4);
+}
+
+.rail-heading {
+  margin: 22px 0 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+.rail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+/* A drawn tick rather than a `•` or a `✓` glyph: the check mark renders at a
+   different weight in every fallback font, and at this size that reads as a
+   rendering fault rather than as a bullet. */
+.rail-list li {
+  position: relative;
+  padding-left: 26px;
+}
+
+.rail-list li::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--orange);
+  border-bottom: 2px solid var(--orange);
+  transform: rotate(-45deg);
+}
+
+.rail-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgb(255 255 255 / 18%);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+/*
+ * Orange on `--palette-2` measures 4.70:1, which clears AA for text this size.
+ * The site's orange-on-orange button contrast is a deliberate replica of the
+ * live site (see `.btn-accent`); this figure is ours, so it is held to the
+ * standard rather than to the original.
+ *
+ * Not monospaced, unlike the figures in the tier picker. Mono is for a *column*
+ * of numbers — it exists so the digits line up down the page — and at 1.9rem it
+ * buys nothing while opening a visible gap either side of the thousands comma,
+ * so "$1,199" reads as "$1 , 199". One number on its own belongs in the display
+ * face.
+ */
+.rail-amount {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--orange);
+}
+
+.rail-note {
+  margin: 12px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--palette-4);
+}
+
+.rail-trust {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.rail-trust a {
+  color: var(--highlight);
+}
+
+.rail-lock {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 6px;
+  color: var(--highlight);
+}
+
+/* ------------------------------------------------------------ the form ---- */
+
+.checkout-title {
+  font-size: 1.5rem;
+  margin: 0 0 18px;
+}
+
+.checkout-closed {
+  max-width: 620px;
+  margin-inline: auto;
+}
+
+/*
+ * The tier picker: a radio group that shows every price at once.
+ *
+ * A native `<select>` hides three of the four figures behind a click, which is
+ * the wrong trade for a decision made once and worth getting right. The whole
+ * row is the label, so the hit target is the row and not the 13px dot.
+ */
+.tier-choice {
+  border: none;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.tier-choice legend {
+  padding: 0;
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.92rem;
+  margin-bottom: 8px;
+}
+
+.tier-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  cursor: pointer;
+  font-size: 0.92rem;
+}
+
+.tier-option + .tier-option {
+  margin-top: 8px;
+}
+
+.tier-option:hover {
+  border-color: var(--palette-4);
+}
+
+.tier-option.is-selected {
+  border-color: var(--palette-2);
+  /* A second inset ring rather than a 2px border: a border that thickens on
+     selection moves the text 1px, and four rows all shifting as you arrow
+     through them is the sort of jitter nobody names but everybody feels. */
+  box-shadow: inset 0 0 0 1px var(--palette-2);
+  background: var(--wash);
+}
+
+.tier-option.is-unavailable {
+  cursor: not-allowed;
+  color: var(--muted);
+  background: var(--palette-8);
+}
+
+.tier-option input {
+  accent-color: var(--palette-2);
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.tier-option-name {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: inherit;
+}
+
+/*
+ * Tabular figures rather than a monospace face.
+ *
+ * Four prices in a column want their digits to line up, which is the one thing
+ * mono is genuinely for — but a mono face also sets the thousands comma on a
+ * full-width advance, so "$1,199" comes out as "$1 , 199" against a plain
+ * "$799" below it. `tnum` gives the alignment without the gap, and keeps the
+ * row in the same face as the ticket name beside it.
+ */
+.tier-option-price {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+
+.tier-option.is-unavailable .tier-option-price {
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tier-option:focus-within {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* ============================================================ the pass ==== */
+
+.order-page {
+  padding: 48px 0 88px;
+}
+
+.order-headline {
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  line-height: 1.2;
+  margin-bottom: 18px;
+}
+
+/*
+ * The pass: a record, a tear line, and a stub.
+ *
+ * `overflow: hidden` is what turns the two circles below into notches — each is
+ * centred on the tear line and half of it is clipped away by the edge of the
+ * card, which is how a real perforation is punched.
+ */
+.pass {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin: 28px 0 18px;
+  box-shadow: 0 10px 30px rgb(16 36 58 / 14%);
+}
+
+.pass-main {
+  background: var(--palette-2);
+  color: var(--palette-3);
+  padding: 30px 30px 28px;
+}
+
+.pass-kicker {
+  margin: 0 0 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+.pass-name {
+  margin: 0;
+  font-size: 1.85rem;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--white);
+}
+
+.pass-tier {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.pass-facts {
+  margin: 24px 0 0;
+  display: grid;
+  gap: 14px;
+}
+
+@media (width >= 560px) {
+  .pass-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 28px;
+  }
+}
+
+.pass-facts dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+  margin-bottom: 3px;
+}
+
+.pass-facts dd {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--white);
+  overflow-wrap: anywhere;
+}
+
+.pass-facts dd.mono {
+  font-size: 0.78rem;
+}
+
+@media (width >= 560px) {
+  .pass-fact-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+/*
+ * The stub, one shade deeper than the panel it tears off.
+ *
+ * `--palette-1` is the theme's deepest ink. Against `--palette-2` the step is
+ * small on purpose: enough that the two halves read as separate pieces of card,
+ * not so much that the stub looks like a different component.
+ */
+.pass-stub {
+  position: relative;
+  background: var(--palette-1);
+  padding: 26px 24px 24px;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 14px;
+}
+
+/* The perforation itself: a column of punched dots, inset from both ends the
+   way a real one stops short of the edge. */
+.pass-stub::before {
+  content: '';
+  position: absolute;
+  /* -1.5px, not 0: the stub's own left edge *is* the tear line, so a 3px-wide
+     column of dots drawn from it sits a dot-and-a-half to the right of the two
+     notches that are centred on it. */
+  inset: 14px auto 14px -1.5px;
+  width: 3px;
+  background-image: radial-gradient(
+    circle at 1.5px 4.5px,
+    rgb(255 255 255 / 45%) 0 1.5px,
+    transparent 1.6px
+  );
+  background-size: 3px 10px;
+  background-repeat: repeat-y;
+}
+
+.pass-qr {
+  display: block;
+  border-radius: 3px;
+}
+
+.pass-stub-label {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+.pass-stub-label a {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+  color: var(--palette-4);
+  overflow-wrap: anywhere;
+}
+
+.pass-claim {
+  width: 100%;
+  padding-top: 14px;
+  border-top: 1px dashed rgb(255 255 255 / 28%);
+}
+
+.pass-claim-label {
+  margin: 0 0 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+/* `letter-spacing` adds a trailing gap after the last character, so the string
+   sits half a space left of centre unless the same amount is put back. */
+.pass-claim-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  color: var(--white);
+}
+
+@media (width >= 720px) {
+  .pass {
+    grid-template-columns: minmax(0, 1fr) 236px;
+  }
+
+  /* Centred on the tear line, half of each clipped by `overflow: hidden`. */
+  .pass::before,
+  .pass::after {
+    content: '';
+    position: absolute;
+    right: 227px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--palette-8);
+  }
+
+  .pass::before {
+    top: -9px;
+  }
+
+  .pass::after {
+    bottom: -9px;
+  }
+}
+
+/* Below 720px the pass stacks, so the tear line is horizontal and the notches
+   move to the left and right edges of it.
+
+   They are drawn from `.pass-main` rather than from `.pass` here: the tear line
+   is wherever the main panel happens to end, which depends on how long the
+   venue and the address are, so the only element that knows where to put them
+   is the panel itself. `.pass` still clips them, which is what makes each a
+   half-circle. */
+@media (width < 720px) {
+  .pass-main {
+    position: relative;
+  }
+
+  .pass-main::before,
+  .pass-main::after {
+    content: '';
+    position: absolute;
+    bottom: -9px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--palette-8);
+  }
+
+  .pass-main::before {
+    left: -9px;
+  }
+
+  .pass-main::after {
+    right: -9px;
+  }
+
+  .pass-stub::before {
+    inset: 0 14px auto 14px;
+    width: auto;
+    height: 3px;
+    background-image: radial-gradient(
+      circle at 4.5px 1.5px,
+      rgb(255 255 255 / 45%) 0 1.5px,
+      transparent 1.6px
+    );
+    background-size: 10px 3px;
+    background-repeat: repeat-x;
+  }
+}
+
+.pass-note {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 40px;
+}
+
+/*
+ * Wider than `.narrow`'s 760, because three cards have to fit across it, and
+ * still narrow enough that the pass and the paragraphs share one left edge.
+ * Running prose inside it is capped at 68ch by the site's existing
+ * `.wrap.narrow p` rule, so widening the container does not widen the copy.
+ */
+.order-wrap {
+  max-width: 980px;
+}
+
+.order-next-title {
+  font-size: 1.5rem;
+  margin: 44px 0 20px;
+}
+
+/*
+ * What to do next, as three cards rather than a numbered essay.
+ *
+ * It is an `<ol>` because the order is real — you cannot star a session before
+ * signing in, or scan a badge you have not been issued — but the numerals are
+ * drawn small and set beside the heading rather than in a circled bullet,
+ * because each card is already a complete instruction on its own.
+ */
+.next-cards {
+  counter-reset: nextstep;
+  list-style: none;
+  margin: 0 0 36px;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+
+@media (width >= 820px) {
+  .next-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.next-cards > li {
+  counter-increment: nextstep;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.next-cards > li::before {
+  content: counter(nextstep, decimal-leading-zero);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--highlight);
+  margin-bottom: 8px;
+}
+
+.next-cards h3 {
+  font-size: 1.05rem;
+  margin: 0 0 8px;
+}
+
+.next-cards p {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+/* Buttons align along the bottom of the row even though the cards say different
+   amounts, so the row reads as three of one thing rather than three unrelated
+   boxes. */
+.next-cards .btn {
+  margin-top: auto;
+}
+
+/*
+ * The demo sign-in, labelled.
+ *
+ * Two bare monospace strings stacked on top of each other left the reader to
+ * work out which was the address and which was the password — obvious for one
+ * of them and not for the other, which is exactly the wrong way round for a
+ * screen somebody is reading off a projector.
+ */
+.next-creds {
+  display: grid;
+  /* One column, label over value. Side by side, the label ate ~90px of a 250px
+     card and the address broke across three lines ("demo.attende / e@example.co
+     / m"), which is unreadable and looks like a fault. */
+  gap: 2px;
+  width: 100%;
+  margin: 0 0 16px;
+  background: var(--wash);
+  border-radius: 8px;
+  padding: 12px 14px;
+  /*
+   * 0.72rem, not the 0.78 the rest of a card takes.
+   *
+   * A card in this row is ~226px of content, and "demo.attendee@example.com" is
+   * 236px at 0.78 — six pixels over, so it broke as "example.c / om", which
+   * reads as a rendering fault rather than as a wrap. `break-word` rather than
+   * `anywhere` so a genuinely longer address still wraps rather than
+   * overflowing, but nothing is broken that fits.
+   */
+  font-size: 0.72rem;
+  overflow-wrap: break-word;
+}
+
+.next-creds dt {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.next-creds dd {
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+
+.next-creds dd:last-child {
+  margin-bottom: 0;
+}
+
+/* `.muted` is exempt from the 68ch cap, so this one is capped here. */
+.order-fine {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  max-width: 68ch;
 }

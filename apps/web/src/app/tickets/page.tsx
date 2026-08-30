@@ -196,77 +196,53 @@ export default async function TicketsPage({
       </section>
 
       {/*
+        The route from paying to standing in the room, as a strip rather than an
+        essay.
+
+        This content used to be four numbered paragraphs stacked beside the
+        checkout form, which put several hundred words of explanation in direct
+        competition with the one control on the page that takes money. It is a
+        genuine sequence — each step is only true once the one before it has
+        happened — so it keeps its numbers, but it earns them in one line each
+        and it sits above the form rather than next to it.
+      */}
+      <section className="band band-wash flow-band">
+        <div className="wrap">
+          <p className="eyebrow">How it works</p>
+          <h2 className="flow-title">From paying to standing in the room</h2>
+          <ol className="flow-strip">
+            <li>
+              <strong>Register</strong>
+              Pick a ticket, and give us the attendee’s name and email address.
+            </li>
+            <li>
+              <strong>Keep the claim code</strong>
+              Six characters, shown the moment you pay. It is the fallback door into your ticket.
+            </li>
+            <li>
+              <strong>Open the KGC app</strong>
+              Sign in with the same address. The schedule, messages and contacts are already there.
+            </li>
+            <li>
+              <strong>Scan in at the door</strong>
+              Your badge QR carries a random secret, not your name.
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      {/*
         Ours, and not on the live site, which hands checkout to a third party.
         It stays because it is the only place on this site where a ticket is
         actually bought.
+
+        The `id` lives here and nowhere else. It used to be on this section *and*
+        on the `<form>` inside it — two elements with `id="buy"` in one document,
+        so every `#buy` link on the page was resolving to whichever the browser
+        found first and `getElementById` was a coin toss.
       */}
-      <section className="band band-wash" id="buy">
-        <div
-          className="wrap"
-          style={{
-            display: 'grid',
-            gap: 40,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            alignItems: 'start',
-          }}
-        >
-          <div>
-            <p className="eyebrow">How it works</p>
-            <h2>Buy once, and your ticket follows you</h2>
-            <ol className="steps" style={{ marginTop: 22 }}>
-              <li>
-                <strong>Register here</strong>
-                Pick a tier and give us the attendee’s name and email address.
-              </li>
-              <li>
-                <strong>Keep the claim code</strong>
-                The confirmation screen shows a six-character code. It is the fallback door into your
-                ticket if you ever sign in from a different address.
-              </li>
-              <li>
-                <strong>Install the KGC app</strong>
-                Sign in with the same email address and your ticket is already there — schedule,
-                messages, contacts and your badge QR.
-              </li>
-              <li>
-                <strong>Scan in at the door</strong>
-                Your badge QR carries a random secret, not your identity. Someone photographing it
-                learns nothing about who you are.
-              </li>
-            </ol>
-
-            <h3 style={{ marginTop: 34 }}>Questions people actually ask</h3>
-            <p>
-              <strong>Can I transfer my ticket?</strong> Yes, up to a week before the conference —
-              mail <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the new
-              attendee’s details and we will move the registration rather than issue a second one.
-            </p>
-            <p>
-              <strong>Is there a student rate?</strong> Yes. Write to us from your institutional
-              address before you buy.
-            </p>
-            <p>
-              <strong>Do virtual tickets get recordings?</strong> Yes — every session, on demand, for
-              at least a month afterwards.
-            </p>
-            <p>
-              <strong>What if I use a different email at work?</strong> Sign in with either and use
-              the claim code; we can attach alternate addresses to one registration.
-            </p>
-            {/*
-              Put beside the card form rather than hidden in a footer link. A
-              company that cannot pay by card and cannot find an invoice option
-              does not email to ask — it quietly does not come, which is the
-              expensive failure this whole flow exists to prevent.
-            */}
-            <p>
-              <strong>Can we pay by invoice?</strong> Yes —{' '}
-              <Link href="/tickets/invoice">request one here</Link>. We&rsquo;ll email a payable
-              invoice with a PO number on it, on net-14 to net-60 terms. Useful for groups, and for
-              anywhere procurement has to sign off.
-            </p>
-          </div>
-
+      <section className="band buy-band" id="buy">
+        <div className="wrap">
           {catalogue && catalogue.length > 0 ? (
             <CheckoutForm
               tiers={tiers}
@@ -276,18 +252,82 @@ export default async function TicketsPage({
               questions={form.fields}
             />
           ) : (
-            <div className="checkout">
+            <div className="checkout checkout-closed">
               <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
               <p className="notice warn">
-                Ticket sales for {SITE.name} have not opened. Everything else on this
-                page — the dates, the venue, what each ticket includes — is current.
+                Ticket sales for {SITE.name} have not opened. Everything else on this page — the
+                dates, the venue, what each ticket includes — is current.
               </p>
               <p>
-                Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and
-                we will tell you the moment they do.
+                Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we
+                will tell you the moment they do.
               </p>
             </div>
           )}
+        </div>
+      </section>
+
+      {/*
+        The questions, below the purchase rather than beside it.
+
+        Every one of these was a bold-lead paragraph in a column running down the
+        side of the checkout form, where a buyer had to read past all five to
+        reach the thing they came for. As collapsed rows they take a tenth of the
+        height, they are scannable by question, and the one a particular person
+        needs is one click away instead of four paragraphs down.
+      */}
+      <section className="band-wash">
+        <div className="kgc-faq">
+          <h2>Questions people actually ask</h2>
+
+          <details>
+            <summary>Can I transfer my ticket to someone else?</summary>
+            <div className="answer">
+              <p>
+                Yes, up to a week before the conference. Mail{' '}
+                <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the new
+                attendee’s details and we will move the registration rather than issue a second
+                one.
+              </p>
+            </div>
+          </details>
+
+          <details>
+            <summary>Is there a student rate?</summary>
+            <div className="answer">
+              <p>Yes. Write to us from your institutional address before you buy.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>Do virtual tickets include the recordings?</summary>
+            <div className="answer">
+              <p>
+                Yes — every session, on demand, for at least a month after the conference closes.
+              </p>
+            </div>
+          </details>
+
+          <details>
+            <summary>What if I use a different email address at work?</summary>
+            <div className="answer">
+              <p>
+                Sign in with either and use the claim code from your confirmation page. We can
+                attach alternate addresses to one registration.
+              </p>
+            </div>
+          </details>
+
+          <details>
+            <summary>Can we pay by invoice?</summary>
+            <div className="answer">
+              <p>
+                Yes — <Link href="/tickets/invoice">request one here</Link>. We’ll email a payable
+                invoice with a PO number on it, on net-14 to net-60 terms. Useful for groups, and
+                for anywhere procurement has to sign off.
+              </p>
+            </div>
+          </details>
         </div>
       </section>
 
