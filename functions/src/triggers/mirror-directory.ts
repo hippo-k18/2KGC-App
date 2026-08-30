@@ -10,17 +10,28 @@ const INTERESTS_MAX = 20;
 
 /**
  * Only a URL Storage actually issued for an upload — never an attendee's own
- * typed string. `firestore.rules` lets a user write any string into their
- * own `users/{uid}.photoURL` (there is no format check there, only a
- * key-presence check), so this is the one place that decides what an
- * attacker-controlled string on your *own* profile is allowed to become on
- * 1,000 other people's screens. Everything else this function mirrors is
- * already display text; a URL is the one field whose value gets *fetched*.
+ * typed string. `firestore.rules` has enforced this identical hostname
+ * constraint directly on `users/{uid}.photoURL` itself since the
+ * `fix-photourl-validation` PR, so the only current writer of that field is
+ * already gated before this trigger ever runs — but this check stays rather
+ * than being trusted away: it is defense in depth against any future writer
+ * that reaches `users/{uid}` through the Admin SDK and bypasses rules
+ * entirely (a seed script, an import, a console tool), and a URL is the one
+ * field this function mirrors whose value gets *fetched* rather than just
+ * displayed as text.
+ *
+ * `.protocol` is checked explicitly, unlike the rules-side regex which bakes
+ * `https://` into the match itself — kept in sync by hand, not by a shared
+ * implementation: `@kgc/shared` is bundled into the Expo app, which cannot
+ * carry a Node-only `URL`-based check, and the rules language cannot run
+ * this file's code. If this constraint ever changes, change it in both
+ * places.
  */
 function isFirebaseStorageUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false;
   try {
-    return new URL(url).hostname === 'firebasestorage.googleapis.com';
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname === 'firebasestorage.googleapis.com';
   } catch {
     return false;
   }

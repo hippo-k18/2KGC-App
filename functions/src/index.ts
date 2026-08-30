@@ -22,10 +22,14 @@ initializeApp(
 );
 
 export { mirrorDirectory } from './triggers/mirror-directory.js';
+export { onAnnouncementCreate } from './triggers/on-announcement-create.js';
 export { onPollVoteWrite } from './triggers/on-poll-vote-write.js';
 export { onQuestionUpvoteWrite } from './triggers/on-question-upvote-write.js';
 export { onQuestionWrite } from './triggers/on-question-write.js';
 export { onReactionWrite } from './triggers/on-reaction-write.js';
 export { onReplyWrite } from './triggers/on-reply-write.js';
+export { onSessionAgendaChange } from './triggers/on-session-agenda-change.js';
 export { rebuildQaBoard } from './triggers/rebuild-qa-board.js';
+export { requestOtp } from './callable/request-otp.js';
 export { tallyPoll } from './triggers/tally-poll.js';
+export { verifyOtp } from './callable/verify-otp.js';
