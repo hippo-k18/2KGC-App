@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HOST = process.env.FIRESTORE_EMULATOR_HOST ?? 'localhost:8080';
-const PROJECT = process.env.GCLOUD_PROJECT ?? 'kgc-database';
+const PROJECT = process.env.GCLOUD_PROJECT ?? 'kgc-conference-app-and-website';
 
 process.env.FIRESTORE_EMULATOR_HOST = HOST;
 

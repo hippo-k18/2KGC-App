@@ -25,7 +25,7 @@ any deployment — nothing here needs Blaze to be written or tested.
 | 7 | `onAnnouncementCreate` | Firestore trigger | `announcements/{id}` | `onCreate` | `users/{uid}/notifications/{id}` (type `announcement`) for every attendee with `notificationPrefs.announcements == true`; also sends FCM if `announcement.push == true` | Must not notify unregistered accounts. Batch the writes (Firestore's 500-op/batch limit, so ~2 batches for 1000 users). |
 | 8 | `onSessionAgendaChange` | Firestore trigger | `sessions/{sessionId}` | `onUpdate`, filtered to `status == 'published'` and a change to `roomId` / `startsAtLocal` / `endsAtLocal` / `day` / `status → cancelled` | `users/{uid}/notifications/{id}` (type `agenda-change`) + FCM push, for every attendee with this `sessionId` in `savedSessions` (collection group query) | Must not fire on a cosmetic change (`description`, `slidesUrl`, a cached `speakerNames`) — only fields that change where/when/whether the session happens. **Notifies unconditionally**: there is no dedicated preference in `notificationPrefs` for this type, and there won't be — decision made, no new checkbox. |
 | 9 | `requestOtp` | HTTPS callable (no Firestore trigger) | — | client call (email) | `otpCodes/{id}`: 6-digit code, `expiresAt` = +10 min, `attempts: 0`; `rateLimits/{id}`: throttle **5 requests per email per hour** | Must never return a different response depending on whether the email matches a ticket (same anti-enumeration logic as `registrationIsMine`). Must not send a real email — emulator console log only, until a provider is chosen in Phase 5. |
-| 10 | `verifyOtp` | HTTPS callable | — | client call (email + code) | Auth account (find-or-create by email); custom claims `{ registered: true, roles: ['attendee'], eventId }`; returns a custom token; increments `attempts` on `otpCodes` on failure, refuses after expiry (10 min) or too many attempts | Must **not** create `users/{uid}` — that stays the client's job on first sign-in (a known Phase 2 gap). **`roles` is always `['attendee']`** on first sign-in, never derived from a `speakers`/allowlist lookup — special roles (`organizer`, `speaker`, `reviewer`, `exhibitor`, `checkin`) stay manually granted via `npm run claims`, an explicit decision to avoid the complexity of an untested automatic lookup. |
+| 10 | `verifyOtp` | HTTPS callable | — | client call (email + code) | Checks `registrations` (primary `email` or `altEmails`) for an **active** ticket, refusing outright if none exists; Auth account (find-or-create by email); custom claims `{ registered: true, roles: ['attendee'], eventId }` **minted only when the account is newly created**; returns a custom token; increments `attempts` on `otpCodes` on a wrong guess, deletes the document (refusing immediately) on expiry (10 min) **or once 5 wrong guesses have already been made** — the 6th call is dead even if it finally submits the right code | Must **not** create `users/{uid}` — that stays the client's job on first sign-in (a known Phase 2 gap). **`roles` is always `['attendee']`** on first sign-in, never derived from a `speakers`/allowlist lookup — special roles (`organizer`, `speaker`, `reviewer`, `exhibitor`, `checkin`) stay manually granted via `npm run claims`. Must **never** touch an existing account's custom claims on a *returning* sign-in — a hand-granted role must survive every future sign-in, not just the session it was granted in. |
 
 **Out of scope for Phase 1** (an explicit decision, not an oversight):
 `sendSessionReminders` (a scheduled reminder before a saved session) and the
@@ -53,7 +53,13 @@ threads stays client-managed, as today — nothing changes there.
    affected attendee unconditionally, no new field in `notificationPrefs`.
 6. **Roles on first sign-in**: always `['attendee']` by default, never
    auto-derived. Special roles go through `npm run claims` (manual), the same
-   as for seeded accounts today.
+   as for seeded accounts today. Refined during `verifyOtp`'s own build: this
+   default is gated on an **active ticket in `registrations`** — `verifyOtp`
+   is the only place that check happens, since `requestOtp` deliberately
+   never looks at `registrations` (anti-enumeration) — and it applies only to
+   a **newly created** Auth account. A returning account's claims are never
+   rewritten, so a role granted by hand survives every sign-in after the one
+   it was granted in.
 7. **`qaBoard/current`**: a strict filter on `state == 'approved'` before
    writing. No unmoderated content in the public document.
 8. **Missing index**: added in this same phase — `firestore.indexes.json`
@@ -62,6 +68,12 @@ threads stays client-managed, as today — nothing changes there.
    saved a given session, across all users.
 9. **`requestOtp` thresholds**: 5 requests per email per hour; a code is
    valid for 10 minutes.
+10. **`verifyOtp` brute-force cap**: 5 wrong guesses tolerated per code:
+    `otpCodes/{id}.attempts` increments on each one, and the call after the
+    fifth — regardless of what code it submits — finds `attempts` already at
+    the cap and invalidates the document outright. This is checked before
+    comparing the submitted code, so a code cannot be redeemed by guessing
+    right on the 6th call.
 
 ## Phase 1 status
 
@@ -75,23 +87,82 @@ threads stays client-managed, as today — nothing changes there.
 - `firebase.json` has a `functions` block (source, codebase, ignore list) and
   a `functions` emulator on port 5001. `npm run dev:emulators` and
   `npm run test:functions` both include it.
-- `onReplyWrite`, `onReactionWrite`, `onQuestionUpvoteWrite`,
-  `onPollVoteWrite`/`tallyPoll`, `onQuestionWrite`/`rebuildQaBoard` and
-  `mirrorDirectory` (#1–#6) are built and tested against the emulator with
+- All ten functions (#1–#10) are built and tested against the emulator with
   seeded data — `tests/functions/`, run via `npm run test:functions`. Each
-  Cloud Tasks queue is auto-detected and emulated by the Firebase CLI as
-  soon as its `onTaskDispatched` function exists in the codebase — no extra
-  emulator config was needed beyond what #1–#3 already required.
+  Cloud Tasks queue is auto-detected and emulated by the Firebase CLI as soon
+  as its `onTaskDispatched` function exists in the codebase — no extra
+  emulator config was needed beyond what #1–#3 already required. Phase 1 is
+  complete.
+- `npm run test:functions` now starts the **Auth** emulator too
+  (`--only firestore,auth,functions`, previously `firestore,functions`) —
+  `verifyOtp` is the first function in this repo to call `firebase-admin/auth`,
+  and without `FIREBASE_AUTH_EMULATOR_HOST` set, the Admin SDK would try to
+  reach real Firebase Auth infrastructure with no credentials in this
+  environment.
+- `verifyOtp` lives at `functions/src/callable/verify-otp.ts`, alongside
+  `request-otp.ts`. `normaliseEmail`/`otpDocId` moved out of `request-otp.ts`
+  into a new `functions/src/lib/otp.ts` so both files import the identical
+  id-derivation logic rather than keeping two copies that could drift apart —
+  a real risk here, since both must land on the same `otpCodes/{id}` for the
+  same email. `registrationId()`, by contrast, is duplicated rather than
+  shared — see the docblock atop `verify-otp.ts` for why: it must match
+  `scripts/src/lib/ids.ts`'s function of the same name exactly, and that one
+  can't move into `@kgc/shared` because `@kgc/shared` is also bundled into
+  the Expo app, which has no `node:crypto`.
+- `findActiveRegistration()` in `verify-otp.ts` checks the primary `email`
+  first (a direct `get()` on the derived id, no query) and falls back to an
+  `array-contains` query on `altEmails`, filtering `status == 'active'` in
+  memory rather than adding a second `where()` — an `array-contains` filter
+  combined with an equality filter needs a composite index, and alt-email
+  matches are rare enough that this isn't worth a new `firestore.indexes.json`
+  entry for a query that will almost never run.
+- `requestOtp` lives at `functions/src/callable/`, a new sibling to
+  `triggers/` — it's an HTTPS callable, not a Firestore trigger, and the
+  directory split mirrors that. Its id scheme (`sha256(normalised email)`,
+  shared by `otpCodes/{id}` and `rateLimits/{id}`) is deliberately set up now
+  so `verifyOtp` (#10) lands on the exact same `otpCodes` document a request
+  wrote, without either function needing to query for it.
+- `OtpCodeDoc` and `RateLimitDoc` were added to `packages/shared/src/models.ts`
+  under a new "Auth — server-only" section, even though nothing outside
+  Cloud Functions ever reads or writes them — `models.ts` is documented as
+  covering every Firestore document shape, and the alternative (typing them
+  only inside `functions/`) would leave `verifyOtp` unable to import the same
+  interface `requestOtp` wrote against.
+- `tests/functions/requestOtp.test.ts` invokes the callable emulator's HTTP
+  endpoint directly (`{data}` in, `{result}`/`{error}` out) rather than
+  through a callable client SDK — this repo has no `firebase` client package
+  as a dependency (only `@firebase/rules-unit-testing`, for the rules suite),
+  and pulling one in to save one `fetch()` call didn't seem worth it. The
+  helper lives in `tests/functions/lib/emulator.ts` as `callCallable()` so
+  `verifyOtp`'s test can reuse it.
+- `onAnnouncementCreate` treats "every doc in `users`" as "every registered
+  attendee" rather than checking the `registered` custom claim directly —
+  there is no queryable Firestore field for that claim, and checking it for
+  ~1,000 users would mean ~1,000 Admin Auth lookups. A `users/{uid}` doc
+  only exists once a real sign-in creates it, which only happens after the
+  claim is minted, so the collection is a sound proxy. It writes the
+  notification at the announcement's own document id, so a retried
+  dispatch overwrites the same 1,000 documents rather than duplicating
+  them. The FCM branch is written and typechecked but effectively
+  untested: there is no Cloud Messaging emulator, this repo has no
+  credentials to call real FCM from a test, and no code anywhere writes
+  `fcmTokens` yet (a Known Gap in `AGENTS.md`) — so the only thing
+  `tests/functions/onAnnouncementCreate.test.ts` proves about `push: true`
+  is that the code path completes when the token list is empty, which is
+  also the true state of the whole app today.
 - `mirrorDirectory` bounds `name`/`title`/`company`/`interests` to the same
   limits `validDirectoryEntry()` enforces on the client write path, even
   though nothing enforces them on `users/{uid}` itself — the directory is
   ~1,000 documents fetched whole by every attendee, and bypassing rules
   must not mean bypassing that budget too. It also only ever mirrors
   `photoURL` when the value's hostname is `firebasestorage.googleapis.com`
-  — `firestore.rules` lets an attendee write any string into their own
-  `users/{uid}.photoURL` with no format check, so this is the one place
-  deciding whether that string is allowed to become a fetched URL on 1,000
-  other screens. `seed-demo.ts`'s directory write is confirmed to still be
+  (and, as of `fix-photourl-validation`, scheme `https:` too) — a check that
+  used to be the only thing standing between an arbitrary attacker string and
+  1,000 attendees' screens. It no longer is: `firestore.rules` now enforces
+  the identical constraint directly on `users/{uid}.photoURL` itself, and
+  this check stays as defense in depth against any future Admin-SDK writer
+  that bypasses rules entirely. `seed-demo.ts`'s directory write is confirmed
+  to still be
   a genuine second writer, not a stale Spark-only fallback: this trigger
   now runs on the emulator like every other function here and recomputes
   the same document moments after seeding finishes.
@@ -138,5 +209,17 @@ threads stays client-managed, as today — nothing changes there.
   console can reach them; the functions emulator is only ever called by other
   local emulators (Cloud Tasks, Eventarc) and the CLI itself, never directly
   by a device.
-- Remaining: `onAnnouncementCreate` (#7), `onSessionAgendaChange` (#8), and
-  `requestOtp`/`verifyOtp` (#9–#10).
+- `onSessionAgendaChange` (#8) is not debounced, unlike #4/#5 — a room/time/
+  day change or a cancellation is rare enough per session, and important
+  enough per attendee, that batching it behind a Cloud Tasks queue would only
+  add latency for no real benefit. It gates on `before.status`, not
+  `after.status`: a session that *was* published is the one attendees could
+  have saved, so that's the check that matters, and checking it this way
+  is also what lets a published→cancelled transition still notify on its way
+  out. The notification id is the triggering event's own id (`event.id`),
+  not `sessionId` like `onAnnouncementCreate` uses — a session can change
+  again later, and each change is its own notification, so collapsing them
+  onto one fixed id would let a second room change silently overwrite the
+  first attendee-visible notice instead of adding to it.
+- Nothing remaining — Phase 1's ten functions are all built. See
+  `BACKEND-ROADMAP.md` for what's next (Phase 2 onward).
