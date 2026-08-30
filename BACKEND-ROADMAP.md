@@ -16,7 +16,7 @@ avant de lire le détail, qui décrit le plan tel qu'il était et non l'état ac
 | Phase | État |
 |---|---|
 | **0 — Cadrage** | ✅ Close. Le livrable demandé est `functions/SPEC.md` : chaque trigger, son déclencheur, ce qu'il écrit, ce qu'il ne doit pas faire. |
-| **1 — Écrire et tester les functions** | ✅ Close. **8 triggers** dans `functions/src/triggers/`, **14 tests** verts sur l'émulateur. |
+| **1 — Écrire et tester les functions** | ✅ Close. **10 fonctions** (`functions/SPEC.md` #1 `onReplyWrite` à #10 `verifyOtp`), **32 tests** verts sur l'émulateur — mis à jour le 2026-08-30 après la fusion du PR #2 (`onAnnouncementCreate`, `onSessionAgendaChange`, `requestOtp`, `verifyOtp`, portés depuis `main`). Note technique : ça correspond à **12 fichiers `.ts`** dans `functions/src/triggers/` et `functions/src/callable/`, pas 10 — les lignes #4 (`onPollVoteWrite` + `tallyPoll`) et #5 (`onQuestionWrite` + `rebuildQaBoard`) couvrent chacune deux fonctions Cloud distinctes (un trigger Firestore et la fonction séparée qu'il planifie via Cloud Tasks) sous une seule ligne de spec. Le chiffre de référence dans ce document reste 10, cohérent avec la numérotation `functions/SPEC.md` utilisée partout ailleurs dans ce projet. |
 | **2 — Trous du modèle de données** | ✅ Close. |
 | **3 — Écrans manquants de la console** | ✅ Close par comptage d'écrans : **173 / 173** rendent des données réelles (`npm run smoke`). Ce qui reste n'est plus des écrans mais des capacités — voir `ROADMAP.md`. |
 | **4 — Sécuriser la console** | ✅ Close **par décision, pas par construction**. Le 2026-08-28 il a été décidé de garder email + passphrase : pas de SSO, pas de MFA. Le coût est écrit dans `apps/organizer/src/lib/auth.ts`. La liste d'emails « sans aucune vérification » décrite plus bas n'est plus exacte : il y a un secret partagé, un cookie HMAC de 8 h, une comparaison à temps constant et un échec fermé en production. |
@@ -99,23 +99,30 @@ en parallèle de la Phase 1 :
   collections « n'ont aucune règle du tout », ce qui est faux — les règles
   existent, elles ferment juste tout accès client. Corriger cette phrase dans
   AGENTS.md en même temps.
-- **`users/{uid}.photoURL` n'a aucune validation de format dans
-  `firestore.rules`.** La règle `allow update` ne vérifie que l'ensemble des
-  clés changées (`changed().hasOnly([...])`), jamais la valeur d'aucun champ —
-  un attendee peut écrire n'importe quelle chaîne dans son propre `photoURL`.
-  `mirrorDirectory` (functions/SPEC.md #6) valide déjà que le hostname est
-  `firebasestorage.googleapis.com` avant de copier vers `directory/{uid}`,
-  mais ça ne protège que la projection : `users/{uid}` lui-même reste
-  écrivable sans contrainte. Un audit du 2026-08-26 (voir l'historique de ce
-  fichier) a confirmé qu'aucun écran actuel n'affiche le `photoURL` d'un
-  *autre* attendee autrement qu'en passant par `directory/{uid}` — donc rien
-  n'est exposé aujourd'hui — mais c'est un fait de l'app actuelle, pas une
-  garantie de la règle : le premier écran qui lira `users/{uid}.photoURL`
-  d'un tiers (organisateur, futur outil console, etc.) hérite du trou sans
-  qu'on s'en aperçoive. Ajouter la même contrainte de hostname directement
-  dans `allow create`/`allow update` de `users/{uid}`, pour que la
-  protection existe à la source et ne dépende pas de la discipline de chaque
-  futur lecteur.
+- ~~`users/{uid}.photoURL` n'a aucune validation de format dans
+  `firestore.rules`.~~ **Correctif fusionné, déploiement en attente de
+  confirmation côté collègue.** La règle `allow update` ne vérifiait que
+  l'ensemble des clés changées (`changed().hasOnly([...])`), jamais la valeur
+  d'aucun champ — un attendee pouvait écrire n'importe quelle chaîne dans son
+  propre `photoURL`. `mirrorDirectory` (functions/SPEC.md #6) validait déjà
+  que le hostname est `firebasestorage.googleapis.com` avant de copier vers
+  `directory/{uid}`, mais ça ne protégeait que la projection : `users/{uid}`
+  lui-même restait écrivable sans contrainte. Corrigé dans `firestore.rules`
+  (même contrainte de hostname directement sur `allow create`/`allow
+  update` de `users/{uid}`) et fusionné le 2026-08-30 via le PR #2
+  (`port-phase1-to-live-project` → `organizer-dashboard`), avec 6 nouveaux
+  tests de règles (`tests/rules/firestore.test.ts` compte 149 tests au total
+  aujourd'hui). **Mais le code fusionné n'est pas le code déployé** : les
+  règles réellement actives sur `kgc-conference-app-and-website` sont celles
+  d'avant ce correctif, déployées via `scripts/ops/deploy-rules.mjs` avant la
+  fusion — personne ne les a redéployées depuis. Le trou reste donc ouvert en
+  production tant que ce redéploiement n'a pas eu lieu ; il nécessite les
+  identifiants du collègue. `deploy-rules.mjs` exige deux identités
+  distinctes (`scripts/ops/gtoken.mjs` pour le compte de service,
+  `scripts/ops/utoken.mjs` pour un `firebase login` humain déjà stocké sur la
+  machine) — aucune des deux n'existe dans cet environnement, donc le
+  redéploiement ne peut pas se faire depuis ici sans intervention directe du
+  collègue.
 
 ---
 
