@@ -974,6 +974,36 @@ export interface EntitlementDoc {
 }
 
 // ---------------------------------------------------------------------------
+// Auth — server-only. Written and read by requestOtp/verifyOtp (functions/SPEC.md
+// #9-#10) with the Admin SDK; no client ever reads or writes these, and
+// firestore.rules has no match block for either collection, so the default-closed
+// posture denies every client path without needing an explicit `false` rule.
+// ---------------------------------------------------------------------------
+
+/**
+ * `otpCodes/{id}` — id is a hash of the normalised email, computed the same
+ * way by both functions so a request and its matching verify land on the
+ * same document.
+ */
+export interface OtpCodeDoc {
+  eventId: string;
+  email: string;
+  code: string;
+  expiresAt: Timestamp;
+  attempts: number;
+  createdAt: Timestamp;
+}
+
+/** `rateLimits/{id}` — same id scheme as `otpCodes`, a fixed window per email. */
+export interface RateLimitDoc {
+  eventId: string;
+  email: string;
+  count: number;
+  windowStart: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ---------------------------------------------------------------------------
 // Settings, and the entities the remaining organizer screens need
 //
 // Added August 2026 while building out the dashboard. Everything here is
