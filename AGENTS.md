@@ -88,6 +88,17 @@ with 14 passing tests; what is missing is deployment, which needs Blaze.
 `ROADMAP.md` is the current measurement (2026-08-28) and supersedes everything in
 `whova-rebuild/`, which is a research and audit archive from 15–18 August.
 
+**The demo recording lives at `demo/`**, and it is deliberately not a workspace
+member — the same arrangement as the two websites, for the same reason. It drives
+Playwright against the three **deployed** sites and the live Firestore project,
+which is what lets it show one price being changed on the dashboard and appearing
+on the public website in the same take. `demo/README.md` has the run order, which
+matters: act two signs in as the account act one's purchase created. The earlier
+cut in `whova-rebuild/demo/` recorded localhost against the emulator and is
+superseded. ⚠️ A recorded run leaves state behind on the live project — a demo
+order, and `ticketTypes/main-conference` at the price the video changed it to.
+`scripts/ops/reset-demo-sales.mjs` clears the order and not the price.
+
 **Two decisions that are settled, so do not re-open them:**
 
 - **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
@@ -215,6 +226,15 @@ on :3100 makes either of them fail with `Cannot find module for page: /_document
 or a `MODULE_NOT_FOUND` on `webpack-runtime`. Stop the dev server first; the
 error names a page, not the collision, which is why this costs half an hour every
 time somebody rediscovers it.
+
+⚠️ **`apps/web` has the same collision, and it fails silently.** `npm run build`
+there overwrites the `.next` a dev server on :3200 is serving from, and the
+symptom is not an error at all — the build succeeds, the dev server keeps
+answering 200, and every page renders as **unstyled HTML** because the CSS
+chunk it is linking to no longer exists. Nothing in the terminal says so; you
+find out by looking at a screenshot and thinking you have broken the
+stylesheet. Stop the dev server before building, or restart it and `rm -rf
+.next` afterwards.
 
 **`server-only` and Vitest do not mix.** A module importing it throws outside a
 Server Component, so logic worth testing has to live beside the fetch rather

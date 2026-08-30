@@ -1,0 +1,9 @@
+{
+  "name": "kgc-demo-video",
+  "private": true,
+  "type": "module",
+  "description": "The demo recording. Deliberately not a workspace member — see apps/web for the same arrangement and the same reason.",
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
