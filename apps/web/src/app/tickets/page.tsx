@@ -158,10 +158,25 @@ export default async function TicketsPage({
         </div>
       </section>
 
-      {/* The two lighter tickets, on the live site's dark band. */}
+      {/*
+        The lighter tickets, on the live site's dark band.
+
+        ── Why this heading does not say "Two" ─────────────────────────────────
+
+        It used to, and it was wrong the moment an organizer added a fifth
+        ticket type in the dashboard: three cards appeared under a heading that
+        counted two. This section is `tiers` minus the two slugs handled above,
+        so its length is whatever the catalogue holds — the copy must not
+        restate a number the data owns.
+
+        The section is skipped entirely when nothing falls into it. Hiding
+        Workshops and Virtual in the dashboard is a supported thing to do, and
+        it used to leave a band with a heading, a lede and no tickets under it.
+      */}
+      {smaller.length > 0 && (
       <section className="band band-navy band-centred">
         <div className="wrap">
-          <h2>Two smaller tickets, big impact.</h2>
+          <h2>Smaller tickets, big impact.</h2>
           <p className="lede">Ideal if you would like to start with a lighter commitment.</p>
 
           <div className="kgc-tickets small">
@@ -186,6 +201,7 @@ export default async function TicketsPage({
           </p>
         </div>
       </section>
+      )}
 
       {/* Where it happens — the live page's location band. */}
       <section className="band band-wave-light band-centred">
