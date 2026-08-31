@@ -100,29 +100,21 @@ en parallèle de la Phase 1 :
   existent, elles ferment juste tout accès client. Corriger cette phrase dans
   AGENTS.md en même temps.
 - ~~`users/{uid}.photoURL` n'a aucune validation de format dans
-  `firestore.rules`.~~ **Correctif fusionné, déploiement en attente de
-  confirmation côté collègue.** La règle `allow update` ne vérifiait que
-  l'ensemble des clés changées (`changed().hasOnly([...])`), jamais la valeur
-  d'aucun champ — un attendee pouvait écrire n'importe quelle chaîne dans son
-  propre `photoURL`. `mirrorDirectory` (functions/SPEC.md #6) validait déjà
-  que le hostname est `firebasestorage.googleapis.com` avant de copier vers
-  `directory/{uid}`, mais ça ne protégeait que la projection : `users/{uid}`
-  lui-même restait écrivable sans contrainte. Corrigé dans `firestore.rules`
-  (même contrainte de hostname directement sur `allow create`/`allow
-  update` de `users/{uid}`) et fusionné le 2026-08-30 via le PR #2
-  (`port-phase1-to-live-project` → `organizer-dashboard`), avec 6 nouveaux
-  tests de règles (`tests/rules/firestore.test.ts` compte 149 tests au total
-  aujourd'hui). **Mais le code fusionné n'est pas le code déployé** : les
-  règles réellement actives sur `kgc-conference-app-and-website` sont celles
-  d'avant ce correctif, déployées via `scripts/ops/deploy-rules.mjs` avant la
-  fusion — personne ne les a redéployées depuis. Le trou reste donc ouvert en
-  production tant que ce redéploiement n'a pas eu lieu ; il nécessite les
-  identifiants du collègue. `deploy-rules.mjs` exige deux identités
-  distinctes (`scripts/ops/gtoken.mjs` pour le compte de service,
-  `scripts/ops/utoken.mjs` pour un `firebase login` humain déjà stocké sur la
-  machine) — aucune des deux n'existe dans cet environnement, donc le
-  redéploiement ne peut pas se faire depuis ici sans intervention directe du
-  collègue.
+  `firestore.rules`.~~ **Correctif fusionné et déployé.** La règle
+  `allow update` ne vérifiait que l'ensemble des clés changées
+  (`changed().hasOnly([...])`), jamais la valeur d'aucun champ — un attendee
+  pouvait écrire n'importe quelle chaîne dans son propre `photoURL`.
+  `mirrorDirectory` (functions/SPEC.md #6) validait déjà que le hostname est
+  `firebasestorage.googleapis.com` avant de copier vers `directory/{uid}`,
+  mais ça ne protégeait que la projection : `users/{uid}` lui-même restait
+  écrivable sans contrainte. Corrigé dans `firestore.rules` (même contrainte
+  de hostname directement sur `allow create`/`allow update` de `users/{uid}`)
+  et fusionné le 2026-08-30 via le PR #2 (`port-phase1-to-live-project` →
+  `organizer-dashboard`), avec 6 nouveaux tests de règles
+  (`tests/rules/firestore.test.ts` compte 149 tests au total aujourd'hui).
+  Déployé le 2026-08-31 via `scripts/ops/deploy-rules.mjs` — les règles
+  actives sur `kgc-conference-app-and-website` sont désormais celles du
+  correctif, plus aucun trou en production.
 
 ---
 
