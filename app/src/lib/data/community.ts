@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
-  getCountFromServer,
   limit,
   limitToLast,
   onSnapshot,
@@ -28,6 +26,7 @@ import {
 
 import { getDb } from '@/lib/firebase/client';
 import { useCollection } from '@/lib/data/use-collection';
+import { useSubcollectionCounts, type CountsResult } from '@/lib/data/counts';
 import { runWrite, type WriteResult } from '@/lib/data/write';
 
 export type Post = WithId<CommunityPostDoc>;
@@ -96,64 +95,41 @@ export function useCommunityPosts(category: string | null) {
  * sitting right underneath. That is worse than showing no count at all, because
  * it is a specific claim and it is false.
  *
- * A count aggregation is the fix that needs no server: it is exact, it costs one
- * read per thousand documents rather than one per document, and it works on
- * Spark today. The cost is one round trip per post — up to `PAGE_SIZE` of them,
- * issued in parallel — which is why this is a stopgap and not the design. When
- * the trigger lands, delete this hook and read the field.
+ * The counting itself, and why an outstanding count must not overwrite a local
+ * one, is in `useSubcollectionCounts`. Counts arrive after the posts do, so the
+ * return value distinguishes "not counted yet" (`null`) from "counted, and it is
+ * zero"; the board must not render a confident zero during the gap, which is the
+ * same lie in a smaller window.
  *
- * Counts arrive after the posts do, so the return value distinguishes "not
- * counted yet" (`null`) from "counted, and it is zero". The board must not
- * render a confident zero during the gap; that is the same lie in a smaller
- * window.
- *
- * Recounted on focus, which is not incidental. An aggregation is a one-shot read,
- * not a listener, and posting a reply does not touch the post document — so the
- * board's own subscription never fires and nothing else would ever refresh this.
- * Replying and coming straight back is exactly how the original bug was found.
+ * No `adjust` is exposed: the board does not write replies, and the screen that
+ * does write them does not show a count.
  */
 export function useReplyCounts(posts: Post[] | null): Record<string, number> | null {
-  const [counts, setCounts] = useState<Record<string, number> | null>(null);
-  const [nonce, setNonce] = useState(0);
+  return useSubcollectionCounts(
+    posts?.map((p) => p.id) ?? null,
+    (id) => [COLLECTIONS.communityPosts, id, SUBCOLLECTIONS.replies],
+  ).counts;
+}
 
-  useFocusEffect(useCallback(() => setNonce((n) => n + 1), []));
-
-  // Keyed on the ids, not the array: `useCollection` hands back a fresh array on
-  // every snapshot, so depending on the array itself re-counts the whole board
-  // each time anyone reacts to anything.
-  const key = posts?.map((p) => p.id).join(',') ?? '';
-
-  useEffect(() => {
-    if (!key) {
-      setCounts(null);
-      return;
-    }
-    const ids = key.split(',');
-    let live = true;
-    (async () => {
-      const settled = await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const snap = await getCountFromServer(
-              collection(getDb(), COLLECTIONS.communityPosts, id, SUBCOLLECTIONS.replies),
-            );
-            return [id, snap.data().count] as const;
-          } catch {
-            // One unreadable post must not blank the counts for the other 49.
-            // Omitted rather than zeroed — see the note on `null` above.
-            return null;
-          }
-        }),
-      );
-      if (!live) return;
-      setCounts(Object.fromEntries(settled.filter((e) => e !== null)));
-    })();
-    return () => {
-      live = false;
-    };
-  }, [key, nonce]);
-
-  return counts;
+/**
+ * The same treatment for reactions, which had none.
+ *
+ * `reactionCount` is frozen for exactly the same reason `replyCount` was, and it
+ * was rendered in two places and sorted by in a third: `👍 0` on the post screen
+ * however many people had reacted, an "N Likes" label on the board that could
+ * never appear, and a "Most Liked" order that reordered nothing. The seed writes
+ * no reactions at all, so the only way to see any of this is to react in the app
+ * — which is also the only way anyone ever will.
+ *
+ * `adjust` matters more here than for replies, because reacting and reading the
+ * number happen on the same screen: the thumb fills in from the reader's own
+ * document while the number is still a round trip away.
+ */
+export function useReactionCounts(posts: Post[] | null): CountsResult {
+  return useSubcollectionCounts(
+    posts?.map((p) => p.id) ?? null,
+    (id) => [COLLECTIONS.communityPosts, id, SUBCOLLECTIONS.reactions],
+  );
 }
 
 /**

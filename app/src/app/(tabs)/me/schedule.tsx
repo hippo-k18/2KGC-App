@@ -4,11 +4,13 @@ import { useRouter } from 'expo-router';
 
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
+import { ListRow } from '@/components/list-row';
 import { PushedHeader } from '@/components/pushed-header';
 import { SessionCard } from '@/components/session-card';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { placementWhen, useMyGatherings } from '@/lib/data/gatherings';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { formatDayTab, useSessions } from '@/lib/data/sessions';
 
@@ -25,6 +27,21 @@ export default function MyScheduleScreen() {
   const router = useRouter();
   const { sessions, error: sessionsError, retry: retrySessions } = useSessions();
   const { saved, isSaved, error: savedError, retry: retrySaved } = useSavedSessions();
+  /**
+   * Round tables and meeting slots an organizer placed this attendee at.
+   *
+   * Here rather than on a screen of its own because a table at 13:00 is a place
+   * you have to be at 13:00, which is what this screen is: the saved sessions
+   * are only the half of the day an attendee chose for themselves.
+   *
+   * ⚠️ **Nothing writes these yet** — `useMyGatherings`'s header has the reason
+   * in full, and it is a modelling gap rather than an unfinished job: the plan
+   * stores typed names, not uids, so there is no key to project on. The section
+   * therefore renders nothing at all rather than an empty card promising a
+   * feature: a heading over "no tables yet" is a claim that somebody will one
+   * day put one there, and until the plan carries a uid nobody can.
+   */
+  const { placements } = useMyGatherings();
 
   // This screen is the intersection of two listeners, and either one failing
   // empties it. "Nothing saved yet — add sessions from the agenda" was therefore
@@ -68,6 +85,35 @@ export default function MyScheduleScreen() {
           sections={sections}
           keyExtractor={(s) => s.id}
           contentContainerStyle={{ flexGrow: 1, padding: Spacing.md, paddingBottom: Spacing.xxl }}
+          ListHeaderComponent={
+            placements.length ? (
+              <View style={{ paddingBottom: Spacing.md }}>
+                <Text
+                  variant="label"
+                  tone="secondary"
+                  style={{ paddingBottom: Spacing.sm, paddingLeft: Spacing.xs }}>
+                  TABLES AND MEETINGS
+                </Text>
+                {placements.map((p, i) => (
+                  <ListRow
+                    key={p.id}
+                    title={p.title}
+                    // The organizer's own words for where and when. Blank when
+                    // they set neither, which is a real state for a table that
+                    // has been agreed before the room grid was.
+                    subtitle={placementWhen(p) || undefined}
+                    // A cancelled table is mirrored rather than dropped: "your
+                    // seat is cancelled" is the one status an attendee most
+                    // needs, and deleting the row would say only that it had
+                    // stopped existing.
+                    meta={p.status === 'cancelled' ? 'Cancelled' : p.host || undefined}
+                    first={i === 0}
+                    last={i === placements.length - 1}
+                  />
+                ))}
+              </View>
+            ) : null
+          }
           renderSectionHeader={({ section }) => (
             <Text
               variant="label"

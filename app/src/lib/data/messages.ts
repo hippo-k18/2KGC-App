@@ -14,6 +14,7 @@ import {
 
 import {
   COLLECTIONS,
+  correspondentIn,
   EVENT_ID,
   SUBCOLLECTIONS,
   threadIdFor,
@@ -180,8 +181,13 @@ export async function markThreadRead(threadId: string, uid: string): Promise<Wri
   );
 }
 
+/**
+ * Kept returning `uid` on a non-member because several screens render this
+ * directly into a title; the shared `correspondentIn()` is the one that answers
+ * honestly with `undefined`, and it is what decides membership here.
+ */
 export function otherParticipant(thread: Thread, uid: string): string {
-  return thread.participantIds.find((p) => p !== uid) ?? uid;
+  return correspondentIn(thread.participantIds, uid) ?? uid;
 }
 
 export function totalUnread(threads: Thread[] | null, uid: string | undefined): number {

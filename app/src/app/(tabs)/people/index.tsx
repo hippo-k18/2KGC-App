@@ -26,9 +26,63 @@ import {
   type Speaker,
   type Sponsor,
 } from '@/lib/data/directory';
+import { useExhibitors, type ExhibitorListing } from '@/lib/data/exhibitors';
 import { useAuth } from '@/lib/auth/auth-provider';
 
-const SEGMENTS = ['Attendees', 'Speakers', 'Sponsors'] as const;
+/**
+ * Four now, where the segmented control's own note says "two or three".
+ *
+ * They still fit: each segment is `flex: 1` and its label wraps to two lines
+ * rather than truncating, which is the case that note was written about. A
+ * fifth would not, and the answer then is a separate screen rather than a
+ * narrower label — an ellipsised segment is a control that no longer says what
+ * it does.
+ */
+const SEGMENTS = ['Attendees', 'Speakers', 'Sponsors', 'Exhibitors'] as const;
+
+/**
+ * `?segment=` values the home grid pushes, and the index each opens on.
+ *
+ * A table rather than a chain of comparisons, so adding a segment is one line in
+ * two places instead of one line and a ternary that silently keeps working while
+ * pointing at the wrong tab.
+ */
+const SEGMENT_FOR_PARAM: Record<string, number> = {
+  speakers: 1,
+  sponsors: 2,
+  exhibitors: 3,
+};
+
+/**
+ * What an empty segment means, per segment.
+ *
+ * One shared sentence — "Attendees appear here as they join and opt in" — used
+ * to be shown under all of them, so an empty exhibitor hall explained itself as
+ * an attendee privacy setting. The exhibitor line is the one that has to be
+ * exact: `exhibitorListings` is a projection of `exhibitors`, and nothing writes
+ * it on the live project yet except the seed, so an empty list here genuinely
+ * means "not projected", never "no exhibitors booked".
+ */
+const EMPTY = [
+  {
+    title: 'Nobody here yet',
+    message: 'Attendees appear here as they join and opt in.',
+  },
+  {
+    title: 'No speakers listed',
+    message: 'The programme has no speakers on it yet.',
+  },
+  {
+    title: 'No sponsors listed',
+    message: 'Sponsors appear here once the organizers publish them.',
+  },
+  {
+    title: 'No exhibitors listed',
+    message:
+      'The hall list is published separately from the organizers\' own exhibitor ' +
+      'records, and none has been published yet.',
+  },
+] as const;
 
 /**
  * Avatar in a directory row.
@@ -72,12 +126,13 @@ type Row =
   | { kind: 'index'; key: string; letter: string }
   | { kind: 'attendee'; key: string; person: DirectoryEntry }
   | { kind: 'speaker'; key: string; speaker: Speaker }
-  | { kind: 'sponsor'; key: string; sponsor: Sponsor };
+  | { kind: 'sponsor'; key: string; sponsor: Sponsor }
+  | { kind: 'exhibitor'; key: string; exhibitor: ExhibitorListing };
 
 /**
- * People — attendees, speakers and sponsors as segments of one tab.
+ * People — attendees, speakers, sponsors and exhibitors as segments of one tab.
  *
- * Whova scatters these across three places, two of which are behind a tile grid
+ * Whova scatters these across four places, three of which are behind a tile grid
  * most attendees never open. They are the same question — "who is here?" — so
  * they belong behind one control.
  *
@@ -101,7 +156,7 @@ export default function PeopleScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   /**
-   * Which segment to open on, from `?segment=speakers|sponsors`.
+   * Which segment to open on, from `?segment=speakers|sponsors|exhibitors`.
    *
    * The home grid has separate Speakers, Sponsors and Attendees tiles, and all
    * three used to `router.push('/people')` — so two of the three took you
@@ -111,9 +166,7 @@ export default function PeopleScreen() {
    * switched by hand should not jump back when the screen re-renders.
    */
   const { segment: segmentParam } = useLocalSearchParams<{ segment?: string }>();
-  const [segment, setSegment] = useState(
-    segmentParam === 'speakers' ? 1 : segmentParam === 'sponsors' ? 2 : 0,
-  );
+  const [segment, setSegment] = useState(SEGMENT_FOR_PARAM[segmentParam ?? ''] ?? 0);
   const [search, setSearch] = useState('');
   const [interest, setInterest] = useState<string | null>(null);
   const listRef = useRef<FlatList<Row>>(null);
@@ -124,15 +177,23 @@ export default function PeopleScreen() {
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const { speakers, error: speakersError, retry: retrySpeakers } = useSpeakers();
   const { sponsors, error: sponsorsError, retry: retrySponsors } = useSponsors();
+  const { exhibitors, error: exhibitorsError, retry: retryExhibitors } = useExhibitors();
 
   // One segment is visible at a time, and each reads a different collection, so
   // the error belongs to the segment rather than to the screen. Showing the
   // directory's failure while Sponsors is selected would be reporting on a query
   // nobody is looking at.
-  const segmentError = segment === 0 ? peopleError : segment === 1 ? speakersError : sponsorsError;
-  const retrySegment = segment === 0 ? retryPeople : segment === 1 ? retrySpeakers : retrySponsors;
-  const segmentSubject =
-    segment === 0 ? 'the attendee list' : segment === 1 ? 'the speaker list' : 'the sponsor list';
+  //
+  // Indexed by segment rather than chained, because four segments is where the
+  // nested ternaries stopped being readable and started being the place a fifth
+  // one would be wired up wrong.
+  const sources = [
+    { error: peopleError, retry: retryPeople, subject: 'the attendee list' },
+    { error: speakersError, retry: retrySpeakers, subject: 'the speaker list' },
+    { error: sponsorsError, retry: retrySponsors, subject: 'the sponsor list' },
+    { error: exhibitorsError, retry: retryExhibitors, subject: 'the exhibitor list' },
+  ];
+  const { error: segmentError, retry: retrySegment, subject: segmentSubject } = sources[segment];
   const interests = useInterests(people);
 
   const visiblePeople = useMemo(() => {
@@ -156,12 +217,25 @@ export default function PeopleScreen() {
     return (sponsors ?? []).filter((s) => !n || s.name.toLowerCase().includes(n));
   }, [sponsors, search]);
 
+  // Booth number is searchable as well as the name: somebody holding a printed
+  // floor plan is looking up "E04", not a company they have not heard of.
+  const visibleExhibitors = useMemo(() => {
+    const n = search.trim().toLowerCase();
+    return (exhibitors ?? []).filter(
+      (e) =>
+        !n ||
+        e.name.toLowerCase().includes(n) ||
+        (e.boothNumber ?? '').toLowerCase().includes(n),
+    );
+  }, [exhibitors, search]);
+
   /**
    * The flat list, plus where each letter's section starts.
    *
    * Only the attendee segment is sectioned. Speakers are few enough to scroll,
-   * and sponsors are ordered by tier — a commercial commitment that an
-   * alphabetical rail would quietly reorder.
+   * sponsors are ordered by tier — a commercial commitment that an alphabetical
+   * rail would quietly reorder — and exhibitors are ordered by booth number,
+   * which is the order somebody walking the hall is already in.
    */
   const { rows, letterIndex } = useMemo(() => {
     if (segment === 1) {
@@ -173,6 +247,12 @@ export default function PeopleScreen() {
     if (segment === 2) {
       return {
         rows: visibleSponsors.map<Row>((s) => ({ kind: 'sponsor', key: s.id, sponsor: s })),
+        letterIndex: new Map<string, number>(),
+      };
+    }
+    if (segment === 3) {
+      return {
+        rows: visibleExhibitors.map<Row>((e) => ({ kind: 'exhibitor', key: e.id, exhibitor: e })),
         letterIndex: new Map<string, number>(),
       };
     }
@@ -190,17 +270,14 @@ export default function PeopleScreen() {
       out.push({ kind: 'attendee', key: person.id, person });
     }
     return { rows: out, letterIndex: index };
-  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors]);
+  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors, visibleExhibitors]);
 
-  const count =
-    segment === 0 ? visiblePeople.length : segment === 1 ? visibleSpeakers.length : visibleSponsors.length;
+  const count = rows.filter((r) => r.kind !== 'index').length;
 
   const heading =
     segment === 0
       ? `${interest ?? 'All'} Attendees (${count})`
-      : segment === 1
-        ? `Speakers (${count})`
-        : `Sponsors (${count})`;
+      : `${SEGMENTS[segment]} (${count})`;
 
   const railVisible = segment === 0 && letterIndex.size > 1;
 
@@ -387,6 +464,28 @@ export default function PeopleScreen() {
               );
             }
 
+            if (item.kind === 'exhibitor') {
+              const e = item.exhibitor;
+              return (
+                <DirectoryRow
+                  name={e.name}
+                  logoURL={e.logoURL}
+                  // The booth number is the line somebody in the hall is
+                  // reading; the description is what tells them whether to walk
+                  // over. Neither is a tag, because tags on this row are a set
+                  // and these are one value each.
+                  lines={[
+                    e.boothNumber ? `Booth ${e.boothNumber}` : undefined,
+                    e.description,
+                  ]}
+                  tags={[]}
+                  onPress={() =>
+                    router.push({ pathname: '/people/exhibitor/[id]', params: { id: e.id } })
+                  }
+                />
+              );
+            }
+
             if (item.kind === 'sponsor') {
               const s = item.sponsor;
               return (
@@ -451,12 +550,12 @@ export default function PeopleScreen() {
               />
             ) : loading ? null : (
               <EmptyState
-                icon="person.2"
-                title={search || interest ? 'No matches' : 'Nobody here yet'}
+                icon={segment === 3 ? 'storefront' : 'person.2'}
+                title={search || interest ? 'No matches' : EMPTY[segment].title}
                 message={
                   search || interest
                     ? 'Try a different name, company or category.'
-                    : 'Attendees appear here as they join and opt in.'
+                    : EMPTY[segment].message
                 }
               />
             )

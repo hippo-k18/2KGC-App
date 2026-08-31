@@ -19,6 +19,7 @@ import {
   editPost,
   toggleReaction,
   useMyReactions,
+  useReactionCounts,
   useReplies,
 } from '@/lib/data/community';
 import { useDocument } from '@/lib/data/use-document';
@@ -58,6 +59,10 @@ export default function PostScreen() {
 
   const { replies, error: repliesError, retry: retryReplies } = useReplies(id);
   const reacted = useMyReactions(user?.uid, id ? [id] : []);
+  // `post.reactionCount` is trigger-owned and nothing has ever incremented it,
+  // so this screen printed "👍 0" however many people had reacted. Counted
+  // instead — one aggregation, because there is one post here.
+  const { counts: likes, adjust: adjustLikes } = useReactionCounts(post ? [post] : null);
 
   // Above the early returns — see the note in `agenda/[id].tsx`.
   const header = <PushedHeader backTitle="Community" backHref="/community" />;
@@ -173,13 +178,22 @@ export default function PostScreen() {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingTop: 4 }}>
               <Pressable
-                onPress={() => user && toggleReaction(post.id, user.uid, !iReacted)}
+                onPress={async () => {
+                  if (!user) return;
+                  const on = !iReacted;
+                  const result = await toggleReaction(post.id, user.uid, on);
+                  // Moved only on a write that landed. The thumb itself is a
+                  // live listener on the reader's own document and needs no
+                  // help; the total does, because nothing it listens to changes.
+                  if (result.ok) adjustLikes(post.id, on ? 1 : -1);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={iReacted ? 'Remove your reaction' : 'React to this post'}
                 accessibilityState={{ selected: iReacted }}
                 hitSlop={8}>
                 <Text tone={iReacted ? 'tint' : 'secondary'}>
-                  👍 {post.reactionCount}
+                  {/* A dash until the count arrives — see `useSubcollectionCounts`. */}
+                  👍 {likes?.[post.id] ?? '—'}
                 </Text>
               </Pressable>
 

@@ -464,8 +464,8 @@ function ResourceGrid({ unread }: { unread: number }) {
       onPress: () =>
         router.push({ pathname: '/home/session-feature', params: { feature: 'polls' } }),
     },
-    // All three used to push a bare `/people`, which opens on Attendees — so two
-    // of these three tiles showed you something other than what you tapped.
+    // All of these used to push a bare `/people`, which opens on Attendees — so
+    // every tile but one showed you something other than what you tapped.
     {
       label: 'Speakers',
       onPress: () => router.push({ pathname: '/people', params: { segment: 'speakers' } }),
@@ -473,6 +473,10 @@ function ResourceGrid({ unread }: { unread: number }) {
     {
       label: 'Sponsors',
       onPress: () => router.push({ pathname: '/people', params: { segment: 'sponsors' } }),
+    },
+    {
+      label: 'Exhibitors',
+      onPress: () => router.push({ pathname: '/people', params: { segment: 'exhibitors' } }),
     },
     { label: 'Attendees', onPress: () => router.push('/people') },
     { label: 'Community', onPress: () => router.push('/community') },
@@ -501,14 +505,12 @@ function ResourceGrid({ unread }: { unread: number }) {
           'plans are not.',
       ),
     },
-    {
-      label: 'Logistics',
-      onPress: notBuilt(
-        'Logistics',
-        'Travel, wifi, accessibility and catering notes. These live on an event ' +
-          'document that does not exist yet — there is no events collection to read it from.',
-      ),
-    },
+    // Was a `notBuilt` tile saying this lived "on an event document that does
+    // not exist yet — there is no events collection to read it from". Both
+    // halves were false by the time anyone read them: the bag is
+    // `settings/logistics`, it exists, and the dashboard's Emergency Manager
+    // writes it weekly. Same stale-gap-copy defect as the Surveys tile below.
+    { label: 'Logistics', onPress: () => router.push('/home/logistics') },
     {
       label: 'Photos',
       onPress: notBuilt(
@@ -517,15 +519,10 @@ function ResourceGrid({ unread }: { unread: number }) {
           'behind it. Neither is in place.',
       ),
     },
-    {
-      label: 'Surveys',
-      onPress: notBuilt(
-        'Surveys',
-        'Session feedback and the post-event survey. The Q&A and poll machinery is ' +
-          'the closest thing built so far; surveys reuse it once the organizer console ' +
-          'can author them.',
-      ),
-    },
+    // Was a `notBuilt` tile saying surveys waited on "the organizer console".
+    // The console has authored them since August 2026; the copy outlived the gap
+    // it described by several months, which is the defect class AGENTS.md counts.
+    { label: 'Surveys', onPress: () => router.push('/home/surveys') },
     {
       label: 'Leaderboard',
       onPress: notBuilt(

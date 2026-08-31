@@ -19,6 +19,28 @@ export type Session = WithId<SessionDoc>;
  *
  * Subscribed rather than fetched because a room change made in the organizer
  * console has to reach a phone already looking at the agenda.
+ *
+ * ## `deletedAt`
+ *
+ * `SessionDoc.deletedAt` is the soft delete — a session is never hard-deleted,
+ * because attendees have it saved and Firestore has no server-side cascade. The
+ * website already discards those rows (`apps/web/src/lib/data.ts:201`) and so do
+ * five places in the dashboard; this query did not, so the same programme read
+ * two ways gave two different answers.
+ *
+ * **Nothing in the repository writes the field today** — every one of the six
+ * references to it is a reader, checked across the whole tree, so no session is
+ * currently hidden on the website and shown here. This is therefore a latent
+ * divergence rather than a live bug, and it is fixed now precisely because it is
+ * latent: the day something starts writing `deletedAt` — a delete button on the
+ * dashboard is Wave 2 work — a cancelled session would quietly stay on every
+ * phone in the room while the website stopped listing it, and the two surfaces
+ * would disagree about what the programme is.
+ *
+ * Filtered in memory rather than in the query. Firestore has no "field is
+ * absent" predicate: `where('deletedAt', '==', null)` matches an explicit null
+ * and not a missing key, so as a query clause it would drop every session ever
+ * written — which is all of them.
  */
 export function useSessions() {
   const { data, error, loading, retry } = useCollection<Session>(
@@ -37,7 +59,15 @@ export function useSessions() {
     (a, b) => (a.startsAtLocal ?? '').localeCompare(b.startsAtLocal ?? ''),
   );
 
-  return { sessions: data, error, loading, retry };
+  // `null` is preserved rather than collapsed to `[]`: every screen reading this
+  // hook tells "nothing loaded" apart from "nothing to show", and filtering must
+  // not turn the first into the second.
+  const sessions = useMemo(
+    () => (data ? data.filter((s) => !s.deletedAt) : null),
+    [data],
+  );
+
+  return { sessions, error, loading, retry };
 }
 
 /** Distinct days present in the agenda, in order. */

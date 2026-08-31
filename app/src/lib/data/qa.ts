@@ -12,25 +12,22 @@ import {
   where,
 } from 'firebase/firestore';
 
-import {
-  COLLECTIONS,
-  EVENT_ID,
-  SUBCOLLECTIONS,
-  type PollDoc,
-  type PollVoteDoc,
-  type SessionQuestionDoc,
-  type WithId,
-} from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS } from '@kgc/shared';
 
 import { useAuth } from '@/lib/auth/auth-provider';
 import { getDb } from '@/lib/firebase/client';
 import { useCollection } from '@/lib/data/use-collection';
+import { useSubcollectionCounts } from '@/lib/data/counts';
 import { useDocument } from '@/lib/data/use-document';
 import { runWrite, type WriteResult } from '@/lib/data/write';
+import { compareQuestions, type Question, type Poll, type Vote } from '@/lib/data/qa-core';
 
-export type Question = WithId<SessionQuestionDoc>;
-export type Poll = WithId<PollDoc>;
-export type Vote = WithId<PollVoteDoc>;
+// The pure half of this module — the ranking and the tally-staleness test — is
+// in `qa-core.ts` so that it can be tested; see its header. Re-exported so a
+// screen still imports questions, polls and the rules for ordering them from one
+// place.
+export type { Question, Poll, Vote, TallyState } from '@/lib/data/qa-core';
+export { rankQuestions, tallyState, upvoteScore } from '@/lib/data/qa-core';
 
 /**
  * Live Q&A for a session.
@@ -57,13 +54,41 @@ export function useQuestions(sessionId: string | undefined) {
       ),
     [sessionId],
     (id, d) => ({ id, ...d }) as Question,
-    // Most-upvoted first, then oldest — the order a moderator reads them in.
-    (a, b) =>
-      (b.upvoteCount ?? 0) - (a.upvoteCount ?? 0) ||
-      (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0),
+    // The same comparator the screen uses, with nothing counted yet — see
+    // `rankQuestions`. Sorting here by one rule and there by another is how a
+    // list reorders itself for no reason the reader can see.
+    compareQuestions(null),
   );
 
   return { questions: data, error, loading, retry };
+}
+
+/**
+ * How many upvotes a question has, counted rather than read.
+ *
+ * `SessionQuestionDoc.upvoteCount` is owned by `onQuestionUpvoteWrite`, which is
+ * written, tested and not deployed, so it is zero on every question — and it was
+ * both the number on the screen and the sort key. Tapping upvote wrote the
+ * `upvotes/{uid}` document correctly, the count stayed at zero, and the question
+ * never rose: the ranking that is the entire point of a Q&A board was inert.
+ *
+ * Counting works here where it does not for poll ballots. An upvote is public by
+ * rule — `match /upvotes/{uid} { allow read: if isRegistered() }` — so an
+ * attendee may run the aggregation, which was verified against the emulator
+ * rather than assumed from the rule text. A ballot is not; see `tallyState`.
+ */
+export function useUpvoteCounts(sessionId: string | undefined, questionIds: string[]) {
+  return useSubcollectionCounts(
+    sessionId ? questionIds : null,
+    (id) => [
+      COLLECTIONS.sessions,
+      sessionId ?? '_',
+      SUBCOLLECTIONS.questions,
+      id,
+      SUBCOLLECTIONS.upvotes,
+    ],
+    [sessionId],
+  );
 }
 
 /**
@@ -141,8 +166,9 @@ export function useMyUpvotes(sessionId: string | undefined, questionIds: string[
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, sessionId, key]);
 
-  // Applied optimistically so the tap feels instant; the trigger-owned count on
-  // the question catches up separately.
+  // Applied optimistically so the tap feels instant. This is only whether the
+  // star is filled in — the number beside it is `useUpvoteCounts`, and it moves
+  // once the write has landed rather than before.
   const mark = useCallback((qid: string, on: boolean) => {
     setUpvoted((prev) => {
       const next = new Set(prev);

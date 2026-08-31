@@ -37,7 +37,6 @@
   },
   "scripts": {
     "start": "expo start",
-    "demo:public": "bash scripts/public-demo.sh",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",

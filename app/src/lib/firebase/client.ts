@@ -13,6 +13,7 @@ import {
   initializeFirestore,
   type Firestore,
 } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 /**
@@ -55,8 +56,8 @@ const emulatorHost = process.env.EXPO_PUBLIC_EMULATOR_HOST || 'localhost';
  *
  * A LAN address only works for a device on the same wifi. To demo to someone in
  * another country the emulators have to be reachable over the public internet,
- * which in practice means an HTTPS reverse tunnel (`app/scripts/public-demo.sh`
- * opens one per emulator with cloudflared). Those terminate TLS on 443, so the
+ * which in practice means an HTTPS reverse tunnel — one per emulator, with
+ * cloudflared or equivalent. Those terminate TLS on 443, so the
  * host:port form cannot express them — hence a whole origin, and hence the
  * separate Firestore path below, because `connectFirestoreEmulator` hard-codes
  * `ssl: false` for every host except Cloud Workstations.
@@ -149,7 +150,44 @@ export function getFirebaseAuth(): Auth {
 const emulatorState = globalThis as typeof globalThis & {
   __kgcFirestoreEmulator?: boolean;
   __kgcAuthEmulator?: boolean;
+  __kgcFunctionsEmulator?: boolean;
 };
+
+/**
+ * The callable endpoints — `requestOtp` and `verifyOtp`, and nothing else.
+ *
+ * ⚠️ The region is not a default worth leaving to the SDK's. `getFunctions`
+ * falls back to `us-central1`, which is where `functions/src/runtime-options.ts`
+ * pins every function, so the two agree today by coincidence of both being
+ * right rather than by either one knowing about the other. Stated here so a
+ * region change on the server side is a one-word change on this side instead of
+ * a 404 on the sign-in screen that reads like the function is missing.
+ *
+ * ⚠️ NOT DEPLOYED at the time of writing. `firebase deploy` is refused on this
+ * project with a `serviceusage` 403 (OWNER-ACTIONS.md §3), so against the live
+ * project every call here fails and the sign-in screen says so plainly rather
+ * than pretending a code went out. Against `EXPO_PUBLIC_USE_EMULATOR=1` the
+ * functions emulator on :5001 serves them for real, which is where this path
+ * has actually been exercised.
+ */
+const FUNCTIONS_REGION = 'us-central1';
+
+export function getFirebaseFunctions(): Functions {
+  const functions = getFunctions(firebaseApp(), FUNCTIONS_REGION);
+  // Same Fast Refresh latch as Auth and Firestore above, and set only after the
+  // connect succeeds for the same reason: a latch set first would silently send
+  // a sign-in request for a live email address to the production project.
+  if (useEmulator && !emulatorState.__kgcFunctionsEmulator) {
+    try {
+      connectFunctionsEmulator(functions, emulatorHost, 5001);
+      emulatorState.__kgcFunctionsEmulator = true;
+      console.log(`[firebase] Functions emulator at ${emulatorHost}:5001`);
+    } catch (e) {
+      console.warn('[firebase] functions emulator connect failed:', (e as Error).message);
+    }
+  }
+  return functions;
+}
 
 export function getDb(): Firestore {
   const app = firebaseApp();

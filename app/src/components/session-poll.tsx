@@ -6,7 +6,7 @@ import { Text } from '@/components/text';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { failureCode } from '@/lib/data/errors';
-import { useCastVote, useMyVote, usePolls } from '@/lib/data/qa';
+import { tallyState, useCastVote, useMyVote, usePolls } from '@/lib/data/qa';
 
 /**
  * Live polling on a session.
@@ -14,9 +14,11 @@ import { useCastVote, useMyVote, usePolls } from '@/lib/data/qa';
  * Results are shown only after you have voted, which is the convention Slido and
  * Mentimeter both use — seeing the running tally first anchors the answer.
  *
- * The bars come from the trigger-owned `tallies`, so on a Spark project (where
- * no trigger exists) they stay at zero and the screen says so rather than
- * drawing empty bars and letting the organizer conclude nobody voted.
+ * The bars come from the trigger-owned `tallies`, and they are drawn only when
+ * that tally can be shown to include the reader's own ballot. The reasoning, and
+ * why this screen cannot simply count the votes the way the organizer dashboard
+ * does, is in `tallyState` — it is the difference between the organizer and the
+ * attendee seeing the same poll and seeing two different numbers.
  */
 export function SessionPoll({ sessionId }: { sessionId: string }) {
   const { polls, error, retry } = usePolls(sessionId);
@@ -50,7 +52,11 @@ function Poll({
 
   const voted = Boolean(myVote);
   const total = poll.totalVotes ?? 0;
-  const tallied = total > 0;
+  // Not `total > 0`. A stored total is a number whether or not anything has
+  // counted the ballots, and printing it beside a live audience is the defect
+  // this codebase has fourteen recorded cases of.
+  const counted = tallyState(poll, myVote);
+  const tallied = counted === 'current' && total > 0;
 
   async function choose(optionId: string) {
     if (!poll.open || busy) return;
@@ -88,9 +94,15 @@ function Poll({
                 accessibilityRole="button"
                 accessibilityState={{ selected: chosen, disabled: !poll.open }}
                 accessibilityLabel={
-                  voted
+                  // This label used to announce the stored tally whether or not
+                  // the row beside it was showing "—" instead of a share, which
+                  // told the one reader who cannot see the dash the number the
+                  // dash exists to withhold.
+                  voted && tallied
                     ? `${opt.label}, ${count} ${count === 1 ? 'vote' : 'votes'}${chosen ? ', your choice' : ''}`
-                    : `Vote for ${opt.label}`
+                    : voted
+                      ? `${opt.label}${chosen ? ', your choice' : ''}`
+                      : `Vote for ${opt.label}`
                 }
                 style={({ pressed }) => ({
                   padding: Spacing.md,
@@ -158,9 +170,17 @@ function Poll({
         </Text>
       ) : null}
 
-      {voted && !tallied ? (
+      {/* Two different facts, said as two different sentences. "Counting is
+          switched on" was one message for both, and it reads as a promise on the
+          poll where nothing will ever count the ballots. */}
+      {voted && counted === 'never-counted' ? (
         <Text variant="caption" tone="tertiary">
-          Your vote is recorded. Results appear once counting is switched on.
+          Your vote is recorded. The ballots for this poll have not been counted,
+          so there is no result to show.
+        </Text>
+      ) : voted && !tallied ? (
+        <Text variant="caption" tone="tertiary">
+          Your vote is recorded. Results appear once the count catches up.
         </Text>
       ) : voted ? (
         <Text variant="caption" tone="tertiary">

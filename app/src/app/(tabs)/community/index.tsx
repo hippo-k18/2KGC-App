@@ -22,6 +22,7 @@ import {
   categoryLabel,
   createPost,
   useCommunityPosts,
+  useReactionCounts,
   useReplyCounts,
   type Post,
 } from '@/lib/data/community';
@@ -61,13 +62,16 @@ const DEFAULT_STYLE = { icon: 'bubble.left' as IconName, tint: 'blue' as Categor
  * index entry before it can ship.
  */
 /**
- * `replies` sorts by the counted value, not by `post.replyCount` — that field is
- * function-owned, there are no functions yet, and it is zero on every post, so
- * this option used to be an expensive no-op that reordered nothing. `liked` still
- * reads `reactionCount` and so is still a no-op; it stays honest only because a
- * zero like-count renders as no label at all rather than as a claim.
+ * Both `replies` and `liked` sort by counted values rather than by
+ * `post.replyCount` / `post.reactionCount`. Those two fields are function-owned,
+ * there are no functions yet, and they are zero on every post — so each option
+ * was an expensive no-op that reordered nothing while looking like a working
+ * control. `newest` is the only one that ever sorted by data that moves.
  */
 type Counts = Record<string, number> | null;
+
+/** One signature for all three, so the call site cannot pass the wrong tally. */
+type Compare = (a: Post, b: Post, replies: Counts, likes: Counts) => number;
 
 const SORTS = [
   {
@@ -78,15 +82,16 @@ const SORTS = [
   {
     id: 'replies',
     label: 'Most Replies',
-    compare: (a: Post, b: Post, counts: Counts) =>
-      (counts?.[b.id] ?? 0) - (counts?.[a.id] ?? 0),
+    compare: (a: Post, b: Post, replies: Counts) =>
+      (replies?.[b.id] ?? 0) - (replies?.[a.id] ?? 0),
   },
   {
     id: 'liked',
     label: 'Most Liked',
-    compare: (a: Post, b: Post) => b.reactionCount - a.reactionCount,
+    compare: (a: Post, b: Post, _replies: Counts, likes: Counts) =>
+      (likes?.[b.id] ?? 0) - (likes?.[a.id] ?? 0),
   },
-] as const;
+] as const satisfies readonly { id: string; label: string; compare: Compare }[];
 
 type SortId = (typeof SORTS)[number]['id'];
 
@@ -131,6 +136,10 @@ export default function CommunityScreen() {
 
   const { posts, loading, error, retry } = useCommunityPosts(category);
   const replyCounts = useReplyCounts(posts);
+  // Two aggregations per post rather than one. That is the price of two frozen
+  // counters, and it is bounded by `PAGE_SIZE`; it comes back to a single field
+  // read each the day the triggers deploy.
+  const { counts: likeCounts } = useReactionCounts(posts);
   const {
     announcements,
     error: announcementsError,
@@ -142,8 +151,8 @@ export default function CommunityScreen() {
     const compare = SORTS.find((s) => s.id === sort)!.compare;
     return (posts ?? [])
       .filter((p) => !needle || p.title.toLowerCase().includes(needle))
-      .sort((a, b) => compare(a, b, replyCounts));
-  }, [posts, search, sort, replyCounts]);
+      .sort((a, b) => compare(a, b, replyCounts, likeCounts));
+  }, [posts, search, sort, replyCounts, likeCounts]);
 
   const sortLabel = SORTS.find((s) => s.id === sort)!.label;
 
@@ -306,7 +315,7 @@ export default function CommunityScreen() {
               preview={item.body}
               meta={[
                 replyLabel(replyCounts?.[item.id]),
-                item.reactionCount ? `${item.reactionCount} Likes` : null,
+                likeCounts?.[item.id] ? `${likeCounts[item.id]} Likes` : null,
                 categoryLabel(item.category),
               ]
                 .filter(Boolean)
