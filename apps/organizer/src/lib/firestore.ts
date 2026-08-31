@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { existsSync } from 'node:fs';
+
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
@@ -51,8 +53,31 @@ export function db(): Firestore {
       // variable. The path wins when both are set, because a developer who has
       // deliberately exported a path is pointing at a specific key and should
       // get that one.
-      const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      // ⚠️ The path is honoured only if the file is actually there.
+      //
+      // `next build` bakes `.env.local` into the server bundle, so building on
+      // a laptop and uploading the result carries that laptop's
+      // GOOGLE_APPLICATION_CREDENTIALS path into production — where it names a
+      // file that cannot exist. Preferring it unconditionally then beats the
+      // perfectly good inline credential the host does have, and every read
+      // fails with ENOENT on somebody's home directory.
+      //
+      // That is not hypothetical: it took every Firestore read on the deployed
+      // website down on 2026-08-31, and it failed quietly, because each read is
+      // wrapped in a fallback that renders an empty state. The site looked like
+      // an event with no sessions and no sponsors rather than a broken one.
+      const rawKeyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const keyPath = rawKeyPath && existsSync(rawKeyPath) ? rawKeyPath : undefined;
       const inline = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+      if (rawKeyPath && !keyPath && !inline) {
+        throw new Error(
+          `GOOGLE_APPLICATION_CREDENTIALS points at ${rawKeyPath}, which does not ` +
+            'exist, and FIREBASE_SERVICE_ACCOUNT is not set. On a deployed host the ' +
+            'path is usually one baked in by a local build; set FIREBASE_SERVICE_ACCOUNT ' +
+            'instead.',
+        );
+      }
 
       if (keyPath) {
         initializeApp({ credential: cert(keyPath), projectId });
