@@ -288,7 +288,8 @@ export async function AudienceRegistrationSettings({
 }) {
   const noun = AUDIENCE_LABEL[audience];
   const tiers = (await listTicketTypes()).filter((t) => t.audience === audience);
-  const fmt = (iso?: string) => (iso ? iso.slice(0, 10) : '—');
+  // The event's wall clock, not the UTC instant — see `TicketTypeRow`.
+  const fmt = (local?: string) => (local ? local.slice(0, 10) : '—');
 
   return (
     <>
@@ -322,8 +323,8 @@ export async function AudienceRegistrationSettings({
           ]}
           rows={tiers.map((t) => [
             t.name,
-            fmt(t.salesOpenAt),
-            fmt(t.salesCloseAt),
+            fmt(t.salesOpenAtLocal),
+            fmt(t.salesCloseAtLocal),
             typeof t.quantityTotal === 'number' ? (
               <span key="q">
                 {t.quantitySold}/{t.quantityTotal}

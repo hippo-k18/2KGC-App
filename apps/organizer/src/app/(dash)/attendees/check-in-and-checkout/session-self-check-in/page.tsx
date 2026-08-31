@@ -10,20 +10,20 @@ export const dynamic = 'force-dynamic';
 /**
  * Attendees › Check-in & Checkout › Session Self Check-in.
  *
- * Two absent things stacked on one screen, and they are worth separating
- * because only one of them is hard.
+ * Two absent things were stacked on one screen. One of them is now built and
+ * the separation is what made that obvious.
  *
- * **Session scope** is easy: a session check-in is another `checkInLists`
- * document with `kind: 'session'` and a `sessionId`, the scanner does not care
- * which list is selected, and the write is the same. What is missing is the UI
- * that creates one per session and picks the right one by the clock.
+ * **Session scope** was the easy half and is done: Check-in's Session card
+ * creates a `checkInLists` document per session with a derived id, and the
+ * existing scanner writes into it unchanged. The table below is the live
+ * evidence — every list that exists, with its scope.
  *
- * **Self** is not easy, and it is refused for the same reason as the event-door
- * version: `firestore.rules` denies every client write under `checkInLists`, on
- * purpose, so attendance cannot be self-asserted.
- *
- * The table below is the evidence for the first claim — every list that exists,
- * with its scope. All of them are event scope, which is exactly the gap.
+ * **Self** is the hard half and is still refused, for the same reason as the
+ * event-door version: `firestore.rules` denies every client write under
+ * `checkInLists`, on purpose, so attendance cannot be self-asserted. That is a
+ * decision to take rather than a feature to build, and it is sharper here than
+ * at the front door — a room-door scan is what an hours claim is computed from,
+ * and evidence should not be self-issued.
  */
 export default async function SessionSelfCheckInPage() {
   await requireOrganizer();
@@ -53,11 +53,13 @@ export default async function SessionSelfCheckInPage() {
         ]}
       />
 
-      <Banner kind="danger">
-        <strong>The scanner writes event-door check-ins only.</strong> No session attendance is
-        recorded anywhere in this project — not by the desk, not by the app, not by a room monitor.
-        Any figure elsewhere that looks like session attendance is a saved-agenda count, which is an
-        intention rather than a fact.
+      <Banner kind="warning">
+        <strong>Session attendance is recorded by a person, not by the attendee.</strong> A
+        staffed room door works — open one from{' '}
+        <Link href={ROUTES.checkIn}>Attendee Check-in</Link> and scan badges into it. What this
+        screen is named after does not: an attendee cannot scan themselves in, because{' '}
+        <code>firestore.rules</code> denies every client write under <code>checkInLists</code>, and
+        that refusal is deliberate.
       </Banner>
 
       <Panel>
@@ -83,19 +85,20 @@ export default async function SessionSelfCheckInPage() {
         />
         <p className="muted" style={{ fontSize: 12 }}>
           {sessions.length} sessions are on the agenda and {sessionLists.length} of them have a
-          check-in list. The model supports the scope; nothing creates the documents.
+          check-in list. A list appears here the first time somebody presses Start on that session.
         </p>
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Why session scope is the cheap half</h2>
+        <h2 className="section-header">Why session scope was the cheap half</h2>
         <p className="body-2">
-          <code>CheckInListDoc</code> already carries <code>kind: &lsquo;session&rsquo;</code> and a{' '}
+          <code>CheckInListDoc</code> already carried <code>kind: &lsquo;session&rsquo;</code> and a{' '}
           <code>sessionId</code>, and the check-in document is keyed by registration{' '}
           <em>within a list</em> — so the same attendee can be in a hundred lists without any
           collision, and the idempotency that protects a double scan at the door protects a double
-          scan at a room door identically. A day or two of UI creates a list per session, selects by
-          clock, and the existing scanner writes into it unchanged.
+          scan at a room door identically. The list id is derived from the session
+          (<code>session-&#123;sessionId&#125;</code>) so that two organizers pressing Start produce
+          one door rather than two half-populated ones.
         </p>
         <p className="body-2">
           The <em>self</em> half is the same decision as{' '}
@@ -107,9 +110,9 @@ export default async function SessionSelfCheckInPage() {
       </Panel>
 
       <NotBuilt
-        whova="Attendees check themselves into a session by scanning a code at the room door, feeding per-session attendance reports and certificates."
-        needs="A per-session check-in list created and selected automatically, plus the same trusted-server write path self check-in would need. The list half is a day or two; the self half is a decision."
-        size="1–2 days for session scope, plus ~2 days for a trusted-server self-scan route"
+        whova="Attendees check themselves into a session by scanning a code at the room door, with no staff present."
+        needs="A trusted-server route that accepts a scan from an unauthenticated client, plus rate limiting and abuse controls on a public endpoint — and first a decision about whether an unwitnessed scan counts as attendance at all. The per-session list it would write into now exists."
+        size="~2 days once the decision is made"
         refs="apps/organizer/src/lib/checkin.ts and firestore.rules"
       />
 
@@ -117,16 +120,18 @@ export default async function SessionSelfCheckInPage() {
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Per-session attendance.</strong> Nothing records it. Session-level reporting on
-            the Analytics screen is absent for the same reason.
-          </li>
-          <li>
-            <strong>Capacity enforcement at the door.</strong> Session Cap stores a number; nothing
-            compares a live headcount against it, because there is no live headcount per room.
-          </li>
-          <li>
             <strong>Self-service scanning.</strong> Denied by the rules, deliberately. See the note
-            above.
+            above — the objection is sharper for a room door than for the front one.
+          </li>
+          <li>
+            <strong>An unattended room device.</strong> Even setting the rules aside, a tablet left
+            on a lectern is a session anybody can be counted into by anybody. That is the kiosk
+            problem, and it is the same one.
+          </li>
+          <li>
+            <strong>Departures.</strong> A room door counts arrivals. Nothing records who left, so
+            the hours computed from these lists are the session&apos;s scheduled length rather than
+            time in the seat.
           </li>
         </ul>
       </GapPanel>

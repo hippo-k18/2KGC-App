@@ -27,8 +27,10 @@ export const dynamic = 'force-dynamic';
  * reaches phones instead of a page nobody reloads — so this screen points there
  * rather than pretending an editor exists.
  *
- * `settings/logistics` is reserved in `SETTINGS_KEYS` and nothing reads or
- * writes it. Said plainly below, because a reserved key looks like a feature.
+ * `settings/logistics` is no longer a reserved name: Virtual & Hybrid ›
+ * Emergency Manager writes it and Content › Logistics Center reads it back.
+ * What it does not hold is *venue notes*, and no public page reads any of it —
+ * said plainly below, because a bag that exists looks like a bag that is wired.
  */
 export default async function LogisticsWebpagePage() {
   await requireOrganizer();
@@ -121,9 +123,14 @@ export default async function LogisticsWebpagePage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>A logistics editor.</strong> <code>SETTINGS_KEYS.logistics</code> exists in{' '}
-            <code>lib/settings.ts</code> and <em>nothing reads or writes it</em>. It is a reserved
-            name, not a half-built feature, and the site would ignore whatever was saved to it.
+            <strong>A logistics editor.</strong> The <code>logistics</code> bag is real —{' '}
+            <Link href="/virtual-and-hybrid/logistics-management/emergency-manager">
+              Emergency Manager
+            </Link>{' '}
+            writes it and Logistics Center reads it back — but it holds an emergency card, not
+            venue notes, and <em>no public page reads any of it</em>. The website would ignore
+            whatever was saved here. <code>SETTINGS_REGISTER</code> in <code>@kgc/shared</code> is
+            the field-by-field answer.
           </li>
           <li>
             <strong>A logistics page in the app.</strong> The five tabs are Home, Agenda, People,

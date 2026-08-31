@@ -1,9 +1,19 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listTicketTypes, money } from '@/lib/commerce';
+import { listTicketTypes, money, soldCountLedger } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
+import {
+  Banner,
+  EmptyState,
+  GapPanel,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  Table,
+  Tag,
+} from '../../../ui';
 import { toggleTicketVisibilityAction } from './actions';
+import { SoldCountForm } from './sold-count-form';
 import { TicketForm } from './ticket-form';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +48,7 @@ export default async function CreateTicketsPage({
   await requireOrganizer();
   const { edit, new: creating } = await searchParams;
 
-  const all = await listTicketTypes();
+  const [all, ledger] = await Promise.all([listTicketTypes(), soldCountLedger()]);
 
   /**
    * The list is the attendee catalogue; the editor is universal.
@@ -107,7 +117,41 @@ export default async function CreateTicketsPage({
               price affects future purchases only — past orders keep the amount they were charged.
             </Banner>
           )}
+          {/*
+            The oversell window, stated where the cap is set.
+
+            Capacity is checked when an invoice is raised and not again when it
+            is paid, so seats on an unpaid invoice are spoken for without being
+            counted. On net-30 terms that is thirty days in which a capped tier
+            can be sold out from under one, and the oversell arrives as a fait
+            accompli. Nothing in this app can close that window — the re-check
+            belongs in the webhook — but the arithmetic can at least be on the
+            screen where the cap is typed.
+          */}
+          {editing &&
+            editing.quantityTotal !== undefined &&
+            (ledger.outstanding.get(editing.id) ?? 0) > 0 &&
+            editing.quantitySold + (ledger.outstanding.get(editing.id) ?? 0) >
+              editing.quantityTotal && (
+              <Banner kind="warning">
+                <strong>
+                  {ledger.outstanding.get(editing.id)} more seats are on invoices that have been
+                  raised and not paid.
+                </strong>{' '}
+                {editing.quantitySold} sold plus those exceeds the cap of {editing.quantityTotal}.
+                Capacity is checked when an invoice is raised, not when it is paid, so every one of
+                them will register on payment whatever this cap says.
+              </Banner>
+            )}
           <TicketForm existing={editing} />
+          {editing && (
+            <SoldCountForm
+              id={editing.id}
+              name={editing.name}
+              stored={editing.quantitySold}
+              ledger={ledger.sold.get(editing.id) ?? 0}
+            />
+          )}
         </Panel>
       ) : (
         <Panel>
@@ -171,12 +215,30 @@ export default async function CreateTicketsPage({
                         unlimited
                       </span>
                     )}
+                    {/*
+                      The counter against the ledger. It only appears when the
+                      two disagree, because on a healthy catalogue this column
+                      should be a number and not a reconciliation.
+                    */}
+                    {(ledger.sold.get(t.id) ?? 0) !== t.quantitySold && (
+                      <div style={{ color: 'var(--danger)', fontSize: 11 }}>
+                        orders say {ledger.sold.get(t.id) ?? 0}
+                      </div>
+                    )}
                   </div>,
 
+                  /*
+                    The event's wall clock, not the server's. Slicing the UTC
+                    instant printed the wrong day for any window closing after
+                    20:00 Eastern — and "sales close 30 April" that is really
+                    1 May is the kind of wrong that surfaces in an argument
+                    with a buyer.
+                  */
                   <span key="w" className="muted" style={{ fontSize: 12 }}>
-                    {t.salesOpenAt || t.salesCloseAt ? (
+                    {t.salesOpenAtLocal || t.salesCloseAtLocal ? (
                       <>
-                        {t.salesOpenAt?.slice(0, 10) ?? 'now'} → {t.salesCloseAt?.slice(0, 10) ?? 'no end'}
+                        {t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} →{' '}
+                        {t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}
                       </>
                     ) : (
                       'always'
@@ -221,6 +283,47 @@ export default async function CreateTicketsPage({
           )}
         </Panel>
       )}
+
+      {/*
+        What this editor writes, and where it lands.
+
+        This panel used to list seven fields that saved correctly and reached
+        nothing, each with the file and line of the missing half. All seven were
+        built on 2026-08-31 and the list is gone rather than ticked off — a gap
+        note that outlives its gap is the thing this flag exists to prevent.
+
+        What remains is genuinely not a `/tickets` problem, so it is stated as
+        one item rather than seven.
+      */}
+      <GapPanel>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a tier still cannot express</h2>
+        <p className="muted" style={{ fontSize: 13 }}>
+          Every field on this form now reaches the public site, the order ledger or both.
+          Price, currency, the grouped &ldquo;what&rsquo;s included&rdquo; list, the sales
+          window, the highlight, the tagline, sold-out state and both entitlements were
+          the seven gaps here and are closed.
+        </p>
+        <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <li>
+            <strong>Add-ons are not a product.</strong> The Checkout session builds exactly
+            one line item with <code>quantity: 1</code>, so a dinner and a workshop day
+            cannot be bought alongside a ticket — they have to be a tier per combination,
+            which is a combinatorial price list. This is the largest remaining gap in
+            ticketing and it changes the shape of the purchase path, not just this form.
+          </li>
+          <li>
+            <strong>No min or max per order, no fee model, no refund policy field.</strong>{' '}
+            Three things Whova&rsquo;s tier editor has that <code>TicketTypeDoc</code> does
+            not model at all. Adding a control here would be adding a field nothing reads.
+          </li>
+          <li>
+            <strong>A tier cannot be archived.</strong> There is deliberately no delete
+            (orders reference tiers, and history must not rewrite), and{' '}
+            <em>hide</em> covers most of it — but the catalogue grows forever, and a
+            long-finished 2026 tier still appears in every dashboard table.
+          </li>
+        </ul>
+      </GapPanel>
     </>
   );
 }

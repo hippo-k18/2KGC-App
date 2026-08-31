@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { Banner, PageHeader, Panel, Table } from '../../../ui';
-import { EXPO_GO_URL, siteOrigin } from '../adoption-context';
+import { siteOrigin } from '../adoption-context';
 
 export const dynamic = 'force-dynamic';
 

@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { clockOf } from '@/lib/time';
+import { clockOf, todayInEventZone } from '@/lib/time';
 import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { CsvImportPanel } from '../../csv-import-panel';
+import { commitSessionImportAction, previewSessionImportAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +31,15 @@ export const dynamic = 'force-dynamic';
  * in component state and loses it on reload, which is one of the specific
  * complaints in the research.
  *
- * Not built here, and it is the expensive half: the Excel round-trip, bulk
+ * Creating and editing a session is real: the hour bucket's "Add session" link
+ * carries its own hour into the form, and the editor writes twelve `SessionDoc`
+ * fields directly, three denormalised caches beside the ids they mirror, and the
+ * six derived time fields — with `qaEnabled` / `pollsEnabled` owned by Session
+ * Q&A Manager. Four fields still have no writer, and three of them have no
+ * *reader* either (`tags`, `slidesUrl`, `seriesId`); the fourth is `deletedAt`,
+ * which is deliberate — retiring a session is `status: 'cancelled'`.
+ *
+ * Not built here, and it is the expensive half: the Excel round-trip *in*, bulk
  * edit, block move and swap, and the drag-drop calendar. Those are ~15–20 days
  * against a programme that is authored in a spreadsheet by a committee anyway,
  * which is why §35.1 trades them for one good importer.
@@ -166,6 +176,14 @@ export default async function SessionManagerPage({
   const hours = Array.from({ length: lastHour - 7 + 1 }, (_, i) => 7 + i);
   const unscheduled = all.filter((s) => !s.day);
 
+  /**
+   * The fallback day for "Add session" when the programme is empty and there is
+   * therefore no active tab. In the *event's* zone, never the server's — a
+   * dashboard rendered on a UTC host would otherwise offer tomorrow's date to an
+   * organizer sitting in New York at 8pm.
+   */
+  const today = todayInEventZone();
+
   const qs = (d: string) => `${ROUTES.sessionManager}?day=${d}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
 
   return (
@@ -197,20 +215,26 @@ export default async function SessionManagerPage({
           </Banner>
         ) : null}
 
+        {/*
+          Whova's toolbar has five controls here. Four of them — Import, Reuse
+          from past event, Copy day, Bulk edit — were rendered `disabled` with a
+          tooltip saying so, which is the failure mode `SHOW_GAP_NOTES` was
+          invented to prevent: a greyed-out button is a promise made in the demo
+          and broken in the room. They are gone, and the "Not built here" panel
+          below still says what is missing and roughly what it costs.
+
+          The two that survive are the two that are real. Export was disabled
+          although `lib/exports.ts` has served the programme CSV all along — it
+          needed a link, not a feature.
+        */}
         <div className="toolbar">
-          <button type="button" className="btn btn-primary" disabled title="Not built — see below">
-            Import ▾
-          </button>
-          <button type="button" className="btn btn-primary" disabled title="Not built — see below">
-            Reuse from past event
-          </button>
-          <button type="button" className="btn btn-default" disabled title="Not built — see below">
-            Copy day
-          </button>
+          <Link className="btn btn-primary" href={`${ROUTES.sessionManager}/new?day=${activeDay || today}`}>
+            Add session
+          </Link>
           <span className="spacer" />
-          <button type="button" className="btn btn-default" disabled title="Not built — see below">
-            Export ▾
-          </button>
+          <a className="btn btn-default" href="/export/sessions" download>
+            Export programme (CSV)
+          </a>
         </div>
 
         <form method="get" className="toolbar">
@@ -231,10 +255,6 @@ export default async function SessionManagerPage({
               Clear
             </Link>
           ) : null}
-          <span className="spacer" />
-          <button type="button" className="btn btn-default" disabled title="Not built — see below">
-            Bulk edit ▾
-          </button>
         </form>
 
         <div style={{ display: 'flex', gap: 1, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -288,9 +308,12 @@ export default async function SessionManagerPage({
               <div style={{ alignItems: 'center', display: 'flex', marginBottom: 8 }}>
                 <span style={{ fontWeight: 600 }}>{hourLabel(h)}</span>
                 <span style={{ flex: 1 }} />
-                <button type="button" className="btn btn-default btn-sm" disabled title="Not built — see below">
-                  Add session ▾
-                </button>
+                <Link
+                  className="btn btn-default btn-sm"
+                  href={`${ROUTES.sessionManager}/new?day=${activeDay || today}&hour=${h}`}
+                >
+                  Add session
+                </Link>
               </div>
               {(byHour.get(h) ?? []).map((s) => (
                 <SessionCard key={s.id} s={s} />
@@ -305,33 +328,85 @@ export default async function SessionManagerPage({
         </div>
       </Panel>
 
+      <Panel>
+        <h2 className="section-header" style={{ marginTop: 0 }}>
+          Import the agenda
+        </h2>
+        <p className="body-2">
+          The programme CSV this screen exports, read back in. Speakers, tracks and rooms are
+          matched <strong>by name</strong> against what already exists and a row naming one that
+          does not is reported rather than invented &mdash; so import the speaker and track lists
+          first.
+        </p>
+        <p className="muted" style={{ fontSize: 12 }}>
+          Times are read as local wall clock in the event&rsquo;s timezone and the UTC instants and
+          day tab are derived from them, so a 21:00 reception stays on the evening it belongs to.
+          New sessions arrive as drafts: an import is a bulk write nobody reviews row by row, and
+          publishing an agenda to a thousand phones is not undone by editing.
+        </p>
+        <CsvImportPanel
+          previewAction={previewSessionImportAction}
+          commitAction={commitSessionImportAction}
+          nounSingular="session"
+          nounPlural="sessions"
+          columnHint={
+            <>
+              Needs <strong>Title</strong>, <strong>Day</strong> and <strong>Start</strong>. End,
+              End date, Room, Track, Speakers, Format, Status, Skill level, Capacity and
+              Description are used if present. Several speakers or tracks in one cell are separated
+              by a semicolon &mdash; never a comma, which is half the world&rsquo;s way of writing
+              a name.
+            </>
+          }
+          placeholder={'Day,Start,End,Title,Room,Track,Speakers\n2027-05-04,09:00,10:00,Knowledge graphs at scale,Bloomberg 165,Graph ML,Ada Okonkwo; Jae Vance'}
+          additiveNote={
+            <>
+              Nothing was removed. A session missing from the file stays on the programme &mdash;
+              retiring one is <code>status: cancelled</code>, because attendees hold saved-session
+              bookmarks that Firestore will not cascade. A session whose time changed is reported
+              rather than written, because writing it would create a second copy nothing can
+              remove.
+            </>
+          }
+        />
+      </Panel>
+
       <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Agenda import and export.</strong> Whova&apos;s canonical workflow is an Excel
-            round-trip — three sheets, multi-value separators, speaker names that must match the
-            Speaker sheet exactly, and 25 rows of instructions that must not be deleted because
-            data starts at row 26. The research puts a round-trippable importer with stable IDs at
-            6–9 days and calls the estimate deceptive: everyone underestimates it by 3×.{' '}
-            <code>scripts/src/import-whova.ts</code> is the start of it.
+            <strong>Whova&apos;s three-sheet Excel round-trip.</strong> The CSV importer above
+            covers the agenda itself, and it uses the same id function the CLI importer and the
+            seed use, so all three agree about which document a re-import updates. What it does not
+            reproduce is Whova&apos;s workbook: three linked sheets in one file, and 25 rows of
+            instructions that must not be deleted because data starts at row 26. Here the three
+            entities are three files imported in order, which is the same information with a
+            simpler failure mode.
           </li>
           <li>
-            <strong>Add a session, sub-sessions and non-session items.</strong> Note the time
-            cascade Whova does: move a parent and its sub-sessions move to fit the new bounds.{' '}
-            <code>SessionDoc</code> has <code>seriesId</code> for repeated runs but no parent link.
+            <strong>Sub-sessions and non-session items.</strong> Adding a session is built; nesting
+            one inside another is not, and neither is the time cascade Whova does when a parent
+            moves and its children shuffle to fit the new bounds. <code>SessionDoc</code> has{' '}
+            <code>seriesId</code> for repeated runs but no parent link, and nothing reads{' '}
+            <code>seriesId</code> today — which is why the editor has no control for it.
           </li>
           <li>
-            <strong>Bulk edit, block move and swap</strong>, plus the neighbour-aware prompts that
-            offer to extend or shorten an adjacent session when an edit opens a gap. That last one
-            is small and genuinely good; the rest is what §35.1 trades away.
+            <strong>Bulk edit, block move and swap, copy a day, and reuse a past event</strong>,
+            plus the neighbour-aware prompts that offer to extend or shorten an adjacent session
+            when an edit opens a gap. That last one is small and genuinely good; the rest is what
+            §35.1 trades away. All five were <code>disabled</code> buttons on the toolbar until now; a
+            greyed-out control is a promise made in the demo and broken in the room, so they are
+            described here instead of being shown.
           </li>
           <li>
             <strong>Telling attendees a session moved.</strong> Whova has nothing here either — no
             versioning, no diff, no automatic notice, only a manual announcement. Editing a session
-            below writes one document that every phone watching it picks up within about a second;
-            notifying the people who saved it is the <code>roomChangePush()</code> seam in{' '}
-            <code>src/lib/push.ts</code>, targeted rather than broadcast on purpose.
+            below writes one document that every phone watching it picks up within about a second.
+            The people who saved it are notified by the <code>onSessionAgendaChange</code> Cloud
+            Function, which fires on that write whoever made it — the CSV importer included — and
+            targets savers rather than broadcasting. <code>roomChangePush()</code> in{' '}
+            <code>src/lib/push.ts</code> reports the audience here and deliberately sends nothing,
+            so one room change cannot produce two notifications.
           </li>
         </ul>
       </GapPanel>

@@ -21,6 +21,7 @@ export interface AuditEntry {
   /** Allowlisted organizer email. Replaced by the SSO subject when SSO lands. */
   actor: string;
   action:
+    | 'session.create'
     | 'session.update'
     | 'announcement.create'
     /**
@@ -52,6 +53,19 @@ export interface AuditEntry {
     | 'ticketType.create'
     | 'ticketType.update'
     /**
+     * A hand correction to `quantitySold`, and the reconcile job that does the
+     * same thing across the catalogue.
+     *
+     * Separate from `ticketType.update` because it is a different kind of act:
+     * every other edit on that screen changes what will be sold, and this one
+     * changes the record of what *has* been. The counter is never decremented
+     * on refund, so it ratchets — and the correction for that ratchet moves the
+     * line between "still selling" and "sold out". "Who decided we had four
+     * seats left?" needs an answer, and it needs to be findable without reading
+     * every tagline edit in the log.
+     */
+    | 'ticketType.adjustSold'
+    /**
      * A bulk email. Recorded because it is the one action here that cannot be
      * undone *at all* — a refund can at least be explained, an email in a
      * thousand inboxes cannot be recalled.
@@ -72,6 +86,31 @@ export interface AuditEntry {
     /** The entities the later dashboard screens author. */
     | 'exhibitor.create'
     | 'exhibitor.update'
+    /**
+     * Sponsors. Recorded with the weight of a commercial record rather than a
+     * content one: `tier` is what a sponsor paid for, and it decides their logo
+     * size on the public site and their position in the app's directory. "Who
+     * moved Bloomberg from Platinum to Gold, and when?" is a question with a
+     * contract behind it.
+     */
+    | 'sponsor.create'
+    | 'sponsor.update'
+    /** A sponsor list imported from the sales spreadsheet, one entry per run. */
+    | 'sponsor.import'
+    /**
+     * The three programme imports, each one entry per run rather than per row.
+     *
+     * Four hundred audit rows for one button press is a log nobody reads, and
+     * the per-row outcome is on screen at the time. What the run entry has to
+     * carry instead is the shape of the blast: how many rows the file held, how
+     * many were created against updated, and whether the organizer chose to
+     * import a file that had problems. `track.import` also records
+     * `sessionsRecoloured`, because a colour change fans out onto documents the
+     * import did not name and that number is the one nobody expects.
+     */
+    | 'speaker.import'
+    | 'track.import'
+    | 'session.import'
     | 'task.create'
     | 'task.update'
     | 'survey.create'
@@ -109,6 +148,25 @@ export interface AuditEntry {
     /** Round tables and bookable meeting slots. */
     | 'gathering.create'
     | 'gathering.update'
+    /**
+     * The programme's own vocabulary — the people, the taxonomy and the doors.
+     *
+     * Recorded with the same weight as a session edit, because a rename here
+     * does not stop at one document: `SessionDoc` caches `speakerNames`,
+     * `primaryTrackName`, `primaryTrackColor` and `roomName`, so one edit fans
+     * out across the agenda. The `after` map therefore carries the fan-out's
+     * own count — "renamed, and 14 sessions rewritten" is the entry worth
+     * having at 09:05 on day two, and "renamed, 2 sessions FAILED" is the one
+     * that has to be findable.
+     */
+    | 'speaker.create'
+    | 'speaker.update'
+    | 'track.create'
+    | 'track.update'
+    | 'room.create'
+    | 'room.update'
+    /** A manual rebuild of every cached name on every session. */
+    | 'agenda.reconcile'
     /** Campaign contacts, tracked links and the sends that use them. */
     | 'campaign.create'
     | 'campaign.update'
@@ -118,7 +176,28 @@ export interface AuditEntry {
      * row — four hundred audit entries for one action is a log nobody reads,
      * and the per-row outcome is reported on screen at the time.
      */
-    | 'attendee.import';
+    | 'attendee.import'
+    /**
+     * One attendee added by hand from the Attendees screen.
+     *
+     * Per-row here, unlike `attendee.import`, because the whole point of the
+     * single-row path is that a person decided on this person — a comped guest,
+     * a late speaker's colleague, someone whose payment went astray. That
+     * decision is the thing worth being able to find later, and there is one of
+     * it rather than four hundred.
+     */
+    | 'attendee.add'
+    /**
+     * One in-app message sent from the organizer desk.
+     *
+     * This is the only per-person accountability the desk has. The dashboard
+     * signs in with a shared passphrase and there is no per-organizer Firebase
+     * uid, so every desk message carries the same `senderId` and an attendee
+     * sees one identity; the actor recorded here is the address typed beside
+     * that shared secret, and it is the only record of which organizer wrote
+     * the words.
+     */
+    | 'desk.message.send';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

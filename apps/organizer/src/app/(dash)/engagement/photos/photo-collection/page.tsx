@@ -103,7 +103,7 @@ export default async function PhotoCollectionPage() {
               </Link>
             ) : (
               <span key="e" className="muted" style={{ fontSize: 12 }}>
-                nowhere — the attendee sets it, and cannot
+                {s.editedNote ?? 'nowhere'}
               </span>
             ),
           ])}

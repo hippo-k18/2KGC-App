@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { ROUTES } from '@/lib/nav';
 import { IntegrationGuide } from '../../../integration-guide';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +22,7 @@ export default async function Page() {
       steps={[
         <>
           Export the list you need from{' '}
-          <a href="/attendees/manage-attendees/analytics-and-exports">Analytics &amp; Exports</a> —
+          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link> —
           the attendee, order or speaker CSV.
         </>,
         <>Import it into Zapier with their own import tool. Every one of these products has one.</>,

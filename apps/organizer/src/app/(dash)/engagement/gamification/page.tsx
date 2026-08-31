@@ -47,8 +47,8 @@ export default async function GamificationPage() {
     },
     {
       earn: 'Attending a session',
-      have: 'no' as const,
-      note: 'Nothing records session attendance. Saving a session to your schedule is an intention, not a turnstile.',
+      have: 'yes' as const,
+      note: 'A session door on Check-in writes the same server-side, idempotent check-in as the front door — but only for rooms somebody staffed. Saving a session to your schedule remains an intention rather than a turnstile, and is not this.',
     },
     {
       earn: 'Visiting a booth',

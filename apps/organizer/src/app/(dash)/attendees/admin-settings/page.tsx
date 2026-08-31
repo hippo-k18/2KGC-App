@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { allowlist, requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { SettingsReach } from '../../settings-reach';
 import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
 
@@ -32,11 +33,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminSettingsPage() {
   await requireOrganizer();
 
-  const s = await readSettings(SETTINGS_KEYS.access, {
-    attendeeListVisible: true,
-    contactSharingEnabled: true,
-    staffNote: '',
-  });
+  const s = await readSettings(SETTINGS_KEYS.access);
   const admins = allowlist();
 
   return (
@@ -98,9 +95,9 @@ export default async function AdminSettingsPage() {
       <Panel>
         <h2 className="section-header">Attendee settings</h2>
         <AdminSettingsForm
-          attendeeListVisible={Boolean(s.attendeeListVisible)}
-          contactSharingEnabled={Boolean(s.contactSharingEnabled)}
-          staffNote={String(s.staffNote ?? '')}
+          attendeeListVisible={s.attendeeListVisible}
+          contactSharingEnabled={s.contactSharingEnabled}
+          staffNote={s.staffNote}
         />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
@@ -109,6 +106,11 @@ export default async function AdminSettingsPage() {
           </p>
         )}
       </Panel>
+
+      <SettingsReach
+        bag={SETTINGS_KEYS.access}
+        fields={['attendeeListVisible', 'contactSharingEnabled', 'staffNote']}
+      />
 
       <GapPanel>
         <h2 className="section-header">Not built here</h2>

@@ -84,9 +84,10 @@ export default async function SponsorTieringPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Tiers as they stand</h2>
         {/*
-          Read-only by necessity, not by preference: a tier is assigned on the
-          sponsor record, and Sponsor Manager is read-only too because sponsors
-          come from the sponsorship spreadsheet the sales side already keeps.
+          Read-only here by design rather than by necessity: a tier is a property
+          of a sponsor, not a record of its own, so it is assigned on the sponsor
+          — the select on Sponsor Manager's form — and this screen shows the
+          shape that produces. There is nothing on this page a form could edit.
         */}
         <Table
           cols={[
@@ -113,8 +114,9 @@ export default async function SponsorTieringPage() {
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Logo weight is Whova&rsquo;s own sizing ratio from the live sponsor widget. Nothing here
-          applies it — see below.
+          Logo weight is Whova&rsquo;s own sizing ratio from the live sponsor widget; the public
+          sponsor page applies it, and nothing in the app does — see below. To move a sponsor
+          between tiers, edit them in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link>.
         </p>
       </Panel>
 
@@ -151,10 +153,6 @@ export default async function SponsorTieringPage() {
           <li>
             <strong>Editing tiers.</strong> Add, rename, reorder or delete — all four are edits to{' '}
             <code>packages/shared/src/models.ts</code>.
-          </li>
-          <li>
-            <strong>Moving a sponsor between tiers.</strong> Sponsor Manager is read-only; the tier
-            is set by the importer.
           </li>
           <li>
             <strong>Benefits per tier.</strong> Whova records what each tier includes and checks it

@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { ImageField } from '@/components/image-field';
 import type { ExhibitorRow } from '@/lib/exhibitors';
 import { saveExhibitorAction, type ExhibitorState } from './actions';
 
@@ -12,6 +13,11 @@ import { saveExhibitorAction, type ExhibitorState } from './actions';
  * field that decides everything else: a provisional exhibitor has not paid and
  * should not be printed on a floor plan, and confirming one is the actual
  * decision being recorded here.
+ *
+ * The logo field is the first thing in this dashboard that puts a file into
+ * Firebase Storage. It rides in the same FormData as every other field, so
+ * saving an exhibitor and giving them a logo is one action and one audit entry
+ * rather than two things that can disagree.
  */
 export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
   const [state, action] = useActionState<ExhibitorState, FormData>(saveExhibitorAction, {});
@@ -38,6 +44,13 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
           </p>
         )}
       </div>
+
+      <ImageField
+        name="logo"
+        label="Logo"
+        currentUrl={existing?.logoURL}
+        help="PNG, JPEG, WebP or GIF. Large images are shrunk to 1024px in your browser before they are sent, so a photo straight off a phone is fine."
+      />
 
       <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="status">

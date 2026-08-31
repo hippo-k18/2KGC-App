@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { sessionAttendance } from '@/lib/attendance';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
@@ -29,6 +30,12 @@ export const dynamic = 'force-dynamic';
  * honest number to put in it. Whova's screen has one; showing an invented one
  * would be the fourteen-times-repeated defect this project keeps finding.
  *
+ * There *is* now a "Counted in" column, and it is a different question with a
+ * different answer: people scanned at that session's door, after the fact. It
+ * is `null` — rendered "not counted" — for any session whose door was never
+ * opened, because a zero there would be the invented number this screen exists
+ * to refuse.
+ *
  * ── Reads ───────────────────────────────────────────────────────────────────
  *
  * `listSessions()` for the programme and `capacityIndex()` for the two numbers
@@ -55,6 +62,15 @@ interface CappedRow {
   verdict: Verdict;
   /** Seats the room has beyond the cap. Only meaningful when both numbers exist. */
   headroom?: number;
+  /**
+   * People scanned into this session's door, or `null` when no door was opened.
+   *
+   * `null` rather than `0` throughout, because the two render identically as a
+   * number and mean opposite things — "nobody came" against "nobody counted" —
+   * and this screen's whole argument is that it will not print a figure it
+   * cannot stand behind.
+   */
+  countedIn: number | null;
 }
 
 const VERDICT: Record<Verdict, { label: string; color: 'red' | 'orange' | 'green'; rank: number }> =
@@ -77,7 +93,14 @@ export default async function SessionCapPage({
   const day = typeof sp.day === 'string' ? sp.day : undefined;
   const { page, sort, baseParams } = listParams(sp);
 
-  const [sessions, caps] = await Promise.all([listSessions(), capacityIndex()]);
+  const [sessions, caps, attendance] = await Promise.all([
+    listSessions(),
+    capacityIndex(),
+    sessionAttendance(),
+  ]);
+  const countedIn = new Map(
+    attendance.rows.filter((r) => r.tracked).map((r) => [r.session.id, r.countedIn]),
+  );
 
   // Cancelled sessions are dropped, not flagged. A cap on something that is not
   // happening is not a problem to fix, and leaving them in makes the count of
@@ -109,6 +132,7 @@ export default async function SessionCapPage({
         roomCapacity,
         verdict,
         headroom: roomCapacity === undefined ? undefined : roomCapacity - capacity,
+        countedIn: countedIn.has(s.id) ? countedIn.get(s.id)! : null,
       };
     });
 
@@ -128,6 +152,7 @@ export default async function SessionCapPage({
     room: (r) => r.roomName ?? '',
     cap: (r) => r.capacity,
     seats: (r) => r.roomCapacity ?? -1,
+    counted: (r) => r.countedIn ?? -1,
     verdict: (r) => VERDICT[r.verdict].rank,
   });
   // Problems first by default, so the screen is useful before anyone touches a
@@ -175,8 +200,15 @@ export default async function SessionCapPage({
           <code>SessionDoc.capacity</code>: adding a session to your schedule in the app writes a
           private bookmark under <code>users/&#123;uid&#125;/savedSessions</code>, which the rules
           allow without counting anything, and no code anywhere compares that to the cap. So this
-          screen shows what you have written down against what the room holds. It cannot show seats
-          taken, because there is no number in this system that means that.
+          screen shows what you have written down against what the room holds.
+          <br />
+          <br />
+          <strong>&ldquo;Counted in&rdquo; is not &ldquo;seats taken&rdquo;.</strong> It is people
+          scanned at that session&apos;s door on{' '}
+          <Link href={ROUTES.checkIn}>Check-in</Link> — a fact about a room after the fact, which is
+          why a session can read 42 against a cap of 40 and that is a real over-capacity event
+          rather than a booking error. Nothing in this system reserves a seat in advance, so there
+          is still no number here that means &ldquo;how many have claimed a place&rdquo;.
         </Banner>
 
         <StatTiles
@@ -250,6 +282,7 @@ export default async function SessionCapPage({
             { key: 'r', label: 'Room', className: 'cell-mdsm cell-truncate', sortKey: 'room' },
             { key: 'c', label: 'Cap', className: 'cell-xs', sortKey: 'cap' },
             { key: 's', label: 'Room seats', className: 'cell-xs', sortKey: 'seats' },
+            { key: 'in', label: 'Counted in', className: 'cell-xs', sortKey: 'counted' },
             { key: 'v', label: 'Fit', className: 'cell-sm', sortKey: 'verdict' },
           ]}
           sort={sort}
@@ -281,6 +314,22 @@ export default async function SessionCapPage({
               </span>
             ) : (
               String(r.roomCapacity)
+            ),
+            r.countedIn === null ? (
+              <span key="in" className="muted" title="No door was opened for this session">
+                not counted
+              </span>
+            ) : (
+              <span key="in">
+                <strong>{r.countedIn}</strong>
+                {r.countedIn > r.capacity ? (
+                  <div>
+                    <Tag color="red" fill="outline" small>
+                      over cap
+                    </Tag>
+                  </div>
+                ) : null}
+              </span>
             ),
             <span key="v">
               <Tag color={VERDICT[r.verdict].color} fill="outline" small>
@@ -353,9 +402,11 @@ export default async function SessionCapPage({
             told they are on.
           </li>
           <li>
-            <strong>Session check-in against the cap.</strong> <code>checkInLists</code> is modelled
-            per event rather than per session, and every write under it is Admin-SDK only. Counting
-            people into a room is a different loop from checking them into the conference.
+            <strong>Enforcement at the door.</strong> Per-session check-in is built — the Counted in
+            column above comes from a real door list per session — but the scanner does not refuse
+            the badge that takes a room past its cap, and should not: the operator can see the
+            number and the fire marshal, not the software, decides who stays out. What is missing is
+            the warning, on the scanner, at the moment it crosses.
           </li>
           <li>
             <strong>Editing a cap.</strong> This screen reads. The write belongs next to the rest of

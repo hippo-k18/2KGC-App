@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { SettingsReach } from '../../../settings-reach';
 import { Banner, GapPanel, PageHeader, Panel, Tag } from '../../../ui';
 import { EmergencyForm } from '../emergency-form';
 
@@ -30,18 +31,8 @@ export const dynamic = 'force-dynamic';
  */
 export default async function EmergencyManagerPage() {
   await requireOrganizer();
-  const s = await readSettings(SETTINGS_KEYS.logistics, {
-    emergencyNumber: '911',
-    venueSecurity: '',
-    medicalPoint: '',
-    assemblyPoint: '',
-    onSiteLead: '',
-    onSiteLeadPhone: '',
-    incidentProcedure: '',
-    planReady: false,
-  });
-
-  const ready = Boolean(s.planReady);
+  const s = await readSettings(SETTINGS_KEYS.logistics);
+  const ready = s.planReady;
 
   return (
     <>
@@ -74,13 +65,13 @@ export default async function EmergencyManagerPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Emergency plan</h2>
         <EmergencyForm
           plan={{
-            emergencyNumber: String(s.emergencyNumber ?? ''),
-            venueSecurity: String(s.venueSecurity ?? ''),
-            medicalPoint: String(s.medicalPoint ?? ''),
-            assemblyPoint: String(s.assemblyPoint ?? ''),
-            onSiteLead: String(s.onSiteLead ?? ''),
-            onSiteLeadPhone: String(s.onSiteLeadPhone ?? ''),
-            incidentProcedure: String(s.incidentProcedure ?? ''),
+            emergencyNumber: s.emergencyNumber,
+            venueSecurity: s.venueSecurity,
+            medicalPoint: s.medicalPoint,
+            assemblyPoint: s.assemblyPoint,
+            onSiteLead: s.onSiteLead,
+            onSiteLeadPhone: s.onSiteLeadPhone,
+            incidentProcedure: s.incidentProcedure,
             planReady: ready,
           }}
         />
@@ -92,6 +83,12 @@ export default async function EmergencyManagerPage() {
         )}
       </Panel>
 
+      <SettingsReach
+        bag={SETTINGS_KEYS.logistics}
+        fields={['emergencyNumber', 'assemblyPoint', 'onSiteLead', 'incidentProcedure', 'planReady']}
+        style={{ marginTop: 16 }}
+      />
+
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
@@ -100,10 +97,13 @@ export default async function EmergencyManagerPage() {
             empty. Push needs a development build of the app to receive it, which Expo Go cannot do.
           </li>
           <li>
-            <strong>The plan is not visible to attendees.</strong> It lives in the{' '}
-            <code>settings</code> collection, which no client may read. Publishing the assembly
-            point to the app would mean an announcement — which is real, and{' '}
-            <Link href={ROUTES.announcements}>already works</Link> — or a page on the website.
+            <strong>The plan is not visible to attendees — yet.</strong> It lives in the{' '}
+            <code>settings</code> collection, which has no <code>match</code> block in{' '}
+            <code>firestore.rules</code>, so the client SDK is denied by the default-closed
+            posture. Reaching a phone therefore needs a rules change and a deploy as well as a
+            screen; that is written up as <strong>FU-12</strong> in{' '}
+            <code>docs/audit-2026-08-30/FOLLOW-UPS.md</code>. Until then the working route is an
+            announcement, which is real and <Link href={ROUTES.announcements}>already works</Link>.
           </li>
           <li>
             <strong>No incident log.</strong> Whova records what happened and when. That is a

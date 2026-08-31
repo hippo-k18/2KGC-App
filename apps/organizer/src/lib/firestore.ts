@@ -2,7 +2,6 @@ import 'server-only';
 
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
-import { demoFirestore, isDemoMode } from './demo/store';
 
 /**
  * Admin SDK access for the organizer console.
@@ -21,16 +20,21 @@ import { demoFirestore, isDemoMode } from './demo/store';
  * module is a server action or a server component; `server-only` above turns a
  * mistaken client import into a build error rather than a leak.
  */
+/**
+ * ⚠️ **No credential is a hard failure, deliberately.**
+ *
+ * Until BUILD-PLAN 1.5 this function had a third mode: with no emulator host and
+ * no service account it returned an in-memory stand-in backed by a 343 KB
+ * `fixture.json`, so a misconfigured deployment showed a complete, plausible,
+ * entirely invented dashboard — and reported saves that went nowhere. Nobody set
+ * that mode; it derived itself from the absence of a variable, which meant
+ * "the dashboard lost its service account" and "the organizer's edit never
+ * reached the app" presented as the same symptom.
+ *
+ * It now throws the message below instead. A dashboard that will not start is a
+ * bug report; a dashboard full of fiction is a decision made on fiction.
+ */
 export function db(): Firestore {
-  /**
-   * No emulator and no credential means no database to talk to at all, which is
-   * how this runs when it is deployed for a demonstration. Rather than throw on
-   * every page, serve the seeded fixture through an in-memory stand-in — see
-   * `demo/store.ts`. Every screen then runs its real query logic, which is the
-   * whole point: a screen that works in the demo works against Firestore.
-   */
-  if (isDemoMode()) return demoFirestore();
-
   if (!getApps().length) {
     const emulator = process.env.FIRESTORE_EMULATOR_HOST;
     const projectId = process.env.GCLOUD_PROJECT ?? 'kgc-conference-app-and-website';
@@ -93,7 +97,6 @@ export function db(): Firestore {
 }
 
 export function targetDescription(): string {
-  if (isDemoMode()) return 'demo data (no database — nothing is saved)';
   return process.env.FIRESTORE_EMULATOR_HOST
     ? `emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`
     : `PROJECT ${process.env.GCLOUD_PROJECT ?? 'kgc-conference-app-and-website'} (LIVE)`;

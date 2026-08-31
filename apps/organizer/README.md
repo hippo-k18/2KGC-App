@@ -65,7 +65,16 @@ anything:
 
 ## What is real
 
-**All 173 screens read or write real Firestore data**, as of 2026-08-26.
+⚠️ **This section said "all 173 screens read or write real Firestore data" and
+that was never true.** A 2026-08-30 audit found 39 of the 173 read nothing at
+all — they are honest prose screens, not stubs, but the claim was wrong. What
+`npm run smoke` actually proves is narrower and still valuable: **all 173 render
+without a server-side throw against seeded data.**
+
+**Re-measured 2026-08-31.** The dashboard went from a reporting tool to an
+authoring one: server-action modules went **24 → 35**, and sessions, speakers,
+tracks, rooms, sponsors and ticket specs are all editable where none of them
+were. The programme was previously changeable only by re-running `npm run seed`.
 `npm run smoke` from the repo root boots the emulator, seeds it, builds this app
 and requests every path in `nav.ts` — all 173 return 200 with no server-side
 throw. That is the check; there is no screen left whose entire content is a

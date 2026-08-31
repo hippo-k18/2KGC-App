@@ -37,11 +37,35 @@ export interface PageReadiness {
   total: number;
   /** Things that would look wrong to a visitor today, most important first. */
   problems: { label: string; count: number }[];
+  /**
+   * Something true about the page that is not a defect.
+   *
+   * Separate from `problems` because that list is rendered as a list of things
+   * to fix; a fact filed there reads as a fault.
+   */
+  note?: string;
 }
 
 function origin(): string {
   return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
 }
+
+/**
+ * Where the public `/speakers` page gets its roster.
+ *
+ * ⚠️ Must be kept in step with `SPEAKERS_PAGE_SOURCE` in
+ * `apps/web/src/lib/site.ts` — that file holds the argument, and this is a
+ * second copy because the two apps are separate installs and neither may
+ * import the other.
+ *
+ * Why the duplication is worth it: while the website renders the published
+ * KGC 2026 roster, this screen was counting `speakers` documents with no photo
+ * and reporting them as problems with "your speakers page" — a page that does
+ * not render those people. The counts were arithmetically right and told an
+ * organizer to go and fix something invisible. This is the screen an organizer
+ * would trust, which is exactly why it must not be the one that is wrong.
+ */
+const SPEAKERS_PAGE_SOURCE: '2026-roster' | 'firestore' = '2026-roster';
 
 export function publicUrl(path: string): string {
   return `${origin()}${path}`;
@@ -95,16 +119,30 @@ export async function pageReadiness(): Promise<{
     speakers: {
       title: 'Speakers',
       path: '/speakers',
-      published: speakers.length,
+      // Nothing from this collection is published while the page renders the
+      // 2026 roster, so the honest count is zero rather than `speakers.length`.
+      published: SPEAKERS_PAGE_SOURCE === 'firestore' ? speakers.length : 0,
       total: speakers.length,
-      problems: [
-        // Headshots first: a speaker grid with holes is the single most visible
-        // form of "this conference is not ready" on a public site.
-        ...nonEmpty('no photo', speakers.filter((s) => !s.photoURL).length),
-        ...nonEmpty('no bio', speakers.filter((s) => !s.bio).length),
-        ...nonEmpty('no company', speakers.filter((s) => !s.company).length),
-        ...nonEmpty('not on any session', speakers.filter((s) => (s.sessionIds ?? []).length === 0).length),
-      ],
+      note:
+        SPEAKERS_PAGE_SOURCE === 'firestore'
+          ? undefined
+          : '/speakers currently shows the published KGC 2026 roster, not this collection. These records do not appear on it.',
+      // Gated, not deleted: every count below is correct and is exactly what
+      // this screen needs the day the roster switches over.
+      problems:
+        SPEAKERS_PAGE_SOURCE === 'firestore'
+          ? [
+              // Headshots first: a speaker grid with holes is the single most visible
+              // form of "this conference is not ready" on a public site.
+              ...nonEmpty('no photo', speakers.filter((s) => !s.photoURL).length),
+              ...nonEmpty('no bio', speakers.filter((s) => !s.bio).length),
+              ...nonEmpty('no company', speakers.filter((s) => !s.company).length),
+              ...nonEmpty(
+                'not on any session',
+                speakers.filter((s) => (s.sessionIds ?? []).length === 0).length,
+              ),
+            ]
+          : [],
     },
     sponsors: {
       title: 'Sponsors',

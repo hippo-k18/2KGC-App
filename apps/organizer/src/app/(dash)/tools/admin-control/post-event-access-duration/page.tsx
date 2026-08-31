@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { SettingsReach } from '../../../settings-reach';
 import { Banner, PageHeader, Panel } from '../../../ui';
 import { PostEventForm } from '../access-form';
 
@@ -23,10 +24,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function PostEventAccessPage() {
   await requireOrganizer();
-  const s = await readSettings(SETTINGS_KEYS.access, {
-    postEventDays: 30,
-    postEventReadOnly: false,
-  });
+  const s = await readSettings(SETTINGS_KEYS.access);
 
   return (
     <>
@@ -49,10 +47,7 @@ export default async function PostEventAccessPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>How long attendees keep the app</h2>
-        <PostEventForm
-          postEventDays={Number(s.postEventDays ?? 30)}
-          postEventReadOnly={Boolean(s.postEventReadOnly)}
-        />
+        <PostEventForm postEventDays={s.postEventDays} postEventReadOnly={s.postEventReadOnly} />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
@@ -82,6 +77,12 @@ export default async function PostEventAccessPage() {
           </li>
         </ul>
       </Panel>
+
+      <SettingsReach
+        bag={SETTINGS_KEYS.access}
+        fields={['postEventDays', 'postEventReadOnly']}
+        style={{ marginTop: 16 }}
+      />
     </>
   );
 }

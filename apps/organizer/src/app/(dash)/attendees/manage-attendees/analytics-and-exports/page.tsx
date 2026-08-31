@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { formatHours, sessionAttendance } from '@/lib/attendance';
 import { EXPORTS, eventAnalytics } from '@/lib/exports';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
@@ -28,7 +29,18 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AnalyticsAndExportsPage() {
   await requireOrganizer();
-  const a = await eventAnalytics();
+  const [a, attendance] = await Promise.all([eventAnalytics(), sessionAttendance()]);
+
+  // Sessions somebody actually counted, busiest first. Untracked rooms are a
+  // separate figure rather than a run of zeroes at the bottom of the table:
+  // "nobody came" and "nobody was counting" look identical as a number and are
+  // opposite as a fact.
+  const counted = attendance.rows
+    .filter((r) => r.tracked)
+    .sort(
+      (x, y) =>
+        y.countedIn - x.countedIn || x.session.startsAtLocal.localeCompare(y.session.startsAtLocal),
+    );
 
   return (
     <>
@@ -113,6 +125,57 @@ export default async function AnalyticsAndExportsPage() {
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Session attendance</h2>
+        <p className="body-2" style={{ marginTop: 0 }}>
+          Counted at the door of each session — {attendance.tracked} of {attendance.live} sessions
+          in the programme have had a door opened for them.{' '}
+          {attendance.tracked === 0 ? (
+            <>
+              None yet. Open one from{' '}
+              <Link href={ROUTES.checkIn}>Check-in</Link> — the Session card&apos;s Start button
+              creates the list and points the scanner at it.
+            </>
+          ) : (
+            <>
+              A session with no door is left out of the table below rather than shown as zero: the
+              two are the same number and opposite facts, and a programme committee cutting a track
+              on the strength of a zero it never measured is the mistake worth designing against.
+            </>
+          )}
+        </p>
+
+        {attendance.tracked > 0 ? (
+          <Table
+            cols={[
+              { key: 's', label: 'Session', className: 'cell-fill' },
+              { key: 'w', label: 'When', className: 'cell-sm' },
+              { key: 'r', label: 'Room', className: 'cell-mdsm cell-truncate' },
+              { key: 'l', label: 'Length', className: 'cell-xs' },
+              { key: 'c', label: 'Counted in', className: 'cell-xs' },
+            ]}
+            rows={counted.map((r) => [
+              <span key="s">
+                <strong>{r.session.title}</strong>
+                {r.session.primaryTrackName ? (
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {r.session.primaryTrackName}
+                  </div>
+                ) : null}
+              </span>,
+              <span key="w" style={{ fontSize: 12 }}>
+                {r.session.day}
+                <div className="muted">{r.session.startsAtLocal.slice(11, 16)}</div>
+              </span>,
+              r.session.roomName ?? <span className="muted">—</span>,
+              formatHours(r.minutes),
+              <strong key="c">{r.countedIn}</strong>,
+            ])}
+            empty="No session door has been opened yet."
+          />
+        ) : null}
+      </Panel>
+
+      <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Exports</h2>
 
         <Banner kind="warning">
@@ -160,8 +223,17 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Session-level attendance.</strong> Whova reports who attended which session,
-            which needs per-session check-in — the scanner writes event-door check-ins only.
+            <strong>Dwell time.</strong> Session attendance above is arrivals. Nothing records a
+            departure — <code>checkIns/&#123;registrationId&#125;</code> makes a second scan an{' '}
+            <code>already-exists</code> by design, and Checkout is unbuilt — so &ldquo;counted in&rdquo;
+            credits the whole scheduled length whether somebody stayed or left after ten minutes.
+            Every hours figure in this dashboard carries that caveat.
+          </li>
+          <li>
+            <strong>Popularity before the event.</strong> These numbers exist only after a door has
+            been scanned. A saved session is a private bookmark under{' '}
+            <code>users/&#123;uid&#125;/savedSessions</code> that an organizer cannot enumerate, so
+            there is no way to see which sessions are filling up in advance.
           </li>
           <li>
             <strong>Engagement scores and leaderboards.</strong> These derive from counters that

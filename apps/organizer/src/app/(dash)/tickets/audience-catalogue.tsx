@@ -180,10 +180,10 @@ export async function AudienceCatalogue({
                 </div>,
 
                 <span key="w" className="muted" style={{ fontSize: 12 }}>
-                  {t.salesOpenAt || t.salesCloseAt ? (
+                  {t.salesOpenAtLocal || t.salesCloseAtLocal ? (
                     <>
-                      {t.salesOpenAt?.slice(0, 10) ?? 'now'} →{' '}
-                      {t.salesCloseAt?.slice(0, 10) ?? 'no end'}
+                      {t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} →{' '}
+                      {t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}
                     </>
                   ) : (
                     'always'

@@ -2,7 +2,12 @@ import 'server-only';
 
 import { Timestamp } from 'firebase-admin/firestore';
 import { TIME_ZONE } from '@kgc/shared';
-import { deriveTimes as deriveTimesInScripts } from '@kgc/scripts/src/lib/time';
+import {
+  deriveTimes as deriveTimesInScripts,
+  fromWallClock as fromWallClockInScripts,
+  isWallClock,
+  toWallClockInZone,
+} from '@kgc/scripts/src/lib/time';
 
 /**
  * Time derivation for the console.
@@ -48,6 +53,21 @@ export function deriveTimes(
     timeZone: derived.timeZone,
     day: derived.day,
   };
+}
+
+export { isWallClock, toWallClockInZone };
+
+/**
+ * One wall clock → the instant it names, for the single-ended cases.
+ *
+ * A ticket's sales window is two independent moments, either of which may be
+ * absent, so `deriveTimes` — which insists on a start *and* an end and refuses
+ * the second if it is not after the first — is the wrong tool. The
+ * `Timestamp` is re-wrapped for the same reason as above: the scripts workspace
+ * and this app resolve different copies of `firebase-admin`.
+ */
+export function fromWallClock(local: string, timeZone: string = TIME_ZONE): Timestamp {
+  return Timestamp.fromDate(fromWallClockInScripts(local, timeZone).toDate());
 }
 
 /** `YYYY-MM-DD` for "today" in the event's zone — not the server's. */

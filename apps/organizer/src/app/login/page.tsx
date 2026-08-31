@@ -3,18 +3,12 @@ import { EVENT } from '@kgc/shared';
 import { currentSession, requirePassphrase } from '@/lib/auth';
 import { targetDescription } from '@/lib/firestore';
 import { LoginForm } from './login-form';
-import { DemoPanel } from '@/components/demo-panel';
-import { demoCredentials, demoMode } from '@/lib/demo-mode';
 import { gapNotesVisible } from '@/lib/gap-notes';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage() {
   if (await currentSession()) redirect('/content/basics');
-
-  // Read here rather than inside the panel: `demo-mode.ts` is `server-only` and
-  // the panel is a client component, so the values have to cross as props.
-  const credentials = demoMode() ? demoCredentials() : null;
 
   return (
     <div className="login-shell">
@@ -29,23 +23,6 @@ export default async function LoginPage() {
           </p>
 
           <LoginForm needsPassphrase={requirePassphrase()} />
-
-          {/*
-            The demo credentials sit inside the card, directly under the fields
-            they belong to. They used to render in a panel fixed to the bottom
-            of the viewport, which on a short window covered the sign-in button
-            itself — a hint that hides the control it describes.
-          */}
-          {credentials ? (
-            <DemoPanel
-              title="Organizer sign-in"
-              note="Click a value to copy it. Both fields are required."
-              rows={[
-                { label: 'Email', value: credentials.email },
-                { label: 'Password', value: credentials.passphrase, mono: true },
-              ]}
-            />
-          ) : null}
 
           {/*
             Operator guidance, not a gap note — but it is written for whoever

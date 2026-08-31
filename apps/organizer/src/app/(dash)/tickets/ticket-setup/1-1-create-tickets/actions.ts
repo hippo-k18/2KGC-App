@@ -2,13 +2,15 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, type TicketAudience } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, TIME_ZONE, type TicketAudience } from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getTicketType } from '@/lib/commerce';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
+import { fromWallClock, isWallClock } from '@/lib/time';
+import { groupsToText, parseGroups } from './groups';
 
 /**
  * Creating and editing ticket types.
@@ -67,11 +69,43 @@ function parseMoney(raw: string): number | null {
   return Number.isFinite(cents) ? cents : null;
 }
 
-/** An empty string means "no date"; anything else must actually parse. */
-function parseDate(raw: string): Timestamp | null | undefined {
-  if (!raw) return null;
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? undefined : Timestamp.fromDate(d);
+/**
+ * An empty string means "no date"; anything else is wall clock in the event's
+ * zone and must actually parse.
+ *
+ * ── The zone is not the server's ────────────────────────────────────────────
+ *
+ * This was `new Date(raw)`, which resolves a `datetime-local` value in whatever
+ * zone the *process* happens to run in. On a laptop in New York that is right
+ * by accident. On Netlify, which builds and runs in UTC, an early-bird deadline
+ * typed as `23:59` closes at 19:59 Eastern — four hours of sales gone on the
+ * busiest day, with every screen still printing "closes 23:59" because it
+ * formats the same instant back through the same wrong zone.
+ *
+ * Sessions solved this first and this follows their precedent exactly: the wall
+ * clock is the authoring truth, the instant is derived from it server-side
+ * through the one shared implementation, and both are stored — see
+ * `scripts/src/lib/time.ts`.
+ */
+function parseSalesDate(local: string): Timestamp | null | undefined {
+  if (!local) return null;
+  if (!isWallClock(local)) return undefined;
+  try {
+    return fromWallClock(local, TIME_ZONE);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Some browsers post `datetime-local` with seconds. Trimming them is not the
+ * same as accepting a loose format — anything that is not wall clock after the
+ * trim is still refused by `parseSalesDate`, because an ISO instant with an
+ * offset in this box would mean the zone arrived twice and disagreed with
+ * itself.
+ */
+function normaliseWallClock(raw: string): string {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw) ? raw.slice(0, 16) : raw;
 }
 
 export async function saveTicketTypeAction(
@@ -85,6 +119,7 @@ export async function saveTicketTypeAction(
   const priceRaw = String(formData.get('price') ?? '').trim();
   const tagline = String(formData.get('tagline') ?? '').trim();
   const includesRaw = String(formData.get('includes') ?? '');
+  const groupsRaw = String(formData.get('groups') ?? '');
   const currency = String(formData.get('currency') ?? 'usd').trim().toLowerCase();
   const capacityRaw = String(formData.get('capacity') ?? '').trim();
   const sortOrder = Number(formData.get('sortOrder') ?? 0);
@@ -123,10 +158,14 @@ export async function saveTicketTypeAction(
     return { error: 'Capacity must be a whole number, or blank for unlimited.' };
   }
 
-  const salesOpenAt = parseDate(opensRaw);
-  const salesCloseAt = parseDate(closesRaw);
+  // Normalised first, so the stored wall clock and the derived instant are two
+  // views of one string rather than two parses of the raw form value.
+  const opensLocal = normaliseWallClock(opensRaw);
+  const closesLocal = normaliseWallClock(closesRaw);
+  const salesOpenAt = parseSalesDate(opensLocal);
+  const salesCloseAt = parseSalesDate(closesLocal);
   if (salesOpenAt === undefined || salesCloseAt === undefined) {
-    return { error: 'Sales dates must be valid, or blank.' };
+    return { error: 'Sales dates must be valid, or blank. Use the date picker.' };
   }
   if (salesOpenAt && salesCloseAt && salesOpenAt.toMillis() >= salesCloseAt.toMillis()) {
     return { error: 'Sales must open before they close.' };
@@ -136,6 +175,14 @@ export async function saveTicketTypeAction(
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
+
+  const groups = parseGroups(groupsRaw);
+  if (groups === null) {
+    return {
+      error:
+        'The grouped list starts with a bullet. Put a heading above it — a line with no dash — or leave the box empty.',
+    };
+  }
 
   const docId = id || slugify(name);
   if (!docId) return { error: 'That name produces an empty id. Use some letters or numbers.' };
@@ -156,6 +203,19 @@ export async function saveTicketTypeAction(
     currency,
     tagline,
     includes,
+    /**
+     * The list the public tickets page actually renders.
+     *
+     * `apps/web/src/app/tickets/page.tsx` prefers `groups` and falls back to
+     * `includes`, and both headline tiers carry a `groups` from the seed — so
+     * until this field was written here, editing "What's included" for All
+     * Access or Main Conference changed the checkout order rail and nothing a
+     * buyer reads on the panel. An empty array is written deliberately rather
+     * than omitted: it is how an organizer says "just use the flat list", and
+     * the `merge: true` write would otherwise preserve a `groups` they had
+     * just cleared.
+     */
+    groups,
     inPerson,
     featured,
     visible,
@@ -188,6 +248,16 @@ export async function saveTicketTypeAction(
     quantityTotal: capacity,
     salesOpenAt,
     salesCloseAt,
+    /**
+     * The wall clock is the authoring truth; the two `Timestamp`s above are
+     * derived from it. Stored so that reopening the form shows the hour that
+     * was typed rather than the same instant re-rendered in whatever zone the
+     * reader's server is in, and so that the derivation can be redone if the
+     * event ever moves zone.
+     */
+    salesOpenAtLocal: opensLocal || null,
+    salesCloseAtLocal: closesLocal || null,
+    salesTimeZone: TIME_ZONE,
   };
 
   try {
@@ -211,12 +281,32 @@ export async function saveTicketTypeAction(
       { merge: true },
     );
 
+    /**
+     * What the audit compares.
+     *
+     * The price and the cap were always here, and they are the entries anybody
+     * goes looking for. The *copy* fields were added when `groups` became
+     * editable: an edit to what a ticket includes is a change to what was sold,
+     * and "the website said this ticket included the workshops when I bought
+     * it" is a dispute the log has to be able to settle. Both lists are
+     * flattened to text so the entry reads at a glance rather than as nested
+     * JSON.
+     */
     const before = existing
       ? {
           name: existing.name,
           priceCents: existing.priceCents,
           visible: existing.visible,
           quantityTotal: existing.quantityTotal,
+          tagline: existing.tagline,
+          includes: (existing.includes ?? []).join(' · '),
+          groups: groupsToText(
+            (existing.groups ?? []).map((g) => ({ heading: g.heading, items: g.items ?? [] })),
+          ),
+          includesWorkshops: existing.includesWorkshops === true,
+          includesVideoLibrary: existing.includesVideoLibrary === true,
+          salesOpenAtLocal: existing.salesOpenAtLocal ?? null,
+          salesCloseAtLocal: existing.salesCloseAtLocal ?? null,
         }
       : {};
 
@@ -225,6 +315,13 @@ export async function saveTicketTypeAction(
       priceCents,
       visible,
       quantityTotal: capacity,
+      tagline,
+      includes: includes.join(' · '),
+      groups: groupsToText(groups),
+      includesWorkshops,
+      includesVideoLibrary,
+      salesOpenAtLocal: opensLocal || null,
+      salesCloseAtLocal: closesLocal || null,
     });
 
     await appendAudit({
@@ -253,6 +350,97 @@ export async function saveTicketTypeAction(
     recordError('ticketType.save', err);
     return { error: err instanceof Error ? err.message : 'Could not save the ticket type.' };
   }
+}
+
+/**
+ * Correct `quantitySold` by hand.
+ *
+ * ── Why a tier needs this at all ────────────────────────────────────────────
+ *
+ * `quantitySold` is incremented at fulfilment and **never decremented on
+ * refund** — that is written into the model and it is a deliberate
+ * simplification, because the increment must never be allowed to fail a sale.
+ * The cost is a one-way ratchet: ten refunds permanently consume ten seats of a
+ * capped tier, and until this existed the only remedy was to inflate
+ * `quantityTotal`, which then lied on every "12 / 16 sold" readout on the
+ * dashboard. Both writers also swallow their own failures, so the counter can
+ * drift low as well as high.
+ *
+ * The screen offers the ledger's own figure — recomputed from `orders` through
+ * the same fold the reconcile script uses — so this is a confirmation rather
+ * than a guess. `npm run reconcile:sold` does the whole catalogue at once.
+ *
+ * ── Why it is not folded into the save action ───────────────────────────────
+ *
+ * `saveTicketTypeAction` refuses to write this field, deliberately: resetting
+ * the sold count while editing a tagline would make a sold-out tier look open,
+ * and the way that failure surfaces is overselling a room. So it is a separate
+ * action, with its own audit verb, its own typed confirmation and a required
+ * reason — the one place in the product where somebody rewrites the record of
+ * what has already been bought.
+ */
+export async function adjustSoldCountAction(
+  _prev: TicketState,
+  formData: FormData,
+): Promise<TicketState> {
+  const actor = await requireOrganizer();
+
+  const id = String(formData.get('id') ?? '').trim();
+  const soldRaw = String(formData.get('sold') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+
+  if (!id) return { error: 'No ticket type was named.' };
+
+  const sold = Number(soldRaw);
+  if (soldRaw === '' || !Number.isInteger(sold) || sold < 0) {
+    return { error: 'The sold count must be a whole number, and cannot be negative.' };
+  }
+
+  // Required, and required to be a sentence. This is the audit entry somebody
+  // reads a year later; "0" or "fix" answers nothing.
+  if (reason.length < 8) {
+    return { error: 'Say why in a few words — it is the only record of this correction.' };
+  }
+
+  const existing = await getTicketType(id);
+  if (!existing) return { error: `No ticket type with the id "${id}".` };
+
+  const was = existing.quantitySold ?? 0;
+  if (was === sold) return { error: `That is already the count — ${sold} sold.` };
+
+  try {
+    await db()
+      .collection(COLLECTIONS.ticketTypes)
+      .doc(id)
+      .update({ quantitySold: sold, updatedAt: FieldValue.serverTimestamp() });
+
+    await appendAudit({
+      actor,
+      action: 'ticketType.adjustSold',
+      targetPath: `${COLLECTIONS.ticketTypes}/${id}`,
+      targetId: id,
+      before: { quantitySold: was },
+      after: { quantitySold: sold, reason },
+    });
+  } catch (err) {
+    recordError('ticketType.adjustSold', err);
+    return { error: err instanceof Error ? err.message : 'Could not adjust the sold count.' };
+  }
+
+  revalidatePath(ROUTES.createTickets);
+  revalidatePath(ROUTES.ordersSummary);
+
+  const cap = existing.quantityTotal;
+  return {
+    ok: true,
+    message:
+      `${existing.name} now reads ${sold} sold, was ${was}.` +
+      (cap === undefined
+        ? ' This tier is uncapped, so the figure is a readout rather than a gate.'
+        : sold >= cap
+          ? ` That is at or over the cap of ${cap} — the tier is closed on the website.`
+          : ` ${cap - sold} of ${cap} still on sale.`),
+  };
 }
 
 /**

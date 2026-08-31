@@ -156,7 +156,25 @@ export default async function ExhibitorManagerPage({
                       none
                     </Tag>
                   ),
-                  <span key="n">
+                  <span key="n" style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
+                    {/*
+                      The logo earns a column of its own here because it is the
+                      one field on this screen that can now be wrong in a way
+                      nobody notices: an upload that silently did not land looks
+                      exactly like an exhibitor who never had a logo. Showing it
+                      in the list is the cheapest possible check.
+                    */}
+                    {e.logoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={e.logoURL}
+                        alt=""
+                        style={{ flex: '0 0 auto', height: 28, objectFit: 'contain', width: 28 }}
+                      />
+                    ) : (
+                      <span style={{ flex: '0 0 auto', width: 28 }} />
+                    )}
+                    <span>
                     {e.website ? (
                       <a href={e.website} target="_blank" rel="noreferrer">
                         {e.name}
@@ -170,6 +188,7 @@ export default async function ExhibitorManagerPage({
                         {e.description.length > 90 ? '…' : ''}
                       </div>
                     )}
+                    </span>
                   </span>,
                   <span key="c" style={{ fontSize: 12 }}>
                     {e.contactEmail ? (
@@ -264,8 +283,10 @@ export default async function ExhibitorManagerPage({
             floor plan. There is no floor plan.
           </li>
           <li>
-            <strong>Logos.</strong> <code>logoURL</code> exists on the record and nothing uploads
-            one — no screen in this dashboard can put a file into storage.
+            <strong>Where the logos go.</strong> Uploading one works — this is the first screen in
+            the dashboard that writes to Firebase Storage — but nothing outside this dashboard reads{' '}
+            <code>exhibitors</code> yet, so the logo is visible here and nowhere else. The website
+            and the app have no exhibitor surface at all.
           </li>
         </ul>
       </GapPanel>

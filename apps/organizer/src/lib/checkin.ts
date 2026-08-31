@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
   DOOR_CHECK_IN_LIST_ID,
@@ -11,7 +11,15 @@ import {
   type CheckInStationDoc,
   type RegistrationDoc,
   type ScanEventDoc,
+  type SessionDoc,
 } from '@kgc/shared';
+import {
+  DAY_PATTERN,
+  dayListId,
+  ensureScopedList,
+  SCOPE_GRACE_MINUTES,
+  sessionListId,
+} from './checkin-core';
 import { db } from './firestore';
 
 /**
@@ -55,6 +63,9 @@ export interface CheckInListRow {
   name: string;
   kind: CheckInListDoc['kind'];
   sessionId?: string;
+  /** ISO. Present on scoped lists; the window this list is the right one during. */
+  opensAt?: string;
+  closesAt?: string;
 }
 
 export interface RegistrationRow {
@@ -131,7 +142,14 @@ export async function listCheckInLists(): Promise<CheckInListRow[]> {
   return snap.docs
     .map((d) => {
       const l = d.data() as CheckInListDoc;
-      return { id: d.id, name: l.name, kind: l.kind, sessionId: l.sessionId };
+      return {
+        id: d.id,
+        name: l.name,
+        kind: l.kind,
+        sessionId: l.sessionId,
+        opensAt: iso(l.opensAt) ?? undefined,
+        closesAt: iso(l.closesAt) ?? undefined,
+      };
     })
     .sort(
       (a, b) =>
@@ -253,6 +271,49 @@ export async function recentCheckIns(
 }
 
 /**
+ * Every check-in on a list, oldest first — the export, not the live strip.
+ *
+ * `recentCheckIns` caps at twenty and sorts newest-first because it feeds a
+ * "who just came through" panel behind the desk. This is the other question:
+ * the whole list, in the order people arrived, for the CSV somebody reconciles
+ * against a caterer's headcount. Oldest-first because that is what a register
+ * reads like.
+ *
+ * No `limit`, and that is safe at this scale for the same reason the rest of
+ * this module sorts in memory: a check-in subcollection tops out at one document
+ * per registration, low thousands at the outside, and it is read on demand from
+ * a download rather than on every page render.
+ */
+export async function allCheckIns(
+  listId: string,
+  registrations: RegistrationRow[],
+  stations: Map<string, string>,
+): Promise<CheckInRow[]> {
+  const snap = await db()
+    .collection(COLLECTIONS.checkInLists)
+    .doc(listId)
+    .collection(SUBCOLLECTIONS.checkIns)
+    .orderBy('checkedInAt', 'asc')
+    .get();
+
+  const byId = new Map(registrations.map((r) => [r.id, r]));
+
+  return snap.docs.map((d) => {
+    const c = d.data() as CheckInDoc;
+    const reg = byId.get(c.registrationId);
+    return {
+      registrationId: c.registrationId,
+      name: reg?.name ?? '(registration since deleted)',
+      email: reg?.email ?? '—',
+      ticketType: reg?.ticketType,
+      checkedInAt: iso(c.checkedInAt),
+      stationId: c.stationId,
+      stationLabel: stations.get(c.stationId) ?? c.stationId,
+    };
+  });
+}
+
+/**
  * The raw scan log, newest first.
  *
  * Ordered by `scannedAt` with no `where` beside it, for the composite-index
@@ -304,6 +365,164 @@ export async function recentScanEvents(listId: string, limit = 20): Promise<Scan
     })
     .filter((e) => e.listId === listId)
     .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Scoped lists — a day, or a session
+// ---------------------------------------------------------------------------
+
+/**
+ * Day and session scope, which the engine has always supported.
+ *
+ * A scope is another `checkInLists` document and nothing else: the scanner, the
+ * desk table, the undo and the export all take a `listId` and none of them care
+ * what it means. So the whole of "per-session attendance" is deciding the id,
+ * creating the document once, and pointing the existing machinery at it.
+ *
+ * ── The ids are derived, not generated ──────────────────────────────────────
+ *
+ * `session-{sessionId}` and `day-{YYYY-MM-DD}`, for the same reason
+ * `DOOR_CHECK_IN_LIST_ID` is a constant: two organizers pressing Start on the
+ * same session at the same moment must produce one list, not two, and the
+ * second `create()` failing with `already-exists` is what guarantees it. A
+ * generated id would give the room two half-populated attendance records and no
+ * way to tell which one the door was scanning into. It also means a caller can
+ * ask "does this session have attendance yet" by path rather than by query.
+ *
+ * ── `opensAt` / `closesAt` are the clock, and they are advisory ─────────────
+ *
+ * They are stamped from the session's own UTC instants with a grace window,
+ * because people arrive late and a door that stops counting on the hour
+ * under-reports the room. Nothing *enforces* them — a scan outside the window
+ * still writes — and that is deliberate: the alternative is a scanner that
+ * refuses a badge in front of a queue because a session over-ran, which is a
+ * worse failure than a slightly generous count. They exist so the UI can
+ * default to the session that is actually happening.
+ */
+export { dayListId, sessionListId, SCOPE_GRACE_MINUTES } from './checkin-core';
+
+export interface EnsureListResult {
+  id: string;
+  name: string;
+  created: boolean;
+}
+
+/** The sentinels this module's own copy of `firebase-admin` builds. See gotcha 8. */
+const SENTINELS = { serverTimestamp: () => FieldValue.serverTimestamp() };
+
+/**
+ * The check-in list for one session, created on first use.
+ *
+ * The name is the session title with its start time, because that is what the
+ * person holding the scanner is looking at on a printed run sheet — two runs of
+ * the same workshop are distinguishable by nothing else.
+ */
+export async function ensureSessionList(sessionId: string): Promise<EnsureListResult> {
+  const sessionSnap = await db().collection(COLLECTIONS.sessions).doc(sessionId).get();
+  if (!sessionSnap.exists) throw new Error('That session no longer exists.');
+  const session = sessionSnap.data() as SessionDoc;
+
+  const id = sessionListId(sessionId);
+  const name = `${session.title} — ${session.startsAtLocal.slice(11, 16)}`;
+  const grace = SCOPE_GRACE_MINUTES * 60 * 1000;
+
+  return {
+    id,
+    name,
+    created: await ensureScopedList(
+      db(),
+      id,
+      {
+        name,
+        kind: 'session',
+        sessionId,
+        opensAt: shift(session.startsAt, -grace),
+        closesAt: shift(session.endsAt, grace),
+      },
+      SENTINELS,
+    ),
+  };
+}
+
+/**
+ * The check-in list for one day of the programme.
+ *
+ * Unlike a session list this carries no window: a day list is open all day by
+ * definition, and inventing 08:00–18:00 would be a guess this system has no
+ * basis for. `day` is the session model's own denormalised `YYYY-MM-DD` in the
+ * event's timezone, so a 21:00 reception counts on the day it feels like rather
+ * than the UTC day it falls in.
+ */
+export async function ensureDayList(day: string): Promise<EnsureListResult> {
+  if (!DAY_PATTERN.test(day)) throw new Error('That is not a programme day.');
+  const id = dayListId(day);
+  const name = `Day — ${day}`;
+  return {
+    id,
+    name,
+    created: await ensureScopedList(db(), id, { name, kind: 'event' }, SENTINELS),
+  };
+}
+
+function shift(t: unknown, ms: number): Timestamp | undefined {
+  const v = t as { toDate?: () => Date } | undefined;
+  if (!v?.toDate) return undefined;
+  return Timestamp.fromDate(new Date(v.toDate().getTime() + ms));
+}
+
+/**
+ * How many people were counted into each of these lists.
+ *
+ * One `count()` aggregate per list rather than reading the documents: the
+ * caller wants a number per row on a table of seventy sessions, and an
+ * aggregate is billed at a fraction of a document read. It is still one round
+ * trip per list, which is why the caller passes only the lists that exist —
+ * a session nobody has opened a door for has no list and therefore no query.
+ */
+export async function countCheckIns(listIds: string[]): Promise<Map<string, number>> {
+  const counts = await Promise.all(
+    listIds.map(async (id) => {
+      const snap = await db()
+        .collection(COLLECTIONS.checkInLists)
+        .doc(id)
+        .collection(SUBCOLLECTIONS.checkIns)
+        .count()
+        .get();
+      return [id, snap.data().count] as const;
+    }),
+  );
+  return new Map(counts);
+}
+
+/**
+ * Every registration id counted into each list.
+ *
+ * The document-level read that `countCheckIns` avoids, for the two callers that
+ * genuinely need the membership rather than the size: the per-attendee hours a
+ * certificate would name, and the session-attendance export. Kept separate so
+ * that the screens which only want counts do not pay for it.
+ */
+export async function checkInsByList(
+  listIds: string[],
+): Promise<Map<string, { registrationId: string; checkedInAt: string | null }[]>> {
+  const entries = await Promise.all(
+    listIds.map(async (id) => {
+      const snap = await db()
+        .collection(COLLECTIONS.checkInLists)
+        .doc(id)
+        .collection(SUBCOLLECTIONS.checkIns)
+        .orderBy('checkedInAt', 'asc')
+        .get();
+      return [
+        id,
+        snap.docs.map((d) => {
+          const c = d.data() as CheckInDoc;
+          return { registrationId: c.registrationId, checkedInAt: iso(c.checkedInAt) };
+        }),
+      ] as const;
+    }),
+  );
+  return new Map(entries);
 }
 
 /**

@@ -242,7 +242,7 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
         ticketType: reg.ticketType ?? tier.name,
         amountCents: input.amountCents,
         currency: tier.currency,
-        orderUrl: `${origin}/order/${mintOrderToken({ rid: reg.registrationId, demo: false })}`,
+        orderUrl: `${origin}/order/${mintOrderToken({ rid: reg.registrationId })}`,
         claimCode: reg.claimCode,
         orderId,
         registrationId: reg.registrationId,

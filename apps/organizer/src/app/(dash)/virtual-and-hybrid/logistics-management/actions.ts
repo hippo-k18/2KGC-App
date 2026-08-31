@@ -9,11 +9,21 @@ export interface EmergencyState {
   error?: string;
 }
 
-/** Free-text fields are capped so a paste accident cannot bloat the document. */
-function text(form: FormData, key: string, max: number): string {
-  return String(form.get(key) ?? '')
+/**
+ * Free-text fields are capped so a paste accident cannot bloat the document,
+ * and an emptied field comes back as `null` rather than `''`.
+ *
+ * `null` is what `saveSettings` turns into `FieldValue.delete()`. Storing `''`
+ * would work for a reader that applies `SETTINGS_DEFAULTS`, but it leaves the
+ * document carrying keys nobody set — and `emergencyNumber` has a real default
+ * (`911`), so an empty string there would overwrite the default with a blank
+ * first line on an emergency card. See AGENTS.md gotcha 9.
+ */
+function text(form: FormData, key: string, max: number): string | null {
+  const v = String(form.get(key) ?? '')
     .trim()
     .slice(0, max);
+  return v || null;
 }
 
 /**

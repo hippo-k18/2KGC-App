@@ -1,5 +1,6 @@
 'use server';
 
+import { SETTINGS_REGISTER } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
 
@@ -13,17 +14,48 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
 /**
+ * The confirmation line, derived from the register.
+ *
+ * A settings screen whose success message is a hand-written string is a screen
+ * that will keep saying "nothing reads this" for a month after something does.
+ * Given the fields a form owns, this reports the strongest thing true of any of
+ * them, so the day FU-11 flips an entry to `live` the wording follows.
+ */
+function reach(fields: readonly (keyof typeof SETTINGS_REGISTER.branding)[]): string {
+  const facts = fields.map((f) => SETTINGS_REGISTER.branding[f]);
+  const live = facts.filter((f) => f.status === 'live');
+  const waiting = facts.find((f) => f.status === 'pending')?.handoff;
+  const recorded = facts.some((f) => f.status === 'recorded');
+
+  // Every branch names what did *not* happen, because that is the half an
+  // organizer cannot see. "Saved" alone is the message this task exists to fix.
+  if (live.length === facts.length) return 'Saved and live.';
+  const parts = ['Recorded and audited.'];
+  if (recorded) parts.push('No surface can apply the colours — that is a decision, not a gap.');
+  if (waiting) parts.push(`The rest is waiting on ${waiting} in docs/audit-2026-08-30/FOLLOW-UPS.md.`);
+  return parts.join(' ');
+}
+
+/**
  * The `branding` settings bag, written by two screens.
  *
  * One action rather than two because both write the same document and
  * `saveSettings` merges — a screen that renders half a bag must not blank the
  * other half, which is exactly what two independent full-bag writes would do.
  *
- * ⚠️ Every value here is **recorded, not applied**. Nothing reads this document:
- * the Expo app compiles its palette from `app/src/constants/theme.ts`, and the
- * branded URL needs DNS plus a route in `apps/web`. Both screens say so on the
- * page, and the save messages below repeat it rather than reporting a success
- * that would be read as "the app is now green".
+ * ⚠️ **What each field reaches is `SETTINGS_REGISTER.branding` in
+ * `@kgc/shared`, not this comment.** The two colours are `recorded` — no
+ * surface can honour them — and the four text fields are `pending` behind
+ * FU-11. The save messages below are built from that register rather than
+ * written out, so they cannot drift from it and cannot report a success that
+ * would be read as "the app is now green".
+ *
+ * ── Clearing ───────────────────────────────────────────────────────────────
+ *
+ * Every field here is optional, which is the shape AGENTS.md gotcha 9 bites
+ * hardest. `null` is passed deliberately: `saveSettings` turns it into
+ * `FieldValue.delete()`, so emptying the support address actually empties it
+ * rather than reporting "Saved" over the old one.
  */
 export async function saveBrandingAction(
   _prev: BrandingState,
@@ -65,9 +97,7 @@ export async function saveBrandingAction(
       actor,
     );
 
-    return res.ok
-      ? { ok: true, message: 'Recorded. The app still ships the palette in constants/theme.ts — this changes no phone.' }
-      : { error: res.error };
+    return res.ok ? { ok: true, message: reach(['brandColor', 'tagline']) } : { error: res.error };
   }
 
   if (which === 'url') {
@@ -85,9 +115,7 @@ export async function saveBrandingAction(
     }
 
     const res = await saveSettings(SETTINGS_KEYS.branding, { brandedSlug: slug || null }, actor);
-    return res.ok
-      ? { ok: true, message: 'Recorded. Nothing resolves this address yet — see below for what would.' }
-      : { error: res.error };
+    return res.ok ? { ok: true, message: reach(['brandedSlug']) } : { error: res.error };
   }
 
   return { error: 'Unknown form.' };

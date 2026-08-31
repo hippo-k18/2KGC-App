@@ -995,6 +995,32 @@ a {
   outline: 0;
 }
 
+/*
+ * The destructive variant.
+ *
+ * Whova has no red button — their own destructive actions are ordinary buttons
+ * behind a confirmation dialog. This dashboard puts a refund inside a table row
+ * where the confirmation is a disclosure rather than a page of its own, so the
+ * button is the last thing read before the click and it should say what it is.
+ *
+ * `order-actions.tsx` has been writing `className="whova-btn-main danger"`
+ * since it was written and the class did not exist, so the most dangerous
+ * button in the product rendered with `border: 1px solid transparent` and no
+ * background at all — a red-flagged action that looked like a link.
+ *
+ * The hover darkens with a filter rather than a second red, because there is no
+ * darker red in Whova's palette and inventing one would put the first hex in
+ * this file that was not read out of somebody's stylesheet.
+ */
+.whova-btn-main.danger {
+  background-color: var(--danger);
+  color: #fff;
+}
+
+.whova-btn-main.danger:hover {
+  filter: brightness(0.92);
+}
+
 .whova-btn-main:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -1229,13 +1255,32 @@ select.whova-text-input {
   width: 680px;
 }
 
+/*
+ * `.whova-form-row` — the same vertical group under the name the editors use.
+ *
+ * Ninety of these were already in the source across seventeen editors and the
+ * class matched nothing, so every one of those groups rendered with no spacing
+ * at all. Several call sites override `marginBottom` inline, which is how the
+ * gap was found: the authors plainly believed the class carried one.
+ *
+ * Kept as an alias rather than renamed at the seventeen call sites, because
+ * those files belong to other screens and a rename touches all of them to no
+ * visible end. New editors should use `.whova-form-group`, which is the name
+ * Whova's own stylesheet uses — `form.tsx` emits that one.
+ */
+.whova-form-row {
+  margin-bottom: 20px;
+  max-width: 680px;
+}
+
 .form-row {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
 }
 
-.form-row > .whova-form-group {
+.form-row > .whova-form-group,
+.form-row > .whova-form-row {
   flex: 1;
   min-width: 200px;
 }
@@ -2143,6 +2188,81 @@ select.whova-text-input {
   background: #e9ecf1;
 }
 
+/* ─────────────────────────── the modal (native <dialog>) ───────────────── */
+
+/*
+ * Whova's modal, on the platform's own element.
+ *
+ * The panel is theirs — white on a 45% scrim, 4px radius, a 16/500 title over a
+ * hairline, the action row separated by another. What is not theirs is the
+ * element: theirs is a `<div>` overlay with a hand-written focus trap, and
+ * `<dialog open>` gets focus trapping, Escape and background inertness from the
+ * browser instead. The one thing `showModal()` does not do is stop the page
+ * behind it scrolling, which is the rule below.
+ *
+ * `:has()` rather than a class toggled from React, so nothing has to remember
+ * to remove it — a modal that unmounts while it is open leaves the body locked
+ * for the rest of the session, and that failure looks like the dashboard has
+ * frozen.
+ */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+.whova-modal {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 13px;
+  max-height: calc(100vh - 80px);
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.whova-modal::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.whova-modal__header {
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.whova-modal__close {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.whova-modal__close:hover {
+  color: var(--ink);
+}
+
+.whova-modal__body {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.whova-modal__footer {
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 20px;
+}
+
 /* ─────────────────────────── toasts ────────────────────────────────────── */
 
 .whova-toasts-container {
@@ -2374,115 +2494,6 @@ select.whova-text-input {
   font-size: 12px;
   padding: 2px 8px;
   line-height: 18px;
-}
-
-/* ------------------------------------------------------------ demo panel --
-   The credentials block inside the sign-in card while `DEMO_MODE=1`, directly
-   under the fields it fills. Styled unlike the rest of the dashboard on purpose
-   — dark and tagged — so nobody reads it as part of the product. See
-   lib/demo-mode.ts.
-
-   It was `position: fixed` at the bottom of the viewport, which on a short
-   window sat on top of the sign-in button. In the flow it cannot cover
-   anything, and it stops being a floating object that follows you around.
-   ------------------------------------------------------------------------ */
-.demo-panel {
-  margin: 20px 0 0;
-  width: 100%;
-  background: #1d2733;
-  color: #f2f5f9;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 0.86rem;
-  overflow: hidden;
-}
-
-.demo-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-}
-
-.demo-panel-tag {
-  background: #f0a500;
-  color: #1a1206;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  padding: 3px 7px;
-  border-radius: 4px;
-}
-
-.demo-panel-toggle {
-  margin-left: auto;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  color: inherit;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 0.76rem;
-  cursor: pointer;
-}
-
-.demo-panel-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.demo-panel-body {
-  padding: 0 12px 12px;
-}
-
-.demo-panel-note {
-  margin: 0 0 8px;
-  color: rgba(242, 245, 249, 0.7);
-  font-size: 0.8rem;
-}
-
-.demo-panel-rows {
-  display: grid;
-  gap: 4px;
-}
-
-.demo-panel-row {
-  display: grid;
-  grid-template-columns: 74px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.06);
-  border: 0;
-  border-radius: 6px;
-  padding: 7px 10px;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.demo-panel-row:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.demo-panel-label {
-  color: rgba(242, 245, 249, 0.6);
-  font-size: 0.76rem;
-}
-
-.demo-panel-value {
-  font-weight: 600;
-}
-
-.demo-panel-value.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.demo-panel-copy {
-  color: rgba(242, 245, 249, 0.45);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
 }
 
 /* ─────────────────────── the loading skeleton (ours) ───────────────────── */

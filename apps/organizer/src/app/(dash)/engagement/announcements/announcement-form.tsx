@@ -12,10 +12,22 @@ import { sendAnnouncementAction, type SendState } from './actions';
  * UI verbatim, because the distinction between them ("attendees without the app
  * will only get an email") is the part organizers actually reason about.
  *
- * Every option that needs an email sender or a segment to exist is present and
- * disabled rather than deleted. A disabled radio with a one-line reason under
- * it tells an organizer evaluating the move exactly where they stand; silently
- * omitting the option tells them we never thought about it.
+ * ── The unbuilt options are gone from the form, not greyed out in it ────────
+ *
+ * This file used to carry six disabled controls — four recipient filters, an
+ * email checkbox and a scheduled send — each with a one-line reason beneath it.
+ * The argument was that a disabled option tells an organizer evaluating the
+ * move exactly where they stand. It does, and it also tells everyone *else* the
+ * same thing, because a `disabled` attribute is not behind `SHOW_GAP_NOTES`:
+ * six greyed controls render to a demo audience as a product that half works.
+ * The reasons moved intact to the gap panel on the page, which is behind the
+ * flag, and the form now offers only what it can do.
+ *
+ * What is left is a single-audience send. The Recipients group is kept as one
+ * fixed row rather than dropped, because "who is this going to" is the question
+ * an organizer must answer before pressing a button that cannot be recalled,
+ * and a form that does not ask it invites the assumption that it went to fewer
+ * people than it did.
  */
 export function AnnouncementForm({ recipientCount }: { recipientCount: number }) {
   const [state, action, pending] = useActionState<SendState, FormData>(sendAnnouncementAction, {});
@@ -43,20 +55,11 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
             />
             <span>All attendees ({recipientCount})</span>
           </label>
-          {[
-            ['Specific attendee ticket type', 'needs ticket types'],
-            ['Specific attendee category', 'needs categories'],
-            ['Specific attendee segment', 'needs registration question answers'],
-            ['Attendees who added a specific session', 'reads savedSessions — buildable, not built'],
-          ].map(([label, why]) => (
-            <div key={label}>
-              <label className="whova-radio-label">
-                <input className="whova-radio-input" type="radio" name="recipients" disabled />
-                <span>{label}</span>
-              </label>
-              <div className="whova-radio-description">{why}</div>
-            </div>
-          ))}
+          <div className="whova-radio-description">
+            The only audience there is. An announcement writes one document that every signed-in
+            attendee reads, and the push goes to a topic rather than to a list of devices — so
+            there is nowhere for a narrower audience to be expressed even if one could be computed.
+          </div>
         </div>
       </div>
 
@@ -109,16 +112,6 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
               tells you so, rather than pretending to have sent.
             </div>
           </div>
-          <div>
-            <label className="whova-checkbox-label">
-              <input className="whova-checkbox-input" type="checkbox" disabled />
-              <span>Send email as well</span>
-            </label>
-            <div className="whova-checkbox-description">
-              Still the one genuinely missing channel — needs a transactional provider with a
-              verified sending domain. Unlike push, no plan upgrade unblocks it.
-            </div>
-          </div>
         </div>
       </div>
 
@@ -132,15 +125,10 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
             <input className="whova-radio-input" type="radio" name="when" value="now" defaultChecked />
             <span>Send now</span>
           </label>
-          <div>
-            <label className="whova-radio-label">
-              <input className="whova-radio-input" type="radio" name="when" disabled />
-              <span>Schedule send date</span>
-            </label>
-            <div className="whova-radio-description">
-              Deliberately absent. A 6am wrong-timezone blast is a common real failure; requiring a
-              human to press the button, awake, in the room, is the cheapest defence there is.
-            </div>
+          <div className="whova-radio-description">
+            The only option, and one of them on purpose: a 6am wrong-timezone blast is a common real
+            failure, and requiring a human to press the button — awake, in the room — is the
+            cheapest defence there is.
           </div>
         </div>
       </div>

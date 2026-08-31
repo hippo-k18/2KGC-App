@@ -94,6 +94,117 @@ export async function listRooms(): Promise<RoomOption[]> {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Tracks and speakers as pickable options, and nothing else.
+ *
+ * `listTracks()` and `listSpeakers()` below answer a *management* question —
+ * how many sessions is this track on, does this speaker have a headshot — and
+ * each of them reads the whole `sessions` collection a second time to do it.
+ * That is right for the list screens they were written for and wrong for the
+ * two callers here: the session editor renders these as dropdowns and its save
+ * action resolves the chosen ids back to names for the denormalised caches, so
+ * one save would otherwise cost two extra full-collection scans for counts
+ * nobody looks at.
+ *
+ * Same shape and the same single-equality query as `listRooms()` above, for the
+ * same reason: `where('eventId', '==', …)` alone is served by Firestore's
+ * automatic single-field index, and adding an `orderBy` would need a composite
+ * index the emulator would not miss and production would.
+ */
+export interface TrackOption {
+  id: string;
+  name: string;
+  /** Optional in the model, and a track that has none clears the cached colour. */
+  color?: string;
+}
+
+export async function listTrackOptions(): Promise<TrackOption[]> {
+  const snap = await db().collection(COLLECTIONS.tracks).where('eventId', '==', EVENT_ID).get();
+  return snap.docs
+    .map((d) => {
+      const t = d.data() as TrackDoc;
+      return { id: d.id, name: t.name, color: t.color };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export interface SpeakerOption {
+  id: string;
+  name: string;
+  /** Shown beside the name in the picker — two speakers can share a name. */
+  company?: string;
+  /** The inverse index the session editor has to keep in step. */
+  sessionIds: string[];
+}
+
+export async function listSpeakerOptions(): Promise<SpeakerOption[]> {
+  const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
+  return snap.docs
+    .map((d) => {
+      const s = d.data() as SpeakerDoc;
+      return { id: d.id, name: s.name, company: s.company, sessionIds: s.sessionIds ?? [] };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getRoom(id: string): Promise<WithId<RoomDoc> | null> {
+  const doc = await db().collection(COLLECTIONS.rooms).doc(id).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...(doc.data() as RoomDoc) };
+}
+
+/**
+ * A room with the numbers an organizer needs before moving anything.
+ *
+ * `RoomOption` deliberately stays two fields — it fills a `<select>` and
+ * nothing else, and every session form in the dashboard calls it. This is the
+ * shape the room editor needs: what is scheduled here, and whether anything
+ * scheduled here claims more seats than the room has.
+ */
+export interface RoomRow extends RoomOption {
+  building?: string;
+  floor?: string;
+  capacity?: number;
+  /** Sessions scheduled in this room, and how many of those are published. */
+  sessionCount: number;
+  publishedCount: number;
+  /**
+   * Sessions whose stated capacity exceeds what the room seats. `conflicts.ts`
+   * reports the same mismatch one session at a time; per room is the view you
+   * want when deciding which talk to move.
+   */
+  overCapacityCount: number;
+}
+
+export async function listRoomRows(): Promise<RoomRow[]> {
+  const [snap, sessions] = await Promise.all([
+    db().collection(COLLECTIONS.rooms).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const docs = sessions.docs.map((d) => d.data() as SessionDoc);
+
+  return snap.docs
+    .map((d) => {
+      const r = d.data() as RoomDoc;
+      const here = docs.filter((s) => s.roomId === d.id);
+      return {
+        id: d.id,
+        name: r.name,
+        building: r.building,
+        floor: r.floor,
+        capacity: r.capacity,
+        sessionCount: here.length,
+        publishedCount: here.filter((s) => s.status === 'published').length,
+        overCapacityCount:
+          typeof r.capacity === 'number'
+            ? here.filter((s) => typeof s.capacity === 'number' && s.capacity > r.capacity!).length
+            : 0,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export interface AnnouncementRow {
   id: string;
   title: string;
@@ -172,6 +283,12 @@ export async function listTracks(): Promise<TrackRow[]> {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export async function getTrack(id: string): Promise<WithId<TrackDoc> | null> {
+  const doc = await db().collection(COLLECTIONS.tracks).doc(id).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...(doc.data() as TrackDoc) };
+}
+
 export interface SpeakerRow {
   id: string;
   name: string;
@@ -184,6 +301,12 @@ export interface SpeakerRow {
   sessionTitles: string[];
   /** Set when the speaker also holds a ticket, so the two identities join up. */
   userId?: string;
+  /**
+   * The address the programme committee corresponds with. On the list so a row
+   * can offer "Email speaker" without a second read — and so the absence of one
+   * is visible, which is the reason a bio chase goes unanswered.
+   */
+  contactEmail?: string;
 }
 
 export async function listSpeakers(): Promise<SpeakerRow[]> {
@@ -208,9 +331,16 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
         sessionCount: ids.length,
         sessionTitles: ids.map((id) => titleById.get(id) ?? id),
         userId: s.userId,
+        contactEmail: s.contactEmail,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getSpeaker(id: string): Promise<WithId<SpeakerDoc> | null> {
+  const doc = await db().collection(COLLECTIONS.speakers).doc(id).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...(doc.data() as SpeakerDoc) };
 }
 
 export interface SponsorRow {
@@ -272,6 +402,19 @@ export async function listSponsors(): Promise<SponsorRow[]> {
     );
 }
 
+/**
+ * One sponsor, whole.
+ *
+ * `SponsorRow` deliberately reduces `offers` and `downloads` to counts, which is
+ * right for a list and wrong for an editor: a form that loaded a count could
+ * only ever write the array back empty. The editor reads the document.
+ */
+export async function getSponsor(id: string): Promise<WithId<SponsorDoc> | null> {
+  const doc = await db().collection(COLLECTIONS.sponsors).doc(id).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...(doc.data() as SponsorDoc) };
+}
+
 export interface AttendeeRow {
   /** Absent until they sign in — a ticket holder who has not is still an attendee. */
   uid?: string;
@@ -329,8 +472,12 @@ const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
 
 export async function listAttendees(): Promise<AttendeeRow[]> {
   const [userSnap, regSnap] = await Promise.all([
-    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
-    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).select('email').get(),
+    db()
+      .collection(COLLECTIONS.registrations)
+      .where('eventId', '==', EVENT_ID)
+      .select('email')
+      .get(),
   ]);
 
   const rows = new Map<string, AttendeeRow>();
@@ -427,10 +574,10 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
  * is to backfill `claimedByUid` and count it with an aggregate, not to go back
  * to dividing two unrelated totals.
  *
- * Only the address is read, so `select('email')` would be the obvious trim. It
- * is left off because the demo store (`demo/store.ts`) does not implement
- * `select`, and a masthead that throws under `DEMO_MODE` takes every screen
- * down with it.
+ * Only the address is read, so `select('email')` is the trim that matters: it
+ * stops the masthead pulling two full collections on every screen. It used to be
+ * left off because the in-memory fixture store did not implement `select` and a
+ * masthead that throws takes every screen with it. That store is gone.
  */
 export async function adoptionCounts(): Promise<{
   registrations: number;
@@ -438,8 +585,12 @@ export async function adoptionCounts(): Promise<{
   signedIn: number;
 }> {
   const [userSnap, regSnap] = await Promise.all([
-    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
-    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).select('email').get(),
+    db()
+      .collection(COLLECTIONS.registrations)
+      .where('eventId', '==', EVENT_ID)
+      .select('email')
+      .get(),
   ]);
 
   const profiles = new Set(

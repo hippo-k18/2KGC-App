@@ -3,13 +3,20 @@ import 'server-only';
 import {
   COLLECTIONS,
   EVENT_ID,
+  TIME_ZONE,
   type EmailLogDoc,
   type OrderDoc,
   type TicketAudience,
   type TicketTypeDoc,
   type WithId,
 } from '@kgc/shared';
+import {
+  outstandingSeatsByTier,
+  soldByTier,
+  type SoldCountOrder,
+} from '@kgc/scripts/src/lib/sold-counts';
 import { db } from './firestore';
+import { toWallClockInZone } from './time';
 
 /**
  * Every read the Tickets tab does.
@@ -89,6 +96,15 @@ function iso(t: { toDate(): Date } | undefined): string | undefined {
     return t?.toDate().toISOString();
   } catch {
     // A malformed timestamp on one legacy order must not take the page down.
+    return undefined;
+  }
+}
+
+/** The wall clock a person in `zone` reads off a stored instant. */
+function localOf(t: { toDate(): Date } | undefined, zone: string): string | undefined {
+  try {
+    return t ? toWallClockInZone(t.toDate(), zone) : undefined;
+  } catch {
     return undefined;
   }
 }
@@ -307,6 +323,22 @@ export interface TicketTypeRow {
   audience: TicketAudience;
   includes: string[];
   /**
+   * The grouped form of `includes`, and **the one the public tickets page
+   * actually renders** for any tier that has it (`apps/web/src/app/tickets/
+   * page.tsx:31` prefers `groups` and falls back to `includes`).
+   *
+   * It was missing from this row for a long time, and the cost was the single
+   * most misleading control in the dashboard: `all-access` and `main-conference`
+   * — the two headline tiers — both carry `groups` from the seed, so editing
+   * "What's included" for either of them changed the order rail and the smaller
+   * cards and **nothing at all on the panels a buyer reads**. Carrying it here
+   * is what lets the editor own it.
+   *
+   * A group with no `items` is a heading on its own, which is how the seed
+   * expresses "KGC Video Library Subscription (3 months)".
+   */
+  groups: { heading: string; items: string[] }[];
+  /**
    * Entitlements, not display copy. `attendees/ticket-session-mapping` derives
    * workshop access from `includesWorkshops` — deriving it by pattern-matching
    * the `includes` bullet list instead would grant access to any tier whose
@@ -314,11 +346,26 @@ export interface TicketTypeRow {
    */
   includesWorkshops: boolean;
   includesVideoLibrary: boolean;
+  /** UTC ISO instants — for comparisons, never for display. */
   salesOpenAt?: string;
   salesCloseAt?: string;
+  /**
+   * The same two moments as wall clock in `salesTimeZone` — for display and for
+   * the `datetime-local` boxes, never for comparison.
+   *
+   * Both halves are carried because both are needed and neither substitutes for
+   * the other. Slicing the UTC ISO string to show a date, which every ticket
+   * screen used to do, prints the wrong day for any window closing after 20:00
+   * Eastern — and a "sales close 30 April" that is really 1 May is the kind of
+   * wrong that only surfaces in an argument with a buyer.
+   */
+  salesOpenAtLocal?: string;
+  salesCloseAtLocal?: string;
+  salesTimeZone: string;
 }
 
 function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
+  const zone = t.salesTimeZone ?? TIME_ZONE;
   return {
     id,
     name: t.name,
@@ -333,10 +380,20 @@ function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
     quantitySold: t.quantitySold ?? 0,
     audience: t.audience ?? 'attendee',
     includes: t.includes ?? [],
+    groups: (t.groups ?? []).map((g) => ({ heading: g.heading, items: g.items ?? [] })),
     includesWorkshops: t.includesWorkshops === true,
     includesVideoLibrary: t.includesVideoLibrary === true,
     salesOpenAt: iso(t.salesOpenAt),
     salesCloseAt: iso(t.salesCloseAt),
+    /**
+     * Stored wall clock when there is one, computed from the instant when there
+     * is not. The fallback is what makes this safe to deploy over tiers written
+     * before the window carried a zone: they get the right local string on the
+     * next read, and the right stored one on the next save.
+     */
+    salesOpenAtLocal: t.salesOpenAtLocal ?? localOf(t.salesOpenAt, zone),
+    salesCloseAtLocal: t.salesCloseAtLocal ?? localOf(t.salesCloseAt, zone),
+    salesTimeZone: zone,
   };
 }
 
@@ -348,6 +405,37 @@ export async function listTicketTypes(): Promise<TicketTypeRow[]> {
   return snap.docs
     .map((d) => toTicketRow(d.id, d.data() as TicketTypeDoc))
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+}
+
+/**
+ * What the `orders` ledger says about seats, per tier.
+ *
+ * `quantitySold` on the tier document is the number the sold-out check reads,
+ * and it is a one-way ratchet — incremented at fulfilment, never decremented on
+ * refund, and best-effort in both writers. So it is the one figure on these
+ * screens with nothing to check it against. This is that check: the same fold
+ * `scripts/ops/reconcile-sold-counts.ts` applies, over the same collection, so
+ * the dashboard's readout and the ops job can never give different answers
+ * about whether a tier is sold out.
+ *
+ * `outstanding` is the other half — seats on invoices raised and not paid.
+ * Capacity is checked when an invoice is *raised* and not again when it is
+ * paid, which on net-30 terms is a thirty-day window in which a capped tier can
+ * be sold out from under an invoice. Nothing can close that window from this
+ * app (it is the webhook's job), but "12 sold, 6 more invoiced, cap 16" at
+ * least makes the oversell a decision somebody takes on purpose.
+ *
+ * Reads the raw documents rather than `listOrders()` because the fold needs
+ * per-line `quantity`, and the read model flattens an invoice's several lines
+ * into one seat count.
+ */
+export async function soldCountLedger(): Promise<{
+  sold: Map<string, number>;
+  outstanding: Map<string, number>;
+}> {
+  const snap = await db().collection(COLLECTIONS.orders).where('eventId', '==', EVENT_ID).get();
+  const docs = snap.docs.map((d) => d.data() as SoldCountOrder);
+  return { sold: soldByTier(docs), outstanding: outstandingSeatsByTier(docs) };
 }
 
 export async function getTicketType(id: string): Promise<WithId<TicketTypeDoc> | null> {

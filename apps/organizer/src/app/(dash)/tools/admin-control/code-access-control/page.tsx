@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { SettingsReach } from '../../../settings-reach';
 import { Banner, PageHeader, Panel } from '../../../ui';
 import { CodeAccessForm } from '../access-form';
 
@@ -23,10 +24,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function CodeAccessControlPage() {
   await requireOrganizer();
-  const s = await readSettings(SETTINGS_KEYS.access, {
-    eventCode: '',
-    codeRequired: false,
-  });
+  const s = await readSettings(SETTINGS_KEYS.access);
 
   return (
     <>
@@ -49,10 +47,7 @@ export default async function CodeAccessControlPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Event code</h2>
-        <CodeAccessForm
-          eventCode={String(s.eventCode ?? '')}
-          codeRequired={Boolean(s.codeRequired)}
-        />
+        <CodeAccessForm eventCode={s.eventCode} codeRequired={s.codeRequired} />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
@@ -80,6 +75,12 @@ export default async function CodeAccessControlPage() {
           needs a Cloud Function, which needs the Blaze plan.
         </p>
       </Panel>
+
+      <SettingsReach
+        bag={SETTINGS_KEYS.access}
+        fields={['eventCode', 'codeRequired']}
+        style={{ marginTop: 16 }}
+      />
     </>
   );
 }

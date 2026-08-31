@@ -15,6 +15,22 @@ import { gapNotesVisible } from '@/lib/gap-notes';
  * line as plain links separated by a thin vertical bar, and primary actions on
  * the upper line as buttons. Collapsing the two loses the distinction that makes
  * the header readable at a glance.
+ *
+ * ── The form controls are next door, in `form.tsx` ──────────────────────────
+ *
+ * Everything in this file shows data; nothing in it writes any. `Field`,
+ * `Select`, `Textarea`, `DateTimeField`, `MoneyField`, `CheckboxField`,
+ * `FieldSet`, `FormGrid`, `FormActions`, `SubmitButton`, `FormBanner`, `Modal`,
+ * `ConfirmButton` and the shared `FormState` live in `./form`.
+ *
+ * A separate module rather than more of this one, and not re-exported from
+ * here, because this file has to stay usable from a Server Component:
+ * `GapPanel`, `GapTag` and `NotBuilt` read `process.env.SHOW_GAP_NOTES`, which
+ * Next replaces with `undefined` in a browser bundle. A `'use client'`
+ * directive here — or a re-export that pulls this module across the client
+ * boundary — would make every gap note rendered through it disappear, silently
+ * and in the one direction nobody checks. Import from `./form` inside a form
+ * component, and from here everywhere else.
  */
 
 export function PageHeader({

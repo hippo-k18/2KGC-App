@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
+import { sessionAttendance } from '@/lib/attendance';
 import { countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
 import { targetDescription } from '@/lib/firestore';
@@ -31,13 +32,27 @@ export default async function ReportPage() {
   await requireOrganizer();
 
   const today = todayInEventZone();
-  const [attendees, announcements, registrations, sessions, audit] = await Promise.all([
+  const [attendees, announcements, registrations, sessions, audit, attendance] = await Promise.all([
     countWhereEvent(COLLECTIONS.users),
     countWhereEvent(COLLECTIONS.announcements),
     countWhereEvent(COLLECTIONS.registrations),
     listSessions(),
     recentAudit(),
+    sessionAttendance(),
   ]);
+
+  /**
+   * How full each room is, for the sessions running today.
+   *
+   * This is the number the screen exists for: at 11:40 on day one the question
+   * is "is anybody in room 2", and until now the only answer available anywhere
+   * was a door count for the whole conference. `null` means no door was opened
+   * for that session — printed as "no door" rather than as 0, because a zero
+   * here would send somebody to an empty-looking room that is actually full.
+   */
+  const countedIn = new Map(
+    attendance.rows.filter((r) => r.tracked).map((r) => [r.session.id, r.countedIn]),
+  );
 
   const todaysSessions = sessions.filter((s) => s.day === today).sort((a, b) =>
     a.startsAtLocal.localeCompare(b.startsAtLocal),
@@ -103,6 +118,7 @@ export default async function ReportPage() {
               { key: 't', label: 'Time', className: 'cell-sm' },
               { key: 'n', label: 'Session', className: 'cell-fill' },
               { key: 'r', label: 'Room', className: 'cell-mdsm' },
+              { key: 'i', label: 'Counted in', className: 'cell-sm' },
               { key: 's', label: 'Status', className: 'cell-sm' },
             ]}
             rows={todaysSessions.map((s) => [
@@ -113,6 +129,19 @@ export default async function ReportPage() {
                 {s.title}
               </Link>,
               s.roomName ?? <span className="muted">—</span>,
+              countedIn.has(s.id) ? (
+                <strong key="i">{countedIn.get(s.id)}</strong>
+              ) : (
+                /*
+                  Links to Check-in rather than to the list that does not exist:
+                  `?list=` for an absent id silently falls back to the main door,
+                  which would put somebody on the wrong screen at the one moment
+                  they cannot afford it. Start on the Session card creates it.
+                */
+                <Link key="i" href={ROUTES.checkIn} className="muted">
+                  no door
+                </Link>
+              ),
               <StatusTag key="s" status={s.status} />,
             ])}
           />

@@ -6,10 +6,16 @@ import { createListAction, type CreateListState } from './actions';
 /**
  * Another list: day two's door, a workshop, a dinner.
  *
- * `kind` is the model's, not ours — `event | session | meal | workshop`. Only
- * `event` is wired to anything today; the other three write a perfectly valid
- * list that this screen will happily scan against, which is exactly how session
- * check-in gets built later without a data migration.
+ * `kind` is the model's, not ours — `event | session | meal | workshop`.
+ *
+ * This is the hand-named list: a dinner, a shuttle, day two's second door. A
+ * *session* door is not created here — Start on the session card above derives
+ * its id from the session so that two people pressing it produce one list — and
+ * creating a `session`-kind list from this form gives it a generated id with no
+ * `sessionId`, which the attendance report cannot join to a session and will
+ * not count. The option is kept because the model has it and because a
+ * standalone workshop door is a legitimate thing to want; the note under it
+ * says which one to use.
  */
 export function CreateListForm() {
   const [state, action, pending] = useActionState<CreateListState, FormData>(createListAction, {});
@@ -44,6 +50,12 @@ export function CreateListForm() {
           </select>
         </div>
       </div>
+
+      <p className="whova-form-description">
+        For a session, use <strong>Start</strong> on the session card at the top instead — that
+        derives the list id from the session, so the attendance report can join the two and two
+        organizers pressing it cannot open two doors into the same room.
+      </p>
 
       {state.error ? <p className="whova-form-error-message">{state.error}</p> : null}
       {state.message ? (

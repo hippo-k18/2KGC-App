@@ -26,7 +26,8 @@ export default async function RegistrationSettingsPage() {
   await requireOrganizer();
   const tiers = await listTicketTypes();
 
-  const fmt = (iso?: string) => (iso ? iso.slice(0, 10) : '—');
+  // The event's wall clock, not the UTC instant — see `TicketTypeRow`.
+  const fmt = (local?: string) => (local ? local.slice(0, 10) : '—');
 
   return (
     <>
@@ -64,8 +65,8 @@ export default async function RegistrationSettingsPage() {
           ]}
           rows={tiers.map((t) => [
             t.name,
-            fmt(t.salesOpenAt),
-            fmt(t.salesCloseAt),
+            fmt(t.salesOpenAtLocal),
+            fmt(t.salesCloseAtLocal),
             typeof t.quantityTotal === 'number' ? (
               <span key="q">
                 {t.quantitySold}/{t.quantityTotal}
@@ -90,7 +91,11 @@ export default async function RegistrationSettingsPage() {
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Sold-out is <code>quantitySold &gt;= quantityTotal</code>, and <code>quantitySold</code> is
           incremented server-side at fulfilment — not from a client, and not from a count of orders
-          that would double-count a partially refunded one.
+          that would double-count a partially refunded one. It is never decremented on a refund, so
+          it ratchets: correct one tier on{' '}
+          <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link>, where the figure recomputed
+          from the orders ledger is offered beside it, or the whole catalogue with{' '}
+          <code>npm run reconcile:sold</code>.
         </p>
       </Panel>
 

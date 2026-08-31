@@ -33,11 +33,19 @@ import { db } from './firestore';
  * WHAT IS AND IS NOT VERIFIED
  *
  * The targeting half — the collection-group query, the token gather, the
- * preference filter, the 500-token chunking — is real code exercised against
- * the emulator. The final `send` / `sendEachForMulticast` call is real too, but
- * it cannot reach FCM from the emulator and has never been run against the live
- * project, because that needs service-account credentials this laptop does not
- * have and a development build of the app to receive it (Expo Go cannot).
+ * preference filter — is real code exercised against the emulator. The final
+ * `send` call is real too, but it cannot reach FCM from the emulator and has
+ * never been run against the live project, because that needs service-account
+ * credentials this laptop does not have and a development build of the app to
+ * receive it (Expo Go cannot).
+ *
+ * ⚠️ OWNERSHIP, AFTER THE CLOUD FUNCTIONS DEPLOY. This module sends
+ * announcements and nothing else. The room/time-change push moved to
+ * `onSessionAgendaChange`, because that trigger also catches changes made by
+ * the CSV importer and by scripts; `roomChangePush()` below still computes and
+ * reports the audience but no longer calls FCM. Each notification has exactly
+ * one sender. Restoring a send here means deleting the other one in the same
+ * commit.
  *
  * So this module refuses rather than pretends. `canSend()` is false whenever
  * `FIRESTORE_EMULATOR_HOST` is set, and every function returns
@@ -78,15 +86,6 @@ export function canSend(): { ok: boolean; why: string } {
     return { ok: false, why: 'no service-account credentials on this machine' };
   }
   return { ok: true, why: '' };
-}
-
-/** FCM's hard limit for one multicast call. */
-const MULTICAST_CHUNK = 500;
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
 }
 
 /** The event-wide topic. One name, derived, never spelled at a call site. */
@@ -195,12 +194,28 @@ export async function roomChangeAudience(sessionId: string): Promise<{
 }
 
 /**
- * Tell the people who saved a session that its room moved.
+ * Report who a room change reaches. **Does not send** — the Cloud Function
+ * does.
  *
- * Targeted, never a topic. Blasting a thousand people about one room change is
- * the single most-cited complaint about the incumbent, and it trains people to
- * disable notifications entirely — after which nothing you send arrives,
- * including the one that matters.
+ * ⚠️ THIS FUNCTION DELIBERATELY NO LONGER CALLS FCM. `onSessionAgendaChange`
+ * (`functions/src/triggers/on-session-agenda-change.ts`) sends the room-change
+ * push, and it fires on the same write this code path makes. Running both
+ * delivers two notifications to every device for one room change, and the
+ * duplicate only becomes visible once `fcmTokens` has a writer — i.e. some
+ * time after the mistake was deployed, most likely during the conference.
+ *
+ * The trigger won the ownership call because it fires on *any* write to the
+ * session: the CSV importer, a script, the console. This action is only one of
+ * the ways a room moves, and a notification that depends on which UI made the
+ * change is a notification that goes missing. (Announcements went the other
+ * way — `announcementPush` above is still the sole sender for those, because
+ * one topic broadcast beats a thousand per-device multicasts and an
+ * announcement only ever originates here.)
+ *
+ * The audience calculation stays, and is still worth running: the server
+ * action shows the organizer who the change reaches, which is the useful half
+ * of this on a screen. If push ever needs to move back here, delete the
+ * trigger's FCM block in the same commit — never in two.
  */
 export async function roomChangePush(args: {
   sessionId: string;
@@ -221,51 +236,11 @@ export async function roomChangePush(args: {
     (optedOut ? `, ${optedOut} opted out of session reminders` : '') +
     `, ${tokens.length} device${tokens.length === 1 ? '' : 's'}`;
 
-  if (tokens.length === 0) {
-    return {
-      wired: false,
-      recipients: 0,
-      detail: `Nobody to notify — ${who}. Nothing writes fcmTokens yet, so this is expected.`,
-    };
-  }
-
-  const gate = canSend();
-  if (!gate.ok) {
-    return {
-      wired: false,
-      recipients: tokens.length,
-      detail: `Not sent — ${gate.why}. Would notify ${who}.`,
-    };
-  }
-
-  const message = {
-    notification: {
-      title: 'Room change',
-      body: `${args.title} is now in ${args.roomName}.`,
-    },
-    data: { kind: 'roomChange', sessionId: args.sessionId, eventId: EVENT_ID },
+  return {
+    wired: false,
+    recipients: tokens.length,
+    detail: `${who}. Sent by the onSessionAgendaChange Cloud Function, not from here — see the note on roomChangePush().`,
   };
-
-  try {
-    let failed = 0;
-    for (const batch of chunk(tokens, MULTICAST_CHUNK)) {
-      const res = await getMessaging().sendEachForMulticast({ ...message, tokens: batch });
-      failed += res.failureCount;
-    }
-    return {
-      wired: true,
-      recipients: tokens.length,
-      failed,
-      detail: `Notified ${who}${failed ? `; ${failed} device(s) rejected` : ''}.`,
-    };
-  } catch (err) {
-    recordError('push.roomChange', err);
-    return {
-      wired: false,
-      recipients: tokens.length,
-      detail: err instanceof Error ? `FCM refused the send: ${err.message}` : 'FCM refused the send.',
-    };
-  }
 }
 
 /** Kept so a wiring mistake shows up in the report rather than silently. */

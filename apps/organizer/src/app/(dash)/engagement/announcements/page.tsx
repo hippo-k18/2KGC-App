@@ -3,7 +3,6 @@ import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listAnnouncements } from '@/lib/data';
 import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, Table, Tag, listParams, paginate, sortRows } from '../../ui';
-import { Dropdown, RowActions } from '../../menu';
 import { AnnouncementForm } from './announcement-form';
 
 export const dynamic = 'force-dynamic';
@@ -65,22 +64,14 @@ export default async function AnnouncementsPage({
           highlights.
         </p>
 
-        <div className="toolbar">
-          <button type="button" className="btn btn-primary">
-            Start from scratch
-          </button>
-          <button type="button" className="btn btn-primary" disabled title="Needs templates">
-            Quick reminder
-          </button>
-          <Dropdown
-            label="Reuse past announcement"
-            className="btn btn-default"
-            items={[{ label: 'No past event to reuse from', disabled: true }]}
-          />
-          <button type="button" className="btn btn-default" disabled title="Whova-network feature">
-            From other organizers
-          </button>
-        </div>
+        {/*
+          Whova's four compose buttons — Start from scratch, Quick reminder,
+          Reuse past announcement, From other organizers — are gone rather than
+          greyed out. Three had nothing behind them and one opened the form that
+          is already on this page, so the row was four controls of which zero
+          did anything an organizer could not do by scrolling. What each of them
+          would need is in the gap panel at the foot.
+        */}
 
         <Banner kind="info">
           <strong>Push sends from this server, not a Cloud Function.</strong> FCM&apos;s send API is
@@ -117,7 +108,6 @@ export default async function AnnouncementsPage({
             { key: 't', label: 'Sent to', className: 'cell-sm' },
             { key: 'c', label: 'Time sent', className: 'cell-mdsm', sortKey: 'when' },
             { key: 'p', label: 'Push', className: 'cell-xs' },
-            { key: 'act', label: '', className: 'cell-xs cell-end-align' },
           ]}
           sort={sort}
           empty="Nothing sent yet"
@@ -137,13 +127,6 @@ export default async function AnnouncementsPage({
             ) : (
               <span className="muted">no</span>
             ),
-            <RowActions
-              key="act"
-              items={[
-                { label: 'View recipients', disabled: true },
-                { label: 'Resend', disabled: true },
-              ]}
-            />,
           ])}
         />
         <Pagination total={sent.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
@@ -153,9 +136,29 @@ export default async function AnnouncementsPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Recipient targeting</strong> — all attendees, by ticket type, by category or by
-            segment, with a live count of who is selected shown before you send. The live count is
-            the good part, and it needs categories and segments, which need registration answers.
+            <strong>Recipient targeting</strong> — Whova offers four narrower audiences and this
+            form used to show all four greyed out. By ticket type, by category and by segment all
+            derive from registration question answers, which nothing collects; &ldquo;attendees who
+            added a specific session&rdquo; reads <code>savedSessions</code>, which is a private
+            per-attendee subcollection an organizer cannot enumerate. And underneath all four:{' '}
+            <code>AnnouncementDoc</code> has no audience field and the push is an FCM{' '}
+            <em>topic</em> send, so even a computed audience has nowhere to be expressed. The live
+            count before sending is the part worth having.
+          </li>
+          <li>
+            <strong>Templates, reuse and the Whova network.</strong> The three other compose buttons
+            on Whova&apos;s toolbar. Quick reminder needs a template store, which is content rather
+            than code; reuse needs a previous event, and <code>EVENT_ID</code> is a compile-time
+            constant; &ldquo;from other organizers&rdquo; is a marketplace inside Whova&apos;s own
+            network and has no analogue here at all.
+          </li>
+          <li>
+            <strong>Per-announcement recipients and resend.</strong> The Sent table had both as
+            greyed-out row actions. Neither can be honest today: nothing records who an
+            announcement reached — a topic send has no recipient list, and the document is read by
+            whoever opens the app — so &ldquo;view recipients&rdquo; would show an audience computed
+            now rather than the one it went to. Resend would be a second document on the wall,
+            which is a duplicate rather than a resend.
           </li>
           <li>
             <strong>Email delivery</strong>, with Whova&apos;s three-way setting: email everyone,

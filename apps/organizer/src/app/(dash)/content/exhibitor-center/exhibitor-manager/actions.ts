@@ -1,12 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getExhibitor } from '@/lib/exhibitors';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
+import { removeImage, uploadImage, UploadRejected, UploadUnavailable } from '@/lib/uploads';
 
 export interface ExhibitorState {
   ok?: boolean;
@@ -16,6 +18,15 @@ export interface ExhibitorState {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const ROUTE = '/content/exhibitor-center/exhibitor-manager';
+
+/**
+ * `exhibitors/{id}/logo.{ext}` — the same shape `uploads.ts` documents for
+ * sponsors and speakers, so a bucket listing reads as the data model rather
+ * than as a pile of hashes, and so a deleted exhibitor's assets can be found.
+ */
+function logoTarget(docId: string) {
+  return { folder: `${COLLECTIONS.exhibitors}/${docId}`, name: 'logo' };
+}
 
 /** URL-safe and readable, so a Firestore path is legible in the console. */
 function slugify(name: string): string {
@@ -67,17 +78,58 @@ export async function saveExhibitorAction(
     if (clash) return { error: `“${clash.name}” already uses the id “${docId}”.` };
   }
 
+  /**
+   * The file is resolved before the document is written, not after.
+   *
+   * A save that succeeded and an upload that then failed would leave the
+   * organizer looking at a saved exhibitor with no logo and an error message,
+   * with no way to tell which half landed. Doing the fallible part first means
+   * a failure here is simply a save that did not happen.
+   */
+  let logoURL: string | FieldValue | undefined;
+  const picked = formData.get('logo');
+  const logoFile = picked instanceof File && picked.size > 0 ? picked : null;
+  const clearLogo = String(formData.get('logoRemoved') ?? '') === '1' && !logoFile;
+
+  try {
+    if (logoFile) {
+      logoURL = (await uploadImage(logoFile, logoTarget(docId))).url;
+    } else if (clearLogo) {
+      await removeImage(logoTarget(docId));
+      // `undefined` would be dropped by `ignoreUndefinedProperties` and the old
+      // logo would survive the save that was meant to remove it.
+      logoURL = FieldValue.delete();
+    }
+  } catch (err) {
+    if (err instanceof UploadRejected || err instanceof UploadUnavailable) {
+      recordError('exhibitor.logo', err);
+      return { error: err.message };
+    }
+    recordError('exhibitor.logo', err);
+    return { error: err instanceof Error ? err.message : 'Could not store that image.' };
+  }
+
   try {
     const ref = db().collection(COLLECTIONS.exhibitors).doc(docId);
     await ref.set(
       {
         eventId: EVENT_ID,
         name,
-        boothNumber: boothNumber || undefined,
-        contactName: contactName || undefined,
-        contactEmail: contactEmail || undefined,
-        website: website || undefined,
-        description: description || undefined,
+        ...(logoURL === undefined ? {} : { logoURL }),
+        /**
+         * Emptied fields are deleted, not set to `undefined`.
+         *
+         * The store runs with `ignoreUndefinedProperties`, and this is a
+         * `{ merge: true }` write. So `x || undefined` on a cleared field
+         * writes *nothing at all* — the old value survives and the action
+         * reports "Saved". An organizer who deletes a wrong contact email and
+         * is told it saved still has the wrong contact email.
+         */
+        boothNumber: boothNumber || FieldValue.delete(),
+        contactName: contactName || FieldValue.delete(),
+        contactEmail: contactEmail || FieldValue.delete(),
+        website: website || FieldValue.delete(),
+        description: description || FieldValue.delete(),
         status,
         passesAllocated,
         /**
@@ -98,9 +150,22 @@ export async function saveExhibitorAction(
       targetPath: `${COLLECTIONS.exhibitors}/${docId}`,
       targetId: docId,
       before: existing
-        ? { name: existing.name, boothNumber: existing.boothNumber, status: existing.status }
+        ? {
+            name: existing.name,
+            boothNumber: existing.boothNumber,
+            status: existing.status,
+            logoURL: existing.logoURL ?? null,
+          }
         : {},
-      after: { name, boothNumber, status, passesAllocated },
+      after: {
+        name,
+        boothNumber,
+        status,
+        passesAllocated,
+        // Only when it moved — an audit row claiming a logo changed on every
+        // description edit makes the trail useless for the one time it matters.
+        ...(typeof logoURL === 'string' ? { logoURL } : clearLogo ? { logoURL: null } : {}),
+      },
     });
 
     revalidatePath(ROUTE);

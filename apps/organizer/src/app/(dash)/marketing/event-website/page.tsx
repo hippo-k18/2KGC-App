@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { pageReadiness, publicUrl } from '@/lib/webpages';
-import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { SettingsReach } from '../../../settings-reach';
 import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
 import { AppBrandingForm } from '../branding-forms';
 
@@ -18,6 +19,11 @@ export const dynamic = 'force-dynamic';
  * boots, not a settings write. So this screen records the decision and says
  * plainly that it records it.
  *
+ * That claim is not left to this comment: `SETTINGS_REGISTER.branding` in
+ * `@kgc/shared` marks both colours `recorded`, the save message is built from
+ * it, and the reach table below is rendered from it. A surface that starts
+ * reading a field flips one entry there and this screen follows.
+ *
  * The logo and banner halves are not a form at all, because **no screen in this
  * dashboard can put a file into Firebase Storage.** There is no upload
  * component anywhere in the project, which is also why `SponsorDoc.logoURL` and
@@ -26,13 +32,7 @@ export const dynamic = 'force-dynamic';
 export default async function AppBrandingPage() {
   await requireOrganizer();
 
-  const s = await readSettings(SETTINGS_KEYS.branding, {
-    brandColor: '',
-    accentColor: '',
-    tagline: '',
-    supportEmail: '',
-    hashtag: '',
-  });
+  const s = await readSettings(SETTINGS_KEYS.branding);
 
   return (
     <>
@@ -59,11 +59,11 @@ export default async function AppBrandingPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Text</h2>
         <AppBrandingForm
-          brandColor={String(s.brandColor ?? '')}
-          accentColor={String(s.accentColor ?? '')}
-          tagline={String(s.tagline ?? '')}
-          supportEmail={String(s.supportEmail ?? '')}
-          hashtag={String(s.hashtag ?? '')}
+          brandColor={s.brandColor}
+          accentColor={s.accentColor}
+          tagline={s.tagline}
+          supportEmail={s.supportEmail}
+          hashtag={s.hashtag}
         />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
@@ -93,14 +93,15 @@ export default async function AppBrandingPage() {
         </p>
       </Panel>
 
+      <SettingsReach
+        bag={SETTINGS_KEYS.branding}
+        fields={['brandColor', 'accentColor', 'tagline', 'supportEmail', 'hashtag']}
+        style={{ marginTop: 16 }}
+      />
+
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>Anything that applies a colour.</strong> No surface reads the{' '}
-            <code>branding</code> settings document — not the app, not{' '}
-            <code>apps/web</code>, not this dashboard&rsquo;s own chrome.
-          </li>
           <li>
             <strong>Logo, banner and header upload.</strong> No file-upload UI exists in this
             project at all.

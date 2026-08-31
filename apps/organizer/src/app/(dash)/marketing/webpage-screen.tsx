@@ -44,7 +44,13 @@ export async function WebpageScreen({
       <PageHeader
         title={title}
         tags={
-          clean ? (
+          // A page carrying a note is not "ready" — it is not rendering these
+          // records at all, and a green tag would say the opposite.
+          p.note ? (
+            <Tag color="grey" fill="outline">
+              not this collection
+            </Tag>
+          ) : clean ? (
             <Tag color="green" fill="outline">
               ready
             </Tag>
@@ -66,14 +72,25 @@ export async function WebpageScreen({
         ]}
       />
 
-      <Banner kind="info">
-        This page is <strong>already live</strong> at{' '}
-        <a href={url} target="_blank" rel="noreferrer">
-          {url}
-        </a>
-        , rendered from the same records you edit in {editorLabel}. There is nothing to publish and
-        no cache to clear — a change there appears here on the next page load.
-      </Banner>
+      {p.note ? (
+        <Banner kind="warning">
+          This page is <strong>already live</strong> at{' '}
+          <a href={url} target="_blank" rel="noreferrer">
+            {url}
+          </a>
+          , but it is <strong>not</strong> rendered from the records you edit in {editorLabel}.{' '}
+          {p.note} Editing them changes nothing a visitor sees until that source is switched over.
+        </Banner>
+      ) : (
+        <Banner kind="info">
+          This page is <strong>already live</strong> at{' '}
+          <a href={url} target="_blank" rel="noreferrer">
+            {url}
+          </a>
+          , rendered from the same records you edit in {editorLabel}. There is nothing to publish and
+          no cache to clear — a change there appears here on the next page load.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[

@@ -5,6 +5,7 @@ import { countWhereEvent, listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
+import { AddAttendeeForm } from './add-form';
 import { ImportForm } from './import-form';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,7 @@ export default async function AttendeesPage({
   const role = typeof sp.role === 'string' ? sp.role : undefined;
   const { page, sort, baseParams } = listParams(sp);
   const importing = typeof sp.import === 'string';
+  const adding = typeof sp.add === 'string';
   const [all, registrations] = await Promise.all([
     listAttendees(),
     countWhereEvent(COLLECTIONS.registrations),
@@ -67,6 +69,11 @@ export default async function AttendeesPage({
   const pageRows = paginate(rows, page, PER_PAGE);
 
   const roles = [...new Set(all.flatMap((a) => a.roles))].sort();
+  // The ticket types already in use, rather than the sales catalogue: the point
+  // of the select is that a hand-added attendee lands in the same bucket as the
+  // people who bought, and "Main Conference " with a trailing space is two
+  // buckets in every breakdown with nothing anywhere to flag it.
+  const ticketTypes = [...new Set(all.map((a) => a.ticketType).filter(Boolean) as string[])].sort();
   const hidden = all.filter((a) => a.signedIn && !a.visibleInDirectory).length;
   const signedIn = all.filter((a) => a.signedIn).length;
   const ticketHolders = all.filter((a) => a.registrationId).length;
@@ -137,17 +144,20 @@ export default async function AttendeesPage({
 
         <div className="toolbar">
           {/*
-            Import and export are both real now. `Add an attendee` stays
-            disabled: adding one by hand means writing a document the attendee
-            also owns, which needs a rule about who wins — and importing a
-            one-row CSV does the same job today.
+            `Add an attendee` was disabled on the argument that adding one by
+            hand means writing a document the attendee also owns. That is true
+            of `users` — the profile they create at sign-in — and not of a
+            registration, which no attendee may write and which the webhook, the
+            invoice path and the importer all already create through one shared
+            function. So it is the same operation as importing a one-row CSV,
+            and now it is that: same `ensureRegistration`, one form.
           */}
           <Link className="btn btn-primary" href={importing ? ROUTES.attendees : '?import=1'}>
             {importing ? 'Cancel import' : 'Import attendees'}
           </Link>
-          <button type="button" className="btn btn-primary" disabled title="Not built — see below">
-            Add an attendee
-          </button>
+          <Link className="btn btn-primary" href={adding ? ROUTES.attendees : '?add=1'}>
+            {adding ? 'Cancel' : 'Add an attendee'}
+          </Link>
           <Dropdown
             label="Export attendees"
             className="btn btn-primary"
@@ -174,6 +184,21 @@ export default async function AttendeesPage({
           >
             <h2 style={{ fontSize: 15, marginTop: 0 }}>Import attendees</h2>
             <ImportForm />
+          </div>
+        )}
+
+        {adding && (
+          <div
+            style={{
+              background: 'var(--surface-alt)',
+              border: '1px solid var(--hairline)',
+              borderRadius: 4,
+              marginBottom: 16,
+              padding: 16,
+            }}
+          >
+            <h2 style={{ fontSize: 15, marginTop: 0 }}>Add an attendee</h2>
+            <AddAttendeeForm ticketTypes={ticketTypes} />
           </div>
         )}
 
@@ -277,12 +302,18 @@ export default async function AttendeesPage({
                 —
               </span>
             ),
+            /*
+              "Edit attendee" and "Remove from event" were greyed-out menu items
+              with no action behind them. Both are removed rather than left
+              looking available — the reasons are in the gap panel below, and a
+              disabled item in an open menu reads as "temporarily unavailable",
+              which is a different and untrue claim.
+            */
             <RowActions
               key="act"
               items={[
-                { label: 'Edit attendee', disabled: true },
                 { label: 'Send announcement', href: ROUTES.announcements },
-                { label: 'Remove from event', danger: true, disabled: true },
+                { label: 'Check in at the door', href: ROUTES.checkIn },
               ]}
             />,
           ])}
@@ -332,8 +363,23 @@ export default async function AttendeesPage({
             overwrites a ticket type with a blank.
           </li>
           <li>
-            <strong>Add and edit an attendee.</strong> Editing a profile from here means writing to
-            a document the attendee also owns, so it needs a rule about who wins.
+            <strong>Editing an attendee.</strong> Adding one is built — it writes a registration
+            through the same <code>ensureRegistration</code> as the webhook and the importer, and
+            re-adding an address updates rather than duplicates, which is the edit path for the
+            three fields a registration owns. What is still missing is editing the <em>profile</em>:
+            title, company, interests and photo live on <code>users/&#123;uid&#125;</code>, which
+            the attendee also writes from the app, so an organizer edit needs a rule about who wins
+            and a way to tell them it happened.
+          </li>
+          <li>
+            <strong>Removing somebody from the event.</strong> The menu item was greyed out and is
+            now gone rather than pretending. A registration has a <code>cancelled</code> status and
+            flipping it by hand would be one line — but that status is also what a Stripe refund
+            writes, and this screen tags a cancelled registration &ldquo;refunded&rdquo;. Adding a
+            second, moneyless way to reach the same state means the tag lies for one of them, and a
+            headcount that disagrees with the ledger is worse than a missing button. Cancelling a
+            real ticket is a refund on Attendee Orders; cancelling a comp is a Firebase console job
+            until the two states are separated in the model.
           </li>
           <li>
             <strong>Categories and Segments.</strong> Segments are the sharpest idea in the whole

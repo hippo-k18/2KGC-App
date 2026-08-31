@@ -90,9 +90,15 @@ export default async function AppDownloadButtonPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>A QR code.</strong> The app has a dependency-free QR encoder for badges
-            (<code>app/src/lib/qr/encode.ts</code>) and this dashboard does not use it. Worth
-            wiring — a printed QR on a table sign is how people actually install a conference app.
+            <strong>A QR code</strong>, which is how people actually install a conference app from
+            a table sign. The encoder exists and is dependency-free —{' '}
+            <code>app/src/lib/qr/encode.ts</code> — but it lives in the <em>mobile app</em>, and
+            this dashboard resolves only <code>@kgc/shared</code> and <code>@kgc/scripts</code>{' '}
+            (see <code>apps/organizer/package.json</code>; the dashboard is deliberately not a
+            workspace member). So the work is not the encoder, it is a move: lift{' '}
+            <code>encode.ts</code> into <code>packages/shared</code> and repoint the badge screen at
+            it. Copying it here instead would give the project two QR implementations, and the one
+            that drifts is the one printing badges.
           </li>
           <li>
             <strong>Store badges and deep links.</strong> Both need the app to be listed.

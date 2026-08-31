@@ -1,6 +1,14 @@
 import 'server-only';
 
 import { toCsv, type Column } from './csv';
+import { allCheckIns, DEFAULT_LIST_ID, listRegistrations, listStations } from './checkin';
+import type { CheckInRow } from './checkin';
+import {
+  attendeeAttendance,
+  sessionAttendance,
+  type AttendeeAttendanceRow,
+  type SessionAttendanceRow,
+} from './attendance';
 import { listOrders, money, type OrderRow } from './commerce';
 import { listAttendees, listSessions, listSpeakers, listSponsors } from './data';
 import type { AttendeeRow, SessionRow, SpeakerRow, SponsorRow } from './data';
@@ -27,7 +35,16 @@ import type { AttendeeRow, SessionRow, SpeakerRow, SponsorRow } from './data';
  * not be joined.
  */
 
-export type ExportKind = 'attendees' | 'orders' | 'speakers' | 'sessions' | 'sponsors' | 'catering';
+export type ExportKind =
+  | 'attendees'
+  | 'orders'
+  | 'speakers'
+  | 'sessions'
+  | 'sponsors'
+  | 'catering'
+  | 'checked-in'
+  | 'session-attendance'
+  | 'attendance-hours';
 
 export interface ExportDef {
   kind: ExportKind;
@@ -181,6 +198,97 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Contact', value: (s) => s.contactName ?? '' },
       { header: 'Contact email', value: (s) => s.contactEmail ?? '' },
       { header: 'Has logo', value: (s) => yesNo(s.hasLogo) },
+    ],
+  ),
+  /**
+   * Who actually came through the door, in arrival order.
+   *
+   * The Check-in screen offered this as a disabled dropdown item — the CSV
+   * machinery has been here the whole time, so it was a wiring gap rather than a
+   * feature gap. Scoped to the main door list, which is the one the scanner
+   * writes to and the one the screen defaults to; a per-list export needs a
+   * parameter this registry does not have, and the door list is what anybody
+   * asking for "the check-in list" means.
+   *
+   * `Checked in at` is a UTC instant deliberately, unlike the programme export's
+   * wall clocks: this reconciles against Stripe timestamps and a station log,
+   * both of which are UTC, and a local string with no offset would be ambiguous
+   * in exactly the reconciliation it exists for.
+   */
+  def<CheckInRow>(
+    'checked-in',
+    'Checked-in list',
+    'The headcount somebody is invoiced for, and the answer to "did they turn up?".',
+    'Name, email, ticket type, the time they came through and which station scanned them.',
+    async () => {
+      const [registrations, stations] = await Promise.all([listRegistrations(), listStations()]);
+      return allCheckIns(
+        DEFAULT_LIST_ID,
+        registrations.map((r) => r.row),
+        stations,
+      );
+    },
+    [
+      { header: 'Name', value: (c) => c.name },
+      { header: 'Email', value: (c) => c.email },
+      { header: 'Ticket', value: (c) => c.ticketType ?? '' },
+      { header: 'Checked in at', value: (c) => c.checkedInAt ?? '' },
+      { header: 'Station', value: (c) => c.stationLabel },
+    ],
+  ),
+
+  /**
+   * How full each room actually was.
+   *
+   * `Counted in` is people scanned at that session's door — not bookings, which
+   * this system does not have. `Door opened` is the column that keeps the file
+   * honest: a session nobody counted reads "no" with a blank count rather than a
+   * zero, because a zero in a spreadsheet is a measurement and this is the
+   * absence of one. Somebody summing this column to argue a track should be cut
+   * needs to be able to see which rows were never measured.
+   */
+  def<SessionAttendanceRow>(
+    'session-attendance',
+    'Session attendance',
+    'Which rooms filled, which emptied, and what to schedule where next year.',
+    'Day, times, session, room, track, scheduled length, and how many were counted in.',
+    async () => (await sessionAttendance()).rows,
+    [
+      { header: 'Day', value: (r) => r.session.day },
+      { header: 'Start', value: (r) => r.session.startsAtLocal.slice(11, 16) },
+      { header: 'End', value: (r) => r.session.endsAtLocal.slice(11, 16) },
+      { header: 'Session', value: (r) => r.session.title },
+      { header: 'Room', value: (r) => r.session.roomName ?? '' },
+      { header: 'Track', value: (r) => r.session.primaryTrackName ?? '' },
+      { header: 'Format', value: (r) => r.session.format },
+      { header: 'Scheduled minutes', value: (r) => r.minutes },
+      { header: 'Door opened', value: (r) => yesNo(r.tracked) },
+      { header: 'Counted in', value: (r) => (r.tracked ? r.countedIn : '') },
+    ],
+  ),
+
+  /**
+   * Hours per attendee — the input a certificate run would take.
+   *
+   * ⚠️ `Scheduled minutes` credits the full length of every session somebody was
+   * scanned into, because nothing in this system records when they left. The
+   * column is named `Scheduled` rather than `Attended` for that reason, and the
+   * Certificates screen repeats the caveat: a CPE claim built on this is a claim
+   * about presence at a door, not about time in a seat.
+   */
+  def<AttendeeAttendanceRow>(
+    'attendance-hours',
+    'Attendance hours',
+    'Certificates, CPE claims, and answering “which sessions did they go to?”.',
+    'Name, email, ticket, how many sessions they were counted into and the scheduled minutes those add up to.',
+    async () => (await attendeeAttendance()).rows,
+    [
+      { header: 'Name', value: (r) => r.registration.name },
+      { header: 'Email', value: (r) => r.registration.email },
+      { header: 'Ticket', value: (r) => r.registration.ticketType ?? '' },
+      { header: 'Sessions counted into', value: (r) => r.sessions.length },
+      { header: 'Scheduled minutes', value: (r) => r.minutes },
+      { header: 'Sessions', value: (r) => r.sessions.map((s) => s.title).join('; ') },
     ],
   ),
 ];

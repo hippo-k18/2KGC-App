@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type SurveyDoc } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
@@ -116,8 +117,15 @@ export async function saveSurveyAction(
       {
         eventId: EVENT_ID,
         title,
-        description: description || undefined,
-        sessionId: sessionId || undefined,
+        /**
+         * Deleted rather than set to `undefined`, because the store runs with
+         * `ignoreUndefinedProperties` and this is a `{ merge: true }` write:
+         * `x || undefined` on a cleared field writes nothing at all, the old
+         * value survives, and the action still reports "Saved". Detaching a
+         * survey from a session is exactly that case.
+         */
+        description: description || FieldValue.delete(),
+        sessionId: sessionId || FieldValue.delete(),
         questions: parsed,
         status,
         ...(existing ? {} : { responseCount: 0, createdAt: new Date() }),

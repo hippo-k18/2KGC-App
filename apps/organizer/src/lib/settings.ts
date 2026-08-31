@@ -1,6 +1,14 @@
 import 'server-only';
 
-import { COLLECTIONS, EVENT_ID, type SettingsDoc } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  SETTINGS_DEFAULTS,
+  SETTINGS_KEYS,
+  type SettingsKey,
+  type SettingsValues,
+} from '@kgc/shared';
+import { FieldValue } from 'firebase-admin/firestore';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -8,50 +16,60 @@ import { db } from './firestore';
 /**
  * Organizer settings, one document per feature area.
  *
- * A third of the remaining console screens are settings forms — branding, the
- * event website, registration rules, post-event access, code access. They all
- * do the same three things: read a bag of values, render a form, write it back
- * with an audit entry. This is that, once.
+ * Five screens across three feature areas do the same three things: read a bag
+ * of values, render a form, write it back with an audit entry. This is that,
+ * once.
  *
- * ── Values are flat and untyped on purpose ──────────────────────────────────
+ * ── The shapes are not here any more ────────────────────────────────────────
  *
- * Each screen owns its own shape and validates it before calling `saveSettings`.
- * A discriminated union of twelve settings shapes would be a type edited on
- * every screen and therefore permanently slightly wrong, and it would put the
- * validation somewhere other than next to the form that produces the values.
- * `readSettings` is generic so a caller gets its own shape back without a cast
- * at every field.
+ * `SETTINGS_KEYS`, the value shapes, the defaults and the register of which
+ * install reads which field live in `@kgc/shared` (`packages/shared/src/
+ * settings.ts`). They were here, flat and untyped, on the argument that each
+ * screen owns its own shape — which was true while the writing screen was also
+ * the only reader. It stopped being true the moment the website and the app
+ * were named as readers: three installs that cannot import each other have to
+ * agree on a key name, and the only place that agreement can be enforced by the
+ * compiler is the shared package.
+ *
+ * Re-exported below so the existing `from '@/lib/settings'` imports keep
+ * working and there is one obvious import for a screen in this app.
  */
+export { SETTINGS_KEYS, SETTINGS_DEFAULTS };
+export type { SettingsKey, SettingsValues };
 
-/** Every settings key in use. A const so a typo is a compile error. */
-export const SETTINGS_KEYS = {
-  branding: 'branding',
-  eventWebsite: 'event-website',
-  registration: 'registration',
-  access: 'access',
-  logistics: 'logistics',
-  appAdoption: 'app-adoption',
-} as const;
+/** What a screen may send: any subset, with `null` meaning "clear this". */
+export type SettingsPatch<K extends SettingsKey> = {
+  [F in keyof SettingsValues[K]]?: SettingsValues[K][F] | null;
+};
 
-export type SettingsKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];
+/** The read result: a complete bag, plus who last touched the document. */
+export type SettingsRead<K extends SettingsKey> = SettingsValues[K] & {
+  updatedBy?: string;
+  updatedAt?: string;
+};
 
 /**
- * Read one settings bag, with the caller's defaults filled in.
+ * Read one settings bag, with the shared defaults filled in.
  *
  * Never throws and never returns null: a settings screen that cannot render
  * because nobody has saved anything yet is a screen nobody can use to save
  * anything. An unreachable database yields the defaults and the error goes to
  * the war-room page.
+ *
+ * The caller no longer supplies defaults. It used to, and the result was that
+ * `app-branding` and `branded-event-url` held different views of the *same*
+ * document — two screens disagreeing about what an unset value is. Defaults are
+ * now `SETTINGS_DEFAULTS`, which the website and the app will read from the
+ * same file.
  */
-export async function readSettings<T extends Record<string, unknown>>(
-  key: SettingsKey,
-  defaults: T,
-): Promise<T & { updatedBy?: string; updatedAt?: string }> {
+export async function readSettings<K extends SettingsKey>(key: K): Promise<SettingsRead<K>> {
+  const defaults = SETTINGS_DEFAULTS[key];
+
   try {
     const doc = await db().collection(COLLECTIONS.settings).doc(key).get();
     if (!doc.exists) return { ...defaults };
 
-    const data = doc.data() as SettingsDoc;
+    const data = doc.data() as { eventId?: string; values?: unknown; updatedBy?: string; updatedAt?: { toDate(): Date } };
     if (data.eventId !== EVENT_ID) return { ...defaults };
 
     let updatedAt: string | undefined;
@@ -61,9 +79,7 @@ export async function readSettings<T extends Record<string, unknown>>(
       updatedAt = undefined;
     }
 
-    // Defaults first, so a key added to a screen after somebody saved does not
-    // come back undefined and blank a field that has a sensible default.
-    return { ...defaults, ...(data.values as Partial<T>), updatedBy: data.updatedBy, updatedAt };
+    return { ...defaults, ...usable(defaults, data.values), updatedBy: data.updatedBy, updatedAt };
   } catch (err) {
     recordError(`settings.read:${key}`, err);
     return { ...defaults };
@@ -71,20 +87,80 @@ export async function readSettings<T extends Record<string, unknown>>(
 }
 
 /**
- * Write one settings bag and audit the change.
+ * Keep only stored fields whose type matches the default's.
  *
- * Merges rather than replaces, so a screen that renders a subset of a bag
- * cannot silently drop the keys it does not show — which is how a settings page
- * added later wipes the one added first.
+ * Not defensive programming for its own sake — it discards three things that
+ * are genuinely in these documents:
+ *
+ *   · `null`, written by every save before the contract landed. Spread straight
+ *     over the defaults it replaces `''` with `null`, which is how a template
+ *     string ends up printing "null" on a page.
+ *   · a field whose type changed shape between deploys.
+ *
+ * The alternative — trusting the document — makes the type signature a claim
+ * about data written by an older version of this file, which it cannot be.
  */
-export async function saveSettings(
-  key: SettingsKey,
-  values: Record<string, string | number | boolean | null>,
+function usable<T extends object>(defaults: T, stored: unknown): Partial<T> {
+  if (!stored || typeof stored !== 'object') return {};
+  const shape = defaults as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(stored as Record<string, unknown>)) {
+    if (!(k in shape)) continue;
+    if (typeof v !== typeof shape[k]) continue;
+    out[k] = v;
+  }
+  return out as Partial<T>;
+}
+
+/**
+ * Write part of one settings bag and audit the change.
+ *
+ * ── Why every key is named on every write ───────────────────────────────────
+ *
+ * `values` is a nested map and the write is a merge, so Firestore merges it key
+ * by key. Sending only the fields one screen renders therefore *looks* right
+ * and is right — until you want to remove one. AGENTS.md gotcha 9: under a
+ * merge an absent key leaves the old value in place and the action still
+ * returns "Saved", so an organizer who deletes a wrong support address is told
+ * it saved and still has the wrong support address.
+ *
+ * So a `null` in the patch means "clear this", and it is written as
+ * `FieldValue.delete()` — verified against the emulator to work inside a nested
+ * map under `{ merge: true }`, which is not obvious and is why it is stated
+ * here. `lib/campaigns.ts` `saveLink()` is the same pattern at the top level.
+ *
+ * Cleared fields are **removed**, not stored as `null`. That is what lets a
+ * reader fall back to `SETTINGS_DEFAULTS` instead of having to know that `null`
+ * means "unset" — a rule the app and the website would each have to learn
+ * separately, and one of them would not.
+ *
+ * The rest of the merged bag is sent alongside, so a bag written by three
+ * screens survives a save from any one of them even where the merge is shallow
+ * (the demo store's is).
+ */
+export async function saveSettings<K extends SettingsKey>(
+  key: K,
+  patch: SettingsPatch<K>,
   actor: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const ref = db().collection(COLLECTIONS.settings).doc(key);
-    const before = (await ref.get()).data()?.values ?? {};
+    const snap = await ref.get();
+    const before = usable(SETTINGS_DEFAULTS[key], snap.data()?.values) as Record<string, unknown>;
+
+    const next: Record<string, unknown> = { ...before };
+    const cleared: string[] = [];
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === undefined) {
+        delete next[k];
+        cleared.push(k);
+      } else {
+        next[k] = v;
+      }
+    }
+
+    const values: Record<string, unknown> = { ...next };
+    for (const k of cleared) values[k] = FieldValue.delete();
 
     await ref.set(
       {
@@ -93,7 +169,7 @@ export async function saveSettings(
         values,
         updatedBy: actor,
         updatedAt: new Date(),
-        createdAt: (await ref.get()).exists ? undefined : new Date(),
+        ...(snap.exists ? {} : { createdAt: new Date() }),
       },
       { merge: true },
     );
@@ -102,13 +178,18 @@ export async function saveSettings(
      * Only the keys that actually changed go into the audit entry. A settings
      * form posts every field on every save, so recording the whole bag would
      * make the log a wall of unchanged values with the one real edit buried.
+     *
+     * A cleared field is recorded as `null` rather than as the sentinel, which
+     * is not JSON and would land in the audit log as `{}`.
      */
     const changed: Record<string, unknown> = {};
     const previous: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(values)) {
-      if (JSON.stringify((before as Record<string, unknown>)[k] ?? null) === JSON.stringify(v ?? null)) continue;
-      changed[k] = v;
-      previous[k] = (before as Record<string, unknown>)[k] ?? null;
+    for (const k of Object.keys(patch)) {
+      const after = cleared.includes(k) ? null : (next[k] ?? null);
+      const was = before[k] ?? null;
+      if (JSON.stringify(was) === JSON.stringify(after)) continue;
+      changed[k] = after;
+      previous[k] = was;
     }
 
     if (Object.keys(changed).length > 0) {

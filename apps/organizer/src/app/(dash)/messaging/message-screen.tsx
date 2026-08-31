@@ -51,7 +51,23 @@ export async function MessageScreen({
             <Tag color="grey">no email provider</Tag>
           )
         }
+        // The one route into the desk inbox. `/messaging` has no node in
+        // `lib/nav.ts` because that tree is transcribed from Whova's shipped
+        // bundle and Whova has no organizer inbox — so until somebody adds a
+        // `ROUTES` entry and an `IMPLEMENTED` path, the two screens that ARE in
+        // the tree and are about messaging people are how you get there.
+        links={[
+          <Link key="dm" href="/messaging">
+            Direct Messages
+          </Link>,
+        ]}
       />
+
+      <Banner kind="info">
+        This screen sends <strong>email</strong>. To message one person inside the app instead —
+        the speaker whose flight is delayed, the attendee who wrote to the desk — use{' '}
+        <Link href="/messaging">Direct Messages</Link>.
+      </Banner>
 
       {!emailEnabled() && (
         <Banner kind="warning">

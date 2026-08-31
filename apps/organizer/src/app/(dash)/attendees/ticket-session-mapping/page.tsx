@@ -309,13 +309,15 @@ export default async function TicketSessionMappingPage() {
             has lines for it but <code>ticketTypes</code> has no add-on to sell.
           </li>
           <li>
-            <strong>Editing either boolean, anywhere.</strong> The ticket form in{' '}
-            <Link href={ROUTES.createTickets}>Ticket Setup</Link> has no control for them, and its
-            server action carries the existing value forward and writes{' '}
-            <code>false</code> for a new tier — so a tier created from this dashboard can never
-            include workshops. Both booleans currently arrive from <code>npm run seed</code> and
-            from nowhere else. The control belongs on that form, beside the price it justifies,
-            rather than here: a second place to change them is a second place for them to disagree.
+            <strong>Anything writing the entitlement at fulfilment.</strong> Both booleans are now
+            editable on the ticket form in{' '}
+            <Link href={ROUTES.createTickets}>Ticket Setup</Link> — beside the price they justify,
+            and deliberately not here, because a second place to change them is a second place for
+            them to disagree. What is still missing is the other end: nothing writes{' '}
+            <code>users/&#123;uid&#125;/entitlements</code> when a ticket carrying one is sold. The
+            place for that is the fulfilment path in{' '}
+            <code>apps/web/src/lib/registrations.ts</code>, beside the registration it already
+            writes, so a refund withdraws both together.
           </li>
         </ul>
       </GapPanel>

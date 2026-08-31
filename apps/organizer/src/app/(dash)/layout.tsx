@@ -12,6 +12,29 @@ import { Dropdown } from './menu';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Where the Preview menu points.
+ *
+ * Both links were hard-coded to localhost — `:8081` for the app and `:3000` for
+ * the ticket page, the latter not even the port `apps/web` runs on. On the
+ * deployed dashboard they were two dead links in the most prominent menu in the
+ * chrome, and an organizer clicking Preview is precisely someone checking that
+ * the public side works.
+ *
+ * `WEB_PUBLIC_ORIGIN` is the variable ten other call sites already read, so this
+ * joins them rather than inventing a second name. It defaults to production for
+ * the same reason `lib/webpages.ts` does: a missing variable should degrade to
+ * the real site, not to a machine that is not this one.
+ */
+function webOrigin(): string {
+  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
+}
+
+/** The attendee app on the web. Falls back to Expo's dev port for local work. */
+function appOrigin(): string {
+  return (process.env.APP_PUBLIC_ORIGIN ?? 'http://localhost:8081').replace(/\/$/, '');
+}
+
+/**
  * Whova's authenticated shell.
  *
  * Four bands, in their order: a full-bleed dark utility bar; an event masthead
@@ -146,12 +169,12 @@ export default async function DashLayout({ children }: { children: React.ReactNo
                 label="Preview"
                 className="btn btn-default event-title-btn"
                 items={[
-                  { label: 'Web App', href: 'http://localhost:8081' },
+                  { label: 'Web App', href: appOrigin() },
                   {
                     label: 'Mobile App',
                     disabled: true,
                   },
-                  { label: 'Attendee Registration Page', href: 'http://localhost:3000/tickets' },
+                  { label: 'Attendee Registration Page', href: `${webOrigin()}/tickets` },
                 ]}
               />
               <Link className="btn btn-default event-title-btn" href="/tools/report">

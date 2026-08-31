@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { attendeeAttendance, formatHours } from '@/lib/attendance';
 import {
   DEFAULT_LIST_ID,
   listRegistrations,
@@ -33,12 +34,17 @@ export default async function CertificatesPage() {
    * does not enforce indexes, so it would pass here and fail in production with
    * `failed-precondition`. The counting happens in memory instead.
    */
-  const [registrations, stations] = await Promise.all([listRegistrations(), listStations()]);
+  const [registrations, stations, hours] = await Promise.all([
+    listRegistrations(),
+    listStations(),
+    attendeeAttendance(),
+  ]);
   const rows = registrations.map((r) => r.row);
   const { rows: recent, total: attended } = await recentCheckIns(DEFAULT_LIST_ID, rows, stations);
 
   const active = rows.filter((r) => r.status === 'active');
   const noShows = active.length - attended;
+  const totalMinutes = hours.rows.reduce((n, r) => n + r.minutes, 0);
 
   return (
     <>
@@ -74,6 +80,11 @@ export default async function CertificatesPage() {
             value: noShows < 0 ? 0 : noShows,
             sub: `of ${active.length} active registrations`,
           },
+          {
+            label: 'With session hours',
+            value: hours.rows.length,
+            sub: `${hours.tracked} of ${hours.live} sessions counted`,
+          },
           { label: 'Certificates sent', value: 0, sub: 'no sender exists' },
         ]}
       />
@@ -81,13 +92,21 @@ export default async function CertificatesPage() {
       <Panel>
         <h2 className="section-header">What attendance means here</h2>
         <p className="body-2">
-          A check-in on the door list, and nothing finer. The scanner writes{' '}
-          <code>checkInLists/{'{listId}'}/checkIns/{'{registrationId}'}</code> for the event door;
-          it does not record which sessions somebody sat in, so this dashboard cannot substantiate
-          a claim of the form &ldquo;attended 6.5 hours of qualifying content&rdquo;. That
-          distinction is the whole of the difference between a certificate of attendance, which the
-          data below could support, and a CPE certificate, which it cannot.
+          Two different records, and the difference between them is the difference between a
+          certificate of attendance and a CPE certificate. A check-in on the door list says somebody
+          came to the conference. A check-in on a <em>session</em> door — the Session card on{' '}
+          <Link href={ROUTES.checkIn}>Check-in</Link> — says which room they were counted into, and
+          that is what an hours claim is built from.
         </p>
+        <Banner kind="warning">
+          <strong>These are scheduled hours, not hours sat through.</strong> A badge scanned at the
+          door of a 90-minute workshop credits 90 minutes whether the person stayed for all of it or
+          left after ten. Nothing in this system records a departure:{' '}
+          <code>checkIns/{'{registrationId}'}</code> makes a second scan an{' '}
+          <code>already-exists</code> by design, and Checkout is unbuilt. An accrediting body that
+          asks what the number measures has to be told &ldquo;presence at a door&rdquo;, and{' '}
+          {hours.tracked} of {hours.live} sessions had a door at all.
+        </Banner>
 
         <Table
           cols={[
@@ -111,6 +130,49 @@ export default async function CertificatesPage() {
         </p>
       </Panel>
 
+      <Panel>
+        <div style={{ alignItems: 'baseline', display: 'flex', gap: 12, justifyContent: 'space-between' }}>
+          <h2 className="section-header" style={{ marginBottom: 0 }}>
+            Hours by attendee ({hours.rows.length})
+          </h2>
+          {hours.rows.length > 0 ? (
+            <a href="/export/attendance-hours" className="whova-btn-main small" download>
+              Download CSV
+            </a>
+          ) : null}
+        </div>
+        <p className="body-2">
+          Everyone counted into at least one session, and the scheduled length of the sessions they
+          were counted into. This is the mail-merge input a certificate run would take —{' '}
+          {totalMinutes > 0 ? formatHours(totalMinutes) : 'no hours'} across {hours.rows.length}{' '}
+          {hours.rows.length === 1 ? 'attendee' : 'attendees'} so far.
+        </p>
+        <Table
+          cols={[
+            { key: 'n', label: 'Attendee', className: 'cell-md' },
+            { key: 't', label: 'Ticket', className: 'cell-sm' },
+            { key: 'c', label: 'Sessions', className: 'cell-xs' },
+            { key: 'h', label: 'Scheduled hours', className: 'cell-sm' },
+            { key: 's', label: 'Which', className: 'cell-fill' },
+          ]}
+          empty="Nobody has been counted into a session yet. Open a session door on Check-in first."
+          rows={hours.rows.map((r) => [
+            <span key="n">
+              <strong>{r.registration.name}</strong>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {r.registration.email}
+              </div>
+            </span>,
+            r.registration.ticketType ?? <span className="muted">—</span>,
+            r.sessions.length,
+            <strong key="h">{formatHours(r.minutes)}</strong>,
+            <span key="s" className="muted" style={{ fontSize: 12 }}>
+              {r.sessions.map((s) => s.title).join(' · ')}
+            </span>,
+          ])}
+        />
+      </Panel>
+
       <NotBuilt
         whova="Attendance certificates: 1/10/10 templates by package and 500/1000/3000 sends, often the CPE or CE requirement that makes an event billable in the first place."
         needs="A template store, a PDF renderer and a bulk sender. The sender is no longer the blocker it was — the ticket-receipt work put a real transactional path in @kgc/scripts/src/lib — but a per-attendee PDF generated on a laptop and posted to a thousand addresses is a job for a queue, and this dashboard has none."
@@ -122,10 +184,16 @@ export default async function CertificatesPage() {
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Session-level attendance.</strong> A certificate that names hours needs
-            per-session check-in. The engine would take it — a session scope is just another{' '}
-            <code>checkInLists</code> document — but nothing creates one per session today, so the
-            hours do not exist to print.
+            <strong>Time in the seat, as opposed to time at the door.</strong> Session hours are
+            built and shown above, but they are the session&apos;s <em>scheduled</em> length. A
+            departure is not recorded anywhere, so the number cannot be narrowed and should not be
+            described as anything but arrivals. Closing this needs Checkout — an append-only
+            movement log beside <code>checkIns</code> and a direction on the scanner.
+          </li>
+          <li>
+            <strong>Coverage.</strong> A session only has hours if somebody opened its door. Nothing
+            warns an organizer at 17:00 that four of the day&apos;s rooms were never scanned, which
+            is when it is still fixable.
           </li>
           <li>
             <strong>Templates and branding.</strong> <code>badgeTemplates</code> is the nearest

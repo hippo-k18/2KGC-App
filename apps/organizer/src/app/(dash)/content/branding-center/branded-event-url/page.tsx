@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { publicUrl } from '@/lib/webpages';
+import { SettingsReach } from '../../../settings-reach';
 import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
 import { BrandedUrlForm } from '../branding-forms';
 
@@ -24,8 +25,8 @@ export const dynamic = 'force-dynamic';
 export default async function BrandedEventUrlPage() {
   await requireOrganizer();
 
-  const s = await readSettings(SETTINGS_KEYS.branding, { brandedSlug: '' });
-  const slug = String(s.brandedSlug ?? '');
+  const s = await readSettings(SETTINGS_KEYS.branding);
+  const slug = s.brandedSlug;
 
   return (
     <>
@@ -63,6 +64,12 @@ export default async function BrandedEventUrlPage() {
         )}
       </Panel>
 
+      <SettingsReach
+        bag={SETTINGS_KEYS.branding}
+        fields={['brandedSlug']}
+        style={{ marginTop: 16 }}
+      />
+
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
@@ -70,7 +77,9 @@ export default async function BrandedEventUrlPage() {
             <strong>The route.</strong> <code>apps/web</code> has no{' '}
             <code>/[slug]</code> segment, so the reserved word 404s. Adding one is small — a page
             that reads this settings document and renders the event landing content — but it is a
-            change to the public site, not to this dashboard.
+            change to the public site, not to this dashboard. It is written up as{' '}
+            <strong>FU-11</strong> in <code>docs/audit-2026-08-30/FOLLOW-UPS.md</code>, naming the
+            file, the line and the function to call.
           </li>
           <li>
             <strong>A subdomain.</strong> <code>kgc2027.knowledgegraph.tech</code> needs a DNS

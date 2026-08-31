@@ -118,7 +118,7 @@ export async function markInvoicePaidOutOfBand(input: {
       // it reads as broken, so it shows the per-seat price.
       amountCents: Math.round(order.totalCents / payable.length),
       currency: order.currency,
-      orderUrl: `${origin}/order/${mintOrderToken({ rid: m.rid, demo: false })}`,
+      orderUrl: `${origin}/order/${mintOrderToken({ rid: m.rid })}`,
       claimCode: m.code,
       orderId: order.id,
       registrationId: m.rid,

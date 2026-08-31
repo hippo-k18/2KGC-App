@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
@@ -16,6 +17,8 @@ import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import {
+  ensureDayList,
+  ensureSessionList,
   listRegistrations,
   matchCode,
   touchStation,
@@ -282,6 +285,96 @@ export async function createListAction(
     recordError('checkinList.create', err);
     return { error: err instanceof Error ? err.message : 'Could not create the list.' };
   }
+}
+
+export interface ScopeState {
+  error?: string;
+}
+
+/**
+ * Start counting people into one day, or into one session.
+ *
+ * Whova's landing on this screen is three cards — Event / Day / Session — each
+ * with a Start button, and ours had two of them greyed out with
+ * `title="Not built — see below"`. The engine was never the missing part: a
+ * scope is another `checkInLists` document, and the scanner, the desk table and
+ * the export all take a `listId` and ask no questions about what it means. What
+ * was missing is this: something that decides the id, creates the document once
+ * and points the screen at it.
+ *
+ * Both actions redirect rather than returning a message, because pressing Start
+ * has one meaning — *scan into this now* — and leaving the operator on the door
+ * list with a green tick somewhere on the page is how a session's attendance
+ * ends up in the event's door count.
+ *
+ * `ensureSessionList` / `ensureDayList` are idempotent by construction (a
+ * derived id and a `create()` whose `already-exists` is success), so pressing
+ * Start on a session that is already running resumes it rather than starting a
+ * second, parallel count of the same room.
+ */
+export async function startSessionScopeAction(
+  _prev: ScopeState,
+  formData: FormData,
+): Promise<ScopeState> {
+  const actor = await requireOrganizer();
+  const sessionId = String(formData.get('sessionId') ?? '').trim();
+  if (!sessionId) return { error: 'Pick the session you are counting people into.' };
+
+  let listId: string;
+  try {
+    const list = await ensureSessionList(sessionId);
+    listId = list.id;
+    if (list.created) {
+      await appendAudit({
+        actor,
+        action: 'checkinList.create',
+        targetPath: `${COLLECTIONS.checkInLists}/${list.id}`,
+        targetId: list.id,
+        before: {},
+        after: { name: list.name, kind: 'session', sessionId },
+      });
+    }
+  } catch (err) {
+    recordError('checkinList.session', err);
+    return { error: err instanceof Error ? err.message : 'Could not open that session door.' };
+  }
+
+  revalidatePath(ROUTES.checkIn);
+  revalidatePath(ROUTES.analyticsExports);
+  // Outside the try: `redirect()` works by throwing, so catching around it
+  // would swallow the navigation and report it as a failure.
+  redirect(`${ROUTES.checkIn}?list=${listId}`);
+}
+
+export async function startDayScopeAction(
+  _prev: ScopeState,
+  formData: FormData,
+): Promise<ScopeState> {
+  const actor = await requireOrganizer();
+  const day = String(formData.get('day') ?? '').trim();
+  if (!day) return { error: 'Pick a day.' };
+
+  let listId: string;
+  try {
+    const list = await ensureDayList(day);
+    listId = list.id;
+    if (list.created) {
+      await appendAudit({
+        actor,
+        action: 'checkinList.create',
+        targetPath: `${COLLECTIONS.checkInLists}/${list.id}`,
+        targetId: list.id,
+        before: {},
+        after: { name: list.name, kind: 'event', day },
+      });
+    }
+  } catch (err) {
+    recordError('checkinList.day', err);
+    return { error: err instanceof Error ? err.message : 'Could not open that day.' };
+  }
+
+  revalidatePath(ROUTES.checkIn);
+  redirect(`${ROUTES.checkIn}?list=${listId}`);
 }
 
 export interface DeskState {
