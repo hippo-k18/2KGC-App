@@ -4,6 +4,8 @@ import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import { getFunctions } from 'firebase-admin/functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import { TRIGGER } from '../runtime-options.js';
+
 const DEBOUNCE_WINDOW_SECONDS = 5;
 
 /**
@@ -21,7 +23,7 @@ const DEBOUNCE_WINDOW_SECONDS = 5;
  * a lock document or a fixed id per session.
  */
 export const onQuestionWrite = onDocumentWritten(
-  `${COLLECTIONS.sessions}/{sessionId}/${SUBCOLLECTIONS.questions}/{questionId}`,
+  { document: `${COLLECTIONS.sessions}/{sessionId}/${SUBCOLLECTIONS.questions}/{questionId}`, ...TRIGGER },
   async (event) => {
     const before = event.data?.before;
     const after = event.data?.after;

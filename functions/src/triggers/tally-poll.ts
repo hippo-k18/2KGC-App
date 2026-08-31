@@ -2,6 +2,8 @@ import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
+import { TASK_QUEUE_RATE_LIMITS, TRIGGER } from '../runtime-options.js';
+
 interface TallyPollTask {
   sessionId: string;
   pollId: string;
@@ -24,7 +26,7 @@ interface TallyPollTask {
  * on the ballot UI can display any more.
  */
 export const tallyPoll = onTaskDispatched<TallyPollTask>(
-  { retryConfig: { maxAttempts: 3 } },
+  { retryConfig: { maxAttempts: 3 }, rateLimits: TASK_QUEUE_RATE_LIMITS, ...TRIGGER },
   async (req) => {
     const { sessionId, pollId } = req.data;
     const db = getFirestore();

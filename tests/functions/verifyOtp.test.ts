@@ -17,9 +17,10 @@ import { createHash } from 'node:crypto';
 
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import type { Auth } from 'firebase-admin/auth';
-import type { CollectionReference, Firestore } from 'firebase-admin/firestore';
+import { Timestamp, type CollectionReference, type Firestore } from 'firebase-admin/firestore';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { ipCounterId } from '../../functions/src/lib/rate-limit.js';
 import { callCallable, connectAuthEmulator, connectToEmulator } from './lib/emulator.js';
 
 const normaliseEmail = (email: string) => email.trim().toLowerCase();
@@ -37,6 +38,11 @@ const EMAIL_NO_CODE = 'verifyotp-no-code@example.test';
 const EMAIL_CANCELLED_WITH_ALT = 'verifyotp-cancelled-with-alt@example.test';
 const EMAIL_ALT_PRIMARY_2 = 'verifyotp-alt-primary-2@example.test';
 const EMAIL_HEAL = 'verifyotp-heal@example.test';
+const EMAIL_IP_BLOCKED = 'verifyotp-ip-blocked@example.test';
+
+/** RFC 5737 documentation range, so no real address is ever written. */
+const CALLER_IP = '198.51.100.23';
+const GFE_IP = '130.211.0.1';
 
 const ALL_EMAILS = [
   EMAIL_TICKETED,
@@ -49,6 +55,7 @@ const ALL_EMAILS = [
   EMAIL_CANCELLED_WITH_ALT,
   EMAIL_ALT_PRIMARY_2,
   EMAIL_HEAL,
+  EMAIL_IP_BLOCKED,
 ];
 
 let db: Firestore;
@@ -91,6 +98,7 @@ async function cleanupFixtures() {
     await registrationsRef.doc(registrationId(email)).delete();
     await deleteAuthUserIfExists(email);
   }
+  await db.collection(COLLECTIONS.rateLimits).doc(ipCounterId('verifyOtp', CALLER_IP)).delete();
 }
 
 beforeAll(async () => {
@@ -243,5 +251,38 @@ describe('verifyOtp', () => {
     const healed = await auth.getUserByEmail(EMAIL_HEAL);
     expect(healed.uid).toBe(created.uid);
     expect(healed.customClaims).toEqual({ registered: true, roles: ['attendee'], eventId: EVENT_ID });
+  }, 20_000);
+
+  /**
+   * The `attempts` cap above is per *code*, so it is per email: five wrong
+   * guesses cost an attacker one `requestOtp` call and nothing else. Spraying
+   * guesses across many addresses is the shape only a caller-keyed limit sees.
+   */
+  it('refuses a caller whose IP is already at its cap, before touching the code', async () => {
+    const ref = db.collection(COLLECTIONS.rateLimits).doc(ipCounterId('verifyOtp', CALLER_IP));
+    await ref.set({
+      kind: 'verifyOtp-ip',
+      count: 120,
+      windowStart: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 15 * 60_000),
+    });
+
+    expect((await callCallable('requestOtp', { email: EMAIL_IP_BLOCKED })).status).toBe(200);
+    const code = await codeFor(EMAIL_IP_BLOCKED);
+
+    const res = await callCallable(
+      'verifyOtp',
+      { email: EMAIL_IP_BLOCKED, code },
+      { 'x-forwarded-for': `${CALLER_IP}, ${GFE_IP}` },
+    );
+
+    expect(res.status).toBe(429);
+    expect(res.error?.status).toBe('RESOURCE_EXHAUSTED');
+    // Rejected before the transaction, so a correct code survives the refusal
+    // rather than being spent by it.
+    const otp = await otpCodesRef.doc(otpDocId(EMAIL_IP_BLOCKED)).get();
+    expect(otp.exists).toBe(true);
+    expect(otp.data()?.attempts).toBe(0);
   }, 20_000);
 });

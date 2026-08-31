@@ -28,8 +28,27 @@ export const COLLECTIONS = {
   emailLog: "emailLog",
   /** Organizer-authored preference bags, one document per feature area. */
   settings: "settings",
+  /**
+   * Editable copy for the public website's prose pages, one document per page.
+   *
+   * Server-only, and it must stay that way: the website renders it with the
+   * Admin SDK and no client anywhere reads it, so it has no `firestore.rules`
+   * match block. See `page-content.ts` for which fields of which pages are
+   * editable and — more usefully — which are deliberately not.
+   */
+  pageContent: "pageContent",
+  /**
+   * Server-only. Carries the booking contact, the staff-pass allocation and
+   * whether the space is confirmed or merely provisional — none of which an
+   * attendee may see. The app reads `exhibitorListings` instead.
+   */
   exhibitors: "exhibitors",
-  /** The exhibition floor plan, one document per sellable space. */
+  /**
+   * The slim, attendee-readable projection of `exhibitors/{id}` — the same
+   * relationship `directory` has to `users`. See `ExhibitorListingDoc`.
+   */
+  exhibitorListings: "exhibitorListings",
+  /** The exhibition floor plan, one document per sellable space. Server-only. */
   booths: "booths",
   /** Round tables and bookable meeting slots — an organizer's plan, not an app feature. */
   gatherings: "gatherings",
@@ -73,6 +92,13 @@ export const SUBCOLLECTIONS = {
   leads: "leads",
   checkIns: "checkIns",
   responses: "responses",
+  /**
+   * `users/{uid}/gatherings/{gatheringId}` — the attendee's own seat, as a
+   * projection of the organizer's plan. Deliberately NOT the top-level
+   * `gatherings` collection, which carries every other name at the table and
+   * the organizer's notes; see `GatheringPlacementDoc`.
+   */
+  gatherings: "gatherings",
 } as const;
 
 /** The single document inside `sessions/{id}/qaBoard`. */
@@ -96,14 +122,69 @@ export const QA_BOARD_DOC = "current";
 export const DOOR_CHECK_IN_LIST_ID = "event-door";
 
 /**
- * A pair of uids always maps to the same thread id.
+ * A pair of uids always maps to the same thread id, so a pair maps to one
+ * conversation. That is the whole of what this function guarantees.
  *
- * This is also what lets the `messages` security rules prove membership from
- * the path instead of reading the parent thread document. Firebase uids are
- * alphanumeric, so `_` is an unambiguous separator.
+ * ⚠️ **Membership is NOT derivable from this id, and nothing may try.** The
+ * `messages` rules prove membership by reading `participantIds` on the thread
+ * document — one of only three `get()`s in `firestore.rules`, and deliberate.
+ *
+ * This docblock previously claimed the opposite: that the rules prove
+ * membership from the path, because "Firebase uids are alphanumeric, so `_` is
+ * an unambiguous separator". Both halves are false. Uids are not alphanumeric —
+ * the demo accounts are `demo_000` and `demo_001`, so `demo_000_demo_001`
+ * splits into four pieces containing neither participant, and **every message
+ * read and send was denied**. It is the worst bug this repo has had, and the
+ * comment justifying it read as entirely reasonable.
+ *
+ * `AGENTS.md` records that the same mistake was made independently in the
+ * thread-title code and says a third instance is a bug. This comment was the
+ * third instance, found 2026-08-31. If you find a fourth, the fix is not to
+ * correct the comment.
  */
 export function threadIdFor(uidA: string, uidB: string) {
   return [uidA, uidB].sort().join("_");
+}
+
+/**
+ * Whether a uid is in a thread — the sanctioned answer, deliberately sitting
+ * one line below the tempting one.
+ *
+ * ⚠️ These two helpers exist because correcting the comment stopped working.
+ * The "membership is provable from the thread id" claim has now been written
+ * four separate times in this repo: in the rules, in the thread-title code, in
+ * `threadIdFor`'s own docblock, and in `ThreadDoc`'s. Each was corrected; each
+ * time it came back, because `threadIdFor` *looks* like it encodes membership
+ * and the next author reaches for the obvious thing.
+ *
+ * So the fix is no longer a comment. It is having the right function in the
+ * same file as the misleading one, so "how do I tell if this person is in this
+ * thread" has an answer that is easier to find than `id.split('_')`.
+ *
+ * Takes the array rather than the document, so this file keeps its promise of
+ * importing nothing.
+ */
+export function isThreadParticipant(
+  participantIds: readonly string[] | undefined,
+  uid: string,
+): boolean {
+  return participantIds?.includes(uid) ?? false;
+}
+
+/**
+ * The other person in a two-party thread, or `undefined` if `uid` is not in it.
+ *
+ * Returns `undefined` rather than falling back to `uid` on a non-member: a
+ * caller that renders the fallback shows somebody their own name where a
+ * correspondent should be, which reads as a display bug rather than as the
+ * access error it is.
+ */
+export function correspondentIn(
+  participantIds: readonly string[] | undefined,
+  uid: string,
+): string | undefined {
+  if (!isThreadParticipant(participantIds, uid)) return undefined;
+  return participantIds!.find((p) => p !== uid);
 }
 
 /**

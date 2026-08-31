@@ -1,8 +1,9 @@
 import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import type { AnnouncementDoc, UserDoc } from '@kgc/shared';
 import { FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+
+import { TRIGGER } from '../runtime-options.js';
 
 /** Firestore batched writes cap at 500 ops; FCM multicast caps at 500 tokens. */
 const BATCH_LIMIT = 500;
@@ -27,14 +28,42 @@ function chunk<T>(items: T[], size: number): T[][] {
  * The notification id is the announcement's own id, not a generated one:
  * a retried dispatch (Cloud Functions retries on a thrown error) `set()`s
  * the same document again rather than duplicating it in 1,000 inboxes.
+ *
+ * ⚠️ THIS TRIGGER DOES NOT SEND PUSH, AND MUST NOT. The dashboard owns the
+ * announcement push: `announcementPush()` in `apps/organizer/src/lib/push.ts`
+ * publishes one FCM message to the event topic, and the per-user
+ * `notificationPrefs.announcements` switch is honoured at *subscribe* time, so
+ * one call reaches every opted-in device. The version that used to live here
+ * gathered every recipient's `fcmTokens` subcollection — a read per attendee,
+ * ~1,000 of them — and then sent N multicasts to deliver the same message.
+ * Running both, which is what deploying this function next to the dashboard
+ * would have done, delivered two notifications to every phone.
+ *
+ * So the split is: this trigger owns the in-app notification documents (a
+ * client write is the only thing that can produce them, and the dashboard
+ * cannot see one), the dashboard owns the push. The known cost of that choice
+ * is that an announcement created outside the dashboard — a script, the
+ * console — writes inboxes but sends no push. That is the correct trade: the
+ * dashboard is the only thing that creates announcements today, and a missing
+ * push is recoverable in a way that a duplicate push to a thousand phones
+ * during a keynote is not. `announcement.push` is now read by the dashboard
+ * alone. The reverse decision was made for `onSessionAgendaChange`, which owns
+ * its push outright — see that file.
  */
 export const onAnnouncementCreate = onDocumentCreated(
-  `${COLLECTIONS.announcements}/{announcementId}`,
+  { document: `${COLLECTIONS.announcements}/{announcementId}`, ...TRIGGER },
   async (event) => {
     const snap = event.data as QueryDocumentSnapshot | undefined;
     if (!snap) return;
 
-    const announcement = snap.data() as AnnouncementDoc;
+    // `snap.data()` can be undefined even on a create: the emulator, and a
+    // retried delivery in production, materialise the payload by reading the
+    // document, and by then it may have been deleted. Without this guard the
+    // next line throws `Cannot read properties of undefined`, which the
+    // emulator logs as an unhandled crash on every test run — noise that costs
+    // nothing here and counts against Cloud Logging ingest once deployed.
+    const announcement = snap.data() as AnnouncementDoc | undefined;
+    if (!announcement) return;
     const { announcementId } = event.params;
     const db = getFirestore();
 
@@ -59,22 +88,6 @@ export const onAnnouncementCreate = onDocumentCreated(
         });
       }
       await batch.commit();
-    }
-
-    if (!announcement.push) return;
-
-    const tokenSnaps = await Promise.all(
-      recipients.map((u) => u.ref.collection(SUBCOLLECTIONS.fcmTokens).get()),
-    );
-    const tokens = tokenSnaps
-      .flatMap((s) => s.docs.map((d) => d.data().token as string | undefined))
-      .filter((t): t is string => Boolean(t));
-
-    for (const page of chunk(tokens, BATCH_LIMIT)) {
-      await getMessaging().sendEachForMulticast({
-        tokens: page,
-        notification: { title: announcement.title, body: announcement.body },
-      });
     }
   },
 );

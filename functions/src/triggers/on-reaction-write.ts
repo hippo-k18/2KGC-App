@@ -2,6 +2,8 @@ import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import { TRIGGER } from '../runtime-options.js';
+
 /**
  * `communityPosts/{postId}/reactions/{uid}` — see functions/SPEC.md #2.
  *
@@ -11,7 +13,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
  * `allow create, update`), and that must not move the count at all.
  */
 export const onReactionWrite = onDocumentWritten(
-  `${COLLECTIONS.communityPosts}/{postId}/${SUBCOLLECTIONS.reactions}/{uid}`,
+  { document: `${COLLECTIONS.communityPosts}/{postId}/${SUBCOLLECTIONS.reactions}/{uid}`, ...TRIGGER },
   async (event) => {
     const existedBefore = event.data?.before.exists ?? false;
     const existedAfter = event.data?.after.exists ?? false;

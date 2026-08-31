@@ -4,6 +4,8 @@ import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import { getFunctions } from 'firebase-admin/functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import { TRIGGER } from '../runtime-options.js';
+
 const DEBOUNCE_WINDOW_SECONDS = 5;
 
 /**
@@ -27,7 +29,10 @@ const DEBOUNCE_WINDOW_SECONDS = 5;
  * poll would have caused for a poll open across many such windows.
  */
 export const onPollVoteWrite = onDocumentWritten(
-  `${COLLECTIONS.sessions}/{sessionId}/${SUBCOLLECTIONS.polls}/{pollId}/${SUBCOLLECTIONS.votes}/{uid}`,
+  {
+    document: `${COLLECTIONS.sessions}/{sessionId}/${SUBCOLLECTIONS.polls}/{pollId}/${SUBCOLLECTIONS.votes}/{uid}`,
+    ...TRIGGER,
+  },
   async (event) => {
     const { sessionId, pollId } = event.params;
     const bucket = Math.floor(Date.now() / (DEBOUNCE_WINDOW_SECONDS * 1000));

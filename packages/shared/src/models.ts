@@ -1,3 +1,5 @@
+import type { SettingsKey, SettingsValues } from "./settings.js";
+
 /**
  * A structural stand-in for `firebase/firestore`'s `Timestamp` (and the
  * Admin SDK's `firebase-admin/firestore` `Timestamp`, which has the same
@@ -433,9 +435,16 @@ export interface SavedContactDoc {
 
 /**
  * `threads/{threadId}` — 1:1 conversation. `threadId` is the two uids sorted
- * and joined with `_`, so a pair maps to exactly one thread. That also makes
- * membership provable from the path alone, which is what lets the `messages`
- * rules avoid a `get()` on this document on every read.
+ * and joined with `_`, so a pair maps to exactly one thread.
+ *
+ * ⚠️ **That is all the id guarantees. Membership is NOT derivable from it and
+ * nothing may parse one.** `participantIds` below is the only answer to "who is
+ * in this conversation", and the `messages` rules read it through a `get()` on
+ * this document — one of only three `get()`s in `firestore.rules`, and
+ * deliberate. This docblock previously claimed the opposite, that membership was
+ * provable from the path and that the rules therefore avoided that `get()`;
+ * both halves were false. `threadIdFor()` in `collections.ts` carries the full
+ * history and the reason it is the worst bug this repo has had.
  */
 export interface ThreadDoc {
   eventId: string;
@@ -806,8 +815,26 @@ export interface TicketTypeDoc extends BaseDoc {
    */
   quantitySold: number;
 
+  /**
+   * The sales window, as instants. These are what the website evaluates.
+   *
+   * ⚠️ Derived, exactly as `SessionDoc.startsAt` is. The authoring truth is
+   * `salesOpenAtLocal` / `salesCloseAtLocal` below, and the derivation happens
+   * server-side in `salesTimeZone`. An early-bird deadline typed as 23:59 and
+   * parsed with a bare `new Date()` closes at 19:59 Eastern on a UTC host —
+   * four hours of sales gone, with nothing on any screen saying so.
+   */
   salesOpenAt?: Timestamp;
   salesCloseAt?: Timestamp;
+  /** `YYYY-MM-DDTHH:mm` wall clock in `salesTimeZone`. What was typed. */
+  salesOpenAtLocal?: string;
+  salesCloseAtLocal?: string;
+  /**
+   * Absent on tiers written before the window carried a zone. Read it as
+   * `TIME_ZONE` — that is what the machine that wrote them was set to, and it
+   * is the only zone this event has ever sold in.
+   */
+  salesTimeZone?: string;
 
   /**
    * Stripe's tax code. `txcd_20030000` ("General – Services") is what Stripe's
@@ -935,6 +962,19 @@ export interface EmailLogDoc {
     | "invoice-raised"
     | "refund-confirmation"
     /**
+     * The six-digit sign-in code from `requestOtp`. The only row in this log
+     * that records the delivery of a **credential**, which is why nothing about
+     * it — not the subject, not `reason`, not `error` — may ever carry the code
+     * itself: `emailLog` is readable by anyone who can read the collection, and
+     * a sign-in code sitting in a diagnostic record is the same hole as one
+     * sitting in a console log.
+     *
+     * It is also the only row whose *absence* breaks a user-facing flow rather
+     * than a courtesy. A skipped receipt is an annoyance; a skipped sign-in
+     * code is an attendee who cannot get in.
+     */
+    | "sign-in-code"
+    /**
      * One recipient of an organizer's bulk message. Written once **per person**,
      * not once per campaign — "did Ada get it?" is the question this log exists
      * to answer, and a single row saying "sent to 45 speakers" cannot.
@@ -1001,6 +1041,15 @@ export interface RateLimitDoc {
   count: number;
   windowStart: Timestamp;
   updatedAt: Timestamp;
+  /**
+   * When a TTL policy may reap this document.
+   *
+   * Not decoration: without it the collection grows by one document per distinct
+   * email address, forever, and the address space is the attacker's to choose.
+   * The IP-keyed counters carry the same field under their own type in
+   * `functions/src/lib/rate-limit.ts`.
+   */
+  expiresAt: Timestamp;
 }
 
 // ---------------------------------------------------------------------------
@@ -1016,23 +1065,38 @@ export interface RateLimitDoc {
  *
  * ── Why one collection and not a field on each feature ──────────────────────
  *
- * A third of Whova's remaining screens are settings forms: branding, the event
- * website, registration rules, post-event access, code access. Each holds a
- * handful of values that only an organizer writes and only one screen reads.
- * Modelling each as its own collection would be a dozen collections with one
- * document in them; modelling them as fields on `EVENT` would make every read
- * of the event fetch all of it.
+ * A third of Whova's remaining screens are settings forms: branding, post-event
+ * access, code access, the emergency card. Each holds a handful of values that
+ * only an organizer writes. Modelling each as its own collection would be a
+ * dozen collections with one document in them; modelling them as fields on
+ * `EVENT` would make every read of the event fetch all of it.
  *
- * So: one collection, keyed by a stable string (`branding`, `registration`,
- * `access`), each holding a flat `values` map. The screen owns the shape and
- * validates it; this type deliberately does not try to describe every key,
- * because a union of twelve settings shapes is a union that is edited on every
- * screen and therefore always slightly wrong.
+ * So: one collection, keyed by a stable string, each holding a flat `values`
+ * map.
+ *
+ * ── What changed, and why the shape is now typed ────────────────────────────
+ *
+ * This type used to say `values: Record<string, string | number | boolean |
+ * null>` and argue that describing every key would produce a union edited on
+ * every screen and therefore always slightly wrong. That was right while the
+ * authoring screen was also the only reader. It stopped being right when the
+ * website and the app were declared readers: a bag whose keys are known only to
+ * the screen that wrote them is a bag no other install can read without
+ * guessing, and guessing is what "the Branding Center saves and nothing
+ * changes" actually was.
+ *
+ * The keys, shapes, defaults and — importantly — the register of which install
+ * reads which field now live in `settings.ts` in this package, next to
+ * `COLLECTIONS` and `EVENT_ID` and for the same reason.
+ *
+ * ⚠️ `values` is `Partial` because a cleared field is **deleted**, not stored as
+ * `null`. Readers must apply `SETTINGS_DEFAULTS`, which is what
+ * `readSettings()` does for them.
  */
-export interface SettingsDoc extends BaseDoc {
+export interface SettingsDoc<K extends SettingsKey = SettingsKey> extends BaseDoc {
   /** Matches the document id. Duplicated so a query result is self-describing. */
-  key: string;
-  values: Record<string, string | number | boolean | null>;
+  key: K;
+  values: Partial<SettingsValues[K]>;
   /** Who last changed it, for the same reason the audit log exists. */
   updatedBy?: string;
 }
@@ -1058,6 +1122,55 @@ export interface ExhibitorDoc extends BaseDoc {
   passesAllocated?: number;
   passesUsed?: number;
   status: "confirmed" | "provisional" | "cancelled";
+}
+
+/**
+ * `exhibitorListings/{exhibitorId}` — the exhibitor hall as an attendee sees it.
+ *
+ * ── Why this is a projection and not a filtered read of `exhibitors/{id}` ────
+ *
+ * Firestore rules decide whether a whole document may be read; they cannot
+ * withhold a field. `ExhibitorDoc` above carries four things that must not
+ * reach a thousand phones:
+ *
+ *   · `contactName` / `contactEmail` — the named individual who booked the
+ *     booth. A readable exhibitor list is then a harvestable address list, which
+ *     is the same threat `badge.ts` refuses to put in a QR code.
+ *   · `passesAllocated` / `passesUsed` — the size of the package each exhibitor
+ *     bought, and how much of it they have burned. Commercial terms.
+ *   · `status` — `provisional` is a space promised in a sales conversation that
+ *     nobody has paid for. Publishing the pipeline is not the app's business.
+ *
+ * So the app reads this instead, exactly as it reads `directory/{uid}` rather
+ * than `users/{uid}`. The document id is the exhibitor id, so a listing and its
+ * source cannot drift apart.
+ *
+ * ── Absent rather than filtered ─────────────────────────────────────────────
+ *
+ * A cancelled or provisional exhibitor has **no listing document at all**,
+ * mirroring what opting out of the directory does. Nothing about them leaves
+ * the server, which is a stronger guarantee than any client-side filter — and
+ * it is why this type carries no `status` field to filter on.
+ *
+ * ⚠️ Nothing in this repo writes these documents on the live project yet except
+ * `seed-demo.ts`. The production writer is a trigger on `exhibitors/{id}`,
+ * shaped like `mirrorDirectory`; until it exists the hall is as fresh as the
+ * last seed. The app renders what is here and claims nothing more.
+ */
+export interface ExhibitorListingDoc extends BaseDoc {
+  /** Matches the document id and the `exhibitors/{id}` this was projected from. */
+  exhibitorId: string;
+  name: string;
+  /**
+   * Denormalised from the exhibitor record, which denormalises it from
+   * `booths`. The number is all the app needs; the floor plan itself stays
+   * server-only, because a booth document carries an order id, a ticket type
+   * and a `held`-but-unpaid state.
+   */
+  boothNumber?: string;
+  logoURL?: string;
+  description?: string;
+  website?: string;
 }
 
 /**
@@ -1109,6 +1222,67 @@ export interface GatheringDoc extends BaseDoc {
   attendees: string[];
   notes?: string;
   status: "planned" | "confirmed" | "cancelled";
+}
+
+/**
+ * `users/{uid}/gatherings/{gatheringId}` — one attendee's own seat.
+ *
+ * ── Why a projection rather than letting a phone read `gatherings` ──────────
+ *
+ * The paragraph above says nothing in the app reads `gatherings`, and the
+ * reason is not that nobody wanted it: an attendee genuinely needs to know
+ * which table they were placed at. It is that the plan document cannot be
+ * handed over. It carries `attendees` — every other name at that table, half of
+ * them people with no ticket and no account — and `notes`, which is where the
+ * reason somebody was seated away from somebody else gets written, and
+ * `status: 'planned'`, a table that has been sketched and not agreed. Rules
+ * filter documents and not fields, so there is no version of "read your own
+ * seat" that does not also read the eleven names beside it. This is the same
+ * answer `directory` gives for `users` and `exhibitorListings` gives for
+ * `exhibitors`.
+ *
+ * ── ⚠️ Nothing writes this, and the reason is a real modelling gap ─────────
+ *
+ * `GatheringDoc.attendees` is a list of **names typed by an organizer**, not
+ * uids — deliberately, because half the people at a sponsor meeting are not
+ * attendees. That leaves a mirror with no join key. Matching a typed name
+ * against `UserDoc.name` would seat the wrong Chen at the wrong table, and a
+ * confidently wrong seat is worse than no seat: somebody walks to a room where
+ * they are not expected while the person who was placed there is told nothing.
+ *
+ * So the writer is a follow-up and it needs the plan to carry a uid first —
+ * an organizer picking an attendee from the directory rather than typing a
+ * name, with free text kept for the guests who have no account. Until then the
+ * app's reader returns nothing and the screen renders nothing, which is absence
+ * rather than a claim.
+ *
+ * Written server-side when it exists, like every other projection here.
+ */
+export interface GatheringPlacementDoc {
+  eventId: string;
+  /** `gatherings/{id}` this came from, so the plan and the seat stay joinable. */
+  gatheringId: string;
+  kind: GatheringDoc["kind"];
+  title: string;
+  host?: string;
+  roomName?: string;
+  day?: string;
+  startsAtLocal?: string;
+  endsAtLocal?: string;
+  /**
+   * The name the organizer actually typed into the plan. Carried so the
+   * attendee can tell "that is me, spelled the way the table card spells it"
+   * from "somebody with my name" — the placement is a mirror of a hand-typed
+   * list, and printing the source string is what makes a mismatch visible
+   * rather than mysterious.
+   */
+  seatName?: string;
+  /**
+   * Mirrored rather than filtered on the way out. A cancelled table is the one
+   * status an attendee most needs, and dropping the document would tell them
+   * only that their seat had stopped existing.
+   */
+  status: GatheringDoc["status"];
 }
 
 /**

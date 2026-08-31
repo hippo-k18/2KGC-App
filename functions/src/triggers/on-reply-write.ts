@@ -2,6 +2,8 @@ import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import { TRIGGER } from '../runtime-options.js';
+
 /**
  * `communityPosts/{postId}/replies/{replyId}` — see functions/SPEC.md #1.
  *
@@ -13,7 +15,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
  * `firestore.rules`; a reply, unlike a post, is never soft-deleted only).
  */
 export const onReplyWrite = onDocumentWritten(
-  `${COLLECTIONS.communityPosts}/{postId}/${SUBCOLLECTIONS.replies}/{replyId}`,
+  { document: `${COLLECTIONS.communityPosts}/{postId}/${SUBCOLLECTIONS.replies}/{replyId}`, ...TRIGGER },
   async (event) => {
     const existedBefore = event.data?.before.exists ?? false;
     const existedAfter = event.data?.after.exists ?? false;

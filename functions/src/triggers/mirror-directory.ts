@@ -3,39 +3,13 @@ import type { UserDoc } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import { isFirebaseStorageUrl } from '../lib/storage-url.js';
+import { TRIGGER } from '../runtime-options.js';
+
 const NAME_MAX = 120;
 const TITLE_MAX = 120;
 const COMPANY_MAX = 120;
 const INTERESTS_MAX = 20;
-
-/**
- * Only a URL Storage actually issued for an upload — never an attendee's own
- * typed string. `firestore.rules` has enforced this identical hostname
- * constraint directly on `users/{uid}.photoURL` itself since the
- * `fix-photourl-validation` PR, so the only current writer of that field is
- * already gated before this trigger ever runs — but this check stays rather
- * than being trusted away: it is defense in depth against any future writer
- * that reaches `users/{uid}` through the Admin SDK and bypasses rules
- * entirely (a seed script, an import, a console tool), and a URL is the one
- * field this function mirrors whose value gets *fetched* rather than just
- * displayed as text.
- *
- * `.protocol` is checked explicitly, unlike the rules-side regex which bakes
- * `https://` into the match itself — kept in sync by hand, not by a shared
- * implementation: `@kgc/shared` is bundled into the Expo app, which cannot
- * carry a Node-only `URL`-based check, and the rules language cannot run
- * this file's code. If this constraint ever changes, change it in both
- * places.
- */
-function isFirebaseStorageUrl(url: unknown): url is string {
-  if (typeof url !== 'string') return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.hostname === 'firebasestorage.googleapis.com';
-  } catch {
-    return false;
-  }
-}
 
 /**
  * `users/{uid}` — see functions/SPEC.md #6.
@@ -50,6 +24,18 @@ function isFirebaseStorageUrl(url: unknown): url is string {
  * that path yet, it runs alongside it; closing it is a rules change for
  * later, not something to fold in here.
  *
+ * ⚠️ NEVER ADD A TRIGGER ON `directory/{uid}` THAT WRITES BACK TO
+ * `users/{uid}`. This function writes `directory/{uid}` on every write to
+ * `users/{uid}`; a trigger going the other way closes the circuit, and the
+ * result is an unbounded loop between two documents, running at whatever rate
+ * Eventarc will deliver, billing every hop, with no natural stopping point.
+ * Nothing guards against it — Firestore v2 triggers match an exact path, which
+ * is the only reason none of the ten existing functions can loop, and that
+ * property protects you only until somebody registers the second half. If a
+ * `directory` → `users` sync is ever genuinely needed, it must compare the
+ * incoming value against what is already stored and return without writing
+ * when they match; a bare mirror in both directions is the loop.
+ *
  * Bounds `name`/`title`/`company`/`interests` to the same limits
  * `validDirectoryEntry()` enforces on the client path, even though nothing
  * enforces them on `users/{uid}` itself — the directory is ~1,000 documents
@@ -57,7 +43,7 @@ function isFirebaseStorageUrl(url: unknown): url is string {
  * that budget for everyone just because this path bypasses rules.
  */
 export const mirrorDirectory = onDocumentWritten(
-  `${COLLECTIONS.users}/{uid}`,
+  { document: `${COLLECTIONS.users}/{uid}`, ...TRIGGER },
   async (event) => {
     const { uid } = event.params;
     const directoryRef = getFirestore().collection(COLLECTIONS.directory).doc(uid);

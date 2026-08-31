@@ -3,6 +3,8 @@ import type { SessionQuestionDoc } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
+import { TASK_QUEUE_RATE_LIMITS, TRIGGER } from '../runtime-options.js';
+
 interface RebuildQaBoardTask {
   sessionId: string;
 }
@@ -25,7 +27,7 @@ const MAX_BOARD_QUESTIONS = 50;
  * or `hidden` question must never reach it, not even for one write.
  */
 export const rebuildQaBoard = onTaskDispatched<RebuildQaBoardTask>(
-  { retryConfig: { maxAttempts: 3 } },
+  { retryConfig: { maxAttempts: 3 }, rateLimits: TASK_QUEUE_RATE_LIMITS, ...TRIGGER },
   async (req) => {
     const { sessionId } = req.data;
     const db = getFirestore();

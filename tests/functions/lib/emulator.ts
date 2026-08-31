@@ -30,14 +30,20 @@ export function connectAuthEmulator(): Auth {
  * client SDK in this repo's dependencies (only `@firebase/rules-unit-testing`,
  * for the rules suite), and pulling one in for a single callable would be a
  * new dependency to save one fetch call.
+ *
+ * `headers` exists for the per-IP rate limits on both OTP callables. Those
+ * derive the caller from `X-Forwarded-For`, so a test that cannot set that
+ * header can only exercise them from one address — the single case that proves
+ * nothing. A callable client SDK could not set it either.
  */
 export async function callCallable<T = unknown>(
   name: string,
   data: unknown,
+  headers: Record<string, string> = {},
 ): Promise<{ status: number; result?: T; error?: { status: string; message: string } }> {
   const res = await fetch(`http://127.0.0.1:5001/${PROJECT_ID}/${FUNCTIONS_REGION}/${name}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ data }),
   });
   const body = (await res.json()) as { result?: T; error?: { status: string; message: string } };

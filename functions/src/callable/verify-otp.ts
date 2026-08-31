@@ -7,10 +7,25 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { normaliseEmail, otpDocId } from '../lib/otp.js';
+import { callerIp, ipCounterId, tickWindow, type WindowCounterDoc } from '../lib/rate-limit.js';
+import { PUBLIC_CALLABLE } from '../runtime-options.js';
 
 const MAX_ATTEMPTS = 5;
 const CODE_SHAPE = /^\d{6}$/;
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Matches `requestOtp`'s per-IP limit, for the same reason and with the same
+ * NAT arithmetic — see the constants in that file.
+ *
+ * The per-code brute-force cap below is per *code*, which means it is per
+ * email: five wrong guesses kill one code and cost the guesser nothing but a
+ * new `requestOtp` call. Guessing a six-digit code takes 10^6/2 attempts on
+ * average, so an attacker never wants one email — they want to spray many, and
+ * the only thing that sees that shape is a limit keyed on the caller.
+ */
+const IP_RATE_LIMIT_WINDOW_MINUTES = 15;
+const IP_RATE_LIMIT_MAX_REQUESTS = 120;
 
 /**
  * MUST match `registrationId()` in `scripts/src/lib/ids.ts` exactly — that is
@@ -69,7 +84,39 @@ async function findActiveRegistration(db: Firestore, email: string): Promise<Reg
 type VerifyOutcome = 'ok' | 'no-code' | 'expired' | 'exhausted' | 'wrong-code';
 
 /**
+ * One fixed-window counter keyed on the caller's IP, consumed before anything
+ * else this function does.
+ *
+ * Its own transaction rather than a share of the OTP one below, because the
+ * two must not be atomic with each other: a wrong guess has to increment the
+ * IP counter *and* increment `attempts` on the code, and folding them into one
+ * transaction would mean a rejected guess discards its own IP tick. Free
+ * guesses is exactly what this limit exists to prevent.
+ */
+async function ipLimitExceeded(db: Firestore, ip: string): Promise<boolean> {
+  const ref = db.collection(COLLECTIONS.rateLimits).doc(ipCounterId('verifyOtp', ip));
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const next = tickWindow(
+      snap.data() as WindowCounterDoc | undefined,
+      'verifyOtp-ip',
+      Timestamp.now(),
+      IP_RATE_LIMIT_WINDOW_MINUTES * 60_000,
+      IP_RATE_LIMIT_MAX_REQUESTS,
+    );
+    if (!next) return true;
+    tx.set(ref, next);
+    return false;
+  });
+}
+
+/**
  * HTTPS callable, no Firestore trigger — see functions/SPEC.md #10.
+ *
+ * ⚠️ PUBLIC AND UNAUTHENTICATED, like `requestOtp` — see that file's docblock
+ * for why App Check is registered but not enforced, and for the shape of the
+ * per-IP limit both callables share. This one is the more attractive target of
+ * the two: a successful call mints an Auth account and returns a custom token.
  *
  * BRUTE-FORCE PROTECTION: up to `MAX_ATTEMPTS` (5) wrong guesses are
  * tolerated — `otpCodes/{id}.attempts` increments on each one — and the
@@ -109,7 +156,7 @@ type VerifyOutcome = 'ok' | 'no-code' | 'expired' | 'exhausted' | 'wrong-code';
  * anywhere in this file — a higher role is never guessed, only ever
  * assigned manually.
  */
-export const verifyOtp = onCall<{ email?: unknown; code?: unknown }>(async (request) => {
+export const verifyOtp = onCall<{ email?: unknown; code?: unknown }>(PUBLIC_CALLABLE, async (request) => {
   const email = normaliseEmail(String(request.data?.email ?? ''));
   const code = String(request.data?.code ?? '');
   if (!EMAIL_SHAPE.test(email) || !CODE_SHAPE.test(code)) {
@@ -117,6 +164,12 @@ export const verifyOtp = onCall<{ email?: unknown; code?: unknown }>(async (requ
   }
 
   const db = getFirestore();
+
+  const ip = callerIp(request.rawRequest);
+  if (ip && (await ipLimitExceeded(db, ip))) {
+    throw new HttpsError('resource-exhausted', 'Too many attempts. Try again later.');
+  }
+
   const otpRef = db.collection(COLLECTIONS.otpCodes).doc(otpDocId(email));
 
   const outcome = await db.runTransaction<VerifyOutcome>(async (tx) => {

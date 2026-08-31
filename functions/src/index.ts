@@ -21,8 +21,29 @@ initializeApp(
     : undefined,
 );
 
+/**
+ * ★ DO NOT ADD `setGlobalOptions(...)` BELOW THIS LINE — OR ANYWHERE IN THIS
+ * FILE'S BODY.
+ *
+ * Everything after this comment is a re-export. In ESM, an imported module is
+ * fully evaluated before the importing module's body runs, so all fourteen
+ * functions are defined — and their endpoint metadata already computed — by the
+ * time any statement here executes. A `setGlobalOptions` call placed here
+ * compiles, deploys, and caps nothing. You would ship believing instances were
+ * bounded when they were not, and find out on the bill.
+ *
+ * Runtime options are therefore set per function, from
+ * `./runtime-options.js`, as an argument to the call that defines each
+ * endpoint. That is not verbosity to be tidied away later; it is the version
+ * that cannot be evaluated too late. If a global module is ever genuinely
+ * wanted, `import './runtime-options.js';` for side effects must be the FIRST
+ * line of this file, above every export below — and the result verified in the
+ * Cloud Run console, never by reading the source.
+ */
 export { mirrorDirectory } from './triggers/mirror-directory.js';
+export { mirrorExhibitorListing } from './triggers/mirror-exhibitor-listing.js';
 export { onAnnouncementCreate } from './triggers/on-announcement-create.js';
+export { onBoothAssignmentWrite } from './triggers/on-booth-assignment-write.js';
 export { onPollVoteWrite } from './triggers/on-poll-vote-write.js';
 export { onQuestionUpvoteWrite } from './triggers/on-question-upvote-write.js';
 export { onQuestionWrite } from './triggers/on-question-write.js';

@@ -2,6 +2,8 @@ import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
+import { TRIGGER } from '../runtime-options.js';
+
 /**
  * `sessions/{sessionId}/questions/{questionId}/upvotes/{uid}` — see
  * functions/SPEC.md #3.
@@ -13,7 +15,10 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
  * ever changes.
  */
 export const onQuestionUpvoteWrite = onDocumentWritten(
-  `${COLLECTIONS.sessions}/{sessionId}/${SUBCOLLECTIONS.questions}/{questionId}/${SUBCOLLECTIONS.upvotes}/{uid}`,
+  {
+    document: `${COLLECTIONS.sessions}/{sessionId}/${SUBCOLLECTIONS.questions}/{questionId}/${SUBCOLLECTIONS.upvotes}/{uid}`,
+    ...TRIGGER,
+  },
   async (event) => {
     const existedBefore = event.data?.before.exists ?? false;
     const existedAfter = event.data?.after.exists ?? false;

@@ -14,3 +14,5 @@
 export * from "./models.js";
 export * from "./collections.js";
 export * from "./event.js";
+export * from "./settings.js";
+export * from "./page-content.js";
