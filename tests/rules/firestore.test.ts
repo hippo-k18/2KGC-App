@@ -149,6 +149,39 @@ beforeEach(async () => {
     await setDoc(doc(db, 'sponsors/sp'), { name: 'Sponsor', tier: 'gold' });
     await setDoc(doc(db, 'sponsors/sp/leads/' + B), { uid: B, email: 'b@kgc.test' });
     await setDoc(doc(db, 'announcements/a1'), { title: 'Hello' });
+    // The exhibitor hall in both of its shapes: the server-only record with the
+    // booking contact and the pass allocation on it, and the slim projection the
+    // app is allowed to read. Two documents rather than one, because the whole
+    // guarantee is that the first never reaches a client and the second does.
+    await setDoc(doc(db, 'exhibitors/ex1'), {
+      eventId: 'kgc-2027', name: 'Graphwise', boothNumber: 'E01',
+      contactName: 'Priya Raman', contactEmail: 'priya@graphwise.example.invalid',
+      passesAllocated: 4, passesUsed: 4, status: 'confirmed',
+    });
+    await setDoc(doc(db, 'booths/E01'), {
+      eventId: 'kgc-2027', number: 'E01', size: '6m × 2m', zone: 'Catering aisle',
+      exhibitorId: 'ex1', exhibitorName: 'Graphwise', orderId: 'ord_1', status: 'assigned',
+    });
+    await setDoc(doc(db, 'exhibitorListings/ex1'), {
+      eventId: 'kgc-2027', exhibitorId: 'ex1', name: 'Graphwise', boothNumber: 'E01',
+      description: 'Graph database tooling.',
+    });
+    // A published survey and a draft one, so the `status` predicate is exercised
+    // in both directions on both verbs — and one response, belonging to A, so
+    // "somebody else may not read mine" is tested against a document that exists.
+    await setDoc(doc(db, 'surveys/sv1'), {
+      eventId: 'kgc-2027', title: 'Opening session — your feedback',
+      questions: [{ id: 'q1', prompt: 'How useful?', kind: 'rating', required: false }],
+      status: 'published', responseCount: 1,
+    });
+    await setDoc(doc(db, 'surveys/svDraft'), {
+      eventId: 'kgc-2027', title: 'Unasked questions',
+      questions: [{ id: 'q1', prompt: 'Draft', kind: 'text', required: false }],
+      status: 'draft', responseCount: 0,
+    });
+    await setDoc(doc(db, `surveys/sv1/responses/${A}`), {
+      uid: A, answers: { q1: 5 },
+    });
     await setDoc(doc(db, `users/${A}`), {
       email: `${A}@kgc.test`, name: 'A', roles: ['attendee'], visibleInDirectory: true,
     });
@@ -191,6 +224,32 @@ beforeEach(async () => {
       type: 'announcement', title: 'Room change', body: 'Keynote moved to Hall B', read: false,
     });
     await setDoc(doc(db, `users/${A}/fcmTokens/tok1`), { token: 'tok1', platform: 'ios' });
+    // One attendee's own seat at a round table. The plan it is projected from
+    // (`gatherings/{id}`) is deliberately absent from this file and from the
+    // rules: it carries every other name at the table and the organizer's notes.
+    await setDoc(doc(db, `users/${A}/gatherings/g1`), {
+      eventId: 'kgc-2027', gatheringId: 'g1', kind: 'round-table',
+      title: 'Ontologies over lunch', roomName: 'Bloomberg 165', day: '2027-05-04',
+      startsAtLocal: '12:30', endsAtLocal: '13:30', seatName: 'A', status: 'confirmed',
+    });
+    // The two settings bags that decide the shape of the rule: one is the
+    // emergency card every phone may read, the other holds a code read out from
+    // the stage and a note written for the check-in desk. They are two documents
+    // in one collection, which is the whole reason the key is in the predicate.
+    await setDoc(doc(db, 'settings/logistics'), {
+      eventId: 'kgc-2027',
+      values: {
+        emergencyNumber: '911', assemblyPoint: 'The Tata plaza, by the flagpole',
+        onSiteLead: 'Tim', planReady: true,
+      },
+    });
+    await setDoc(doc(db, 'settings/access'), {
+      eventId: 'kgc-2027',
+      values: { eventCode: 'KGC-2027-DOORS', staffNote: 'Press passes at desk 2.' },
+    });
+    await setDoc(doc(db, 'settings/branding'), {
+      eventId: 'kgc-2027', values: { tagline: 'The knowledge graph event of the year' },
+    });
     // Thread id is the two uids sorted and joined with '_'. Both sides start
     // with something unread, so "you may not zero the OTHER person's badge" is
     // testable at all — from zero it is indistinguishable from leaving it alone.
@@ -891,6 +950,36 @@ describe('server-owned counters', () => {
 
   it('refuses a reply count to someone without a ticket', async () => {
     await assertFails(getCountFromServer(collection(noClaim(), 'communityPosts/p1/replies')));
+  });
+
+  // The same argument, for the two counts `app/src/lib/data/counts.ts` added
+  // beside the reply one. `upvoteCount` and `reactionCount` are frozen at their
+  // seeded values with no trigger to move them, so the Q&A board and the
+  // community board now count these subcollections themselves — and one of them
+  // is also the Q&A sort key, so a denial does not merely blank a number, it
+  // reorders the board. That permission was established by an emulator probe;
+  // this is the test that keeps it.
+  it('lets an attendee count the upvotes on a question', async () => {
+    await assertSucceeds(
+      getCountFromServer(collection(asA(), 'sessions/s1/questions/q1/upvotes')),
+    );
+  });
+
+  it('refuses an upvote count to someone without a ticket', async () => {
+    await assertFails(
+      getCountFromServer(collection(noClaim(), 'sessions/s1/questions/q1/upvotes')),
+    );
+  });
+
+  it('lets an attendee count the reactions on a post', async () => {
+    const snap = await assertSucceeds(
+      getCountFromServer(collection(asA(), 'communityPosts/p1/reactions')),
+    );
+    expect(snap.data().count).toBe(1);
+  });
+
+  it('refuses a reaction count to someone without a ticket', async () => {
+    await assertFails(getCountFromServer(collection(noClaim(), 'communityPosts/p1/reactions')));
   });
 
   it('refuses a client nudge to reactionCount', async () => {
@@ -1621,5 +1710,320 @@ describe('the money collections are closed to every client', () => {
     // database — names, addresses, companies and amounts — in one query.
     await assertFails(getDocs(collection(asA(), 'orders')));
     await assertFails(getDocs(collection(asOrg(), 'orders')));
+  });
+});
+
+
+describe('the exhibitor hall', () => {
+  // The projection exists because rules filter documents and not fields. Every
+  // test below is one half of that argument: the slim listing is readable by a
+  // ticket holder, and the record it was projected from is readable by nobody.
+
+  it('lets a ticket holder read one exhibitor listing', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'exhibitorListings/ex1')));
+  });
+
+  it('lets a ticket holder list the whole hall', async () => {
+    // `list` and `get` are separate rules and this one is deliberately open to
+    // both — an exhibitor hall that cannot be enumerated is not a listing. The
+    // predicate is bare `isRegistered()` for exactly that reason: anything
+    // reading `resource.data` would evaluate against null here and deny the
+    // query while the single-document read above kept working.
+    await assertSucceeds(getDocs(collection(asA(), 'exhibitorListings')));
+    await assertSucceeds(
+      getDocs(query(collection(asA(), 'exhibitorListings'), where('eventId', '==', 'kgc-2027'))),
+    );
+  });
+
+  it('refuses the hall to somebody signed in without a ticket', async () => {
+    // Anybody can create a Firebase account; the `registered` claim is minted
+    // only for ticket holders, and it is the gate on both verbs.
+    await assertFails(getDoc(doc(noClaim(), 'exhibitorListings/ex1')));
+    await assertFails(getDocs(collection(noClaim(), 'exhibitorListings')));
+    await assertFails(getDoc(doc(unauth(), 'exhibitorListings/ex1')));
+    await assertFails(getDocs(collection(unauth(), 'exhibitorListings')));
+  });
+
+  it('lets no client write a listing, organizers included', async () => {
+    // Server-written. A client that could write this could put an
+    // attacker-controlled `logoURL` in front of a thousand devices — the beacon
+    // `directory/{uid}` refuses `photoURL` for.
+    await assertFails(setDoc(doc(asA(), 'exhibitorListings/ex2'), {
+      eventId: 'kgc-2027', exhibitorId: 'ex2', name: 'Mine now',
+    }));
+    await assertFails(setDoc(doc(asOrg(), 'exhibitorListings/ex2'), {
+      eventId: 'kgc-2027', exhibitorId: 'ex2', name: 'Mine now',
+    }));
+    await assertFails(
+      updateDoc(doc(asOrg(), 'exhibitorListings/ex1'), { name: 'Renamed' }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), 'exhibitorListings/ex1')));
+  });
+
+  it('keeps the exhibitor record itself closed to every client', async () => {
+    // This is the document the projection exists to keep off the wire: it
+    // carries `contactName`, `contactEmail`, `passesAllocated`, `passesUsed` and
+    // a `status` that names spaces nobody has paid for. A `list` of it is every
+    // exhibitor's booking contact in one query.
+    await assertFails(getDoc(doc(asA(), 'exhibitors/ex1')));
+    await assertFails(getDocs(collection(asA(), 'exhibitors')));
+    await assertFails(getDoc(doc(asOrg(), 'exhibitors/ex1')));
+    await assertFails(getDocs(collection(asOrg(), 'exhibitors')));
+    await assertFails(setDoc(doc(asOrg(), 'exhibitors/ex2'), { eventId: 'kgc-2027', name: 'X' }));
+  });
+
+  it('keeps the floor plan closed to every client', async () => {
+    // Not opened, and deliberately so: a booth holds an order id, the ticket
+    // type it was sold as, who assigned it and whether it is `held` — promised
+    // in a sales conversation and unpaid. The app needs the booth *number*, and
+    // that is denormalised onto the listing above.
+    await assertFails(getDoc(doc(asA(), 'booths/E01')));
+    await assertFails(getDocs(collection(asA(), 'booths')));
+    await assertFails(getDoc(doc(asOrg(), 'booths/E01')));
+    await assertFails(getDocs(collection(asOrg(), 'booths')));
+    await assertFails(setDoc(doc(asOrg(), 'booths/E02'), { eventId: 'kgc-2027', number: 'E02' }));
+  });
+});
+
+describe('surveys', () => {
+  it('lets a ticket holder read a published survey', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'surveys/sv1')));
+  });
+
+  it('hides a draft survey from attendees', async () => {
+    // A draft is a question an organizer is still deciding whether to ask.
+    await assertFails(getDoc(doc(asA(), 'surveys/svDraft')));
+  });
+
+  it('lets an organizer read a draft survey', async () => {
+    await assertSucceeds(getDoc(doc(asOrg(), 'surveys/svDraft')));
+  });
+
+  it('refuses a surveys list that is not filtered to published', async () => {
+    // The `sessions` hazard, on a second collection: `resource.data` is null
+    // across a query, so the filter is what makes the read permitted at all.
+    // Both verbs, because passing one proves nothing about the other.
+    await assertFails(getDocs(collection(asA(), 'surveys')));
+    await assertFails(
+      getDocs(query(collection(asA(), 'surveys'), where('eventId', '==', 'kgc-2027'))),
+    );
+    // The exact query `useSurveys` issues, both equalities and in that order.
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(asA(), 'surveys'),
+          where('eventId', '==', 'kgc-2027'),
+          where('status', '==', 'published'),
+        ),
+      ),
+    );
+  });
+
+  it('refuses a survey to somebody signed in without a ticket', async () => {
+    await assertFails(getDoc(doc(noClaim(), 'surveys/sv1')));
+    await assertFails(
+      getDocs(query(collection(noClaim(), 'surveys'), where('status', '==', 'published'))),
+    );
+  });
+
+  it('lets no client author a survey, organizers included', async () => {
+    await assertFails(setDoc(doc(asOrg(), 'surveys/sv2'), {
+      eventId: 'kgc-2027', title: 'Mine', questions: [], status: 'published', responseCount: 0,
+    }));
+    await assertFails(updateDoc(doc(asOrg(), 'surveys/sv1'), { title: 'Renamed' }));
+    await assertFails(updateDoc(doc(asA(), 'surveys/sv1'), { responseCount: 999 }));
+  });
+});
+
+describe('survey responses', () => {
+  it('lets an attendee answer a survey once', async () => {
+    await assertSucceeds(
+      setDoc(doc(asB(), `surveys/sv1/responses/${B}`), {
+        uid: B, answers: { q1: 4 }, submittedAt: new Date(),
+      }),
+    );
+  });
+
+  it('refuses a second set of answers from the same person', async () => {
+    // The whole "you cannot answer twice" guarantee, and it lives here rather
+    // than in the screen: `update` is closed, so a response document that
+    // already exists cannot be written over however the write is issued.
+    await assertFails(
+      setDoc(doc(asA(), `surveys/sv1/responses/${A}`), {
+        uid: A, answers: { q1: 1 }, submittedAt: new Date(),
+      }),
+    );
+    await assertFails(updateDoc(doc(asA(), `surveys/sv1/responses/${A}`), { answers: { q1: 1 } }));
+    await assertFails(deleteDoc(doc(asA(), `surveys/sv1/responses/${A}`)));
+  });
+
+  it('refuses answers filed under somebody else', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `surveys/sv1/responses/${A}`), {
+        uid: A, answers: { q1: 1 }, submittedAt: new Date(),
+      }),
+    );
+    // And refuses a response that claims a uid other than the path it is at.
+    await assertFails(
+      setDoc(doc(asB(), `surveys/sv1/responses/${B}`), {
+        uid: A, answers: { q1: 1 }, submittedAt: new Date(),
+      }),
+    );
+  });
+
+  it('refuses answers from somebody signed in without a ticket', async () => {
+    await assertFails(
+      setDoc(doc(noClaim(), 'surveys/sv1/responses/randomUser'), {
+        uid: 'randomUser', answers: { q1: 1 }, submittedAt: new Date(),
+      }),
+    );
+  });
+
+  it('refuses a response carrying anything beyond the three declared fields', async () => {
+    // `answers` is a free-form map, so without a closed key set and a cap this
+    // is a general-purpose write channel into a collection the organizer's
+    // dashboard reads and renders.
+    await assertFails(
+      setDoc(doc(asB(), `surveys/sv1/responses/${B}`), {
+        uid: B, answers: { q1: 4 }, submittedAt: new Date(), eventId: 'kgc-2027',
+      }),
+    );
+    const tooMany: Record<string, number> = {};
+    for (let i = 0; i < 31; i += 1) tooMany[`q${i}`] = 1;
+    await assertFails(
+      setDoc(doc(asB(), `surveys/sv1/responses/${B}`), {
+        uid: B, answers: tooMany, submittedAt: new Date(),
+      }),
+    );
+  });
+
+  it('lets somebody read their own answers back and nobody else theirs', async () => {
+    // The screen shows a submitted survey back rather than re-offering the form,
+    // and this is the read it makes.
+    await assertSucceeds(getDoc(doc(asA(), `surveys/sv1/responses/${A}`)));
+    await assertFails(getDoc(doc(asB(), `surveys/sv1/responses/${A}`)));
+  });
+
+  it('refuses an attendee a listing of what the room answered', async () => {
+    // `isSelf(uid)` resolves on a `get` and is false across a `list`, which is
+    // the intent: a survey's responses are not the room's to browse. The
+    // organizer branch is what the console's aggregate uses.
+    await assertFails(getDocs(collection(asA(), 'surveys/sv1/responses')));
+    await assertSucceeds(getDocs(collection(asOrg(), 'surveys/sv1/responses')));
+  });
+});
+
+describe('the emergency card', () => {
+  // `settings` had no match block at all until the emergency card needed one,
+  // and the shape of the rule it got is the whole point of this block: one key
+  // named, not the collection opened. `settings/access` sits in the same
+  // collection holding `eventCode` — a string read out from the stage — and
+  // `staffNote`, written for the check-in desk. Rules filter documents and not
+  // fields, so naming the key IS the filter.
+
+  it('lets a ticket holder read the logistics bag', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'settings/logistics')));
+  });
+
+  it('refuses every other settings document to the same ticket holder', async () => {
+    await assertFails(getDoc(doc(asA(), 'settings/access')));
+    await assertFails(getDoc(doc(asA(), 'settings/branding')));
+    // Including an organizer, who is a client with a role and not a server. The
+    // dashboard reads these with the Admin SDK and bypasses rules entirely.
+    await assertFails(getDoc(doc(asOrg(), 'settings/access')));
+  });
+
+  it('refuses a listing of the settings collection to everybody', async () => {
+    // ★ The verb that matters, and the one this rule is shaped around. `key` is
+    // a path variable: bound on a `get`, unbound across a query, so
+    // `key == 'logistics'` is true for the one document and false for the
+    // collection — which denies the query outright. That asymmetry is normally
+    // the bug (it is how the inbox broke once); here it is load-bearing,
+    // because a `list` that succeeded would hand `access` to every phone
+    // alongside the card it was asked for.
+    await assertFails(getDocs(collection(asA(), 'settings')));
+    await assertFails(getDocs(collection(asOrg(), 'settings')));
+    // Even filtered to the one key it is allowed to `get`. A query is a query.
+    await assertFails(
+      getDocs(query(collection(asA(), 'settings'), where('eventId', '==', 'kgc-2027'))),
+    );
+  });
+
+  it('refuses the emergency card to somebody signed in without a ticket', async () => {
+    // The negative case the gate exists for: anyone can create a Firebase
+    // account, and this bag names the on-site lead and their mobile number.
+    await assertFails(getDoc(doc(noClaim(), 'settings/logistics')));
+    await assertFails(getDocs(collection(noClaim(), 'settings')));
+    await assertFails(getDoc(doc(unauth(), 'settings/logistics')));
+    await assertFails(getDocs(collection(unauth(), 'settings')));
+  });
+
+  it('lets no client write a settings bag, organizers included', async () => {
+    // Admin SDK only. A client that could write this could put an
+    // attacker-chosen phone number on an emergency card.
+    await assertFails(setDoc(doc(asA(), 'settings/logistics'), { eventId: 'kgc-2027', values: {} }));
+    await assertFails(setDoc(doc(asOrg(), 'settings/logistics'), { eventId: 'kgc-2027', values: {} }));
+    await assertFails(updateDoc(doc(asOrg(), 'settings/logistics'), { values: { planReady: false } }));
+    await assertFails(deleteDoc(doc(asOrg(), 'settings/logistics')));
+    await assertFails(setDoc(doc(asOrg(), 'settings/access'), { eventId: 'kgc-2027', values: {} }));
+  });
+});
+
+describe('where I am sitting', () => {
+  // The seating plan is an organizer's document and stays one. What an attendee
+  // gets is a projection under their own uid — the same relationship `directory`
+  // has to `users`, and for the same reason: one plan document carries every
+  // other name at the table, the organizer's notes, and tables that have been
+  // sketched but not agreed.
+
+  it('lets an attendee read their own placement, on both verbs', async () => {
+    await assertSucceeds(getDoc(doc(asA(), `users/${A}/gatherings/g1`)));
+    // `list` matters here — the screen renders every placement, so a predicate
+    // that worked on a `get` and denied the query would leave the section
+    // permanently empty and look like "you have no tables".
+    await assertSucceeds(getDocs(collection(asA(), `users/${A}/gatherings`)));
+  });
+
+  it('refuses one attendee another attendee’s seat', async () => {
+    await assertFails(getDoc(doc(asB(), `users/${A}/gatherings/g1`)));
+    await assertFails(getDocs(collection(asB(), `users/${A}/gatherings`)));
+    // An organizer too. They read the plan itself, with the Admin SDK.
+    await assertFails(getDocs(collection(asOrg(), `users/${A}/gatherings`)));
+  });
+
+  it('refuses a placement to somebody who is not signed in as its owner', async () => {
+    await assertFails(getDoc(doc(unauth(), `users/${A}/gatherings/g1`)));
+    await assertFails(getDoc(doc(noClaim(), `users/${A}/gatherings/g1`)));
+    // The unregistered signed-in user cannot manufacture one under their own
+    // uid either — the write side is closed to every client.
+    await assertFails(
+      setDoc(doc(noClaim(), 'users/randomUser/gatherings/g1'), { title: 'Top table' }),
+    );
+  });
+
+  it('lets nobody write a placement, including the person it is about', async () => {
+    // Server-written when a writer exists. Self-service seating is a different
+    // feature with a capacity check behind it, not a loosening of this rule.
+    await assertFails(
+      setDoc(doc(asA(), `users/${A}/gatherings/g2`), {
+        eventId: 'kgc-2027', gatheringId: 'g2', kind: 'round-table',
+        title: 'The good table', status: 'confirmed',
+      }),
+    );
+    await assertFails(updateDoc(doc(asA(), `users/${A}/gatherings/g1`), { title: 'Better table' }));
+    await assertFails(deleteDoc(doc(asA(), `users/${A}/gatherings/g1`)));
+    await assertFails(
+      setDoc(doc(asOrg(), `users/${A}/gatherings/g2`), { eventId: 'kgc-2027', title: 'X' }),
+    );
+  });
+
+  it('keeps the seating plan itself closed to every client', async () => {
+    // `gatherings/{id}` has no match block and must not get one: `attendees` is
+    // every name at the table — half of them people with no ticket — and `notes`
+    // is where the reason two of them were separated gets written.
+    await assertFails(getDocs(collection(asA(), 'gatherings')));
+    await assertFails(getDocs(collection(asOrg(), 'gatherings')));
+    await assertFails(getDoc(doc(asA(), 'gatherings/g1')));
+    await assertFails(setDoc(doc(asOrg(), 'gatherings/g2'), { eventId: 'kgc-2027', title: 'X' }));
   });
 });

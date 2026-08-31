@@ -184,12 +184,37 @@ async function main() {
       // explicit `undefined`, so the key is omitted rather than written empty.
       ...(s.description ? { description: s.description } : {}),
       website: s.website,
-      // The absolute URL, not the website's local path. Firestore is read by the
-      // Expo app and the console as well, and a root-relative `/kgc/...` resolves
-      // to nothing outside the website — the app would fall back to initials and
-      // look like it simply had no logos. The website overrides this with its own
-      // self-hosted copy in `listSponsors()`.
-      logoURL: s.logoRemote,
+      /*
+       * Cleared, not omitted — and the difference is the whole fix.
+       *
+       * This used to hold Whova's CloudFront URL for each sponsor, which the
+       * Expo app renders directly, so a seeded install hotlinked eighteen
+       * images from the product this one replaces. The field now means one
+       * thing only: a logo somebody uploaded for this event.
+       *
+       * ⚠️ Simply dropping the key would have left every already-seeded
+       * project — including the live one — holding the old CloudFront URLs
+       * forever. `commitAll` writes with `{ merge: true }` and the store runs
+       * with `ignoreUndefinedProperties`, so an omitted field is not a cleared
+       * field: the write succeeds and the old value survives (AGENTS.md gotcha
+       * 9). Re-running the seed has to converge, or "the seed no longer writes
+       * it" is true of the code and false of the data.
+       *
+       * An empty string rather than `FieldValue.delete()`, because gotcha 8
+       * forbids constructing a Firestore sentinel in this package: sentinels
+       * are validated with `instanceof` and three copies of `firebase-admin`
+       * exist here. Every consumer of this field already tests it for
+       * truthiness — the app's `SponsorLogo`, the dashboard's `hasLogo` and
+       * hotlink census, the website's `selfHostedLogo()` — so an empty string
+       * reads as "no logo" everywhere without a sentinel crossing a package
+       * boundary.
+       *
+       * The website still shows real logos: it serves its own committed copies
+       * from `public/kgc/sponsors/` when this is empty. The app and the
+       * dashboard show initials, which makes the dashboard's "no logo" count
+       * true and its upload button the thing that answers it.
+       */
+      logoURL: '',
     });
   }
 
@@ -425,6 +450,34 @@ async function main() {
       passesUsed: e.used,
       status: e.status,
     });
+
+    /**
+     * The attendee-readable projection of the record just above.
+     *
+     * `exhibitors/{id}` has no `match` block in `firestore.rules` and must not
+     * get one: it carries the booking contact's name and address, the staff-pass
+     * allocation, and whether the space is confirmed or merely provisional.
+     * Rules filter documents rather than fields, so the app reads
+     * `exhibitorListings/{id}` — the same arrangement `directory/{uid}` has with
+     * `users/{uid}`, and written here for the same reason that one is: the
+     * mirror trigger does not exist yet, and a hall that renders only its empty
+     * state cannot be told apart from a hall that was never built.
+     *
+     * ⚠️ **Only confirmed exhibitors are projected**, and a cancelled or
+     * provisional one gets no document at all rather than a filtered field.
+     * Advertising a space nobody has paid for to a thousand attendees is the
+     * failure this shape exists to make impossible.
+     */
+    if (e.status === 'confirmed') {
+      push(COLLECTIONS.exhibitorListings, `seed-exhibitor-${i}`, {
+        ...base(),
+        exhibitorId: `seed-exhibitor-${i}`,
+        name: e.name,
+        boothNumber: e.booth,
+        description: e.description,
+        website: e.website,
+      });
+    }
   });
 
   /**
@@ -617,6 +670,11 @@ async function main() {
   for (const c of [
     COLLECTIONS.speakers, COLLECTIONS.sessions, COLLECTIONS.tracks,
     COLLECTIONS.rooms, COLLECTIONS.sponsors, COLLECTIONS.ticketTypes, COLLECTIONS.booths,
+    // Pruned so an exhibitor who cancels between two runs loses their listing.
+    // The `exhibitors` record itself is deliberately not pruned — that is the
+    // organizer's history, and "kept so the booth history is explicable" is the
+    // whole reason the cancelled fixture exists.
+    COLLECTIONS.exhibitorListings,
     COLLECTIONS.contacts, COLLECTIONS.campaignLinks, COLLECTIONS.questionForms,
     COLLECTIONS.gatherings,
   ]) {
@@ -627,7 +685,11 @@ async function main() {
   console.log(`  ${TRACKS.length} tracks, ${ROOMS.length} rooms, ${TICKET_TYPES.length} ticket types`);
   console.log(`  ${speakers.length} speakers`);
   console.log(`  ${sessions.length} sessions across 5 days (${sessions[0].startsAtLocal.slice(0, 10)} → 2027-05-07)`);
-  console.log(`  ${SPONSORS.length} sponsors, ${EXHIBITORS.length} exhibitors`);
+  const listed = EXHIBITORS.filter((e) => e.status === 'confirmed').length;
+  console.log(
+    `  ${SPONSORS.length} sponsors, ${EXHIBITORS.length} exhibitors ` +
+      `(${listed} projected into exhibitorListings for the app)`,
+  );
   console.log(`  ${TASKS.length} team tasks, ${DOCUMENTS.length} documents, 1 feedback survey`);
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts with ${replyTotal} replies, ${ANNOUNCEMENTS.length} announcements`);

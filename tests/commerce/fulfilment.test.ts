@@ -163,21 +163,20 @@ describe('ensureRegistration', () => {
 // ---------------------------------------------------------------------------
 // The refund rules, exercised directly against order documents.
 //
-// `cancelRegistrationByOrder` lives in `apps/web` and imports `server-only`,
-// which Vitest cannot load outside Next. Rather than mock the module system,
-// these tests reproduce its two load-bearing decisions against the same data —
-// the decisions being the thing worth pinning, not the function's location.
-// If that logic ever moves into `@kgc/scripts`, import it here and delete the
-// re-implementation.
+// These used to be re-implemented here, beside a note saying to import them the
+// day they moved somewhere Vitest could load. They have: `cancelRegistrationByOrder`
+// still lives in the `server-only` `apps/web/src/lib/registrations.ts`, but its
+// *decisions* are now `apps/web/src/lib/refund-core.ts`, which imports nothing
+// Next-specific. Two copies of a refund rule is the bug they exist to prevent,
+// and the copy in the test would have agreed with itself for ever.
 // ---------------------------------------------------------------------------
 
-function decideRefund(order: OrderDoc, refundedCents: number) {
-  const fullyRefunded = refundedCents >= order.totalCents;
-  return {
-    fullyRefunded,
-    status: (fullyRefunded ? 'refunded' : 'partially_refunded') as OrderDoc['status'],
-  };
-}
+import { decideRefund as decide } from '../../apps/web/src/lib/refund-core.js';
+
+const decideRefund = (order: OrderDoc, refundedCents: number) => {
+  const { fullyRefunded, status } = decide(order, { reason: 'refunded', refundedCents });
+  return { fullyRefunded, status };
+};
 
 describe('refund decisions', () => {
   const order = (over: Partial<OrderDoc> = {}): OrderDoc =>

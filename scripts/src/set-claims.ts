@@ -19,8 +19,20 @@ import { getAuth } from 'firebase-admin/auth';
 
 import { db, targetDescription } from './lib/firestore.js';
 
-/** Password sign-in is only for local demo accounts. Production is OTP. */
-const DEMO_PASSWORD = 'kgcdemo2027';
+/**
+ * The password put on a seeded account, read from the environment.
+ *
+ * It used to be a literal on this line, which is how fifty real accounts on the
+ * live project came to share a password that was committed in five files and
+ * printed on two screens. Production sign-in is the six-digit
+ * code in `functions/src/callable/`; nothing this project provisions has a
+ * password at all. This exists only so `npm run claims` can still give a *local*
+ * seeded account something to type into the app's password box.
+ *
+ * Unset means no password: the accounts are still created and still get their
+ * claims, they just cannot be signed into with a password.
+ */
+const SEED_PASSWORD = process.env.SEED_PASSWORD;
 
 async function main() {
   const live = process.argv.includes('--confirm-live');
@@ -29,10 +41,10 @@ async function main() {
   // through Auth — createUser and setCustomUserClaims — which is gated by
   // FIREBASE_AUTH_EMULATOR_HOST, not FIRESTORE_EMULATOR_HOST. Exporting only
   // the Firestore variable (which is exactly what the seed's own error message
-  // suggests) would otherwise create 50 real accounts on the live project, with
-  // a password that is printed on the login screen, each carrying
-  // `registered: true`. That is a complete bypass of the only security boundary
-  // in the project.
+  // suggests) would otherwise create 50 real accounts on the live project, each
+  // carrying `registered: true`. That is a complete bypass of the only security
+  // boundary in the project — and it has happened: DEMO.md records fifty such
+  // accounts, created with a password this file used to hard-code.
   const onEmulator =
     Boolean(process.env.FIRESTORE_EMULATOR_HOST) &&
     Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST);
@@ -78,7 +90,14 @@ async function main() {
       await auth.getUser(uid);
       updated++;
     } catch {
-      await auth.createUser({ uid, email, displayName: name, password: DEMO_PASSWORD });
+      await auth.createUser({
+        uid,
+        email,
+        displayName: name,
+        // `ignoreUndefinedProperties` does not apply to the Auth SDK, so the key
+        // has to be absent rather than undefined.
+        ...(SEED_PASSWORD ? { password: SEED_PASSWORD } : {}),
+      });
       created++;
     }
 
@@ -95,7 +114,14 @@ async function main() {
 
   console.log(`  ${created} accounts created, ${updated} already existed`);
   console.log(`  ${users.size} sets of claims written`);
-  console.log(`\n  Sign in with any of these and the password: ${DEMO_PASSWORD}`);
+  if (SEED_PASSWORD) {
+    console.log('\n  Sign in with any of these, using the SEED_PASSWORD you set:');
+  } else {
+    console.log(
+      '\n  No SEED_PASSWORD was set, so these accounts have no password. Set one' +
+        '\n  (SEED_PASSWORD=… npm run claims -- --emulator) to use the password box:',
+    );
+  }
   for (const d of users.docs.slice(0, 3)) console.log(`    ${d.data().email}`);
   if (organizers.length) {
     console.log(`\n  Organizer account: ${organizers[0].data().email}`);

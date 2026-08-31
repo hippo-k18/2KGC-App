@@ -51,6 +51,37 @@ const SPEAKER_FIELDS = {
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
 
+/**
+ * Track colours, because a Whova export has none.
+ *
+ * `TrackDoc.color` and the `SessionDoc.primaryTrackColor` cache are what colour
+ * the agenda card in the app (`agenda/[id].tsx`) and the track chip on the
+ * website (`apps/web/src/lib/data.ts`). Both fall back silently when the field
+ * is missing, so an import that omits it produces a **colourless agenda** while
+ * the seeded demo, which does write colours, looks perfect — the defect stayed
+ * invisible for exactly that reason.
+ *
+ * The palette is the one the demo already uses, so an imported event and a
+ * seeded one look like the same product.
+ *
+ * Assignment is by **position in the sorted set of track names**, not by a hash
+ * of the name. A hash is stable per name forever but collides: eleven colours
+ * against eight tracks collide more often than not, and two tracks sharing a
+ * colour is a legend an organizer can see is wrong. Sorted position is
+ * collision-free up to eleven tracks and deterministic for a given set, so
+ * re-importing the same file is a no-op. The cost is that adding a twelfth
+ * track can re-shuffle the others, which is a thing nobody notices.
+ */
+const TRACK_PALETTE = [
+  '#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2',
+  '#ca8a04', '#db2777', '#4f46e5', '#16a34a', '#9333ea',
+];
+
+function trackColours(names: Iterable<string>): Map<string, string> {
+  const sorted = [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  return new Map(sorted.map((name, i) => [name, TRACK_PALETTE[i % TRACK_PALETTE.length]]));
+}
+
 /** Resolves a field map against the actual headers, reporting what it found. */
 function mapHeaders<T extends Record<string, readonly string[]>>(
   headers: string[],
@@ -156,6 +187,18 @@ async function main() {
     const roomsSeen = new Set<string>();
     const sessionsBySpeaker = new Map<string, string[]>();
 
+    /**
+     * Colours are resolved in a pre-pass over every row, before the session
+     * loop, because the assignment depends on the *whole* set of track names —
+     * a colour picked while the set is still half-discovered would depend on
+     * CSV row order, and the same file re-imported after a re-sort would
+     * recolour the agenda for no reason.
+     */
+    const trackColumn = map.track;
+    const colorByTrack = trackColours(
+      trackColumn ? rows.flatMap((r) => splitList(r[trackColumn])) : [],
+    );
+
     for (const [i, row] of rows.entries()) {
       const title = row[map.title]?.trim();
       if (!title) { problems.push(`agenda row ${i + 2}: no title`); continue; }
@@ -211,6 +254,10 @@ async function main() {
           roomName: room || undefined,
           trackIds: trackNames.map(trackId),
           primaryTrackName: trackNames[0] || undefined,
+          // The cache the agenda card actually paints from. It must agree with
+          // the `TrackDoc.color` written below, which is why both read the same
+          // map rather than each deriving a colour of their own.
+          primaryTrackColor: trackNames[0] ? colorByTrack.get(trackNames[0]) : undefined,
           speakerIds: sids,
           speakerNames,
           tags: trackNames,
@@ -223,7 +270,11 @@ async function main() {
     }
 
     for (const name of tracksSeen) {
-      writes.push({ collection: COLLECTIONS.tracks, id: trackId(name), data: { ...base(), name } });
+      writes.push({
+        collection: COLLECTIONS.tracks,
+        id: trackId(name),
+        data: { ...base(), name, color: colorByTrack.get(name) },
+      });
     }
     for (const name of roomsSeen) {
       writes.push({ collection: COLLECTIONS.rooms, id: roomId(name), data: { ...base(), name } });

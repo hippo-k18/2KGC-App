@@ -48,6 +48,23 @@ export function registrationId(email: string): string {
   return `reg_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 24)}`;
 }
 
+/**
+ * `contacts/{id}` — a marketing contact, keyed the same way a registration is,
+ * so re-importing a CSV converges on one document per person.
+ *
+ * ⚠️ This derivation is spelled out in two other places already:
+ * `apps/organizer/src/lib/campaigns.ts` (`contactId`) and `seed-demo.ts`. Both
+ * carry a comment explaining that `@kgc/scripts` must not depend on
+ * `apps/organizer`, which is not a workspace member. This copy exists because
+ * the bulk sender below now has to address a contact document to decide whether
+ * it may offer an unsubscribe link, and it is the copy the other two should
+ * eventually import — 32 hex characters, exactly as they both spell it. If they
+ * ever disagree the symptom is a duplicated contact list.
+ */
+export function contactId(email: string): string {
+  return `contact_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 32)}`;
+}
+
 /** Lookup key. Never the document id, so the plaintext address is not a path. */
 export function emailHash(email: string): string {
   return createHash('sha256').update(normaliseEmail(email)).digest('hex');

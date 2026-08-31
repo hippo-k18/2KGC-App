@@ -1,5 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type EmailLogDoc } from '@kgc/shared';
+import { contactId } from './ids.js';
+import { mintUnsubscribeToken } from './unsubscribe-token.js';
 
 /**
  * `119900` → `$1,199`. A local copy rather than an import from the website's
@@ -82,6 +84,36 @@ interface SendInput {
   registrationId?: string;
   campaignId?: string;
   actor?: string;
+  /**
+   * Set only on mail that is governed by the suppression list. Adds the two
+   * RFC 8058 headers, which is what puts the native "Unsubscribe" button beside
+   * the sender name in Gmail and Apple Mail — the genuinely one-click path,
+   * because the mail client POSTs on the reader's behalf and no page is opened.
+   */
+  unsubscribeUrl?: string;
+}
+
+/**
+ * Drops keys whose value is `undefined`.
+ *
+ * `SendInput` carries four optional correlation fields, and every send spreads
+ * all four into the log entry whether or not the caller supplied them. That is
+ * a Firestore error — `undefined` is not a value — and it was invisible for as
+ * long as this module had only two callers, because `apps/web` and
+ * `@kgc/scripts` both call `settings({ ignoreUndefinedProperties: true })` and
+ * that setting silently did this job for us. Cloud Functions does not set it,
+ * so `requestOtp` became the first caller for which every `emailLog` write
+ * threw — into the `catch` below, which reports on stdout and carries on,
+ * exactly as designed. The result was a sender that appeared to work and logged
+ * nothing at all.
+ *
+ * Doing it here rather than turning the setting on in `functions/` is
+ * deliberate: `ignoreUndefinedProperties` is a store-wide behaviour that also
+ * makes `set(…, { merge: true })` unable to clear a field (AGENTS.md gotcha 9),
+ * and no module should require its callers to adopt a footgun to be usable.
+ */
+function defined<T extends Record<string, unknown>>(doc: T): Partial<T> {
+  return Object.fromEntries(Object.entries(doc).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 async function log(
@@ -95,7 +127,7 @@ async function log(
       // its own copy of `firebase-admin`, and Firestore checks sentinels with
       // `instanceof` — a sentinel built here is the wrong class for the
       // caller's store and the whole write fails. See `fulfilment.ts`.
-      .add({ ...entry, eventId: EVENT_ID, at: new Date() });
+      .add(defined({ ...entry, eventId: EVENT_ID, at: new Date() }));
   } catch (err) {
     // The log is the diagnostic, not the product. If even this fails, say so on
     // stdout and carry on — there is nothing useful left to do.
@@ -146,6 +178,24 @@ async function send(store: Firestore, input: SendInput): Promise<void> {
         // score HTML-only mail as spam, and a conference receipt landing in a
         // spam folder is the failure this whole file exists to avoid.
         text: input.text,
+        ...(input.unsubscribeUrl
+          ? {
+              headers: {
+                /*
+                 * RFC 8058 one-click. `List-Unsubscribe-Post` is what promotes
+                 * the header from "open this link" to a button the client
+                 * presses itself, and both Gmail and Yahoo have required it
+                 * since 2024 for anyone sending bulk mail at volume.
+                 *
+                 * The `mailto:` is the fallback for clients that honour the
+                 * header but not the POST. It is second because a client that
+                 * understands both must prefer the https one.
+                 */
+                'List-Unsubscribe': `<${input.unsubscribeUrl}>, <mailto:${replyTo()}?subject=unsubscribe>`,
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+              },
+            }
+          : {}),
       }),
     });
 
@@ -226,17 +276,6 @@ export interface PurchaseEmailInput {
   claimCode: string;
   orderId?: string;
   registrationId?: string;
-  /**
-   * True when no payment was taken — the site is running without a Stripe
-   * account. The receipt then says so, in as many words, instead of printing an
-   * amount beside the word "Paid".
-   *
-   * This is the same rule the confirmation page and the order document follow:
-   * **nothing may ever imply money changed hands when it did not.** An email is
-   * the worst place to break it, because it is the artefact somebody forwards
-   * to their finance team.
-   */
-  demo?: boolean;
 }
 
 /**
@@ -248,9 +287,7 @@ export interface PurchaseEmailInput {
  * single most common support question after "where is my confirmation".
  */
 export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<void> {
-  const price = input.demo
-    ? 'Nothing — this was a test purchase'
-    : formatPrice(input.amountCents, input.currency);
+  const price = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
@@ -259,7 +296,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Attendee', esc(input.name || input.to))}
        ${row('Ticket', esc(input.ticketType))}
-       ${row(input.demo ? 'Payment' : 'Paid', price)}
+       ${row('Paid', price)}
        ${row('Sign in with', esc(input.to))}
      </table>
      <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> open the KGC app and sign in with <strong>${esc(input.to)}</strong> — that address is how the app finds your ticket. Your claim code is:</p>
@@ -269,10 +306,10 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
   );
 
   const text = `${greeting} you're registered for KGC 2027.
-${input.demo ? '\nNO PAYMENT WAS TAKEN. This was a test purchase on a deployment with no\npayment processor configured. Your registration is real; no money moved.\n' : ''}
+
 Attendee:      ${input.name || input.to}
 Ticket:        ${input.ticketType}
-${input.demo ? 'Payment:       none — test purchase' : `Paid:          ${price}`}
+Paid:          ${price}
 Sign in with:  ${input.to}
 
 Claim code: ${input.claimCode}
@@ -286,9 +323,7 @@ Keep that link private — it shows the badge QR that gets scanned at the door.
 
   await send(store, {
     to: input.to,
-    subject: input.demo
-      ? `[TEST] Your KGC 2027 ticket — ${input.ticketType}`
-      : `Your KGC 2027 ticket — ${input.ticketType}`,
+    subject: `Your KGC 2027 ticket — ${input.ticketType}`,
     html,
     text,
     template: 'purchase-confirmation',
@@ -405,6 +440,86 @@ scan at the door. If this was a mistake, reply to this email.`;
   });
 }
 
+export interface SignInCodeEmailInput {
+  to: string;
+  /** Six digits. Never logged, never put in the subject — see below. */
+  code: string;
+  /** `CODE_TTL_MINUTES` from `requestOtp`, passed in so the two cannot drift. */
+  ttlMinutes: number;
+}
+
+/**
+ * The sign-in code for the attendee app.
+ *
+ * ── Why this one is different from the three above ──────────────────────────
+ *
+ * The other templates in this file carry *information*. This one carries a
+ * **credential**, and that changes three things.
+ *
+ * **Nothing outside the message body may contain the code.** Not the subject —
+ * subjects are recorded in `emailLog`, shown in notification previews on a
+ * locked phone, and retained by mail gateways that do not retain bodies. Not
+ * `reason` or `error`, which is why the code is never passed to `send()`
+ * anywhere except inside `html` and `text`. `send()` logs `base` on every
+ * outcome and `base` is built from `to`/`subject`/`template` only, so this
+ * property holds by construction rather than by care.
+ *
+ * **It says how long the code lasts and what to do if you did not ask for it.**
+ * Both are the standard advice for one-time codes, and both are load-bearing
+ * here rather than boilerplate: without the first, someone who opens the mail
+ * an hour later reads a failed sign-in as a broken app; without the second, an
+ * unrequested code is alarming with no stated response.
+ *
+ * **It carries no link.** Every other template in this file has a button. A
+ * sign-in mail that contains a clickable link is the exact shape of the
+ * phishing mail an attacker would send to harvest these codes, and teaching
+ * attendees that ours has one makes theirs work better. The code is typed into
+ * the app the reader already opened.
+ *
+ * ── Delivery failure ────────────────────────────────────────────────────────
+ *
+ * The governing rule of this file — a failed send never fails its caller —
+ * applies unchanged, and for a second reason on top of the webhook one:
+ * `requestOtp` must return the same thing for every address, so a send that
+ * threw would leak, through an error response, exactly the membership fact the
+ * whole flow is built not to reveal. The `emailLog` row is the record that
+ * something was attempted, including the `skipped` row written when no
+ * `RESEND_API_KEY` is configured.
+ */
+export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<void> {
+  const html = shell(
+    'Your KGC 2027 sign-in code',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
+     <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:.22em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:16px;text-align:center;">${esc(input.code)}</p>
+     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask for a new one from the same screen.</p>
+     <p style="margin:14px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">If you didn't ask to sign in, you can ignore this email — nobody can use the code without it, and no one has been given access to your account.</p>`,
+  );
+
+  const text = `Enter this code in the KGC app to sign in.
+
+  ${input.code}
+
+It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask
+for a new one from the same screen.
+
+If you didn't ask to sign in, you can ignore this email — nobody can use the
+code without it, and no one has been given access to your account.
+
+3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
+
+  await send(store, {
+    to: input.to,
+    // Deliberately does not contain the code, and deliberately does not name
+    // the recipient or their ticket: this mail goes to any syntactically valid
+    // address that asks, so anything specific in it would confirm to a stranger
+    // that the address is on the guest list.
+    subject: 'Your KGC 2027 sign-in code',
+    html,
+    text,
+    template: 'sign-in-code',
+  });
+}
+
 
 // ---------------------------------------------------------------------------
 // Bulk messages from an organizer
@@ -424,6 +539,89 @@ export interface BulkMessageInput {
 }
 
 /**
+ * Where the public site lives, for building an absolute unsubscribe URL.
+ *
+ * The same variable and the same default the dashboard's own `(dash)/layout.tsx`
+ * and `tools/app-adoption/adoption-context.ts` already read, so an operator has
+ * one thing to set rather than two that can disagree.
+ */
+function publicOrigin(): string {
+  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
+}
+
+/**
+ * The unsubscribe link for one recipient — **or null, which is the point.**
+ *
+ * ── Why this reads a document instead of always returning a link ────────────
+ *
+ * `sendBulkMessage` has two callers and only one of them is governed by the
+ * suppression list. Email Campaign resolves its audience from `contacts` and
+ * runs it through `audienceFor()`, which drops anybody with `unsubscribedAt`.
+ * Message Speakers resolves its audience from `speakers` and consults
+ * `contacts` never.
+ *
+ * So an unsubscribe link in a Message Speakers mail would be a promise this
+ * code cannot keep: the reader clicks it, `contacts/{id}` records the
+ * unsubscribe, and the next call for slides reaches them anyway. That is
+ * exactly the defect class `AGENTS.md` counts fourteen instances of, and on an
+ * unsubscribe confirmation it is also a legal claim.
+ *
+ * The honest gate is therefore "does a contact document exist for this
+ * address?", because that is precisely the set of people whose suppression is
+ * actually enforced. A speaker who is *also* on a contact list gets the link,
+ * and for them it is true of the campaign mail it appeared in.
+ *
+ * ── The cost ────────────────────────────────────────────────────────────────
+ *
+ * One extra document read per recipient, at most 2,000 per send (the cap in
+ * `email-campaign/actions.ts`). A `get()` by id, not a query, so it needs no
+ * index. The sends are already sequential to avoid rate-limiting the sending
+ * domain, so this adds no concurrency either.
+ *
+ * Returns null rather than throwing on any failure. A send must never be
+ * stopped by this function — but note that a null here means the mail goes out
+ * *without* a link, which for a campaign send is the thing to notice in the
+ * log, hence the `console.warn`.
+ *
+ * ── Two URLs, and they are not interchangeable ──────────────────────────────
+ *
+ * ⚠️ `page` is for the human — a `GET` that renders a confirmation with a
+ * button. `oneClick` is for the `List-Unsubscribe` header, and it **must** be
+ * the route that accepts a `POST`.
+ *
+ * Putting `page` in that header is a silent failure and it was in this file
+ * once: Gmail POSTs to the URL the header names, a POST to the page route
+ * returns **200** without running anything, and Gmail shows the reader
+ * "Unsubscribed" while they stay on the list. A visibly broken link would be
+ * better — this one reports success to everybody involved.
+ */
+interface UnsubscribeLinks {
+  /** `GET` — the human confirmation page with the button. */
+  page: string;
+  /** `POST` — RFC 8058. The only URL the `List-Unsubscribe` header may name. */
+  oneClick: string;
+}
+
+async function unsubscribeUrlFor(
+  store: Firestore,
+  email: string,
+): Promise<UnsubscribeLinks | null> {
+  try {
+    const id = contactId(email);
+    const snap = await store.collection(COLLECTIONS.contacts).doc(id).get();
+    if (!snap.exists) return null;
+
+    // One token, two routes. Both verify it the same way.
+    const token = mintUnsubscribeToken(id);
+    const origin = publicOrigin();
+    return { page: `${origin}/u/${token}`, oneClick: `${origin}/api/unsubscribe/${token}` };
+  } catch (err) {
+    console.warn('[email] could not build an unsubscribe link; sending without one', err);
+    return null;
+  }
+}
+
+/**
  * One recipient of an organizer's bulk message.
  *
  * ── The body is plain text, on purpose ──────────────────────────────────────
@@ -439,9 +637,22 @@ export interface BulkMessageInput {
  *
  * Like every other send here, this never throws: a bad address must not stop
  * the other forty-four people getting their call for slides.
+ *
+ * ── The unsubscribe link ────────────────────────────────────────────────────
+ *
+ * Added in two places, because they are two different mechanisms and a bulk
+ * sender needs both: the RFC 8058 headers, which give Gmail and Apple Mail a
+ * native one-click button, and a visible line at the foot of the message, which
+ * is what a reader on a client that shows neither will look for. Both point at
+ * the same `/u/{token}` capability link.
+ *
+ * ⚠️ It appears **only when a `contacts` document governs this address** — see
+ * `unsubscribeUrlFor()` for why offering it otherwise would be a promise this
+ * code cannot keep.
  */
 export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<void> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const unsubscribe = await unsubscribeUrlFor(store, input.to);
 
   const paragraphs = input.body
     .split(/\n\s*\n/)
@@ -455,9 +666,30 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     )
     .join('');
 
-  const html = shell(esc(input.subject), `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting}</p>${paragraphs}`);
+  /*
+   * Above the shell's own footer rule rather than inside it, because `shell()`
+   * is shared with the receipts and a receipt must never carry an unsubscribe
+   * link — offering to stop a transactional mail is offering something we will
+   * not honour, and it invites somebody to opt out of their own claim code.
+   */
+  const unsubscribeHtml = unsubscribe
+    ? `<p style="margin:26px 0 0;padding-top:16px;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;line-height:1.6;">
+         You are receiving this because your address is on a Knowledge Graph Conference mailing
+         list. <a href="${unsubscribe.page}" style="color:#6b7280;">Unsubscribe</a> — one click, no
+         sign-in. It stops campaign email; anything about a ticket you hold still reaches you.
+       </p>`
+    : '';
 
-  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Cornell Tech, Roosevelt Island, New York City`;
+  const html = shell(
+    esc(input.subject),
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting}</p>${paragraphs}${unsubscribeHtml}`,
+  );
+
+  const unsubscribeText = unsubscribe
+    ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
+    : '';
+
+  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Cornell Tech, Roosevelt Island, New York City${unsubscribeText}`;
 
   await send(store, {
     to: input.to,
@@ -467,5 +699,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     template: 'bulk-message',
     campaignId: input.campaignId,
     actor: input.actor,
+    // The header gets the POST route, the body got the page. See UnsubscribeLinks.
+    ...(unsubscribe ? { unsubscribeUrl: unsubscribe.oneClick } : {}),
   });
 }

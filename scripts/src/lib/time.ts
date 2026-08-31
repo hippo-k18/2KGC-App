@@ -1,5 +1,5 @@
 import { TIME_ZONE } from '@kgc/shared';
-import { fromZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { Timestamp } from 'firebase-admin/firestore';
 
 /**
@@ -22,6 +22,48 @@ export interface DerivedTimes {
 }
 
 const WALL_CLOCK = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/** Is this `YYYY-MM-DDTHH:mm`, and nothing else? */
+export function isWallClock(value: string): boolean {
+  return WALL_CLOCK.test(value);
+}
+
+/**
+ * One wall clock → the instant it names in `timeZone`.
+ *
+ * `deriveTimes` is the two-ended version, and it is the right one for anything
+ * with a start and an end. This is for the single-ended cases — a sales window
+ * opens at one moment and closes at another, and neither is required to exist —
+ * where insisting on a pair would force a caller to invent the other half.
+ *
+ * The reason it is here rather than at the call site is the same reason
+ * `deriveTimes` is: `new Date('2027-04-01T09:00')` resolves in whatever zone the
+ * process happens to run in. On a laptop in New York that is right by accident;
+ * on Netlify's UTC build servers an early-bird deadline typed as 23:59 closes at
+ * 19:59 Eastern, four hours of sales earlier than the organizer meant, and
+ * nothing on any screen says so.
+ */
+export function fromWallClock(local: string, timeZone: string = TIME_ZONE): Timestamp {
+  if (!WALL_CLOCK.test(local)) {
+    throw new Error(
+      `"${local}" is not YYYY-MM-DDTHH:mm wall clock. ` +
+        'Do not pass an ISO instant with a Z or an offset — the zone is supplied separately.',
+    );
+  }
+  return Timestamp.fromDate(fromZonedTime(local, timeZone));
+}
+
+/**
+ * The inverse: an instant → the wall clock a person in `timeZone` reads off it.
+ *
+ * Needed wherever a stored `Timestamp` has to be put back into a
+ * `datetime-local` box. Round-tripping through `toISOString().slice(0, 16)`
+ * instead shows the organizer UTC, and saving that back shifts the value by the
+ * offset every single time the form is opened and saved.
+ */
+export function toWallClockInZone(instant: Date, timeZone: string = TIME_ZONE): string {
+  return formatInTimeZone(instant, timeZone, "yyyy-MM-dd'T'HH:mm");
+}
 
 export function deriveTimes(
   startsAtLocal: string,

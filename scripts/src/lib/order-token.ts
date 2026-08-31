@@ -42,8 +42,6 @@ export interface OrderTokenPayload {
   rid: string;
   /** Issued-at, epoch ms. */
   iat: number;
-  /** True when no payment was taken — the site is running without Stripe. */
-  demo: boolean;
 }
 
 function secret(): string {
@@ -86,7 +84,11 @@ export function readOrderToken(token: string): OrderTokenPayload | null {
     const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as OrderTokenPayload;
     if (typeof parsed.rid !== 'string' || typeof parsed.iat !== 'number') return null;
     if (Date.now() - parsed.iat > TTL_MS) return null;
-    return { rid: parsed.rid, iat: parsed.iat, demo: parsed.demo === true };
+    // Only the two fields this payload declares. Tokens minted before demo
+    // mode was removed carry a third, `demo`; they still verify, because the
+    // HMAC covers the encoded body rather than a parsed shape, and the extra
+    // key is simply not read.
+    return { rid: parsed.rid, iat: parsed.iat };
   } catch {
     return null;
   }

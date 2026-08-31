@@ -27,7 +27,11 @@ rules_version = '2';
 // Rules decide whether a whole document is readable. Anything that must be hidden
 // field-by-field has to live in a separate document written by a function — which
 // is why the attendee directory is a projection (`directory/{uid}`) rather than a
-// filtered view of `users/{uid}`.
+// filtered view of `users/{uid}`, and why the exhibitor hall is
+// `exhibitorListings/{id}` rather than a filtered view of `exhibitors/{id}`.
+// `exhibitors` itself, and `booths` beside it, stay closed: between them they hold
+// the booking contact's address, the staff-pass allocation, the order id and which
+// spaces are promised but unpaid.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -334,6 +338,46 @@ service cloud.firestore {
               || (request.resource.data.deviceName is string
                   && request.resource.data.deviceName.size() <= 120));
       }
+
+      /**
+       * "Which table am I at?" — the attendee's own seating placements.
+       *
+       * ── Why this is a projection and not a rule on `gatherings` ───────────
+       *
+       * `gatherings/{id}` is the organizer's seating plan and it has no match
+       * block, which is correct and must stay that way. One document carries
+       * `attendees` — the full list of everyone placed at that table, typed by
+       * an organizer — plus `notes`, which is where "sponsor wants to be sat
+       * away from X" gets written, plus `status: 'planned'`, a table that has
+       * been sketched and not agreed. A ticket holder able to read the
+       * collection could reconstruct the room, and half the names in it belong
+       * to people who are not attendees at all: sponsor contacts, a partner's
+       * staff, a speaker's assistant. There is no predicate that returns the
+       * caller's own seat and withholds the other eleven, so a filtered view is
+       * not on the table — the same argument `directory` settles for `users`
+       * and `exhibitorListings` settles for `exhibitors`, settled the same way.
+       *
+       * ── ⚠️ Nothing writes this yet, and that is a real gap ────────────────
+       *
+       * `GatheringDoc.attendees` is a list of *names*, not uids, because an
+       * organizer types them and half of them have no account. A mirror
+       * trigger therefore has no key to fan out on: matching a typed name
+       * against `users.name` would place the wrong Chen at the wrong table,
+       * which is worse than showing nothing. The writer is a follow-up and it
+       * needs a uid on the placement first — see the docblock on
+       * `GatheringPlacementDoc`. The reader below and the app screen that uses
+       * it render nothing until it exists, deliberately: an empty section is
+       * absent, not a claim.
+       *
+       * Read-only to its owner, like `notifications`. `isRegistered()` is not
+       * required to read — a placement is the caller's own document under
+       * their own uid, and refusing it to a holder whose claim has lapsed
+       * would hide their table from them at exactly the wrong moment.
+       */
+      match /gatherings/{gatheringId} {
+        allow read: if isSelf(uid);
+        allow write: if false;
+      }
     }
 
     // The directory projection. Opting out means absent, not filtered — the
@@ -512,6 +556,143 @@ service cloud.firestore {
       allow read: if isRegistered();
       allow write: if isOrganizer();
     }
+
+    /**
+     * Organizer-authored preference bags — one document per feature area, and
+     * exactly ONE of them readable by a phone.
+     *
+     * ── Why the key is in the predicate ─────────────────────────────────────
+     *
+     * `settings/logistics` is the emergency card: the venue security number,
+     * the medical point, the assembly point and who to call. It is the one bag
+     * whose whole purpose is to be read by somebody standing in the building.
+     * `settings/access` is not: it holds `eventCode`, a shared string read out
+     * from the stage, and `staffNote`, written for the check-in desk. Rules
+     * filter documents and not fields, so a blanket `match /settings/{key}`
+     * would hand both to every device. Naming the key is the filter.
+     *
+     * If a *field* of `logistics` ever turns out to be internal —
+     * `incidentProcedure` is the candidate, since it may name a person's
+     * mobile — the answer is a projection, the way `exhibitorListings`
+     * projects `exhibitors`, not a wider rule here.
+     *
+     * ── Both verbs, and why a `list` is denied ──────────────────────────────
+     *
+     * `key` is a path variable, so it is bound on a `get` and unbound across a
+     * query on the collection: `key == 'logistics'` is therefore true for the
+     * one document and false for a `list` of `/settings`, which denies the
+     * query outright. That is the wanted outcome rather than a limitation —
+     * an enumerable `/settings` is `access` on every phone — and it is why the
+     * app reads this with `useDocument` on a single path and never queries the
+     * collection. Both verbs are pinned in `tests/rules/firestore.test.ts`,
+     * because a predicate that works on a `get` and denies a `list` is exactly
+     * how the inbox broke once, and here that asymmetry is load-bearing.
+     */
+    match /settings/{key} {
+      allow read: if isRegistered() && key == 'logistics';
+      // Admin SDK only, like every other settings write. The dashboard's
+      // `saveSettings` runs server-side and bypasses rules; an organizer is a
+      // client with a role, and a client that could write this could put an
+      // attacker-chosen phone number on the emergency card.
+      allow write: if false;
+    }
+
+    /**
+     * The exhibitor hall, as a projection.
+     *
+     * ── Why not `exhibitors/{id}` itself ────────────────────────────────────
+     *
+     * Rules filter documents, not fields, and `ExhibitorDoc` carries three
+     * things an attendee must not have: the booking contact's name and email
+     * address, so a readable list is a harvestable one; `passesAllocated` and
+     * `passesUsed`, which are the commercial terms of the package that
+     * exhibitor bought; and `status`, where `provisional` names a space
+     * promised in a sales conversation that nobody has paid for. There is no
+     * predicate that hands over the name and withholds the rest, so a filtered
+     * view is not on the table. This is the same argument `directory/{uid}`
+     * settles for `users/{uid}`, and it is settled the same way.
+     *
+     * A cancelled or provisional exhibitor has no listing document at all —
+     * absent rather than filtered, again as in the directory. Nothing about
+     * them is on the wire to be filtered client-side, and this collection
+     * carries no `status` field for anyone to reason about.
+     *
+     * ── Both verbs, and why the predicate is bare ───────────────────────────
+     *
+     * `isRegistered()` and nothing else. A predicate reading `resource.data`
+     * would evaluate against null on a `list` and deny the whole query, which
+     * is how the inbox broke once — and there is nothing here to predicate on,
+     * because the decision about which exhibitors are public was already made
+     * by whether the document exists. The list is deliberately enumerable by a
+     * ticket holder: an exhibitor hall that cannot be listed is not a listing.
+     *
+     * `booths` is deliberately still absent from this file. A booth document
+     * holds an order id, a ticket type, an `assignedBy`, a `held`-but-unpaid
+     * state and a note explaining why a space is unsellable. The booth *number*
+     * is denormalised onto the listing, which is all the app ever needed.
+     */
+    match /exhibitorListings/{exhibitorId} {
+      allow read: if isRegistered();
+      // Server-written, like every other projection here. The seed and (once it
+      // exists) the mirror trigger use the Admin SDK and bypass rules; an
+      // organizer is a client with a role, and a client that could write this
+      // could put an attacker-controlled `logoURL` in front of a thousand
+      // devices, which is the beacon `directory` refuses for the same reason.
+      allow write: if false;
+    }
+
+    /**
+     * Surveys — session feedback and the post-event survey.
+     *
+     * The `status` predicate is the one `sessions` already makes, for the same
+     * reason: a draft survey is a question an organizer is still deciding
+     * whether to ask, and without this it is on the wire the moment it is
+     * typed. It also means a `list` must filter on `status` to be permitted at
+     * all, because `resource.data` is null across a query — which the app's
+     * `useSurveys` does, and which the suite asserts in both verbs.
+     *
+     * No client write branch. Every survey is authored through the console with
+     * the Admin SDK, and `responseCount` is a server-owned tally like every
+     * other count in this file.
+     */
+    match /surveys/{surveyId} {
+      allow read: if isRegistered()
+        && (resource.data.status == 'published' || isOrganizer());
+      allow write: if false;
+
+      /**
+       * One response per respondent, keyed by uid — the shape reactions,
+       * upvotes and ballots all use, and for the same reason: rules can verify
+       * that a writer touched their own entry in a subcollection, and cannot
+       * verify that they touched only their own key inside a map.
+       *
+       * **Answering twice is refused here, not in the UI.** `update` and
+       * `delete` are both closed, so a second submission fails at the boundary
+       * however it is issued. The screen checks its own response first and
+       * shows the answers back rather than the form, but that check is a
+       * courtesy — this is the guarantee.
+       *
+       * A response is private. `isSelf(uid)` resolves on a `get`, which is what
+       * the screen makes, and is false across a `list`, so an attendee cannot
+       * enumerate the room's opinions of a session. Organizers can, and read
+       * them through the console's aggregate.
+       *
+       * The write is bounded rather than merely authenticated: `answers` is a
+       * free-form map, so without a cap it is a general-purpose write channel
+       * into a collection an organizer's dashboard reads and renders. Thirty is
+       * the console's own ceiling on questions.
+       */
+      match /responses/{uid} {
+        allow read: if isSelf(uid) || isOrganizer();
+        allow create: if isSelf(uid) && isRegistered()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'answers', 'submittedAt'])
+          && request.resource.data.answers is map
+          && request.resource.data.answers.keys().size() <= 30;
+        allow update, delete: if false;
+      }
+    }
+
 
     match /communityPosts/{postId} {
       allow read: if isRegistered();

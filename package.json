@@ -17,13 +17,17 @@
     "test": "vitest run scripts/src app/src tests/qr tests/programme",
     "test:functions": "npm run build --workspace=functions && firebase emulators:exec --only firestore,auth,functions \"npm run seed && vitest run tests/functions --no-file-parallelism\"",
     "claims": "npm run claims --workspace=@kgc/scripts --",
+    "reconcile:sold": "npx tsx scripts/ops/reconcile-sold-counts.ts",
     "dev:emulators": "firebase emulators:start --only firestore,auth,functions",
     "web": "npm run web --workspace=app",
     "ios": "npm run ios --workspace=app",
     "android": "npm run android --workspace=app",
     "dev": "npm run start --workspace=app",
-    "test:commerce": "firebase emulators:exec --only firestore \"vitest run tests/commerce\"",
+    "test:commerce": "firebase emulators:exec --only firestore,auth \"vitest run tests/commerce\"",
+    "test:denormalise": "firebase emulators:exec --only firestore \"vitest run tests/denormalise\"",
+    "test:attendance": "firebase emulators:exec --only firestore \"vitest run tests/attendance\"",
     "test:programme": "vitest run tests/programme",
+    "test:programme-import": "firebase emulators:exec --only firestore --config firebase.import-test.json --project kgc-import-test \"vitest run --config vitest.import-emulator.mts\"",
     "smoke": "bash scripts/smoke-dashboard.sh"
   },
   "devDependencies": {

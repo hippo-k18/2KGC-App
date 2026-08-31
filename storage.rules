@@ -1,5 +1,34 @@
 rules_version = '2';
 
+/*
+ * Who may put bytes in this bucket, and who may take them out.
+ *
+ * ── Read this before assuming the dashboard is blocked ──────────────────────
+ *
+ * Every organizer-owned prefix below says `allow write: if false`, and that is
+ * not an oversight or an unfinished thought — it is the whole design. The
+ * organizer dashboard writes with the **Admin SDK**, which bypasses this file
+ * entirely, exactly as it does with `firestore.rules`. `allow write: if false`
+ * is therefore the statement that *no browser* may write here, including an
+ * organizer's browser. See `apps/organizer/src/lib/uploads.ts`.
+ *
+ * Loosening one of these to make an upload work would mean a second, weaker
+ * authority over the same bytes, gated on a Firebase Auth identity the
+ * dashboard does not even mint — it signs in with an email and a passphrase.
+ *
+ * ── And before assuming a logo is unreadable ────────────────────────────────
+ *
+ * `uploads.ts` stamps each object with a Firebase download token and stores the
+ * resulting `https://firebasestorage.googleapis.com/v0/b/…?alt=media&token=…`
+ * URL on the document. That URL is a capability: it does **not** evaluate this
+ * file, which is what lets a logo render on the public website for a visitor
+ * who has no account. The `allow read` rules below govern the *other* path —
+ * an authenticated client SDK fetch by path — and are the reason a rotated
+ * token does not make an image unreachable from inside the app.
+ *
+ * Revoking access to one object therefore means clearing its token, not editing
+ * this file.
+ */
 service firebase.storage {
   match /b/{bucket}/o {
 
@@ -23,6 +52,14 @@ service firebase.storage {
     }
 
     match /sponsors/{sponsorId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Exhibitor logos — `exhibitors/{id}/logo.{ext}`, written by the dashboard's
+    // Admin SDK. Same posture as sponsors, because a logo is exactly as public
+    // as the company that paid for the booth.
+    match /exhibitors/{exhibitorId}/{fileName} {
       allow read: if signedIn();
       allow write: if false;
     }
