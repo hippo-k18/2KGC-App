@@ -281,9 +281,11 @@ npm run claims -- --emulator
 
 This creates the 50 seeded demo accounts and stamps each with the
 `registered` / `roles` custom claims that `firestore.rules` checks — the same
-claims a `verifyOtp` Cloud Function will set automatically in production. The
-shared local demo password is `kgcdemo2027`. Without running this once, seeded
-Firestore documents exist but there is no Auth account allowed to read them.
+claims a `verifyOtp` Cloud Function will set automatically in production. Pass
+`SEED_PASSWORD=…` if you want those local accounts to have a password you can
+type into the app's password box; without it they are created password-less, like
+every account a real purchase makes. Without running this once, seeded Firestore
+documents exist but there is no Auth account allowed to read them.
 
 ---
 
@@ -403,15 +405,15 @@ before trusting either direction.*
   **173** screens read or write real data; `npm run smoke` proves it.
   `apps/console/`, its predecessor, was deleted in August 2026.
 - ✅ **A ticket purchase provisions the account that signs into the app** — Auth
-  user, `users/{uid}`, `directory/{uid}`, `registered` claim. **Demo mode only**:
-  it sets a publicly printed shared password, which is fine for invented
-  attendees and a total compromise of real ones. See
-  `apps/web/src/lib/app-account.ts`.
+  user, `users/{uid}`, `directory/{uid}`, `registered` claim, and **no password**.
+  It runs on the Stripe webhook (`checkout.session.completed` / `invoice.paid`)
+  and is replay-safe. The way in is the six-digit code from `requestOtp` /
+  `verifyOtp`. See `apps/web/src/lib/app-account-core.ts`.
 
 ### Still open
 
 - **`users/{uid}` is not created on an ordinary sign-in.** Seeded accounts and
-  demo-mode purchases have a profile document; nothing else does. See
+  purchasers have a profile document; nothing else does. See
   [Working on the GUI](#working-on-the-gui).
 - **Nothing mints the `registered` claim automatically outside that path.**
   `npm run claims` is still the manual stand-in. See

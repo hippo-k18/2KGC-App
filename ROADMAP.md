@@ -1,5 +1,18 @@
 # What is left to reach Whova parity
 
+> ⚠️ **SUPERSEDED, 2026-08-31.** `BUILD-PLAN.md` is the current measurement.
+>
+> This file counted **screens**. A six-part audit on 2026-08-30 found the
+> binding constraint was never screen count but **capability**: the programme
+> (`speakers`, `sponsors`, `tracks`, `rooms`) was read by all three surfaces and
+> writable by none of them, so the only way to change a speaker's name was to
+> re-run the seed. Several numbers below are also wrong in the optimistic
+> direction — "8 Cloud Function triggers" is 14 deployable units, "5 of 21
+> website pages read Firestore" was 8, and every test count is stale.
+>
+> Kept because its sequencing argument and its "what I would cut" section still
+> hold. Read `BUILD-PLAN.md` first.
+
 **Measured 2026-08-28** against the working tree, by running the checks rather
 than reading the previous version of this file. It is the current status
 document for the whole project; `whova-rebuild/*` is a research and audit
@@ -12,7 +25,7 @@ disagree.
 |---|---|
 | **Attendee app** (`app/`) | Five tabs on real Firestore data. Messages behind a header icon. Badge QR → check-in verified end to end. |
 | **Website** (`apps/web/`) | 21 pages, all links resolving. Stripe Checkout, Stripe Invoicing, tracked links. **Deployed on Netlify.** |
-| **Organizer dashboard** (`apps/organizer/`) | **173 of 173** screens render real data. `npm run smoke` proves it in one command. **Deployed on Netlify.** |
+| **Organizer dashboard** (`apps/organizer/`) | ⚠️ **Superseded — see `BUILD-PLAN.md`.** All 173 render without a throw, but "read real data" was wrong: 39 read nothing. Since 2026-08-31 the programme, sponsors and ticket specs are editable. |
 | **Cloud Functions** (`functions/`) | **8 triggers written**, 14 tests, green against the emulator. **Not deployed** — that needs Blaze. |
 | **Firestore** | Rules, 16 composite indexes and 6 field overrides **live on the real project**. 483 seeded documents, 50 Auth accounts. |
 | **Tests** | **358 passing** — 119 unit · 66 programme · 143 rules · 16 commerce · 14 triggers. |
@@ -294,7 +307,7 @@ For comparison with `whova-rebuild/STATUS.md` (16 August):
 | Cloud Function triggers | 0 written | **8 written, 14 tests, awaiting Blaze to deploy** |
 | Rules and indexes in production | none applied | **rules + 16 indexes + 6 overrides live** |
 | Deployment | localhost only | **both sites on Netlify, app hosted on the web** |
-| Buying a ticket | wrote a registration and stopped | **also provisions the account that signs into the app** (demo mode) |
+| Buying a ticket | wrote a registration and stopped | **also provisions the account that signs into the app**, on the Stripe webhook, with no password |
 | Tests | 169 | **358** — 119 unit · 66 programme · 143 rules · 16 commerce · 14 triggers |
 
 ### What is genuinely different about the remaining work

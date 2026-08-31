@@ -78,26 +78,59 @@ and `deploy-indexes.mjs` — the Firebase CLI is refused on this project with a
 deploy` is not. Both websites are on Netlify and the attendee app is hosted on
 the web. Any doc that says rules are "written but never applied" is stale.
 
-**Not built or only partly wired:** push notifications do not exist (nothing
-imports `expo-notifications`; `fcmTokens` is modelled and unread), badge
-*printing* (`badgeTemplates`, `badgePrintJobs`) is still only modelled, Session
-Q&A and polls render but their tallies never move, and nothing in the project
-uploads a file — `storage.rules` exists with no writer. The eight aggregate
-triggers that would move those tallies **are written** in `functions/src/triggers/`
-with 14 passing tests; what is missing is deployment, which needs Blaze.
-`ROADMAP.md` is the current measurement (2026-08-28) and supersedes everything in
-`whova-rebuild/`, which is a research and audit archive from 15–18 August.
+**Not built or only partly wired**, re-measured 2026-08-31:
 
-**The demo recording lives at `demo/`**, and it is deliberately not a workspace
-member — the same arrangement as the two websites, for the same reason. It drives
-Playwright against the three **deployed** sites and the live Firestore project,
-which is what lets it show one price being changed on the dashboard and appearing
-on the public website in the same take. `demo/README.md` has the run order, which
-matters: act two signs in as the account act one's purchase created. The earlier
-cut in `whova-rebuild/demo/` recorded localhost against the emulator and is
-superseded. ⚠️ A recorded run leaves state behind on the live project — a demo
-order, and `ticketTypes/main-conference` at the price the video changed it to.
-`scripts/ops/reset-demo-sales.mjs` clears the order and not the price.
+- **Everything in `functions/` waits on one IAM grant, not on code.** There are
+  now **14 deployable units** — 10 Firestore triggers, 2 Cloud Tasks handlers
+  and the 2 public OTP callables — with **55 passing tests**. Deploying them is
+  blocked by the `serviceusage` 403, not by Blaze. Until then Session Q&A and
+  poll tallies stay inert on the live project, and the app works around the
+  three counter cases by counting client-side.
+- **Push:** the dashboard sends via the Admin SDK today. The *app* still cannot
+  receive — nothing imports `expo-notifications`, `fcmTokens` has no writer, and
+  receiving needs a development build rather than Expo Go.
+- **File upload exists now.** `apps/organizer/src/lib/uploads.ts` is the writer
+  `storage.rules` never had, wired to exhibitor, sponsor and speaker images.
+  ⚠️ **The Storage bucket itself has never been created** — see
+  `OWNER-ACTIONS.md` §1. The code fails with an actionable error until it is.
+- **Badge *printing*** (`badgeTemplates`, `badgePrintJobs`) is still only
+  modelled.
+
+**`BUILD-PLAN.md` is the current measurement (2026-08-31)** and supersedes
+`ROADMAP.md`, which counted screens where the binding constraint was
+capabilities. `whova-rebuild/` remains a research archive from 15–18 August.
+
+**Demo mode is gone, as of 2026-08-31** (BUILD-PLAN 1.4–1.8). `DEMO_MODE`,
+`EXPO_PUBLIC_DEMO_MODE`, both `demo-panel.tsx` files, the printed credentials,
+the `demo`/`123` sign-in mapping, `OPEN_SIGNIN` and the in-memory fixture
+Firestore have all been deleted. Two things survive by explicit request: the two
+sign-in boxes on each login screen, and the three card boxes on `/tickets`.
+Three consequences to know before you read older docs:
+
+- **The purchase path fails closed.** With `STRIPE_SECRET_KEY` unset,
+  `/tickets` says so on the page, the pay button is disabled and
+  `startCheckout` refuses before it reads a tier. There is no branch that
+  completes a sale without a processor any more. There is still no Stripe key in
+  this repo, so **nothing can currently be bought** — that is the intended state,
+  not a regression (`OWNER-ACTIONS.md` §2).
+- **A missing service-account credential is now a startup failure** in
+  `apps/organizer`, not a silent swap to `fixture.json`. `db()` throws with the
+  three variables named.
+- **The card boxes on `/tickets` still reach no processor.** They carry no
+  `name`, so nothing is submitted; the real card entry is on
+  `checkout.stripe.com`. BUILD-PLAN 1.6 / D-2 replaces them with a Stripe
+  Payment Element and needs a publishable key to do it.
+
+**The demo recording at `demo/` is a build artefact of that removal.** It is
+deliberately not a workspace member — the same arrangement as the two websites,
+for the same reason — and it drove Playwright against the three **deployed**
+sites and the live Firestore project. ⚠️ **Acts one and two no longer run**: act
+one depended on the payment bypass and act two on the shared password. The
+banner at the top of `demo/README.md` says exactly what fails and what would fix
+it. The finished `.mp4` in `demo/out/` is unaffected. ⚠️ The earlier recorded run
+left state on the live project — a demo order, and `ticketTypes/main-conference`
+at the price the video changed it to. `scripts/ops/reset-demo-sales.mjs` clears
+the order and not the price.
 
 **Two decisions that are settled, so do not re-open them:**
 
@@ -108,8 +141,9 @@ order, and `ticketTypes/main-conference` at the price the video changed it to.
 - **The dashboard's gap notes are behind `SHOW_GAP_NOTES`.** 126 "Not built
   here" panels, 8 gap cards, 8 grey tags and the sign-in banner render only when
   it is `1`. Use `GapPanel` / `GapTag` from `(dash)/ui.tsx` for any new one —
-  never a bare `Panel` — or it will show up in a demo. See
-  `apps/organizer/src/lib/gap-notes.ts`.
+  never a bare `Panel` — or it will show up unannounced. See
+  `apps/organizer/src/lib/gap-notes.ts`. (BUILD-PLAN D-4 keeps this flag; it is
+  not part of demo mode, and the notes are accurate statements about real gaps.)
 
 As of WP-01 this is an **npm workspace monorepo**, not a single Expo project at the
 repo root. `models.ts` and `collections.ts` moved out of the app into
@@ -119,7 +153,7 @@ the same document types and must not duplicate them.
 ```
 package.json               workspaces: ["app", "functions", "packages/*", "scripts"]
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
-tests/rules/                143 tests — the security boundary
+tests/rules/                182 tests — the security boundary
 tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
 functions/                  the aggregate triggers, written and tested against the
                             emulator. `npm run test:functions`. NOT deployed —
@@ -150,7 +184,7 @@ app/
     app/
       _layout.tsx            root stack, theme, auth providers, splash
       index.tsx              routes to /login or /home
-      login.tsx              demo sign-in screen
+      login.tsx              sign-in: a six-digit code, or email + password
       +not-found.tsx
       (tabs)/
         _layout.tsx          Home · Agenda · People · Community · Me
@@ -212,15 +246,26 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 143 tests against firestore.rules
-npm test                             # 119 unit tests: timezones, QR, question-form validation
-npm run test:commerce                # 16 tests: fulfilment, refunds, invoice splitting
-npm run test:programme               # 66 tests: conflict detection, CSV, speed-networking pairs
-npm run test:functions               # 14 tests: the aggregate triggers, on the emulator
+npm run test:rules                   # 172 tests against firestore.rules
+npm test                             # 186 unit tests — INCLUDES test:programme
+npm run test:commerce                # 32 tests: fulfilment, refunds, invoice splitting
+npm run test:programme               # 94 tests: conflict detection, CSV, speed-networking pairs
+npm run test:functions               # 46 tests: the triggers and callables, on the emulator
+npm run test:denormalise             # 25 tests: the session-cache fan-out and reconcile
 npm run smoke                        # all 173 dashboard screens, against a seeded emulator
 ```
 
-**358 tests in total**, all green as of 2026-08-28. ⚠️ `npm run smoke` and
+**461 distinct tests**, green as of 2026-08-31. `npm test` already runs
+`tests/programme`, so adding the two does not give a total.
+
+⚠️ **Do not trust a test count you read in a doc — run the suite.** Every number
+above was wrong on 2026-08-30, some by a wide margin: `test:functions` was
+documented as 14 when the real baseline was 32, and three agents in one session
+were handed a stale figure by a brief that quoted this file. If a count here
+disagrees with what the runner prints, the runner is right and this line is the
+bug.
+
+⚠️ `npm run smoke` and
 `npm run build` in `apps/organizer` both write `.next`, so a dev server running
 on :3100 makes either of them fail with `Cannot find module for page: /_document`
 or a `MODULE_NOT_FOUND` on `webpack-runtime`. Stop the dev server first; the
@@ -347,6 +392,26 @@ it. Rule: **never construct a Firestore sentinel inside `@kgc/scripts`** — use
 native `Date`, which is a global and converts on write. Sentinels are fine inside
 an app that owns its own store.
 
+**9. `x || undefined` on a merge write means a field can never be cleared.**
+The stores run with `ignoreUndefinedProperties`, so on a `set(…, { merge: true })`
+an `undefined` value writes **no key at all**. The old value survives, and the
+action still returns "Saved". An organizer who deletes a wrong contact email and
+is told it saved still has the wrong contact email.
+
+```ts
+contactEmail: contactEmail || undefined,          // silently keeps the old value
+contactEmail: contactEmail || FieldValue.delete(), // actually clears it
+```
+
+Found live in `exhibitor-manager/actions.ts` and `engagement/survey-actions.ts`
+on 2026-08-31, both fixed; `lib/campaigns.ts` `saveLink()` had it right and is
+the example to copy. It is easy to reintroduce because the broken form reads
+more naturally and typechecks identically. ⚠️ It bites hardest on a field whose
+*absence* is meaningful — a session's `roomId`, a survey's `sessionId` — where
+"cannot be un-set" is a record permanently pointing at the wrong thing. Nested
+maps need the same care: under `merge` they merge key by key, so name every key
+on every write rather than sending a partial map.
+
 **7. Env vars need the `EXPO_PUBLIC_` prefix** and are compiled into the bundle.
 After changing them restart with `npx expo start -c`; a plain restart will not
 pick them up.
@@ -404,7 +469,16 @@ Decisions worth preserving — do not "simplify" these:
   **every message read and send was denied**. Membership comes from the
   `participantIds` array on the thread document, and nothing anywhere parses a
   thread id to find a person. The same mistake was made independently in the
-  thread-title code; if you find a third instance, it is a bug.
+  thread-title code. ⚠️ **Two more were found on 2026-08-31** — in
+  `threadIdFor`'s own docblock and in `ThreadDoc`'s — bringing it to four, so
+  correcting the comment has demonstrably stopped working. The claim keeps
+  coming back because `threadIdFor` *looks* like it encodes membership and the
+  next author reaches for the obvious thing.
+
+  **`isThreadParticipant()` and `correspondentIn()` now live in
+  `packages/shared/src/collections.ts`, immediately below `threadIdFor`**, and
+  every surface routes through them. Use those. If you are about to write
+  `id.split('_')`, the function you want is one line further down the file.
 - **Sessions carry a denormalised `day` string** so day tabs query by equality
   rather than timezone-aware ranges. Local wall time (`startsAtLocal` +
   `timeZone`) is the authoring truth; `startsAt`/`endsAt`/`day` are derived from
@@ -514,7 +588,7 @@ Four things to know before editing it:
   the whole query. The inbox broke this way once. If a rule guards a collection
   anyone queries, test both verbs.
 
-`tests/rules/firestore.test.ts` has **143 tests, one per invariant**. It has been
+`tests/rules/firestore.test.ts` has **182 tests, one per invariant**. It has been
 mutation-checked: breaking `isRegistered()` fails exactly the test that names that
 guarantee. Add a test whenever you add a rule — the suite is the only thing
 standing between this file and 1,000 attendees' data.
@@ -537,11 +611,15 @@ standing between this file and 1,000 attendees' data.
 
 ## Known gaps
 
-- **Auth is real but the sign-in method is not the shipping one.** Accounts,
-  the `registered` / `roles` custom claims and the rules that read them are all
-  genuine — but the login screen uses email + password against the Auth
-  emulator, because the production design (a six-digit code verified by a Cloud
-  Function) needs Blaze. The hard-coded `demo-auth.tsx` is deleted.
+- **The shipping sign-in is written but undeployed.** Accounts, the `registered`
+  / `roles` custom claims and the rules that read them are genuine, and the app's
+  login screen now offers the production design first — a six-digit code from
+  `requestOtp` / `verifyOtp` (`functions/src/callable/`), exercised end to end
+  against the emulators. Deploying those two callables needs Blaze *and* the
+  `serviceusage` grant (`OWNER-ACTIONS.md` §3), so against the live project the
+  callable 404s and the screen says so. Email + password stays beside it, at the
+  owner's request; nothing this project provisions has a password, so in practice
+  it only works for an account somebody gave one to by hand.
 - **Nothing creates `users/{uid}`.** The seed writes 50 profiles, which is why
   the demo works; a real attendee signing in has no profile document, so their
   name and privacy switches fall back to defaults. `AuthProvider` should create

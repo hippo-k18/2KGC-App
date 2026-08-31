@@ -1,5 +1,28 @@
 # The live demo — strategy and state
 
+> ## ⚠️ Superseded on 2026-08-31 — demo mode has been removed
+>
+> **This file is now a historical record, not instructions.** BUILD-PLAN 1.4–1.8
+> deleted every mechanism described below: `DEMO_MODE`, `EXPO_PUBLIC_DEMO_MODE`,
+> the printed-credential panels, the `demo`/`123` sign-in mapping, `OPEN_SIGNIN`
+> and the payment bypass. Steps 7, 8 and 9 have been *undone*.
+>
+> What is true instead:
+>
+> - **The purchase path fails closed.** No Stripe key means `/tickets` says so,
+>   the pay button is disabled, and `startCheckout` refuses. Nothing can be
+>   bought until `STRIPE_SECRET_KEY` is set (`OWNER-ACTIONS.md` §2).
+> - **Sign-in is a six-digit code** (`requestOtp` / `verifyOtp`), with email +
+>   password kept beside it at the owner's request. No password is printed
+>   anywhere, and no account this project provisions has one.
+> - **Two things survive by explicit request**: the two boxes on each login
+>   screen, and the three card boxes on `/tickets`.
+>
+> ⚠️ **§4 below is still live and still needs action** — the fifty Auth accounts
+> it records were created on the real project with a shared password, and that
+> password has been removed from the repo but *not* rotated on the accounts. See
+> `OWNER-ACTIONS.md` §4.
+
 Written 2026-08-27. This file is the plan *and* the record of what is actually
 done, so it must be edited as each step lands rather than at the end.
 
@@ -19,7 +42,7 @@ Netlify sites and a phone can all reach the same data at the same time.
 
 ## Decisions taken for the demo
 
-**Payment is approved on the button.** Stripe is not configured and will not be.
+**~~Payment is approved on the button.~~ Removed 2026-08-31.** Stripe is not configured.
 The existing no-Stripe path already writes a byte-identical registration; the
 only change is that the order is now marked `paid` rather than `pending`, so
 every downstream screen — revenue, orders, attendee list — shows the sale the
@@ -31,7 +54,7 @@ already makes every send a no-op in that state. Nothing is queued and nothing
 fails; the confirmation page carries the claim code, which is the part the demo
 actually shows.
 
-**Credentials are printed on screen.** Every sign-in and the checkout card box
+**~~Credentials are printed on screen.~~ Removed 2026-08-31.** Every sign-in and the checkout card box
 show the values to type, in a dark panel rendered in the page next to the fields
 it fills — inside the dashboard's login card, under the website's card box. It
 used to be fixed to the bottom of the viewport and covered whatever was beneath
@@ -56,11 +79,11 @@ cannot survive into a real deployment by accident.
       `registered: true`, `roles: [attendee, organizer]`, `eventId: kgc-2027`.
       Those claims are what `firestore.rules` gates on, so the app's
       authorization path is now real rather than emulated.
-- [x] 7. Demo mode in `apps/web` — approves on click, cosmetic card box,
+- [x] ~~7. Demo mode in `apps/web`~~ — **reverted 2026-08-31**; — approves on click, cosmetic card box,
       credential panel with one-click fill.
-- [x] 8. Demo mode in `apps/organizer` — credential panel, and a passphrase long
+- [x] ~~8. Demo mode in `apps/organizer`~~ — **reverted 2026-08-31**; — credential panel, and a passphrase long
       enough that the live-project guard accepts it.
-- [x] 9. Demo mode in `app/` — Expo points at the live project, and the
+- [x] ~~9. Demo mode in `app/`~~ — **reverted 2026-08-31**; — Expo points at the live project, and the
       credential hint is no longer emulator-only.
 - [x] 10. Netlify environment for both sites. The dashboard had no
       service-account credential at all and was serving its in-memory fixture;

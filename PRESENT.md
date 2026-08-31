@@ -1,5 +1,24 @@
 # KGC 2027 — demo run sheet
 
+> ## ⚠️ Out of date as of 2026-08-31 — this run sheet no longer works
+>
+> BUILD-PLAN 1.4–1.8 removed demo mode. Three steps below now fail:
+>
+> - **Buying a ticket on tab 2.** The pay button is disabled and the site says
+>   `STRIPE_SECRET_KEY` is not set. There is no longer any path that completes a
+>   purchase without Stripe (`OWNER-ACTIONS.md` §2).
+> - **Signing into the dashboard on tab 3.** The credentials are no longer
+>   printed in a panel on the login screen. The two boxes are still there; you
+>   have to know the values.
+> - **Signing into the app on tab 4.** `demo` / `123` no longer maps to
+>   anything, the fields are not prefilled, and nothing is printed under the
+>   form. Sign-in is a six-digit code, and the callable that sends it is
+>   undeployed (`OWNER-ACTIONS.md` §3 and §6).
+>
+> Everything else — the dashboard's screens, the price edit reaching the public
+> site, the badge and the check-in desk — still works. Rewrite this file when the
+> Stripe test key and the OTP deployment land; do not follow it as it stands.
+
 Everything below runs against the **live** Firebase project
 `kgc-conference-app-and-website`. The website, the dashboard and the phone all
 read the same database, which is the point: what you do on one appears on the
@@ -53,11 +72,11 @@ cannot be reached from it. Add `--dry-run` to see what it would remove first.
 | 3 — Dashboard | <https://kgc-2027-dashboard.netlify.app/login> |
 | 4 — Attendee app | <https://kgc-2027-app.netlify.app> |
 
-Sign into tab 3 **before** you start talking. The credentials are printed in the
-dark panel inside the login card, under the fields — click a value to copy it.
-
-- Email · `demo@knowledgegraph.tech`
-- Password · `kgc-demo-2027`
+Sign into tab 3 **before** you start talking. ⚠️ The credential panel is gone —
+the two boxes remain, but nothing prints the values any more. They are
+`CONSOLE_ALLOWLIST[0]` and `CONSOLE_PASSPHRASE` from the site's Netlify
+configuration, and the passphrase is one of the two secrets awaiting rotation in
+`OWNER-ACTIONS.md` §4.
 
 Leave it on **Tickets → Orders and Transactions → Attendee Orders**. That is the
 screen you will cut back to.
@@ -65,8 +84,8 @@ screen you will cut back to.
 ### 4. The phone
 
 **<https://kgc-2027-app.netlify.app>** — open it in any browser, on any device,
-on any network. Sign in with username `demo`, password `123`; both are
-prefilled and printed under the form.
+on any network. ⚠️ `demo` / `123` no longer works and nothing is prefilled — see
+the banner at the top of this file.
 
 This is the attendee app exported to the web and hosted, which exists for one
 reason: **Expo Go loads its JavaScript from a Metro server on this laptop**, so

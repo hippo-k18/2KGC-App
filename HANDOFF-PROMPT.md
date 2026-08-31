@@ -1,10 +1,13 @@
 # Handoff prompt — wiring Stripe and Resend
 
-**Still current as of 2026-08-28.** Neither account has been opened, so no live
-Stripe transaction has ever run and no email has ever been delivered. Everything
-downstream of them is built, tested and deployed — the demo path works because
-`DEMO_MODE` approves the payment on the spot and `emailEnabled()` makes every
-send a no-op, not because Stripe or Resend are wired.
+**Still current as of 2026-08-31, and more urgent than it was.** Neither account
+has been opened, so no live Stripe transaction has ever run and no email has ever
+been delivered. Everything downstream of them is built, tested and deployed.
+⚠️ **What changed on 2026-08-31: demo mode was removed, and with it the branch
+that approved a payment without Stripe.** The deployed website now declines to
+sell until `STRIPE_SECRET_KEY` is set, and `RESEND_API_KEY` now governs the OTP
+sign-in code as well as receipts — so a buyer without it has no way into the app.
+§1 is no longer a nice-to-have.
 
 Two things are left that **cannot be done from inside the repo**, because they
 need accounts that only you can open. Everything else is built and verified —

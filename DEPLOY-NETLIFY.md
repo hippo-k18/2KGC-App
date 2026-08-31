@@ -82,10 +82,14 @@ a copy today.
   demo has since written. Replace with `npm run import:whova` when the real
   agenda arrives.
 
-### 3. Stripe keys, for the website only — not used by the demo
+### 3. Stripe keys, for the website — ⚠️ now required to sell anything
 
-`DEMO_MODE=1` approves the payment without Stripe. This section applies the day
-a real account is added.
+Demo mode was removed on 2026-08-31 and with it the branch that completed a
+purchase without a processor. **Until `STRIPE_SECRET_KEY` is set, the deployed
+website refuses to sell**: `/tickets` says so on the page, the pay button is
+disabled and the server action returns an error naming the variable. That is the
+intended behaviour for an unconfigured deployment — see BUILD-PLAN D-1 — and it
+means this section is no longer optional.
 
 `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The webhook secret comes from
 the Stripe dashboard once you register the endpoint at
@@ -106,9 +110,16 @@ deploy, and the site needs redeploying with it.
 | `STRIPE_WEBHOOK_SECRET` | From Stripe, after registering the endpoint |
 | `WEB_ORDER_SECRET` | `openssl rand -hex 32`. Signs the order-confirmation capability token |
 | `WEB_PUBLIC_ORIGIN` | The deployed origin, e.g. `https://kgc-2027-website.netlify.app` |
-| `DEMO_MODE` | `1` approves the payment on the button, shows the card box and prints the buyer details. Never set alongside a real `STRIPE_SECRET_KEY` |
 
-Do **not** set `FIRESTORE_EMULATOR_HOST`.
+⚠️ **`DEMO_MODE` is set to `1` on this site in the Netlify UI and must be
+deleted there.** It was removed from the code on 2026-08-31, so it is now inert —
+but leaving a stale variable in a hosting config is how the next person concludes
+the flag still does something. Site settings → Environment variables → delete.
+
+Do **not** set `FIRESTORE_EMULATOR_HOST`. It is not merely unnecessary: with no
+service-account credential the dashboard now **throws at startup** rather than
+serving fixture data, so a half-set Firestore configuration is a site that does
+not load.
 
 ### `apps/organizer`
 
@@ -119,7 +130,10 @@ Do **not** set `FIRESTORE_EMULATOR_HOST`.
 | `CONSOLE_ALLOWLIST` | Comma-separated organizer identities. Emails, or a bare username like `demo` |
 | `CONSOLE_PASSPHRASE` | **Required in production.** `openssl rand -base64 24` |
 | `CONSOLE_SESSION_SECRET` | A fresh `openssl rand -hex 32` — never the dev value |
-| `DEMO_MODE` | `1` prints the sign-in credentials on the login screen. Remove it the moment the data behind the dashboard is real |
+
+⚠️ **`DEMO_MODE` is set to `1` on this site in the Netlify UI too, and must be
+deleted there.** Same reason as above: inert since 2026-08-31, and misleading
+while it remains.
 
 A short passphrase such as `123` is allowed **only** when the dashboard is
 pointed at a Firestore emulator. Against the live project, anything under
@@ -203,9 +217,11 @@ are deployed and reading the live project through it.
   incremented, claim code issued. See `DEMO.md`.
 - All 16 composite indexes are deployed, which is what makes that true — the
   emulator does not enforce them, so this was the outstanding risk.
-- **The Stripe webhook has still never received a live event**, and will not:
-  the demo runs with `DEMO_MODE=1` and no Stripe account. That path is
-  unexercised and should be treated as untested when a real account is added.
+- **The Stripe webhook has still never received a live event**, because there is
+  still no Stripe account. Since demo mode was removed there is also no longer
+  any other way to complete a purchase — the deployed site declines to sell. The
+  webhook's own logic *is* exercised, by `tests/commerce` against signed events
+  on the emulator; what is untested is the live delivery.
 - Builds are still run locally and uploaded. Neither site is built by Netlify
   from the repository, so the `file:../../` workspace dependencies remain
   unproven there.
