@@ -3,11 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
-import { demoMode } from '@/lib/demo';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { QrCode } from '@/components/qr-code';
 import { APP_DISTRIBUTION, APP_URL, SITE } from '@/lib/site';
-import { DEMO_APP_PASSWORD } from '@/lib/demo-credentials';
 
 export const metadata: Metadata = {
   title: 'Your ticket',
@@ -63,7 +61,6 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
   const reg = await getRegistration(payload.rid);
   if (!reg) notFound();
 
-  const demo = demoMode();
   /*
    * `name`, `ticketType` and `claimCode` are all optional on `RegistrationDoc`,
    * and not merely in theory — a registration imported from a Whova CSV can
@@ -104,24 +101,10 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
           {firstName ? `You’re in, ${firstName}.` : 'You’re registered for KGC 2027.'}
         </h1>
 
-        {payload.demo && demo ? (
-          <p className="notice warn">
-            <strong>Payment approved — demo.</strong> The order is recorded as paid and appears on
-            the organizer dashboard exactly as a real sale would, but no card was charged and no
-            receipt was emailed. The ticket below is real: the app will accept this claim code.
-          </p>
-        ) : payload.demo ? (
-          <p className="notice warn">
-            <strong>No payment was taken.</strong> This deployment has no payment processor
-            configured, so this was a test purchase. Your registration is real and the mobile app
-            will accept it — but no money changed hands and there is no receipt.
-          </p>
-        ) : (
-          <p className="notice">
-            Stripe has emailed your receipt to <strong>{reg.email}</strong>. This page is your
-            ticket — bookmark it, or screenshot the pass below.
-          </p>
-        )}
+        <p className="notice">
+          Stripe has emailed your receipt to <strong>{reg.email}</strong>. This page is your ticket
+          — bookmark it, or screenshot the pass below.
+        </p>
 
         {/*
           The pass. Two panels and a tear line: the record on the left, the two
@@ -199,45 +182,27 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
 
         <ol className="next-cards">
           {/*
-            In demo mode the account already exists — the purchase created it —
-            so the first card can print the password rather than promise a link.
-            Outside demo mode no account was created, and telling somebody to
-            sign in would be a lie.
+            The webhook that marked this order paid also created the Auth
+            account, stamped the `registered` claim and wrote the profile — see
+            `lib/app-account-core.ts`. So "sign in" is a statement about
+            something that exists, which is what it was not while the account
+            was created only by the demo path.
+
+            What it must not do is print a credential. There isn't one: the
+            account is password-less by design and the way in is a six-digit code
+            the app mails to this address.
           */}
           <li>
             <h3>Sign in to the app</h3>
-            {demo ? (
-              <>
-                <p>
-                  Your account was created by this purchase. Nothing to install — it runs in a
-                  browser.
-                </p>
-                {/*
-                  The password is monospaced and the address is not. Mono earns
-                  its place on a string somebody has to transcribe character by
-                  character — it is what tells an l from a 1 — and costs about
-                  15% width, which is the difference between this address
-                  sitting on one line and breaking as "example.c / om".
-                */}
-                <dl className="next-creds">
-                  <dt>Email</dt>
-                  <dd>{reg.email}</dd>
-                  <dt>Password</dt>
-                  <dd className="mono">{DEMO_APP_PASSWORD}</dd>
-                </dl>
-                <a href={APP_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
-                  Open the KGC app
-                </a>
-              </>
-            ) : (
-              <>
-                <p>
-                  Sign in with <strong>{reg.email}</strong> — the same address you registered with.
-                  That is what matches you to this ticket; a different one will not find it.
-                </p>
-                <p className="muted">{APP_DISTRIBUTION}</p>
-              </>
-            )}
+            <p>
+              Your account was created by this purchase. Open the app, enter{' '}
+              <strong>{reg.email}</strong>, and it emails you a six-digit code — that address is
+              what matches you to this ticket, and a different one will not find it.
+            </p>
+            <p className="muted">{APP_DISTRIBUTION}</p>
+            <a href={APP_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
+              Open the KGC app
+            </a>
           </li>
 
           <li>

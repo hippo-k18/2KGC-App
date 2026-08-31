@@ -1,4 +1,6 @@
+import { PAGE_CONTENT_KEYS, type CodeOfConductContent } from '@kgc/shared';
 import type { Metadata } from 'next';
+import { pageContent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 
 /**
@@ -46,14 +48,47 @@ const SANCTIONS = [
   'publishing an account of the offending behavior (publication will never occur contrary to the wishes of those harmed by the offending behavior).',
 ];
 
-const COMMITTEE = [
-  'François Scharffe, Co-Founder, Conference Chair',
-  'Thomas Deely, Co-Founder',
-  'Hazel Alvarado, Head of Partnerships',
-  'Joaquin Melara, COO',
-];
+/**
+ * The reporting route, and the only part of this page an organizer can change
+ * without a deploy.
+ *
+ * ── What is editable, and what deliberately is not ──────────────────────────
+ *
+ * Everything above this line — the standards, the ten sanctions, the prose — is
+ * the policy. It stays in React. Changing it is a legal act with a named
+ * enforcement consequence, it should leave a reviewable history, and there is
+ * no approval step behind a dashboard text box. A tidier sentence typed at
+ * 11pm that drops a sanction is a materially different document from the one
+ * attendees agreed to.
+ *
+ * The reporting route is the opposite case. `Hazel Alvarado, Head of
+ * Partnerships` is a person in a job, and people change jobs; the email is one
+ * mailbox somebody has to still be reading. Those are the two things on this
+ * page that go stale, and the moment they do, the page fails the one person it
+ * exists for — somebody who has just been harassed and is looking for who to
+ * tell. That is worth a database read.
+ *
+ * ⚠️ This constant is the fallback and must never be emptied to "let the CMS
+ * fill it". `pageContent()` takes it as a required argument precisely so that
+ * an empty collection, a wrong `eventId` or an unreachable Firestore all render
+ * exactly what is written here.
+ */
+const CONTACT: CodeOfConductContent = {
+  reportEmail: 'info@knowledgegraph.tech',
+  committee: [
+    'François Scharffe, Co-Founder, Conference Chair',
+    'Thomas Deely, Co-Founder',
+    'Hazel Alvarado, Head of Partnerships',
+    'Joaquin Melara, COO',
+  ],
+};
 
-export default function CodeOfConductPage() {
+/** The reporting route is read per request, so a change reaches the page at once. */
+export const dynamic = 'force-dynamic';
+
+export default async function CodeOfConductPage() {
+  const { reportEmail, committee } = await pageContent(PAGE_CONTENT_KEYS.codeOfConduct, CONTACT);
+
   return (
     <section>
       <div className="wrap narrow">
@@ -141,11 +176,11 @@ export default function CodeOfConductPage() {
         <h2>Contact</h2>
         <p>
           If an incident occurs, please contact one or all of the Executive Committee members
-          directly, or using <a href="mailto:info@knowledgegraph.tech">info@knowledgegraph.tech</a>.
+          directly, or using <a href={`mailto:${reportEmail}`}>{reportEmail}</a>.
         </p>
         <p>KGC Executive Committee members are:</p>
         <ul>
-          {COMMITTEE.map((m) => (
+          {committee.map((m) => (
             <li key={m} style={{ padding: '4px 0' }}>
               {m}
             </li>

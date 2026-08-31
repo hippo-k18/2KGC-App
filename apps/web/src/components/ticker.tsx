@@ -28,13 +28,29 @@ import { ANNOUNCEMENT, TICKER } from '@/lib/site';
  * `globals.css`: the animation is removed rather than slowed, and the strip
  * becomes an ordinary horizontally scrollable row — the facts are all still
  * reachable, they simply hold still.
+ *
+ * ## Where the leading lines come from
+ *
+ * `announcements` is what the organizer actually posted, read from Firestore by
+ * whoever renders this — see `listAnnouncements()` in `lib/data.ts`. It leads
+ * the loop, newest first, because a room change is the only thing on this strip
+ * that is urgent.
+ *
+ * `ANNOUNCEMENT` in `lib/site.ts` is the fallback and not dead weight: for most
+ * of the year the collection is legitimately empty, and a strip that opens on
+ * the standing line ("Tickets for KGC 2027 open soon") is better than one that
+ * opens on the venue. The two are never shown together — a live announcement
+ * displaces the standing line rather than queueing behind it, because the point
+ * of the announcement is that it is the news.
  */
-export function Ticker() {
-  if (!ANNOUNCEMENT && TICKER.length === 0) return null;
+export function Ticker({ announcements = [] }: { announcements?: string[] }) {
+  // The organizer's own words lead when there are any; otherwise the one line
+  // the owner edits by hand does.
+  const lead = announcements.length > 0 ? announcements : ANNOUNCEMENT ? [ANNOUNCEMENT] : [];
 
-  // The hand-edited announcement leads, so the one line the owner controls is
-  // the first thing anyone reads.
-  const items = ANNOUNCEMENT ? [ANNOUNCEMENT, ...TICKER] : TICKER;
+  if (lead.length === 0 && TICKER.length === 0) return null;
+
+  const items = [...lead, ...TICKER];
 
   const run = (hidden: boolean) => (
     <ul className="ticker-run" aria-hidden={hidden || undefined}>

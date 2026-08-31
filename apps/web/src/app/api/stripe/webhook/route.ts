@@ -1,7 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
-import { incrementSold } from '@/lib/catalogue';
+import type { EntitlementDoc } from '@kgc/shared';
+import { provisionPurchaserAccount } from '@/lib/app-account';
+import {
+  grantOrderEntitlements,
+  uidForEmail,
+  withdrawOrderEntitlements,
+} from '@/lib/app-account-core';
+import { incrementSold, tierFulfilment } from '@/lib/catalogue';
 import { sendPurchaseConfirmation, sendRefundConfirmation } from '@/lib/email';
+import { recordError, recordWarning } from '@/lib/errors';
+import { db } from '@/lib/firestore';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
 import { claimAnswers } from '@/lib/question-forms';
@@ -37,10 +46,28 @@ import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
  * an unhandled event type makes Stripe retry it forever and eventually disable
  * the endpoint, taking the events we *do* care about with it.
  *
- * **4. Never let a side effect fail fulfilment.** Sending email and bumping the
- * sold counter both happen after the ticket exists, and both swallow their own
- * errors. A receipt that fails to send must not turn into a retry storm that
- * disables the endpoint — the ticket is the product, the receipt is a courtesy.
+ * **4. Never let a side effect fail fulfilment.** Sending email, bumping the
+ * sold counter and creating the buyer's account all happen after the ticket
+ * exists, and all swallow their own errors. A receipt that fails to send must
+ * not turn into a retry storm that disables the endpoint — the ticket is the
+ * product, the receipt is a courtesy.
+ *
+ * **5. Give the buyer an identity.** ★ This is the whole reason demo mode could
+ * not simply be deleted, and it is why this had to land first. The only thing
+ * in the repo that created a Firebase Auth account for a buyer used to be
+ * `provisionAppAccount()`, whose single call site sat inside
+ * `if (!stripeEnabled())` *and* behind a `DEMO_MODE` check — so with a real
+ * Stripe key, control never reached it and a paying customer got a
+ * registration, an order, a receipt and **no account at all**. They would sign
+ * in to an app that `firestore.rules` denies at every read, because the
+ * `registered` custom claim is what it gates on and nothing had stamped it.
+ *
+ * Provisioning now runs here, on `checkout.session.completed` and on
+ * `invoice.paid` (one account per attendee, not one per order). It creates the
+ * account, stamps the claim and writes the profile and its directory
+ * projection. It **does not set a password** — the way in is the six-digit code
+ * from `functions/src/callable/`, and a second sign-in mechanism invented here
+ * would be one more credential nobody can rotate.
  */
 export async function POST(req: NextRequest) {
   if (!stripeEnabled()) {
@@ -124,6 +151,62 @@ export async function POST(req: NextRequest) {
         refundedCents: charge.amount_refunded,
       });
 
+      /**
+       * Give the seats back.
+       *
+       * `quantitySold` was a one-way ratchet: ten refunds permanently consumed
+       * ten seats and no screen could correct it, so a capped tier's inventory
+       * shrank with every refund until it reported sold out with the room half
+       * empty.
+       *
+       * Three constraints, all of them the difference between a fix and a new
+       * bug. **Full refunds only** — `outcome.fullyRefunded` is false for a
+       * partial one, where the attendee still holds a valid ticket and the seat
+       * is still sold. **Once** — `newlyRefunded` is the guard, and it is not
+       * the same question as `fullyRefunded`: Stripe redelivers this event for
+       * up to three days reporting the same cumulative `amount_refunded` every
+       * time, so without it a replay would hand back the same seat twice and
+       * oversell the tier. And **best effort** — `incrementSold` swallows its
+       * own errors for the same reason it does on the way up: a lost counter
+       * must never fail a refund that has already moved real money.
+       */
+      const seatsReturned: string[] = [];
+      if (outcome.newlyRefunded) {
+        for (const line of outcome.lines) {
+          await incrementSold(line.ticketTypeId, -line.quantity);
+          seatsReturned.push(line.ticketTypeId);
+        }
+      }
+
+      /**
+       * Withdraw what the money bought, so the entitlement and the ticket move
+       * together.
+       *
+       * Gated on `registrationId` rather than on `fullyRefunded`, because that
+       * field is non-null only when `cancelRegistrationByOrder` actually
+       * cancelled the ticket — which it declines to do when a second, still-paid
+       * order covers the same person. Somebody who refunded a workshop upgrade
+       * and kept their main-conference ticket keeps their access with it.
+       *
+       * `withdrawOrderEntitlements` removes only `source: 'order'` grants, so a
+       * speaker's or a staff member's access survives a refund of something
+       * they also bought.
+       */
+      let entitlementsWithdrawn = 0;
+      if (outcome.newlyRefunded && outcome.registrationId && outcome.email) {
+        try {
+          entitlementsWithdrawn = await withdrawOrderEntitlements(
+            db(),
+            uidForEmail(outcome.email),
+          );
+        } catch (err) {
+          await recordError('entitlement.withdraw', err, {
+            path: 'orders',
+            id: outcome.orderId,
+          });
+        }
+      }
+
       // Only tell someone their ticket is void when it actually is.
       if (outcome.fullyRefunded && outcome.email) {
         await sendRefundConfirmation({
@@ -143,6 +226,12 @@ export async function POST(req: NextRequest) {
         orderId: outcome.orderId,
         registrationId: outcome.registrationId,
         fullyRefunded: outcome.fullyRefunded,
+        // In the response so a replay is visible in Stripe's own event log:
+        // the first delivery reports seats returned, every later one reports
+        // none, which is what idempotent looks like from the outside.
+        newlyRefunded: outcome.newlyRefunded,
+        seatsReturned,
+        entitlementsWithdrawn,
       });
     }
 
@@ -224,9 +313,59 @@ export async function POST(req: NextRequest) {
        * record written when the invoice was raised. So the registrations are
        * created directly and the single existing order is flipped to paid.
        */
+      /**
+       * Re-check capacity **here**, not only when the invoice was raised.
+       *
+       * `tickets/invoice/actions.ts` refuses a closed tier at the moment the
+       * invoice is created — and then the invoice sits on net-30 terms for a
+       * month. That is a thirty-day window in which the tier can sell out, the
+       * sales window can close, or an organizer can lower the cap, and until
+       * now `invoice.paid` registered every seat regardless and silently
+       * oversold the room. The person who found out was whoever was standing at
+       * the door.
+       *
+       * Checked, not refused. The money has arrived: refusing to register
+       * somebody who has paid would be the worse failure, and the person able to
+       * fix it — add capacity, move the seat, refund it — is an organizer, who
+       * needs to be *told*. So each affected seat is flagged into `auditLog`,
+       * which the dashboard renders, and reported in the response so it is
+       * visible in Stripe's event log too.
+       *
+       * The tiers are read once and their remaining seats decremented in memory
+       * as the loop consumes them, so an invoice for five seats against a tier
+       * with three left flags the last two rather than all five or none.
+       */
+      const tiers = new Map<string, Awaited<ReturnType<typeof tierFulfilment>>>();
+      for (const seat of seats) {
+        // `''` is a seat recovered from Stripe metadata — an invoice raised
+        // straight in the Stripe dashboard, with no order record naming a tier.
+        // There is no catalogue entry to check it against and no counter to
+        // move; registering it is still right.
+        if (!seat.ticketTypeId || tiers.has(seat.ticketTypeId)) continue;
+        tiers.set(seat.ticketTypeId, await tierFulfilment(seat.ticketTypeId));
+      }
+
       const registered: string[] = [];
+      const oversold: { email: string; ticketTypeId: string; reason: string }[] = [];
+      let accountsCreated = 0;
+      let accountsFailed = 0;
+
       for (const [i, seat] of seats.entries()) {
         const amountCents = per + (i === 0 ? remainder : 0);
+        const tier = seat.ticketTypeId ? (tiers.get(seat.ticketTypeId) ?? null) : null;
+
+        if (tier) {
+          const soldOut = tier.remaining !== undefined && tier.remaining <= 0;
+          if (soldOut || !tier.onSale) {
+            oversold.push({
+              email: seat.email,
+              ticketTypeId: seat.ticketTypeId,
+              reason: soldOut ? 'no seats left' : (tier.unavailableReason ?? 'not on sale'),
+            });
+          }
+          if (tier.remaining !== undefined) tier.remaining -= 1;
+        }
+
         const result = await ensureRegistration({
           email: seat.email,
           name: seat.name,
@@ -236,6 +375,26 @@ export async function POST(req: NextRequest) {
 
         if (seat.ticketTypeId && result.created) await incrementSold(seat.ticketTypeId);
 
+        /**
+         * One account per attendee, not one per order.
+         *
+         * This is the multi-seat case the account gap hid: a company invoice is
+         * a single order covering four people, and it is those four who each
+         * need an identity — the billing contact who paid may not be attending
+         * at all and gets nothing here. `provisionPurchaserAccount` is keyed by
+         * the attendee's own address and is idempotent per address, so a
+         * redelivered `invoice.paid` adopts the four accounts rather than
+         * making four more.
+         */
+        const account = await provisionPurchaserAccount({
+          email: result.email,
+          name: result.name ?? seat.name,
+        });
+        if (account.status === 'created') accountsCreated += 1;
+        if (account.status === 'failed') accountsFailed += 1;
+
+        if (account.uid && tier) await grantSeatEntitlements(account.uid, tier.entitlements);
+
         // Each seat is a person who needs their own claim code — the billing
         // contact's copy of the invoice does not get them into the app.
         await sendPurchaseConfirmation({
@@ -244,10 +403,18 @@ export async function POST(req: NextRequest) {
           ticketType: result.ticketType ?? seat.ticketType,
           amountCents,
           currency: invoice.currency ?? 'usd',
-          orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId, demo: false })}`,
+          orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
           claimCode: result.claimCode,
           registrationId: result.registrationId,
         });
+      }
+
+      if (oversold.length > 0) {
+        await recordWarning(
+          'invoice.oversold',
+          { invoiceId: invoice.id ?? '', seats: oversold.map((s) => `${s.email} (${s.reason})`) },
+          { path: 'orders', id: invoice.id ?? '' },
+        );
       }
 
       const orderId = await markInvoiceOrderPaid({
@@ -266,6 +433,12 @@ export async function POST(req: NextRequest) {
         invoiceId: invoice.id,
         orderId,
         registered: registered.length,
+        accountsCreated,
+        accountsFailed,
+        // Present only when there is something wrong, so an empty key in the
+        // Stripe event log means the capacity check ran and passed rather than
+        // that it never ran.
+        ...(oversold.length > 0 ? { oversold } : {}),
       });
     }
 
@@ -393,17 +566,47 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
   });
 
   /**
-   * Both of these are after the fact and neither may throw upward.
+   * Everything below is after the fact and none of it may throw upward.
    *
-   * The counter is advisory (see `incrementSold`) and the email is a courtesy;
-   * the ticket already exists and is valid. A failure in either must not turn
-   * into a non-2xx, because Stripe would retry the event and eventually disable
-   * the endpoint — losing fulfilment for everyone because one receipt bounced.
+   * The counter is advisory (see `incrementSold`), the account is repairable by
+   * the OTP flow, and the email is a courtesy; the ticket already exists and is
+   * valid. A failure in any of them must not turn into a non-2xx, because
+   * Stripe would retry the event and eventually disable the endpoint — losing
+   * fulfilment for everyone because one receipt bounced.
    *
    * Only count a seat the first time. A webhook replay must not sell the same
    * ticket twice against a tier's capacity.
    */
   if (tierId && result.created) await incrementSold(tierId);
+
+  /**
+   * The buyer's account.
+   *
+   * Deliberately **not** behind `result.created`, unlike the counter above, and
+   * the difference is worth stating because the two look interchangeable.
+   * `incrementSold` is an increment: running it twice is wrong, and nothing
+   * about the operation itself can tell that it already ran, so it needs an
+   * external guard. Provisioning is keyed by a uid derived from the address and
+   * checks for the account before creating one, so running it twice is a no-op
+   * by construction — and gating it on `result.created` would *skip* it for the
+   * case that most needs it, an attendee imported from the Whova export who
+   * then buys a ticket. The registration already exists; the account does not.
+   */
+  const account = await provisionPurchaserAccount({
+    email: result.email,
+    name: result.name ?? session.metadata?.name ?? '',
+  });
+
+  /**
+   * What the ticket unlocks, from the tier's own `includesWorkshops` /
+   * `includesVideoLibrary`. The dashboard has always been able to set them and
+   * nothing has ever written the grant they imply, so a tier could sell a video
+   * library that no surface would let anybody watch.
+   */
+  if (account.uid && tierId) {
+    const tier = await tierFulfilment(tierId);
+    if (tier) await grantSeatEntitlements(account.uid, tier.entitlements);
+  }
 
   await sendPurchaseConfirmation({
     to: result.email,
@@ -411,7 +614,7 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     ticketType: result.ticketType ?? '',
     amountCents: session.amount_total ?? 0,
     currency: session.currency ?? 'usd',
-    orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId, demo: false })}`,
+    orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
     claimCode: result.claimCode,
     registrationId: result.registrationId,
   });
@@ -421,5 +624,26 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     eventId: event.id,
     registrationId: result.registrationId,
     created: result.created,
+    // `created` / `existing` / `failed`. In the response so a replay is visible
+    // from Stripe's own event log: the first delivery says `created`, every
+    // later one says `existing`.
+    account: account.status,
   });
+}
+
+/**
+ * Grant a seat's entitlements, best-effort.
+ *
+ * Wrapped rather than called directly at three sites, because the swallow is
+ * the point and it must be identical at each: an entitlement that fails to
+ * write is a support conversation, and a webhook that 500s over one is a retry
+ * storm that eventually disables the endpoint and loses everybody's tickets.
+ */
+async function grantSeatEntitlements(uid: string, kinds: EntitlementDoc['kind'][]): Promise<void> {
+  if (kinds.length === 0) return;
+  try {
+    await grantOrderEntitlements(db(), uid, kinds);
+  } catch (err) {
+    await recordError('entitlement.grant', err, { path: 'users', id: uid });
+  }
 }

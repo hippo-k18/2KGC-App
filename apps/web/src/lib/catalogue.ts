@@ -1,7 +1,14 @@
 import 'server-only';
 
-import { COLLECTIONS, EVENT_ID, type TicketAudience, type TicketTypeDoc } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  type EntitlementDoc,
+  type TicketAudience,
+  type TicketTypeDoc,
+} from '@kgc/shared';
 import { db } from './firestore';
+import { entitlementKinds } from './app-account-core';
 import type { Tier } from './tickets';
 
 /**
@@ -169,7 +176,51 @@ export async function tierById(id: string): Promise<Tier | undefined> {
 }
 
 /**
- * Count a sale against a tier's capacity.
+ * What fulfilment needs to know about a tier, in one read.
+ *
+ * Two questions get asked at the same moment and used to need two round trips:
+ * how many seats are left (the capacity re-check on `invoice.paid` — an invoice
+ * on net-30 terms can clear thirty days after the check at the point it was
+ * raised, and a tier can sell out in between), and what the ticket unlocks
+ * (`includesWorkshops` / `includesVideoLibrary`, which become
+ * `users/{uid}/entitlements`).
+ *
+ * Deliberately not folded into `Tier`. That shape is passed to the client
+ * checkout form as props, and neither the entitlement booleans nor the raw
+ * capacity figures have any business in a browser chunk.
+ */
+export interface TierFulfilment {
+  id: string;
+  name: string;
+  /** Undefined means unlimited capacity, which is the honest reading of an absent cap. */
+  remaining?: number;
+  onSale: boolean;
+  unavailableReason?: string;
+  entitlements: EntitlementDoc['kind'][];
+}
+
+export async function tierFulfilment(tierId: string): Promise<TierFulfilment | null> {
+  if (!tierId) return null;
+  const doc = await db().collection(COLLECTIONS.ticketTypes).doc(tierId).get();
+  if (!doc.exists) return null;
+  const t = doc.data() as TicketTypeDoc;
+  if (t.eventId !== EVENT_ID) return null;
+
+  const state = availability(t, new Date());
+  return {
+    id: doc.id,
+    name: t.name,
+    remaining:
+      typeof t.quantityTotal === 'number'
+        ? Math.max(0, t.quantityTotal - (t.quantitySold ?? 0))
+        : undefined,
+    entitlements: entitlementKinds(t),
+    ...state,
+  };
+}
+
+/**
+ * Count a sale against a tier's capacity — or give a seat back.
  *
  * ⚠️ This is a **counter, not a reservation.** Firestore offers no way to hold a
  * seat across the Checkout redirect, so two buyers can both pass the capacity
@@ -178,6 +229,13 @@ export async function tierById(id: string): Promise<Tier | undefined> {
  *
  * Called from fulfilment, never from checkout creation — an abandoned Checkout
  * session must not consume a seat.
+ *
+ * `by` is negative on a **full** refund, which is what stops the counter being
+ * the one-way ratchet audit B found: ten refunds used to consume ten seats for
+ * ever, and no screen could correct it. A *partial* refund never gets here —
+ * the attendee still holds a valid ticket, so the seat is still sold. The
+ * caller owns the replay guard, because `increment` is not idempotent and this
+ * function cannot see whether it has already run.
  */
 export async function incrementSold(tierId: string, by = 1): Promise<void> {
   const { FieldValue } = await import('firebase-admin/firestore');

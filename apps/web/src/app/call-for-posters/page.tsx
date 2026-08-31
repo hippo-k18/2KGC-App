@@ -1,5 +1,7 @@
+import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pageContent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 
 /**
@@ -37,14 +39,42 @@ const RULES = [
   'Original work that has not been submitted for publication elsewhere.',
 ];
 
-/** PLACEHOLDER — the 2026 deadlines moved forward a year. Not confirmed. */
-const DATES = [
-  { when: 'March 25, 2027', what: 'Paper submission deadline (11:59pm AoE)' },
-  { when: 'April 9, 2027', what: 'Notification of acceptance' },
-  { when: 'April 15, 2027', what: 'Camera-ready deadline' },
-];
+/**
+ * The submission link and the calendar — the two things on this page that go
+ * stale, and now the two an organizer can change without a deploy.
+ *
+ * ⚠️ Both are wrong in the source as shipped, which is the argument for moving
+ * them: the deadlines are the 2026 dates shifted a year and were never
+ * confirmed, and the EasyChair link still names `kgc2026`. Neither is the kind
+ * of mistake that survives because nobody noticed — a comment in this file has
+ * said PLACEHOLDER since August. It survives because fixing it is a deploy, and
+ * a deadline moves at the moment nobody wants to be running a build.
+ *
+ * The topics, the author guidelines and the CEUR-ART requirement stay in React.
+ * They are rules an author formats a paper against, and getting one subtly
+ * wrong on the page somebody works from is worse than not having the page —
+ * the same reason the code of conduct's policy text stays put.
+ *
+ * This constant is the fallback and is what renders when the collection is
+ * empty, which is its normal state.
+ */
+const CALL: CallPageContent = {
+  submitUrl: 'https://easychair.org/conferences?conf=kgc2026',
+  submitLabel: 'Submit on EasyChair',
+  datesConfirmed: false,
+  dates: [
+    { when: 'March 25, 2027', what: 'Paper submission deadline (11:59pm AoE)' },
+    { when: 'April 9, 2027', what: 'Notification of acceptance' },
+    { when: 'April 15, 2027', what: 'Camera-ready deadline' },
+  ],
+};
 
-export default function CallForPostersPage() {
+/** Deadlines are read per request: a moved date must not wait for a build. */
+export const dynamic = 'force-dynamic';
+
+export default async function CallForPostersPage() {
+  const call = await pageContent(PAGE_CONTENT_KEYS.callForPosters, CALL);
+
   return (
     <>
       <section>
@@ -65,16 +95,23 @@ export default function CallForPostersPage() {
           <p>
             Selected posters are presented in person at {SITE.venueShort}, {SITE.datesLong}.
           </p>
-          <p>
-            <a
-              className="btn btn-primary"
-              href="https://easychair.org/conferences?conf=kgc2026"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              Submit on EasyChair
-            </a>
-          </p>
+          {/*
+            No button when there is no link. An organizer clearing `submitUrl`
+            is saying submissions are not open, and a button that goes nowhere
+            is worse than no button — it costs an author a click to find out.
+          */}
+          {call.submitUrl ? (
+            <p>
+              <a
+                className="btn btn-primary"
+                href={call.submitUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {call.submitLabel}
+              </a>
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -116,9 +153,17 @@ export default function CallForPostersPage() {
           </p>
 
           <h2 style={{ marginTop: 40 }}>Important dates</h2>
-          <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+          {/*
+            The provisional note is driven by the organizer's own assertion, not
+            inferred from the dates: a full list of plausible deadlines looks
+            exactly like a confirmed one, and an author planning their year
+            around a date we invented is the failure this line prevents.
+          */}
+          {call.datesConfirmed ? null : (
+            <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+          )}
           <ul>
-            {DATES.map((d) => (
+            {call.dates.map((d) => (
               <li key={d.when} style={{ padding: '4px 0' }}>
                 <strong>{d.when}</strong> — {d.what}
               </li>

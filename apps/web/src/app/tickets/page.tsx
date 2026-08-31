@@ -5,7 +5,6 @@ import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { stripeEnabled } from '@/lib/stripe';
-import { demoMode } from '@/lib/demo';
 import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
 
@@ -26,6 +25,13 @@ export const dynamic = 'force-dynamic';
  * The live site's headline ticket panel: a centred card, one navy and one pale,
  * with underlined group headings above bulleted contents. Falls back to the
  * flat `includes` list for a tier that carries no groups.
+ *
+ * The price is printed in the tier's own currency and the call to action is
+ * gated on `onSale` — both were missing here while `audience-page.tsx` had them
+ * right, which made this page the outlier rather than the pattern. A tier
+ * priced in EUR printed a dollar sign over a euro amount while Stripe charged
+ * euros, and a sold-out tier kept advertising a live button that the checkout
+ * radio then refused two scroll-lengths further down.
  */
 function TicketPanel({ tier, tone }: { tier: Tier; tone: 'dark' | 'light' }) {
   const groups = tier.groups ?? [{ heading: 'Includes', items: [...tier.includes] }];
@@ -33,7 +39,15 @@ function TicketPanel({ tier, tone }: { tier: Tier; tone: 'dark' | 'light' }) {
   return (
     <div className={`kgc-ticket ${tone}`}>
       <h3>{tier.name}</h3>
-      <p className="price">{formatPrice(tier.priceCents)}</p>
+      <p className="price">{formatPrice(tier.priceCents, tier.currency)}</p>
+
+      {/*
+        `TicketTypeDoc.tagline` describes itself as "one line under the price on
+        the tickets page", the order rail renders it and `audience-page.tsx:119`
+        renders it — and this panel, the one the doc names, did not. An organizer
+        editing that field on the two flagship tiers changed nothing anybody saw.
+      */}
+      {tier.tagline && <p className="tagline">{tier.tagline}</p>}
 
       {groups.map((g) => (
         <div key={g.heading}>
@@ -48,12 +62,21 @@ function TicketPanel({ tier, tone }: { tier: Tier; tone: 'dark' | 'light' }) {
         </div>
       ))}
 
-      <Link
-        href={`/tickets?tier=${tier.id}#buy`}
-        className={`btn ${tone === 'dark' ? 'btn-accent' : 'btn-primary'}`}
-      >
-        Choose {tier.name}
-      </Link>
+      {tier.onSale ? (
+        <Link
+          href={`/tickets?tier=${tier.id}#buy`}
+          className={`btn ${tone === 'dark' ? 'btn-accent' : 'btn-primary'}`}
+        >
+          Choose {tier.name}
+        </Link>
+      ) : (
+        /*
+          A closed tier still renders, for the reason `audience-page.tsx` gives:
+          one that vanishes reads as a bug to somebody who was sent a link to
+          it, and the reason it closed is the thing they actually need to know.
+        */
+        <p className="sold-out">{tier.unavailableReason ?? 'Not available'}</p>
+      )}
     </div>
   );
 }
@@ -85,14 +108,26 @@ export default async function TicketsPage({
   const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
 
   /**
-   * The two headline panels are still addressed by slug, because the layout is
-   * genuinely bespoke to them — a dark panel and a light one, side by side.
-   * `?? tiers[n]` keeps the page rendering if a tier is renamed or hidden in
-   * the dashboard, instead of throwing on a non-null assertion.
+   * Which two tiers get the headline panels.
+   *
+   * This used to name `all-access` and `main-conference` as literal slugs, so
+   * `TicketTypeDoc.featured` — a field the dashboard's ticket editor writes and
+   * whose entire purpose is this decision — chose nothing here. Marking a new
+   * tier featured moved it nowhere, and deleting one of the two named tiers
+   * demoted whatever replaced it to the small cards.
+   *
+   * The layout is still bespoke to a pair: one dark panel and one light, side
+   * by side. So it takes the first two featured tiers in catalogue order, and
+   * falls back to the first two tiers when nothing is marked — a page with a
+   * headline band and nothing in it would be a worse answer to an unmigrated
+   * catalogue than showing the two tiers that sort first.
+   *
+   * One featured tier renders one panel and everything else falls to the small
+   * cards below, which is the correct reading of "feature this one".
    */
-  const allAccess = byId.get('all-access') ?? tiers[0];
-  const mainConf = byId.get('main-conference') ?? tiers[1];
-  const smaller = tiers.filter((t) => t.id !== allAccess?.id && t.id !== mainConf?.id);
+  const featured = tiers.filter((t) => t.featured);
+  const [headlineA, headlineB] = featured.length > 0 ? featured : tiers;
+  const smaller = tiers.filter((t) => t.id !== headlineA?.id && t.id !== headlineB?.id);
 
   return (
     <>
@@ -141,20 +176,39 @@ export default async function TicketsPage({
           )}
 
           <div className="kgc-tickets">
-            {allAccess && <TicketPanel tier={allAccess} tone="dark" />}
-            {mainConf && <TicketPanel tier={mainConf} tone="light" />}
+            {headlineA && <TicketPanel tier={headlineA} tone="dark" />}
+            {headlineB && <TicketPanel tier={headlineB} tone="light" />}
           </div>
 
-          <div className="ticket-notes">
-            <p>
-              ✶ <strong>All Access (VIP)</strong> — entry to <em>all</em> in-person sessions,
-              including the limited-availability workshops, plus virtual streaming and recordings.
-            </p>
-            <p>
-              ✶ <strong>Main Conference</strong> — covers every main conference session, but{' '}
-              <strong>does not include the workshops</strong> (space is limited).
-            </p>
-          </div>
+          {/*
+            Prose about two specific tiers, so it is shown only while those two
+            tiers are the ones on screen.
+
+            The slugs appear here as a *guard*, not as the selection — the
+            panels above are chosen by `featured`. Before that change the notes
+            could not disagree with the panels, because the panels were these
+            two by definition. Now they can, and a paragraph explaining what
+            "All Access (VIP)" includes above a band that is not showing it is
+            the stale-copy failure this repo keeps finding.
+          */}
+          {(headlineA?.id === 'all-access' || headlineB?.id === 'all-access' ||
+            headlineA?.id === 'main-conference' || headlineB?.id === 'main-conference') && (
+            <div className="ticket-notes">
+              {(headlineA?.id === 'all-access' || headlineB?.id === 'all-access') && (
+                <p>
+                  ✶ <strong>All Access (VIP)</strong> — entry to <em>all</em> in-person sessions,
+                  including the limited-availability workshops, plus virtual streaming and
+                  recordings.
+                </p>
+              )}
+              {(headlineA?.id === 'main-conference' || headlineB?.id === 'main-conference') && (
+                <p>
+                  ✶ <strong>Main Conference</strong> — covers every main conference session, but{' '}
+                  <strong>does not include the workshops</strong> (space is limited).
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -183,15 +237,19 @@ export default async function TicketsPage({
             {smaller.map((t) => (
               <div key={t.id} className="kgc-ticket light">
                 <h3>{t.name}</h3>
-                <p className="price">{formatPrice(t.priceCents)}</p>
+                <p className="price">{formatPrice(t.priceCents, t.currency)}</p>
                 <ul>
                   {t.includes.map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-                <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-primary">
-                  Choose {t.name}
-                </Link>
+                {t.onSale ? (
+                  <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-primary">
+                    Choose {t.name}
+                  </Link>
+                ) : (
+                  <p className="sold-out">{t.unavailableReason ?? 'Not available'}</p>
+                )}
               </div>
             ))}
           </div>
@@ -264,7 +322,6 @@ export default async function TicketsPage({
               tiers={tiers}
               initialTier={preselected}
               stripeReady={stripeEnabled()}
-              demo={demoMode()}
               questions={form.fields}
             />
           ) : (

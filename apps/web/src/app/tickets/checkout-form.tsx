@@ -6,8 +6,6 @@ import type { QuestionFieldDef } from '@kgc/shared';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
-import { DemoPanel } from '@/components/demo-panel';
-import { DEMO_BUYER } from '@/lib/demo-credentials';
 
 /**
  * The purchase step: an order summary and the form that pays for it.
@@ -39,7 +37,6 @@ export function CheckoutForm({
   tiers,
   initialTier,
   stripeReady,
-  demo = false,
   questions = [],
 }: {
   /**
@@ -51,12 +48,15 @@ export function CheckoutForm({
    */
   tiers: Tier[];
   initialTier: TicketId;
-  stripeReady: boolean;
   /**
-   * Demo mode, passed down rather than read here: `demoMode()` is `server-only`
-   * and this component runs in the browser.
+   * Whether `STRIPE_SECRET_KEY` is set on the server, passed down because
+   * `stripeEnabled()` is `server-only` and this component runs in the browser.
+   *
+   * False means the site cannot sell: `startCheckout` refuses before it reads a
+   * tier. The form says so up front and disables its own button rather than
+   * letting somebody fill four fields to earn an error.
    */
-  demo?: boolean;
+  stripeReady: boolean;
   /**
    * The organizer's registration questions, or none.
    *
@@ -74,13 +74,22 @@ export function CheckoutForm({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   /**
-   * The card box, in demo mode only.
+   * The card box.
    *
-   * These three values are held in React state and rendered into inputs that
-   * carry **no `name` attribute**, so the browser never serialises them into the
-   * FormData the server action receives. That is the whole safety property: a
-   * payment form that looks like one, that cannot transmit a card number even by
-   * accident. Nothing validates them and nothing reads them.
+   * ⚠️ **These three fields do not yet reach a payment processor.** They are
+   * held in React state and rendered into inputs that carry **no `name`
+   * attribute**, so the browser never serialises them into the FormData the
+   * server action receives, and nothing reads them. That is a deliberate safety
+   * property rather than an oversight — an unbound card field that *did* post
+   * would be a card number in a server log — but it means the boxes are not the
+   * ones that take the payment. Hosted Stripe Checkout collects the real card on
+   * `checkout.stripe.com` after the button.
+   *
+   * They are kept, at the owner's request, as one of exactly two demo
+   * affordances to outlive the rest, and the hint under the button says plainly
+   * where the charge actually happens. BUILD-PLAN 1.6 / D-2 is what makes them
+   * real: a Stripe Payment Element bound to a PaymentIntent, in place of these
+   * three inputs, which needs a publishable key this repo does not have.
    */
   const [card, setCard] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -103,17 +112,16 @@ export function CheckoutForm({
           </p>
         )}
 
-        {demo ? (
-          <p className="notice warn">
-            <strong>Demo.</strong> The card box below is for show — it is never submitted and no
-            card is charged. Everything after the button is real: the registration, the order, the
-            claim code, and the sale appearing on the organizer dashboard.
-          </p>
-        ) : !stripeReady ? (
-          <p className="notice warn">
-            <strong>Test mode.</strong> No payment processor is configured on this deployment, so
-            the button below completes the registration without taking any money. Nothing is
-            charged and no card details are collected.
+        {/*
+          Fail closed, and say which variable. This is the same refusal
+          `startCheckout` returns if the form is posted anyway — stated here so
+          it is read before the typing rather than after it.
+        */}
+        {!stripeReady ? (
+          <p className="notice bad" role="alert">
+            <strong>Ticket sales are not configured on this deployment.</strong>{' '}
+            <code>STRIPE_SECRET_KEY</code> is not set, so no payment can be taken and no ticket can
+            be issued. Nothing below will complete a purchase.
           </p>
         ) : null}
 
@@ -194,64 +202,36 @@ export function CheckoutForm({
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={state.fieldErrors} />
 
-        {demo ? (
-          <fieldset className="demo-card">
-            <legend>Card</legend>
-            <div className="demo-card-grid">
-              <input
-                aria-label="Card number"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="Card number"
-                value={card}
-                onChange={(e) => setCard(e.target.value)}
-              />
-              <input
-                aria-label="Expiry"
-                autoComplete="off"
-                placeholder="MM / YY"
-                value={expiry}
-                onChange={(e) => setExpiry(e.target.value)}
-              />
-              <input
-                aria-label="CVC"
-                autoComplete="off"
-                placeholder="CVC"
-                value={cvc}
-                onChange={(e) => setCvc(e.target.value)}
-              />
-            </div>
-          </fieldset>
-        ) : null}
-
-        {/*
-          The credentials, directly under the card box they fill.
-
-          They used to render in a panel fixed to the bottom of the viewport,
-          which covered the pay button and stayed on screen for pages that had
-          nothing to do with it. In the flow, beside the fields, it is a caption
-          rather than an overlay.
-        */}
-        {demo ? (
-          <DemoPanel
-            title="Buy a ticket"
-            note="Click any value to copy it, or fill the whole form at once."
-            rows={[
-              { label: 'Name', value: DEMO_BUYER.name },
-              { label: 'Email', value: DEMO_BUYER.email },
-              { label: 'Card', value: DEMO_BUYER.card, mono: true },
-              { label: 'Expiry', value: DEMO_BUYER.expiry, mono: true },
-              { label: 'CVC', value: DEMO_BUYER.cvc, mono: true },
-            ]}
-            onFill={() => {
-              setName(DEMO_BUYER.name);
-              setEmail(DEMO_BUYER.email);
-              setCard(DEMO_BUYER.card);
-              setExpiry(DEMO_BUYER.expiry);
-              setCvc(DEMO_BUYER.cvc);
-            }}
-          />
-        ) : null}
+        <fieldset className="card-fields">
+          <legend>Card</legend>
+          <div className="card-fields-grid">
+            <input
+              aria-label="Card number"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="Card number"
+              value={card}
+              onChange={(e) => setCard(e.target.value)}
+              disabled={!stripeReady}
+            />
+            <input
+              aria-label="Expiry"
+              autoComplete="off"
+              placeholder="MM / YY"
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              disabled={!stripeReady}
+            />
+            <input
+              aria-label="CVC"
+              autoComplete="off"
+              placeholder="CVC"
+              value={cvc}
+              onChange={(e) => setCvc(e.target.value)}
+              disabled={!stripeReady}
+            />
+          </div>
+        </fieldset>
 
         <div className="summary">
           <span>{selected.name}</span>
@@ -260,16 +240,13 @@ export function CheckoutForm({
 
         <SubmitButton
           stripeReady={stripeReady}
-          demo={demo}
           price={formatPrice(selected.priceCents, selected.currency)}
         />
 
         <p className="hint" style={{ marginTop: 12 }}>
-          {demo
-            ? 'Approved on the spot. The order is recorded as a real sale and marked `demo` so it can never be counted as revenue.'
-            : stripeReady
-              ? 'You will be taken to Stripe to pay. Card details never touch this site.'
-              : 'No payment is taken. Your registration is written exactly as a paid one would be.'}
+          {stripeReady
+            ? 'You will be taken to Stripe to pay, and the card is entered there — the boxes above are not the ones that take the payment, and card details never touch this site.'
+            : 'No ticket can be bought until a payment processor is configured.'}
         </p>
       </form>
     </div>
@@ -355,25 +332,18 @@ function OrderRail({ tier }: { tier: Tier }) {
  * returns `pending: false`. The redirect to Stripe takes a moment, and a
  * button that does not visibly change is a button people click twice.
  */
-function SubmitButton({
-  stripeReady,
-  demo,
-  price,
-}: {
-  stripeReady: boolean;
-  demo: boolean;
-  price: string;
-}) {
+function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
-      {pending
-        ? 'Approving…'
-        : demo
-          ? `Pay ${price}`
-          : stripeReady
-            ? `Pay ${price} with Stripe`
-            : 'Register — no payment taken'}
+    <button
+      type="submit"
+      className="btn btn-primary btn-block"
+      // Disabled rather than hidden: the button is the thing that explains what
+      // the page is for, and a checkout with no pay button reads as a broken
+      // render rather than as an unconfigured deployment.
+      disabled={pending || !stripeReady}
+    >
+      {pending ? 'Redirecting…' : stripeReady ? `Pay ${price} with Stripe` : 'Payments unavailable'}
     </button>
   );
 }

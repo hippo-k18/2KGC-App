@@ -44,8 +44,22 @@ export default async function ExhibitorTicketsPage({
             body: 'Scan an attendee badge from the KGC app and the contact lands in your exhibitor portal. No rented scanner, no per-lead fee.',
           },
           {
+            /*
+             * ⚠️ This bullet used to promise "your profile, materials and booth
+             * number in the app every attendee already has open". Nothing read
+             * `exhibitors` or `booths` on any public surface when that was
+             * written, and the app still does not — audit E flags it as one of
+             * the fourteen capability claims this project makes and cannot
+             * keep, and it was on a page that takes money.
+             *
+             * It now describes `/exhibitors`, which exists and is Firestore-
+             * driven, and it names nothing else. "Materials" is gone because
+             * `ExhibitorDoc` has no field for one and no upload path exists;
+             * the app is not mentioned because the app half of this is not
+             * built. Add it back the day `app/src` reads the collection.
+             */
             title: 'A listing attendees can find',
-            body: 'Your profile, materials and booth number in the app every attendee already has open.',
+            body: 'Your logo, description, website and booth number on the public exhibitor listing, live from the moment your booth is assigned.',
           },
         ],
         emptyHint: (

@@ -8,7 +8,7 @@ import { SITE } from '@/lib/site';
  * than computed from `new Date()`, which would make the footer a moving target
  * that invalidates the static render every year at midnight on 1 January.
  */
-export function SiteFooter() {
+export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?: string }) {
   return (
     <footer className="site-footer">
       <div className="wrap">
@@ -19,8 +19,15 @@ export function SiteFooter() {
               The Knowledge Graph Conference brings together the people building the semantic layer
               underneath enterprise AI — practitioners, researchers and the vendors they argue with.
             </p>
+            {/*
+              The only place on the site that renders the organizer's
+              `settings/branding.supportEmail` — the root layout resolves it and
+              passes it in, falling back to `SITE.contactEmail` when nobody has
+              set one. The default keeps this component usable on its own and
+              keeps an empty setting from producing `mailto:`.
+            */}
             <p>
-              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+              <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
             </p>
           </div>
 
@@ -29,6 +36,10 @@ export function SiteFooter() {
             <Link href="/tickets">Tickets</Link>
             <Link href="/agenda">Agenda</Link>
             <Link href="/speakers">Speakers</Link>
+            {/* An attendee-facing directory of who is in the hall, so it sits
+                with the programme rather than under Participate with the
+                packages that sell a booth. */}
+            <Link href="/exhibitors">Exhibitors</Link>
             <Link href="/about">Venue &amp; travel</Link>
           </div>
 

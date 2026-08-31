@@ -55,6 +55,6 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.redirect(
-    new URL(`/order/${mintOrderToken({ rid: result.registrationId, demo: false })}`, req.nextUrl.origin),
+    new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, req.nextUrl.origin),
   );
 }

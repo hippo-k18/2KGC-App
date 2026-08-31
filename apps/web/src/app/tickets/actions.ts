@@ -2,16 +2,11 @@
 
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { mintOrderToken } from '@/lib/order-token';
-import { fulfilPurchase } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
-import { incrementSold, tierById } from '@/lib/catalogue';
+import { tierById } from '@/lib/catalogue';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
 import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
-import { sendPurchaseConfirmation } from '@/lib/email';
-import { demoMode } from '@/lib/demo';
-import { provisionAppAccount } from '@/lib/app-account';
 
 /**
  * Starting a purchase.
@@ -20,6 +15,17 @@ import { provisionAppAccount } from '@/lib/app-account';
  * form posts a *tier id*, never a price — a price in a form field is a price
  * the buyer can edit, and the classic version of this bug charges $1 for a
  * $1,199 ticket. `tierById` is the only thing that turns an id into money.
+ *
+ * ── There is exactly one way out of this function with a ticket ─────────────
+ *
+ * Stripe. There used to be a second: with no `STRIPE_SECRET_KEY` the site wrote
+ * the registration itself and, under `DEMO_MODE=1`, stamped the order `paid`.
+ * That branch is gone. A deployment with no payment processor now refuses to
+ * sell rather than handing out free tickets — the argument the deleted
+ * `lib/demo.ts` made for itself and then did not follow.
+ *
+ * The refusal names the variable, because the only person who can ever see this
+ * error is the one who can fix it: an unconfigured site has no customers yet.
  */
 
 export interface CheckoutState {
@@ -40,6 +46,24 @@ export async function startCheckout(
   const name = String(form.get('name') ?? '').trim();
   const email = String(form.get('email') ?? '').trim();
   const tierId = String(form.get('tier') ?? '');
+
+  /**
+   * Fail closed, before anything is written or stashed.
+   *
+   * First, so that a misconfigured deployment cannot leave a trail of
+   * `pendingAnswers` documents belonging to purchases that were never possible.
+   * The message names the variable rather than saying "temporarily unavailable"
+   * — that phrasing has cost this project a day before, and the audience for
+   * this string is whoever deployed the site.
+   */
+  if (!stripeEnabled()) {
+    console.error('[checkout] refused: STRIPE_SECRET_KEY is not set, so no payment can be taken');
+    return {
+      error:
+        'Ticket sales are not configured on this deployment — STRIPE_SECRET_KEY is not set, ' +
+        'so no payment can be taken. Nothing was charged and no registration was created.',
+    };
+  }
 
   /**
    * The price comes from Firestore, keyed by the id the form posted — never
@@ -120,93 +144,6 @@ export async function startCheckout(
    */
   const ref = (await cookies()).get(ATTRIBUTION_COOKIE)?.value ?? '';
   const campaignCode = validCode(ref) ? ref : undefined;
-
-  // ---------------------------------------------------------------------
-  // No Stripe account configured: complete the purchase without taking money.
-  // The registration written is byte-for-byte the one a real payment would
-  // write, because that data path is the whole point of the demo. Whether the
-  // *order* is `paid` or `pending` is the one thing DEMO_MODE changes — see
-  // `approved` below — and either way the confirmation page says plainly that
-  // no card was charged.
-  // ---------------------------------------------------------------------
-  if (!stripeEnabled()) {
-    /**
-     * Demo mode marks the order `paid`.
-     *
-     * Without it the order lands as `pending`, which is the honest state for a
-     * site that has no payment processor — but it also means the dashboard's
-     * revenue, its orders list and its attendee export all treat the sale as
-     * money that has not arrived, so the most persuasive thirty seconds of the
-     * demo shows nothing. `channel: 'demo'` below is what keeps it impossible
-     * to mistake for real revenue; the status is what makes the screens behave.
-     */
-    const approved = demoMode();
-
-    const result = await fulfilPurchase({
-      email,
-      name,
-      ticketType: tier.name,
-      // Derived from the registration id so a repeated test purchase updates
-      // the same order document instead of stacking up new ones.
-      externalId: `demo_${tierId}_${email.toLowerCase()}`,
-      amountCents: tier.priceCents,
-      currency: tier.currency,
-      paid: approved,
-      // `channel: 'demo'` is the field that makes a test purchase impossible to
-      // mistake for a real one in an export — and in demo mode it is the *only*
-      // one, because the status now says `paid` like any other sale.
-      channel: 'demo',
-      tierId: tier.id,
-      campaignCode,
-      // No webhook runs on this path, so the answers are applied directly
-      // rather than through the pending-answers hop.
-      answers: checked.answers,
-    });
-
-    /**
-     * The demo path has to do the webhook's other two jobs itself.
-     *
-     * With Stripe configured, `incrementSold` and the confirmation email both
-     * happen in `api/stripe/webhook` — which never runs here, because there is
-     * no Stripe to call it. Leaving them out made the demo quietly incomplete
-     * in two ways that only showed up when somebody looked: a tier could never
-     * appear to sell out, and "buy a ticket, get an email" did not work even
-     * with an email provider configured.
-     *
-     * Both are after the fact and neither may break the purchase — the ticket
-     * already exists and is valid.
-     */
-    if (result.created) await incrementSold(tier.id);
-
-    /**
-     * Give the buyer an account they can actually sign into.
-     *
-     * Without this the confirmation page's "sign in with this address" is a
-     * promise the deployment does not keep — no Auth account exists, and the
-     * app answers "that email and password do not match an account". Demo mode
-     * only; see the docblock in `app-account.ts` for why a shared password may
-     * never be set on a real attendee list.
-     *
-     * After the fact and non-fatal, like `incrementSold` above: the ticket is
-     * already valid, and a failure here must not lose it.
-     */
-    if (approved) await provisionAppAccount({ email: result.email, name: result.name ?? name });
-
-    await sendPurchaseConfirmation({
-      to: result.email,
-      name: result.name ?? '',
-      ticketType: result.ticketType ?? tier.name,
-      amountCents: tier.priceCents,
-      currency: tier.currency,
-      orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId, demo: true })}`,
-      claimCode: result.claimCode,
-      registrationId: result.registrationId,
-      // The receipt must never imply money changed hands when it did not.
-      demo: true,
-    });
-
-    redirect(`/order/${mintOrderToken({ rid: result.registrationId, demo: true })}`);
-  }
 
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card

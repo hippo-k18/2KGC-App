@@ -13,13 +13,12 @@ import Stripe from 'stripe';
  * an iframe on our page and drag the whole DOM into scope for very little
  * design gain.
  *
- * **The demo must run without a Stripe account.** If `STRIPE_SECRET_KEY` is
- * unset the site falls back to a clearly labelled test purchase that performs
- * the *same* registration write and says on screen, in as many words, that no
- * payment was taken. The one thing that is never acceptable is a confirmation
- * page that implies money changed hands when it did not — so the fallback is
- * labelled at the button, on the confirmation, and in the order document
- * (`status: 'pending'`, never `'paid'`).
+ * **`stripeEnabled()` is a readiness check, not a mode.** There is no fallback
+ * behind it. With `STRIPE_SECRET_KEY` unset the checkout form says so and
+ * `startCheckout` refuses before it reads a tier, because the alternative — the
+ * site completing the registration itself — is a deployment that hands out free
+ * tickets to anyone who finds it. That branch existed, gated behind
+ * `DEMO_MODE=1`, and was removed with the rest of demo mode.
  */
 
 let cached: Stripe | null = null;

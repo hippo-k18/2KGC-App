@@ -116,10 +116,11 @@
    * it to end exactly at the fold, and a magic number in one rule would silently
    * stop being true the moment either bar is resized.
    *
-   * If both `ANNOUNCEMENT` and `TICKER` in `lib/site.ts` are emptied the strip is
-   * not rendered and this has to drop to 96px. That is a deliberate one-line edit in
-   * the same spirit as the constant itself, not an oversight — the alternative
-   * is measuring the chrome in JavaScript on every resize to save one line.
+   * If `ANNOUNCEMENT` and `TICKER` in `lib/site.ts` are both emptied *and* the
+   * `announcements` collection is empty, the strip is not rendered and this has
+   * to drop to 96px. That is a deliberate one-line edit in the same spirit as
+   * the constant itself, not an oversight — the alternative is measuring the
+   * chrome in JavaScript on every resize to save one line.
    */
   --header-height: 96px;
   /* The ticker strip. Measured, not assumed — it was 30 here and renders 36. */
@@ -1634,6 +1635,136 @@ a.logo-card:hover {
     aspect-ratio: 380 / 281;
     padding: 12% 20%;
   }
+}
+
+/* ----------------------------------------------------------- exhibitors -- */
+
+/*
+ * The exhibition hall listing at `/exhibitors`.
+ *
+ * Deliberately *not* the `.logo-card` treatment the sponsors get. A sponsor
+ * band is a wall of logos at three sizes, because the size is the thing that
+ * was bought and the logo is the whole deliverable. An exhibitor listing
+ * answers a different question — "who is here, and where do I walk?" — so every
+ * card is the same size (nobody bought prominence here), and the booth number
+ * is the element with the most visual weight after the name.
+ */
+
+.exhibitor-zone {
+  margin-top: 30px;
+}
+
+.exhibitor-zone-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.exhibitor-grid {
+  display: grid;
+  gap: 16px;
+  /*
+   * Explicit breakpoints rather than `auto-fit`/`minmax`, matching `.tiers`
+   * above. `auto-fit` would stretch a lone exhibitor in a quiet aisle to the
+   * full 1100px, and a single card the width of the page reads as a layout
+   * fault rather than as one exhibitor.
+   */
+  grid-template-columns: 1fr;
+}
+
+@media (width >= 640px) {
+  .exhibitor-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width >= 980px) {
+  .exhibitor-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.exhibitor-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/*
+ * A fixed box so the names line up across a row whether or not a logo exists.
+ * `flex: none` because the description below is what should absorb the extra
+ * width, not the logo.
+ */
+.exhibitor-logo {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--wash);
+  overflow: hidden;
+}
+
+.exhibitor-logo img {
+  /* `contain`, for the same reason `.logo-card img` is: these are every aspect
+     ratio from 1:1 to 4:1 and the box is fixed. */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+/* The name, shrunk to fit the 64px square. `.logo-fallback` sets the weight and
+   colour; only the size and wrapping change at this scale. */
+.exhibitor-logo .logo-fallback {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  padding: 4px;
+  overflow-wrap: anywhere;
+}
+
+.exhibitor-body {
+  min-width: 0; /* or a long unbroken URL pushes the card wider than its column */
+}
+
+.exhibitor-body h4 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: var(--heading);
+}
+
+.exhibitor-body h4 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.exhibitor-body h4 a:hover {
+  text-decoration: underline;
+}
+
+.exhibitor-booths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.exhibitor-desc {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------- footer -- */
@@ -3482,6 +3613,22 @@ section.tint {
   margin: 10px 0 22px;
 }
 
+/*
+ * The tier's one-line description, directly under the price — which is where
+ * `TicketTypeDoc.tagline` says it goes.
+ *
+ * Deliberately not `.group`, which the audience pages reuse for the same field:
+ * `.group` is bold and underlined because it is a *heading* over a bullet list,
+ * and a tagline set in heading style above the first real heading reads as two
+ * competing headings rather than as a sentence about the ticket.
+ */
+.kgc-ticket .tagline {
+  margin: -14px 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
 .kgc-ticket .group {
   font-weight: 700;
   text-decoration: underline;
@@ -3502,6 +3649,20 @@ section.tint {
 
 .kgc-ticket .btn {
   margin-top: 24px;
+}
+
+/*
+ * The line a closed tier shows where its button would be — "Sold out", "Sales
+ * closed", "Not on sale yet". It sits on the button's own top margin so the card
+ * does not change height when a tier closes, and it inherits the card's colour
+ * rather than the hero's orange: orange italic on the navy panel reads as a
+ * promotion, which is the opposite of what this line says.
+ */
+.kgc-ticket .sold-out {
+  margin: 24px 0 0;
+  font-style: italic;
+  font-weight: 600;
+  opacity: 0.8;
 }
 
 /*
@@ -4595,147 +4756,15 @@ section.tint {
   color: var(--palette-2);
 }
 
-/* ------------------------------------------------------------ demo panel --
-   The credentials block that sits inside the checkout form while `DEMO_MODE=1`,
-   directly under the card box it describes. Deliberately styled *unlike* the
-   rest of the site — dark, monospace, tagged "Demo" — so nobody in the room can
-   mistake it for part of the product. See `src/lib/demo.ts`.
+/* -------------------------------------------------------------- card box --
+   The card fields on the checkout form.
 
-   It used to be `position: fixed` at the bottom of the viewport. That put an
-   opaque 560px card permanently over the page: it covered the pay button on a
-   laptop, it covered the claim code on the confirmation screen, and on the
-   pages it did not belong to at all it simply blocked whatever was underneath.
-   A hint that hides the thing it is a hint about is worse than no hint, so it
-   is now in the document flow, next to the fields it fills.
+   ⚠️ These inputs carry no `name`, so nothing in here is ever submitted — the
+   real card entry is on `checkout.stripe.com` after the button. The reasoning,
+   and what would make them real, is in the `card` state docblock in
+   `checkout-form.tsx`.
    ------------------------------------------------------------------------ */
-.demo-panel {
-  margin: 0 0 18px;
-  width: 100%;
-  background: var(--palette-1);
-  color: #f4f6fb;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  /* No drop shadow now that it is in the flow: a shadow is what tells the eye
-     something floats above the page, and this one no longer does. */
-  font-size: 0.86rem;
-  overflow: hidden;
-}
-
-.demo-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-}
-
-.demo-panel-head strong {
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.demo-panel-tag {
-  background: var(--palette-5);
-  color: #1a1206;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  padding: 3px 7px;
-  border-radius: 4px;
-}
-
-.demo-panel-toggle {
-  margin-left: auto;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  color: inherit;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 0.76rem;
-  cursor: pointer;
-}
-
-.demo-panel-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.demo-panel-body {
-  padding: 0 12px 12px;
-}
-
-.demo-panel-note {
-  margin: 0 0 8px;
-  color: rgba(244, 246, 251, 0.72);
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
-.demo-panel-rows {
-  display: grid;
-  gap: 4px;
-}
-
-.demo-panel-row {
-  display: grid;
-  grid-template-columns: 88px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.06);
-  border: 0;
-  border-radius: 7px;
-  padding: 7px 10px;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.demo-panel-row:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.demo-panel-label {
-  color: rgba(244, 246, 251, 0.6);
-  font-size: 0.76rem;
-}
-
-.demo-panel-value {
-  font-weight: 600;
-}
-
-.demo-panel-value.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.02em;
-}
-
-.demo-panel-copy {
-  color: rgba(244, 246, 251, 0.45);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-.demo-panel-fill {
-  margin-top: 10px;
-  width: 100%;
-  background: var(--palette-5);
-  color: #1a1206;
-  border: 0;
-  border-radius: 7px;
-  padding: 9px 12px;
-  font-weight: 700;
-  font-size: 0.86rem;
-  cursor: pointer;
-}
-
-.demo-panel-fill:hover {
-  filter: brightness(1.06);
-}
-
-/* The cosmetic card box on the checkout form. These inputs carry no `name`,
-   so nothing in here is ever submitted — see the comment in checkout-form.tsx. */
-.demo-card {
+.card-fields {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -4743,7 +4772,7 @@ section.tint {
   background: var(--wash);
 }
 
-.demo-card legend {
+.card-fields legend {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -4752,14 +4781,23 @@ section.tint {
   padding: 0 6px;
 }
 
-.demo-card .demo-card-grid {
+.card-fields .card-fields-grid {
   display: grid;
   grid-template-columns: 1fr 92px 78px;
   gap: 10px;
 }
 
+/* Disabled while `STRIPE_SECRET_KEY` is unset, because the form cannot sell.
+   Dimmed rather than hidden: the box is what tells a reader this is a payment
+   form, and removing it would make an unconfigured deployment look like a
+   different product rather than a broken one. */
+.card-fields input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 520px) {
-  .demo-card .demo-card-grid {
+  .card-fields .card-fields-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -5505,55 +5543,6 @@ section.tint {
    boxes. */
 .next-cards .btn {
   margin-top: auto;
-}
-
-/*
- * The demo sign-in, labelled.
- *
- * Two bare monospace strings stacked on top of each other left the reader to
- * work out which was the address and which was the password — obvious for one
- * of them and not for the other, which is exactly the wrong way round for a
- * screen somebody is reading off a projector.
- */
-.next-creds {
-  display: grid;
-  /* One column, label over value. Side by side, the label ate ~90px of a 250px
-     card and the address broke across three lines ("demo.attende / e@example.co
-     / m"), which is unreadable and looks like a fault. */
-  gap: 2px;
-  width: 100%;
-  margin: 0 0 16px;
-  background: var(--wash);
-  border-radius: 8px;
-  padding: 12px 14px;
-  /*
-   * 0.72rem, not the 0.78 the rest of a card takes.
-   *
-   * A card in this row is ~226px of content, and "demo.attendee@example.com" is
-   * 236px at 0.78 — six pixels over, so it broke as "example.c / om", which
-   * reads as a rendering fault rather than as a wrap. `break-word` rather than
-   * `anywhere` so a genuinely longer address still wraps rather than
-   * overflowing, but nothing is broken that fits.
-   */
-  font-size: 0.72rem;
-  overflow-wrap: break-word;
-}
-
-.next-creds dt {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.next-creds dd {
-  margin: 0 0 6px;
-  color: var(--ink);
-}
-
-.next-creds dd:last-child {
-  margin-bottom: 0;
 }
 
 /* `.muted` is exempt from the 68ch cap, so this one is capped here. */

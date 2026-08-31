@@ -1,5 +1,7 @@
+import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pageContent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 
 /**
@@ -23,15 +25,31 @@ export const metadata: Metadata = {
 };
 
 /**
- * PLACEHOLDER dates — the 2026 page's deadlines moved forward a year so the
- * sequence stays coherent. Replace when the real calendar is set.
+ * The application link and the calendar — editable without a deploy, for the
+ * same reasons as `/call-for-posters`, which shares this shape.
+ *
+ * PLACEHOLDER dates: the 2026 page's deadlines moved forward a year so the
+ * sequence stays coherent, and the F6S link still names `2026`. "Replace when
+ * the real calendar is set" has been the note here since August; it is now
+ * something an organizer can do rather than something that needs a build.
+ *
+ * The reasons to enter, the format and the $100M claim stay in React — they are
+ * the page's argument, not its calendar.
  */
-const DATES = [
-  { when: 'April 16, 2027', what: 'Application deadline' },
-  { when: 'April 23, 2027', what: 'Notification of acceptance' },
-  { when: 'April 30, 2027', what: 'Startup pitch event, online' },
-  { when: 'May 6, 2027', what: 'Winner announced live at the conference' },
-];
+const CALL: CallPageContent = {
+  submitUrl: 'https://www.f6s.com/kgc-startup-pitch-2026/apply',
+  submitLabel: 'Submit your pitch',
+  datesConfirmed: false,
+  dates: [
+    { when: 'April 16, 2027', what: 'Application deadline' },
+    { when: 'April 23, 2027', what: 'Notification of acceptance' },
+    { when: 'April 30, 2027', what: 'Startup pitch event, online' },
+    { when: 'May 6, 2027', what: 'Winner announced live at the conference' },
+  ],
+};
+
+/** Deadlines are read per request: a moved date must not wait for a build. */
+export const dynamic = 'force-dynamic';
 
 const REASONS = [
   'Direct feedback on your product and vision from a panel of investors, industry experts and practitioners.',
@@ -40,7 +58,9 @@ const REASONS = [
   'The judges pick one startup from the event to present live during the conference.',
 ];
 
-export default function StartupPitchPage() {
+export default async function StartupPitchPage() {
+  const call = await pageContent(PAGE_CONTENT_KEYS.startupPitch, CALL);
+
   return (
     <>
       <section>
@@ -56,16 +76,19 @@ export default function StartupPitchPage() {
             Curiosity.ai. Connecting the dots is core to what we do, so show us how you are
             connecting the dots through knowledge graphs.
           </p>
-          <p>
-            <a
-              className="btn btn-primary"
-              href="https://www.f6s.com/kgc-startup-pitch-2026/apply"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              Submit your pitch
-            </a>
-          </p>
+          {/* No button when there is no link — see the note in call-for-posters. */}
+          {call.submitUrl ? (
+            <p>
+              <a
+                className="btn btn-primary"
+                href={call.submitUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {call.submitLabel}
+              </a>
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -106,9 +129,11 @@ export default function StartupPitchPage() {
             live 2026 page carries firm dates; ours are shifted and nobody has
             confirmed them, and a date that looks confirmed is worse than no date.
           */}
-          <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+          {call.datesConfirmed ? null : (
+            <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+          )}
           <ul>
-            {DATES.map((d) => (
+            {call.dates.map((d) => (
               <li key={d.when} style={{ padding: '4px 0' }}>
                 <strong>{d.when}</strong> — {d.what}
               </li>

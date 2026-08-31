@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { listAgenda, listSponsorsByTier, programmeCounts } from '@/lib/data';
+import { listAgenda, listAnnouncements, listSponsorsByTier, programmeCounts } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
+import { Ticker } from '@/components/ticker';
 import { SponsorTiers } from '@/components/sponsor-tiers';
 import { GraphField } from '@/components/graph-field';
 import { HighlightPair } from '@/components/home/highlight-pair';
@@ -91,7 +92,7 @@ function withDeadline<T>(work: Promise<T>): Promise<T> {
 }
 
 /**
- * The three Firestore reads this page makes, with a floor under them.
+ * The four Firestore reads this page makes, with a floor under them.
  *
  * A marketing homepage must not 502 because a database is unreachable. Every
  * other section here — the hero, the pitch, the testimonials, the ticket tiers
@@ -108,16 +109,20 @@ function withDeadline<T>(work: Promise<T>): Promise<T> {
  */
 async function programmeOrNothing() {
   try {
-    const [counts, sponsorBands, agenda] = await withDeadline(
-      Promise.all([programmeCounts(), listSponsorsByTier(), listAgenda()]),
+    const [counts, sponsorBands, agenda, announcements] = await withDeadline(
+      Promise.all([programmeCounts(), listSponsorsByTier(), listAgenda(), listAnnouncements()]),
     );
-    return { counts, sponsorBands, agenda, live: true };
+    return { counts, sponsorBands, agenda, announcements, live: true };
   } catch (err) {
     console.error('[home] programme unavailable, rendering without it:', err);
     return {
       counts: { speakers: 0, sessions: 0, sponsors: 0 },
       sponsorBands: [] as Awaited<ReturnType<typeof listSponsorsByTier>>,
       agenda: [] as Awaited<ReturnType<typeof listAgenda>>,
+      // Empty, not absent: the ticker falls back to the standing line in
+      // `lib/site.ts`, so an unreachable database costs the strip its news
+      // rather than costing the page its strip.
+      announcements: [] as Awaited<ReturnType<typeof listAnnouncements>>,
       live: false,
     };
   }
@@ -129,10 +134,24 @@ export default async function HomePage() {
   // The homepage shows a price teaser. If the catalogue cannot be read the
   // strip is simply absent — a homepage is not the place to explain an outage.
   const tiers = (await tiersOrNull()) ?? [];
-  const { counts, sponsorBands, agenda } = await programmeOrNothing();
+  const { counts, sponsorBands, agenda, announcements } = await programmeOrNothing();
 
   return (
     <>
+      {/*
+        The orange strip under the header — the homepage's, and only the
+        homepage's. Measured across seven live pages: `/` carries it, and
+        `/community`, `/team`, `/hcls`, `/tickets`, `/about-kgc` and
+        `/2026-speakers` carry no orange bar at all. It used to run on all
+        sixteen routes, which put a 34px band of scrolling capitals between the
+        header and the first heading of every interior page.
+
+        It renders here rather than inside `SiteHeader` because it now carries
+        what the organizer actually announced, and `SiteHeader` is a client
+        component. See the note in that file.
+      */}
+      <Ticker announcements={announcements.map((a) => a.title)} />
+
       <section className="hero">
         {/* The node-and-edge field over the photograph — see `graph-field.tsx`. */}
         <GraphField />

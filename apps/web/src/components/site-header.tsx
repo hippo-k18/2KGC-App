@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
-import { Ticker } from '@/components/ticker';
 
 /**
  * The site chrome above the fold: the orange announcement bar, then the navy
@@ -33,6 +32,18 @@ export function SiteHeader() {
         knowledgegraph.tech at a 1512px viewport: the header occupies y 0–100 and
         the orange strip y 100–132. Ours had them the other way round, which put
         the first thing a visitor sees — an orange band — above the brand.
+
+        ── Why the strip itself is no longer rendered here ────────────────────
+        The bar now carries what the organizer actually announced, read from
+        Firestore. This file is a client component, so nothing in it can read
+        Firestore, and hoisting the read into the root layout would either bake
+        one moment's announcements into every statically-rendered page or force
+        the whole site dynamic to serve one strip. It rendered on `/` and only
+        on `/` anyway, so `app/page.tsx` — already `force-dynamic` for the same
+        reason every other Firestore-reading page is — renders it instead, as
+        its first child. That is the same position in the document: immediately
+        after `</header>`, since the layout's `<main>` follows it directly and
+        carries no styling of its own.
       */}
       <header className="site-header">
         <div className="wrap bar">
@@ -144,16 +155,6 @@ export function SiteHeader() {
         </div>
       </header>
 
-      {/*
-        The announcement bar is the homepage's, and only the homepage's.
-        Measured across seven live pages: `/` carries it, and `/community`,
-        `/team`, `/hcls`, `/tickets`, `/about-kgc` and `/2026-speakers` carry no
-        orange bar at all. Ours ran it on all sixteen routes, which put a 34px
-        band of scrolling capitals between the header and the first heading of
-        every interior page — the most visible structural difference left
-        between the two builds, and on every page but one.
-      */}
-      {path === '/' && <Ticker />}
     </>
   );
 }

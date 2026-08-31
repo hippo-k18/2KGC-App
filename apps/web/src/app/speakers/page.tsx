@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { FEATURED_2026, REST_2026, SPEAKERS_2026 } from '@/lib/speakers-2026';
-import { SpeakerCard, ViewAllSpeakers } from '@/components/speaker-grid';
+import { SpeakerCard, SpeakerGrid, ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
+import { listSpeakers } from '@/lib/data';
+import { SPEAKERS_PAGE_SOURCE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Speakers',
@@ -25,11 +27,21 @@ export const metadata: Metadata = {
  * revealed on this page rather than behind a navigation to `?view_all=true`,
  * because here they are server-rendered and indexable.
  *
- * ## Why 2026 people are shown on a 2027 site
+ * ══ WHICH ROSTER THIS PAGE SHOWS IS A ONE-LINE DECISION ══════════════════════
  *
- * The 2027 programme has not been selected, and the seeded `speakers`
- * collection holds invented names — right for testing the app, wrong for a
- * public page. These are the real KGC 2026 roster, and the page says so.
+ * `SPEAKERS_PAGE_SOURCE` in `lib/site.ts` picks between the two components
+ * below, and its docblock holds the full argument. In short: it ships as
+ * `'2026-roster'` because the 2027 programme has not been selected and the
+ * seeded `speakers` collection holds **invented names**, which must never reach
+ * a public page. `listSpeakers()` is not missing and this page is not
+ * unfinished — `LiveRoster` below is written, and flipping that constant is the
+ * entire change.
+ *
+ * ⚠️ The organizer dashboard does not know that. `pageReadiness()` in
+ * `apps/organizer/src/lib/webpages.ts` counts Firestore speakers with no photo
+ * or bio and reports them as problems with "your speakers page" — true only
+ * once the constant reads `'firestore'`. That half is fixed in that file; the
+ * two apps are separate installs and neither may import the other.
  *
  * ## Which five come first, and how that was established
  *
@@ -39,8 +51,13 @@ export const metadata: Metadata = {
  */
 export const dynamic = 'force-dynamic';
 
-export default function SpeakersPage() {
-  const tiles = (list: typeof FEATURED_2026) =>
+export default async function SpeakersPage() {
+  return SPEAKERS_PAGE_SOURCE === 'firestore' ? <LiveRoster /> : <Roster2026 />;
+}
+
+/** The shipping page: the real, published KGC 2026 roster, and it says so. */
+function Roster2026() {
+  const tiles = (list: typeof FEATURED_2026): SpeakerTile[] =>
     list.map((s, i) => ({
       // Whova gives no stable public id, so the name is the key. The index
       // disambiguates the two people who share one.
@@ -71,6 +88,48 @@ export default function SpeakersPage() {
 
             <ViewAllSpeakers speakers={tiles(REST_2026)} />
           </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The same page driven by the `speakers` collection, for the day a real 2027
+ * roster exists in Firestore.
+ *
+ * Flatter than `Roster2026` on purpose. The five-then-the-rest split is Whova's
+ * `design.highlight_speakers`, an editorial choice made in a widget we do not
+ * run; `SpeakerDoc` has no equivalent field, and inventing one by taking the
+ * first five of a surname sort would promote whoever is alphabetically unlucky.
+ * So this renders one grid in `listSpeakers()`'s order — surname-ish, the same
+ * order the agenda and the dashboard show — behind the same "show more" the
+ * 2026 page uses below its highlights.
+ *
+ * `listSpeakers()` goes through `safely()`, so an unreachable database renders
+ * the same empty state as an unpublished roster rather than a 500.
+ */
+async function LiveRoster() {
+  const speakers = await listSpeakers();
+
+  const tiles: SpeakerTile[] = speakers.map((s) => ({
+    id: s.id,
+    name: s.name,
+    company: s.company,
+    // `title` is the person's job title; the card calls that slot `role`.
+    role: s.title,
+    photoURL: s.photoURL,
+  }));
+
+  return (
+    <section style={{ padding: '72px 0 96px' }}>
+      <div className="wrap-kgc">
+        <h1 className="speakers-head">Speakers</h1>
+
+        {tiles.length === 0 ? (
+          <p className="notice">The speaker list is not published yet.</p>
+        ) : (
+          <SpeakerGrid speakers={tiles} initial={24} />
         )}
       </div>
     </section>

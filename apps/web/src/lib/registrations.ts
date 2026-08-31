@@ -15,6 +15,7 @@ import {
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { ensureRegistration as sharedEnsureRegistration } from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
+import { decideRefund } from './refund-core';
 
 /**
  * Fulfilment: turning a completed purchase into a registration the mobile app
@@ -326,6 +327,30 @@ export interface RefundOutcome {
   currency: string;
   /** False for a partial refund, which leaves the ticket valid. */
   fullyRefunded: boolean;
+  /**
+   * True only on the delivery that actually moved the order into a fully
+   * refunded state.
+   *
+   * The replay guard for anything non-idempotent the caller wants to do about a
+   * refund — giving seats back to `quantitySold`, above all. Stripe redelivers
+   * `charge.refunded` for up to three days and every delivery reports the same
+   * cumulative `amount_refunded`, so "is this a full refund?" is true every
+   * time and is the wrong question. This is the right one: the order was not
+   * already `refunded` or `cancelled` when this delivery arrived.
+   *
+   * `partially_refunded` → `refunded` counts as newly refunded, because the
+   * seat was still sold a moment ago and is not now.
+   */
+  newlyRefunded: boolean;
+  /**
+   * What the order sold, so the caller can give the seats back per tier.
+   *
+   * An invoice is one order with several `items`, so this is a list rather than
+   * a single tier. Lines whose tier was never recorded (`ticketTypeId: ''` —
+   * an invoice raised straight in the Stripe dashboard) are dropped, because
+   * there is no counter to correct.
+   */
+  lines: { ticketTypeId: string; quantity: number }[];
 }
 
 export async function cancelRegistrationByOrder(input: {
@@ -372,50 +397,31 @@ export async function cancelRegistrationByOrder(input: {
       refundedCents: input.refundedCents ?? 0,
       currency: 'usd',
       fullyRefunded: true,
+      // Nothing was ever fulfilled through this order, so nothing was ever
+      // counted against a tier and there is nothing to give back.
+      newlyRefunded: false,
+      lines: [],
     };
   }
 
   const order = snap.data() as OrderDoc;
 
   /**
-   * A partial refund is not a cancelled ticket.
+   * The rules themselves live in `refund-core.ts`, which imports no
+   * `server-only` and is therefore reachable from `tests/commerce`. What is
+   * left here is the write.
    *
-   * Refunding $200 of an $800 registration — a workshop day dropped, a
-   * goodwill gesture over a hotel mix-up — leaves someone who is still coming
-   * to the conference. Revoking their badge for it would be a worse bug than
-   * the one this function was written to fix, because it is silent until they
-   * are standing at the door.
-   *
-   * `amount_refunded` from Stripe is cumulative, so this reads correctly when a
-   * second partial refund follows a first.
+   * `decideRefund` is read from the order's state *before* the update below,
+   * which is what makes `newlyRefunded` answerable at all: afterwards every
+   * delivery of the same event looks identical.
    */
   const refunded = input.refundedCents ?? order.totalCents;
-  const fullyRefunded = input.reason !== 'refunded' || refunded >= order.totalCents;
+  const decision = decideRefund(order, input);
 
-  const orderStatus: OrderDoc['status'] =
-    input.reason === 'refunded'
-      ? fullyRefunded
-        ? 'refunded'
-        : 'partially_refunded'
-      : 'cancelled';
-
-  /**
-   * `refundedAt` is stamped only when money actually went back.
-   *
-   * This function also handles `payment_failed` and `disputed`, and it used to
-   * write `refundedAt` on all three — so an expired Checkout session, where
-   * nothing was ever charged and nothing was ever returned, came out carrying a
-   * refund date. Transaction History renders that column, which meant a row
-   * reading "refunded" on a sale that never happened.
-   *
-   * A disputed charge is deliberately excluded too: a chargeback is money held,
-   * not money returned, and it may yet come back. Stamping it would make the
-   * refunded total on Pay › Balance count a dispute as a refund.
-   */
   await orderRef.update({
-    status: orderStatus,
+    status: decision.status,
     refundedCents: refunded,
-    ...(input.reason === 'refunded' ? { refundedAt: Timestamp.now() } : {}),
+    ...(decision.stampRefundedAt ? { refundedAt: Timestamp.now() } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -426,13 +432,15 @@ export async function cancelRegistrationByOrder(input: {
     ticketType: order.items?.[0]?.ticketTypeName,
     refundedCents: refunded,
     currency: order.currency,
-    fullyRefunded,
+    fullyRefunded: decision.fullyRefunded,
+    newlyRefunded: decision.newlyRefunded,
+    lines: decision.lines,
   };
 
   if (!order.email) return { ...details, registrationId: null };
 
   // Partial refund: money moved, the ticket did not. Nothing further to do.
-  if (!fullyRefunded) return { ...details, registrationId: null };
+  if (!decision.fullyRefunded) return { ...details, registrationId: null };
 
   /**
    * Only withdraw the registration if this order is the reason it exists.

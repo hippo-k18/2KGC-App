@@ -51,13 +51,19 @@ export const SITE = {
 } as const;
 
 /**
- * The strip above the header.
+ * The standing line at the head of the strip, when there is no live news.
  *
  * On the live site this reads "SOLD OUT – REPLAY PURCHASES OPEN SOON", which is
  * true of the finished 2026 event and would be a lie about 2027. It lives here,
  * as one string, so that changing what the site announces is a one-line edit by
  * someone who knows the answer — rather than a hunt through JSX by someone who
- * does not. Set it to `null` to remove the bar entirely.
+ * does not. Set it to `null` to drop it.
+ *
+ * ⚠️ This is no longer the only thing the strip can say. Announcements posted
+ * from the organizer dashboard are read live by `listAnnouncements()` and
+ * displace this line while they exist — see `components/ticker.tsx`. Editing
+ * this string will not silence a room change that an organizer has posted, and
+ * it should not: the collection is the newer, more specific truth.
  */
 export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
 
@@ -70,8 +76,9 @@ export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
  * how much, how big — and moves, which is what makes a strip that thin worth
  * reading at all.
  *
- * `ANNOUNCEMENT` still leads the loop, so the one line the owner edits by hand
- * is the first thing anyone sees. Keep these short: they are read in passing.
+ * A live announcement leads the loop, and `ANNOUNCEMENT` above leads it when
+ * there is none — so the most specific thing anyone has said is the first thing
+ * read. Keep these short: they are read in passing.
  */
 export const TICKER: string[] = [
   '3–7 May 2027',
@@ -96,6 +103,37 @@ export const HCLS_BADGE: { label: string; href: string | null } | null = {
   label: 'HCLS tickets open soon',
   href: null,
 };
+
+/**
+ * Which roster the public `/speakers` page renders. **This is the switch.**
+ *
+ * `'2026-roster'` — the real, published KGC 2026 speakers, checked in as data at
+ * `lib/speakers-2026.ts`. This is the shipping value and it is a decision, not
+ * an oversight: KGC 2027 has no selected programme, and the `speakers`
+ * collection currently holds **invented names** written by `npm run seed`. A
+ * public page carrying fabricated people with fabricated employers is worse
+ * than a page carrying last year's real ones, which is why the page says
+ * whose roster it is showing.
+ *
+ * `'firestore'` — the live `speakers` collection, via `listSpeakers()`. Flip
+ * this the day a genuine 2027 roster is in Firestore and the whole change is
+ * this one line; both render paths are written and the page picks between them.
+ *
+ * ⚠️ **Two things must change together with it**, because the dashboard's
+ * readiness screen already reports on `/speakers` as though this were
+ * `'firestore'` today:
+ *
+ *   1. `apps/organizer/src/lib/webpages.ts` — `pageReadiness().speakers`
+ *      counts speakers with no photo, no bio, no company and calls them
+ *      problems with "your speakers page". While this constant is
+ *      `'2026-roster'` that page renders none of those documents, so every one
+ *      of those counts is about a page nobody can see. That file is owned by
+ *      the dashboard and cannot import this constant (the two apps are separate
+ *      installs and neither may import the other), so it carries its own copy
+ *      of the decision.
+ *   2. `ROADMAP.md`'s Phase 5 bullet, which records the same decision in prose.
+ */
+export const SPEAKERS_PAGE_SOURCE: '2026-roster' | 'firestore' = '2026-roster';
 
 /**
  * The attendance figure in the first stat block.
