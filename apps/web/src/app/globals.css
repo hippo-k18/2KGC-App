@@ -3427,8 +3427,25 @@ section.tint {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /*
+   * The lighter tiers are however many the catalogue holds, not two.
+   *
+   * A fixed two-column grid capped at 760px was right for the seeded pair and
+   * wrong for anything else: a third ticket type created in the dashboard
+   * dropped onto its own row, left-aligned, with an empty cell beside it.
+   * `auto-fit` over fixed-width tracks lays down as many columns as fit and
+   * collapses the rest, and `justify-content: center` keeps the row centred at
+   * any count — so two cards still sit where they always did.
+   *
+   * The tracks are a fixed width rather than `1fr` on purpose. Under `1fr` two
+   * cards would stretch to fill the whole cap and the section would change
+   * shape depending on how many tickets are on sale.
+   */
   .kgc-tickets.small {
-    max-width: 760px;
+    grid-template-columns: repeat(auto-fit, minmax(0, 340px));
+    justify-content: center;
+    /* Four across before it wraps: 4 × 340 + 3 × 26 gap. */
+    max-width: 1438px;
     margin-inline: auto;
   }
 }
