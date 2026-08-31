@@ -28,7 +28,16 @@ mkdirSync(OUT, { recursive: true });
 
 const APP = process.env.APP_URL ?? 'https://kgc-2027-app.netlify.app';
 const EMAIL = process.env.BUYER_EMAIL ?? 'demo.attendee@example.com';
-const PASSWORD = 'kgcdemo2027';
+/**
+ * Read from the environment rather than hard-coded.
+ *
+ * This was the literal shared password, which put a live credential in a
+ * committed file. It is also no longer a password anything issues: BUILD-PLAN
+ * 1.4 removed demo mode, and an account created by a purchase now has no
+ * password at all — see the note at the top of demo/README.md about what this
+ * act can and cannot do.
+ */
+const PASSWORD = process.env.BUYER_PASSWORD ?? '';
 const ON_LOGIN = () => document.body.innerText.includes('Demo sign-in');
 
 const browser = await chromium.launch({ args: ['--force-device-scale-factor=1', '--hide-scrollbars'] });

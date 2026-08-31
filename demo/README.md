@@ -1,5 +1,30 @@
 # kgc-one-backend.mp4
 
+> ## ⚠️ This harness no longer reproduces the video, and cannot be re-run as it stands
+>
+> **Recorded 29 August 2026. Broken by BUILD-PLAN 1.4–1.8 on 31 August 2026**, which
+> removed demo mode. The `.mp4` in `out/` is unaffected — it is a finished file —
+> but re-running the three acts against the deployed sites will not work, and it
+> is worth knowing exactly which part fails so nobody spends an evening on it.
+>
+> | Act | What it did | What happens now |
+> |---|---|---|
+> | `act1-buy.mjs` | Filled the checkout form and clicked pay. With `DEMO_MODE=1` the site approved the purchase, wrote a `paid` order and redirected to the confirmation pass. | **Fails at the pay button.** The bypass is gone. `/tickets` now says `STRIPE_SECRET_KEY` is not set, the button is disabled, and `startCheckout` refuses before it reads a tier. No order, no claim code — so acts two and three have nothing to show. |
+> | `act2-app.mjs` | Signed into the app as the buyer, using the shared demo password. | **Fails at sign-in.** The password is no longer hard-coded here (it reads `BUYER_PASSWORD`), and more to the point an account created by a purchase now has **no password at all** — the way in is a six-digit code emailed by `requestOtp`, which is undeployed. |
+> | `act3-dashboard.mjs` | Signed into the dashboard with the live passphrase, hard-coded on line 39. | **Runs, once you supply the credentials.** The literal is gone; set `ORGANIZER_EMAIL` and `ORGANIZER_PASSPHRASE`. The order it looks for will not exist unless one is created by other means. |
+>
+> **What would make it run again**, in order: a Stripe test key
+> (`sk_test_…`, `OWNER-ACTIONS.md` §2) restores act one end to end through hosted
+> Checkout — note the card is then entered on `checkout.stripe.com`, so the shot
+> changes. Act two needs either the OTP callables deployed
+> (`OWNER-ACTIONS.md` §3 and §6) and a recording that reads a code out of an
+> inbox, or an account given a password by hand. Neither is a small edit to this
+> directory; it is a re-cut.
+>
+> The two live secrets this directory used to hard-code have been replaced by
+> environment variables. They still need rotating — they are in the deployed
+> Netlify config and on 50 live Auth accounts. See `OWNER-ACTIONS.md` §4.
+
 2m25s, 1920×1080, 30fps, 19 MB, with sound. Recorded 29 August 2026.
 
 ```
@@ -65,9 +90,9 @@ npm install && npx playwright install chromium
 export GOOGLE_APPLICATION_CREDENTIALS=$PWD/../.secrets/service-account.json
 node ../scripts/ops/reset-demo-sales.mjs
 
-node act1-buy.mjs         # website + purchase  → raw/buy/*.webm, prints CLAIM
-node act2-app.mjs         # the app             → raw/app/*.webm
-node act3-dashboard.mjs   # dashboard + website → raw/dash/*.webm
+node act1-buy.mjs         # ⚠️ broken — see the banner at the top of this file
+node act2-app.mjs         # ⚠️ broken — see the banner at the top of this file
+ORGANIZER_EMAIL=… ORGANIZER_PASSPHRASE=… node act3-dashboard.mjs
 node phone-frame.mjs      # the iPhone bezel    → cards/phone-frame.png
 CLAIM=<from act1> node cards.mjs
 ./build.sh                # → out/kgc-one-backend.mp4

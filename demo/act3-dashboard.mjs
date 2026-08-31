@@ -36,7 +36,21 @@ mkdirSync(OUT, { recursive: true });
 
 const WEB = process.env.WEB_URL ?? 'https://kgc-2027-website.netlify.app';
 const DASH = process.env.DASH_URL ?? 'https://kgc-2027-dashboard.netlify.app';
-const ORGANIZER = { email: 'demo@knowledgegraph.tech', passphrase: 'kgc-demo-2027' };
+/**
+ * From the environment. The passphrase was hard-coded here, which meant the
+ * live secret guarding an Admin SDK that bypasses every security rule sat in a
+ * committed file. Set both before running:
+ *
+ *   ORGANIZER_EMAIL=… ORGANIZER_PASSPHRASE=… node act3-dashboard.mjs
+ */
+const ORGANIZER = {
+  email: process.env.ORGANIZER_EMAIL ?? '',
+  passphrase: process.env.ORGANIZER_PASSPHRASE ?? '',
+};
+if (!ORGANIZER.email || !ORGANIZER.passphrase) {
+  console.error('Set ORGANIZER_EMAIL and ORGANIZER_PASSPHRASE before running this act.');
+  process.exit(1);
+}
 
 /** The edit the act performs. Whole currency units — the form stores cents. */
 const TICKET = { id: 'main-conference', name: 'Main Conference', from: '799', to: '699' };

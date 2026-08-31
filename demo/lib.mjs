@@ -330,9 +330,11 @@ export async function caption(page, text, sub = '', ms = 2200, { phone = false }
  * It is re-applied by `installCursor`'s callers after every navigation, the
  * same way the cursor is, because a page load clears the injected DOM.
  *
- * The two lines it carries are the honest state of the money path as of
- * 2026-08-29: `DEMO_MODE=1` approves the payment without Stripe, and the
- * dashboard's HubSpot screen is a connection guide with nothing behind it.
+ * The two lines it carries were the honest state of the money path on
+ * 2026-08-29: `DEMO_MODE=1` approved the payment without Stripe, and the
+ * dashboard's HubSpot screen is a connection guide with nothing behind it. The
+ * first half of that is now historical — demo mode is gone and the site refuses
+ * to sell without a Stripe key. See the banner in README.md.
  */
 export async function caveat(page, lines) {
   await page.evaluate((rows) => {

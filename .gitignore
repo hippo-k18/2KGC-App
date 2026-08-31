@@ -34,6 +34,14 @@ yarn-error.*
 .env*
 !.env.example
 
+# Local overrides for Firebase Functions secrets. The functions emulator names
+# this file by hand in its own error message when a declared secret cannot be
+# read from Secret Manager, so it is exactly where somebody will paste a real
+# RESEND_API_KEY — and it is not matched by the `.env*` rule above. This repo
+# has committed live credentials before; that is the reason this line exists.
+functions/.secret.local
+**/.secret.local
+
 # firebase
 .firebase/
 firebase-debug.log*
