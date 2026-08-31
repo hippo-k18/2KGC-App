@@ -246,12 +246,14 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 172 tests against firestore.rules
-npm test                             # 186 unit tests — INCLUDES test:programme
-npm run test:commerce                # 32 tests: fulfilment, refunds, invoice splitting
-npm run test:programme               # 94 tests: conflict detection, CSV, speed-networking pairs
-npm run test:functions               # 46 tests: the triggers and callables, on the emulator
+npm run test:rules                   # 182 tests against firestore.rules
+npm test                             # 241 unit tests — INCLUDES test:programme
+npm run test:commerce                # 62 tests: fulfilment, refunds, provisioning
+npm run test:programme               # 149 tests: conflicts, CSV, speed-networking, attendance
+npm run test:functions               # 55 tests: the triggers and callables, on the emulator
 npm run test:denormalise             # 25 tests: the session-cache fan-out and reconcile
+npm run test:attendance              # 10 tests: scoped check-in lists
+npm run test:programme-import        # 9 tests: the session/speaker/track importer
 npm run smoke                        # all 173 dashboard screens, against a seeded emulator
 ```
 
@@ -653,9 +655,10 @@ standing between this file and 1,000 attendees' data.
   gap than this file claimed for months. `replyCount`, `reactionCount`,
   `upvoteCount`, `tallies`, `totalVotes` and `directory/{uid}` are all
   function-owned, the rules enforce that no client may write them, and the
-  triggers that do write them are in `functions/` with 14 tests
-  (`npm run test:functions`). They run against the **emulator**, which needs no
-  Blaze plan — see `BACKEND-ROADMAP.md`, which makes the point that everything
+  triggers that do write them are in `functions/`, covered along with the
+  other nine functions/SPEC.md functions by `npm run test:functions`'s 32
+  tests. They run against the **emulator**, which needs no Blaze plan — see
+  `BACKEND-ROADMAP.md`, which makes the point that everything
   through Phase 4 is free and local. What Blaze buys is *deployment*, and until
   that happens these fields stay at their seeded values in the real project.
   `scripts/src/seed-demo.ts` therefore still dual-writes `directory/{uid}`, so

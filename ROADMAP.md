@@ -26,9 +26,9 @@ disagree.
 | **Attendee app** (`app/`) | Five tabs on real Firestore data. Messages behind a header icon. Badge QR → check-in verified end to end. |
 | **Website** (`apps/web/`) | 21 pages, all links resolving. Stripe Checkout, Stripe Invoicing, tracked links. **Deployed on Netlify.** |
 | **Organizer dashboard** (`apps/organizer/`) | ⚠️ **Superseded — see `BUILD-PLAN.md`.** All 173 render without a throw, but "read real data" was wrong: 39 read nothing. Since 2026-08-31 the programme, sponsors and ticket specs are editable. |
-| **Cloud Functions** (`functions/`) | **8 triggers written**, 14 tests, green against the emulator. **Not deployed** — that needs Blaze. |
+| **Cloud Functions** (`functions/`) | **14 deployable units** — 10 Firestore triggers, 2 Cloud Tasks handlers, 2 public OTP callables. 55 tests, green against the emulator. **Not deployed** — blocked by the `serviceusage` 403, not by Blaze. |
 | **Firestore** | Rules, 16 composite indexes and 6 field overrides **live on the real project**. 483 seeded documents, 50 Auth accounts. |
-| **Tests** | **358 passing** — 119 unit · 66 programme · 143 rules · 16 commerce · 14 triggers. |
+| **Tests** | ⚠️ Stale. **584 passing** as of 2026-08-31 — 241 unit (incl. 149 programme) · 182 rules · 62 commerce · 55 functions · 44 in three new suites. |
 
 ### ★ Settled since the last revision
 
@@ -114,7 +114,7 @@ Five capabilities remain genuinely absent, and the screens that need them now
 | Blocker | Screens behind it | Status |
 |---|---:|---|
 | **1. An email sender** | ~14 | ✅ **Unblocked, and spent** |
-| **2. Cloud Functions** | ~8 | ⚠️ **8 triggers written, 14 tests green, not deployed** — Blaze |
+| **2. Cloud Functions** | ~8 | ⚠️ **10 functions written, 32 tests green, not deployed** — Blaze |
 | **3. File upload + image pipeline** | ~6 | ❌ Storage rules exist, nothing writes through them |
 | **4. A generic entity CRUD + importer** | ~0 | ✅ **Done** — export registry and CSV importer both exist |
 | **5. Streaming infrastructure** | ~15 | ❌ And argued as a candidate to cut |
@@ -304,7 +304,7 @@ For comparison with `whova-rebuild/STATUS.md` (16 August):
 | Registration questions | none | **asked before checkout, stored on the registration** |
 | CSV exports / imports | none | **six exports, generic importer** |
 | Website pages | 19, some links broken | **21, all links resolve, 5 Firestore-driven** |
-| Cloud Function triggers | 0 written | **8 written, 14 tests, awaiting Blaze to deploy** |
+| Cloud Function triggers | 0 written | **10 written, 32 tests, awaiting Blaze to deploy** |
 | Rules and indexes in production | none applied | **rules + 16 indexes + 6 overrides live** |
 | Deployment | localhost only | **both sites on Netlify, app hosted on the web** |
 | Buying a ticket | wrote a registration and stopped | **also provisions the account that signs into the app**, on the Stripe webhook, with no password |
