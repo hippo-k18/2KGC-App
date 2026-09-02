@@ -1,10 +1,9 @@
 import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import type { SessionDoc } from '@kgc/shared';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
-/** Firestore batched writes cap at 500 ops; FCM multicast caps at 500 tokens. */
+/** Firestore batched writes cap at 500 ops. */
 const BATCH_LIMIT = 500;
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -32,7 +31,7 @@ function joinWithAnd(items: string[]): string {
  *
  * No preference gate: `notificationPrefs` has no field for this type and
  * SPEC.md records that as a decision, not a gap — every attendee who saved
- * the session gets notified, unconditionally, including the FCM push.
+ * the session gets an in-app notification, unconditionally.
  *
  * The notification id is the event's own id (stable across a Cloud
  * Functions retry of the *same* delivery), not a generated one — a retry
@@ -40,6 +39,14 @@ function joinWithAnd(items: string[]): string {
  * It is not `sessionId`, unlike `onAnnouncementCreate`'s use of
  * `announcementId`, because a session can legitimately change again later
  * and each change is its own notification.
+ *
+ * Writes the in-app record only — it does not send FCM. The push send lives
+ * at `apps/organizer/src/lib/push.ts`'s `roomChangePush()`, called from the
+ * same server action that makes the room/time change, before this trigger
+ * ever fires. This trigger's own send used to target the identical audience
+ * (`savedSessions` for this `sessionId`) and would have double-delivered to
+ * every device the moment both paths were live. See functions/SPEC.md
+ * decision 11.
  */
 export const onSessionAgendaChange = onDocumentUpdated(
   `${COLLECTIONS.sessions}/{sessionId}`,
@@ -93,20 +100,6 @@ export const onSessionAgendaChange = onDocumentUpdated(
         );
       }
       await batch.commit();
-    }
-
-    const tokenSnaps = await Promise.all(
-      uids.map((uid) => db.collection(COLLECTIONS.users).doc(uid).collection(SUBCOLLECTIONS.fcmTokens).get()),
-    );
-    const tokens = tokenSnaps
-      .flatMap((s) => s.docs.map((d) => d.data().token as string | undefined))
-      .filter((t): t is string => Boolean(t));
-
-    for (const page of chunk(tokens, BATCH_LIMIT)) {
-      await getMessaging().sendEachForMulticast({
-        tokens: page,
-        notification: { title, body },
-      });
     }
   },
 );

@@ -9,13 +9,13 @@
  * seed-demo.ts), so there is no seeded example of an attendee who opted
  * out to prove the filter actually filters.
  *
- * The `push: true` case only proves the function completes and still
- * writes notifications when no `fcmTokens` exist anywhere — which is the
- * real current state of this app (push is modelled, nothing sends yet; see
- * AGENTS.md's Known Gaps). There is no FCM emulator, and this repo has no
- * credentials to call real Firebase Cloud Messaging from a test, so actual
- * delivery is not something this suite can verify — only that the code path
- * short-circuits cleanly on an empty token list rather than reaching it.
+ * This trigger writes the in-app `notifications` record only — it does not
+ * send FCM (functions/SPEC.md decision 11: `apps/organizer/src/lib/push.ts`'s
+ * `announcementPush()` already sends, from the same dashboard action that
+ * creates the `announcements/{id}` document this trigger reacts to, so a
+ * second sender here would double-deliver). The `push: true` case below
+ * exists to prove that field no longer changes what this trigger writes —
+ * it is read by the dashboard action, not by this trigger.
  *
  * Run with: npm run test:functions
  */
@@ -108,7 +108,7 @@ describe('onAnnouncementCreate', () => {
     expect(outSnap.exists).toBe(false);
   }, 20_000);
 
-  it('still writes notifications when push is true and no fcmTokens exist', async () => {
+  it('writes the same in-app notification whether announcement.push is true or false', async () => {
     await announcementsRef.doc(ANNOUNCEMENT_PUSH).create({
       eventId: EVENT_ID,
       title: 'Push test',
@@ -124,5 +124,8 @@ describe('onAnnouncementCreate', () => {
     await expect
       .poll(async () => (await inNotification.get()).exists, { timeout: 15_000, interval: 300 })
       .toBe(true);
+
+    const inSnap = await inNotification.get();
+    expect(inSnap.data()?.type).toBe('announcement');
   }, 20_000);
 });

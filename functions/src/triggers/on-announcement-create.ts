@@ -1,10 +1,9 @@
 import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
 import type { AnnouncementDoc, UserDoc } from '@kgc/shared';
 import { FieldValue, getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
-/** Firestore batched writes cap at 500 ops; FCM multicast caps at 500 tokens. */
+/** Firestore batched writes cap at 500 ops. */
 const BATCH_LIMIT = 500;
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -27,6 +26,14 @@ function chunk<T>(items: T[], size: number): T[][] {
  * The notification id is the announcement's own id, not a generated one:
  * a retried dispatch (Cloud Functions retries on a thrown error) `set()`s
  * the same document again rather than duplicating it in 1,000 inboxes.
+ *
+ * Writes the in-app record only — it does not send FCM. `announcement.push`
+ * is read and acted on by `apps/organizer/src/lib/push.ts`'s
+ * `announcementPush()`, called from the same server action that creates this
+ * document, before this trigger ever fires. That path broadcasts to a topic;
+ * this trigger's own multicast-by-token send used to run in parallel with it
+ * and would double-deliver to every subscribed device the moment both were
+ * live. See functions/SPEC.md decision 11.
  */
 export const onAnnouncementCreate = onDocumentCreated(
   `${COLLECTIONS.announcements}/{announcementId}`,
@@ -59,22 +66,6 @@ export const onAnnouncementCreate = onDocumentCreated(
         });
       }
       await batch.commit();
-    }
-
-    if (!announcement.push) return;
-
-    const tokenSnaps = await Promise.all(
-      recipients.map((u) => u.ref.collection(SUBCOLLECTIONS.fcmTokens).get()),
-    );
-    const tokens = tokenSnaps
-      .flatMap((s) => s.docs.map((d) => d.data().token as string | undefined))
-      .filter((t): t is string => Boolean(t));
-
-    for (const page of chunk(tokens, BATCH_LIMIT)) {
-      await getMessaging().sendEachForMulticast({
-        tokens: page,
-        notification: { title: announcement.title, body: announcement.body },
-      });
     }
   },
 );

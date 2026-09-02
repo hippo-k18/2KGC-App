@@ -22,8 +22,8 @@ any deployment — nothing here needs Blaze to be written or tested.
 | 4 | `tallyPoll` | Debounced via Cloud Tasks (~5s), kicked off by a Firestore trigger | `sessions/{sessionId}/polls/{pollId}/votes/{uid}` | `onWrite` → schedules a deferred recompute if one isn't already pending | `.../polls/{pollId}.tallies`, `.totalVotes`, `.talliesUpdatedAt` — **fully recomputed** from the `votes` subcollection, never incremented | Never read/write `tallies` by +1/-1 — that is exactly the bug the move to a subcollection was meant to avoid (16m40s to drain 1000 votes). Cloud Scheduler has a 1-minute floor, incompatible with the model's "at most once every 5s" — hence Cloud Tasks rather than a classic scheduled job. |
 | 5 | `rebuildQaBoard` | Debounced (same mechanism as #4) | `sessions/{sessionId}/questions/{questionId}` | `onWrite` (a `state` or `upvoteCount` change) | `sessions/{sessionId}/qaBoard/current`: `questions[]` **filtered strictly to `state == 'approved'`**, sorted by `upvoteCount` desc, capped at N (to be fixed in Phase 1, e.g. 50); `rebuiltAt` | Never write a `pending`, unapproved-`answered`, or `hidden` question into this document — it's the public document projected on screen, so no unmoderated content ever enters it. |
 | 6 | `mirrorDirectory` | Firestore trigger | `users/{uid}` | `onWrite` | `directory/{uid}`: created/updated if `visibleInDirectory == true`, **deleted** otherwise | Never copy `email`; never copy `photoURL` without validation (already forbidden client-side by `validDirectoryEntry()` — the function must stay consistent with that contract). The existing client write path on `directory/{uid}` **stays open** as a fallback — dual-write assumed for Phase 1, no change to `firestore.rules`. |
-| 7 | `onAnnouncementCreate` | Firestore trigger | `announcements/{id}` | `onCreate` | `users/{uid}/notifications/{id}` (type `announcement`) for every attendee with `notificationPrefs.announcements == true`; also sends FCM if `announcement.push == true` | Must not notify unregistered accounts. Batch the writes (Firestore's 500-op/batch limit, so ~2 batches for 1000 users). |
-| 8 | `onSessionAgendaChange` | Firestore trigger | `sessions/{sessionId}` | `onUpdate`, filtered to `status == 'published'` and a change to `roomId` / `startsAtLocal` / `endsAtLocal` / `day` / `status → cancelled` | `users/{uid}/notifications/{id}` (type `agenda-change`) + FCM push, for every attendee with this `sessionId` in `savedSessions` (collection group query) | Must not fire on a cosmetic change (`description`, `slidesUrl`, a cached `speakerNames`) — only fields that change where/when/whether the session happens. **Notifies unconditionally**: there is no dedicated preference in `notificationPrefs` for this type, and there won't be — decision made, no new checkbox. |
+| 7 | `onAnnouncementCreate` | Firestore trigger | `announcements/{id}` | `onCreate` | `users/{uid}/notifications/{id}` (type `announcement`), in-app only, for every attendee with `notificationPrefs.announcements == true` | Must not notify unregistered accounts. Batch the writes (Firestore's 500-op/batch limit, so ~2 batches for 1000 users). Must **not** send FCM — see decision 11. |
+| 8 | `onSessionAgendaChange` | Firestore trigger | `sessions/{sessionId}` | `onUpdate`, filtered to `status == 'published'` and a change to `roomId` / `startsAtLocal` / `endsAtLocal` / `day` / `status → cancelled` | `users/{uid}/notifications/{id}` (type `agenda-change`), in-app only, for every attendee with this `sessionId` in `savedSessions` (collection group query) | Must not fire on a cosmetic change (`description`, `slidesUrl`, a cached `speakerNames`) — only fields that change where/when/whether the session happens. **Notifies unconditionally**: there is no dedicated preference in `notificationPrefs` for this type, and there won't be — decision made, no new checkbox. Must **not** send FCM — see decision 11. |
 | 9 | `requestOtp` | HTTPS callable (no Firestore trigger) | — | client call (email) | `otpCodes/{id}`: 6-digit code, `expiresAt` = +10 min, `attempts: 0`; `rateLimits/{id}`: throttle **5 requests per email per hour** | Must never return a different response depending on whether the email matches a ticket (same anti-enumeration logic as `registrationIsMine`). Must not send a real email — emulator console log only, until a provider is chosen in Phase 5. |
 | 10 | `verifyOtp` | HTTPS callable | — | client call (email + code) | Checks `registrations` (primary `email` or `altEmails`) for an **active** ticket, refusing outright if none exists; Auth account (find-or-create by email); custom claims `{ registered: true, roles: ['attendee'], eventId }` **minted only when the account is newly created**; returns a custom token; increments `attempts` on `otpCodes` on a wrong guess, deletes the document (refusing immediately) on expiry (10 min) **or once 5 wrong guesses have already been made** — the 6th call is dead even if it finally submits the right code | Must **not** create `users/{uid}` — that stays the client's job on first sign-in (a known Phase 2 gap). **`roles` is always `['attendee']`** on first sign-in, never derived from a `speakers`/allowlist lookup — special roles (`organizer`, `speaker`, `reviewer`, `exhibitor`, `checkin`) stay manually granted via `npm run claims`. Must **never** touch an existing account's custom claims on a *returning* sign-in — a hand-granted role must survive every future sign-in, not just the session it was granted in. |
 
@@ -74,6 +74,28 @@ threads stays client-managed, as today — nothing changes there.
     the cap and invalidates the document outright. This is checked before
     comparing the submitted code, so a code cannot be redeemed by guessing
     right on the 6th call.
+11. **Added 2026-09-02, after the port to `organizer-dashboard`**:
+    `onAnnouncementCreate` (#7) and `onSessionAgendaChange` (#8) no longer
+    send FCM. `apps/organizer/src/lib/push.ts` already sends push for both
+    events — `announcementPush()` and `roomChangePush()` — called directly
+    from the same dashboard server actions that make the writes these
+    triggers react to (`engagement/announcements/actions.ts`,
+    `content/agenda-center/session-manager/[id]/actions.ts`), and that path
+    predates these two triggers being ported here. Once both triggers
+    deploy, a live announcement or room change would fire *both* paths on
+    the same event: the dashboard's topic broadcast (announcements) or
+    targeted multicast (room changes), and the trigger's own per-token
+    multicast reaching the identical audience — every subscribed device
+    notified twice. `push.ts`'s own docblock argues the dashboard-side send
+    is the better shape, not a stopgap: it is one transaction-adjacent code
+    path instead of two systems agreeing, and push is always something an
+    organizer chose, never a reaction to a client write the way the
+    reply/reaction/upvote counters are. So the fix keeps the dashboard as
+    the only sender and narrows both triggers to the one job a Cloud
+    Function can do that the dashboard cannot: writing the in-app
+    `notifications` record for an attendee who wasn't at the keyboard when
+    it happened. `AnnouncementDoc.push` is unchanged and still read by the
+    dashboard action — only the trigger stopped reading it.
 
 ## Phase 1 status
 
@@ -143,13 +165,9 @@ threads stays client-managed, as today — nothing changes there.
   claim is minted, so the collection is a sound proxy. It writes the
   notification at the announcement's own document id, so a retried
   dispatch overwrites the same 1,000 documents rather than duplicating
-  them. The FCM branch is written and typechecked but effectively
-  untested: there is no Cloud Messaging emulator, this repo has no
-  credentials to call real FCM from a test, and no code anywhere writes
-  `fcmTokens` yet (a Known Gap in `AGENTS.md`) — so the only thing
-  `tests/functions/onAnnouncementCreate.test.ts` proves about `push: true`
-  is that the code path completes when the token list is empty, which is
-  also the true state of the whole app today.
+  them. It no longer has an FCM branch — see decision 11: the dashboard's
+  `announcementPush()` already sends for this event, and a second sender
+  here would double-deliver once this trigger is live.
 - `mirrorDirectory` bounds `name`/`title`/`company`/`interests` to the same
   limits `validDirectoryEntry()` enforces on the client write path, even
   though nothing enforces them on `users/{uid}` itself — the directory is
