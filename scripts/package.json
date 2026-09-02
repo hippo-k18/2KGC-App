@@ -6,7 +6,8 @@
     "seed": "tsx src/seed-demo.ts",
     "import:whova": "tsx src/import-whova.ts",
     "typecheck": "tsc --noEmit",
-    "claims": "tsx src/set-claims.ts"
+    "claims": "tsx src/set-claims.ts",
+    "import:speakers-2026": "tsx src/import-speakers-2026.ts"
   },
   "dependencies": {
     "@kgc/shared": "*",

@@ -30,6 +30,18 @@
 [build.environment]
   NODE_VERSION = "22"
 
+  # Where every public link this dashboard mints points: `/order/{token}`
+  # confirmations, `/consent/{token}` signing links, `/r/{code}` campaign links
+  # and the Preview menu. An organizer publishes those, so a wrong value here is
+  # published too — Campaign Link Tracking handed out `http://localhost:3200/r/…`
+  # before `publicSiteOrigin()` in `@kgc/shared` became the only declaration.
+  # It is the public site's origin, not this dashboard's.
+  #
+  # ⚠️ Build variable only — see the note in `apps/web/netlify.toml`. The
+  # dashboard's pages are all `force-dynamic`, so in practice the runtime value
+  # is the one that matters: set `WEB_PUBLIC_ORIGIN` in the Netlify UI too.
+  WEB_PUBLIC_ORIGIN = "https://kgc-2027-website.netlify.app"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

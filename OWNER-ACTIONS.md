@@ -7,7 +7,27 @@ Ordered by what unblocks the most.
 
 ---
 
-## 1. Create the Storage bucket · unblocks ~24 screens
+## 1. ✅ DONE — the Storage bucket exists · 2026-09-01
+
+★ **Completed and verified end to end.** The bucket
+`kgc-conference-app-and-website.firebasestorage.app` exists,
+`firebasestorage.googleapis.com` is `ENABLED`, and `storage.rules` is published
+to it (release `firebase.storage/kgc-conference-app-and-website.firebasestorage.app`,
+ruleset `e1acedfe`). Proven by an actual round trip, not by the console saying
+so: a 70-byte PNG written with the Admin SDK, fetched anonymously through its
+`?alt=media&token=` URL (200, `image/png`, 70 bytes), then deleted.
+
+⚠️ One fix went in with it. `storage.rules` had match blocks for `avatars`,
+`sessions`, `sponsors` and `exhibitors` but **not `speakers`**, which is the
+third folder `uploads.ts` actually writes to. A client-SDK read of a speaker
+portrait by path was denied while the identical sponsor read succeeded, and
+nothing had noticed because every render goes through the token URL, which does
+not evaluate the rules file at all. The block was added before first publish.
+
+Nothing below in this section is outstanding; it is kept as the record of what
+was done.
+
+### The original instructions
 
 ⚠️ **The default bucket does not exist.** Verified twice by probe: both
 `kgc-conference-app-and-website.firebasestorage.app` and
@@ -71,22 +91,175 @@ BUILD-PLAN 1.6 (a Stripe Payment Element), and it needs a **publishable** key
 
 ---
 
-## 3. The `serviceusage` IAM grant · unblocks Cloud Functions
+## 3. ⚠️ STILL OUTSTANDING — the IAM grant did not land · retested 2026-09-01
 
-Every `firebase deploy` pre-flights against `serviceusage.googleapis.com`, and
-no identity on this project holds `serviceusage.services.use` — not the
-signed-in owner, not the Admin SDK service account. That is why
-`scripts/ops/deploy-rules.mjs` and `deploy-indexes.mjs` exist.
+★ **Reported as approved, and it is measurably not in effect.** Two independent
+checks, both run after the storage half of the same approval had already
+succeeded:
 
-⚠️ **A `deploy-functions.mjs` would not solve it this time.** Rules and indexes
-work around the 403 because those APIs do not need the permission. Deploying a
-**v2 function needs five APIs *enabled***, which needs
-`serviceusage.services.enable` — the same 403, one layer down. **The fix is the
-IAM grant, not another script.**
+```
+firebase deploy --only functions   → same ActAs error, unchanged
+iam.serviceAccounts:testIamPermissions on
+  kgc-conference-app-and-website@appspot.gserviceaccount.com
+  asking for [actAs, get]          → 200 {}      ← empty: neither is held
+```
 
-`gcloud` is not installed on this machine, so I cannot diagnose or grant it.
-`docs/deploy-functions.md` has the read-only diagnosis commands and the ordered
-runbook.
+An empty `testIamPermissions` response is the authoritative answer. It is not a
+propagation delay and not a caching artefact: the identity holds *nothing* on
+that service account, not even `get`.
+
+### ⚠️ The most likely cause is the address
+
+The Firebase CLI on this machine is authenticated as — confirmed by introspecting
+the live token, not by reading a config file:
+
+```
+hartigandeely@gmail.com     (sub 112277041812908358571)
+```
+
+**Not** `hartigandeely456@gmail.com`, which is the address used elsewhere for
+this project. A grant made to the `456` address would appear complete in the
+console and do nothing for the CLI. That is the first thing to check.
+
+### The other three things it could be
+
+1. Granted on the **wrong service account** — `446276480921-compute@developer.gserviceaccount.com`
+   is the other default and is easy to pick by mistake. It must be the
+   **appspot** one.
+2. Granted at **project** level rather than on the service account. That would
+   also work, and it is not there: `getIamPolicy` on the project shows only
+   `roles/firebase.admin` for this user, unchanged.
+3. The console's **Save** was not committed on the Grant Access panel.
+
+Nobody here can read the service account's own IAM policy to see who *was*
+granted — `iam.serviceAccounts.getIamPolicy` is itself denied — so this has to
+be checked from an Owner session.
+
+### Everything else is ready and waiting
+
+The functions are built, typechecked and green (**55 tests**, re-run
+2026-09-01), and the cost guardrails in §5 are satisfied *in source*:
+`maxInstances` is 10 by default, 1 on the serial fan-out and 3 on the OTP
+callable, `minInstances` is 0 everywhere, and there is no `setGlobalOptions`
+anywhere in `functions/src`. The deploy command is one line once the grant is
+real.
+
+---
+
+## 3a. The original ask, unchanged
+
+★ **Re-diagnosed 2026-08-31, and the answer changed.** Blaze is on, and turning
+it on enabled every API a v2 function deploy needs. The `serviceusage` 403 this
+section used to describe **is gone** — `firebase deploy --only functions` now
+gets *past* the pre-flight and fails one layer later, on a single missing role.
+
+Verified today against the live project, as `hartigandeely@gmail.com`:
+
+```
+Error: Missing permissions required for functions deploy. You must have
+permission iam.serviceAccounts.ActAs on service account
+kgc-conference-app-and-website@appspot.gserviceaccount.com.
+```
+
+The same command run with `GOOGLE_APPLICATION_CREDENTIALS` pointed at
+`.secrets/service-account.json` fails identically, so this is not an
+"use the other identity" problem. Both identities lack the one permission.
+
+### Why it is only this
+
+`serviceusage.services.list` returns **51 enabled APIs**, and all seven a v2
+deploy touches are among them — `cloudfunctions`, `cloudbuild`,
+`artifactregistry`, `eventarc`, `run`, `cloudtasks`, `pubsub`. Nothing needs
+enabling. The previous entry here said "deploying a v2 function needs five APIs
+*enabled*, which needs `serviceusage.services.enable` — the same 403, one layer
+down". That was true on Spark. It is no longer true, and a `deploy-functions.mjs`
+is still not the answer — but for the opposite reason. There is nothing left to
+work around except the role.
+
+### The current IAM policy, and why the grant lands on you
+
+`cloudresourcemanager.projects.getIamPolicy` reports:
+
+| Member | Role |
+|---|---|
+| `francois@knowledgegraph.tech` | `roles/owner` |
+| `hdeschuyt@gmail.com` | `roles/editor` |
+| `hartigandeely@gmail.com` | `roles/firebase.admin` |
+| `firebase-adminsdk-fbsvc@…` | `roles/firebase.sdkAdminServiceAgent`, `roles/firebaseauth.admin`, `roles/iam.serviceAccountTokenCreator` |
+
+`roles/firebase.admin` does **not** carry `iam.serviceAccounts.actAs`, and
+`roles/editor` does. That is the whole difference. Granting it requires
+`resourcemanager.projects.setIamPolicy`, which only `roles/owner` holds — so
+this is François's click, not one that can be delegated to the signed-in
+Firebase admin.
+
+### The grant
+
+Ask François for **exactly one role**, scoped as tightly as it will go — on the
+service account, not on the project:
+
+> On project `kgc-conference-app-and-website`, please grant
+> `hartigandeely@gmail.com` the role **Service Account User**
+> (`roles/iam.serviceAccountUser`) **on the service account**
+> `kgc-conference-app-and-website@appspot.gserviceaccount.com`.
+
+Console path: **IAM & Admin → Service Accounts →
+`kgc-conference-app-and-website@appspot.gserviceaccount.com` → Permissions →
+Grant access → Service Account User.**
+
+⚠️ Granting `roles/iam.serviceAccountUser` at the **project** level instead
+would work and is worse: it confers actAs over *every* service account in the
+project, including `firebase-adminsdk-fbsvc`, which holds
+`iam.serviceAccountTokenCreator` and can therefore mint tokens for anyone. Scope
+it to the one App Engine default account.
+
+### Then, and only then
+
+Do §5's cost guardrails **first** — a budget alert notifies, a quota cap stops.
+Then:
+
+```bash
+npm run test:functions          # 55 tests, on the emulator; green 2026-08-31
+npm run build --workspace=functions
+npx firebase deploy --only functions --project kgc-conference-app-and-website
+```
+
+`firebase` is not on `PATH`; it is `node_modules/.bin/firebase` (v15.27.0).
+
+What this unblocks, verified against the screens that measure it: live poll
+tallies and Q&A upvotes stop being frozen at whatever the seed wrote
+(`engagement/live-polling` prints both numbers side by side today, and the gap
+is the proof), reply counts and reaction counts start moving, the directory and
+exhibitor-listing mirrors start maintaining themselves, and OTP sign-in becomes
+possible once §6's Resend key exists.
+
+---
+
+## 3b. ✅ DONE — Cloud Storage for Firebase is enabled · 2026-09-01
+
+`firebasestorage.googleapis.com` now reports `state: ENABLED` and the bucket
+listing returns 200. Kept as the record; nothing here is outstanding. The
+diagnosis below is what it looked like beforehand.
+
+The bucket in §1 cannot be created by anyone but you, and the reason is one
+layer earlier than that section assumes. Probed today:
+
+```
+GET firebasestorage.googleapis.com/v1beta/projects/…/buckets  →  403
+"Cloud Storage for Firebase API has not been used in project
+kgc-conference-app-and-website before or it is disabled."
+```
+
+`storage.googleapis.com`, `storage-api` and `storage-component` **are** enabled;
+`firebasestorage.googleapis.com` is not. Enabling it needs
+`serviceusage.services.enable`, which `roles/firebase.admin` does not carry —
+attempting it as the signed-in user returns `403 Permission denied to enable
+service [firebasestorage.googleapis.com]`.
+
+The **Build → Storage → Get started** click in §1 performs this enablement as a
+side effect, so if François does §1 there is nothing extra to do here. This
+section exists so that the failure is recognisable if the click is delegated to
+an account that cannot perform it — the console reports it as a generic error.
 
 ---
 

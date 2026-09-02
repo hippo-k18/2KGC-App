@@ -27,11 +27,32 @@ export const dynamic = 'force-dynamic';
  * somebody who unsubscribed is how a domain gets blocked, and the damage lands
  * on the ticket receipts rather than on the newsletter that caused it.
  *
+ * ── The unsubscribe link is real, and the suppression is enforced twice ─────
+ *
+ * Every mail this screen sends carries a `/u/{token}` link in the footer and
+ * the RFC 8058 `List-Unsubscribe` headers that make Gmail and Apple Mail draw
+ * their own one-click button. Both resolve to a capability token minted in
+ * `@kgc/scripts/src/lib/unsubscribe-token.ts` — the same HMAC scheme
+ * `/order/{token}` uses, and for the same reason: `contacts/{id}` is a hash of
+ * the address, so an id-keyed URL would be a membership oracle for the whole
+ * marketing list and a way to unsubscribe other people.
+ *
+ * A reader who uses either lands in `contacts.unsubscribedAt`, which
+ * `audienceFor()` drops from every audience this screen resolves. No organizer
+ * is in that loop, which is the point — an opt-out that waits on somebody
+ * reading an inbox is not an opt-out.
+ *
  * ── Sends are grouped from `emailLog`, not stored ───────────────────────────
  *
  * `listCampaigns` derives the history from the per-recipient rows. The
  * per-recipient row is what answers "did Ada get it?", and a summary derived
  * from those rows can never disagree with them — a stored counter could.
+ *
+ * ⚠️ The **skipped** column in the Sent table below is what makes that
+ * complete. A send writes one `skipped` row per excluded contact alongside its
+ * `sent` and `failed` ones, so sent + failed + skipped reconciles to the size
+ * of the list rather than to the size of the audience — and "we did not email
+ * anyone who opted out" becomes a query rather than an assertion.
  */
 export default async function EmailCampaignPage({
   searchParams,
@@ -90,9 +111,9 @@ export default async function EmailCampaignPage({
           <strong>A campaign cannot be recalled, and there is no scheduling.</strong> It goes when
           you press the button, in the room, awake — a queued blast fires whether or not anybody is
           there to stop it, and the classic failure is 6am in the wrong timezone to a list of a
-          thousand. ⚠️ There is also{' '}
-          <strong>no public unsubscribe link yet</strong>, which is a legal requirement in several
-          jurisdictions before a bulk send goes out.
+          thousand. Every campaign mail carries a public unsubscribe link and the one-click header
+          Gmail and Apple Mail render their own button from; a reader who uses either is suppressed
+          from every later send, with no organizer in the loop.
         </Banner>
       )}
 
@@ -188,11 +209,24 @@ export default async function EmailCampaignPage({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>No public unsubscribe link.</strong> ⚠️ The most significant gap on this page,
-            and a legal requirement in several jurisdictions. It needs a capability-token route on
-            the website — the same pattern <code>/order/{'{token}'}</code> already uses, so the
-            mechanism exists and is simply not wired to this. Until it is, an unsubscribe is
-            recorded by an organizer on the contact list.
+            <strong>The unsubscribe link only appears when a contact governs the address.</strong>{' '}
+            Every campaign sent from this screen carries one, because a campaign audience is
+            resolved from <code>contacts</code> and that is exactly the set whose suppression is
+            enforced. <code>sendBulkMessage</code> is shared with Message Speakers, whose audience
+            comes from <code>speakers</code> and is never checked against the contact list — so
+            those mails get no link, deliberately. Offering one there would be a promise the code
+            cannot keep: the reader clicks, the unsubscribe is recorded, and the next call for
+            slides reaches them anyway. Making it true for speakers means giving speaker mail a
+            suppression list of its own, which is a decision about who may stop a call for slides,
+            not a missing route.
+          </li>
+          <li>
+            <strong>There is no public way back on.</strong> The unsubscribe page says so and gives
+            an address to write to. That is deliberate rather than unfinished — a link that could
+            re-subscribe somebody is a link a third party could use to do it, and{' '}
+            <code>unsubscribedAt</code> is the one field the whole suppression story rests on. The
+            way back is <Link href="/tickets/ticket-marketing/campaign-contact-list">Re-subscribe</Link>{' '}
+            on the contact list, where a human has been asked for it.
           </li>
           <li>
             <strong>No open or click tracking inside the email.</strong> Open tracking is a

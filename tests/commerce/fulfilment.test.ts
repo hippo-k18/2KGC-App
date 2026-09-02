@@ -172,6 +172,15 @@ describe('ensureRegistration', () => {
 // ---------------------------------------------------------------------------
 
 import { decideRefund as decide } from '../../apps/web/src/lib/refund-core.js';
+import {
+  MAX_SEATS,
+  collectSeats,
+  groupSeatsIntoLines,
+  seatsPerTier,
+  seatsToCount,
+  splitAcrossSeats,
+  validateSeats,
+} from '../../apps/web/src/app/tickets/seats-core.js';
 
 const decideRefund = (order: OrderDoc, refundedCents: number) => {
   const { fullyRefunded, status } = decide(order, { reason: 'refunded', refundedCents });
@@ -329,17 +338,21 @@ describe('refundedAt means a refund, and nothing else', () => {
   });
 });
 
-describe('invoice seat splitting', () => {
+describe('splitting one payment across seats', () => {
   /**
-   * Reproduces the webhook's arithmetic. Plain division loses cents: $1,000
-   * across three seats is 33333 each and one cent short of the invoice, and the
-   * finance person reconciling it notices.
+   * The real function, not a copy of it.
+   *
+   * This test used to reproduce the webhook's arithmetic inline, which pinned
+   * nothing: the copy would have agreed with itself for ever while the original
+   * drifted. `splitAcrossSeats` now lives in `tickets/seats-core.ts` — pure, no
+   * `server-only` — and is the same code both the invoice path and the
+   * multi-seat card path use to tell each attendee what their seat cost.
+   *
+   * Plain division loses cents: $1,000 across three seats is 33333 each and one
+   * cent short of what was actually charged, and the finance person reconciling
+   * it notices.
    */
-  function split(totalCents: number, seats: number): number[] {
-    const per = Math.floor(totalCents / seats);
-    const remainder = totalCents - per * seats;
-    return Array.from({ length: seats }, (_, i) => per + (i === 0 ? remainder : 0));
-  }
+  const split = splitAcrossSeats;
 
   it('never loses a cent to rounding', () => {
     for (const [total, seats] of [
@@ -354,5 +367,410 @@ describe('invoice seat splitting', () => {
 
   it('splits evenly when it divides cleanly', () => {
     expect(split(239_700, 3)).toEqual([79_900, 79_900, 79_900]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Buying more than one ticket.
+//
+// The gap this closes was described in three places in the organizer dashboard
+// and was one sentence in all three: the Checkout session built exactly one
+// line item with `quantity: 1`. Three colleagues on one card were three
+// purchases; a booth and two extra passes were three purchases; and an add-on
+// alongside a ticket was a tier per combination.
+//
+// What makes multi-quantity hard here is not Stripe. It is that **a
+// registration is keyed by email address** — `registrationId` is a hash of the
+// address — so three seats need three addresses or the buyer pays three times
+// for one badge. Every test below is a guarantee that follows from that fact,
+// and every one of them corresponds to a way this could be, or has been, wrong:
+//
+//   - three seats producing one registration, because they shared an inbox;
+//   - a webhook replay minting six registrations for a three-seat purchase;
+//   - a three-seat sale taking one seat off a capped tier instead of three, so
+//     a fifty-seat tier sells a hundred and fifty;
+//   - a refund giving back one seat out of three, permanently;
+//   - a full refund leaving two of the three tickets `active`, which is exactly
+//     what the check-in desk scans for.
+// ---------------------------------------------------------------------------
+
+describe('the seat rules that make a quantity possible', () => {
+  const seat = (name: string, email: string, tierId = 'main-conference') => ({
+    name,
+    email,
+    tierId,
+  });
+
+  it('refuses two seats on one address, because that is one badge', () => {
+    const problem = validateSeats([
+      seat('Ada Nakamura', 'ada@example.com'),
+      seat('Ben Ortiz', 'ada@example.com'),
+    ]);
+    expect(problem).toEqual({ index: 1, kind: 'duplicate', email: 'ada@example.com' });
+  });
+
+  it('folds case, because registrationId does', () => {
+    // `Ada@Example.com` and `ada@example.com` hash to the same registration, so
+    // a form that accepted both would charge twice and issue one ticket.
+    const problem = validateSeats([
+      seat('Ada Nakamura', 'Ada@Example.com'),
+      seat('Ada Nakamura', 'ada@example.com'),
+    ]);
+    expect(problem?.kind).toBe('duplicate');
+  });
+
+  it('accepts distinct addresses', () => {
+    expect(
+      validateSeats([
+        seat('Ada Nakamura', 'ada@example.com'),
+        seat('Ben Ortiz', 'ben@example.com'),
+        seat('Cai Lin', 'cai@example.com'),
+      ]),
+    ).toBeNull();
+  });
+
+  it('caps the form rather than letting a hundred seats through it', () => {
+    const many = Array.from({ length: MAX_SEATS + 1 }, (_, i) =>
+      seat(`Person ${i}`, `p${i}@example.com`),
+    );
+    expect(validateSeats(many)?.kind).toBe('too-many');
+  });
+
+  it('drops an untouched spare row but rejects a half-filled one', () => {
+    // The two halves of the same rule. A blank row is somebody who never
+    // started typing; a row with a name and no address is a colleague who would
+    // have been charged for and never registered.
+    expect(collectSeats([seat('', ''), seat('Ada Nakamura', 'ada@example.com')])).toHaveLength(1);
+
+    const halfFilled = collectSeats([seat('Ada Nakamura', 'ada@example.com'), seat('Ben Ortiz', '')]);
+    expect(halfFilled).toHaveLength(2);
+    expect(validateSeats(halfFilled)).toEqual({ index: 1, kind: 'email' });
+  });
+});
+
+describe('seats become Stripe line items with a real quantity', () => {
+  const seat = (email: string, tierId: string) => ({ name: 'Someone', email, tierId });
+
+  it('charges three seats on one tier as one line of quantity 3', () => {
+    // The heart of it. `quantity: 1` on one line was the whole gap: this is
+    // what makes Stripe multiply, apply tax once and print "× 3" on the
+    // receipt, instead of the buyer paying three times.
+    const lines = groupSeatsIntoLines([
+      seat('a@example.com', 'main-conference'),
+      seat('b@example.com', 'main-conference'),
+      seat('c@example.com', 'main-conference'),
+    ]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].quantity).toBe(3);
+    expect(lines[0].tierId).toBe('main-conference');
+  });
+
+  it('sells a booth and two extra passes as one purchase, not three', () => {
+    // The exhibitor case, which used to need three separate checkouts.
+    const lines = groupSeatsIntoLines([
+      seat('booth@acme.com', 'exhibitor-standard'),
+      seat('rep1@acme.com', 'exhibitor-extra-pass'),
+      seat('rep2@acme.com', 'exhibitor-extra-pass'),
+    ]);
+    expect(lines.map((l) => [l.tierId, l.quantity])).toEqual([
+      ['exhibitor-standard', 1],
+      ['exhibitor-extra-pass', 2],
+    ]);
+  });
+
+  it("leads with the buyer's own tier, so the receipt reads the way they chose", () => {
+    const lines = groupSeatsIntoLines([
+      seat('buyer@example.com', 'all-access'),
+      seat('colleague@example.com', 'main-conference'),
+      seat('other@example.com', 'all-access'),
+    ]);
+    expect(lines[0].tierId).toBe('all-access');
+    expect(lines[0].quantity).toBe(2);
+  });
+
+  it('asks capacity for the number of seats wanted, not merely for one', () => {
+    // `onSale` answers "is there at least one seat", which is the only question
+    // a single-seat purchase could ask. Three seats against a tier with one
+    // left used to pass that check and oversell by two.
+    const wanted = seatsPerTier([
+      seat('a@example.com', 'main-conference'),
+      seat('b@example.com', 'main-conference'),
+      seat('c@example.com', 'workshops'),
+    ]);
+    expect(wanted.get('main-conference')).toBe(2);
+    expect(wanted.get('workshops')).toBe(1);
+  });
+});
+
+describe('a three-seat sale takes three seats off the tier', () => {
+  it('counts one per newly-created registration', () => {
+    const counts = seatsToCount([
+      { created: true, ticketTypeId: 'main-conference' },
+      { created: true, ticketTypeId: 'main-conference' },
+      { created: true, ticketTypeId: 'main-conference' },
+    ]);
+    expect(counts.get('main-conference')).toBe(3);
+  });
+
+  it('counts nothing on a webhook replay, so a redelivery cannot oversell', () => {
+    // Stripe redelivers for up to three days. `created` is false on every
+    // delivery after the first, because `ensureRegistration` found the
+    // documents already there — which is the replay guard.
+    const counts = seatsToCount([
+      { created: false, ticketTypeId: 'main-conference' },
+      { created: false, ticketTypeId: 'main-conference' },
+      { created: false, ticketTypeId: 'main-conference' },
+    ]);
+    expect(counts.size).toBe(0);
+  });
+
+  it('counts each tier separately on a mixed purchase', () => {
+    const counts = seatsToCount([
+      { created: true, ticketTypeId: 'exhibitor-standard' },
+      { created: true, ticketTypeId: 'exhibitor-extra-pass' },
+      { created: true, ticketTypeId: 'exhibitor-extra-pass' },
+    ]);
+    expect([...counts.entries()].sort()).toEqual([
+      ['exhibitor-extra-pass', 2],
+      ['exhibitor-standard', 1],
+    ]);
+  });
+
+  it('ignores a seat with no tier, because there is no counter to move', () => {
+    // An invoice raised straight in the Stripe dashboard names no tier. The
+    // registration is still right; the increment has nothing to point at.
+    expect(seatsToCount([{ created: true, ticketTypeId: '' }]).size).toBe(0);
+  });
+});
+
+describe('three seats, and a webhook replay of them', () => {
+  const party = [
+    { email: 'ada@example.com', name: 'Ada Nakamura', ticketType: 'Main Conference' },
+    { email: 'ben@example.com', name: 'Ben Ortiz', ticketType: 'Main Conference' },
+    { email: 'cai@example.com', name: 'Cai Lin', ticketType: 'Main Conference' },
+  ];
+
+  it('produces three registrations, each with its own badge secret', async () => {
+    const made = [];
+    for (const person of party) made.push(await ensureRegistration(db, person));
+
+    expect(new Set(made.map((r) => r.registrationId)).size).toBe(3);
+    expect(made.every((r) => r.created)).toBe(true);
+
+    const secrets = await Promise.all(
+      made.map(async (r) => {
+        const doc = await db.collection(COLLECTIONS.registrations).doc(r.registrationId).get();
+        return (doc.data() as RegistrationDoc).qrSecret;
+      }),
+    );
+    // Three badges, three secrets. A shared one would let any of them check in
+    // as any other, and `qrSecret` is a bearer credential for attendance.
+    expect(new Set(secrets).size).toBe(3);
+  });
+
+  it('does not mint six on a redelivery', async () => {
+    for (const person of party) await ensureRegistration(db, person);
+    // Stripe retries until it gets a 2xx and its documentation is explicit that
+    // an event may arrive more than once. Idempotence here is structural: the
+    // ids are hashes of the three addresses, so a replay rewrites the same
+    // three documents.
+    const replay = [];
+    for (const person of party) replay.push(await ensureRegistration(db, person));
+
+    expect(replay.every((r) => r.created)).toBe(false);
+    const all = await db
+      .collection(COLLECTIONS.registrations)
+      .where('eventId', '==', EVENT_ID)
+      .get();
+    expect(all.size).toBe(3);
+  });
+
+  it('keeps every claim code stable across the replay', async () => {
+    // The reason `created` alone is not enough of a guarantee: a second
+    // delivery that re-minted secrets would invalidate three badges that are
+    // already in three inboxes.
+    const first = [];
+    for (const person of party) first.push(await ensureRegistration(db, person));
+    const second = [];
+    for (const person of party) second.push(await ensureRegistration(db, person));
+
+    expect(second.map((r) => r.claimCode)).toEqual(first.map((r) => r.claimCode));
+  });
+});
+
+describe('the order remembers every seat', () => {
+  /**
+   * ⚠️ The failure `restoreCartOrder` exists to prevent, reproduced against the
+   * real emulator rather than argued about in a comment.
+   *
+   * `fulfilPurchase` writes the order with `set(…, { merge: true })` and sets
+   * `items` to a single line describing the buyer. A Firestore merge treats an
+   * array as one value and **replaces** it, so the write that fulfils a
+   * three-seat purchase erases the record of who seats two and three are — and
+   * with it the two lines a refund would have given back to `quantitySold` and
+   * the rows the dashboard counts as `seatCount`.
+   */
+  const threeSeats = ['ada', 'ben', 'cai'].map((who) => ({
+    ticketTypeId: 'main-conference',
+    ticketTypeName: 'Main Conference',
+    quantity: 1,
+    unitPriceCents: 79_900,
+    attendeeName: who,
+    attendeeEmail: `${who}@example.com`,
+  }));
+
+  const cartOrder = () =>
+    db.collection(COLLECTIONS.orders).doc('ord_cart').set({
+      eventId: EVENT_ID,
+      externalId: 'cs_cart',
+      provider: 'stripe',
+      channel: 'checkout',
+      email: 'ada@example.com',
+      status: 'pending',
+      items: threeSeats,
+      totalCents: 239_700,
+      currency: 'usd',
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+  it('loses the other two seats when fulfilment merges over items', async () => {
+    await cartOrder();
+    await db
+      .collection(COLLECTIONS.orders)
+      .doc('ord_cart')
+      .set({ status: 'paid', items: [threeSeats[0]] }, { merge: true });
+
+    const after = (await db.collection(COLLECTIONS.orders).doc('ord_cart').get()).data() as OrderDoc;
+    expect(after.items).toHaveLength(1);
+  });
+
+  it('has them all back once the seat list is written again', async () => {
+    await cartOrder();
+    await db
+      .collection(COLLECTIONS.orders)
+      .doc('ord_cart')
+      .set({ status: 'paid', items: [threeSeats[0]] }, { merge: true });
+
+    // What `restoreCartOrder` does: set, not append, so a redelivery writes the
+    // same array rather than a longer one.
+    await db
+      .collection(COLLECTIONS.orders)
+      .doc('ord_cart')
+      .update({ items: threeSeats, registrationIds: threeSeats.map((s) => s.attendeeEmail) });
+    await db
+      .collection(COLLECTIONS.orders)
+      .doc('ord_cart')
+      .update({ items: threeSeats, registrationIds: threeSeats.map((s) => s.attendeeEmail) });
+
+    const after = (await db.collection(COLLECTIONS.orders).doc('ord_cart').get()).data() as OrderDoc;
+    expect(after.items).toHaveLength(3);
+    expect(after.registrationIds).toHaveLength(3);
+  });
+
+  it('gives three seats back on a full refund, not one', async () => {
+    // `decideRefund` reads `items`, which is the other half of why the seat
+    // list has to survive fulfilment. One line per seat, so three seats return.
+    const decision = decide(
+      {
+        status: 'paid',
+        totalCents: 239_700,
+        items: threeSeats,
+      } as unknown as OrderDoc,
+      { reason: 'refunded', refundedCents: 239_700 },
+    );
+    expect(decision.fullyRefunded).toBe(true);
+    expect(decision.newlyRefunded).toBe(true);
+    expect(decision.lines).toHaveLength(3);
+    expect(decision.lines.reduce((n, l) => n + l.quantity, 0)).toBe(3);
+  });
+
+  it('gives nothing back on a redelivery of the same refund', async () => {
+    // Stripe reports the same cumulative `amount_refunded` on every delivery
+    // for three days. Without this guard a group refund would hand the same
+    // three seats back over and over and the tier would report seats it does
+    // not have.
+    const decision = decide(
+      { status: 'refunded', totalCents: 239_700, items: threeSeats } as unknown as OrderDoc,
+      { reason: 'refunded', refundedCents: 239_700 },
+    );
+    expect(decision.newlyRefunded).toBe(false);
+  });
+});
+
+describe('a refunded group purchase does not leave the other seats at the door', () => {
+  /**
+   * The rule `cancelExtraSeats` applies, exercised against real documents.
+   *
+   * `cancelRegistrationByOrder` cancels the registration keyed on the *order's*
+   * email — the buyer's — which was the whole story while a Checkout session
+   * was one ticket. On a three-seat purchase it leaves the other two `active`,
+   * and `active` is precisely what the check-in desk scans for.
+   */
+  const stillPaidElsewhere = async (seatEmail: string) => {
+    const snap = await db
+      .collection(COLLECTIONS.orders)
+      .where('eventId', '==', EVENT_ID)
+      .where('email', '==', seatEmail)
+      .get();
+    return snap.docs.some((d) => {
+      const o = d.data() as OrderDoc;
+      return o.status === 'paid' || o.status === 'partially_refunded';
+    });
+  };
+
+  it('withdraws a colleague who has no other order paying for them', async () => {
+    const seat = await ensureRegistration(db, {
+      email: 'ben@example.com',
+      name: 'Ben Ortiz',
+      ticketType: 'Main Conference',
+    });
+    // The refunded group order is keyed on the buyer's address, not Ben's, so
+    // it cannot appear in the query above and there is nothing to exclude.
+    await db.collection(COLLECTIONS.orders).doc('ord_group').set({
+      eventId: EVENT_ID,
+      externalId: 'cs_group',
+      provider: 'stripe',
+      channel: 'checkout',
+      email: 'ada@example.com',
+      status: 'refunded',
+      totalCents: 239_700,
+      currency: 'usd',
+      purchasedAt: Timestamp.now(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    expect(await stillPaidElsewhere('ben@example.com')).toBe(false);
+
+    await db
+      .collection(COLLECTIONS.registrations)
+      .doc(seat.registrationId)
+      .update({ status: 'cancelled' });
+    const after = (
+      await db.collection(COLLECTIONS.registrations).doc(seat.registrationId).get()
+    ).data() as RegistrationDoc;
+    expect(after.status).toBe('cancelled');
+  });
+
+  it('keeps a colleague who also bought their own ticket', async () => {
+    // Somebody who was seat three on a refunded group purchase *and*
+    // separately bought their own ticket keeps the one they paid for. Same
+    // test the buyer already gets, applied to a passenger.
+    await db.collection(COLLECTIONS.orders).doc('ord_own').set({
+      eventId: EVENT_ID,
+      externalId: 'cs_own',
+      provider: 'stripe',
+      channel: 'checkout',
+      email: 'ben@example.com',
+      status: 'paid',
+      totalCents: 79_900,
+      currency: 'usd',
+      purchasedAt: Timestamp.now(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    expect(await stillPaidElsewhere('ben@example.com')).toBe(true);
   });
 });

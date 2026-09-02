@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { COMMUNITY_CATEGORY_LABEL as CATEGORY_LABEL } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listBoardForModeration, type ModeratedPost } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
@@ -27,16 +28,15 @@ export const dynamic = 'force-dynamic';
  * Nothing here deletes. A hidden post keeps its replies, keeps the counters
  * that derive from it, and — when it was hidden for being abusive — remains the
  * evidence a code-of-conduct process needs.
+ *
+ * ── The category names are the app's ────────────────────────────────────────
+ *
+ * `COMMUNITY_CATEGORY_LABEL` is imported rather than restated. A third copy
+ * lived here and printed "Meet-up" and "Ride share" for what the app calls
+ * "Meet-ups" and "Travel" — a moderator was reading a name the author of the
+ * post had never seen, on the one screen where the two need to be discussing
+ * the same thing.
  */
-
-const CATEGORY_LABEL: Record<ModeratedPost['category'], string> = {
-  meetup: 'Meet-up',
-  'ride-share': 'Ride share',
-  jobs: 'Jobs',
-  questions: 'Questions',
-  'lost-and-found': 'Lost & found',
-  'ice-breakers': 'Ice breakers',
-};
 
 function PostCard({ post }: { post: ModeratedPost }) {
   const hidden = post.status !== 'visible';

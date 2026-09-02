@@ -1,6 +1,30 @@
 import { EVENT } from '@kgc/shared';
 
 /**
+ * The KGC Slack workspace.
+ *
+ * ── The site said two opposite things about this URL, and this settles it ────
+ *
+ * `SITE.social` carried no Slack entry, under a comment arguing that the one it
+ * used to hold pointed at `https://www.knowledgegraph.tech/` — a link labelled
+ * Slack that lands on the homepage — and that "until someone has that URL, no
+ * link is better than a wrong one". Meanwhile `/community` had been publishing
+ * this address as its featured channel since 2026-08-20, taken from the live
+ * community page's own markup. So the site simultaneously refused to link to
+ * Slack because nobody had the URL and linked to Slack from a page that did.
+ *
+ * Resolved in favour of the link. The objection was to a *wrong* URL, not to
+ * linking at all, and this one is the workspace's own address rather than a
+ * redirect to a marketing homepage. It is declared once here and read by both
+ * the footer socials and `/community`, so the two cannot disagree again.
+ *
+ * ⚠️ It is the workspace URL, not an invite: someone who is not already a
+ * member lands on a sign-in screen. Swap it for the shared invite link when
+ * someone has one — the destination changes, this declaration does not.
+ */
+export const SLACK_WORKSPACE = 'https://knowledgegraphconf.slack.com/';
+
+/**
  * Facts about the event that the marketing pages repeat, in one place.
  *
  * The name, venue and time zone come from `@kgc/shared` so the website and the
@@ -43,10 +67,7 @@ export const SITE = {
     { label: 'LinkedIn', href: 'https://www.linkedin.com/company/knowledge-graph-conference/' },
     { label: 'X', href: 'https://x.com/knowledgegraphc' },
     { label: 'YouTube', href: 'https://www.youtube.com/@knowledgegraphconference' },
-    // A `Slack` entry used to sit here pointing at `https://www.knowledgegraph.tech/`
-    // — a link that says Slack and lands on the homepage. Restore it with the real
-    // workspace invite URL; until someone has that URL, no link is better than a
-    // wrong one, for the same reason the `NAV` docblock gives.
+    { label: 'Slack', href: SLACK_WORKSPACE },
   ],
 } as const;
 
@@ -104,36 +125,20 @@ export const HCLS_BADGE: { label: string; href: string | null } | null = {
   href: null,
 };
 
-/**
- * Which roster the public `/speakers` page renders. **This is the switch.**
+/*
+ * `SPEAKERS_PAGE_SOURCE` used to be declared here, and copied by hand into
+ * `apps/organizer/src/lib/webpages.ts` because "the two apps are separate
+ * installs and neither may import the other".
  *
- * `'2026-roster'` — the real, published KGC 2026 speakers, checked in as data at
- * `lib/speakers-2026.ts`. This is the shipping value and it is a decision, not
- * an oversight: KGC 2027 has no selected programme, and the `speakers`
- * collection currently holds **invented names** written by `npm run seed`. A
- * public page carrying fabricated people with fabricated employers is worse
- * than a page carrying last year's real ones, which is why the page says
- * whose roster it is showing.
+ * That premise was false: both apps depend on `@kgc/shared`, which is how
+ * `PAGE_CONTENT_KEYS` and the document types already cross the same boundary.
+ * The copies were the bug — while this said `'2026-roster'`, the dashboard went
+ * on counting Firestore speakers with no headshot and reporting them as
+ * problems with a page that rendered none of those records.
  *
- * `'firestore'` — the live `speakers` collection, via `listSpeakers()`. Flip
- * this the day a genuine 2027 roster is in Firestore and the whole change is
- * this one line; both render paths are written and the page picks between them.
- *
- * ⚠️ **Two things must change together with it**, because the dashboard's
- * readiness screen already reports on `/speakers` as though this were
- * `'firestore'` today:
- *
- *   1. `apps/organizer/src/lib/webpages.ts` — `pageReadiness().speakers`
- *      counts speakers with no photo, no bio, no company and calls them
- *      problems with "your speakers page". While this constant is
- *      `'2026-roster'` that page renders none of those documents, so every one
- *      of those counts is about a page nobody can see. That file is owned by
- *      the dashboard and cannot import this constant (the two apps are separate
- *      installs and neither may import the other), so it carries its own copy
- *      of the decision.
- *   2. `ROADMAP.md`'s Phase 5 bullet, which records the same decision in prose.
+ * It now lives in `packages/shared/src/speakers-page.ts`, declared once, with
+ * the full argument for both values in its docblock.
  */
-export const SPEAKERS_PAGE_SOURCE: '2026-roster' | 'firestore' = '2026-roster';
 
 /**
  * The attendance figure in the first stat block.
@@ -183,9 +188,13 @@ export const APP_URL = process.env.APP_PUBLIC_URL ?? 'https://kgc-2027-app.netli
  * with what exists here, because a navigation item that 404s is worse than an
  * absent one.
  *
- * `HCLS` has just moved from the second list to the first. Still missing, in
- * rough order of how much they would be missed: `/team`, `/community`,
- * `/knowledge-graph-learning-program`, `/blog`, and the 2019–2025 archive pages.
+ * Nothing on the live site's row is missing here any more. This note used to
+ * list `/team`, `/community`, `/knowledge-graph-learning-program`, `/blog` and
+ * the archive pages as gaps; all five were built by 2026-08-20 and four of them
+ * are in `ABOUT_MENU` a dozen lines below, which is what makes a comment like
+ * this worth checking rather than trusting. The learning programme is `/learn`,
+ * and the 2019–2025 archives are one `/previous-events` index that links out to
+ * them rather than seven rebuilt pages.
  */
 export const NAV = [
   { href: '/speakers', label: `${2027} Speakers` },

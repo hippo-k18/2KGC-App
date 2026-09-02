@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { TicketAudience } from '@kgc/shared';
+import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
@@ -29,11 +29,6 @@ import { PUBLIC_PAGE } from './audience-catalogue';
  * The widget screen is the one with nothing behind it, and it says so.
  */
 
-/** Origin of the public site. Separate deployments; the dashboard is told, not clever. */
-function publicOrigin(): string {
-  return (process.env.WEB_PUBLIC_ORIGIN ?? 'http://localhost:3200').replace(/\/$/, '');
-}
-
 const AUDIENCE_LABEL: Record<TicketAudience, string> = {
   attendee: 'attendee',
   exhibitor: 'exhibitor',
@@ -57,7 +52,7 @@ export async function AudienceRegistrationPage({
   const path = PUBLIC_PAGE[audience];
   const tiers = (await listTicketTypes()).filter((t) => t.audience === audience);
   const listed = tiers.filter((t) => t.visible);
-  const href = `${publicOrigin()}${path}`;
+  const href = `${publicSiteOrigin()}${path}`;
 
   return (
     <>

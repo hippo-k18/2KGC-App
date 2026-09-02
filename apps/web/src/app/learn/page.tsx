@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import { LinkedIn } from '@/components/linkedin-icon';
+import { LEARN_FOUNDERS } from '@/lib/people';
 
 export const metadata: Metadata = {
   title: 'Learn',
@@ -29,28 +31,12 @@ export const metadata: Metadata = {
  *
  * The founder portraits are **square** at 191×191. They were circles here,
  * which was the single most visible difference from the original.
+ *
+ * ⚠️ The three founders are **not** declared here. They are three of the eight
+ * people on `/team`, and while both pages declared them this site served two
+ * different photographs of François Scharffe under the same job title. See
+ * `lib/people.ts`.
  */
-
-const FOUNDERS = [
-  {
-    name: 'François Scharffe',
-    role: 'Co-Founder',
-    img: '/kgc/francois-scharffe.png',
-    li: 'https://www.linkedin.com/in/francoischarffe/',
-  },
-  {
-    name: 'Thomas Deely',
-    role: 'Co-Founder',
-    img: '/kgc/thomas-deely.png',
-    li: 'https://www.linkedin.com/in/thomasdeely/',
-  },
-  {
-    name: 'Maru Willson',
-    role: 'Chief Learning Officer',
-    img: '/kgc/maru-willson.jpeg',
-    li: 'https://www.linkedin.com/in/maruwillson/',
-  },
-];
 
 const ROSTER = [
   { name: 'Alex Shifrin', role: 'Subject Matter Lead' },
@@ -88,21 +74,6 @@ const PROGRAMS = [
 
 const BROCHURE = 'mailto:contact@knowledgegraph.tech?subject=KGC%20Learn%20brochure';
 
-/** Font Awesome's `linkedin` glyph, the same one the live page inlines. */
-function LinkedIn({ href, size = 20 }: { href?: string; size?: number }) {
-  const svg = (
-    <svg width={size} height={size} viewBox="0 0 448 512" fill="currentColor" aria-hidden="true">
-      <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z" />
-    </svg>
-  );
-  if (!href) return <span className="li-icon">{svg}</span>;
-  return (
-    <a className="li-icon" href={href} target="_blank" rel="noreferrer" aria-label="LinkedIn profile">
-      {svg}
-    </a>
-  );
-}
-
 export default function LearnPage() {
   return (
     <>
@@ -133,7 +104,7 @@ export default function LearnPage() {
           </p>
 
           <div className="learn-people">
-            {FOUNDERS.map((p) => (
+            {LEARN_FOUNDERS.map((p) => (
               <div key={p.name} className="learn-person">
                 <Image src={p.img} alt={p.name} width={300} height={300} />
                 <div className="row">

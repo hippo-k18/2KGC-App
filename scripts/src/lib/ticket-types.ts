@@ -91,6 +91,16 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     priceCents: 79_900,
     currency: "usd",
     tagline: "Wednesday to Friday at Cornell Tech.",
+    /**
+     * The second headline panel on `/tickets`.
+     *
+     * `page.tsx` takes the first two `featured` tiers in catalogue order for the
+     * pair of panels under "Main Ticket Types" — one dark, one light. Only
+     * `all-access` carried the flag, so the band rendered a single panel and
+     * Main Conference dropped to the small cards below, while the footnote block
+     * beneath the band still explained what Main Conference does not include.
+     */
+    featured: true,
     inPerson: true,
     visible: true,
     sortOrder: 20,

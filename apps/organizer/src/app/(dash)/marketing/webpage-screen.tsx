@@ -36,8 +36,29 @@ export async function WebpageScreen({
   const p: PageReadiness = readiness[which];
 
   const url = publicUrl(p.path);
-  const clean = p.problems.length === 0;
-  const pct = p.total === 0 ? 0 : Math.round((p.published / p.total) * 100);
+
+  /*
+   * A page carrying a note is not rendered from these records at all, and every
+   * number below is about these records. So it is neither clean nor dirty — it
+   * is unmeasured, and both of the other two states would be a claim about a
+   * page this screen is not looking at.
+   *
+   * `clean` used to be `problems.length === 0` alone, which the note branch in
+   * `pageReadiness()` satisfies by construction: it returns no problems because
+   * it cannot compute any. The screen then printed "Ready: yes / nothing
+   * missing" directly under its own banner saying the page ignores these
+   * records.
+   */
+  const notThisCollection = Boolean(p.note);
+  const clean = !notThisCollection && p.problems.length === 0;
+
+  /*
+   * Null rather than zero when there is nothing to divide. `published` is
+   * forced to 0 in that case, so a percentage computed from it read 0% about a
+   * collection that may be complete — the tile below prints an em dash instead.
+   */
+  const pct =
+    notThisCollection || p.total === 0 ? null : Math.round((p.published / p.total) * 100);
 
   return (
     <>
@@ -94,21 +115,42 @@ export async function WebpageScreen({
 
       <StatTiles
         tiles={[
-          { label: 'Published', value: p.published, sub: p.total === p.published ? 'all of them' : `of ${p.total}` },
-          { label: 'Ready', value: clean ? 'yes' : 'not yet', sub: clean ? 'nothing missing' : 'see below' },
-          { label: 'Completeness', value: `${pct}%`, sub: 'published share' },
+          {
+            label: 'Published',
+            value: p.published,
+            sub: notThisCollection
+              ? `none of the ${p.total} here are on it`
+              : p.total === p.published
+                ? 'all of them'
+                : `of ${p.total}`,
+          },
+          {
+            label: 'Ready',
+            value: notThisCollection ? '—' : clean ? 'yes' : 'not yet',
+            sub: notThisCollection ? 'not this collection' : clean ? 'nothing missing' : 'see below',
+          },
+          {
+            label: 'Completeness',
+            value: pct === null ? '—' : `${pct}%`,
+            sub: notThisCollection ? 'nothing here is on the page' : 'published share',
+          },
         ]}
       />
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Would a visitor notice anything missing?</h2>
-        {clean ? (
+        {notThisCollection ? (
+          <p className="muted" style={{ marginBottom: 0 }}>
+            Not from here. {p.note} Nothing on this screen measures the page a visitor loads until
+            that source is switched over.
+          </p>
+        ) : clean ? (
           <p className="muted" style={{ marginBottom: 0 }}>
             No. Every record behind this page has what the page renders.
           </p>
         ) : (
           <>
-            <ProgressBar pct={pct} />
+            {pct === null ? null : <ProgressBar pct={pct} />}
             <Table
               cols={[
                 { key: 'p', label: 'Problem', className: 'cell-fill' },

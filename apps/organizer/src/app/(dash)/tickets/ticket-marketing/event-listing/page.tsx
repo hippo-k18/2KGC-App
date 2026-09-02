@@ -85,12 +85,21 @@ export default async function EventListingPage() {
               'Search',
               <span key="w">
                 Structured data on the public pages so a search engine renders KGC as an event with
-                dates and a venue rather than a page of text. The site has Open Graph tags and no{' '}
-                <code>schema.org/Event</code> markup — that is a real, small, unbuilt thing, and the
-                one row on this screen worth doing.
+                dates and a venue rather than a page of text. <code>schema.org/Event</code> JSON-LD
+                is on{' '}
+                <a href={publicUrl('/')} target="_blank" rel="noreferrer">
+                  /
+                </a>{' '}
+                and{' '}
+                <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer">
+                  /agenda
+                </a>{' '}
+                now, generated from the programme and the ticket catalogue rather than typed — the
+                dates come from the published sessions, the price range from{' '}
+                <code>ticketTypes</code>, so it cannot drift from what the pages say.
               </span>,
-              <Tag key="s" color="orange" small>
-                worth doing
+              <Tag key="s" color="green" small>
+                done
               </Tag>,
             ],
             [
@@ -170,12 +179,22 @@ export default async function EventListingPage() {
             backlog item.
           </li>
           <li>
-            <strong>
-              No <code>schema.org/Event</code> markup on the public pages.
-            </strong>{' '}
-            The one genuinely missing piece this screen surfaces. It is a JSON-LD block in{' '}
-            <code>apps/web</code> generated from data that already exists, and it is what makes a
-            search result show the dates and the venue rather than a title and a snippet.
+            <strong>No proof the markup is read.</strong> The{' '}
+            <code>schema.org/Event</code> block is on the public pages and is generated from live
+            data — but whether Google renders a rich result from it is Google&rsquo;s decision, and
+            nothing here measures it. That needs Search Console, which is an account somebody has
+            to own rather than a screen. ⚠️ The block is also omitted entirely while no session is
+            published: <code>startDate</code> is required and the only alternative would be parsing
+            a date out of marketing copy, which is how a site advertises the wrong week.
+          </li>
+          <li>
+            <strong>No speakers in the markup.</strong> An event&rsquo;s <code>performer</code> list
+            is the other thing a rich result shows. It is deliberately absent while{' '}
+            <code>SPEAKERS_PAGE_SOURCE</code> in the public site is{' '}
+            <code>&lsquo;2026-roster&rsquo;</code> — the <code>speakers</code> collection currently
+            holds names the seed invented, and publishing fabricated people in a format built to be
+            believed by machines is worse than publishing none. Individual sessions do carry their
+            speakers, because those names are already on the page.
           </li>
           <li>
             <strong>No submission tracking.</strong> Which calendars have been written to, and

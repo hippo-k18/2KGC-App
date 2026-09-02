@@ -317,8 +317,10 @@ What I added on top:
   memory by the third refund, typing `1199.00` does not;
 - every refund and every out-of-band invoice approval is written to `auditLog`
   with the actor's name, **before** Stripe is called;
-- the code already refuses a passphrase under 12 characters whenever live
-  Firebase credentials are present.
+- the code already refuses a passphrase under 7 characters whenever live
+  Firebase credentials are present. ⚠️ That floor was 12 until 2026-08-31, when
+  it was lowered at the owner's request so `kgc2027` would be accepted; it is
+  no longer a meaningful stand-in for MFA in front of a refund button.
 
 That is enough to make a refund a deliberate act rather than an accident. It is
 not enough to make it attributable to a person. Before this dashboard is used by

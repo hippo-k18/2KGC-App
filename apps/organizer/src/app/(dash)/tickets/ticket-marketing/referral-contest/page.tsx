@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
@@ -41,7 +42,7 @@ export default async function ReferralContestPage() {
   await requireOrganizer();
 
   const links = await listLinks();
-  const publicOrigin = (process.env.WEB_PUBLIC_ORIGIN ?? 'http://localhost:3200').replace(/\/$/, '');
+  const publicOrigin = publicSiteOrigin();
 
   const owned = links.filter((l) => l.owner);
 

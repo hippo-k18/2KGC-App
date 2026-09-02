@@ -149,7 +149,22 @@ export function SpeakerGrid({
  * the DOM until asked for rather than hidden with CSS, so nothing tabs into a
  * card nobody can see.
  */
-export function ViewAllSpeakers({ speakers }: { speakers: SpeakerTile[] }) {
+export function ViewAllSpeakers({
+  speakers,
+  /**
+   * How many speakers are in the highlighted block above this one.
+   *
+   * It exists only so the "All N Speakers" heading can state the true total.
+   * This was `speakers.length + 5` — correct for exactly as long as the roster
+   * had exactly five highlights, and silently wrong the moment anyone changed
+   * one. Now that `featured` is a field an organizer edits in Speaker Manager,
+   * "five" is not a fact about the page any more, so the caller counts.
+   */
+  featuredCount = 0,
+}: {
+  speakers: SpeakerTile[];
+  featuredCount?: number;
+}) {
   const [open, setOpen] = useState(false);
 
   if (!speakers.length) return null;
@@ -173,7 +188,7 @@ export function ViewAllSpeakers({ speakers }: { speakers: SpeakerTile[] }) {
       {open && (
         <>
           <h2 className="speakers-head" style={{ marginTop: 64 }}>
-            All {speakers.length + 5} Speakers
+            All {speakers.length + featuredCount} Speakers
           </h2>
           <SpeakerGrid speakers={speakers} initial={24} />
         </>

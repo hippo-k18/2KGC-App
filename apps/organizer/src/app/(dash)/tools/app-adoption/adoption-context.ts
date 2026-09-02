@@ -1,19 +1,17 @@
 import 'server-only';
 
 /**
- * The facts about how somebody actually gets the KGC app.
+ * What Tools › App Adoption needs to know that is specific to the console.
  *
- * ── This is the only place in the console that states them ──────────────────
- *
- * `apps/web/src/lib/site.ts` holds the same claim for the public site, with a
- * long comment explaining why: the confirmation page once told buyers to
- * "search the App Store", the app is on no store, and every purchaser was sent
- * to a search returning nothing on the one page they are guaranteed to read.
- *
- * The two websites cannot import from each other, so this is a second copy —
- * which is a real duplication and is flagged here rather than hidden. It is
- * one sentence, it changes on one known day, and every snippet on these screens
- * is generated from the constants below so that day is a single edit.
+ * The two facts the *public* side states as well — the site's origin and the
+ * sentence about how somebody gets the app — are not here any more. They were,
+ * as hand-kept second copies of `apps/web/src/lib/site.ts`, under a comment
+ * saying so; a third copy of the sentence and a fourth of the origin were
+ * sitting in `snippet.tsx` in this same directory at the same time. Both now
+ * come from `@kgc/shared` — `publicSiteOrigin()` and `APP_DISTRIBUTION` — which
+ * both apps and the scripts already depend on, so a screen that hands an
+ * organizer text to publish and the confirmation page that buyer reads cannot
+ * disagree.
  *
  * ⚠️ **Do not write store links into any template on these screens.** The
  * whole point of Tools › App Adoption is to hand an organizer text they will
@@ -22,12 +20,5 @@ import 'server-only';
 
 export const APP_IS_ON_STORES = false;
 
-export const APP_DISTRIBUTION =
-  'We will send you an install link before the conference. The app is not on the public app stores yet.';
-
 /** Expo Go is how a phone opens the app today. */
 export const EXPO_GO_URL = 'https://expo.dev/go';
-
-export function siteOrigin(): string {
-  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
-}

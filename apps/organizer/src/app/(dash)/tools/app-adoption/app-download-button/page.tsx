@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
-import { APP_IS_ON_STORES, EXPO_GO_URL, siteOrigin } from '../adoption-context';
+import { APP_IS_ON_STORES, EXPO_GO_URL } from '../adoption-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,14 +15,15 @@ export const dynamic = 'force-dynamic';
  * it runs in Expo Go — so a store badge would be a button that goes nowhere,
  * pasted by an organizer onto a page a thousand people read. That failure has
  * already happened once on this project: the order confirmation told buyers to
- * search the App Store, and `site.ts` carries a long comment about it.
+ * search the App Store, and `APP_DISTRIBUTION` in `@kgc/shared` carries a long
+ * comment about it.
  *
  * So the snippets link to the tickets page, which explains the real route in
  * one sentence that the owner can change in one place.
  */
 export default async function AppDownloadButtonPage() {
   await requireOrganizer();
-  const origin = siteOrigin();
+  const origin = publicSiteOrigin();
   const href = `${origin}/tickets`;
 
   const html = `<a href="${href}"
@@ -78,8 +80,8 @@ export default async function AppDownloadButtonPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the link goes</h2>
         <p className="body-2">
           <code>{href}</code> — the tickets page, which carries the one sentence about how the app
-          is distributed. That sentence lives in <code>site.ts</code> and in this dashboard&rsquo;s{' '}
-          <code>adoption-context.ts</code>, and both change on the day the app is actually listed.
+          is distributed. That sentence lives in <code>packages/shared</code>, which this dashboard
+          and the website both read, so it changes once on the day the app is actually listed.
         </p>
         <p className="body-2">
           Expo Go itself is at <a href={EXPO_GO_URL}>{EXPO_GO_URL}</a> if somebody asks what it is.

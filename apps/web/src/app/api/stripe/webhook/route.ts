@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
-import type { EntitlementDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
+import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { cartLines, restoreCartOrder } from '@/app/tickets/cart-order';
+import { seatsToCount, splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import {
   grantOrderEntitlements,
@@ -41,6 +45,16 @@ import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
  * deterministic, so a replay rewrites the same documents rather than creating
  * new ones. `registrations.ts` additionally refuses to let a replayed sale
  * un-refund an order or restamp its purchase date.
+ *
+ * ⚠️ That property is what makes **multi-seat** fulfilment safe, and it is
+ * worth stating because a group purchase is where the failure would be
+ * expensive. Three seats are three calls to `ensureRegistration` against three
+ * addresses, and the ids are hashes of those addresses — so a redelivered event
+ * rewrites the same three documents rather than minting six. Nothing counts,
+ * nothing appends, and there is no de-duplication table to keep. The two
+ * operations that genuinely are not idempotent are guarded explicitly:
+ * `incrementSold` runs only for seats this delivery created, and the seat list
+ * is written back with a `set` rather than an `arrayUnion`.
  *
  * **3. Fail loudly but return 200 for events we do not care about.** A 4xx on
  * an unhandled event type makes Stripe retry it forever and eventually disable
@@ -207,6 +221,21 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      /**
+       * The other seats on a group purchase.
+       *
+       * `cancelRegistrationByOrder` cancels the registration keyed on the
+       * *order's* email — the buyer's — which was the whole story while a
+       * Checkout session was one ticket for one person. On a three-seat
+       * purchase it leaves the other two `active`, and `active` is precisely
+       * what the check-in desk scans for: the same "a refunded ticket still
+       * opened the door" bug that `charge.refunded` was added to fix, back
+       * again for exactly the purchases with the most money on them.
+       */
+      const seatsCancelled = outcome.newlyRefunded
+        ? await cancelExtraSeats(sessionId, outcome.email)
+        : [];
+
       // Only tell someone their ticket is void when it actually is.
       if (outcome.fullyRefunded && outcome.email) {
         await sendRefundConfirmation({
@@ -231,6 +260,7 @@ export async function POST(req: NextRequest) {
         // none, which is what idempotent looks like from the outside.
         newlyRefunded: outcome.newlyRefunded,
         seatsReturned,
+        seatsCancelled,
         entitlementsWithdrawn,
       });
     }
@@ -252,11 +282,17 @@ export async function POST(req: NextRequest) {
         externalId: sessionId,
         reason: 'disputed',
       });
+      // A disputed group purchase is the same problem as a refunded one: the
+      // buyer's ticket is withdrawn and their three colleagues' are not.
+      const seatsCancelled = outcome.newlyRefunded
+        ? await cancelExtraSeats(sessionId, outcome.email)
+        : [];
       return NextResponse.json({
         received: true,
         eventId: event.id,
         orderId: outcome.orderId,
         registrationId: outcome.registrationId,
+        seatsCancelled,
       });
     }
 
@@ -297,13 +333,13 @@ export async function POST(req: NextRequest) {
       /**
        * Split the total evenly, then give the remainder to the first seat.
        *
-       * Plain division loses cents: $1,000 across three seats is 33333 each and
-       * one cent short of the invoice. The finance person reconciling this will
-       * notice, and "our records are a cent off yours" is a slow conversation.
+       * The arithmetic used to be written out here and is now
+       * `splitAcrossSeats`, shared with the multi-seat card path — two copies
+       * of a rounding rule is two ways to be a cent off, and being a cent off
+       * is a slow conversation with somebody's finance department.
        */
       const total = invoice.total ?? 0;
-      const per = Math.floor(total / seats.length);
-      const remainder = total - per * seats.length;
+      const shares = splitAcrossSeats(total, seats.length);
 
       /**
        * One order for the invoice, not one per seat.
@@ -351,7 +387,7 @@ export async function POST(req: NextRequest) {
       let accountsFailed = 0;
 
       for (const [i, seat] of seats.entries()) {
-        const amountCents = per + (i === 0 ? remainder : 0);
+        const amountCents = shares[i] ?? 0;
         const tier = seat.ticketTypeId ? (tiers.get(seat.ticketTypeId) ?? null) : null;
 
         if (tier) {
@@ -522,6 +558,26 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
   const customer = session.customer;
   const paymentIntent = session.payment_intent;
 
+  /**
+   * Who else is on this purchase — read **before** fulfilment, not after.
+   *
+   * A multi-seat cart writes its seat list onto the order document before the
+   * buyer is ever sent to Stripe (`apps/web/src/app/tickets/cart-order.ts`),
+   * because a Stripe metadata value caps at 500 characters and the invoice path
+   * has already proved what a truncated attendee list costs: it parses to
+   * nothing and the webhook registers nobody.
+   *
+   * ⚠️ The ordering is load-bearing. `fulfilPurchase` below writes `items` as a
+   * single line describing the buyer, and a Firestore merge replaces an array
+   * rather than merging into it — so reading this afterwards would find seats
+   * two and three already gone. `restoreCartOrder` puts them back once the
+   * registrations exist.
+   *
+   * Empty for an ordinary single-seat purchase, which is most of them, and the
+   * whole of this function's behaviour then is what it always was.
+   */
+  const cart = await cartLines(session.id);
+
   const result = await fulfilPurchase({
     email,
     name: session.metadata?.name ?? session.customer_details?.name ?? '',
@@ -573,11 +629,131 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
    * valid. A failure in any of them must not turn into a non-2xx, because
    * Stripe would retry the event and eventually disable the endpoint — losing
    * fulfilment for everyone because one receipt bounced.
-   *
-   * Only count a seat the first time. A webhook replay must not sell the same
-   * ticket twice against a tier's capacity.
    */
-  if (tierId && result.created) await incrementSold(tierId);
+
+  /**
+   * What each seat cost, from one figure Stripe reports for the whole payment.
+   *
+   * Split rather than read off the tier prices, because tax and any promotion
+   * code are Stripe's arithmetic and land only on `amount_total`. Three people
+   * each get a confirmation naming their own share, and the three add up to the
+   * receipt — which is the property `splitAcrossSeats` exists to guarantee.
+   */
+  const shares = splitAcrossSeats(session.amount_total ?? 0, Math.max(1, cart.length));
+  const buyerEmail = normaliseEmail(result.email);
+
+  /**
+   * What each seat did to its tier's capacity, gathered and counted once.
+   *
+   * The rule is `seatsToCount` in `tickets/seats-core.ts`, where it is pure and
+   * pinned by `tests/commerce` — three seats must take three off the tier, and
+   * a redelivered event must take none. The buyer's tier comes from the
+   * session metadata rather than from their cart line, so a single-seat
+   * purchase (which has no cart at all) counts exactly as it always did.
+   */
+  const seatOutcomes: { created: boolean; ticketTypeId?: string }[] = [
+    { created: result.created, ticketTypeId: tierId },
+  ];
+
+  /**
+   * The other seats, each an independent registration keyed on its own address.
+   *
+   * Idempotent for the same structural reason the buyer's is: `registrationId`
+   * is a hash of the email, so a redelivery rewrites the same three documents
+   * rather than minting six. That is the whole answer to "what stops a webhook
+   * replay issuing six tickets" — there is no counter to guard and no
+   * de-duplication table to keep, because the ids are derived from the people.
+   */
+  const registrationIds = [result.registrationId];
+  const entitlementsFor = new Map<string, Awaited<ReturnType<typeof tierFulfilment>>>();
+  let seatsRegistered = 0;
+  let seatAccountsCreated = 0;
+  let seatAccountsFailed = 0;
+  let buyerShare = session.amount_total ?? 0;
+
+  for (const [i, line] of cart.entries()) {
+    const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
+    if (!seatEmail) continue;
+    // Seat one is the buyer, fulfilled above. Their share of the total is
+    // taken here so the email below reports it rather than the whole payment.
+    if (seatEmail === buyerEmail) {
+      buyerShare = shares[i] ?? buyerShare;
+      continue;
+    }
+
+    const seat = await ensureRegistration({
+      email: seatEmail,
+      name: line.attendeeName ?? '',
+      ticketType: line.ticketTypeName,
+    });
+    registrationIds.push(seat.registrationId);
+    seatsRegistered += 1;
+    seatOutcomes.push({ created: seat.created, ticketTypeId: line.ticketTypeId });
+
+    /**
+     * One account per attendee, not one per order — the same rule the invoice
+     * path follows, and for the same reason. The person who paid may be the
+     * only one of the three whose address is on the card; the other two still
+     * need an identity to sign in with, and `provisionPurchaserAccount` is
+     * keyed by the attendee's own address and idempotent per address.
+     */
+    const seatAccount = await provisionPurchaserAccount({
+      email: seat.email,
+      name: seat.name ?? line.attendeeName ?? '',
+    });
+    if (seatAccount.status === 'created') seatAccountsCreated += 1;
+    if (seatAccount.status === 'failed') seatAccountsFailed += 1;
+
+    if (seatAccount.uid && line.ticketTypeId) {
+      if (!entitlementsFor.has(line.ticketTypeId)) {
+        entitlementsFor.set(line.ticketTypeId, await tierFulfilment(line.ticketTypeId));
+      }
+      const tier = entitlementsFor.get(line.ticketTypeId);
+      if (tier) await grantSeatEntitlements(seatAccount.uid, tier.entitlements);
+    }
+
+    // Their own claim code, to their own address. The buyer's copy of the
+    // receipt does not get a colleague into the app.
+    await sendPurchaseConfirmation({
+      to: seat.email,
+      name: seat.name ?? line.attendeeName ?? '',
+      ticketType: seat.ticketType ?? line.ticketTypeName,
+      amountCents: shares[i] ?? 0,
+      currency: session.currency ?? 'usd',
+      orderUrl: `${origin}/order/${mintOrderToken({ rid: seat.registrationId })}`,
+      claimCode: seat.claimCode,
+      registrationId: seat.registrationId,
+    });
+  }
+
+  // Only count a seat the first time. A webhook replay must not sell the same
+  // ticket twice against a tier's capacity.
+  const soldPerTier = seatsToCount(seatOutcomes);
+  for (const [id, count] of soldPerTier) await incrementSold(id, count);
+
+  /**
+   * Put the seat list back, and attach every registration the payment bought.
+   *
+   * `fulfilPurchase` has just overwritten `items` with the buyer's single line,
+   * because a Firestore merge replaces an array rather than merging into it.
+   * Without this the order would remember one seat out of three: the dashboard
+   * would show `seatCount: 1`, and a refund would give one seat back to
+   * `quantitySold` and cancel one of the three tickets.
+   *
+   * Swallowed rather than surfaced as a non-2xx, per the rule at the top of
+   * this file — the three registrations already exist and are valid, and a
+   * retry storm that disables the endpoint would cost everybody's fulfilment to
+   * fix one order's bookkeeping. ⚠️ But it is recorded loudly, because a retry
+   * cannot repair it: the next delivery reads `items` and finds the clobbered
+   * single line, so this is the only chance to write the list down.
+   */
+  if (cart.length > 1) {
+    try {
+      await restoreCartOrder({ sessionId: session.id, lines: cart, registrationIds });
+    } catch (err) {
+      await recordError('order.seats', err, { path: 'orders', id: session.id });
+    }
+  }
 
   /**
    * The buyer's account.
@@ -612,7 +788,7 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     to: result.email,
     name: result.name ?? '',
     ticketType: result.ticketType ?? '',
-    amountCents: session.amount_total ?? 0,
+    amountCents: buyerShare,
     currency: session.currency ?? 'usd',
     orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
     claimCode: result.claimCode,
@@ -628,7 +804,101 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     // from Stripe's own event log: the first delivery says `created`, every
     // later one says `existing`.
     account: account.status,
+    /**
+     * The seat figures, in the response so a replay is legible from Stripe's
+     * own event log without opening Firestore: `seats` is what the payment
+     * covered, `seatsRegistered` is the extra attendees this delivery walked,
+     * and `seatsCounted` is what actually moved against tier capacity — zero on
+     * every delivery after the first, which is what idempotent looks like from
+     * the outside.
+     */
+    seats: cart.length || 1,
+    seatsRegistered,
+    seatsCounted: [...soldPerTier.values()].reduce((a, b) => a + b, 0),
+    ...(seatAccountsCreated > 0 ? { seatAccountsCreated } : {}),
+    ...(seatAccountsFailed > 0 ? { seatAccountsFailed } : {}),
   });
+}
+
+/**
+ * Withdraw the *other* seats on a group purchase that has been refunded or
+ * charged back.
+ *
+ * ── Why this is not simply part of `cancelRegistrationByOrder` ──────────────
+ *
+ * It should be, and this is the note asking for it. That function lives in
+ * `apps/web/src/lib/registrations.ts` and cancels one registration — the one
+ * keyed on the order's own email, which is the buyer. Teaching it about
+ * `items[].attendeeEmail` is the right fix and a small one; it is here instead
+ * because that file is owned elsewhere, and leaving three tickets valid after a
+ * full refund was not an acceptable thing to leave for later.
+ *
+ * ── The rule it copies, and why the copy is deliberate ──────────────────────
+ *
+ * "Cancel only when no other **paid** order covers this person." A colleague
+ * who was seat three on a refunded group purchase *and* separately bought their
+ * own ticket keeps the ticket they paid for. This is the same test
+ * `cancelRegistrationByOrder` applies to the buyer, filtered in memory rather
+ * than with a `status` clause for the same reason it gives: one person has a
+ * handful of orders, and a third filter shape is a `failed-precondition`
+ * waiting for a missing composite index.
+ *
+ * The order being refunded cannot appear in that query — it is keyed on the
+ * buyer's address, not the seat's — so there is nothing to exclude.
+ *
+ * Best-effort per seat: a registration that has since been deleted must not
+ * stop the other two being withdrawn, and no failure here may reach Stripe as a
+ * non-2xx.
+ */
+async function cancelExtraSeats(
+  sessionId: string,
+  buyerEmail: string | null,
+): Promise<string[]> {
+  const cart = await cartLines(sessionId);
+  if (cart.length < 2) return [];
+
+  const buyer = buyerEmail ? normaliseEmail(buyerEmail) : '';
+  const cancelled: string[] = [];
+
+  for (const line of cart) {
+    const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
+    if (!seatEmail || seatEmail === buyer) continue;
+
+    try {
+      const sameEmail = await db()
+        .collection(COLLECTIONS.orders)
+        .where('eventId', '==', EVENT_ID)
+        .where('email', '==', seatEmail)
+        .get();
+
+      const stillPaidElsewhere = sameEmail.docs.some((d) => {
+        const o = d.data() as OrderDoc;
+        return o.status === 'paid' || o.status === 'partially_refunded';
+      });
+      if (stillPaidElsewhere) continue;
+
+      const rid = registrationId(seatEmail);
+      await db()
+        .collection(COLLECTIONS.registrations)
+        .doc(rid)
+        .update({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
+      cancelled.push(rid);
+
+      /**
+       * The entitlement goes with the ticket. `withdrawOrderEntitlements`
+       * removes only `source: 'order'` grants, so a speaker's or a staff
+       * member's access survives the refund of something they also sat on.
+       */
+      await withdrawOrderEntitlements(db(), uidForEmail(seatEmail));
+    } catch (err) {
+      await recordError('order.seatCancel', err, {
+        path: 'registrations',
+        id: registrationId(seatEmail),
+      });
+    }
+  }
+
+  return cancelled;
 }
 
 /**

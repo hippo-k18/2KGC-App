@@ -4,6 +4,7 @@ import { CookieConsent } from '@/components/cookie-consent';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { brandingSettings } from '@/lib/data';
+import { canonicalOrigin } from '@/lib/event-jsonld';
 import { SITE } from '@/lib/site';
 import './globals.css';
 
@@ -42,8 +43,14 @@ export async function generateMetadata(): Promise<Metadata> {
      * not a Firebase config — it is the public address of this site — but it is
      * still read from the environment so a preview deployment does not advertise
      * production's URL in its meta tags.
+     *
+     * The same `canonicalOrigin()` the JSON-LD uses, so the two formats cannot
+     * name different hosts for the same page. It used to be an inline copy of
+     * that expression with a `localhost:3200` default, which meant a deploy
+     * missing `WEB_PUBLIC_ORIGIN` served social cards whose image URL only
+     * resolved on the machine that built them.
      */
-    metadataBase: new URL(process.env.WEB_PUBLIC_ORIGIN ?? 'http://localhost:3200'),
+    metadataBase: new URL(canonicalOrigin()),
     title: {
       default: `${SITE.name} · ${SITE.datesShort}`,
       template: `%s · ${SITE.shortName} 2027`,

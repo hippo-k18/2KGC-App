@@ -63,11 +63,14 @@ export interface SessionState {
  * ── There is no delete, and this does not add one ───────────────────────────
  *
  * `firestore.rules:388` is `allow delete: if false`, and retiring a session is
- * `status: 'cancelled'`. Nor does this write `deletedAt`: six readers filter on
- * that field and **nothing anywhere sets it**, so introducing a seventh
- * half-implementation of soft delete would leave two ways to hide a session that
- * disagree — `apps/web` honours `deletedAt` and the app does not (audit C, H7).
- * One mechanism, and it is `status`.
+ * `status: 'cancelled'`. Nor does this write `deletedAt`: seven readers filter
+ * on that field and **nothing anywhere sets it**, so introducing an
+ * eighth half-implementation of soft delete would leave two ways to hide a
+ * session that disagree. All three installs already honour it — `apps/web`
+ * (`data.ts:392`), the app (`sessions.ts:66`) and five readers in this
+ * dashboard — so the earlier version of this comment, which said the app did
+ * not, had the count and the asymmetry both wrong. The argument survives it:
+ * one mechanism, and it is `status`.
  *
  * ── What this deliberately still does not write ─────────────────────────────
  *

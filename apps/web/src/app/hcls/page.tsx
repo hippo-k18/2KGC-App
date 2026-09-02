@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { SITE } from '@/lib/site';
+import { programmeCounts } from '@/lib/data';
+import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Healthcare & Life Sciences Symposium',
@@ -29,31 +30,70 @@ const OBJECTIVES = [
   'Opportunities for knowledge graph research in this space',
 ];
 
-const STATS = [
-  {
-    n: '2,000+',
-    label: 'Attendees',
-    body: 'Leading experts and award winners across hybrid AI, LLMs, NLP, machine learning and data management make an annual visit to the conference.',
-    href: '/tickets',
-    cta: 'Get tickets →',
-  },
-  {
-    n: '40+',
-    label: 'Partners',
-    body: 'We are supported by a distinguished group of sponsors, each playing a pivotal role in advancing knowledge graph technologies and their applications.',
-    href: '/sponsor',
-    cta: 'Partner with us →',
-  },
-  {
-    n: '150+',
-    label: 'Speakers',
-    body: 'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists have spoken at our conferences.',
-    href: '/speakers',
-    cta: 'Become a speaker →',
-  },
-];
+/**
+ * The three stat cards, from the same sources the homepage's are.
+ *
+ * ── Four numbers for three facts ────────────────────────────────────────────
+ *
+ * These were hardcoded as "2,000+ Attendees", "40+ Partners" and "150+
+ * Speakers" while the homepage's own three cards said "1,000+ Attendees
+ * expected" and counted sponsors and speakers out of Firestore. One site, one
+ * conference, and a visitor who opened both pages was told the attendance twice
+ * with a factor of two between the answers.
+ *
+ * The figures were the live 2026 page's, and they are cumulative claims about
+ * every KGC to date rather than about this edition — which is exactly why they
+ * cannot sit beside a count of it. So this page now defers: the expectation
+ * comes from the one declaration that owns it, and the other two are `count()`
+ * results, matching the homepage card for card.
+ *
+ * `Attendees expected` rather than `Attendees`, for the reason `site.ts` gives:
+ * the noun has to say whether the number was counted or stated, because these
+ * three cards sit in a row and two of them were counted.
+ */
+function stats(counts: { speakers: number; sponsors: number }) {
+  return [
+    {
+      n: ATTENDEES_EXPECTED,
+      label: 'Attendees expected',
+      body: 'Leading experts and award winners across hybrid AI, LLMs, NLP, machine learning and data management make an annual visit to the conference.',
+      href: '/tickets',
+      cta: 'Get tickets →',
+    },
+    {
+      n: String(counts.sponsors),
+      label: counts.sponsors === 1 ? 'Partner' : 'Partners',
+      body: 'We are supported by a distinguished group of sponsors, each playing a pivotal role in advancing knowledge graph technologies and their applications.',
+      href: '/sponsor',
+      cta: 'Partner with us →',
+    },
+    {
+      n: String(counts.speakers),
+      label: counts.speakers === 1 ? 'Speaker' : 'Speakers',
+      body: 'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists.',
+      /*
+        `/sponsor#speak` and not `/speakers`. This card's call to action is
+        "Become a speaker" and it pointed at the roster — a list of people who
+        already are one, with no submission path on it. The call for speakers
+        lives on `/sponsor#speak`, which is where `/call-for-posters` and
+        `/startup-pitch` have always sent people.
+      */
+      href: '/sponsor#speak',
+      cta: 'Become a speaker →',
+    },
+  ];
+}
 
-export default function HclsPage() {
+/*
+ * Counted per request, like the homepage. This page was static and read nothing
+ * because every number on it was typed; two of them are now measurements, and a
+ * measurement cached at build time is a measurement that goes stale silently.
+ */
+export const dynamic = 'force-dynamic';
+
+export default async function HclsPage() {
+  const counts = await programmeCounts();
+
   return (
     <>
       <section className="band band-wash">
@@ -75,7 +115,8 @@ export default function HclsPage() {
               <Link href="/tickets" className="btn btn-primary">
                 Grab a seat now
               </Link>
-              <Link href="/speakers" className="btn btn-outline">
+              {/* The call for speakers, not the roster — see `stats()`. */}
+              <Link href="/sponsor#speak" className="btn btn-outline">
                 Become a speaker
               </Link>
             </div>
@@ -137,7 +178,7 @@ export default function HclsPage() {
           <p className="lede">We’d love to see you here in May.</p>
 
           <div className="stat-cards">
-            {STATS.map((s) => (
+            {stats(counts).map((s) => (
               <div key={s.label} className="stat-card">
                 <h3>
                   <strong>{s.n}</strong> {s.label}

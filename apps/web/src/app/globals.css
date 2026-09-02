@@ -4756,52 +4756,6 @@ section.tint {
   color: var(--palette-2);
 }
 
-/* -------------------------------------------------------------- card box --
-   The card fields on the checkout form.
-
-   ⚠️ These inputs carry no `name`, so nothing in here is ever submitted — the
-   real card entry is on `checkout.stripe.com` after the button. The reasoning,
-   and what would make them real, is in the `card` state docblock in
-   `checkout-form.tsx`.
-   ------------------------------------------------------------------------ */
-.card-fields {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  margin: 0 0 18px;
-  background: var(--wash);
-}
-
-.card-fields legend {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0 6px;
-}
-
-.card-fields .card-fields-grid {
-  display: grid;
-  grid-template-columns: 1fr 92px 78px;
-  gap: 10px;
-}
-
-/* Disabled while `STRIPE_SECRET_KEY` is unset, because the form cannot sell.
-   Dimmed rather than hidden: the box is what tells a reader this is a payment
-   form, and removing it would make an unconfigured deployment look like a
-   different product rather than a broken one. */
-.card-fields input:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-@media (max-width: 520px) {
-  .card-fields .card-fields-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* ================================================================ buying == */
 
 /*
@@ -5550,4 +5504,347 @@ section.tint {
   font-size: 0.84rem;
   line-height: 1.6;
   max-width: 68ch;
+}
+
+/* ------------------------------------------------------- agenda filters -- */
+
+/*
+ * The `?day=` / `?track=` controls on `/agenda`.
+ *
+ * These are anchors, not buttons, because the filter is server-side and a
+ * filtered agenda is a real address — see the page's own header for why that
+ * matters more than the interaction feeling native. So they are styled as the
+ * `.day-nav` pills already on that page rather than as form controls: same
+ * pill, same 44px minimum target, one visual language for "pick a slice of the
+ * programme" instead of two.
+ */
+
+.agenda-filters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.filter-label {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  /* Aligns the two labels with each other so the rows read as a table of
+     controls rather than as two unrelated strips. */
+  min-width: 3.6rem;
+}
+
+/*
+ * One scrolling row per parameter, matching `.day-nav` above. Wrapping instead
+ * would turn eight tracks into three ragged rows and make the control change
+ * shape down the viewport range — the same fault that row was fixed for.
+ */
+.filter-options {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+}
+
+.filter-chip {
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: var(--white);
+  border-radius: 999px;
+  padding: 11px 18px;
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.filter-chip:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+/*
+ * The selected chip is filled, not merely outlined.
+ *
+ * `aria-current` is the selector rather than a class, so the accessible state
+ * and the visible state cannot drift: there is no way to style a chip as active
+ * without also announcing it, which is the failure this arrangement forecloses.
+ */
+.filter-chip[aria-current] {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--white);
+}
+
+.filter-chip[aria-current]:hover {
+  color: var(--white);
+}
+
+/* The track chips carry their own colour when the track has one, so the filter
+   row and the `.tag.track` chips on the cards below identify the same track the
+   same way. `--track` falls back to the navy, exactly as `.tag.track` does. */
+.filter-chip[aria-current][style] {
+  background: var(--track, var(--blue));
+  border-color: var(--track, var(--blue));
+}
+
+.filter-chip:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.filter-summary {
+  font-size: 0.92rem;
+  color: var(--body);
+  margin: 0 0 18px;
+}
+
+@media (width <= 620px) {
+  /* The label sits above its row on a phone: at 360px a 3.6rem gutter left the
+     chips 60% of the screen and every one of them clipped. */
+  .filter-row {
+    display: block;
+  }
+
+  .filter-label {
+    display: block;
+    margin-bottom: 6px;
+  }
+}
+
+/* ------------------------------------------------------------ documents -- */
+
+/*
+ * The handout list at `/documents`.
+ *
+ * A list and not the `.exhibitor-grid` treatment. An exhibitor grid answers
+ * "who is here?", which is a scan; this answers "is the thing I need in here?",
+ * which is a read — and the titles are sentences of wildly different lengths
+ * ("Venue map — Bloomberg Center" beside "Code of conduct"), so a grid of equal
+ * boxes would be mostly empty space with the occasional overflowing card.
+ */
+
+.doc-list {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.doc-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/* The kind tag keeps its own width so the titles align down the column whether
+   the badge reads "PDF" or "Slides". */
+.doc-card > .tag {
+  flex: 0 0 auto;
+  min-width: 4.4rem;
+  text-align: center;
+  margin-top: 2px;
+}
+
+.doc-body {
+  min-width: 0; /* or a long unbroken URL pushes the card wider than its column */
+}
+
+.doc-body h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.doc-body h3 a {
+  color: var(--heading);
+  text-decoration: none;
+}
+
+.doc-body h3 a:hover {
+  text-decoration: underline;
+}
+
+.doc-desc {
+  font-size: 0.92rem;
+  color: var(--body);
+  margin: 6px 0 0;
+  max-width: 68ch;
+}
+
+/*
+ * The host the link actually goes to. Small, monospaced and muted: it is a
+ * disclosure rather than a feature, and a visitor who does not care should be
+ * able to skip it — but a visitor about to open a 40MB PDF on conference Wi-Fi
+ * from a CDN nobody mentioned is entitled to see it first.
+ */
+.doc-host {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* ----------------------------------------------------- announcement wall -- */
+
+/*
+ * `/announcements`, designed for a screen in a foyer.
+ *
+ * Every other page on this site is read at arm's length on a laptop. This one
+ * is read at six metres from a panel on a wall, which inverts three decisions
+ * at once: the ground goes dark so the panel is not a slab of white in a lit
+ * room, the measure narrows to one column because a wall is read in glances
+ * rather than scanned, and the type scales with the viewport instead of sitting
+ * at a fixed size — a 55" screen and a phone are the same CSS pixels and
+ * emphatically not the same reading distance.
+ *
+ * `clamp()` rather than a media query for that last part: the phone floor and
+ * the wall ceiling are both stated, and everything between them is continuous,
+ * so there is no width at which the headline jumps a size.
+ */
+
+.wall {
+  background: var(--palette-1);
+  color: var(--palette-3);
+  /* Fills the viewport even with two announcements on it, so a lobby screen is
+     never a short dark card floating on the page background. `--header-height`
+     and not `--chrome-height`: the orange ticker strip renders on `/` and only
+     on `/`, so on this route the chrome above is the navy bar alone. */
+  min-height: calc(100vh - var(--header-height));
+  padding-block: clamp(40px, 6vw, 96px);
+}
+
+.wall .wrap {
+  max-width: 1100px;
+}
+
+.wall-head {
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  padding-bottom: clamp(20px, 3vw, 40px);
+  margin-bottom: clamp(24px, 4vw, 56px);
+}
+
+.wall-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  font-size: clamp(0.75rem, 1.1vw, 1.1rem);
+  color: var(--palette-4);
+  margin: 0 0 12px;
+}
+
+.wall h1 {
+  color: var(--white);
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  line-height: 1.05;
+  margin: 0;
+}
+
+.wall-sub {
+  color: var(--palette-3);
+  font-size: clamp(0.95rem, 1.3vw, 1.4rem);
+  margin: 12px 0 0;
+  max-width: 60ch;
+}
+
+/* Links have to be re-coloured: the site's `--highlight` teal is chosen against
+   white and reads as near-black on this ground. */
+.wall a {
+  color: var(--palette-4);
+}
+
+.wall-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(20px, 3vw, 44px);
+}
+
+.wall-item {
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  padding-bottom: clamp(20px, 3vw, 44px);
+}
+
+.wall-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.wall-when {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(0.72rem, 1vw, 1rem);
+  color: var(--palette-4);
+  margin: 0 0 10px;
+}
+
+.wall-badge {
+  background: var(--orange);
+  /* `--palette-1` on orange, not white: white on `#f68621` is 2.4:1 and this
+     label is small capitals, which is the worst case for contrast. */
+  color: var(--palette-1);
+  border-radius: 999px;
+  padding: 4px 12px;
+  letter-spacing: 0.08em;
+}
+
+.wall-item h2 {
+  color: var(--white);
+  font-size: clamp(1.35rem, 2.6vw, 2.6rem);
+  line-height: 1.15;
+  margin: 0;
+}
+
+/* The newest announcement is a step larger than the rest — see the page for why
+   position alone does not answer "what is the latest thing?" across a room. */
+.wall-item.latest h2 {
+  font-size: clamp(1.7rem, 3.6vw, 3.6rem);
+}
+
+.wall-body {
+  color: var(--palette-3);
+  font-size: clamp(1rem, 1.5vw, 1.6rem);
+  line-height: 1.5;
+  margin: 12px 0 0;
+  /* Wider than the site's 68ch prose cap, because at this type size 68ch is a
+     column three words across on a wall-mounted screen. */
+  max-width: 46ch;
+}
+
+.wall-item.latest .wall-body {
+  max-width: 40ch;
+}
+
+.wall-empty {
+  padding: clamp(32px, 6vw, 80px) 0;
+}
+
+.wall-empty p:first-child {
+  color: var(--white);
+  font-size: clamp(1.4rem, 3vw, 3rem);
+  margin: 0;
 }

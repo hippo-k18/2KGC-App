@@ -2,6 +2,21 @@
  * The `pageContent/{pageId}` contract — which prose pages on the public
  * website can be edited without a deploy, and exactly which of their fields.
  *
+ * ── Who writes it ───────────────────────────────────────────────────────────
+ *
+ * The dashboard, at Content › Basics › Website Copy —
+ * `apps/organizer/src/app/(dash)/content/basics/website-copy/`, over
+ * `apps/organizer/src/lib/page-content.ts`. Both sides use the Admin SDK, which
+ * is why this collection has no `match` block in `firestore.rules` and needs
+ * none. All three reading pages are `force-dynamic`, so a save is on the public
+ * site on the next request: "without a deploy" is literal.
+ *
+ * ⚠️ For a long time there was **no writer at all** — this file described an
+ * editor, `apps/web` read the store from three pages, and nothing anywhere
+ * wrote it, so every field silently rendered from the constant beside it. That
+ * is the shape of defect worth naming: a contract is not a capability until
+ * something on the other end of it can write.
+ *
  * ── Why this is not "a CMS" ─────────────────────────────────────────────────
  *
  * Thirteen of the website's twenty-one pages hold their copy in React, and the

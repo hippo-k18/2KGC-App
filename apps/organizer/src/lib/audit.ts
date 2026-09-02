@@ -83,6 +83,16 @@ export interface AuditEntry {
     | 'session.qaSettings'
     /** Organizer settings bags — branding, the event website, access rules. */
     | 'settings.update'
+    /**
+     * Copy on a public page of the website, overridden without a deploy.
+     *
+     * Audited rather than left to `updatedBy`, because this is the one editor
+     * whose output is read by people who are not attendees and hold no ticket,
+     * and one of its fields is the address a code-of-conduct incident is
+     * reported to. A wrong value there is discovered by the person it fails,
+     * and "who changed it, from what, and when" is the only way back.
+     */
+    | 'pageContent.update'
     /** The entities the later dashboard screens author. */
     | 'exhibitor.create'
     | 'exhibitor.update'
@@ -171,6 +181,23 @@ export interface AuditEntry {
     | 'campaign.create'
     | 'campaign.update'
     | 'contact.import'
+    /**
+     * Publishing or revising a consent or release form.
+     *
+     * Audited more carefully than the other editors here, because this is the
+     * only thing in the dashboard whose output is a legal record about a
+     * person. `consentForm.publish` is the moment wording becomes signable, and
+     * the version it names is the version stored on every signature that
+     * follows — so "who published v3, and when" is the question that gets asked
+     * if a signature is ever disputed, and `updatedBy` alone cannot answer it.
+     *
+     * There is deliberately no `consentResponse.*` action. A signature is
+     * written by the signatory, not by an organizer, and `consentResponses` is
+     * append-only in `firestore.rules` — the document *is* the record, and an
+     * audit entry mirroring it would be a second, weaker copy that could drift.
+     */
+    | 'consentForm.publish'
+    | 'consentForm.update'
     /**
      * A bulk attendee import. One entry for the whole run rather than one per
      * row — four hundred audit entries for one action is a log nobody reads,

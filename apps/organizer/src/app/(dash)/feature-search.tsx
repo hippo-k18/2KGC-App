@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import {
+  MIN_QUERY,
+  RESULT_LIMIT,
+  highlight,
+  searchFeatures,
+  type Hit,
+  type SearchEntry,
+} from '@/lib/feature-search-core';
 
 /**
  * The feature search in the dark header.
@@ -14,16 +23,36 @@ import { useEffect, useMemo, useRef, useState } from 'react';
  * wrong call — we already ship the entire nav tree to the client for the
  * sidebar, so the index costs nothing extra.
  *
- * Matching is a plain substring pass over the title and its ancestors' titles,
- * so "attendee badges" finds `Attendees › Name Badges` and "qa" finds
- * `Session Q&A Manager`. Built screens sort first, because a real screen is a
- * better answer than a placeholder when both match.
+ * Matching, ranking, aliases and highlighting live in
+ * `@/lib/feature-search-core`, covered by `tests/programme/feature-search.test.ts`.
+ * This file is the input, the dropdown and the keyboard handling, and nothing
+ * else — the ranking is subtle enough that it was quietly wrong for weeks while
+ * looking fine.
+ *
+ * Five things here are deliberate:
+ *
+ *   - **`/` and ⌘K focus it from anywhere.** The whole point is to stop
+ *     organizers hunting through a nine-tab, three-level tree; making them
+ *     first hunt for the search box with a mouse gives most of that back.
+ *   - **Empty and focused, it offers the nine sections.** A box that shows
+ *     nothing until you type does not tell a first-time organizer what it
+ *     searches, and the sections double as the fastest way in when you know
+ *     the area but not the screen.
+ *   - **The matched text is emboldened** so a list of twenty near-identical
+ *     "Ticket …" titles can be scanned rather than read.
+ *   - **An alias hit says which word found it** — "matched 'refund'" under
+ *     Attendee Orders. Without it the top result for "refund" looks like a
+ *     mistake, and a search box you do not trust is one you stop using.
+ *   - **The list shows up to `RESULT_LIMIT` rows and then says how many more
+ *     matched.** "ticket" matches 61 of the 215 nodes; silently showing 8 of
+ *     those and saying nothing is how the previous version made an organizer
+ *     believe a screen did not exist.
  */
-export interface SearchEntry {
-  title: string;
-  path: string;
-  trail: string;
-  built: boolean;
+export type { SearchEntry };
+
+/** Offered when the box is focused and empty — the nine top-level tabs. */
+function sections(entries: SearchEntry[]): SearchEntry[] {
+  return entries.filter((e) => !e.path.includes('/'));
 }
 
 export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
@@ -31,28 +60,27 @@ export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const box = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const hits = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (needle.length < 2) return [];
-    const words = needle.split(/\s+/);
-    return entries
-      .filter((e) => {
-        const hay = `${e.trail} ${e.title}`.toLowerCase();
-        return words.every((w) => hay.includes(w));
-      })
-      .sort(
-        (a, b) =>
-          Number(b.built) - Number(a.built) ||
-          Number(a.title.toLowerCase().startsWith(needle)) * -1 -
-            Number(b.title.toLowerCase().startsWith(needle)) * -1 ||
-          a.title.length - b.title.length,
-      )
-      .slice(0, 8);
-  }, [q, entries]);
+  const searched = q.trim().length >= MIN_QUERY;
+  const { hits, total } = useMemo(
+    () => searchFeatures(entries, q, RESULT_LIMIT),
+    [q, entries],
+  );
+  const top = useMemo(() => sections(entries), [entries]);
+
+  /** What the arrow keys walk: real hits once typing, the sections before that. */
+  const rows: Hit[] = searched ? hits : q.trim() ? [] : top;
 
   useEffect(() => setActive(0), [q]);
+
+  // Keep the highlighted row visible; the list scrolls past what the box shows.
+  useEffect(() => {
+    const el = list.current?.children[active] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [active, rows.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,12 +91,42 @@ export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
+  // `/` and ⌘K from anywhere. Ignored while the caret is in another field, or
+  // an organizer typing a slash into a session title would lose it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el?.isContentEditable === true;
+      const shortcut = e.key === '/' ? !typing : (e.metaKey || e.ctrlKey) && e.key === 'k';
+      if (!shortcut) return;
+      e.preventDefault();
+      input.current?.focus();
+      input.current?.select();
+      setOpen(true);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    setQ('');
+  }, []);
+
   return (
-    <div ref={box} style={{ position: 'relative' }}>
+    <div ref={box} className="feature-search">
       <input
-        className="header-search"
+        ref={input}
+        className="feature-search-input"
         placeholder="Search features"
         aria-label="Search features"
+        aria-expanded={open && rows.length > 0}
+        aria-controls="feature-search-results"
+        role="combobox"
+        autoComplete="off"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);
@@ -76,59 +134,89 @@ export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') return setOpen(false);
-          if (!hits.length) return;
+          if (e.key === 'Escape') {
+            setOpen(false);
+            input.current?.blur();
+            return;
+          }
+          if (!rows.length) return;
           if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setActive((i) => (i + 1) % hits.length);
+            setActive((i) => (i + 1) % rows.length);
           } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setActive((i) => (i - 1 + hits.length) % hits.length);
+            setActive((i) => (i - 1 + rows.length) % rows.length);
           } else if (e.key === 'Enter') {
             e.preventDefault();
-            router.push(`/${hits[active].path}`);
-            setOpen(false);
-            setQ('');
+            router.push(`/${rows[active].path}`);
+            dismiss();
+            input.current?.blur();
           }
         }}
       />
+      {q ? null : <span className="feature-search-key" aria-hidden="true">/</span>}
 
-      {open && hits.length > 0 ? (
-        <div className="whova-menu" style={{ maxHeight: 420, minWidth: 340, overflowY: 'auto' }}>
-          {hits.map((h, i) => (
-            <Link
-              key={h.path}
-              className="whova-menu-item"
-              href={`/${h.path}`}
-              style={{
-                background: i === active ? '#e9ecf1' : undefined,
-                height: 'auto',
-                padding: '8px 12px',
-              }}
-              onClick={() => {
-                setOpen(false);
-                setQ('');
-              }}
-              onMouseEnter={() => setActive(i)}
-            >
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block' }}>{h.title}</span>
-                <span style={{ color: 'var(--muted)', display: 'block', fontSize: 12 }}>
-                  {h.trail}
+      {open && rows.length > 0 ? (
+        <div className="whova-menu align-end" style={{ minWidth: 340 }}>
+          {!searched ? (
+            <div className="feature-search-note" style={{ borderBottom: '1px solid #e3e6ec' }}>
+              Jump to a section, or type to search all {entries.length} screens.
+            </div>
+          ) : null}
+
+          <div
+            ref={list}
+            id="feature-search-results"
+            role="listbox"
+            aria-label="Matching features"
+            style={{ maxHeight: 420, overflowY: 'auto' }}
+          >
+            {rows.map((h, i) => (
+              <Link
+                key={h.path}
+                className="whova-menu-item"
+                href={`/${h.path}`}
+                role="option"
+                aria-selected={i === active}
+                style={{
+                  background: i === active ? '#e9ecf1' : undefined,
+                  height: 'auto',
+                  padding: '8px 12px',
+                }}
+                onClick={dismiss}
+                onMouseEnter={() => setActive(i)}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block' }}>
+                    {highlight(h.title, q).map((run, n) =>
+                      run.hit ? <b key={n}>{run.text}</b> : <span key={n}>{run.text}</span>,
+                    )}
+                  </span>
+                  <span style={{ color: 'var(--muted)', display: 'block', fontSize: 12 }}>
+                    {h.via ? `matched “${h.via}” · ` : ''}
+                    {h.trail || 'Top level'}
+                  </span>
                 </span>
-              </span>
-              {h.built ? (
-                <span className="whova-tag-main green-tag outline-tag small">built</span>
-              ) : null}
-            </Link>
-          ))}
+                {h.built ? (
+                  <span className="whova-tag-main green-tag outline-tag small">built</span>
+                ) : null}
+              </Link>
+            ))}
+          </div>
+
+          {searched && total > rows.length ? (
+            <div className="feature-search-note" style={{ borderTop: '1px solid #e3e6ec' }}>
+              {total - rows.length} more match “{q.trim()}”. Keep typing to narrow it.
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {open && q.trim().length >= 2 && hits.length === 0 ? (
-        <div className="whova-menu" style={{ minWidth: 260 }}>
-          <div className="whova-menu-item" style={{ color: 'var(--muted)' }}>
-            No feature matches “{q.trim()}”.
+      {open && searched && hits.length === 0 ? (
+        <div className="whova-menu align-end" style={{ minWidth: 300 }}>
+          <div className="feature-search-note">
+            No feature matches “{q.trim()}”. Try the words on the tab you want —
+            “tickets”, “attendees”, “agenda”.
           </div>
         </div>
       ) : null}

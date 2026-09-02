@@ -68,6 +68,36 @@ export const COLLECTIONS = {
   tasks: "tasks",
   surveys: "surveys",
   documents: "documents",
+  /**
+   * Photo, video and recording releases — the published wording, with the
+   * signatures underneath at `consentForms/{id}/responses/{responseId}`.
+   *
+   * The only collection in this file whose contents are a legal record rather
+   * than event data, which is why the responses are append-only in
+   * `firestore.rules`: no client, organizer included, may update or delete one.
+   */
+  consentForms: "consentForms",
+  /**
+   * The call for abstracts, one document per call — `CFA-PLAN.md` §2.
+   *
+   * Server-only, along with `submissions` and `reviewers` below, and the three
+   * of them must stay that way. The people this feature is for hold no ticket,
+   * so the `registered` claim that gates `firestore.rules` is false for them and
+   * has to stay false; they reach their own work through a capability link and a
+   * server action instead. There is no client identity here for a rule to check.
+   */
+  calls: "calls",
+  /**
+   * One abstract each, minus its author — the identity lives underneath at
+   * `submissions/{id}/identity/{SUBMISSION_IDENTITY_DOC}` so that blind review
+   * is a read decision rather than a rewrite. See `SubmissionDoc`.
+   */
+  submissions: "submissions",
+  /**
+   * People who score submissions. Deliberately not `users`: a reviewer need not
+   * hold a ticket, and most external committee members never buy one.
+   */
+  reviewers: "reviewers",
   /** Server-only: written and read by Cloud Functions with the Admin SDK. */
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",
@@ -93,6 +123,13 @@ export const SUBCOLLECTIONS = {
   checkIns: "checkIns",
   responses: "responses",
   /**
+   * `submissions/{id}/identity` — the author, held apart from the abstract.
+   * One document, at the fixed id `SUBMISSION_IDENTITY_DOC`.
+   */
+  identity: "identity",
+  /** `submissions/{id}/reviews/{reviewerId}` — one document per assigned reviewer. */
+  reviews: "reviews",
+  /**
    * `users/{uid}/gatherings/{gatheringId}` — the attendee's own seat, as a
    * projection of the organizer's plan. Deliberately NOT the top-level
    * `gatherings` collection, which carries every other name at the table and
@@ -103,6 +140,26 @@ export const SUBCOLLECTIONS = {
 
 /** The single document inside `sessions/{id}/qaBoard`. */
 export const QA_BOARD_DOC = "current";
+
+/**
+ * The single document inside `submissions/{id}/identity` — the author's name,
+ * affiliation, address and co-authors.
+ *
+ * A fixed id, so a submission's identity is addressable without a query and
+ * "does this submission have an author on file yet?" is a `get`. There is one
+ * author record per submission and there never needs to be a second: co-authors
+ * are a field on it, because a co-author is not a separate account of who
+ * submitted.
+ *
+ * It is a subcollection rather than fields on the submission because that split
+ * *is* the blind review (`CFA-PLAN.md` §1.1). Rules filter documents and not
+ * fields, and neither does a dashboard query — so the only reliable way to hand
+ * a reviewer an anonymous abstract is for the identity to be somewhere they were
+ * not sent. Turning double-blind on is then a decision about which of two
+ * documents the review screen loads, rather than a migration of every submission
+ * ever written.
+ */
+export const SUBMISSION_IDENTITY_DOC = "author";
 
 /**
  * `checkInLists/{DOOR_CHECK_IN_LIST_ID}` — the main entrance.
@@ -127,7 +184,7 @@ export const DOOR_CHECK_IN_LIST_ID = "event-door";
  *
  * ⚠️ **Membership is NOT derivable from this id, and nothing may try.** The
  * `messages` rules prove membership by reading `participantIds` on the thread
- * document — one of only three `get()`s in `firestore.rules`, and deliberate.
+ * document — one of only four `get()`s in `firestore.rules`, and deliberate.
  *
  * This docblock previously claimed the opposite: that the rules prove
  * membership from the path, because "Firebase uids are alphanumeric, so `_` is
@@ -194,4 +251,33 @@ export function correspondentIn(
  */
 export function scanEventIdFor(deviceId: string, clientScanId: string) {
   return `${deviceId}_${clientScanId}`;
+}
+
+/**
+ * `consentForms/{formId}/responses/{responseId}` — one signature, addressed by
+ * who signed and *which version of the wording they signed*.
+ *
+ * The version belongs in the id rather than only in the document, and that is
+ * the whole design of the consent store:
+ *
+ * **A second signature of the same version is refused by Firestore itself.**
+ * The same mechanism `checkIns` and `scanEvents` use — a `create` at an id that
+ * already exists fails with `already-exists`, so a double-submitted form is a
+ * failed write rather than a read-then-write race to lose. The rules close
+ * `update` and `delete` outright, so there is no other way to touch it.
+ *
+ * **Re-signing a new version is a new document, not an edit.** When the wording
+ * changes the organizer publishes version 2, and everybody's version-1
+ * signature stays exactly as it was written — which is the only reason it is
+ * worth anything. "Jane consented" without the wording she saw records nothing
+ * that could be relied on, and a store that lets the record be updated in place
+ * is a store where that wording can be quietly changed afterwards.
+ *
+ * `signatory` is a uid for somebody signing in the app, and `spk_{speakerId}`
+ * for a speaker signing through a capability link with no account at all — see
+ * `scripts/src/lib/consent-token.ts`. `firestore.rules` only ever permits the
+ * uid form from a client, because it can only prove the uid form.
+ */
+export function consentResponseId(signatory: string, formVersion: number) {
+  return `${signatory}_v${formVersion}`;
 }

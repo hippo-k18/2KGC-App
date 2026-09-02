@@ -2,8 +2,10 @@ import 'server-only';
 
 import {
   COLLECTIONS,
+  COMMUNITY_CATEGORY_LABEL,
   EVENT_ID,
   SUBCOLLECTIONS,
+  type CommunityCategory,
   type CommunityPostDoc,
   type CommunityReplyDoc,
   type UserDoc,
@@ -47,16 +49,19 @@ import { db } from './firestore';
  * no equivalent recount, so nothing in these screens displays them.
  */
 
-export type CommunityCategory = CommunityPostDoc['category'];
+export type { CommunityCategory };
 
-export const CATEGORY_LABEL: Record<CommunityCategory, string> = {
-  meetup: 'Meet-up',
-  'ride-share': 'Ride share',
-  jobs: 'Jobs',
-  questions: 'Questions',
-  'lost-and-found': 'Lost & found',
-  'ice-breakers': 'Ice breakers',
-};
+/**
+ * The printed name of each category, from `@kgc/shared`.
+ *
+ * This used to be a literal here and a second literal in the moderation queue,
+ * and both said "Meet-up" and "Ride share" where the app says "Meet-ups" and
+ * "Travel" — so an organizer moderating the board was reading category names
+ * that exist on no screen the author of the post has ever seen. The list moved
+ * next to the ids in `packages/shared/src/community.ts`; the app's wording won,
+ * because the app is where a human picks one.
+ */
+export const CATEGORY_LABEL = COMMUNITY_CATEGORY_LABEL;
 
 /**
  * Which categories each of Whova's three screens is a view of.

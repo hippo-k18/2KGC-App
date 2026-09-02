@@ -125,7 +125,8 @@ exist.
 took production down on 2026-08-27. See `DEPLOY-NETLIFY.md`.
 
 **The dashboard refuses a short passphrase against a live project.** That is
-deliberate — `MIN_LIVE_PASSPHRASE` is 12 — so `123` has to be replaced, and the
+deliberate — `MIN_LIVE_PASSPHRASE` is 7, lowered from 12 on 2026-08-31 at the
+owner's request — so `123` has to be replaced, and the
 replacement has to be printed on the login screen for the demo to be usable.
 
 ---

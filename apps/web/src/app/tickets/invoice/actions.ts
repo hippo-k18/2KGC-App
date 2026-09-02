@@ -6,6 +6,7 @@ import { sendInvoiceRaised } from '@/lib/email';
 import { raiseInvoice } from '@/lib/invoicing';
 import { recordInvoiceOrder } from '@/lib/registrations';
 import { stripeEnabled } from '@/lib/stripe';
+import { EMAIL, MAX_SEATS, collectSeats, validateSeats } from '../seats-core';
 
 /**
  * Requesting an invoice instead of paying by card.
@@ -32,11 +33,6 @@ export interface InvoiceState {
   error?: string;
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** Whova's own cap is 100 seats a form; this is a website, and ten is plenty. */
-const MAX_SEATS = 10;
-
 export async function requestInvoice(
   _prev: InvoiceState,
   form: FormData,
@@ -62,40 +58,46 @@ export async function requestInvoice(
   if (![14, 30, 45, 60].includes(daysUntilDue)) return { error: 'Choose payment terms.' };
 
   /**
-   * Seats arrive as three parallel arrays from repeated form fields. Rows where
-   * every field is blank are dropped rather than rejected — the form renders
-   * spare rows, and making someone delete empty ones to submit is hostile.
-   */
-  const names = form.getAll('seatName').map((v) => String(v).trim());
-  const emails = form.getAll('seatEmail').map((v) => String(v).trim());
-  const tierIds = form.getAll('seatTier').map((v) => String(v).trim());
-
-  const rows = names
-    .map((name, i) => ({ name, email: emails[i] ?? '', tierId: tierIds[i] ?? '' }))
-    .filter((r) => r.name || r.email);
-
-  if (rows.length === 0) return { error: 'Add at least one attendee.' };
-  if (rows.length > MAX_SEATS) {
-    return { error: `This form handles up to ${MAX_SEATS} attendees. Email us for larger groups.` };
-  }
-
-  for (const [i, r] of rows.entries()) {
-    if (r.name.length < 2) return { error: `Attendee ${i + 1}: enter a full name.` };
-    if (!EMAIL.test(r.email)) return { error: `Attendee ${i + 1}: enter a valid email address.` };
-  }
-
-  /**
-   * Duplicate addresses are rejected rather than merged.
+   * Seats arrive as three parallel arrays from repeated form fields — the same
+   * three the card checkout posts, parsed and checked by the same code.
    *
-   * A registration is keyed by email, so two seats with the same address are
-   * one ticket — the company would be invoiced twice and get one badge. Better
-   * to say so than to take the money.
+   * The rules used to live here, privately: the ten-seat cap, the per-row
+   * checks, and the one that matters most, that a duplicate address is refused
+   * rather than merged because a registration is keyed by email and two seats
+   * on one address are one badge. They moved to `seats-core.ts` when
+   * `/tickets` grew a quantity of its own, because two forms that both sell
+   * seats and each keep their own copy of that rule agree exactly until
+   * somebody changes one of them — and the failure is a company invoiced for
+   * four people who collects three badges.
    */
-  const seen = new Set<string>();
-  for (const r of rows) {
-    const key = r.email.toLowerCase();
-    if (seen.has(key)) return { error: `${r.email} appears twice. Each attendee needs their own address.` };
-    seen.add(key);
+  const seatEmails = form.getAll('seatEmail');
+  const seatTiers = form.getAll('seatTier');
+  const rows = collectSeats(
+    form.getAll('seatName').map((v, i) => ({
+      name: String(v),
+      email: String(seatEmails[i] ?? ''),
+      tierId: String(seatTiers[i] ?? ''),
+    })),
+  );
+
+  const problem = validateSeats(rows);
+  if (problem) {
+    switch (problem.kind) {
+      case 'empty':
+        return { error: 'Add at least one attendee.' };
+      case 'too-many':
+        return {
+          error: `This form handles up to ${MAX_SEATS} attendees. Email us for larger groups.`,
+        };
+      case 'name':
+        return { error: `Attendee ${problem.index + 1}: enter a full name.` };
+      case 'email':
+        return { error: `Attendee ${problem.index + 1}: enter a valid email address.` };
+      case 'duplicate':
+        return {
+          error: `${problem.email} appears twice. Each attendee needs their own address.`,
+        };
+    }
   }
 
   /**

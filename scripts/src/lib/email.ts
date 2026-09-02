@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, type EmailLogDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
 import { contactId } from './ids.js';
 import { mintUnsubscribeToken } from './unsubscribe-token.js';
 
@@ -539,17 +539,6 @@ export interface BulkMessageInput {
 }
 
 /**
- * Where the public site lives, for building an absolute unsubscribe URL.
- *
- * The same variable and the same default the dashboard's own `(dash)/layout.tsx`
- * and `tools/app-adoption/adoption-context.ts` already read, so an operator has
- * one thing to set rather than two that can disagree.
- */
-function publicOrigin(): string {
-  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
-}
-
-/**
  * The unsubscribe link for one recipient — **or null, which is the point.**
  *
  * ── Why this reads a document instead of always returning a link ────────────
@@ -613,7 +602,7 @@ async function unsubscribeUrlFor(
 
     // One token, two routes. Both verify it the same way.
     const token = mintUnsubscribeToken(id);
-    const origin = publicOrigin();
+    const origin = publicSiteOrigin();
     return { page: `${origin}/u/${token}`, oneClick: `${origin}/api/unsubscribe/${token}` };
   } catch (err) {
     console.warn('[email] could not build an unsubscribe link; sending without one', err);

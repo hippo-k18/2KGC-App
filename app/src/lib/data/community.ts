@@ -17,8 +17,10 @@ import {
 
 import {
   COLLECTIONS,
+  COMMUNITY_CATEGORIES,
   EVENT_ID,
   SUBCOLLECTIONS,
+  communityCategoryLabel,
   type CommunityPostDoc,
   type CommunityReplyDoc,
   type WithId,
@@ -32,17 +34,19 @@ import { runWrite, type WriteResult } from '@/lib/data/write';
 export type Post = WithId<CommunityPostDoc>;
 export type Reply = WithId<CommunityReplyDoc>;
 
-export const CATEGORIES = [
-  { id: 'meetup', label: 'Meet-ups' },
-  { id: 'ride-share', label: 'Travel' },
-  { id: 'jobs', label: 'Jobs' },
-  { id: 'questions', label: 'Questions' },
-  { id: 'lost-and-found', label: 'Lost & found' },
-  { id: 'ice-breakers', label: 'Ice breakers' },
-] as const;
+/**
+ * The board's categories, re-exported under the names the screens already use.
+ *
+ * The list itself is `COMMUNITY_CATEGORIES` in `@kgc/shared`: it was declared
+ * here, in the dashboard's `engagement.ts` and again in its moderation queue,
+ * and the copies had already drifted — the dashboard was printing "Meet-up" and
+ * "Ride share" for the categories this screen calls "Meet-ups" and "Travel".
+ * These two aliases keep the call sites reading in the app's own vocabulary
+ * while there is only one list.
+ */
+export const CATEGORIES = COMMUNITY_CATEGORIES;
 
-export const categoryLabel = (id: string) =>
-  CATEGORIES.find((c) => c.id === id)?.label ?? id;
+export const categoryLabel = communityCategoryLabel;
 
 /**
  * How much of the board one listener carries.

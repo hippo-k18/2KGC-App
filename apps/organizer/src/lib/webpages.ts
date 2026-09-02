@@ -1,6 +1,15 @@
 import 'server-only';
 
-import { COLLECTIONS, EVENT_ID, type SessionDoc, type SpeakerDoc, type SponsorDoc } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  SPEAKERS_PAGE_SOURCE,
+  servableLogoURL,
+  publicSiteOrigin,
+  type SessionDoc,
+  type SpeakerDoc,
+  type SponsorDoc,
+} from '@kgc/shared';
 import { db } from './firestore';
 
 /**
@@ -46,29 +55,104 @@ export interface PageReadiness {
   note?: string;
 }
 
-function origin(): string {
-  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
+/*
+ * The origin was declared here with its own hardcoded default — the same defect
+ * the note below records for `SPEAKERS_PAGE_SOURCE`, and it had already bitten:
+ * seven other call sites defaulted to `localhost:3200` while this one defaulted
+ * to production, so this screen and Campaign Link Tracking disagreed about
+ * which host the event lives on. It comes from `@kgc/shared` now.
+ */
+const origin = publicSiteOrigin;
+
+/*
+ * `SPEAKERS_PAGE_SOURCE` was declared here too — a hand-kept second copy of the
+ * one in `apps/web/src/lib/site.ts`, on the stated grounds that the two apps
+ * are separate installs and neither may import the other.
+ *
+ * Neither half of that was true. Both apps depend on `@kgc/shared`, and the
+ * duplication was doing active harm: whenever the two copies disagreed, this
+ * screen counted speakers with no headshot and reported them as problems with a
+ * page that rendered none of those records — arithmetically right, and telling
+ * an organizer to go and fix something invisible.
+ *
+ * It is imported from `@kgc/shared` above now. One declaration, so the two
+ * sides cannot disagree.
+ */
+export function publicUrl(path: string): string {
+  return `${origin()}${path}`;
 }
 
 /**
- * Where the public `/speakers` page gets its roster.
+ * Whova's own asset CDN, and the eighteen sponsor logos this repo ships.
  *
- * ⚠️ Must be kept in step with `SPEAKERS_PAGE_SOURCE` in
- * `apps/web/src/lib/site.ts` — that file holds the argument, and this is a
- * second copy because the two apps are separate installs and neither may
- * import the other.
+ * ── The CDN rule is shared; the slug set is not ─────────────────────────────
  *
- * Why the duplication is worth it: while the website renders the published
- * KGC 2026 roster, this screen was counting `speakers` documents with no photo
- * and reporting them as problems with "your speakers page" — a page that does
- * not render those people. The counts were arithmetically right and told an
- * organizer to go and fix something invisible. This is the screen an organizer
- * would trust, which is exactly why it must not be the one that is wrong.
+ * `servableLogoURL()` in `@kgc/shared` is the single copy of the rule that a
+ * URL on Whova's CDN does not count as a logo, because the public page drops it
+ * rather than hotlink the product this one replaces. Both websites and the app
+ * read it. This file used to carry a third copy of that regex.
+ *
+ * The slug set below is still local, and that is a smaller problem than it
+ * looks: it lists files committed to `apps/web/public/kgc/sponsors/`, so it is
+ * a fact about that directory rather than a rule, and the honest fix is reading
+ * the directory rather than moving the list. Whoever adds a sponsor logo still
+ * has to add the slug in two places until then.
+ *
+ * The alternative — counting `!logoURL`, which is what this screen did —
+ * reported eighteen missing logos on a page that renders all eighteen, because
+ * the public page falls back to `public/kgc/sponsors/{slug}.png` when Firestore
+ * holds nothing. There is no way to debug that from the dashboard: the count
+ * names companies whose logos are visibly on the page.
  */
-const SPEAKERS_PAGE_SOURCE: '2026-roster' | 'firestore' = '2026-roster';
+const SELF_HOSTED_SPONSOR_LOGOS: ReadonlySet<string> = new Set([
+  'abbvie',
+  'accenture',
+  'amazon-web-services',
+  'bloomberg',
+  'cloudera',
+  'datahub',
+  'fluree',
+  'gdotv',
+  'graphwise',
+  'metaphacts',
+  'neo4j',
+  'oracle',
+  'oxford-semantic-technologies',
+  'process-tempo',
+  'progress-software',
+  'senzing',
+  'stardog',
+  'topquadrant',
+]);
 
-export function publicUrl(path: string): string {
-  return `${origin()}${path}`;
+/** `Oxford Semantic Technologies` -> `oxford-semantic-technologies`. */
+function logoSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+/**
+ * Whether `/sponsor` prints a logo for this company, or falls back to its name.
+ *
+ * A URL on Whova's CDN is dropped before it is considered, exactly as the
+ * public page drops it rather than hotlink the product this one replaces, so a
+ * sponsor holding one counts as having no logo — which is what a visitor sees.
+ */
+export function sponsorLogoRenders(name: string, logoURL?: string): boolean {
+  if (servableLogoURL(logoURL)) return true;
+  return SELF_HOSTED_SPONSOR_LOGOS.has(logoSlug(name));
+}
+
+/**
+ * The same question for an exhibitor, and the answer is narrower on purpose:
+ * `SELF_HOSTED_EXHIBITOR_LOGOS` in `apps/web/src/lib/data.ts` is deliberately
+ * empty — no exhibitor logo is committed to this repo — so an exhibitor has a
+ * logo on the public page only if their own `logoURL` survives the CDN guard.
+ */
+export function exhibitorLogoRenders(logoURL?: string): boolean {
+  return Boolean(servableLogoURL(logoURL));
 }
 
 /**
@@ -119,28 +203,42 @@ export async function pageReadiness(): Promise<{
     speakers: {
       title: 'Speakers',
       path: '/speakers',
-      // Nothing from this collection is published while the page renders the
-      // 2026 roster, so the honest count is zero rather than `speakers.length`.
+      /*
+       * Zero while the page renders the checked-in 2026 roster, because none of
+       * these records reaches it. That zero is a statement about the page, not
+       * a measurement of the collection, so nothing may divide by it — see
+       * `webpage-screen.tsx`, which reads a page carrying a `note` as having no
+       * completeness share at all rather than as 0% complete.
+       *
+       * The branch is inert today: `SPEAKERS_PAGE_SOURCE` is `'firestore'`, and
+       * moving it to `@kgc/shared` is what stops the two sides disagreeing. It
+       * stays because `'2026-roster'` is a working fallback rather than a
+       * retired value, and the day somebody flips it back this screen has to
+       * stop claiming these records are on the public page.
+       */
       published: SPEAKERS_PAGE_SOURCE === 'firestore' ? speakers.length : 0,
       total: speakers.length,
       note:
         SPEAKERS_PAGE_SOURCE === 'firestore'
           ? undefined
           : '/speakers currently shows the published KGC 2026 roster, not this collection. These records do not appear on it.',
-      // Gated, not deleted: every count below is correct and is exactly what
-      // this screen needs the day the roster switches over.
+      /*
+       * Only the fields the page prints. `SpeakerCard` in
+       * `apps/web/src/components/speaker-grid.tsx` renders a portrait, the name,
+       * the company and the job title and stops there; `bio` and `sessionIds`
+       * were counted here and are invisible to every visitor. The app's speaker
+       * profile does show a bio, which is why the field exists — but this screen
+       * answers "would a visitor notice", and an incomplete bio is Speaker
+       * Manager's problem, not this page's.
+       */
       problems:
         SPEAKERS_PAGE_SOURCE === 'firestore'
           ? [
               // Headshots first: a speaker grid with holes is the single most visible
               // form of "this conference is not ready" on a public site.
               ...nonEmpty('no photo', speakers.filter((s) => !s.photoURL).length),
-              ...nonEmpty('no bio', speakers.filter((s) => !s.bio).length),
               ...nonEmpty('no company', speakers.filter((s) => !s.company).length),
-              ...nonEmpty(
-                'not on any session',
-                speakers.filter((s) => (s.sessionIds ?? []).length === 0).length,
-              ),
+              ...nonEmpty('no job title', speakers.filter((s) => !s.title).length),
             ]
           : [],
     },
@@ -149,11 +247,22 @@ export async function pageReadiness(): Promise<{
       path: '/sponsor',
       published: sponsors.length,
       total: sponsors.length,
+      /*
+       * The two things `/sponsor` prints, and nothing else. `SponsorCard` in
+       * `apps/web/src/lib/data.ts` carries name, tier, website and logo, and
+       * `sponsor-tiers.tsx` renders the logo — or the company's name in its
+       * place — inside a link to the website. `boothLocation` and
+       * `contactEmail` were counted here too, so three of the four problems
+       * this screen reported were about fields no visitor can see, and the
+       * booth was not even the field the floor plan reads: `booths` is the
+       * truth about a space, and sponsors are not in the hall at all.
+       */
       problems: [
-        ...nonEmpty('no logo', sponsors.filter((s) => !s.logoURL).length),
+        ...nonEmpty(
+          'no logo',
+          sponsors.filter((s) => !sponsorLogoRenders(s.name, s.logoURL)).length,
+        ),
         ...nonEmpty('no website link', sponsors.filter((s) => !s.website).length),
-        ...nonEmpty('no booth assigned', sponsors.filter((s) => !s.boothLocation).length),
-        ...nonEmpty('no main contact', sponsors.filter((s) => !s.contactEmail).length),
       ],
     },
   };

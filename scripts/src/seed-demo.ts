@@ -123,6 +123,16 @@ async function main() {
     push(COLLECTIONS.speakers, speakerIds[i], {
       ...base(), name: s.name, title: s.title, company: s.company, bio: s.bio, sessionIds: [],
       contactEmail: speakerEmail,
+      /*
+       * These two are what let the public `/speakers` page render from this
+       * collection without changing shape. `displayOrder` holds the roster
+       * order so the page is stable between seeds, and `featured` marks the
+       * five that fill the "Our First Speakers" block above the grid. Both are
+       * editable in Speaker Manager afterwards; the seed only sets a starting
+       * arrangement.
+       */
+      displayOrder: s.displayOrder,
+      ...(s.featured ? { featured: true } : {}),
     });
   });
 

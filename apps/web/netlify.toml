@@ -19,6 +19,21 @@
   # defaults to a newer Node than Expo SDK 54's tooling is tested with.
   NODE_VERSION = "22"
 
+  # The origin this site serves from, and the one thing a deploy must not be
+  # allowed to forget. It is the canonical `@id` and `url` of the
+  # `schema.org/Event` block and the base of every Open Graph image URL — the
+  # formats crawlers republish — so an unset value is not a cosmetic bug, it is
+  # structured data naming a host that is not this one. It is written here
+  # rather than left to somebody remembering the Netlify UI.
+  #
+  # ⚠️ This is a *build* variable. Netlify does not pass `[build.environment]`
+  # through to Functions, so the routes rendered per request read the site's own
+  # environment variable instead — set `WEB_PUBLIC_ORIGIN` in the Netlify UI to
+  # the same value (DEPLOY-NETLIFY.md lists it). `publicSiteOrigin()` in
+  # `@kgc/shared` defaults to production if both are missing, which is the
+  # recoverable failure; localhost was not.
+  WEB_PUBLIC_ORIGIN = "https://kgc-2027-website.netlify.app"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

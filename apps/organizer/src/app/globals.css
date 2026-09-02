@@ -190,18 +190,6 @@ a {
   margin-left: 1px;
 }
 
-#main-header .header-search {
-  background: var(--page-bg);
-  border: 1px solid #d2d6de;
-  border-radius: 0;
-  color: var(--body);
-  font-family: var(--font);
-  font-size: 13px;
-  height: 34px;
-  padding: 0 10px;
-  width: 220px;
-}
-
 #main-header .header-links {
   align-items: center;
   display: flex;
@@ -310,6 +298,69 @@ a {
 
 #top-event-name .event-title {
   margin-bottom: 2px;
+}
+
+/*
+ * The feature search sits in the navy bar, after Sign out — the last element
+ * in the header and hard against its right edge.
+ *
+ * It has been in three places. Whova puts theirs beside the logo; it spent a
+ * version in the white event band; this is where the owner settled. Three
+ * things about the arrangement are load-bearing, and all three have already
+ * been got wrong once:
+ *
+ *   - **It is a sibling of `.header-links`, never a child.** That rule sets
+ *     `color: #fff` and `line-height: 50px` on its descendant links. Nesting
+ *     the component inside it gave every dropdown row white text on a white
+ *     menu in 50px rows: the menu opened, the results were there, and the box
+ *     looked like it was returning blank lines. Nothing below is scoped to
+ *     `#main-header` either, so the styles travel if it ever moves again.
+ *   - **`margin-left: auto` belongs to `.header-links`, not here.** Two auto
+ *     margins in one flex row split the free space between them and strand the
+ *     search in the middle of the bar.
+ *   - **The dropdown opens leftwards** (`.whova-menu.align-end`). Anchored at
+ *     the right edge of the viewport, a left-anchored menu would run off it.
+ */
+.feature-search {
+  margin-left: 6px;
+  position: relative;
+}
+
+.feature-search-input {
+  background: #fff;
+  border: 1px solid #d2d6de;
+  border-radius: 3px;
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 13px;
+  height: 34px;
+  padding: 0 26px 0 10px;
+  width: 240px;
+}
+
+.feature-search-input:focus {
+  border-color: #2180b2;
+  outline: none;
+}
+
+.feature-search-key {
+  border: 1px solid #c8ccd6;
+  border-radius: 3px;
+  color: #8a90a0;
+  font-size: 11px;
+  line-height: 15px;
+  padding: 0 5px;
+  pointer-events: none;
+  position: absolute;
+  right: 7px;
+  top: 9px;
+}
+
+.feature-search-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 7px 12px;
 }
 
 #top-event-name .event-title .event-name {

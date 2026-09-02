@@ -65,23 +65,12 @@ export function Snippet({
 }
 
 /**
- * Where a public link points.
- *
- * Read from the same env var `invoice-admin.ts` uses to mint `/order/{token}`
- * links, with the same production default, so a snippet copied off this screen
- * and a confirmation email sent by this dashboard cannot disagree about which
- * host the event lives on.
- */
-export function publicOrigin(): string {
-  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
-}
-
-/**
  * The event's dates, counted rather than typed.
  *
  * `apps/web/src/lib/site.ts` holds `datesLong: '3–7 May 2027'` as a
- * presentation string, and this app cannot import it — the two websites are not
- * workspace members and neither may import the other. Copying the string here
+ * presentation string, and this app cannot import that file — the two websites
+ * are separate installs, and only what lives in `@kgc/shared` crosses between
+ * them, which a date typed for one page's headline should not. Copying it here
  * would put a hand-maintained date in an email template, which is the one place
  * a stale date does real damage. So it comes from the programme: the first and
  * last `day` on a published session are what the attendee is actually being
@@ -115,24 +104,15 @@ export async function eventWindow(): Promise<string | null> {
   return `${fmt(first, { day: 'numeric', month: 'long' })} – ${fmt(last, { day: 'numeric', month: 'long', year: 'numeric' })}`;
 }
 
-/**
- * How an attendee actually gets the app, in one sentence.
- *
- * This is a second copy of `APP_DISTRIBUTION` from `apps/web/src/lib/site.ts`,
- * and it is a copy on purpose: the confirmation page prints that constant on
- * the one page every buyer reads, this dashboard writes the emails that say the
- * same thing, and the import boundary between the two apps cannot be crossed.
- * Two copies of a sentence is the cheapest of the available wrongs.
- *
- * **The claim it makes is the load-bearing part.** The app runs in Expo Go and
- * TestFlight; it is on neither public store. Every snippet on these screens
- * therefore carries an install-link placeholder rather than a store badge —
- * sending a thousand ticket holders to search an app store for "KGC" is sending
- * them to an empty result on the one day they were willing to install anything.
- * Change both copies on the day the app is listed, and not before.
+/*
+ * `publicOrigin()` and `APP_DISTRIBUTION_SENTENCE` were declared here — a
+ * fourth copy of the origin resolver and a third of the app-distribution
+ * sentence, the latter under a comment explaining that the import boundary
+ * between the two apps could not be crossed. It could: both apps depend on
+ * `@kgc/shared`, where `publicSiteOrigin()` and `APP_DISTRIBUTION` now live,
+ * and the sibling file that stated the same two things sat next to this one.
+ * Import them from there.
  */
-export const APP_DISTRIBUTION_SENTENCE =
-  'We will send you an install link before the conference. The app is not on the public app stores yet.';
 
 /** The placeholder every snippet uses for the link nobody can generate yet. */
 export const INSTALL_LINK_PLACEHOLDER = '{{install link}}';

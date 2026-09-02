@@ -17,6 +17,19 @@ export const dynamic = 'force-dynamic';
  * with a line per seat, and fulfilment happens on `invoice.paid` — never when
  * the invoice is raised.
  *
+ * ── The card path takes a group too, as of 2026-08-31 ───────────────────────
+ *
+ * The Checkout session used to build one line item with `quantity: 1`, so three
+ * colleagues on one card were three separate purchases. `/tickets` now asks for
+ * a quantity and then for a name, an address and a ticket type per seat, and
+ * groups them into Stripe line items with real quantities. The order it writes
+ * is the *same shape* an invoice writes — one order, one `OrderLine` per seat —
+ * which is why the table below counts both without knowing the difference.
+ *
+ * The reason a quantity had to bring a form with it is worth keeping: a
+ * registration is keyed by email address, so three seats need three addresses
+ * or the buyer pays three times for one badge.
+ *
  * ── The one invariant worth repeating on this screen ────────────────────────
  *
  * An invoice is **one order with several `items`**, not one order per seat. Any
@@ -31,17 +44,30 @@ export default async function CreateGroupTicketsPage() {
   await requireOrganizer();
   const orders = await listOrders();
 
-  const groups = orders.filter((o) => o.channel === 'invoice');
+  /**
+   * A group order is either an invoice or a card purchase with more than one
+   * seat on it — the second half is new, and the screen would have been quietly
+   * wrong without it: multi-seat card checkout writes `channel: 'checkout'`,
+   * so filtering on the channel alone would have shown four colleagues on one
+   * card as no group order at all.
+   */
+  const groups = orders.filter((o) => o.channel === 'invoice' || o.seatCount > 1);
   const seats = groups.reduce((n, o) => n + o.seatCount, 0);
   const paid = groups.filter((o) => o.status === 'paid');
-  const unpaid = groups.filter((o) => o.status === 'pending');
+  /**
+   * Outstanding money, which is an invoice thing and not a card thing. A
+   * `pending` card order is an abandoned cart — nobody owes anything on it and
+   * counting it here would inflate what finance is chasing. Abandoned
+   * Registration is the screen that wants those.
+   */
+  const unpaid = groups.filter((o) => o.status === 'pending' && o.channel === 'invoice');
   const currency = groups[0]?.currency ?? 'usd';
 
   return (
     <>
       <PageHeader
         title="Create Group Tickets"
-        tags={<Tag color="green" fill="outline">Invoicing is live</Tag>}
+        tags={<Tag color="green" fill="outline">Invoice and card groups are live</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
             Create Tickets
@@ -57,9 +83,9 @@ export default async function CreateGroupTicketsPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Group orders', value: groups.length, sub: 'invoiced, all statuses' },
-          { label: 'Seats on them', value: seats, sub: 'one line item each' },
-          { label: 'Paid', value: paid.length, sub: 'fulfilled on invoice.paid' },
+          { label: 'Group orders', value: groups.length, sub: 'invoiced or multi-seat, all statuses' },
+          { label: 'Seats on them', value: seats, sub: 'one order line each' },
+          { label: 'Paid', value: paid.length, sub: 'fulfilled on payment' },
           {
             label: 'Awaiting payment',
             value: money(
@@ -101,14 +127,25 @@ export default async function CreateGroupTicketsPage() {
               ) : null}
             </span>,
           ])}
-          empty="No group registrations yet. They arrive through the invoice form on the website."
+          empty="No group registrations yet. They arrive through the invoice form and through multi-seat checkout on the website."
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          The form buyers use is <code>/tickets/invoice</code> on the marketing site (<code>apps/web</code>,
-          port 3200), not a screen in this dashboard. Seats come from <code>items</code> on the order document, not from a count of orders — an
-          invoice for six people is one row here and six registrations at the door.
+          Both forms buyers use are on the marketing site (<code>apps/web</code>, port 3200), not in
+          this dashboard: <code>/tickets/invoice</code> for a PO and net terms,{' '}
+          <code>/tickets</code> for a card. Seats come from <code>items</code> on the order
+          document, not from a count of orders — six people are one row here and six registrations
+          at the door.
         </p>
       </Panel>
+
+      <Banner kind="info">
+        <strong>Multi-seat card checkout is live.</strong> <code>/tickets</code> asks how many
+        tickets and then asks for a name, an address and a ticket type per seat — the same three
+        fields the invoice form has always posted, read by the same parser. Seats sharing a tier
+        become one Stripe line item with a real quantity, so three colleagues on one card are one
+        payment and one order with three <code>items</code>, and a booth plus two extra passes is
+        one purchase rather than three. Ten seats a card; past that, the invoice form.
+      </Banner>
 
       <Banner kind="info">
         <strong>Group discounts are Stripe promotion codes today.</strong> Checkout has{' '}
@@ -130,13 +167,7 @@ export default async function CreateGroupTicketsPage() {
           <li>
             <strong>No group organizer portal.</strong> The buyer cannot come back later to fill in
             a seat they left blank or swap a colleague — the seat list is fixed when the invoice is
-            raised, and a change is an email to the organizers.
-          </li>
-          <li>
-            <strong>No multi-seat card checkout.</strong> The Checkout session hard-codes{' '}
-            <code>quantity: 1</code>. Someone buying three tickets on one card buys three times,
-            which is honest but clumsy; multi-quantity would need per-seat attendee details
-            collected somewhere Checkout does not collect them.
+            raised or the card is charged, and a change is an email to the organizers.
           </li>
           <li>
             <strong>Creating the invoice from here.</strong> It is raised from the public form. A

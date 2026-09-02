@@ -14,9 +14,17 @@ export const dynamic = 'force-dynamic';
  * ── There is no add-on model, and for exhibitors that matters less ─────────
  *
  * `ticket-add-ons` on the attendee side sets out why: nothing in the data model
- * is purchasable except a ticket type, the Checkout session builds exactly one
- * line item, and a real add-on needs its own capacity and its own entitlement
- * written at fulfilment. All of that is still true.
+ * is purchasable except a ticket type, and a real add-on needs its own capacity
+ * and its own entitlement written at fulfilment. Both are still true.
+ *
+ * One third of it is not, as of 2026-08-31: the Checkout session no longer
+ * builds a single line item. It groups the seats on a purchase by tier and
+ * gives each group a real Stripe quantity, so **a booth and two extra passes
+ * are one purchase**, priced as two line items. What it cannot do is sell
+ * something to a person who already holds a ticket — a registration is keyed by
+ * email and carries one `ticketType`, so every seat on a purchase has to be a
+ * different person. For exhibitor extras that is exactly right, because an
+ * extra pass *is* a person.
  *
  * What is different here is that **an exhibitor add-on is usually just a
  * cheaper package**. An extra staff pass, a power upgrade, a furniture bundle:
@@ -235,14 +243,18 @@ export default async function ExhibitorAddOnsPage() {
         />
       </Panel>
 
+      <Banner kind="info">
+        <strong>A package and its extras are one purchase now.</strong> <code>/tickets/exhibitor</code>{' '}
+        asks how many passes and then takes a name, an address and a ticket type per seat; seats
+        sharing a tier become one Stripe line item with a real quantity. A booth and two extra
+        passes are one payment and one order with three <code>items</code> — where they used to be
+        three separate checkouts. Each extra pass still needs its own attendee address, because a
+        registration is keyed on one.
+      </Banner>
+
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>An extra cannot be bought <em>with</em> a package.</strong> The Checkout session
-            builds one line item with <code>quantity: 1</code>, so buying a booth and two extra
-            passes is three separate purchases. Workable, and visibly clumsy.
-          </li>
           <li>
             <strong>Nothing links a pass purchase to an exhibitor.</strong> Buying an extra pass
             produces an attendee registration and does not raise{' '}

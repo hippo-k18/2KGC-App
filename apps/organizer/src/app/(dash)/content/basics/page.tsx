@@ -61,6 +61,9 @@ export default async function BasicsPage() {
           <Link key="c" href="/content">
             Content
           </Link>,
+          <Link key="w" href="/content/basics/website-copy">
+            Website Copy
+          </Link>,
           <span key="t" className="muted">
             {targetDescription()}
           </span>,
@@ -72,7 +75,10 @@ export default async function BasicsPage() {
           <strong>Read-only.</strong> These values are compile-time constants in{' '}
           <code>packages/shared/src/event.ts</code>, shared by the app, the seed and the importer so
           they cannot drift. Changing the timezone here would invalidate the derived{' '}
-          <code>day</code> on every session — a migration, not a text input.
+          <code>day</code> on every session — a migration, not a text input. The public copy that{' '}
+          <em>does</em> change between editions — the code of conduct&rsquo;s reporting route, the
+          call deadlines — is editable at{' '}
+          <Link href="/content/basics/website-copy">Website Copy</Link>.
         </Banner>
 
         <Row label="Event Name">{EVENT.name}</Row>

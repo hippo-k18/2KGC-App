@@ -305,11 +305,21 @@ export default async function CreateTicketsPage({
         </p>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
           <li>
-            <strong>Add-ons are not a product.</strong> The Checkout session builds exactly
-            one line item with <code>quantity: 1</code>, so a dinner and a workshop day
-            cannot be bought alongside a ticket — they have to be a tier per combination,
-            which is a combinatorial price list. This is the largest remaining gap in
-            ticketing and it changes the shape of the purchase path, not just this form.
+            <strong>An add-on is still not a product — but a second ticket is.</strong>{' '}
+            The Checkout session no longer builds one line item with{' '}
+            <code>quantity: 1</code>. It groups the seats on a purchase by tier and gives
+            each group a real Stripe quantity, so several tiers go on one payment and any
+            of them can be bought more than once. The combinatorial price list is gone:
+            a workshop day sold beside a conference ticket is two line items, not a
+            &ldquo;conference + workshop&rdquo; tier.
+            <br />
+            What that does <em>not</em> reach is an extra bought for somebody who already
+            holds a ticket — a dinner place, a t-shirt.{' '}
+            <code>RegistrationDoc.ticketType</code> is a single string and a registration
+            is keyed by email, so a second tier bought against the same address renames
+            their ticket rather than adding to it. Every seat on a purchase has to be a
+            different person. Selling a genuine add-on needs a purchasable thing that is
+            not a seat, which <code>TicketTypeDoc</code> does not model.
           </li>
           <li>
             <strong>No min or max per order, no fee model, no refund policy field.</strong>{' '}

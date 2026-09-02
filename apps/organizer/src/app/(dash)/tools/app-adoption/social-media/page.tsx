@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
 import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
-import { siteOrigin } from '../adoption-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function SocialMediaPage() {
   await requireOrganizer();
   const a = await eventAnalytics();
-  const origin = siteOrigin();
+  const origin = publicSiteOrigin();
 
   const posts = [
     {

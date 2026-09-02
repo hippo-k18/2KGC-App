@@ -155,8 +155,16 @@ export function requirePassphrase(): boolean {
  * the same weak passphrase starts refusing every sign-in, without anyone having
  * to remember to tighten it. The dangerous configuration becomes unreachable by
  * accident rather than merely discouraged.
+ *
+ * ⚠️ **Lowered from 12 to 7 on 2026-08-31 at the owner's request**, so that
+ * `kgc2027` is accepted against the live project. The guard still exists — it
+ * still refuses `123` — but at seven characters it no longer stands in for MFA
+ * in the way the paragraph above describes. What now carries the boundary is
+ * the allowlist being one address and the dashboard URL being unadvertised.
+ * Raise this again, and rotate the secret, before the event runs on real
+ * attendees. `DEPLOY-NETLIFY.md` records the same warning next to the deploy.
  */
-const MIN_LIVE_PASSPHRASE = 12;
+const MIN_LIVE_PASSPHRASE = 7;
 
 /** True when this process holds a credential that can read the real project. */
 export function hasLiveCredentials(): boolean {

@@ -114,10 +114,40 @@ Five capabilities remain genuinely absent, and the screens that need them now
 | Blocker | Screens behind it | Status |
 |---|---:|---|
 | **1. An email sender** | ~14 | ✅ **Unblocked, and spent** |
-| **2. Cloud Functions** | ~8 | ⚠️ **10 functions written, 32 tests green, not deployed** — Blaze |
-| **3. File upload + image pipeline** | ~6 | ❌ Storage rules exist, nothing writes through them |
+| **2. Cloud Functions** | ~8 | ⚠️ **14 functions written, 55 tests green, not deployed** — one IAM role |
+| **3. File upload + image pipeline** | ~6 | ⚠️ **Pipeline built and tested; the bucket does not exist** |
 | **4. A generic entity CRUD + importer** | ~0 | ✅ **Done** — export registry and CSV importer both exist |
 | **5. Streaming infrastructure** | ~15 | ❌ And argued as a candidate to cut |
+
+★ **Re-measured 2026-08-31, after Blaze was enabled — and neither of the two
+open blockers is what this file said it was.**
+
+**Blocker 2 is one IAM grant, not a billing plan.** Blaze is on, and enabling it
+turned on every API a v2 deploy needs: `serviceusage.services.list` reports 51
+enabled services including `cloudfunctions`, `cloudbuild`, `artifactregistry`,
+`eventarc`, `run`, `cloudtasks` and `pubsub`. `firebase deploy --only functions`
+now gets *past* the pre-flight that used to stop it and fails on exactly one
+thing — `iam.serviceAccounts.ActAs` on
+`kgc-conference-app-and-website@appspot.gserviceaccount.com`. The signed-in
+account holds `roles/firebase.admin`, which does not carry that permission, and
+the Admin SDK service account does not either. Only `roles/owner` can grant it,
+and the owner is `francois@knowledgegraph.tech`. The counts above were also
+stale: it is **14 functions and 55 tests**, verified by running the suite, not 10
+and 32. `OWNER-ACTIONS.md` §3 carries the exact grant to ask for.
+
+**Blocker 3 is a disabled API, not missing code.** `lib/uploads.ts` (335 lines),
+`components/image-field.tsx` (309 lines), `lib/upload-limits.ts` and
+`lib/images.ts` are written, and `storage.rules` exists. What is absent is the
+bucket — and one layer earlier than that, `firebasestorage.googleapis.com` is
+**not enabled** on the project, so the bucket cannot be created until it is.
+`storage.googleapis.com` and its two siblings *are* enabled, which is why this
+reads as a bucket problem rather than an API problem. Enabling it needs
+`serviceusage.services.enable`, which is again the owner's click. See
+`OWNER-ACTIONS.md` §1 and §3b.
+
+The practical consequence: **both remaining infrastructure blockers are now a
+single person's console session, not engineering work.** Nothing in this
+repository stands between the code and either capability.
 
 ★ **Blocker 4 has fallen**, which was the highest-leverage item on this page for
 months. The CSV importer, the export registry and the per-audience screen
@@ -217,8 +247,18 @@ money — Blaze's free quotas equal Spark's.
 
 This is where the *website* half of parity lives. Whova's
 `marketing/event-webpages/*` generates public pages from event data. Ours are
-mostly hand-written React files — **5 of 21 pages already read Firestore**, and
-the sixteen that do not are the prose ones.
+no longer mostly hand-written React files — **18 of the 27 routes under
+`apps/web/src/app` read Firestore**: 14 import a reader directly and four more
+get there through a shared component or lib helper (`/tickets/exhibitor` and
+`/tickets/sponsor` via `audience-page.tsx`, `/consent/{token}`, `/u/{token}`).
+The nine that do not are the prose and history pages — `/about`, `/team`,
+`/learn`, `/hcls`, `/community`, `/previous-events`, the awards page and the
+blog — and most of those are layout rather than text.
+
+⚠️ This paragraph said "5 of 21" until 2026-09-01 and was wrong in the
+*pessimistic* direction, which is the expensive kind: it describes work as
+outstanding that somebody has already done, and the next person does it again.
+Every bullet below was re-checked against the code on the same day.
 
 - ✅ **Agenda and sponsor webpages are already Firestore-driven** — `/agenda`
   calls `listAgenda()` and `/sponsor` calls `listSponsorsByTier()`. Verified
@@ -226,12 +266,30 @@ the sixteen that do not are the prose ones.
 - The **speakers page is deliberately not** driven from Firestore, and this is
   not a gap to close. `listSpeakers()` exists and works; `/speakers` ignores it
   on purpose, because the seeded `speakers` collection holds invented names and
-  the page is public. It renders the real KGC 2026 roster instead, and says so.
+  the page is public. It renders the real KGC 2026 roster instead. ⚠️ It does **not** say so — this line claimed a disclosure that was never built, and the page's own nav link is labelled "2027 Speakers". Naming the year on the page is still outstanding.
   The day a real 2027 programme exists in Firestore, swapping the import is the
   whole change — see the docblock in `apps/web/src/app/speakers/page.tsx`.
-- Exhibitor webpage from Firestore — still to do
-- Prose pages from a CMS: code of conduct, CFP, team, about
-- Branding centre (colours, logo, banner) — needs **blocker 3**
+- ✅ **Exhibitor webpage — done.** `/exhibitors` calls `listExhibitorsByZone()`
+  and is `force-dynamic`, so an exhibitor confirmed on Tuesday is on the page on
+  Tuesday. This bullet said "still to do", and the exhibitor row in
+  `docs/audit-2026-08-30/E-linkage.md` still repeats that claim.
+- Prose pages from a CMS: **code of conduct and both call pages are done** —
+  `/code-of-conduct`, `/call-for-posters` and `/startup-pitch` call
+  `pageContent()`, and Content › Basics › Website Copy is the editor that writes
+  it. What is left is `/team` and `/about`, and `page-content.ts` argues neither
+  should move: they are layout and history, not copy that goes stale.
+- **Branding centre — the read path exists and this bullet did not say so.**
+  `settings/branding` is written by the Branding Center and read on the website
+  by `brandingSettings()` — the root layout (`layout.tsx:36,103`), the homepage,
+  `/agenda` and the branded-slug route — through the Admin SDK, which bypasses
+  rules, so no rule and no deploy stands between a saved value and a rendered
+  one. `tagline` and `supportEmail` are `live` in `SETTINGS_REGISTER`; the two
+  colours are `recorded` and reach nothing, which is a decision rather than a
+  gap (build-time in the app, authored CSS on the website). **Blocker 3 gates
+  the artwork only** — a logo or a banner is a file, and the Storage API is
+  still disabled. The *app* honouring any of this is a separate question:
+  `firestore.rules` names `logistics` and only `logistics` on the client read
+  path.
 - Social wall, social media centre
 
 ### Phase 6 — the long tail

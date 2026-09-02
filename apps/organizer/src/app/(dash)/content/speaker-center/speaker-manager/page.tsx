@@ -73,6 +73,8 @@ export default async function SpeakerManagerPage({
         website: doc.social?.website,
         userId: doc.userId,
         sessionCount: doc.sessionIds?.length ?? 0,
+        featured: doc.featured,
+        displayOrder: doc.displayOrder,
       }
     : undefined;
   const showForm = creating || Boolean(editing);

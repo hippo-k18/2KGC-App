@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { TicketAudience } from '@kgc/shared';
+import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { Banner, EmptyState, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
@@ -73,8 +73,9 @@ export async function AudienceCatalogue({
   ).length;
 
   // The dashboard and the website are separate deployments that share only a
-  // database, so the dashboard cannot derive the site's origin — it is told.
-  const publicOrigin = (process.env.WEB_PUBLIC_ORIGIN ?? 'http://localhost:3200').replace(/\/$/, '');
+  // database, so the dashboard cannot derive the site's origin — it is told,
+  // through the one resolver in `@kgc/shared` that every link here goes through.
+  const publicOrigin = publicSiteOrigin();
 
   return (
     <>

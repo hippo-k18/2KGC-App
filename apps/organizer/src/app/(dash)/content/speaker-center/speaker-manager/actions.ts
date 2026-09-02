@@ -109,11 +109,25 @@ export async function saveSpeakerAction(
   const company = String(formData.get('company') ?? '').trim();
   const bio = String(formData.get('bio') ?? '').trim();
   const contactEmail = String(formData.get('contactEmail') ?? '').trim();
+  const featured = String(formData.get('featured') ?? '') === '1';
+
+  /*
+   * Position is optional and an empty box means "no editorial position", not
+   * zero. `Number('')` is 0, which would silently promote every speaker whose
+   * box was left blank to the top of the public roster — so the emptiness is
+   * tested before the number is parsed, and a non-numeric value is rejected
+   * rather than coerced.
+   */
+  const orderRaw = String(formData.get('displayOrder') ?? '').trim();
+  const displayOrder = orderRaw === '' ? null : Number(orderRaw);
 
   const fieldErrors: Record<string, string> = {};
   if (name.length < 2) fieldErrors.name = 'Enter the speaker’s name as it should appear on the agenda.';
   if (contactEmail && !EMAIL.test(contactEmail)) {
     fieldErrors.contactEmail = 'That email address is not valid.';
+  }
+  if (displayOrder !== null && (!Number.isInteger(displayOrder) || displayOrder < 0)) {
+    fieldErrors.displayOrder = 'Position must be a whole number, 0 or greater. Leave it empty for no set position.';
   }
 
   /**
@@ -210,6 +224,14 @@ export async function saveSpeakerAction(
           bio: bio || FieldValue.delete(),
           contactEmail: contactEmail || FieldValue.delete(),
           social: anySocial ? social : FieldValue.delete(),
+          /*
+            Both are deletes rather than falsy values, for the reason above.
+            `featured: false` and `displayOrder: 0` are meaningful states — off
+            the highlight block, and first in the roster — so "not set" has to
+            be the absence of the key, not a value that happens to be falsy.
+          */
+          featured: featured ? true : FieldValue.delete(),
+          displayOrder: displayOrder === null ? FieldValue.delete() : displayOrder,
           ...(photoURL === undefined ? {} : { photoURL }),
           // Never on an update — see the header. `userId` is absent for the
           // same reason and deliberately does not appear in this object at all.

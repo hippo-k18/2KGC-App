@@ -63,5 +63,23 @@ service firebase.storage {
       allow read: if signedIn();
       allow write: if false;
     }
+
+    // Speaker portraits — `speakers/{id}/photo.{ext}`, the third folder
+    // `uploads.ts` actually writes to (see `speaker-manager/actions.ts`).
+    //
+    // ⚠️ Added 2026-08-31, immediately before this file was first published.
+    // The other two upload folders had blocks and this one did not, so a client
+    // SDK fetch of a speaker portrait *by path* was denied by the default while
+    // the identical fetch for a sponsor logo succeeded. Nothing had noticed,
+    // because every render goes through the download-token URL, which does not
+    // evaluate this file at all — which is exactly how an inconsistency like
+    // this survives until the day something does read by path.
+    //
+    // Same posture as sponsors and exhibitors: a portrait is as public as the
+    // programme it appears in, and the only writer is the Admin SDK.
+    match /speakers/{speakerId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
   }
 }

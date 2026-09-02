@@ -7,8 +7,10 @@ import {
   EVENT_ID,
   type CampaignLinkDoc,
   type ContactDoc,
+  type EmailLogDoc,
 } from '@kgc/shared';
 import { appendAudit } from './audit';
+import { campaignSkipRows, partitionAudience, suppressionReasonFor, type Excluded } from './campaigns-core';
 import { listOrders, type OrderRow } from './commerce';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -37,6 +39,25 @@ import { db } from './firestore';
  * the count of removals is returned so the screen can print it. A send that
  * quietly reaches 800 of 1,000 while reporting success is the worst available
  * outcome; a send that reaches 800 and says why is fine.
+ *
+ * The rule itself lives in `campaigns-core.ts`, which carries no `server-only`
+ * and is therefore the half of this that has tests. Everything here that is not
+ * a Firestore call delegates to it.
+ *
+ * ── A suppression now leaves a record, not just a number ────────────────────
+ *
+ * ⚠️ Exclusion used to be invisible after the fact: the audience was filtered,
+ * a count was printed once in a flash message, and nothing survived. That made
+ * "we did not email anyone who opted out" an assertion rather than something
+ * anybody could check — and it is the claim that has to hold up when a
+ * deliverability investigation or a regulator asks. So
+ * `recordSuppressedRecipients()` writes one `skipped` row to `emailLog` per
+ * excluded contact, beside the `sent` and `failed` rows of the same campaign.
+ *
+ * The log already had the shape for it: `status: 'skipped'` with a `reason` is
+ * what a send with no `RESEND_API_KEY` writes, `listCampaigns()` already counts
+ * skipped rows, and the Email Campaign screen already renders that count. None
+ * of that needed a new field — it needed a writer.
  */
 
 /** Same derivation `registrations` uses, so the same person maps to one document. */
@@ -129,7 +150,7 @@ export function summariseContacts(contacts: ContactRow[]): ContactSummary {
 
 /** The suppression check, in one place so no caller can forget half of it. */
 export function mailable(c: ContactRow): boolean {
-  return !c.unsubscribedAt && !c.bouncedAt;
+  return suppressionReasonFor(c) === null;
 }
 
 /**
@@ -138,14 +159,20 @@ export function mailable(c: ContactRow): boolean {
  * Returns the suppressed count separately rather than folding it into the list,
  * because the screen has to say "1,000 on this list, 62 suppressed, 938 will
  * receive this" — three numbers, not one.
+ *
+ * `excluded` carries the same people as rows with a reason attached, which is
+ * what `recordSuppressedRecipients()` needs and what `suppressed` cannot give
+ * it. Both are returned rather than one derived from the other at every call
+ * site: the two screens want the number and only the send wants the rows, and a
+ * caller that only ever reads `.length` should not have to know that.
  */
 export function audienceFor(
   contacts: ContactRow[],
   list: string,
-): { recipients: ContactRow[]; suppressed: number } {
+): { recipients: ContactRow[]; suppressed: number; excluded: Excluded<ContactRow>[] } {
   const onList = list === '*' ? contacts : contacts.filter((c) => c.lists.includes(list));
-  const recipients = onList.filter(mailable);
-  return { recipients, suppressed: onList.length - recipients.length };
+  const { recipients, excluded } = partitionAudience(onList);
+  return { recipients, suppressed: excluded.length, excluded };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +315,100 @@ export async function setContactSubscribed(input: {
     recordError('campaigns.setSubscribed', err);
     return { ok: false, error: err instanceof Error ? err.message : 'Could not update the contact.' };
   }
+}
+
+/**
+ * Write one `skipped` row to `emailLog` for every contact a send excluded.
+ *
+ * ── Why the exclusions belong in the same log as the sends ──────────────────
+ *
+ * `emailLog` is the answer to "did Ada get it?". Before this, a campaign of
+ * 1,000 wrote 938 rows and the other 62 people simply were not in the record —
+ * so the log said "938 sent" and there was nothing anywhere to distinguish
+ * "Ada unsubscribed in March" from "Ada was never on the list" from "the send
+ * silently dropped her". Those are three very different bugs and one of them is
+ * not a bug at all.
+ *
+ * Grouping them under the same `campaignId` is what makes the arithmetic close:
+ * `listCampaigns()` sums sent + failed + skipped, and the total now equals the
+ * size of the list rather than the size of the audience. A count that does not
+ * reconcile is a count nobody trusts.
+ *
+ * ── This must never fail the send ───────────────────────────────────────────
+ *
+ * ⚠️ Same rule as `email.ts`: the log is the diagnostic, not the product. A
+ * campaign that reached 938 people and then threw while recording why the other
+ * 62 did not would report failure for a send that already happened, and the
+ * organizer's next move is to send it again. So every error is swallowed and
+ * reported on stdout.
+ *
+ * ── Why two counts come back rather than one ────────────────────────────────
+ *
+ * `attempted` is how many rows this decided to write and `written` is how many
+ * survived; the caller compares them to decide whether to admit the log is
+ * incomplete. Returning only `written` and letting the caller compare it to its
+ * own `suppressed` count would raise a false alarm the day `campaignSkipRows`
+ * collapses a duplicate address — a de-duplication is not a write failure, and
+ * a screen that cried "the log is incomplete" over one would train an organizer
+ * to ignore the message that matters.
+ *
+ * ── Batched, and uncapped on purpose ────────────────────────────────────────
+ *
+ * A batch commits at most 500 writes, so this chunks. It does *not* cap the
+ * total the way `MAX_RECIPIENTS` caps a send, because the two limits guard
+ * different things: the send cap exists because mailing 5,000 people by
+ * accident is unrecoverable, while writing 5,000 log rows is a fraction of a
+ * cent and entirely recoverable. Truncating the record of who was excluded
+ * would reintroduce the exact gap this function was written to close.
+ *
+ * `Timestamp.now()` rather than a native `Date` is safe here and is not safe in
+ * `@kgc/scripts` — this module and `db()` resolve the same `firebase-admin`
+ * copy, which is the whole of gotcha 8.
+ */
+export async function recordSuppressedRecipients(input: {
+  campaignId: string;
+  subject: string;
+  actor: string;
+  excluded: Excluded<ContactRow>[];
+}): Promise<{ attempted: number; written: number }> {
+  const rows = campaignSkipRows(input.excluded);
+  if (rows.length === 0) return { attempted: 0, written: 0 };
+
+  const store = db();
+  const col = store.collection(COLLECTIONS.emailLog);
+  let written = 0;
+
+  for (let i = 0; i < rows.length; i += 400) {
+    const chunk = rows.slice(i, i + 400);
+    try {
+      const batch = store.batch();
+      for (const r of chunk) {
+        const entry: EmailLogDoc = {
+          eventId: EVENT_ID,
+          to: r.to,
+          // The same template as the sends it sits beside. A skipped row that
+          // claimed a different template would drop out of `listCampaigns()`,
+          // which filters on `bulk-message`, and the exclusions would be
+          // invisible again by a different route.
+          template: 'bulk-message',
+          subject: input.subject,
+          status: 'skipped',
+          reason: r.reason,
+          campaignId: input.campaignId,
+          actor: input.actor,
+          at: Timestamp.now(),
+        };
+        batch.set(col.doc(), entry);
+      }
+      await batch.commit();
+      written += chunk.length;
+    } catch (err) {
+      // One failed chunk must not lose the chunks that would have followed it.
+      recordError('campaigns.recordSuppressedRecipients', err);
+    }
+  }
+
+  return { attempted: rows.length, written };
 }
 
 // ---------------------------------------------------------------------------

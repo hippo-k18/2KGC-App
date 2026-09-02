@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS } from '@kgc/shared';
+import { COLLECTIONS, publicSiteOrigin } from '@kgc/shared';
 import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
 import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
@@ -103,10 +103,7 @@ export async function markInvoicePaidOutOfBand(input: {
    * so one bad address cannot stop the rest of a company's delegates being
    * told. The registrations already exist either way.
    */
-  const origin = (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(
-    /\/$/,
-    '',
-  );
+  const origin = publicSiteOrigin();
 
   for (const m of minted) {
     await sendPurchaseConfirmation(db(), {

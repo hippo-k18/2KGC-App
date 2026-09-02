@@ -5,6 +5,7 @@ import {
   EVENT_ID,
   SETTINGS_DEFAULTS,
   SETTINGS_KEYS,
+  usable,
   type SettingsKey,
   type SettingsValues,
 } from '@kgc/shared';
@@ -86,31 +87,13 @@ export async function readSettings<K extends SettingsKey>(key: K): Promise<Setti
   }
 }
 
-/**
- * Keep only stored fields whose type matches the default's.
- *
- * Not defensive programming for its own sake — it discards three things that
- * are genuinely in these documents:
- *
- *   · `null`, written by every save before the contract landed. Spread straight
- *     over the defaults it replaces `''` with `null`, which is how a template
- *     string ends up printing "null" on a page.
- *   · a field whose type changed shape between deploys.
- *
- * The alternative — trusting the document — makes the type signature a claim
- * about data written by an older version of this file, which it cannot be.
+/*
+ * `usable()` was declared here and, identically, in `apps/web/src/lib/data.ts`,
+ * both guarding the same defect — a `null` written by an older save spreading
+ * over a default and turning `''` into the string "null" on a page — and both
+ * justified by the claim that the two apps cannot import each other. They can:
+ * both depend on `@kgc/shared`, which is where it lives now.
  */
-function usable<T extends object>(defaults: T, stored: unknown): Partial<T> {
-  if (!stored || typeof stored !== 'object') return {};
-  const shape = defaults as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(stored as Record<string, unknown>)) {
-    if (!(k in shape)) continue;
-    if (typeof v !== typeof shape[k]) continue;
-    out[k] = v;
-  }
-  return out as Partial<T>;
-}
 
 /**
  * Write part of one settings bag and audit the change.

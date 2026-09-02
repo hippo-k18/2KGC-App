@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, publicSiteOrigin } from '@kgc/shared';
 import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
 import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
@@ -231,10 +231,7 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
      * — so a bad address cannot undo a registration that is already correct.
      */
     if (!input.silent) {
-      const origin = (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(
-        /\/$/,
-        '',
-      );
+      const origin = publicSiteOrigin();
 
       await sendPurchaseConfirmation(db(), {
         to: reg.email,

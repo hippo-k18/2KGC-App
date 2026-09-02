@@ -15,14 +15,26 @@ export const dynamic = 'force-dynamic';
  * pre-conference workshop. It is a separate page because Whova has no other way
  * to express a filter: their hosted pages take no parameters.
  *
- * Ours does. `/agenda` renders the whole programme with the filter already in
- * the page, so a slice is a query string, not a second page — which means the
- * useful thing this screen can do is tell an organizer which slices exist and
- * how big each one is, so they know what a partner would actually receive.
+ * Ours does. `/agenda` reads `?day=` and `?track=` on the server and renders the
+ * slice, so a special-purpose agenda is a query string rather than a second
+ * page — which means the useful thing this screen can do is hand an organizer
+ * the real URLs, with the size of each slice beside them, so they know what a
+ * partner is actually receiving before they send it.
  *
- * The honest part, stated on screen rather than buried: **nothing on the public
- * site reads those query parameters yet.** The links below are what the URLs
- * would be. Printing them as working links would be the defect AGENTS.md names.
+ * ⚠️ **`?track=` carries the track id, not its name**, and that is why the
+ * links below are generated rather than typed. A track renamed the week before
+ * the event would kill every printed link built on its name, silently, by
+ * matching nothing — the public page filters on `SessionDoc.trackIds`, which
+ * survives a rename.
+ *
+ * The one behaviour worth knowing before sending a link: the public page
+ * filters on **every** track a session is cross-listed in, not on the coloured
+ * chip it displays. A talk in two tracks appears in both slices, which is what
+ * the programme chairs meant when they cross-listed it. `listTracks()` counts
+ * the same way, so the numbers below are the numbers a partner sees — with one
+ * difference to know about: the public page also drops soft-deleted sessions
+ * (`deletedAt`) and this count does not, so a track can read one higher here
+ * than it renders there.
  */
 export default async function SpecialPurposeAgendaPage() {
   await requireOrganizer();
@@ -50,7 +62,7 @@ export default async function SpecialPurposeAgendaPage() {
     <>
       <PageHeader
         title="Special-Purpose Agenda"
-        tags={<Tag color="orange" fill="outline">a filter, not a page</Tag>}
+        tags={<Tag color="green" fill="outline">a filter, not a page</Tag>}
         actions={
           <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main">
             View the live agenda ↗
@@ -68,9 +80,10 @@ export default async function SpecialPurposeAgendaPage() {
 
       <Banner kind="info">
         Whova needs a second hosted page for a filtered agenda because their pages take no
-        parameters. <strong>Ours would be a query string on the one page we already have.</strong>{' '}
-        The slices below are the ones the current programme supports; the URLs are what they would
-        be, and nothing on the public site reads them yet.
+        parameters. <strong>Ours is a query string on the one page we already have.</strong> The
+        slices below are the ones the current programme supports, and every URL is live — open one
+        and the public agenda renders that slice, with the filter shown as selected so a visitor
+        can widen it.
       </Banner>
 
       <StatTiles
@@ -82,12 +95,12 @@ export default async function SpecialPurposeAgendaPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Slices this programme would support</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Slices this programme supports</h2>
         <Table
           cols={[
             { key: 'k', label: 'Kind', className: 'cell-sm' },
             { key: 'l', label: 'Slice', className: 'cell-fill' },
-            { key: 'u', label: 'URL it would be', className: 'cell-md' },
+            { key: 'u', label: 'URL', className: 'cell-md' },
             { key: 'n', label: 'Sessions', className: 'cell-sm' },
           ]}
           rows={slices.map((s) => [
@@ -95,9 +108,15 @@ export default async function SpecialPurposeAgendaPage() {
               {s.kind}
             </Tag>,
             s.label,
-            <code key="u" style={{ fontSize: 12 }}>
-              /agenda{s.param}
-            </code>,
+            <a
+              key="u"
+              href={publicUrl(`/agenda${s.param}`)}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 12 }}
+            >
+              <code>/agenda{s.param}</code> ↗
+            </a>,
             // A slice with nothing in it is worth seeing: it is usually a track
             // whose sessions are all still draft, not a track nobody wanted.
             s.count === 0 ? <span key="n" className="muted">none published</span> : s.count,
@@ -110,10 +129,10 @@ export default async function SpecialPurposeAgendaPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>The query parameters themselves.</strong> <code>/agenda</code> filters in the
-            browser today; it does not read <code>?day=</code> or <code>?track=</code> from the URL.
-            Making it do so is an afternoon in <code>apps/web</code>, and until somebody does it
-            these links go to the unfiltered page.
+            <strong>Combining more than the two.</strong> <code>?day=</code> and{' '}
+            <code>?track=</code> compose with each other and with nothing else. A slice by format,
+            by room or by skill level would be another parameter on the public page; the fields are
+            all on <code>SessionDoc</code>, so it is a small change rather than an absent one.
           </li>
           <li>
             <strong>A saved, named slice.</strong> Whova lets you build and keep several

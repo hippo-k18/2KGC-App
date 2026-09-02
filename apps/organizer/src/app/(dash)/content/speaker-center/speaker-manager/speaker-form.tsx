@@ -3,7 +3,9 @@
 import { useActionState } from 'react';
 import { ImageField } from '@/components/image-field';
 import {
+  CheckboxField,
   Field,
+  FieldSet,
   FormActions,
   FormBanner,
   FormGrid,
@@ -34,6 +36,8 @@ export interface EditableSpeaker {
   /** Read-only here, and shown for exactly that reason. */
   userId?: string;
   sessionCount: number;
+  featured?: boolean;
+  displayOrder?: number;
 }
 
 /**
@@ -177,6 +181,51 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           placeholder="example.org"
         />
       </FormGrid>
+
+      <FieldSet
+        legend="On the public speakers page"
+        hint={
+          <>
+            These two used to be unreachable from here. The website rendered a roster checked into
+            its own source, so the highlighted five and their order were a deploy, not a decision —
+            and this screen could not change either. They are fields on the speaker now.
+          </>
+        }
+      >
+        <CheckboxField
+          name="featured"
+          value="1"
+          defaultChecked={existing?.featured}
+          label="Highlight in “Our First Speakers”"
+          description={
+            <>
+              Lifts them into the block of large cards at the top of{' '}
+              <code>/speakers</code>, above the main grid. Whova called this
+              <code> highlight_speakers</code> and allowed exactly five; nothing here enforces a
+              count, and the heading below the block counts whatever you choose. Highlight nobody
+              and the page is a single grid.
+            </>
+          }
+        />
+
+        <Field
+          name="displayOrder"
+          label="Position"
+          type="number"
+          min={0}
+          step={1}
+          width="sm"
+          defaultValue={existing?.displayOrder}
+          hint={
+            <>
+              Lower numbers come first. Leave it empty and they sort by surname after everyone who
+              has a number — so a speaker you add today lands at the end of the roster rather than
+              in the middle of it. The imported 2026 roster is numbered in the order it was
+              published, which is why the page did not move when it came out of the bundle.
+            </>
+          }
+        />
+      </FieldSet>
 
       {existing?.userId ? (
         <p className="muted" style={{ fontSize: 12 }}>

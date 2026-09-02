@@ -1,7 +1,14 @@
 import Link from 'next/link';
-import { listAgenda, listAnnouncements, listSponsorsByTier, programmeCounts } from '@/lib/data';
+import {
+  brandingSettings,
+  listAgenda,
+  listAnnouncements,
+  listSponsorsByTier,
+  programmeCounts,
+} from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
+import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { formatPrice } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
 import { Ticker } from '@/components/ticker';
@@ -135,9 +142,39 @@ export default async function HomePage() {
   // strip is simply absent — a homepage is not the place to explain an outage.
   const tiers = (await tiersOrNull()) ?? [];
   const { counts, sponsorBands, agenda, announcements } = await programmeOrNothing();
+  const branding = await brandingSettings();
+
+  /*
+   * `schema.org/Event`, built from the agenda and the ticket catalogue this
+   * page has already fetched — so it costs no extra read.
+   *
+   * The site has had Open Graph tags for months and no structured data, which
+   * is the difference between a link that previews nicely when somebody pastes
+   * it into Slack and a search result that shows the dates, the venue and a
+   * price. It is the one row the dashboard's Event Listing screen marks "worth
+   * doing" on a tab that is otherwise deliberately not-applicable.
+   *
+   * No `subEvent` here: the homepage does not list the sessions, and describing
+   * a page by its neighbour's contents is what `/agenda` is for. `eventJsonLd`
+   * returns `null` when nothing is published — see the argument in its header
+   * about why an absent rich card beats a guessed date — and the tag is then
+   * simply not rendered.
+   */
+  const jsonLd = jsonLdScript(
+    eventJsonLd({
+      origin: canonicalOrigin(),
+      pageUrl: `${canonicalOrigin()}/`,
+      agenda,
+      tiers,
+      description: branding.tagline || SITE.tagline,
+    }),
+  );
 
   return (
     <>
+      {jsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+      )}
       {/*
         The orange strip under the header — the homepage's, and only the
         homepage's. Measured across seven live pages: `/` carries it, and

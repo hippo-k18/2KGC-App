@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
@@ -34,7 +35,7 @@ export default async function SocialSharingPage() {
   await requireOrganizer();
 
   const links = await listLinks();
-  const publicOrigin = (process.env.WEB_PUBLIC_ORIGIN ?? 'http://localhost:3200').replace(/\/$/, '');
+  const publicOrigin = publicSiteOrigin();
 
   const social = links.filter((l) => l.channel);
   const clicks = social.reduce((n, l) => n + l.clicks, 0);

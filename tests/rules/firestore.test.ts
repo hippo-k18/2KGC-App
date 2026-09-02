@@ -19,6 +19,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getCountFromServer,
@@ -181,6 +182,80 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, `surveys/sv1/responses/${A}`), {
       uid: A, answers: { q1: 5 },
+    });
+    /*
+     * Consent. A published form at version 2 and a draft one, plus two
+     * signatures against the published form: A's, written in the app, and one
+     * written through the website's capability link on behalf of a speaker who
+     * has no account at all.
+     *
+     * The second one is not decoration. It has no `uid` field, and a rule that
+     * dereferenced `resource.data.uid` rather than reading it with a default
+     * would throw on it — which Firestore reports as permission-denied, so the
+     * symptom would be A's own signature becoming unreadable the moment a
+     * speaker signed the same form.
+     */
+    await setDoc(doc(db, 'consentForms/cf_photo'), {
+      eventId: 'kgc-2027', title: 'Photography and recording release',
+      body: 'You agree to be photographed. Version two of the wording.',
+      version: 2, bodyHash: 'hash-of-version-two', audience: 'attendee',
+      required: true, status: 'published',
+    });
+    await setDoc(doc(db, 'consentForms/cf_draft'), {
+      eventId: 'kgc-2027', title: 'Volunteer waiver',
+      body: 'Still being argued about.',
+      version: 1, bodyHash: 'hash-of-the-draft', audience: 'volunteer',
+      required: false, status: 'draft',
+    });
+    await setDoc(doc(db, `consentForms/cf_photo/responses/${A}_v2`), {
+      formId: 'cf_photo', formVersion: 2, bodyHash: 'hash-of-version-two',
+      audience: 'attendee', signatory: A, uid: A, email: `${A}@kgc.test`,
+      signedName: 'Attendee A', agreed: true, signedAt: new Date(), channel: 'app',
+    });
+    await setDoc(doc(db, 'consentForms/cf_photo/responses/spk_alpha_v2'), {
+      formId: 'cf_photo', formVersion: 2, bodyHash: 'hash-of-version-two',
+      audience: 'attendee', signatory: 'spk_alpha', email: 'speaker@kgc.test',
+      signedName: 'A Speaker', agreed: true, signedAt: new Date(), channel: 'link',
+      ip: '203.0.113.9', userAgent: 'Mozilla/5.0',
+    });
+    /*
+     * The call for abstracts, one document in each of the five collections it
+     * adds. None of them may reach a client, and an assertion made against a
+     * document that is not there passes for the wrong reason — the emulator
+     * denies a read of a missing document just as firmly as a forbidden one.
+     *
+     * The identity document is the one to look at. It is a subcollection
+     * document holding the name, affiliation and address of somebody whose
+     * abstract is sitting anonymously in `submissions/sub_001`, so any client
+     * able to read it — directly or through a collection-group query — has
+     * undone blind review for the whole call in one request.
+     */
+    await setDoc(doc(db, 'calls/kgc-2027-abstracts'), {
+      eventId: 'kgc-2027', title: 'KGC 2027 — call for abstracts',
+      instructions: 'Tell us about the graph you built.', status: 'published',
+      formVersion: 2, blindReview: 'single-blind', reviewsPerSubmission: 3,
+    });
+    await setDoc(doc(db, 'submissions/sub_001'), {
+      eventId: 'kgc-2027', callId: 'kgc-2027-abstracts',
+      title: 'Ontology reuse at scale', abstract: 'An unpublished abstract.',
+      trackId: 't1', status: 'under-review', formVersion: 2,
+      submitterTokenHash: 'hash-of-the-submitter-nonce',
+      reviewsAssigned: 1, reviewsSubmitted: 0,
+    });
+    await setDoc(doc(db, 'submissions/sub_001/identity/author'), {
+      eventId: 'kgc-2027', submissionId: 'sub_001', callId: 'kgc-2027-abstracts',
+      name: 'Amara Okafor', email: 'amara@example.invalid',
+      affiliation: 'A university', coAuthors: [],
+    });
+    await setDoc(doc(db, 'submissions/sub_001/reviews/rev_001'), {
+      eventId: 'kgc-2027', submissionId: 'sub_001', callId: 'kgc-2027-abstracts',
+      reviewerId: 'rev_001', status: 'assigned', conflict: false,
+    });
+    await setDoc(doc(db, 'reviewers/rev_001'), {
+      eventId: 'kgc-2027', name: 'A Reviewer', email: 'reviewer@example.invalid',
+      trackIds: ['t1'], status: 'accepted',
+      inviteTokenHash: 'hash-of-the-reviewer-nonce',
+      maxAssignments: 8, assignedCount: 1,
     });
     await setDoc(doc(db, `users/${A}`), {
       email: `${A}@kgc.test`, name: 'A', roles: ['attendee'], visibleInDirectory: true,
@@ -1714,6 +1789,100 @@ describe('the money collections are closed to every client', () => {
 });
 
 
+/**
+ * The call for abstracts, which is closed to every client for a different
+ * reason than the money is.
+ *
+ * `calls`, `submissions`, `submissions/{id}/identity`,
+ * `submissions/{id}/reviews/{reviewerId}` and `reviewers` have no `match` block
+ * either (`CFA-PLAN.md` §2), and the same argument applies — a collection that
+ * is safe only because nobody has written a rule for it needs a test saying so,
+ * or the day somebody adds one is the day nothing notices.
+ *
+ * What is different is that closing it costs nothing. The three kinds of person
+ * this feature serves cannot be authenticated by Firestore at all: a
+ * prospective speaker holds no ticket, so `isRegistered()` is false and must
+ * stay false; an external reviewer is in the same position; and the organizer
+ * reads all of it through the dashboard's Admin SDK. Every write is a server
+ * action behind an HMAC capability token — `CFA-PLAN.md` §3.
+ *
+ * `get` and `list` are asserted separately throughout. They are different rules
+ * and this suite has already been bitten once by treating them as one.
+ */
+describe('the call for abstracts is closed to every client', () => {
+  // [what it holds, the collection path, a document id in it]
+  const closed = [
+    ['calls', 'calls', 'kgc-2027-abstracts'],
+    ['submissions', 'submissions', 'sub_001'],
+    ['submission identities', 'submissions/sub_001/identity', 'author'],
+    ['reviews', 'submissions/sub_001/reviews', 'rev_001'],
+    ['reviewers', 'reviewers', 'rev_001'],
+  ] as const;
+
+  for (const [label, path, id] of closed) {
+    it(`refuses every client a get of ${label}`, async () => {
+      // The organizer too. An organizer is a client with a role, not a server;
+      // the dashboard reads these with the Admin SDK, not from a browser tab.
+      await assertFails(getDoc(doc(unauth(), `${path}/${id}`)));
+      await assertFails(getDoc(doc(noClaim(), `${path}/${id}`)));
+      await assertFails(getDoc(doc(asA(), `${path}/${id}`)));
+      await assertFails(getDoc(doc(asOrg(), `${path}/${id}`)));
+    });
+
+    it(`refuses every client a list of ${label}`, async () => {
+      await assertFails(getDocs(collection(unauth(), path)));
+      await assertFails(getDocs(collection(noClaim(), path)));
+      await assertFails(getDocs(collection(asA(), path)));
+      await assertFails(getDocs(collection(asOrg(), path)));
+    });
+
+    it(`refuses every client a write to ${label}`, async () => {
+      await assertFails(setDoc(doc(asA(), `${path}/${id}`), { eventId: 'kgc-2027' }));
+      await assertFails(setDoc(doc(asOrg(), `${path}/${id}`), { eventId: 'kgc-2027' }));
+      await assertFails(deleteDoc(doc(asOrg(), `${path}/${id}`)));
+    });
+  }
+
+  it('lets nobody rejoin an anonymous abstract to its author', async () => {
+    // The identity split IS the blind review: name, affiliation and address live
+    // in `submissions/{id}/identity` precisely so that a reviewer can be handed
+    // the abstract without them. A collection-group query undoes that for the
+    // whole call in one request — it reaches every subcollection of that name at
+    // once, so a rule granting `submissions/{id}/identity` for one submission
+    // would have granted the lot.
+    await assertFails(getDocs(collectionGroup(asA(), 'identity')));
+    await assertFails(getDocs(collectionGroup(asOrg(), 'identity')));
+    // And a filter naming one address does not open it either. That shape is
+    // permitted elsewhere in this file — the ticket list, the consent register —
+    // because there the filter names the *caller*. Here it names somebody else.
+    await assertFails(
+      getDocs(query(collectionGroup(asA(), 'identity'), where('email', '==', 'amara@example.invalid'))),
+    );
+  });
+
+  it('lets nobody read a submission it has not been sent', async () => {
+    // An unreviewed abstract is unpublished work somebody sent to a committee.
+    // The submitter reaches their own through a capability link and a server
+    // action, and holds no Firebase identity at all — so the honest client-side
+    // rule is the absent one, and this is what it means in practice.
+    await assertFails(getDoc(doc(unauth(), 'submissions/sub_001')));
+    await assertFails(getDocs(collection(unauth(), 'submissions')));
+  });
+
+  it('lets nobody enumerate what a reviewer was assigned', async () => {
+    // Both verbs again, and the collection group again, because a reviewer's
+    // queue is inherently a query across every submission — it is the one read
+    // in this feature that *has* to be a collection group, so it is the one most
+    // likely to be granted by somebody adding a rule for it.
+    await assertFails(getDocs(collectionGroup(asA(), 'reviews')));
+    await assertFails(getDocs(collectionGroup(asOrg(), 'reviews')));
+    await assertFails(
+      getDocs(query(collectionGroup(asOrg(), 'reviews'), where('reviewerId', '==', 'rev_001'))),
+    );
+  });
+});
+
+
 describe('the exhibitor hall', () => {
   // The projection exists because rules filter documents and not fields. Every
   // test below is one half of that argument: the slim listing is readable by a
@@ -2025,5 +2194,263 @@ describe('where I am sitting', () => {
     await assertFails(getDocs(collection(asOrg(), 'gatherings')));
     await assertFails(getDoc(doc(asA(), 'gatherings/g1')));
     await assertFails(setDoc(doc(asOrg(), 'gatherings/g2'), { eventId: 'kgc-2027', title: 'X' }));
+  });
+});
+
+describe('consent forms and signatures', () => {
+  /*
+   * The one collection in this file that is a legal record rather than event
+   * data, and every test below is named after a sentence somebody might have to
+   * say about it in a room where it matters: what was agreed, to which wording,
+   * by whom, and that nobody could change it afterwards.
+   */
+  const signature = (overrides: Record<string, unknown> = {}) => ({
+    formId: 'cf_photo',
+    formVersion: 2,
+    bodyHash: 'hash-of-version-two',
+    audience: 'attendee',
+    signatory: B,
+    uid: B,
+    email: `${B}@kgc.test`,
+    signedName: 'Attendee B',
+    agreed: true,
+    signedAt: new Date(),
+    channel: 'app',
+    ...overrides,
+  });
+
+  it('lets a ticket holder read the wording they are being asked to agree to', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'consentForms/cf_photo')));
+  });
+
+  it('hides a draft form from attendees and shows it to organizers', async () => {
+    // A draft is wording an organizer is still arguing about. Somebody who
+    // signed it would have signed something that was never published.
+    await assertFails(getDoc(doc(asA(), 'consentForms/cf_draft')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'consentForms/cf_draft')));
+  });
+
+  it('refuses a consentForms list that is not filtered to published', async () => {
+    // The `sessions` and `surveys` hazard on a third collection. Nothing in the
+    // app reads consent forms yet — the only client that signs one today is a
+    // hypothetical, and the rule is written now rather than when somebody adds
+    // the screen and reaches for the loosest thing that works.
+    await assertFails(getDocs(collection(asA(), 'consentForms')));
+    await assertSucceeds(
+      getDocs(query(collection(asA(), 'consentForms'), where('status', '==', 'published'))),
+    );
+  });
+
+  it('refuses a form to somebody signed in without a ticket', async () => {
+    await assertFails(getDoc(doc(noClaim(), 'consentForms/cf_photo')));
+    await assertFails(getDoc(doc(unauth(), 'consentForms/cf_photo')));
+  });
+
+  it('lets no client publish or reword a form, organizers included', async () => {
+    // Forms are authored by the dashboard with the Admin SDK. A client that
+    // could edit `body` could change what everybody who already signed agreed
+    // to, which is the failure the whole versioning scheme exists to prevent.
+    await assertFails(
+      setDoc(doc(asOrg(), 'consentForms/cf_mine'), {
+        eventId: 'kgc-2027', title: 'Mine', body: 'Anything', version: 1,
+        bodyHash: 'h', audience: 'attendee', required: true, status: 'published',
+      }),
+    );
+    await assertFails(updateDoc(doc(asOrg(), 'consentForms/cf_photo'), { body: 'Reworded' }));
+    await assertFails(updateDoc(doc(asA(), 'consentForms/cf_photo'), { version: 99 }));
+    await assertFails(deleteDoc(doc(asOrg(), 'consentForms/cf_photo')));
+  });
+
+  it('lets an attendee sign the published version of a published form', async () => {
+    await assertSucceeds(setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature()));
+  });
+
+  it('refuses a second signature at the same version, and any edit to one', async () => {
+    // Append-only. The duplicate is refused by the id already existing; the
+    // update and the delete are refused by the rules. All three matter: a
+    // record that can be revised afterwards records nothing.
+    await assertFails(
+      setDoc(doc(asA(), `consentForms/cf_photo/responses/${A}_v2`), signature({
+        signatory: A, uid: A, email: `${A}@kgc.test`, signedName: 'Someone Else',
+      })),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), `consentForms/cf_photo/responses/${A}_v2`), { signedName: 'Not me' }),
+    );
+    await assertFails(deleteDoc(doc(asA(), `consentForms/cf_photo/responses/${A}_v2`)));
+    // And the organizer's browser tab cannot do any of it either. The dashboard
+    // reads this subcollection with the Admin SDK and has no write path at all.
+    await assertFails(
+      updateDoc(doc(asOrg(), `consentForms/cf_photo/responses/${A}_v2`), { agreed: false }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), `consentForms/cf_photo/responses/${A}_v2`)));
+  });
+
+  it('pins the version signed to the version published', async () => {
+    // The reason this path spends a `get()` on the parent form. Without it
+    // `formVersion` is whatever the client typed, and a signature could name an
+    // older and more permissive wording — or one that never existed — while the
+    // register showed it as a signature like any other.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v1`), signature({ formVersion: 1 })),
+    );
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v9`), signature({ formVersion: 9 })),
+    );
+    // The id and the field have to agree as well, or one person could hold a
+    // second signature by writing the same version to a different id.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v3`), signature()),
+    );
+  });
+
+  it('refuses a signature against wording that is not the published wording', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({
+        bodyHash: 'hash-of-something-i-made-up',
+      })),
+    );
+  });
+
+  it('refuses signing a draft', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_draft/responses/${B}_v1`), signature({
+        formId: 'cf_draft', formVersion: 1, bodyHash: 'hash-of-the-draft',
+        audience: 'volunteer',
+      })),
+    );
+  });
+
+  it('refuses signing a form that does not exist', async () => {
+    // `get()` returns null for a missing document and `null.data` throws, which
+    // would be reported as permission-denied anyway — but by accident rather
+    // than by decision, and only until somebody reorders the conjunction.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_nothing/responses/${B}_v2`), signature({
+        formId: 'cf_nothing',
+      })),
+    );
+  });
+
+  it('refuses a signature filed under somebody else', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${A}_v2x`), signature({
+        signatory: A, uid: A,
+      })),
+    );
+    // Right id, somebody else's name in the document.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({ uid: A })),
+    );
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({ signatory: A })),
+    );
+  });
+
+  it('refuses a signature from somebody signed in without a ticket', async () => {
+    await assertFails(
+      setDoc(doc(noClaim(), 'consentForms/cf_photo/responses/randomUser_v2'), signature({
+        signatory: 'randomUser', uid: 'randomUser', email: 'randomUser@kgc.test',
+      })),
+    );
+  });
+
+  it('refuses a recorded refusal, because there is no such thing here', async () => {
+    // "I do not agree" is a form that was never submitted. A stored `false`
+    // would be a row in the register that reads as a decision somebody made in
+    // this system, and nothing in this system asks the question that way.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({ agreed: false })),
+    );
+  });
+
+  it('refuses a client-written IP address or user agent', async () => {
+    // A client that can write its own IP can write any IP, so the field would be
+    // a self-reported value dressed as evidence. The website records them on the
+    // link channel because the *server* observes them there.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({
+        ip: '203.0.113.1',
+      })),
+    );
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({
+        userAgent: 'Mozilla/5.0',
+      })),
+    );
+    // And the channel cannot be claimed to be the stronger one either.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({
+        channel: 'link',
+      })),
+    );
+  });
+
+  it('refuses a signature missing a field or carrying an unexpected one', async () => {
+    const { email: _dropped, ...withoutEmail } = signature();
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), withoutEmail),
+    );
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({
+        eventId: 'kgc-2027',
+      })),
+    );
+  });
+
+  it('refuses an empty or absurdly long typed name', async () => {
+    // The typed name is the signature. Bounded because it is free text that the
+    // organizer's register renders.
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({ signedName: '' })),
+    );
+    await assertFails(
+      setDoc(doc(asB(), `consentForms/cf_photo/responses/${B}_v2`), signature({
+        signedName: 'x'.repeat(121),
+      })),
+    );
+  });
+
+  it('lets somebody read their own signature back and nobody else theirs', async () => {
+    await assertSucceeds(getDoc(doc(asA(), `consentForms/cf_photo/responses/${A}_v2`)));
+    await assertFails(getDoc(doc(asB(), `consentForms/cf_photo/responses/${A}_v2`)));
+    await assertFails(getDoc(doc(asOrg(), `consentForms/cf_photo/responses/${A}_v2`)));
+  });
+
+  it('does not break on a signature that has no uid at all', async () => {
+    // The speaker who signed through the capability link. `resource.data.uid`
+    // would throw on this document and Firestore would report it as
+    // permission-denied — so the failure mode is A's own signature becoming
+    // unreadable the moment somebody without an account signed the same form.
+    await assertFails(getDoc(doc(asA(), 'consentForms/cf_photo/responses/spk_alpha_v2')));
+    await assertSucceeds(getDoc(doc(asA(), `consentForms/cf_photo/responses/${A}_v2`)));
+  });
+
+  it('lets nobody enumerate who has and has not signed', async () => {
+    // The register is a list of who has agreed to be photographed and who has
+    // not, and neither an attendee nor an organizer's browser tab may have it.
+    // The dashboard reads it with the Admin SDK, which bypasses rules — if it
+    // ever stops doing that, this path needs a rule of its own rather than a
+    // loosening of this one.
+    await assertFails(getDocs(collection(asA(), 'consentForms/cf_photo/responses')));
+    await assertFails(getDocs(collection(asOrg(), 'consentForms/cf_photo/responses')));
+  });
+
+  it('lets a signatory query their own signatures and nobody else’s', async () => {
+    // Both verbs, because passing one proves nothing about the other — and this
+    // one is the reason to say so. The first version of this rule was commented
+    // "a `list` cannot be satisfied by any filter here", which was wrong:
+    // Firestore evaluates a query against its constraints, exactly as it does
+    // for the ticket list, so a filter naming your own uid is permitted and one
+    // naming somebody else's is not. The suite caught the claim on its first run.
+    await assertSucceeds(
+      getDocs(query(collection(asA(), 'consentForms/cf_photo/responses'), where('uid', '==', A))),
+    );
+    await assertFails(
+      getDocs(query(collection(asA(), 'consentForms/cf_photo/responses'), where('uid', '==', B))),
+    );
+    await assertFails(
+      getDocs(query(collection(asOrg(), 'consentForms/cf_photo/responses'), where('uid', '==', A))),
+    );
   });
 });

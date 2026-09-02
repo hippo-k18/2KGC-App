@@ -73,19 +73,32 @@ it live. Verified as one continuous run, not screen by screen.
 **Deployed, as of 2026-08-28.** This is no longer a localhost project. Firestore
 rules, 16 composite indexes and 6 field overrides are **live** on
 `kgc-conference-app-and-website`, applied through `scripts/ops/deploy-rules.mjs`
-and `deploy-indexes.mjs` — the Firebase CLI is refused on this project with a
-`serviceusage` 403, so those two scripts are the deploy path and `firebase
-deploy` is not. Both websites are on Netlify and the attendee app is hosted on
-the web. Any doc that says rules are "written but never applied" is stale.
+and `deploy-indexes.mjs`. Both websites are on Netlify and the attendee app is
+hosted on the web. Any doc that says rules are "written but never applied" is
+stale.
+
+★ **The `serviceusage` 403 that forced those two scripts is gone, re-verified
+2026-08-31.** Blaze was enabled on the project, and that enabled the APIs the
+pre-flight was failing on — `serviceusage.services.list` now returns 51 enabled
+services. `firebase deploy` gets past the pre-flight. The ops scripts still work
+and are still the documented path for rules and indexes, but the reason given
+for them here no longer holds; keep them because they are known-good, not
+because the CLI is refused.
 
 **Not built or only partly wired**, re-measured 2026-08-31:
 
 - **Everything in `functions/` waits on one IAM grant, not on code.** There are
   now **14 deployable units** — 10 Firestore triggers, 2 Cloud Tasks handlers
-  and the 2 public OTP callables — with **55 passing tests**. Deploying them is
-  blocked by the `serviceusage` 403, not by Blaze. Until then Session Q&A and
-  poll tallies stay inert on the live project, and the app works around the
-  three counter cases by counting client-side.
+  and the 2 public OTP callables — with **55 passing tests**. The grant is
+  named precisely, re-verified 2026-08-31 by running the deploy: it is
+  `iam.serviceAccounts.ActAs` on
+  `kgc-conference-app-and-website@appspot.gserviceaccount.com`, and neither the
+  signed-in account (`roles/firebase.admin`) nor the Admin SDK service account
+  carries it. It is **not** the old `serviceusage` 403 and **not** Blaze — both
+  of those are resolved. Only `roles/owner` can grant it, and the owner is
+  `francois@knowledgegraph.tech`; `OWNER-ACTIONS.md` §3 has the exact ask. Until
+  then Session Q&A and poll tallies stay inert on the live project, and the app
+  works around the three counter cases by counting client-side.
 - **Push:** the dashboard sends via the Admin SDK today. The *app* still cannot
   receive — nothing imports `expo-notifications`, `fcmTokens` has no writer, and
   receiving needs a development build rather than Expo Go.
@@ -93,6 +106,13 @@ the web. Any doc that says rules are "written but never applied" is stale.
   `storage.rules` never had, wired to exhibitor, sponsor and speaker images.
   ⚠️ **The Storage bucket itself has never been created** — see
   `OWNER-ACTIONS.md` §1. The code fails with an actionable error until it is.
+  ⚠️ And the blocker is one layer earlier than "no bucket", probed 2026-08-31:
+  **`firebasestorage.googleapis.com` is not enabled** on the project, so the
+  bucket cannot be created until it is. `storage.googleapis.com` and its two
+  siblings *are* enabled, which is why this reads as a bucket problem rather
+  than an API problem. Enabling it needs `serviceusage.services.enable`, which
+  `roles/firebase.admin` does not carry — the console's **Build → Storage →
+  Get started** click does it as a side effect. `OWNER-ACTIONS.md` §3b.
 - **Badge *printing*** (`badgeTemplates`, `badgePrintJobs`) is still only
   modelled.
 
@@ -103,8 +123,11 @@ capabilities. `whova-rebuild/` remains a research archive from 15–18 August.
 **Demo mode is gone, as of 2026-08-31** (BUILD-PLAN 1.4–1.8). `DEMO_MODE`,
 `EXPO_PUBLIC_DEMO_MODE`, both `demo-panel.tsx` files, the printed credentials,
 the `demo`/`123` sign-in mapping, `OPEN_SIGNIN` and the in-memory fixture
-Firestore have all been deleted. Two things survive by explicit request: the two
-sign-in boxes on each login screen, and the three card boxes on `/tickets`.
+Firestore have all been deleted. One thing survives by explicit request: the two
+sign-in boxes on each login screen. **The three card boxes on `/tickets` were
+removed on 2026-08-31**, also at the owner's request — a form that asks for a
+PAN and then hands the buyer to Stripe to type it again reads as a bug, and a
+field shaped like a card number is a field somebody eventually wires up.
 Three consequences to know before you read older docs:
 
 - **The purchase path fails closed.** With `STRIPE_SECRET_KEY` unset,
@@ -116,10 +139,12 @@ Three consequences to know before you read older docs:
 - **A missing service-account credential is now a startup failure** in
   `apps/organizer`, not a silent swap to `fixture.json`. `db()` throws with the
   three variables named.
-- **The card boxes on `/tickets` still reach no processor.** They carry no
-  `name`, so nothing is submitted; the real card entry is on
-  `checkout.stripe.com`. BUILD-PLAN 1.6 / D-2 replaces them with a Stripe
-  Payment Element and needs a publishable key to do it.
+- **There is no card entry on `/tickets` at all.** The three boxes that used to
+  sit there reached no processor — no `name` attribute, nothing submitted — and
+  are gone as of 2026-08-31, along with their `.card-fields` CSS. The real card
+  entry is on `checkout.stripe.com` after the button. BUILD-PLAN 1.6 / D-2 is
+  what would put card entry back on the page for real: a Stripe Payment Element
+  bound to a PaymentIntent, which needs a publishable key this repo lacks.
 
 **The demo recording at `demo/` is a build artefact of that removal.** It is
 deliberately not a workspace member — the same arrangement as the two websites,
@@ -129,7 +154,9 @@ one depended on the payment bypass and act two on the shared password. The
 banner at the top of `demo/README.md` says exactly what fails and what would fix
 it. The finished `.mp4` in `demo/out/` is unaffected. ⚠️ The earlier recorded run
 left state on the live project — a demo order, and `ticketTypes/main-conference`
-at the price the video changed it to. `scripts/ops/reset-demo-sales.mjs` clears
+at the price the video changed it to (**$699 live against $799 in the seed**,
+still unreconciled as of 2026-08-31; its `featured` flag was corrected to `true`
+on that date so the tier renders as the second headline panel again). `scripts/ops/reset-demo-sales.mjs` clears
 the order and not the price.
 
 **Two decisions that are settled, so do not re-open them:**
@@ -137,7 +164,11 @@ the order and not the price.
 - **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
   docs that promised "Google SSO with enforced MFA (DECISIONS.md #5)" were
   withdrawn on 2026-08-28; what the shared secret costs is written down in
-  `apps/organizer/src/lib/auth.ts`.
+  `apps/organizer/src/lib/auth.ts`. ⚠️ On 2026-08-31 the allowlist was cut to
+  the single address `demo@knowledgegraph.tech` and `MIN_LIVE_PASSPHRASE` was
+  lowered from 12 to 7 so the live passphrase could be `kgc2027`, at the owner's
+  request. The live dashboard is therefore a seven-character shared secret in
+  front of the Admin SDK; rotate it before the event runs on real attendees.
 - **The dashboard's gap notes are behind `SHOW_GAP_NOTES`.** 126 "Not built
   here" panels, 8 gap cards, 8 grey tags and the sign-in banner render only when
   it is `1`. Use `GapPanel` / `GapTag` from `(dash)/ui.tsx` for any new one —
@@ -153,7 +184,7 @@ the same document types and must not duplicate them.
 ```
 package.json               workspaces: ["app", "functions", "packages/*", "scripts"]
 firestore.rules · firestore.indexes.json · storage.rules · firebase.json · .firebaserc
-tests/rules/                182 tests — the security boundary
+tests/rules/                203 tests — the security boundary
 tests/qr/                   9 tests — the badge QR encoder, against a reference encoder
 functions/                  the aggregate triggers, written and tested against the
                             emulator. `npm run test:functions`. NOT deployed —
@@ -246,9 +277,9 @@ Run from the repo root:
 ```bash
 npm run typecheck                    # forwards to the app workspace
 npm run typecheck --workspace=@kgc/scripts
-npm run test:rules                   # 182 tests against firestore.rules
-npm test                             # 241 unit tests — INCLUDES test:programme
-npm run test:commerce                # 62 tests: fulfilment, refunds, provisioning
+npm run test:rules                   # 203 tests against firestore.rules
+npm test                             # 362 unit tests — INCLUDES test:programme
+npm run test:commerce                # 84 tests: fulfilment, refunds, provisioning, multi-seat
 npm run test:programme               # 149 tests: conflicts, CSV, speed-networking, attendance
 npm run test:functions               # 55 tests: the triggers and callables, on the emulator
 npm run test:denormalise             # 25 tests: the session-cache fan-out and reconcile
@@ -257,7 +288,7 @@ npm run test:programme-import        # 9 tests: the session/speaker/track import
 npm run smoke                        # all 173 dashboard screens, against a seeded emulator
 ```
 
-**461 distinct tests**, green as of 2026-08-31. `npm test` already runs
+**748 distinct tests**, green as of 2026-08-31. `npm test` already runs
 `tests/programme`, so adding the two does not give a total.
 
 ⚠️ **Do not trust a test count you read in a doc — run the suite.** Every number
@@ -566,11 +597,16 @@ Four things to know before editing it:
   thread id. See the data-model note above for why — it is the worst bug this repo
   has had, and the comment justifying it read as entirely reasonable.
 - **A `get()` on the parent is required on the `messages` path**, and it is one of
-  three in the file. The second is on the poll-vote write path, checking that a
+  four in the file. The second is on the poll-vote write path, checking that a
   poll is still open. The third is on `checkInLists/{id}/checkIns/{registrationId}`,
   resolving whether that check-in belongs to the caller — the id is
   `reg_` + sha256(email) and rules cannot hash, so the registration has to be read.
-  All three are deliberate and documented in place. Adding a fourth is a decision,
+  The fourth, added 2026-08-31, is on `consentForms/{formId}/responses/{id}`: it
+  reads the parent form so that `formVersion` and `bodyHash` on a signature are
+  pinned to what was actually published, rather than to whatever the client sent.
+  Without it a signature could name wording nobody ever agreed to, which is the
+  one property the whole record exists to have.
+  All four are deliberate and documented in place. Adding a fifth is a decision,
   not a detail: the cap is 10 access calls per single-document request and 20 per
   query, and exceeding it is a hard error, not a slowdown.
 - **The ticket list is no longer closed outright.** `registrations` was
@@ -590,7 +626,7 @@ Four things to know before editing it:
   the whole query. The inbox broke this way once. If a rule guards a collection
   anyone queries, test both verbs.
 
-`tests/rules/firestore.test.ts` has **182 tests, one per invariant**. It has been
+`tests/rules/firestore.test.ts` has **203 tests, one per invariant**. It has been
 mutation-checked: breaking `isRegistered()` fails exactly the test that names that
 guarantee. Add a test whenever you add a rule — the suite is the only thing
 standing between this file and 1,000 attendees' data.

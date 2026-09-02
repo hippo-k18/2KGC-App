@@ -14,13 +14,21 @@ export const dynamic = 'force-dynamic';
  * Whova sells a vanity address — `whova.com/portal/kgc_2027` becomes
  * `kgc2027.whova.com` — because the generated one is unprintable. We do not have
  * that problem in the same shape: the conference already owns
- * `knowledgegraph.tech` and `apps/web` already serves it, so what is missing is
- * not a domain but a route that resolves a slug to an event.
+ * `knowledgegraph.tech` and `apps/web` already serves it, so what was missing
+ * was never a domain — only a route that resolves a slug to an event.
  *
- * The slug is worth storing anyway, and earlier than it is worth serving: the
- * address goes onto printed material and into a QR code months before anything
- * answers it, and the expensive failure is two people printing two different
- * strings.
+ * ── That route now exists, and this screen changed with it ──────────────────
+ *
+ * `apps/web/src/app/[slug]/page.tsx` reads this settings document per request
+ * and redirects an exact, case-folded match to `/`. This screen used to have to
+ * tell an organizer that the address they had just chosen did not resolve; that
+ * copy has come down, which is the whole point of writing it as a caveat rather
+ * than as a feature.
+ *
+ * The slug was worth storing before it was worth serving, and that ordering is
+ * still the reason the field exists: the address goes onto printed material and
+ * into a QR code months before anyone types it, and the expensive failure is
+ * two people printing two different strings.
  */
 export default async function BrandedEventUrlPage() {
   await requireOrganizer();
@@ -43,9 +51,13 @@ export default async function BrandedEventUrlPage() {
       />
 
       <Banner kind="info">
-        <strong>Reserved, not served.</strong> Saving a word here writes it to the{' '}
-        <code>branding</code> settings document and nothing else. No DNS record, no redirect and no
-        route in <code>apps/web</code> answers it, so the address below does not currently load.
+        <strong>Reserved, and now served.</strong> Saving a word here writes it to the{' '}
+        <code>branding</code> settings document, and{' '}
+        <code>apps/web/src/app/[slug]/page.tsx</code> reads that document on every request and
+        redirects the matching address to the front page. Change the word and the old address stops
+        working the same minute — the redirect is a <strong>307</strong> rather than a 308 precisely
+        so that a browser cannot cache a slug you have since withdrawn. Anything that is not an
+        exact, case-folded match renders the site&rsquo;s own 404, so this route swallows nothing.
       </Banner>
 
       <Panel>
@@ -53,7 +65,7 @@ export default async function BrandedEventUrlPage() {
         <BrandedUrlForm brandedSlug={slug} />
         {slug && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Would be <code>{publicUrl(`/${slug}`)}</code> once something serves it.
+            Live at <code>{publicUrl(`/${slug}`)}</code> — it redirects to the front page.
           </p>
         )}
         {s.updatedBy && (
@@ -74,12 +86,11 @@ export default async function BrandedEventUrlPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>The route.</strong> <code>apps/web</code> has no{' '}
-            <code>/[slug]</code> segment, so the reserved word 404s. Adding one is small — a page
-            that reads this settings document and renders the event landing content — but it is a
-            change to the public site, not to this dashboard. It is written up as{' '}
-            <strong>FU-11</strong> in <code>docs/audit-2026-08-30/FOLLOW-UPS.md</code>, naming the
-            file, the line and the function to call.
+            <strong>A landing page of its own.</strong> The route exists and redirects; it does not
+            render anything. That is the deliberate half — a second homepage at a second address is
+            two pages to keep in step and two URLs in Google for one conference. If the branded
+            address ever needs its own content rather than its own door, that is a new decision, not
+            an unfinished one.
           </li>
           <li>
             <strong>A subdomain.</strong> <code>kgc2027.knowledgegraph.tech</code> needs a DNS

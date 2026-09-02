@@ -1,3 +1,4 @@
+import { servableLogoURL } from '@kgc/shared';
 import { Image, View } from 'react-native';
 
 import { DECORATIVE } from '@/components/a11y';
@@ -28,6 +29,15 @@ import { useTheme } from '@/hooks/use-theme';
  * Decorative in both placements — the list row and the detail header both put
  * the sponsor's name directly beside or beneath it, and announcing it would make
  * VoiceOver read the name twice. Same reasoning as `Avatar`; see its header.
+ *
+ * ⚠️ `logoURL` is filtered through `servableLogoURL()` rather than trusted. A
+ * sponsor or exhibitor document imported from a Whova CSV — and eighteen on the
+ * live project — still holds a URL on Whova's own CDN, and rendering it makes
+ * the phone fetch an asset we do not own from the product this app replaces.
+ * The website has refused that request since the sponsor page was built; this
+ * did not, so the same sponsor showed a local logo on one surface and a hotlink
+ * on the other. A dropped URL falls through to the initials plate below, which
+ * is what a sponsor with no logo has always looked like.
  */
 export function SponsorLogo({
   name,
@@ -39,8 +49,9 @@ export function SponsorLogo({
   size?: number;
 }) {
   const colors = useTheme();
+  const servable = servableLogoURL(logoURL);
 
-  if (logoURL) {
+  if (servable) {
     return (
       <View
         style={{
@@ -59,7 +70,7 @@ export function SponsorLogo({
         }}
         {...DECORATIVE}>
         <Image
-          source={{ uri: logoURL }}
+          source={{ uri: servable }}
           style={{ width: '100%', height: '100%' }}
           resizeMode="contain"
           accessibilityIgnoresInvertColors

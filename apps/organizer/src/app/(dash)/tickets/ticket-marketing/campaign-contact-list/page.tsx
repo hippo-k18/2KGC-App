@@ -28,6 +28,17 @@ export const dynamic = 'force-dynamic';
  * mailable count is shown beside the total everywhere, an import can never
  * clear an unsubscribe, and every audience this feeds is filtered before it is
  * counted.
+ *
+ * ── Most unsubscribes will not arrive through this screen ───────────────────
+ *
+ * The number in the *Unsubscribed* tile is mostly written by readers, not by
+ * organizers. Every campaign mail carries a `/u/{token}` link and the RFC 8058
+ * headers that let Gmail and Apple Mail unsubscribe on the reader's behalf
+ * without opening anything; both land on `contacts.unsubscribedAt` directly.
+ * The toggle in the table is for the person who replied to a mail asking to be
+ * taken off, and it is also the *only* writer that can clear the field — there
+ * is deliberately no public way back on. See the gap notes at the foot of the
+ * page.
  */
 export default async function CampaignContactListPage({
   searchParams,
@@ -249,11 +260,14 @@ export default async function CampaignContactListPage({
             hand or not at all.
           </li>
           <li>
-            <strong>No public unsubscribe link.</strong> ⚠️ This is the significant one, and it is
-            a legal requirement in several jurisdictions before any bulk send goes out. It needs a
-            capability-token route on the website — the same pattern{' '}
-            <code>/order/{'{token}'}</code> already uses, so the mechanism exists and is not wired
-            to this.
+            <strong>Re-subscribing is only possible here, on purpose.</strong> The public
+            unsubscribe page has no way back on and says so, because a link that could re-subscribe
+            somebody is a link a third party could use to do it — and{' '}
+            <code>unsubscribedAt</code> is the single field the whole suppression story rests on.
+            The <em>Re-subscribe</em> button in the table above is the only writer that clears it,
+            and it exists so that a person who wrote in and asked can be put back by a human who
+            read the request. Somebody who lands on the unsubscribe page by mistake is told to email
+            us; that is slower than a second click, and slower is the correct trade here.
           </li>
           <li>
             <strong>&ldquo;Bought&rdquo; is not computed.</strong> The <code>converted</code> flag

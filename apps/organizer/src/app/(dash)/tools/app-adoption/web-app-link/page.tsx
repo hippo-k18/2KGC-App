@@ -1,7 +1,7 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { Banner, PageHeader, Panel, Table } from '../../../ui';
-import { siteOrigin } from '../adoption-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function WebAppLinkPage() {
   await requireOrganizer();
-  const origin = siteOrigin();
+  const origin = publicSiteOrigin();
 
   return (
     <>

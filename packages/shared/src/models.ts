@@ -1,3 +1,4 @@
+import type { CommunityCategory } from "./community.js";
 import type { SettingsKey, SettingsValues } from "./settings.js";
 
 /**
@@ -382,6 +383,42 @@ export interface SessionDoc extends BaseDoc {
 export interface SpeakerDoc extends BaseDoc {
   name: string;
   photoURL?: string;
+  /**
+   * Intrinsic pixel size of `photoURL`, when it is known.
+   *
+   * The public speakers page reserves the portrait box before the image loads,
+   * because 137 circular portraits reflowing on arrival is the whole reason the
+   * grid was measured in the first place. A portrait uploaded through the
+   * console has no dimensions until something measures it, so both are optional
+   * and the card falls back to a 200x200 box — the same fallback it used when
+   * the roster was a checked-in constant.
+   */
+  photoWidth?: number;
+  photoHeight?: number;
+  /**
+   * Lifts this speaker into the "Our First Speakers" block at the top of the
+   * public page.
+   *
+   * This is an editorial choice, and until now it was one we could not express:
+   * Whova stored it as `design.highlight_speakers` inside a widget we do not
+   * run, so the roster carried it and `SpeakerDoc` did not. That asymmetry is
+   * what forced the public page to choose between a checked-in roster and a
+   * live one. It is a field now, so the organizer picks the highlights in
+   * Speaker Manager and the page follows.
+   */
+  featured?: boolean;
+  /**
+   * Where this speaker sits in the published order, ascending.
+   *
+   * Absent for every speaker means "no editorial order", and the page falls
+   * back to the surname sort it has always used. It exists because the imported
+   * 2026 roster arrived in Whova's own `display_dict` order — nominally by last
+   * name, with quirks that a re-sort would silently correct, including the
+   * `(Phil) (Meredith)` row that sorts first. Preserving the order the roster
+   * was published in is the difference between the page not changing and the
+   * page nearly not changing.
+   */
+  displayOrder?: number;
   title?: string;
   company?: string;
   bio?: string;
@@ -440,7 +477,7 @@ export interface SavedContactDoc {
  * ⚠️ **That is all the id guarantees. Membership is NOT derivable from it and
  * nothing may parse one.** `participantIds` below is the only answer to "who is
  * in this conversation", and the `messages` rules read it through a `get()` on
- * this document — one of only three `get()`s in `firestore.rules`, and
+ * this document — one of only four `get()`s in `firestore.rules`, and
  * deliberate. This docblock previously claimed the opposite, that membership was
  * provable from the path and that the rules therefore avoided that `get()`;
  * both halves were false. `threadIdFor()` in `collections.ts` carries the full
@@ -466,13 +503,12 @@ export interface MessageDoc {
 /** `communityPosts/{id}` */
 export interface CommunityPostDoc extends BaseDoc {
   authorId: string;
-  category:
-    | "meetup"
-    | "ride-share"
-    | "jobs"
-    | "questions"
-    | "lost-and-found"
-    | "ice-breakers";
+  /**
+   * One of `COMMUNITY_CATEGORIES`, which also carries the name each id is
+   * printed under. The union used to be spelled out here and the labels lived
+   * in three separate consts; see `community.ts` for why they are one list now.
+   */
+  category: CommunityCategory;
   title: string;
   body: string;
   editedAt?: Timestamp;
@@ -1524,3 +1560,736 @@ export interface DocumentDoc extends BaseDoc {
   order: number;
 }
 
+
+// ---------------------------------------------------------------------------
+// Consent
+// ---------------------------------------------------------------------------
+
+/**
+ * Who a consent form is put to.
+ *
+ * Three audiences rather than one form for everybody, because the three
+ * documents genuinely differ. An attendee agrees to appear in photographs of
+ * the room. A speaker agrees to their talk being recorded and published, which
+ * is a licence rather than a permission and is the one with money attached. A
+ * volunteer agrees to a liability waiver.
+ *
+ * ⚠️ `volunteer` is modelled and **cannot currently be collected**: there is no
+ * `volunteers` collection and no volunteer role anywhere in this project, so
+ * there is no list of people to put the form to. The value exists so that
+ * publishing a volunteer waiver does not require a schema change on the day
+ * somebody builds the roster, and the volunteer screen says plainly that the
+ * roster is what is missing.
+ */
+export type ConsentAudience = "attendee" | "speaker" | "volunteer";
+
+/**
+ * `consentForms/{id}` — a release, as published.
+ *
+ * ── Why the version is a field and not a guess ─────────────────────────────
+ *
+ * "Jane consented" is worth nothing without the wording Jane saw. A consent
+ * store whose text can change after the fact records only that somebody once
+ * pressed a button, which is why `version` and `bodyHash` are on both halves of
+ * this pair: the form carries what is being asked *now*, and every response
+ * carries what was asked *then*. Republishing changed wording increments
+ * `version` and leaves every signature already given pointing at the version it
+ * was actually given to — those people are then unsigned against the new one,
+ * which is the correct and uncomfortable answer rather than a convenient one.
+ *
+ * `bodyHash` is sha256 of the exact body text. It is belt-and-braces beside the
+ * version number and it is not redundant: the version is an organizer-visible
+ * label that a bug or a hand-edit in the Firebase console could reuse, and the
+ * hash is derived from the bytes. If the two ever disagree about what version 3
+ * said, the hash is the one that was computed from the text somebody read.
+ *
+ * ── Server-authored, client-readable ───────────────────────────────────────
+ *
+ * Written only by the dashboard with the Admin SDK. `firestore.rules` gives
+ * clients `get` on a published form and nothing else — an attendee has to be
+ * able to read the wording in order to agree to it, and a draft is wording an
+ * organizer is still arguing about.
+ */
+export interface ConsentFormDoc extends BaseDoc {
+  title: string;
+  /**
+   * The agreement itself, as plain text. Blank lines separate paragraphs.
+   *
+   * Not HTML and not a Storage reference. HTML from a textarea into a page that
+   * renders it is an injection into a page people are asked to trust, and the
+   * Storage bucket for this project has never been created (`OWNER-ACTIONS.md`
+   * §1) — a consent flow that depends on an upload path nobody can use is a
+   * consent flow that collects nothing. Plain text is legible, hashable, and
+   * diffable between versions.
+   */
+  body: string;
+  /** 1 on first publication, then +1 on every change to `title` or `body`. */
+  version: number;
+  /** Lower-case hex sha256 of `body`, computed at publication. */
+  bodyHash: string;
+  audience: ConsentAudience;
+  /**
+   * Whether the conference expects everybody in the audience to sign.
+   *
+   * Advisory, deliberately: nothing in this project *blocks* on an unsigned
+   * form — a ticket still scans, a session still runs. It sets what the
+   * register counts as outstanding, and marking a release "required" while the
+   * check-in desk ignores it would be the reassuring-microcopy failure
+   * AGENTS.md names as this codebase's recurring defect.
+   */
+  required: boolean;
+  status: PublishStatus;
+  /** Set the first time it reaches `published`; never moved by a re-publish. */
+  publishedAt?: Timestamp;
+  /** Allowlisted organizer address, as `auditLog.actor` records it. */
+  updatedBy?: string;
+}
+
+/**
+ * `consentForms/{formId}/responses/{responseId}` — one signature.
+ *
+ * The id is `consentResponseId(signatory, formVersion)`; read its docblock in
+ * `collections.ts` before changing anything here, because the append-only
+ * guarantee is carried by the id, not by this shape.
+ *
+ * ── Nothing on this document may ever be updated ───────────────────────────
+ *
+ * `update` and `delete` are closed to every client in `firestore.rules`,
+ * organizers included, and the dashboard has no write path either. A consent
+ * record that can be edited afterwards is a consent record that proves nothing;
+ * a withdrawal is therefore **not** an edit to this document and is not built —
+ * see the note on the attendee screen, which says so rather than implying a
+ * revocation flow that does not exist.
+ */
+export interface ConsentResponseDoc {
+  formId: string;
+  /** The version signed. Pinned to the form's current version by the rules. */
+  formVersion: number;
+  /** The hash of the text as it stood when signed. */
+  bodyHash: string;
+  audience: ConsentAudience;
+  /**
+   * The signatory in the vocabulary the id was built from: a Firebase uid for
+   * somebody signing in the app, `spk_{speakerId}` for a speaker signing
+   * through a capability link. Kept as a field as well as in the id because a
+   * document that has to be parsed out of its own path to be understood is the
+   * mistake `threadIdFor` made.
+   */
+  signatory: string;
+  /** Present only when the signatory is a signed-in account. */
+  uid?: string;
+  /**
+   * The address the link was sent to, or the account's own. The join key
+   * everything else in this project uses — `registrations` to `users`,
+   * `speakers` to both — so a register can say who has signed without a
+   * membership table.
+   */
+  email: string;
+  /**
+   * The typed name. This *is* the signature, in the sense a scrawl on paper is:
+   * evidence of a deliberate act by somebody who was shown the wording, not a
+   * cryptographic proof of identity. Nothing here pretends otherwise.
+   */
+  signedName: string;
+  /** Always true. A refusal is a form that was never submitted, not a `false`. */
+  agreed: boolean;
+  signedAt: Timestamp;
+  /**
+   * `app` — a signed-in client wrote it under `firestore.rules`.
+   * `link` — the website wrote it with the Admin SDK after verifying an HMAC
+   * capability token, for somebody with no account at all.
+   *
+   * On the record because the two carry different evidence, and a register that
+   * showed them identically would overstate the weaker one.
+   */
+  channel: "app" | "link";
+  /**
+   * The first hop of `x-forwarded-for`, recorded for the `link` channel only.
+   *
+   * ⚠️ It is corroboration, not identification. It is the address of whatever
+   * proxy or phone network the browser came through, it is trivially not the
+   * signatory's if they used a VPN, and on the `app` channel it is absent
+   * entirely — a client cannot be asked to report its own IP address, since a
+   * client that can write the field can write any value into it. Present for a
+   * link signature because there is no account there to corroborate anything
+   * else, and absent where the uid already does that job better.
+   */
+  ip?: string;
+  /** Truncated to 300 characters. Same standing as `ip`: corroboration only. */
+  userAgent?: string;
+}
+
+
+// ---------------------------------------------------------------------------
+// Call for abstracts
+// ---------------------------------------------------------------------------
+
+/**
+ * The five shapes below are the call for abstracts (`CFA-PLAN.md` §2), and all
+ * five are server-owned: `calls`, `submissions`, `submissions/{id}/identity`,
+ * `submissions/{id}/reviews/{reviewerId}` and `reviewers` have **no `match`
+ * block in `firestore.rules`** and must not get one. Every write is Admin-SDK,
+ * through a server action, the same posture `orders` and `ticketTypes` have.
+ *
+ * That is not a precaution, it is the only arrangement that works. `CFA-PLAN.md`
+ * §3: the gate for everything in the rules file is `isRegistered()`, the
+ * `registered` custom claim, and it is minted only for ticket holders. A
+ * prospective speaker holds no ticket and must not be given the claim — a call
+ * for papers that requires a ticket is not a call for papers — and an external
+ * reviewer who will sign in twice in their life is in the same position. Both
+ * reach their own work through an HMAC capability token and a server action, the
+ * scheme `scripts/src/lib/order-token.ts` and `consent-token.ts` already prove.
+ * So there is no client identity here for a rule to evaluate, and a rule that
+ * admitted anybody would be admitting *everybody*.
+ *
+ * `tests/rules/firestore.test.ts` asserts the absence, on both verbs, because
+ * "secure because nobody wrote a rule" is a property a later edit can remove
+ * without anyone noticing.
+ */
+
+/**
+ * How much of an author a reviewer may see.
+ *
+ * `CFA-PLAN.md` §1.1: **build for double-blind, run single-blind by default.**
+ * KGC is an applied-industry conference where affiliation is often load-bearing,
+ * so hiding it by default would make the reviewing worse — but anonymity is not
+ * a UI preference. It decides what the document a reviewer reads may contain,
+ * and retrofitting that onto a flat submission is the rewrite this schema exists
+ * to avoid. Hence `submissions/{id}/identity`: turning the blind up is then a
+ * decision about which document the review screen loads.
+ *
+ * `open` is here because it is a real editorial choice for an industry track and
+ * not a fourth state of "off"; it means the reviewer sees the identity document
+ * and knows the author sees their name too.
+ */
+export type BlindReviewMode = "open" | "single-blind" | "double-blind";
+
+/**
+ * `CFA-PLAN.md` §2. Two fields carry the whole state machine and this is the
+ * first of them.
+ *
+ * `draft` is not optional, and it is the one people leave out. Whova has an
+ * Incomplete Submissions tab because most of the work of running a call is
+ * chasing the people who started and stopped — a submission that only exists
+ * once it is finished cannot be chased, and phase 2 of the plan is entirely
+ * about chasing them.
+ *
+ * `withdrawn` is an author's own retraction and `rejected` is a decision; they
+ * are separate values because a call's acceptance rate is a number somebody
+ * will quote, and folding the two would quietly flatter it.
+ */
+export type SubmissionStatus =
+  | "draft"
+  | "submitted"
+  | "under-review"
+  | "accepted"
+  | "rejected"
+  | "withdrawn";
+
+/** Where a reviewer is in the invitation, before any submission is assigned. */
+export type ReviewerStatus = "invited" | "accepted" | "declined" | "removed";
+
+/**
+ * A review exists from the moment of assignment, which is what makes
+ * "who has not reviewed yet" answerable by a query rather than by subtraction.
+ * `declined` is the conflict-of-interest exit: the assignment happened, the
+ * reviewer said no, and the record of that has to survive so the same person is
+ * not assigned the same submission again by the next run of the matcher.
+ */
+export type ReviewStatus = "assigned" | "submitted" | "declined";
+
+/**
+ * One question on a call's submission form.
+ *
+ * Structurally `QuestionFieldDef` with two differences, and the plan (§4, phase
+ * 1) is explicit that the *builder and the validator* are shared with Question
+ * Forms — "building them separately is how a codebase ends up with two". This is
+ * the stored shape, not a second builder.
+ *
+ * The two differences each have a reason:
+ *
+ * · No `ticketTypeIds`. That field asks a question only of certain ticket tiers.
+ *   A call has no tiers, and a conditional that can never be true is a field
+ *   somebody eventually reads as if it worked.
+ *
+ * · A `description` kind — a block of prose that collects no answer, which a
+ *   call needs ("your abstract will be read by three reviewers; 300 words") and
+ *   a checkout form does not. It is added *here* rather than widened onto
+ *   `QuestionFieldDef` deliberately: `apps/web`'s checkout renderer switches on
+ *   `kind` with a text-input fallback, so widening the shared union would render
+ *   an explanatory paragraph as an empty box on the payment page, and typecheck
+ *   cleanly while doing it.
+ */
+export interface CallFormFieldDef extends Omit<QuestionFieldDef, "ticketTypeIds" | "kind"> {
+  kind: QuestionFieldDef["kind"] | "description";
+}
+
+/**
+ * A superseded version of a call's form, kept so an old submission can still be
+ * read back.
+ *
+ * `CFA-PLAN.md` §1.2 versions the form rather than freezing it, which is the
+ * whole reason this type exists: a submission stores the `formVersion` its
+ * answers were given against, and rendering those answers needs the questions as
+ * they stood *then*. Without the archive, `formVersion` is a number that names
+ * nothing.
+ *
+ * An array on the call document rather than a subcollection, because a call
+ * accumulates a handful of versions over its life and the portal reads the form
+ * on every page load. If one ever approaches the 1 MB document ceiling the fix
+ * is to move the archive underneath the call — never to drop the oldest entries,
+ * because the entry that gets dropped is the one an early submission points at.
+ */
+export interface CallFormVersion {
+  version: number;
+  fields: CallFormFieldDef[];
+  /** When this version stopped being the current one. */
+  supersededAt: Timestamp;
+}
+
+/**
+ * One line of the review rubric (`CFA-PLAN.md` §4, phase 3).
+ *
+ * `id` is stable for the life of the criterion and is the key scores are stored
+ * under — the same rule `QuestionFieldDef.id` has, for the same reason:
+ * rewording "Novelty" must not orphan every score already given to it.
+ */
+export interface RubricCriterionDef {
+  id: string;
+  label: string;
+  /** What a reviewer is being asked to judge. Shown beside the scale. */
+  description?: string;
+  /** Inclusive. A 1–5 scale is `min: 1, max: 5`. */
+  min: number;
+  max: number;
+  order: number;
+}
+
+/**
+ * `calls/{slug}` — one call for abstracts.
+ *
+ * Keyed by a slug because the id is in a public URL (`/submit/{callId}`) that
+ * goes on a poster and into a mailing. Nothing else is derived from it and
+ * nothing parses it.
+ */
+export interface CallDoc extends BaseDoc {
+  title: string;
+  /**
+   * What the call asks for, as plain text. Blank lines separate paragraphs.
+   *
+   * Not HTML, for the reason `ConsentFormDoc.body` gives: text typed into a
+   * textarea and rendered into a public page is an injection into a page people
+   * are asked to trust.
+   */
+  instructions: string;
+  status: PublishStatus;
+
+  /**
+   * Local wall time is the authoring truth and the UTC instants are derived from
+   * it, exactly as on `SessionDoc`. An organizer decides "30 September, 23:59 in
+   * New York", not an instant, and if the offset rules change it is the instant
+   * that should move rather than the deadline — a call that closes an hour early
+   * because the clocks went back closes on somebody mid-abstract.
+   */
+  timeZone: string;
+  /** `YYYY-MM-DDTHH:mm` wall clock in `timeZone`. */
+  opensAtLocal: string;
+  closesAtLocal: string;
+  /** Derived UTC instants. Never authored directly. */
+  opensAt: Timestamp;
+  /**
+   * ⚠️ **The deadline is enforced by the server action that accepts a
+   * submission, or it is not enforced at all** (`CFA-PLAN.md` §4). There is no
+   * rule to fall back on here — the collection has no `match` block — so a
+   * closed call that only hides the button is a call anybody can still submit to
+   * with a `curl`.
+   */
+  closesAt: Timestamp;
+
+  /**
+   * What a submitter may offer the work as.
+   *
+   * `SessionFormat` rather than free text, so an accepted submission carries a
+   * format the agenda already understands. Phase 4 promotes accepted work into
+   * `sessions/{id}`, and a translation table between two vocabularies is a
+   * translation table that will one day be missing a row.
+   */
+  sessionTypes: SessionFormat[];
+  /**
+   * `tracks/{id}` ids, not names. Renaming a track then leaves every submission
+   * still pointing at it, which is the same choice `SessionDoc.trackIds` makes.
+   */
+  trackIds: string[];
+
+  /** The questions as they stand now. */
+  form: CallFormFieldDef[];
+  /**
+   * The version `form` is at. Stamped onto every submission.
+   *
+   * §1.2: adding a question is allowed and leaves old submissions simply without
+   * an answer for it; *changing or removing* one mints a new version and pushes
+   * the old fields into `priorVersions`. Whova freezes the form outright once
+   * one submission exists, which its own research notes call a known pain point
+   * — brutal for a call that runs for months.
+   */
+  formVersion: number;
+  /** Every superseded version, oldest first. Never pruned — see `CallFormVersion`. */
+  priorVersions: CallFormVersion[];
+
+  /** How the author is shown to a reviewer. See `BlindReviewMode`. */
+  blindReview: BlindReviewMode;
+  /** The criteria every review of this call is scored against. */
+  rubric: RubricCriterionDef[];
+  /** How many reviews each submission should collect. Three is the usual answer. */
+  reviewsPerSubmission: number;
+
+  /**
+   * Days before `closesAt` at which incomplete submitters should be nudged —
+   * `[14, 7, 3]` is the plan's suggestion (§4, phase 2).
+   *
+   * ⚠️ **Nothing sends these on a schedule.** Scheduled reminders want Cloud
+   * Tasks, and everything in `functions/` is blocked on one IAM grant
+   * (`OWNER-ACTIONS.md` §3). Until that lands this is the list of dates a
+   * dashboard button is offered on, and the screen has to say so rather than
+   * imply an automation that is not running.
+   */
+  reminderDaysBefore: number[];
+  /** Addresses told about each new submission. Empty means nobody is told. */
+  notifyEmails: string[];
+
+  /** Allowlisted organizer address, as `auditLog.actor` records it. */
+  updatedBy?: string;
+}
+
+/**
+ * The decision on a submission — `CFA-PLAN.md` §2's second state-carrying field.
+ *
+ * **Absent until it is made**, which is the point of it being a map rather than
+ * a pair of booleans: "undo this decision" is then a field delete, and there is
+ * no way to represent the contradiction of an accepted-and-rejected submission.
+ */
+export interface SubmissionDecision {
+  /** The organizer address that decided, as `auditLog.actor` records it. */
+  by: string;
+  at: Timestamp;
+  /**
+   * Which round of decisions this was. A committee that accepts twenty, waits
+   * for confirmations and then goes back to the waiting list has made two
+   * rounds, and the second one is not a correction of the first.
+   */
+  round: number;
+}
+
+/**
+ * `submissions/{id}` — one abstract, minus its author.
+ *
+ * ── Nothing that identifies the author belongs on this document ─────────────
+ *
+ * Author name, affiliation, email and co-authors live in
+ * `submissions/{id}/identity` (`CFA-PLAN.md` §1.1). That split *is* the blind
+ * review: with it, showing or hiding an author is a decision about which
+ * document the review screen loads, and without it the same feature is a
+ * migration of every submission ever written.
+ *
+ * So the guarantee here is carried by the fields not existing, not by anything
+ * filtering them — and the way it breaks is somebody adding
+ * `authorName` "just for the list screen". That screen can read the identity
+ * document; it already runs on the Admin SDK.
+ *
+ * ⚠️ The same trap has a subtler form: any field *derived* from a name is a name.
+ * `speakerId` is `slug(name)` plus a hash, so it would hand a double-blind
+ * reviewer the author in a field that does not look like one. It is on the
+ * identity document for exactly that reason.
+ *
+ * ── Minted id ──────────────────────────────────────────────────────────────
+ *
+ * Server-minted and opaque, like `registrations`. The id is what a mailed
+ * capability link resolves to, so an id anybody can compute is a link anybody
+ * can forge.
+ */
+export interface SubmissionDoc extends BaseDoc {
+  /** `calls/{callId}`. On every submission, so the schema supports two calls at once. */
+  callId: string;
+  title: string;
+  /** Plain text, for the reason `CallDoc.instructions` gives. */
+  abstract: string;
+  /** One of the call's `trackIds`. Absent while the submission is still a draft. */
+  trackId?: string;
+  /** One of the call's `sessionTypes`. Absent while still a draft. */
+  sessionType?: SessionFormat;
+  /** Answers to the call's form, keyed by `CallFormFieldDef.id`. */
+  answers: Record<string, string | string[] | boolean>;
+  /**
+   * The version of the call's form these answers were given against.
+   *
+   * `consentForms` already does exactly this and for the same reason: a record
+   * that names no version records nothing that can be relied on later. There, a
+   * `get()` in `firestore.rules` pins the version to what the form actually
+   * published, because the signer is a client writing the document directly.
+   * Here the reasoning is identical and the mechanism cannot be, because there
+   * is no client write and no rules evaluation to hang it on — the submitter
+   * holds a capability token, not an identity. **The server action that accepts
+   * the write stamps this from the call it just read**, and it must never copy a
+   * number the request supplied, or a submission can claim to have been asked
+   * questions nobody ever published.
+   */
+  formVersion: number;
+
+  status: SubmissionStatus;
+  /**
+   * Set the first time the submission leaves `draft`, and never restamped.
+   *
+   * An editor who fixes a typo after the deadline has not resubmitted, and a
+   * `submittedAt` that moved would put them outside the call. This is the same
+   * mistake the Stripe webhook must not make with `purchasedAt`.
+   *
+   * ⚠️ It is **absent on a draft**, and Firestore drops documents that lack the
+   * ordering field from a query entirely. So the incomplete-submissions tab —
+   * the whole of phase 2 — cannot order by this one: it orders by `updatedAt`,
+   * which is also the more useful question there ("who touched this last, and
+   * how long ago"). Both orderings have their own entry in
+   * `firestore.indexes.json`, because JSON cannot hold this comment and the
+   * emulator enforces neither.
+   */
+  submittedAt?: Timestamp;
+  /** Absent until a decision is made. See `SubmissionDecision`. */
+  decision?: SubmissionDecision;
+
+  /**
+   * Lower-case hex sha256 of the nonce inside the submitter's capability link.
+   *
+   * The token itself is an HMAC and verifies without a lookup, exactly as
+   * `order-token.ts` does; what the stored hash buys is **revocation**. A link
+   * mailed to the wrong address, or forwarded into a mailing list archive, can
+   * be killed by rotating this field — where a pure HMAC over the submission id
+   * can only be invalidated by rotating the secret for every submitter at once.
+   * The plaintext token never reaches Firestore, so a database read is not a
+   * set of working links into every draft in the call.
+   */
+  submitterTokenHash: string;
+
+  /**
+   * Review progress, maintained by the same server action that writes a review,
+   * in the same transaction.
+   *
+   * Unlike `replyCount` and the other counters in this project these do **not**
+   * wait on the IAM grant that blocks `functions/`: those exist because a
+   * *client* writes the thing being counted and a trigger has to react to it.
+   * Nothing here is client-written, so the writer can simply keep the count.
+   */
+  reviewsAssigned: number;
+  reviewsSubmitted: number;
+  /**
+   * The mean of the submitted reviews' `overall` scores, absent until there is
+   * one. Stored rather than computed because the ranking screen sorts on it and
+   * Firestore cannot order by a value it does not hold.
+   */
+  scoreAverage?: number;
+
+  /**
+   * `sessions/{id}`, set when accepted work is promoted onto the agenda.
+   *
+   * Promotion is a deliberate step in Session Manager and not a side effect of
+   * acceptance — Whova's marketing claims the opposite and its own help centre
+   * corrects it (`CFA-PLAN.md` §4, phase 4), because scheduling is a decision
+   * about rooms and times that acceptance does not make. This field is what
+   * makes pressing the button twice harmless.
+   */
+  sessionId?: string;
+}
+
+/** A co-author, as typed by the submitter. Nothing here is verified. */
+export interface SubmissionCoAuthor {
+  name: string;
+  affiliation?: string;
+  /** Often absent — most submitters know a colleague's name and not their address. */
+  email?: string;
+}
+
+/**
+ * `submissions/{id}/identity/author` — who wrote it.
+ *
+ * A subcollection document rather than fields on the submission, and the id is
+ * the constant `SUBMISSION_IDENTITY_DOC`, so the whole of blind review is which
+ * of two documents a screen fetches. `CFA-PLAN.md` §1.1 is the argument; the
+ * short form is that field-level redaction does not exist here — in the rules
+ * because rules filter documents and not fields, and in the dashboard because a
+ * projection somebody forgets to use is a projection that leaked.
+ *
+ * ⚠️ Firestore does not cascade deletes. Deleting a submission leaves this
+ * document behind — an orphaned name, affiliation and address under a path
+ * nothing lists. Withdrawal is a `status`, not a delete, for that reason among
+ * others; anything that ever does hard-delete a submission must delete this
+ * first.
+ *
+ * `eventId` is here, on a subcollection document that does not extend `BaseDoc`,
+ * because this is one of the two paths in the call queried as a **collection
+ * group** — "has this person submitted before?", asked across every submission —
+ * and a collection-group query with no `eventId` to lead on is a query that
+ * silently spans KGC 2027 and KGC 2028.
+ */
+export interface SubmissionIdentityDoc {
+  eventId: string;
+  /** The parent's id, so this document is legible without being parsed out of its path. */
+  submissionId: string;
+  callId: string;
+  name: string;
+  /**
+   * Lower case, always. The join key everything in this project already uses —
+   * `registrations` to `users`, `speakers` to both — so an accepted author can
+   * be matched to a ticket without a membership table, and so the phase-2
+   * incompletes screen can search on it.
+   */
+  email: string;
+  affiliation?: string;
+  coAuthors: SubmissionCoAuthor[];
+  /** Offered to the programme committee, and reused as the speaker bio on acceptance. */
+  bio?: string;
+
+  /**
+   * `speakers/{id}`, once this author has been promoted onto the agenda.
+   *
+   * Written by the phase-4 promotion step, which computes it with the existing
+   * `speakerId(name, company)` so an author who is already a speaker updates
+   * that document rather than appearing twice on the public page.
+   *
+   * On *this* document rather than on the submission because `speakerId` is
+   * `slug(name)` plus a hash of name and company — it is the author's name in a
+   * field that does not look like one, and a double-blind reviewer reading the
+   * submission must not be handed it.
+   */
+  speakerId?: string;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
+ * `submissions/{id}/reviews/{reviewerId}` — one reviewer's verdict.
+ *
+ * Keyed by the `reviewers/{id}` document id, so one reviewer holds at most one
+ * review of a submission and a double assignment is a `create` that fails with
+ * `already-exists` — the mechanism `checkIns`, `scanEvents` and the consent
+ * register all use, rather than a read-then-write race to lose.
+ *
+ * The document is created **at assignment**, carrying `status: 'assigned'` and
+ * no scores. That is what makes reviewer progress a query rather than a
+ * subtraction, and it is what "hide other reviewers' scores until yours is
+ * entered" (`CFA-PLAN.md` §4, phase 3) is decided from: the server action reads
+ * the caller's own review first and refuses to send the others until it says
+ * `submitted`. That rule is server-side or it is decoration.
+ *
+ * `eventId` is present for the same reason it is on the identity document: a
+ * reviewer's queue is a collection-group query across every submission.
+ */
+export interface ReviewDoc {
+  eventId: string;
+  submissionId: string;
+  callId: string;
+  /** `reviewers/{id}` — also this document's id, kept as a field so it reads on its own. */
+  reviewerId: string;
+  status: ReviewStatus;
+
+  /**
+   * Score per `RubricCriterionDef.id`. Keyed by criterion id rather than by
+   * label, so renaming a criterion does not orphan the scores given to it.
+   * Absent while `status` is `assigned`.
+   */
+  scores?: Record<string, number>;
+  /**
+   * The mean of `scores`, stored because the ranking screen sorts on it and
+   * Firestore cannot order by a value it does not hold. Written when the review
+   * is submitted, from the rubric in force at that moment.
+   */
+  overall?: number;
+  /**
+   * Confidence in the assessment, 1–5. A reviewer who says "outside my field"
+   * is telling the committee something a low score does not.
+   */
+  confidence?: number;
+
+  /**
+   * Comments for the committee only. These are never shown to an author, which
+   * is why they are a separate field from the ones that are — one textarea
+   * doing both jobs is how a private remark about a submitter ends up in the
+   * rejection mail.
+   */
+  commentsToCommittee?: string;
+  /** Comments the committee may forward to the author with the decision. */
+  commentsToAuthors?: string;
+
+  /**
+   * Declared conflict of interest — same institution, a co-author, a former
+   * student. The assignment is then excluded from the averages rather than
+   * deleted, so the matcher does not hand the same submission back tomorrow.
+   */
+  conflict: boolean;
+  conflictNote?: string;
+
+  /**
+   * How this assignment was made. Recorded because "random" is the one an
+   * organizer will be asked to justify, and a draw nobody can reconstruct is a
+   * draw somebody will suspect.
+   */
+  assignedBy?: "manual" | "topic" | "random";
+  assignedAt: Timestamp;
+  submittedAt?: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
+ * `reviewers/{id}` — somebody who scores submissions.
+ *
+ * Deliberately **not** a `users` document (`CFA-PLAN.md` §2): a reviewer need
+ * not hold a ticket, and most external academics on a programme committee never
+ * buy one. Making them a user would mean either minting the `registered` claim
+ * for somebody who is not registered — the claim's whole meaning is that it is
+ * not given away — or a second kind of user document that half the app's queries
+ * would then have to know about.
+ *
+ * They reach their queue through a capability link, the same scheme the
+ * submitter uses. If reviewers ever do need a real session they become a
+ * `roles: ['reviewer']` claim, which `Role` already carries and
+ * `scripts/src/set-claims.ts` already mints; `uid` below is where that would
+ * land, and nothing yet writes it.
+ */
+export interface ReviewerDoc extends BaseDoc {
+  name: string;
+  /** Lower case. The join key, and the address the invitation went to. */
+  email: string;
+  affiliation?: string;
+  /**
+   * The tracks this reviewer covers, as `tracks/{id}` ids rather than free text.
+   *
+   * Assignment "by topic" matches on these, and free-text topics make that
+   * matcher silently return nothing for a reviewer who typed "Knowledge Graphs"
+   * where the call says "Knowledge Graph Engineering" — a mismatch that looks
+   * exactly like a reviewer with no expertise.
+   */
+  trackIds: string[];
+  status: ReviewerStatus;
+
+  invitedAt?: Timestamp;
+  respondedAt?: Timestamp;
+  /**
+   * Lower-case hex sha256 of the nonce in the reviewer's capability link. Same
+   * shape and the same revocation argument as `SubmissionDoc.submitterTokenHash`
+   * — and it matters more here, because this link opens somebody else's
+   * unpublished work.
+   */
+  inviteTokenHash: string;
+
+  /**
+   * The most submissions this reviewer is willing to take.
+   *
+   * ⚠️ **Nothing enforces this.** No assignment action exists yet, so it is a
+   * stated intent that the assignment screen should respect — the same standing
+   * `SessionDoc.capacity` has, and recorded here in the same words so that
+   * nobody later reads it as a limit that is already being applied.
+   */
+  maxAssignments: number;
+  /** Assignments actually made, kept by the assignment action in the same write. */
+  assignedCount: number;
+  /** Set only if this reviewer is ever given a real account. See the docblock. */
+  uid?: string;
+}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SLACK_WORKSPACE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Community',
@@ -19,7 +20,14 @@ const CHANNELS = [
     name: 'Slack',
     body: 'Ask knowledge graph and graph data science questions, get book recommendations, search for jobs and follow announcements.',
     cta: 'Join the Slack',
-    href: 'https://knowledgegraphconf.slack.com/',
+    /*
+     * The same declaration the footer's Slack link reads. This page held the
+     * URL as a literal while `site.ts` argued that nobody had it and left the
+     * social row without a Slack entry — one site, two opposite conclusions
+     * about one address. `SLACK_WORKSPACE`'s docblock records which way that
+     * was resolved and why.
+     */
+    href: SLACK_WORKSPACE,
     featured: true,
   },
   {

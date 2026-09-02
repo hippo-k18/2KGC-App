@@ -76,8 +76,10 @@ export default async function TicketAddOnsPage() {
           An <code>addOns</code> collection with a price and an optional capacity, a multi-select on
           the public form, extra line items on the Checkout session, and — the part that is easy to
           forget — the entitlement written onto the registration at fulfilment, because that is
-          what the door and the app read. The Checkout session currently builds exactly one line
-          item with <code>quantity: 1</code>, so the purchase path changes shape as well as size.
+          what the door and the app read. One of those four is now free: the Checkout session
+          already builds several line items with real quantities, because multi-seat checkout
+          needed that anyway. The other three are the work, and the fourth is the one that decides
+          whether it is correct.
         </p>
         <p className="body-2">
           Capacity is the subtle half. A gala dinner with 200 seats needs the same sold-out check

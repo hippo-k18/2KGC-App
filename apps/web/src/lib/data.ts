@@ -8,6 +8,7 @@ import {
   type AnnouncementDoc,
   type BoothDoc,
   type BrandingSettings,
+  type DocumentDoc,
   type ExhibitorDoc,
   type PageContentDoc,
   type PageContentKey,
@@ -16,6 +17,9 @@ import {
   type SpeakerDoc,
   type SponsorDoc,
   type SponsorTier,
+  type TrackDoc,
+  servableLogoURL,
+  usable,
 } from '@kgc/shared';
 import { cache } from 'react';
 import { db } from './firestore';
@@ -74,63 +78,14 @@ async function safely<T>(what: string, read: () => Promise<T>, fallback: T): Pro
   }
 }
 
-/**
- * Keep only the stored fields whose shape matches the fallback's.
- *
- * ⚠️ Not defensive programming for its own sake. Settings documents written
- * before 2026-08-31 hold `null` for a cleared field, and a raw spread over the
- * defaults puts `null` where the type says `string` — which is how a page ends
- * up printing the word "null" to the public. The dashboard's
- * `apps/organizer/src/lib/settings.ts` `usable()` is the same four lines for
- * the same reason; this is the website's copy because the two apps are separate
- * installs and neither may import the other.
- *
- * `typeof` alone would let any object through an array field, so arrays are
- * checked structurally: an array field keeps the stored value only if every
- * element matches the first element of the fallback. A page whose deadline list
- * arrives half-malformed shows the constant, not a row reading "undefined".
+/*
+ * `usable()` used to be declared here, and a second time in
+ * `apps/organizer/src/lib/settings.ts`, both guarding the same defect and both
+ * justified by a comment saying the two apps are separate installs and neither
+ * may import the other. They both depend on `@kgc/shared`, so that was never
+ * true, and the copies had already drifted — this one checked arrays and the
+ * dashboard's did not. It now lives in `packages/shared/src/usable.ts`.
  */
-function usable<T extends object>(fallback: T, stored: unknown): Partial<T> {
-  if (!stored || typeof stored !== 'object') return {};
-  const shape = fallback as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-
-  for (const [k, v] of Object.entries(stored as Record<string, unknown>)) {
-    if (!(k in shape)) continue;
-    const want = shape[k];
-
-    if (Array.isArray(want)) {
-      if (!Array.isArray(v)) continue;
-      /*
-       * An empty stored list falls back to the constant rather than emptying
-       * the page. Every array these two stores hold is one where emptiness is
-       * a regression and not a statement: a code of conduct that names nobody
-       * to report to, a call page with the heading "Important dates" and
-       * nothing under it. An organizer who wants a section gone needs a
-       * control that says so, not a list they happened to clear.
-       */
-      if (v.length === 0) continue;
-      const template = want[0] as unknown;
-      if (template !== undefined && !v.every((el) => sameShape(template, el))) continue;
-      out[k] = v;
-      continue;
-    }
-
-    if (typeof v !== typeof want || v === null) continue;
-    out[k] = v;
-  }
-
-  return out as Partial<T>;
-}
-
-/** Whether `value` carries every key of `template`, at the same primitive types. */
-function sameShape(template: unknown, value: unknown): boolean {
-  if (typeof template !== 'object' || template === null) return typeof value === typeof template;
-  if (typeof value !== 'object' || value === null) return false;
-  return Object.entries(template as Record<string, unknown>).every(
-    ([k, t]) => typeof (value as Record<string, unknown>)[k] === typeof t,
-  );
-}
 
 /**
  * `settings/branding`, as the organizer's Branding Center saved it.
@@ -222,7 +177,13 @@ export interface SpeakerCard {
   linkedin?: string;
   x?: string;
   website?: string;
-  sessionCount: number;
+  /** Whova's "Our First Speakers" highlight, now an editable field. */
+  featured?: boolean;
+  /** Ascending publication order. Absent everywhere means "no editorial order". */
+  displayOrder?: number;
+  /** Intrinsic portrait size, so the box is reserved before the image loads. */
+  photoWidth?: number;
+  photoHeight?: number;
 }
 
 export async function listSpeakers(): Promise<SpeakerCard[]> {
@@ -242,14 +203,37 @@ export async function listSpeakers(): Promise<SpeakerCard[]> {
         linkedin: s.social?.linkedin,
         x: s.social?.x,
         website: s.social?.website,
-        sessionCount: s.sessionIds?.length ?? 0,
+        featured: s.featured,
+        displayOrder: s.displayOrder,
+        photoWidth: s.photoWidth,
+        photoHeight: s.photoHeight,
       };
     })
-    // Surname-ish sort: the last whitespace-delimited word. Wrong for some
-    // names, which is why it is a display nicety and not an identity claim.
+    /*
+     * `displayOrder` first, surname second.
+     *
+     * The surname sort is the fallback and was for a long time the only rule:
+     * the last whitespace-delimited word, lower-cased — wrong for some names,
+     * which is why it is a display nicety and not an identity claim.
+     *
+     * It stopped being sufficient when the published 2026 roster was imported.
+     * That roster arrived in Whova's own `display_dict` order, nominally by
+     * last name but with quirks a re-sort silently corrects — `(Phil)
+     * (Meredith)` sorts first there and nowhere else. Re-deriving the order
+     * would have been a visible change to a page whose whole requirement was
+     * not to change, so the order came with the data.
+     *
+     * A speaker created in the dashboard has no `displayOrder` and sorts after
+     * everyone who has one, by surname, rather than jumping to the front.
+     */
     .sort((a, b) => {
-      const key = (n: string) => n.split(/\s+/).pop()!.toLowerCase();
-      return key(a.name).localeCompare(key(b.name)) || a.name.localeCompare(b.name);
+      const surname = (n: string) => n.split(/\s+/).pop()!.toLowerCase();
+      const rank = (s: SpeakerCard) => s.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      return (
+        rank(a) - rank(b) ||
+        surname(a.name).localeCompare(surname(b.name)) ||
+        a.name.localeCompare(b.name)
+      );
     });
   }, []);
 }
@@ -319,6 +303,17 @@ export interface AgendaSession {
   roomName?: string;
   trackName?: string;
   trackColor?: string;
+  /**
+   * Every track the session is cross-listed in, not just the primary one.
+   *
+   * ⚠️ `trackName` above is the *cached* name of the primary track only, and
+   * `/agenda?track=` must not filter on it. Programme chairs cross-list talks
+   * — `SessionDoc.trackIds` is plural and says so — so a Healthcare talk whose
+   * primary track is Ontology Engineering is genuinely in both. Matching on the
+   * displayed chip would drop it from the Healthcare slice, and the partner who
+   * was handed that link would never know which sessions they were missing.
+   */
+  trackIds: string[];
   format: SessionDoc['format'];
   skillLevel?: SessionDoc['skillLevel'];
   speakerNames: string[];
@@ -357,6 +352,7 @@ export async function listAgenda(): Promise<AgendaDay[]> {
         roomName: s.roomName,
         trackName: s.primaryTrackName,
         trackColor: s.primaryTrackColor,
+        trackIds: s.trackIds ?? [],
         format: s.format,
         skillLevel: s.skillLevel,
         speakerNames: s.speakerNames ?? [],
@@ -381,6 +377,139 @@ export async function listAgenda(): Promise<AgendaDay[]> {
     }))
     .sort((a, b) => a.day.localeCompare(b.day));
   }, []);
+}
+
+export interface TrackCard {
+  /** The document id. This is what `/agenda?track=` carries. */
+  id: string;
+  name: string;
+  color?: string;
+}
+
+/**
+ * The programme's tracks, for the filter row on `/agenda`.
+ *
+ * ── Why the id and not the name is the query parameter ──────────────────────
+ *
+ * The dashboard's Special-Purpose Agenda screen generates the links a partner
+ * is given — `/agenda?track={t.id}` — so the id is already the contract, and it
+ * is the right half of the choice anyway: a track gets renamed the week before
+ * the event ("Healthcare" becomes "Healthcare & Life Sciences") and every
+ * printed link built on the name dies with the rename, silently, by matching
+ * nothing.
+ *
+ * Sorted by name rather than by any stored order. `TrackDoc` has no ordering
+ * field, and inventing one from the document id would put the filter row in
+ * whatever sequence the importer happened to write.
+ */
+export async function listTracks(): Promise<TrackCard[]> {
+  return safely('listTracks', async () => {
+    const snap = await db().collection(COLLECTIONS.tracks).where('eventId', '==', EVENT_ID).get();
+
+    return snap.docs
+      .map((d) => {
+        const t = d.data() as TrackDoc;
+        return { id: d.id, name: t.name, color: t.color };
+      })
+      .filter((t) => t.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
+}
+
+export interface PublicDocument {
+  id: string;
+  title: string;
+  description?: string;
+  url: string;
+  kind: DocumentDoc['kind'];
+  /** The link's host, printed on the card — see the note below about off-site links. */
+  host: string;
+}
+
+/**
+ * The handouts anyone may read: `documents` with **no** ticket restriction.
+ *
+ * ── `visibleToTicketTypes` is filtered here, on the server, and that is the
+ *    entire point of this function ────────────────────────────────────────────
+ *
+ * `DocumentDoc.visibleToTicketTypes` exists so a workshop dataset can be
+ * restricted to the people who paid for the workshop. The obvious shape for a
+ * public page — fetch the collection, render every row, hide the restricted
+ * ones with a class — publishes exactly the documents the field exists to
+ * withhold: the URLs are in the HTML, in the page source, in the crawler's copy
+ * and in the reader's "view source". A restricted deck leaked that way is
+ * leaked permanently, because these are links to files somebody else is
+ * hosting and this repo cannot revoke them.
+ *
+ * So the gate is here, before the data leaves the server: a document with a
+ * non-empty `visibleToTicketTypes` is not returned at all, and there is no
+ * argument, no flag and no query parameter that makes it return one. The page
+ * literally cannot render what it never received. **If you add a parameter to
+ * this function, you have re-opened that hole.**
+ *
+ * ⚠️ Absence is not restriction. `visibleToTicketTypes` is `string[]` on the
+ * model but a document written before the field existed, or written by
+ * something other than the dashboard, may not carry it at all — and `undefined`
+ * has no `.length`. Reading it as `?? []` would treat a missing field as "open
+ * to everyone", which is the wrong way for this default to fail. The check
+ * below therefore demands a real array that is really empty, so anything
+ * malformed stays off the page.
+ *
+ * `status === 'published'` is the second gate and is applied in memory for the
+ * reason at the top of this file: a `where('eventId') + where('status')` pair
+ * needs a composite index, which the emulator does not enforce and which would
+ * fail only in production.
+ */
+export async function listPublicDocuments(): Promise<PublicDocument[]> {
+  return safely('listPublicDocuments', async () => {
+    const snap = await db()
+      .collection(COLLECTIONS.documents)
+      .where('eventId', '==', EVENT_ID)
+      .get();
+
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as DocumentDoc) }))
+      .filter(
+        (d) =>
+          d.status === 'published' &&
+          Array.isArray(d.visibleToTicketTypes) &&
+          d.visibleToTicketTypes.length === 0 &&
+          typeof d.url === 'string' &&
+          d.url.length > 0 &&
+          Boolean(d.title),
+      )
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title))
+      .map(
+        (d): PublicDocument => ({
+          id: d.id,
+          title: d.title,
+          description: d.description,
+          url: d.url,
+          kind: d.kind ?? 'link',
+          host: linkHost(d.url),
+        }),
+      );
+  }, []);
+}
+
+/**
+ * The host a document link points at, or `''` if it is not a URL at all.
+ *
+ * Printed on the card because **every document here is a link to something this
+ * project does not host** — `DocumentDoc`'s own header says so, and nothing in
+ * this repo uploads a file. A visitor about to click a 40MB PDF is entitled to
+ * know it lives on a third-party CDN before they click it, and the dashboard
+ * shows organizers the same column for the same reason.
+ *
+ * A malformed URL yields an empty host rather than throwing, and the page drops
+ * the row instead of rendering a link to nowhere.
+ */
+function linkHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
 }
 
 export interface SponsorCard {
@@ -422,26 +551,6 @@ function logoSlug(name: string): string {
 }
 
 /**
- * Whova's own asset CDN, which is where the seed fixtures took the real 2026
- * logos from.
- *
- * ⚠️ A URL on this host must never reach a browser from a page we serve. Two
- * separate reasons, and either alone would be enough: it is a request to the
- * product this one replaces, made by a visitor to our public site and visible
- * in their network tab; and it is a hotlink to somebody else's bandwidth for an
- * asset we do not own, which they can break or swap at any time.
- *
- * The seed no longer writes these URLs into `logoURL` at all, so on freshly
- * seeded data this catches nothing. It stays for the two ways one can still
- * arrive: a Whova CSV imported through the dashboard's sponsor importer, and
- * the live project, which was seeded by an older build and still holds
- * eighteen of them. Dropping the URL falls through to our own copy, or to the
- * company's name — a visibly missing asset rather than a silent third-party
- * request.
- */
-const FOREIGN_CDN = /^https?:\/\/[^/]*\bd1keuthy5s86c8\.cloudfront\.net\//i;
-
-/**
  * Which logo this site should serve for a company.
  *
  * ── An uploaded logo wins. It did not, and that was a bug ───────────────────
@@ -460,11 +569,16 @@ const FOREIGN_CDN = /^https?:\/\/[^/]*\bd1keuthy5s86c8\.cloudfront\.net\//i;
  *
  * ── Except a Whova URL, which is dropped before it is considered ────────────
  *
- * `FOREIGN_CDN` is checked first and unconditionally. A URL on that host must
- * never reach a browser from a page we serve, and "it is what the document
- * says" is not a reason to hotlink the product this one replaces. Dropping it
- * falls through to the local copy, which is why the public sponsor page looks
- * identical before and after this change even though its source changed.
+ * `servableLogoURL()` is applied first and unconditionally. A URL on that host
+ * must never reach a browser from anything we serve, and "it is what the
+ * document says" is not a reason to hotlink the product this one replaces.
+ * Dropping it falls through to the local copy, which is why the public sponsor
+ * page looks identical before and after that rule existed even though its
+ * source changed.
+ *
+ * The rule itself now lives in `@kgc/shared`, because the attendee app renders
+ * the same `logoURL` into an `<Image>` and was hotlinking what this page
+ * refused — see `logo-policy.ts`.
  *
  * Shared by sponsors and exhibitors. It was sponsor-only and inlined the
  * directory; exhibitors have exactly the same problem and copying it would have
@@ -476,7 +590,7 @@ function selfHostedLogo(
   name: string,
   remote?: string,
 ): string | undefined {
-  const uploaded = remote && !FOREIGN_CDN.test(remote) ? remote : undefined;
+  const uploaded = servableLogoURL(remote);
   if (uploaded) return uploaded;
 
   const slug = logoSlug(name);
@@ -705,7 +819,17 @@ export async function listExhibitorsByZone(): Promise<ExhibitorZone[]> {
   }, []);
 }
 
-/** Headline numbers for the home page, counted from the real collections. */
+/**
+ * Headline numbers for the home page, counted from the real collections.
+ *
+ * ⚠️ The speaker count and `/speakers` must stay the same set. Both are the
+ * `speakers` collection filtered by `eventId` and nothing else, so the homepage
+ * saying "137 Speakers" and the roster listing 137 people is not a coincidence
+ * — it is the *only* reason two public pages of one site agree about how many
+ * speakers there are. Adding a filter to `listSpeakers()` (published-only, say)
+ * without adding it here makes the homepage overcount, and neither page can
+ * tell. Change them together or give them one query.
+ */
 export async function programmeCounts(): Promise<{ speakers: number; sessions: number; sponsors: number }> {
   return safely('programmeCounts', async () => {
   const [speakers, sessions, sponsors] = await Promise.all([

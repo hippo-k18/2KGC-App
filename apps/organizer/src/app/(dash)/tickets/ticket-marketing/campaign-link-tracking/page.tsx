@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { listOrders, money } from '@/lib/commerce';
@@ -42,7 +43,7 @@ export default async function CampaignLinkTrackingPage() {
   await requireOrganizer();
 
   const [links, orders] = await Promise.all([listLinks(), listOrders()]);
-  const publicOrigin = (process.env.WEB_PUBLIC_ORIGIN ?? 'http://localhost:3200').replace(/\/$/, '');
+  const publicOrigin = publicSiteOrigin();
 
   const clicks = links.reduce((n, l) => n + l.clicks, 0);
   const attributed = links.reduce((n, l) => n + l.orders, 0);

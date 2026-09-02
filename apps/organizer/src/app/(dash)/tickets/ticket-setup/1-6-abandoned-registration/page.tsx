@@ -20,11 +20,18 @@ export const dynamic = 'force-dynamic';
  *
  * ── The catch that decides what can be built on top ─────────────────────────
  *
- * The card path writes **no order at checkout time** — an order document is
- * created at fulfilment, from the webhook. So when a session expires there is
- * usually nothing to update, and `cancelRegistrationByOrder` takes its
+ * A **single-seat** card purchase writes no order at checkout time — the order
+ * document is created at fulfilment, from the webhook. So when one of those
+ * expires there is nothing to update, and `cancelRegistrationByOrder` takes its
  * not-found branch: it writes the order anyway, deliberately, so the finance
  * trail is complete, with `email: ''` and `totalCents: 0`.
+ *
+ * ⚠️ A **multi-seat** cart is the exception, as of 2026-08-31. It writes a
+ * `pending` order before the buyer is sent to Stripe, because the seat list has
+ * to be recorded somewhere the webhook can read it and a Stripe metadata value
+ * caps at 500 characters. So an abandoned group checkout arrives here with the
+ * buyer's address, the seat names and the amount they were about to pay —
+ * which is the only case on this screen that is actually followable up.
  *
  * That is why the rows below are mostly blank, and it is not a bug — it is the
  * consequence of never writing a buyer's details until they have paid. It does
@@ -75,9 +82,11 @@ export default async function AbandonedRegistrationPage() {
       <Banner kind="info">
         <strong>Abandonment is recorded, not recoverable.</strong> Stripe fires{' '}
         <code>checkout.session.expired</code> and the webhook marks the order <code>cancelled</code>{' '}
-        — so nothing sits at <code>pending</code> for ever. But the card path writes no order until
-        payment succeeds, so an expired session usually leaves a placeholder with no email and no
-        amount. The buyer&rsquo;s address is on the Stripe session, not in this database.
+        — so nothing sits at <code>pending</code> for ever. But a single-seat card checkout writes
+        no order until payment succeeds, so an expired one usually leaves a placeholder with no
+        email and no amount; the buyer&rsquo;s address is on the Stripe session, not in this
+        database. A <em>multi-seat</em> cart is the exception: it records its seat list before the
+        redirect, so an abandoned group checkout keeps the buyer, the attendees and the total.
       </Banner>
 
       <Panel>

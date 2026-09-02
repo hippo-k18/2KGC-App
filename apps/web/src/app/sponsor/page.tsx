@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { listSponsorsByTier } from '@/lib/data';
+import { tiersOrNull } from '@/lib/catalogue';
 import { SponsorTiers } from '@/components/sponsor-tiers';
 import { SITE } from '@/lib/site';
+import { formatPrice } from '@/lib/tickets';
 
 export const metadata: Metadata = {
   title: 'Sponsor KGC',
@@ -12,48 +15,48 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 /*
- * Four tiers, because four is what the conference sells.
+ * The packages come from `ticketTypes`, not from a constant here.
  *
- * This listed Diamond and Startup as well, which the real event has never had —
- * and the sponsor bands below are grouped from live data, so the page was
- * offering two packages that no sponsor on the same screen held. The line items
- * are still ours rather than the prospectus's: the real prospectus is a Coda doc
- * the live nav links out to, and it is the authority on what a tier includes.
- * No prices are quoted here for that reason.
+ * ── Two public pages were describing one product ────────────────────────────
+ *
+ * This file held a `PACKAGES` array — Platinum/Gold/Silver/Bronze with a
+ * hand-written benefit list each — while `/tickets/sponsor` rendered the
+ * `includes` array off the `audience: 'sponsor'` documents that actually sell
+ * those packages. Same site, same four tiers, two descriptions, and only one of
+ * them was the record a buyer's order is written against. They had already
+ * diverged: this page said Gold gets "six full-conference passes" and the tier
+ * being sold says eight All Access ones.
+ *
+ * A constant loses that argument on every axis. It is edited by a deploy rather
+ * than by the organizer who priced the tier, and it is the copy nobody thinks
+ * to change when the package changes. So the marketing page and the checkout
+ * page now read the same documents, and the only thing this one adds is the
+ * link that takes you to the other.
+ *
+ * ── Prices are quoted now, because the sibling page already quotes them ─────
+ *
+ * The old comment here said no prices were shown because the real prospectus is
+ * a Coda doc the live nav links out to and is the authority on what a tier
+ * costs. That reasoning stopped holding when `/tickets/sponsor` went live
+ * publishing exactly these figures: withholding them here made this page look
+ * coy, not discreet, about a number one click away.
+ *
+ * Catalogue order — `sortOrder`, ascending, which is Bronze first — is the same
+ * order `/tickets/sponsor` uses. Reversing it here to lead with Platinum would
+ * be a second opinion about the same list.
  */
-const PACKAGES = [
-  {
-    tier: 'Platinum',
-    what: [
-      'Keynote or main-stage session slot',
-      'Largest booth, front of the exhibition hall',
-      'Ten full-conference passes',
-      'Logo on the badge lanyard and the app home screen',
-      'Booth staff badges, and your scanned leads exported after the event',
-    ],
-  },
-  {
-    tier: 'Gold',
-    what: [
-      'Track session slot',
-      'Premium booth position',
-      'Six full-conference passes',
-      'Logo on stage screens and in the app',
-      'Booth staff badges, and your scanned leads exported after the event',
-    ],
-  },
-  {
-    tier: 'Silver',
-    what: ['Standard booth', 'Four full-conference passes', 'Logo in the app'],
-  },
-  {
-    tier: 'Bronze',
-    what: ['Exhibition table', 'Two full-conference passes', 'Logo in the app'],
-  },
-];
 
 export default async function SponsorPage() {
-  const bands = await listSponsorsByTier();
+  /*
+   * `tiersOrNull`, not `listTiers`: this is a marketing page, and an
+   * unreachable catalogue should cost it the Packages band, not the sponsor
+   * wall and the call for speakers underneath. The tickets pages keep the loud
+   * failure, because a price that fails quietly is the one that gets charged.
+   */
+  const [bands, packages] = await Promise.all([
+    listSponsorsByTier(),
+    tiersOrNull('sponsor'),
+  ]);
 
   return (
     <>
@@ -75,25 +78,48 @@ export default async function SponsorPage() {
         </div>
       </section>
 
-      <section className="tint">
-        <div className="wrap">
-          <h2>Packages</h2>
-          <div className="grid g3" style={{ marginTop: 24 }}>
-            {PACKAGES.map((p) => (
-              <div className="card" key={p.tier}>
-                <h3>{p.tier}</h3>
-                <ul style={{ paddingLeft: 18, margin: '10px 0 0', fontSize: '0.93rem' }}>
-                  {p.what.map((w) => (
-                    <li key={w} style={{ padding: '3px 0' }}>
-                      {w}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+      {packages && packages.length > 0 && (
+        <section className="tint">
+          <div className="wrap">
+            <h2>Packages</h2>
+            <div className="grid g3" style={{ marginTop: 24 }}>
+              {packages.map((p) => (
+                <div className="card" key={p.id}>
+                  <h3>{p.name}</h3>
+                  <p style={{ margin: '4px 0 0', fontWeight: 600 }}>
+                    {formatPrice(p.priceCents, p.currency)}
+                  </p>
+                  {p.tagline && (
+                    <p style={{ margin: '4px 0 0', fontSize: '0.93rem' }}>{p.tagline}</p>
+                  )}
+                  <ul style={{ paddingLeft: 18, margin: '10px 0 0', fontSize: '0.93rem' }}>
+                    {p.includes.map((w) => (
+                      <li key={w} style={{ padding: '3px 0' }}>
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                  {/*
+                    A closed package keeps its card and says why, rather than
+                    vanishing — Platinum is capped at one, and "sold out" is the
+                    single most useful thing an enquirer can be told about it.
+                  */}
+                  {!p.onSale && (
+                    <p style={{ margin: '10px 0 0', fontSize: '0.93rem', fontWeight: 600 }}>
+                      {p.unavailableReason ?? 'Not available'}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p style={{ marginTop: 24 }}>
+              <Link className="btn btn-primary" href="/tickets/sponsor">
+                Become a sponsor
+              </Link>
+            </p>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {bands.length > 0 && (
         <section>

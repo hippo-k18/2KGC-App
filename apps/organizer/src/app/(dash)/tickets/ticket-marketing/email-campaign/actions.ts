@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { emailEnabled, sendBulkMessage } from '@kgc/scripts/src/lib/email';
 import { reauthenticate, requireOrganizer } from '@/lib/auth';
-import { audienceFor, listContacts } from '@/lib/campaigns';
+import { audienceFor, listContacts, recordSuppressedRecipients } from '@/lib/campaigns';
 import { recordError } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 
@@ -23,7 +23,9 @@ import { db } from '@/lib/firestore';
  * This resolves an audience from `contacts` and then **removes everyone who
  * unsubscribed or bounced** before it counts anything, because the list is
  * three orders of magnitude larger and the people on it did not buy a ticket
- * from you.
+ * from you. Each removal is then written to `emailLog` as a `skipped` row, so
+ * "we did not email anyone who opted out" is something the log can be asked
+ * rather than something this comment asserts.
  *
  * ── Four guards, each stopping a different disaster ─────────────────────────
  *
@@ -114,7 +116,7 @@ export async function sendCampaignAction(
 
   // ── The real send ────────────────────────────────────────────────────────
   const contacts = await listContacts();
-  const { recipients, suppressed } = audienceFor(contacts, list);
+  const { recipients, suppressed, excluded } = audienceFor(contacts, list);
 
   if (recipients.length === 0) {
     return {
@@ -157,6 +159,25 @@ export async function sendCampaignAction(
   let failed = 0;
 
   /**
+   * The exclusions are recorded *before* the first mail goes out.
+   *
+   * Not cosmetic ordering. These rows are the evidence that the suppression
+   * list was honoured, and the send that follows takes minutes — a deploy that
+   * restarts, a request that times out or an organizer who closes the tab
+   * halfway through would otherwise leave a campaign whose `sent` rows exist
+   * and whose "and here is who we deliberately did not mail" rows never got
+   * written. That is precisely the state that cannot be reconstructed
+   * afterwards, because `unsubscribedAt` keeps moving as more people opt out.
+   *
+   * It also fixes the campaign's timestamp at the moment the send started,
+   * since `listCampaigns()` takes a campaign's time from its earliest row.
+   *
+   * Never throws — see `recordSuppressedRecipients`. A campaign is not stopped
+   * by a failure to write its own diagnostics.
+   */
+  const skipLog = await recordSuppressedRecipients({ campaignId, subject, actor, excluded });
+
+  /**
    * Sequential, and each send swallows its own errors inside `sendBulkMessage`.
    *
    * One bad address must not stop the rest of a list being reached, and the
@@ -183,11 +204,30 @@ export async function sendCampaignAction(
 
   revalidatePath(PATH);
 
+  /*
+   * The exclusion sentence admits it when the log came out incomplete.
+   *
+   * `written < attempted` only ever means a Firestore write failed, and on
+   * every ordinary send they are equal. When they are not, the honest reading
+   * is that the suppression itself held — nobody excluded was emailed, because
+   * the audience was filtered long before any of this — but the *record* of it
+   * has a hole, and an organizer reading "62 excluded" off the log later would
+   * otherwise be reading a number that quietly means something else.
+   */
+  const excludedNote =
+    suppressed === 0
+      ? ''
+      : skipLog.written === skipLog.attempted
+        ? ` ${suppressed} were excluded as unsubscribed or bounced, and each is logged as skipped.`
+        : ` ${suppressed} were excluded as unsubscribed or bounced — none of them was emailed, but only ` +
+          `${skipLog.written} of ${skipLog.attempted} could be written to the log. ` +
+          `See the transaction log for the write failure.`;
+
   return {
     ok: true,
     message:
       `Sent to ${sent} of ${recipients.length} on "${list}".` +
       (failed > 0 ? ` ${failed} failed — see the log below.` : '') +
-      (suppressed > 0 ? ` ${suppressed} were excluded as unsubscribed or bounced.` : ''),
+      excludedNote,
   };
 }

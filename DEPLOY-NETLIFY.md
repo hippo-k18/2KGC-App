@@ -137,8 +137,14 @@ while it remains.
 
 A short passphrase such as `123` is allowed **only** when the dashboard is
 pointed at a Firestore emulator. Against the live project, anything under
-twelve characters refuses to sign anyone in — the rule is not "the secret must
-be strong", it is "a weak secret may only guard invented data".
+**seven** characters refuses to sign anyone in — the rule is not "the secret
+must be strong", it is "a weak secret may only guard invented data".
+
+⚠️ **That floor was twelve until 2026-08-31**, when it was lowered at the
+owner's request so the live passphrase could be `kgc2027`. The live site is
+therefore running a seven-character shared secret in front of the Admin SDK.
+Items 2 and 3 below are what is actually holding the boundary until it is
+rotated.
 
 ---
 

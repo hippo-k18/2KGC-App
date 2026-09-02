@@ -518,7 +518,7 @@ service cloud.firestore {
           allow create, update: if isSelf(uid)
             && isRegistered()
             && request.resource.data.uid == request.auth.uid
-            // One of the three access calls in this file. It is on a write path
+            // One of the four access calls in this file. It is on a write path
             // rather than every read, and it does double duty: closing a poll has to
             // mean something, and a ballot has to name options the poll has.
             // An unvalidated ballot is not a nuisance — `tallyPoll` counts what
@@ -693,6 +693,175 @@ service cloud.firestore {
       }
     }
 
+
+    /**
+     * CONSENT — the one collection here that is a legal record
+     *
+     * `consentForms/{id}` is the published wording; the signatures are
+     * underneath it. Everything about this block is shaped by the fact that a
+     * consent record which can be changed after the fact records nothing at
+     * all.
+     *
+     * The form itself is authored only by the dashboard, with the Admin SDK, so
+     * there is no client write branch — the same posture `surveys` has. A
+     * *published* form is readable by any ticket holder, because somebody has to
+     * be able to read the wording in order to agree to it; a draft is wording an
+     * organizer is still arguing about and is organizer-only.
+     */
+    match /consentForms/{formId} {
+      allow read: if isRegistered()
+        && (resource.data.status == 'published' || isOrganizer());
+      allow write: if false;
+
+      /**
+       * One signature, at `{uid}_v{version}` — see `consentResponseId()`.
+       *
+       * ── Append-only, and that is the whole point ────────────────────────
+       *
+       * `update` and `delete` are closed to everybody, organizers included.
+       * The dashboard reads this subcollection with the Admin SDK and has no
+       * write path to it at all, so denying every client write costs nothing
+       * and closes the question of whether a signature can be revised later.
+       * Signing twice at the same version is refused by Firestore itself: the
+       * id already exists, so the `create` fails with `already-exists`.
+       *
+       * ── The version is pinned to the form, not asserted by the signer ───
+       *
+       * This is the FOURTH `get()` in this file, and unlike the other three it
+       * is not there to prove who you are. AGENTS.md is right that adding one is
+       * a decision rather than a detail — the ceiling is 10 access calls on a
+       * single-document request — and this is a `create` on one document, so it
+       * spends one of ten.
+       *
+       * What it buys is the only property that makes the record worth keeping.
+       * Without it, `formVersion` and `bodyHash` are whatever the client typed:
+       * a signature could name a version that was never published, or an older
+       * and more permissive wording, and the register would show it as a
+       * signature like any other. Reading the parent form makes the stored
+       * version and hash *the ones the form actually had at the moment of
+       * signing*, which is what an organizer is relying on when they publish a
+       * photograph on the strength of this row.
+       *
+       * It also closes the smaller hole in the same move: a draft form cannot
+       * be signed, because `status` is read from the same document.
+       *
+       * ── Reading ─────────────────────────────────────────────────────────
+       *
+       * You may read your own signature and nobody else's, and nobody at all may
+       * enumerate the register — not another attendee and not an organizer's
+       * browser tab. A consent register is a list of who has and has not agreed
+       * to be photographed, which is not something a shared-passphrase session
+       * in a browser should be able to pull; the dashboard reads it with the
+       * Admin SDK, which bypasses these rules. If the dashboard ever stops using
+       * the Admin SDK, this path needs a rule of its own, not a loosening of
+       * this one.
+       *
+       * A query is permitted only when it is filtered to your own uid, which is
+       * the same shape the ticket list has: Firestore proves the rule from the
+       * filter, so `where('uid', '==', me)` returns your own signatures and an
+       * unfiltered `list` is refused outright. That is worth having rather than
+       * merely tolerating — "which versions have I signed?" is one query instead
+       * of one `get` per version — and it discloses nothing, because a filter
+       * naming somebody else fails.
+       *
+       * ⚠️ This comment previously claimed a `list` was impossible here. It was
+       * written from the observation that `resource.data` is null across a query
+       * and it was simply wrong; the suite caught it on the first run. Firestore
+       * evaluates a query against its constraints, which is exactly why
+       * `registrations` is queryable by the holder's own address.
+       *
+       * `.get('uid', '')` rather than `resource.data.uid`, because a link-signed
+       * response has no `uid` field and dereferencing an absent field throws,
+       * which Firestore reports as permission-denied. The signer would see their
+       * own signature refused with an error naming nothing.
+       */
+      match /responses/{responseId} {
+        function form() {
+          return get(/databases/$(database)/documents/consentForms/$(formId));
+        }
+
+        allow read: if isRegistered()
+          && resource.data.get('uid', '') == request.auth.uid;
+
+        allow create: if isRegistered()
+          && form() != null
+          && form().data.status == 'published'
+          // The id carries the version, so this is also what stops one person
+          // holding two signatures at the same version.
+          && responseId == request.auth.uid + '_v' + string(form().data.version)
+          && request.resource.data.formVersion == form().data.version
+          && request.resource.data.bodyHash == form().data.bodyHash
+          && request.resource.data.audience == form().data.audience
+          && request.resource.data.formId == formId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.signatory == request.auth.uid
+          // A refusal is a form that was never submitted. There is no way to
+          // record "I do not agree" here, and a `false` would be one.
+          && request.resource.data.agreed == true
+          && request.resource.data.channel == 'app'
+          // The typed name is the signature. Bounded because it is free text
+          // that an organizer's dashboard renders.
+          && request.resource.data.signedName is string
+          && request.resource.data.signedName.size() >= 2
+          && request.resource.data.signedName.size() <= 120
+          && request.resource.data.email is string
+          && request.resource.data.email.size() <= 320
+          && request.resource.data.signedAt is timestamp
+          // `ip` and `userAgent` are deliberately NOT in this list. A client
+          // that can write its own IP address can write any address, so the
+          // field would be a self-reported value dressed as evidence. The link
+          // channel records them because the server observes them.
+          && request.resource.data.keys().hasOnly([
+              'formId', 'formVersion', 'bodyHash', 'audience', 'signatory',
+              'uid', 'email', 'signedName', 'agreed', 'signedAt', 'channel'
+            ])
+          && request.resource.data.keys().hasAll([
+              'formId', 'formVersion', 'bodyHash', 'audience', 'signatory',
+              'uid', 'email', 'signedName', 'agreed', 'signedAt', 'channel'
+            ]);
+
+        allow update, delete: if false;
+      }
+    }
+
+
+    /**
+     * THE CALL FOR ABSTRACTS IS ABSENT FROM THIS FILE, ON PURPOSE
+     *
+     * `calls`, `submissions`, `submissions/{id}/identity`,
+     * `submissions/{id}/reviews/{reviewerId}` and `reviewers` have no `match`
+     * block, so Firestore's default deny covers all five. That is the same
+     * posture `orders`, `ticketTypes` and `emailLog` have, and it is asserted in
+     * `tests/rules/firestore.test.ts` on both verbs — "secure because nobody
+     * wrote a rule" is a property a later edit can remove without noticing.
+     *
+     * ── Why there is nothing here to write ──────────────────────────────────
+     *
+     * The gate in this file is `isRegistered()`, and it is false for everybody
+     * this feature exists for. A prospective speaker holds no ticket; a call for
+     * papers that requires one is not a call for papers. An external reviewer is
+     * in the same position — `CFA-PLAN.md` §3. Both reach their own work through
+     * an HMAC capability token and a server action, the scheme `/order/{token}`
+     * already proves, so there is no client identity on this path for a rule to
+     * evaluate. A rule that let *anybody* in would be letting in everybody.
+     *
+     * ── And why widening it for organizers would be worse, not easier ───────
+     *
+     * An organizer is a client with a role, not a server, and the dashboard
+     * reads these with the Admin SDK. A `list` of `submissions` is every
+     * unpublished abstract in the call; a `list` of `identity` is the address
+     * of everybody who has ever submitted, which is a better mailing list than
+     * anything in `contacts`. Worse, the identity split is the whole of blind
+     * review (`CFA-PLAN.md` §1.1): a collection-group query over `identity`
+     * rejoins every anonymous submission to its author in one read, so the
+     * anonymity is not a property of the review screen — it is a property of
+     * nobody being able to ask.
+     *
+     * If a client ever does need one of these — an attendee-facing "calls open
+     * now" list is the plausible one — it gets a projection written by the
+     * server, the way `exhibitorListings` projects `exhibitors`. Not a loosening
+     * here.
+     */
 
     match /communityPosts/{postId} {
       allow read: if isRegistered();

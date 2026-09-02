@@ -1,11 +1,12 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
+import { MAX_SEATS } from './seats-core';
 
 /**
  * The purchase step: an order summary and the form that pays for it.
@@ -20,6 +21,26 @@ import { Questions } from './questions';
  * derived from it, and the attendee later signs into the mobile app with the
  * same address to claim the ticket. That is why the label says so.
  *
+ * ── Why a quantity brings a form with it ────────────────────────────────────
+ *
+ * Because a registration is keyed by email address. Three seats on one address
+ * are one registration and one badge, so "3" on its own would take three
+ * payments and issue one ticket — which is why this used to be one seat per
+ * purchase and why the fix is not a number input on its own.
+ *
+ * Choosing a quantity therefore reveals a name and an address per extra seat,
+ * in the same three fields — `seatName`, `seatEmail`, `seatTier` — that
+ * `/tickets/invoice` has always posted, read by the same parser. Each extra
+ * seat keeps its own ticket picker, so a booth plus two extra passes is one
+ * purchase rather than three; seats sharing a tier become one Stripe line item
+ * with a real quantity.
+ *
+ * ⚠️ **The registration questions are asked once, of the buyer.** They are
+ * stored on the buyer's registration and nowhere else; the other seats'
+ * dietary and accessibility answers are collected by the organizer afterwards.
+ * Asking three people three sets of questions on this form is a real
+ * improvement and a separate one.
+ *
  * ── Why the summary lives in here rather than beside it on the page ─────────
  *
  * What used to sit next to this form was an essay: a four-step explainer and a
@@ -33,6 +54,17 @@ import { Questions } from './questions';
  * a `useState` in this file. So the summary is a sibling of the `<form>` inside
  * one client component, and `page.tsx` drops the pair in as a unit.
  */
+/**
+ * One extra attendee on the buyer's card. `key` is React's, not the server's —
+ * nothing is posted under it.
+ */
+interface ExtraSeat {
+  key: number;
+  name: string;
+  email: string;
+  tierId: TicketId;
+}
+
 export function CheckoutForm({
   tiers,
   initialTier,
@@ -74,34 +106,91 @@ export function CheckoutForm({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   /**
-   * The card box.
+   * The extra seats, seat two onward. Seat one is the buyer, whose name and
+   * address are the two fields above — kept out of this list because moving
+   * them into it would rename the inputs the questions, the Stripe customer
+   * record and every existing test all read.
    *
-   * ⚠️ **These three fields do not yet reach a payment processor.** They are
-   * held in React state and rendered into inputs that carry **no `name`
-   * attribute**, so the browser never serialises them into the FormData the
-   * server action receives, and nothing reads them. That is a deliberate safety
-   * property rather than an oversight — an unbound card field that *did* post
-   * would be a card number in a server log — but it means the boxes are not the
-   * ones that take the payment. Hosted Stripe Checkout collects the real card on
-   * `checkout.stripe.com` after the button.
-   *
-   * They are kept, at the owner's request, as one of exactly two demo
-   * affordances to outlive the rest, and the hint under the button says plainly
-   * where the charge actually happens. BUILD-PLAN 1.6 / D-2 is what makes them
-   * real: a Stripe Payment Element bound to a PaymentIntent, in place of these
-   * three inputs, which needs a publishable key this repo does not have.
+   * Controlled for the same reason the buyer's fields are: React resets an
+   * uncontrolled form once its action settles, and re-typing three colleagues'
+   * addresses after one validation error is the point at which somebody gives
+   * up and emails us instead.
    */
-  const [card, setCard] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvc, setCvc] = useState('');
+  const [extras, setExtras] = useState<ExtraSeat[]>([]);
+  /**
+   * A key source, not a count. React needs a stable key per row, and the array
+   * index is not one — lowering the quantity from four to two and raising it
+   * again would reuse keys 2 and 3 for different rows and carry the old typing
+   * into them. A ref rather than state because changing it must not re-render.
+   */
+  const nextKey = useRef(1);
+  /*
+   * ── There is no card box here, deliberately ────────────────────────────────
+   *
+   * Card number, expiry and CVC inputs used to sit between the questions and
+   * the total. They were survivors of demo mode, kept at the owner's request,
+   * and they collected nothing: no `name` attribute, so the browser never
+   * serialised them into the FormData the server action receives, and nothing
+   * read the state they were bound to. Removed on 2026-08-31 at the owner's
+   * request.
+   *
+   * They were worse than decorative. A form that asks for a card number and
+   * then hands the buyer to `checkout.stripe.com` to type it again reads as
+   * either a bug or a phishing page, and a field that looks like it takes a PAN
+   * is a field somebody eventually wires up — which is how a card number ends
+   * up in a server log.
+   *
+   * The real card entry is hosted Stripe Checkout, after the button.
+   * BUILD-PLAN 1.6 / D-2 is what would put card entry back on this page for
+   * real: a Stripe Payment Element bound to a PaymentIntent, which needs a
+   * publishable key this repo does not have. Anything short of that belongs
+   * nowhere near this form.
+   */
   // `?? tiers[0]` rather than a non-null assertion: the preselected id comes
   // from a query string, and a tier hidden in the dashboard between page load
   // and this render would otherwise crash the whole form.
   const selected = tiers.find((t) => t.id === tier) ?? tiers[0];
 
+  /**
+   * The running total, which is a courtesy and not the charge.
+   *
+   * `startCheckout` re-reads every price from Firestore by id and Stripe adds
+   * tax and any promotion code on its own page, so this figure can be right and
+   * still not be what lands on the card. It exists because a quantity control
+   * with no total beside it is a control people are afraid to touch.
+   */
+  const priceOf = (id: TicketId) => tiers.find((t) => t.id === id)?.priceCents ?? 0;
+  const quantity = extras.length + 1;
+  const totalCents = priceOf(tier) + extras.reduce((sum, e) => sum + priceOf(e.tierId), 0);
+
+  /**
+   * Growing and shrinking the seat list from one number.
+   *
+   * Shrinking truncates rather than clearing, so a buyer who overshoots to five
+   * and comes back to three keeps the three they had already typed. Growing
+   * defaults each new seat to the tier the buyer chose, which is what "three of
+   * these, please" means — and the per-seat picker is there for the case where
+   * it is not.
+   */
+  function setQuantity(next: number) {
+    const wanted = Math.max(1, Math.min(MAX_SEATS, next)) - 1;
+    setExtras((prev) => {
+      if (wanted <= prev.length) return prev.slice(0, wanted);
+      const grown = [...prev];
+      while (grown.length < wanted) {
+        nextKey.current += 1;
+        grown.push({ key: nextKey.current, name: '', email: '', tierId: tier });
+      }
+      return grown;
+    });
+  }
+
+  const updateExtra = (key: number, patch: Partial<ExtraSeat>) =>
+    setExtras((prev) => prev.map((e) => (e.key === key ? { ...e, ...patch } : e)));
+
   return (
     <div className="buy-layout">
-      <OrderRail tier={selected} />
+      <OrderRail tier={selected} quantity={quantity} totalCents={totalCents} />
 
       <form action={action} className="checkout">
         <h2 className="checkout-title">Register</h2>
@@ -135,8 +224,9 @@ export function CheckoutForm({
           the "Choose All Access" links on the panels above land on something
           visibly selected rather than on a collapsed menu.
 
-          Still one `name="tier"` posting one id, so `actions.ts` is unchanged
-          and the server is still the only thing that turns that id into money.
+          Still one `name="tier"` posting one id — the buyer's own seat. Extra
+          seats post their own `seatTier`, and the server is still the only
+          thing that turns any of those ids into money.
         */}
         <fieldset className="tier-choice">
           <legend>Ticket</legend>
@@ -196,56 +286,143 @@ export function CheckoutForm({
         </div>
 
         {/*
+          How many, and then who.
+
+          The control is a `<select>` rather than a number input because the
+          range is one to ten and every value has a consequence on the page
+          below it — a spinner invites typing "25" and earning an error, and a
+          free-text number is a field that arrives as "3 " or "three".
+        */}
+        <div className="field">
+          <label htmlFor="quantity">How many tickets?</label>
+          <select
+            id="quantity"
+            // No `name`: this is not posted. The seat rows below are the data,
+            // and a quantity that could disagree with the number of rows is a
+            // quantity the server would have to arbitrate.
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+          >
+            {Array.from({ length: MAX_SEATS }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? '1 ticket' : `${n} tickets`}
+              </option>
+            ))}
+          </select>
+          <p className="hint">
+            {quantity === 1
+              ? 'Buying for colleagues? Choose more and name each of them below — one card, one charge.'
+              : 'Each ticket needs its own name and email address — a ticket is issued per ' +
+                'address, so two seats on one would be a single badge.'}
+          </p>
+        </div>
+
+        {/*
+          One card per extra attendee, in the same shape as `/tickets/invoice`.
+
+          Deliberately identical, down to the field names, because the two forms
+          post to the same parser. A second layout for the same three fields is
+          a second thing to keep in step with the first.
+        */}
+        {extras.map((seat, i) => (
+          <div
+            key={seat.key}
+            style={{
+              border: '1px solid rgba(0,0,0,.12)',
+              borderRadius: 6,
+              padding: '14px 14px 4px',
+              marginBottom: 12,
+            }}
+          >
+            <strong
+              style={{
+                display: 'block',
+                fontSize: '.85rem',
+                textTransform: 'uppercase',
+                letterSpacing: '.05em',
+                marginBottom: 8,
+              }}
+            >
+              Attendee {i + 2}
+            </strong>
+
+            <div className="field">
+              <label htmlFor={`seatName-${seat.key}`}>Full name</label>
+              <input
+                id={`seatName-${seat.key}`}
+                name="seatName"
+                required
+                placeholder="Ada Nakamura"
+                value={seat.name}
+                onChange={(e) => updateExtra(seat.key, { name: e.target.value })}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor={`seatEmail-${seat.key}`}>Email address</label>
+              <input
+                id={`seatEmail-${seat.key}`}
+                name="seatEmail"
+                type="email"
+                required
+                placeholder="ada@company.com"
+                value={seat.email}
+                onChange={(e) => updateExtra(seat.key, { email: e.target.value })}
+              />
+              {/*
+                Said on the field people get wrong: a shared inbox looks like a
+                reasonable answer right up until three badges collapse into one
+                registration.
+              */}
+              <p className="hint">
+                Their own address, not a shared inbox — it&rsquo;s how the app finds their ticket.
+              </p>
+            </div>
+
+            <div className="field">
+              <label htmlFor={`seatTier-${seat.key}`}>Ticket</label>
+              <select
+                id={`seatTier-${seat.key}`}
+                name="seatTier"
+                value={seat.tierId}
+                onChange={(e) => updateExtra(seat.key, { tierId: e.target.value })}
+              >
+                {tiers.map((t) => (
+                  <option key={t.id} value={t.id} disabled={!t.onSale}>
+                    {t.name} — {formatPrice(t.priceCents, t.currency)}
+                    {t.onSale ? '' : ` (${t.unavailableReason ?? 'unavailable'})`}
+                  </option>
+                ))}
+              </select>
+              {/*
+                Per seat rather than one tier for the whole purchase, because
+                the mixed cart is the case that used to need three separate
+                checkouts: a booth and two extra passes, or a colleague on the
+                cheaper ticket.
+              */}
+            </div>
+          </div>
+        ))}
+
+        {/*
           The organizer's questions, between the buyer's details and the total.
           Above the price rather than below it, because a question appearing after
           somebody has read the amount reads as a hurdle placed in front of paying.
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={state.fieldErrors} />
 
-        <fieldset className="card-fields">
-          <legend>Card</legend>
-          <div className="card-fields-grid">
-            <input
-              aria-label="Card number"
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="Card number"
-              value={card}
-              onChange={(e) => setCard(e.target.value)}
-              disabled={!stripeReady}
-            />
-            <input
-              aria-label="Expiry"
-              autoComplete="off"
-              placeholder="MM / YY"
-              value={expiry}
-              onChange={(e) => setExpiry(e.target.value)}
-              disabled={!stripeReady}
-            />
-            <input
-              aria-label="CVC"
-              autoComplete="off"
-              placeholder="CVC"
-              value={cvc}
-              onChange={(e) => setCvc(e.target.value)}
-              disabled={!stripeReady}
-            />
-          </div>
-        </fieldset>
-
         <div className="summary">
-          <span>{selected.name}</span>
-          <span>{formatPrice(selected.priceCents, selected.currency)}</span>
+          <span>
+            {quantity === 1 ? selected.name : `${quantity} tickets`}
+          </span>
+          <span>{formatPrice(totalCents, selected.currency)}</span>
         </div>
 
-        <SubmitButton
-          stripeReady={stripeReady}
-          price={formatPrice(selected.priceCents, selected.currency)}
-        />
+        <SubmitButton stripeReady={stripeReady} price={formatPrice(totalCents, selected.currency)} />
 
         <p className="hint" style={{ marginTop: 12 }}>
           {stripeReady
-            ? 'You will be taken to Stripe to pay, and the card is entered there — the boxes above are not the ones that take the payment, and card details never touch this site.'
+            ? 'You will be taken to Stripe to pay, and the card is entered there — card details never touch this site.'
             : 'No ticket can be bought until a payment processor is configured.'}
         </p>
       </form>
@@ -263,13 +440,39 @@ export function CheckoutForm({
  * shown is still not the figure charged (`actions.ts` re-reads it from
  * Firestore by id).
  */
-function OrderRail({ tier }: { tier: Tier }) {
+function OrderRail({
+  tier,
+  quantity,
+  totalCents,
+}: {
+  tier: Tier;
+  /** Seats on this purchase, the buyer included. */
+  quantity: number;
+  /**
+   * The whole cart, not `tier.priceCents × quantity` — extra seats can be on
+   * different tiers, and a rail that multiplied one price would quietly
+   * disagree with the button two inches below it.
+   */
+  totalCents: number;
+}) {
   return (
     <aside className="order-rail" aria-label="Your order">
       <div className="rail-card">
         <p className="rail-eyebrow">Your order</p>
         <h2 className="rail-tier">{tier.name}</h2>
         {tier.tagline ? <p className="rail-tagline">{tier.tagline}</p> : null}
+        {quantity > 1 ? (
+          /*
+            Named rather than implied. The rail describes the buyer's own tier —
+            what it covers, what it costs — and on a mixed cart that is one seat
+            out of several. Saying so is cheaper than a rail that silently
+            describes a third of the purchase.
+          */
+          <p className="rail-tagline">
+            Plus {quantity - 1} more {quantity - 1 === 1 ? 'attendee' : 'attendees'} on this
+            purchase. Each seat&rsquo;s own ticket is chosen in the form.
+          </p>
+        ) : null}
 
         {tier.includes.length > 0 && (
           <>
@@ -284,11 +487,11 @@ function OrderRail({ tier }: { tier: Tier }) {
 
         <div className="rail-total">
           <span>Total</span>
-          <span className="rail-amount">{formatPrice(tier.priceCents, tier.currency)}</span>
+          <span className="rail-amount">{formatPrice(totalCents, tier.currency)}</span>
         </div>
         <p className="rail-note">
-          One ticket, in {tier.currency.toUpperCase()}. Sales tax, where it applies, is added at
-          payment.
+          {quantity === 1 ? 'One ticket' : `${quantity} tickets`}, in{' '}
+          {tier.currency.toUpperCase()}. Sales tax, where it applies, is added at payment.
         </p>
       </div>
 

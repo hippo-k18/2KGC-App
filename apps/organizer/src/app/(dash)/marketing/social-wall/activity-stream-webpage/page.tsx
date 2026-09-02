@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listCommunityPosts } from '@/lib/engagement';
 import { listAnnouncements } from '@/lib/data';
+import { publicUrl } from '@/lib/webpages';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -21,11 +22,13 @@ export const dynamic = 'force-dynamic';
  * ride-share posts stay among ticket holders. An embed is a public wall with
  * extra steps.
  *
- * What could go on a public page without any of that is the organizer's own
+ * What can go on a public page without any of that is the organizer's own
  * broadcast: announcements are written by staff, for everyone, and already read
- * like a news feed. So this screen counts both streams and says which one could
- * ever be published — because "we have no activity stream" is false and "we
- * could publish the activity stream" is worse.
+ * like a news feed. **That half is built** — `/announcements` in `apps/web`,
+ * the wall the Engagement tab's own stream screen points at. So this screen
+ * counts both streams and says which of them is published, because "we have no
+ * activity stream" was false and "we could publish the attendee board" is
+ * worse.
  */
 export default async function SocialActivityStreamPage() {
   await requireOrganizer();
@@ -38,7 +41,7 @@ export default async function SocialActivityStreamPage() {
     <>
       <PageHeader
         title="Activity Stream Webpage"
-        tags={<Tag color="red" fill="outline">nothing published</Tag>}
+        tags={<Tag color="orange" fill="outline">half of it is public</Tag>}
         links={[
           <Link key="c" href="/marketing/social-wall/social-wall-customization">
             Social wall customization
@@ -51,37 +54,53 @@ export default async function SocialActivityStreamPage() {
 
       <Banner kind="info">
         Two streams exist and they are not equivalent. <strong>Attendee posts</strong> are written
-        in a closed room and gated by <code>firestore.rules</code>. <strong>Announcements</strong>{' '}
-        are written by organizers for broadcast, and are the only one of the two that could
-        reasonably appear on a public page.
+        in a closed room and gated by <code>firestore.rules</code>, and stay there.{' '}
+        <strong>Announcements</strong> are written by organizers for broadcast, and are the one of
+        the two that is published — at{' '}
+        <a href={publicUrl('/announcements')} target="_blank" rel="noreferrer">
+          /announcements
+        </a>
+        .
       </Banner>
 
       <StatTiles
         tiles={[
           { label: 'Attendee posts', value: visible.length, sub: `${replies} replies` },
           { label: 'Announcements', value: announcements.length, sub: 'organizer-written' },
-          { label: 'On the public site', value: 0, sub: 'no stream page exists' },
+          {
+            label: 'On the public site',
+            // The wall renders the newest 40 — the cap and the reason for it are
+            // in the Engagement tab's stream screen, which owns that number.
+            value: Math.min(announcements.length, 40),
+            sub: 'announcements only',
+          },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The two streams, and what each could become</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>The two streams, and where each one goes</h2>
         <Table
           cols={[
             { key: 's', label: 'Stream', className: 'cell-md' },
             { key: 'w', label: 'Who writes it', className: 'cell-md' },
-            { key: 'p', label: 'Could it be public?', className: 'cell-fill' },
+            { key: 'p', label: 'Where it is published', className: 'cell-fill' },
           ]}
           rows={[
             [
               'Community board',
               'Attendees, in the app',
-              'No. Gated by the registered claim, and posted on that understanding. Publishing it retroactively changes the deal.',
+              'Nowhere. Gated by the registered claim, and posted on that understanding. Publishing it retroactively changes the deal.',
             ],
             [
               'Announcements',
               'Organizers, from this dashboard',
-              'Yes. Already a broadcast to everyone; a public page would reach people who have not installed the app.',
+              <span key="p">
+                <a href={publicUrl('/announcements')} target="_blank" rel="noreferrer">
+                  /announcements
+                </a>{' '}
+                — already a broadcast to everyone, and the public page reaches the people who never
+                installed the app.
+              </span>,
             ],
           ]}
         />
@@ -90,11 +109,6 @@ export default async function SocialActivityStreamPage() {
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>A public announcements feed.</strong> The defensible half of this feature and
-            the cheapest: a route in <code>apps/web</code> reading <code>announcements</code>, which
-            is a top-level collection with no per-attendee content in it. Nobody has written it.
-          </li>
           <li>
             <strong>Publishing the attendee board.</strong> Deliberately absent — see the rules
             argument above. This is a decision, and it should stay one rather than becoming a
@@ -107,7 +121,9 @@ export default async function SocialActivityStreamPage() {
           <li>
             <strong>Live refresh.</strong> Whova&rsquo;s stream polls. Every page in{' '}
             <code>apps/web</code> is server-rendered per request, so &ldquo;live&rdquo; would mean a
-            client component and a listener that does not exist there.
+            client component and a listener that does not exist there — which is why{' '}
+            <code>/announcements</code> shows what was true when the browser loaded it and no
+            later.
           </li>
         </ul>
       </GapPanel>

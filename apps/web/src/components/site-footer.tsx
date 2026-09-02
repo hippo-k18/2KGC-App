@@ -40,6 +40,12 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
                 with the programme rather than under Participate with the
                 packages that sell a booth. */}
             <Link href="/exhibitors">Exhibitors</Link>
+            {/* The organizers' own broadcasts and the ungated handouts. Both
+                read the collections the dashboard writes, so they belong beside
+                the programme rather than under Participate — this column is the
+                things an attendee looks up, not the things they buy. */}
+            <Link href="/announcements">Announcements</Link>
+            <Link href="/documents">Documents</Link>
             <Link href="/about">Venue &amp; travel</Link>
           </div>
 

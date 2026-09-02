@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { COLLECTIONS, EVENT } from '@kgc/shared';
+import { COLLECTIONS, EVENT, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { adoptionCounts, countWhereEvent, listSessions } from '@/lib/data';
 import { IMPLEMENTED, NAV, counts, searchIndex, type NavNode } from '@/lib/nav';
@@ -20,16 +20,14 @@ export const dynamic = 'force-dynamic';
  * chrome, and an organizer clicking Preview is precisely someone checking that
  * the public side works.
  *
- * `WEB_PUBLIC_ORIGIN` is the variable ten other call sites already read, so this
- * joins them rather than inventing a second name. It defaults to production for
- * the same reason `lib/webpages.ts` does: a missing variable should degrade to
- * the real site, not to a machine that is not this one.
+ * The website's half is `publicSiteOrigin()` from `@kgc/shared` — the one
+ * declaration every link this project mints resolves through, so the Preview
+ * menu cannot point somewhere different from the confirmation emails.
+ *
+ * The attendee app has no equivalent, so it keeps its own variable below and
+ * its own dev-port default: Expo is right locally and wrong on the deployed
+ * dashboard, which is the trade the website's default deliberately refuses.
  */
-function webOrigin(): string {
-  return (process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
-}
-
-/** The attendee app on the web. Falls back to Expo's dev port for local work. */
 function appOrigin(): string {
   return (process.env.APP_PUBLIC_ORIGIN ?? 'http://localhost:8081').replace(/\/$/, '');
 }
@@ -113,7 +111,6 @@ export default async function DashLayout({ children }: { children: React.ReactNo
             <img className="logo-mark" src="/kgc/wordmark-white.png" alt={EVENT.shortName} />
             <span className="logo-project">EMS</span>
           </Link>
-          <FeatureSearch entries={searchIndex()} />
           <nav className="header-links">
             <a href={EVENT.website} target="_blank" rel="noreferrer">
               Event website
@@ -139,6 +136,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               </button>
             </form>
           </nav>
+          <FeatureSearch entries={searchIndex()} />
         </div>
       </header>
 
@@ -174,7 +172,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
                     label: 'Mobile App',
                     disabled: true,
                   },
-                  { label: 'Attendee Registration Page', href: `${webOrigin()}/tickets` },
+                  { label: 'Attendee Registration Page', href: `${publicSiteOrigin()}/tickets` },
                 ]}
               />
               <Link className="btn btn-default event-title-btn" href="/tools/report">

@@ -38,7 +38,6 @@ const WEB = process.env.WEB_URL ?? 'https://kgc-2027-website.netlify.app';
 
 /** The buyer printed on the page itself, so the video and the site agree. */
 const BUYER = { name: 'Demo Attendee', email: 'demo.attendee@example.com' };
-const CARD = { number: '4242 4242 4242 4242', expiry: '12 / 29', cvc: '123' };
 
 const S = 1.5;
 
@@ -82,15 +81,15 @@ await wander(page, 2200).catch(() => {});
 await typeIt(page, '#name, input[name="name"]', BUYER.name);
 await typeIt(page, '#email, input[name="email"]', BUYER.email);
 
-// ── The card box, and the caveat spoken out loud ────────────────────────────
+// ── The caveat spoken out loud ──────────────────────────────────────────────
+// The three card boxes this used to type into were removed from /tickets on
+// 2026-08-31. There is nothing on the page to fill in between the buyer's
+// details and the button; the card is entered on checkout.stripe.com after it.
 await cap(
   'Stripe is not installed yet',
-  'The card box is cosmetic. Nothing here is charged — the order is approved in demo mode and stamped <code>channel: demo</code> so it can never be counted as revenue.',
+  'No card is entered on this page. Nothing here is charged — the order is approved in demo mode and stamped <code>channel: demo</code> so it can never be counted as revenue.',
   6400,
 );
-await typeIt(page, 'input[aria-label="Card number"]', CARD.number, { delay: 42 });
-await typeIt(page, 'input[aria-label="Expiry"]', CARD.expiry, { delay: 60 });
-await typeIt(page, 'input[aria-label="CVC"]', CARD.cvc, { delay: 90 });
 await wander(page, 1800).catch(() => {});
 
 await cap(

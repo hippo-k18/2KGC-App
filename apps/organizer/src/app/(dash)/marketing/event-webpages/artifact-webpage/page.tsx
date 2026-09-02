@@ -12,35 +12,65 @@ export const dynamic = 'force-dynamic';
  * Whova's "artifacts" are the handouts: slide decks, posters, white papers,
  * published as a public page so somebody who missed the talk can still read it.
  *
- * ── We have the documents and they are deliberately not public ──────────────
+ * ── Half the library is public, and the other half must never be ────────────
  *
  * `documents` is a real collection with a real editor, and `visibleToTicketTypes`
  * exists on every record precisely so a deck can be restricted to the people who
- * paid. The app enforces that. Publishing the same records to an open webpage
- * would quietly override the one field on the document whose entire purpose is
- * to stop that happening.
+ * paid. Publishing the whole collection to an open webpage would quietly
+ * override the one field whose entire purpose is to stop that happening.
  *
- * So this screen splits the library by that field: what could go public, and
- * what is gated and must not. The gap is a page for the first group only —
- * which is a smaller and more defensible job than "publish the documents".
+ * So the public page — `/documents`, built and linked from the site footer —
+ * carries the ungated records and only those, and this screen splits the
+ * library the same way so an organizer can see which side of the line each one
+ * lands on before they publish it.
+ *
+ * ⚠️ **The filter is server-side, in `listPublicDocuments()`, and it is not a
+ * parameter.** A restricted document is never sent to the browser at all. The
+ * shape that looks equivalent and is not — render every row and hide the gated
+ * ones with a class — publishes them: the URL is in the page source whether or
+ * not a browser draws it, and these are links to files hosted elsewhere, so
+ * such a leak is permanent and nothing in this repo can revoke it. If that
+ * page ever grows a "show all" toggle, this is the paragraph it broke.
+ *
+ * ⚠️ **The counts here are the public reader's predicate, not an approximation
+ * of it.** They were `visibleToTicketTypes.length === 0` over rows normalised
+ * with `?? []`, which made a document with the field *absent* count as public —
+ * the one reading `listPublicDocuments()` refuses by name — and ignored its
+ * requirements for a real `url` and a `title`. The banner then told an organizer
+ * that N of M documents were live on a page rendering fewer. `DocumentRow`
+ * carries the predicate now; if that page's filter changes, that field's comment
+ * is where the change has to be mirrored.
  */
 export default async function ArtifactWebpagePage() {
   await requireOrganizer();
   const docs = await listDocuments();
 
   const published = docs.filter((d) => d.status === 'published');
-  const open = published.filter((d) => d.visibleToTicketTypes.length === 0);
-  const gated = published.filter((d) => d.visibleToTicketTypes.length > 0);
+  /*
+   * `onPublicPage` is `listPublicDocuments()`'s own predicate, carried across
+   * in `lib/planning.ts` — not `visibleToTicketTypes.length === 0`, which this
+   * screen used and which counts a document the page refuses. See that field's
+   * comment: absence is not permission, and a row with no link is not a row.
+   */
+  const open = published.filter((d) => d.onPublicPage);
+  const gated = published.filter((d) => d.ticketRestricted);
+  /*
+   * Published, unrestricted, and still not rendered: no link, no title, or a
+   * `visibleToTicketTypes` that is not an array at all. A fault rather than a
+   * policy, and the only one of the three states an organizer can fix by
+   * editing the document.
+   */
+  const incomplete = published.filter((d) => !d.onPublicPage && !d.ticketRestricted);
   const draft = docs.filter((d) => d.status !== 'published');
 
   return (
     <>
       <PageHeader
         title="Artifact Webpage"
-        tags={<Tag color="red" fill="outline">no public page exists</Tag>}
+        tags={<Tag color="green" fill="outline">live at /documents</Tag>}
         actions={
-          <a href={publicUrl('/learn')} target="_blank" rel="noreferrer" className="whova-btn-main">
-            Nearest live page: /learn ↗
+          <a href={publicUrl('/documents')} target="_blank" rel="noreferrer" className="whova-btn-main">
+            View the live page ↗
           </a>
         }
         links={[
@@ -55,21 +85,31 @@ export default async function ArtifactWebpagePage() {
 
       <Banner kind="info">
         Handouts live in <strong>Documents</strong> and the app shows them to attendees.{' '}
-        <code>visibleToTicketTypes</code> is what keeps a gated deck gated, so a public artifact page
-        can only ever carry the ungated ones — {open.length} of the {published.length} published
-        today.
+        <code>visibleToTicketTypes</code> is what keeps a gated deck gated, so{' '}
+        <a href={publicUrl('/documents')} target="_blank" rel="noreferrer">
+          /documents
+        </a>{' '}
+        carries the ungated ones and only those — {open.length} of the {published.length} published
+        today. Restricting a document here removes it from that page on the next request.
       </Banner>
 
       <StatTiles
         tiles={[
           { label: 'Published', value: published.length, sub: draft.length > 0 ? `${draft.length} still draft` : 'nothing in draft' },
-          { label: 'Could be public', value: open.length, sub: 'no ticket restriction' },
-          { label: 'Must stay gated', value: gated.length, sub: 'restricted by ticket type' },
+          {
+            label: 'On the public page',
+            value: open.length,
+            sub:
+              incomplete.length > 0
+                ? `${incomplete.length} published but incomplete`
+                : 'no ticket restriction',
+          },
+          { label: 'Held back', value: gated.length, sub: 'restricted by ticket type' },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a public artifact page could carry</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Which of these a visitor can see</h2>
         <Table
           cols={[
             { key: 't', label: 'Title', className: 'cell-fill' },
@@ -93,13 +133,20 @@ export default async function ArtifactWebpagePage() {
                 not a URL
               </span>
             ),
-            d.visibleToTicketTypes.length === 0 ? (
+            d.onPublicPage ? (
               <Tag key="v" color="green" fill="outline" small>
                 anyone
               </Tag>
-            ) : (
+            ) : d.ticketRestricted ? (
               <span key="v" className="muted" style={{ fontSize: 12 }}>
                 {d.visibleToTicketTypes.join(', ')} only
+              </span>
+            ) : (
+              // Published, open to everyone, and still not on the page. Saying
+              // "anyone" here would be the same lie the counts above told, and
+              // saying "restricted" would send the organizer to the wrong field.
+              <span key="v" className="muted" style={{ fontSize: 12 }}>
+                incomplete — not on the page
               </span>
             ),
           ])}
@@ -111,9 +158,11 @@ export default async function ArtifactWebpagePage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>The public page.</strong> A route in <code>apps/web</code> listing the ungated
-            documents. It must filter on <code>visibleToTicketTypes</code> server-side; a page that
-            renders the whole collection and hides rows in CSS has published the gated ones.
+            <strong>Anything for the gated half.</strong> <code>/documents</code> publishes the
+            ungated records; the restricted ones reach attendees through the app and nowhere else.
+            A signed-in web view of them would need an auth path <code>apps/web</code> does not
+            have — it is a trusted server with no attendee sign-in on it — so this is a real gap
+            and not one worth closing with a capability token per document.
           </li>
           <li>
             <strong>File hosting.</strong> Every document is a <em>link</em> to something living

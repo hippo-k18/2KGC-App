@@ -1,9 +1,9 @@
 import Link from 'next/link';
+import { APP_DISTRIBUTION, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles } from '../../../ui';
-import { APP_DISTRIBUTION, siteOrigin } from '../adoption-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
 export default async function AppAdoptionEmailPage() {
   await requireOrganizer();
   const a = await eventAnalytics();
-  const origin = siteOrigin();
+  const origin = publicSiteOrigin();
   const missing = a.ticketHolders - a.ticketHoldersSignedIn;
 
   const subject = 'Before KGC 2027: get the app';

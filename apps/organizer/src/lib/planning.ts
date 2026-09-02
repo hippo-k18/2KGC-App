@@ -193,12 +193,42 @@ export interface DocumentRow {
   /** A link to something hosted elsewhere. Nothing in this repo uploads a file. */
   url: string;
   kind: DocumentDoc['kind'];
+  /**
+   * Normalised for display. ⚠️ Not the field to decide visibility from — a
+   * missing field and an empty array both arrive here as `[]`, and the public
+   * page distinguishes them. Use `onPublicPage` / `ticketRestricted`.
+   */
   visibleToTicketTypes: string[];
   sessionId?: string;
   status: DocumentDoc['status'];
   order: number;
   /** The link's host, so the list shows at a glance where the file actually lives. */
   host: string;
+  /**
+   * Whether `/documents` would render this row.
+   *
+   * ⚠️ This is `listPublicDocuments()` in `apps/web/src/lib/data.ts`, clause for
+   * clause, and it has to stay that way by hand: the two apps are separate
+   * installs and neither may import the other, so this comment is the only
+   * thing holding the dashboard's count of "on the public page" equal to the
+   * page. Three of the clauses are not obvious and none is optional:
+   *
+   *   • `Array.isArray(visibleToTicketTypes) && length === 0`. Absence is not
+   *     permission — that function's docblock says so in as many words — so a
+   *     document written before the field existed stays off the page. Reading
+   *     it as `?? []`, which the display field above still does, counts a
+   *     missing field as "open to everyone", and the Artifact Webpage screen
+   *     promised visitors documents the page was withholding.
+   *   • A non-empty `url`: there is nothing to render without one.
+   *   • A `title`, for the same reason.
+   */
+  onPublicPage: boolean;
+  /**
+   * True when a ticket restriction is what keeps it off the page, as opposed to
+   * a missing link — the difference between a decision and a defect, and
+   * between two different screens to go and fix it on.
+   */
+  ticketRestricted: boolean;
 }
 
 function hostOf(url: string): string {
@@ -212,6 +242,7 @@ function hostOf(url: string): string {
 }
 
 function toDocumentRow(id: string, d: DocumentDoc): DocumentRow {
+  const restricted = Array.isArray(d.visibleToTicketTypes) && d.visibleToTicketTypes.length > 0;
   return {
     id,
     title: d.title,
@@ -223,6 +254,14 @@ function toDocumentRow(id: string, d: DocumentDoc): DocumentRow {
     status: d.status ?? 'draft',
     order: d.order ?? 0,
     host: hostOf(d.url ?? ''),
+    onPublicPage:
+      d.status === 'published' &&
+      Array.isArray(d.visibleToTicketTypes) &&
+      d.visibleToTicketTypes.length === 0 &&
+      typeof d.url === 'string' &&
+      d.url.length > 0 &&
+      Boolean(d.title),
+    ticketRestricted: restricted,
   };
 }
 

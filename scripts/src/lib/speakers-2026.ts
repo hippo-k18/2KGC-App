@@ -2,6 +2,21 @@
  * The Knowledge Graph Conference 2026 speaker roster — 137 people, checked in
  * as data rather than fetched at runtime.
  *
+ * ## Why this sits in `scripts/` and not in the website
+ *
+ * It began in `apps/web/src/lib/`, because the website was the only thing that
+ * read it: the public `/speakers` page rendered this array directly. That is
+ * the arrangement `import-speakers-2026.ts` exists to end. Once these people
+ * are `speakers` documents, this file is no longer page data — it is *seed*
+ * data, the one-time source for an import, and it belongs beside `fixtures.ts`
+ * with the rest of the material that populates a database.
+ *
+ * `apps/web` still imports it while `SPEAKERS_PAGE_SOURCE` reads `'2026-roster'`
+ * (the same `@kgc/scripts/src/lib/...` path the ticket pages already use for
+ * `question-forms` and `ids`). When that constant flips to `'firestore'` the
+ * website's last reference goes with it, and this file keeps exactly one job:
+ * being the thing the importer reads.
+ *
  * ## Where this came from
  *
  * Scraped 2026-08-18 from `https://www.knowledgegraph.tech/2026-speakers/`.

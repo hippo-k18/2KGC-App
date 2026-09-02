@@ -24,9 +24,28 @@
  * implementation: `@kgc/shared` is bundled into the Expo app, which cannot
  * carry a Node-only `URL`-based check, and the rules language cannot run this
  * file's code. If this constraint ever changes, change it in both places.
+ *
+ * ── The hand-sync is now tested rather than promised ────────────────────────
+ *
+ * `tests/parity/storage-url.test.ts` reads the regex out of `firestore.rules`
+ * and asserts this function returns the same verdict on every URL in a table
+ * that includes the userinfo and subdomain tricks the rules comment names. Two
+ * implementations of one constraint in two languages is defensible; two that
+ * nothing compares is how they drift, and they already had:
+ *
+ * The prefix check below is what closed that gap. The parse alone accepted
+ * `https://firebasestorage.googleapis.com` and
+ * `https://firebasestorage.googleapis.com?x=1` — no path, so the rules regex
+ * (which requires the `/` after the host) refused both while this accepted
+ * them. It also accepted a port and an upper-case host that the rules reject
+ * verbatim. The conjunction is exactly the rules pattern plus an explicit
+ * scheme check, so neither side is now the looser one.
  */
+const STORAGE_PREFIX = 'https://firebasestorage.googleapis.com/';
+
 export function isFirebaseStorageUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false;
+  if (!url.startsWith(STORAGE_PREFIX)) return false;
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'https:' && parsed.hostname === 'firebasestorage.googleapis.com';
