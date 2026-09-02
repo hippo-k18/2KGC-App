@@ -113,6 +113,25 @@ export interface UserDoc extends BaseDoc {
   };
   /** Written only by Cloud Functions; mirrored into the custom claim. */
   roles: Role[];
+  /**
+   * True while this account still holds the shared demo password it was
+   * provisioned with, and the app must not let the attendee past the change
+   * screen until it is false.
+   *
+   * ⚠️ The flag is what makes handing out a shared password defensible at all
+   * — see `@kgc/scripts/src/lib/demo-password.ts` for the full argument. Set to
+   * `true` by `provisionAttendeeAccount` on the accounts it *creates*, never on
+   * one that already existed, because an attendee who has already chosen a
+   * password must not be told to change it by somebody else's second purchase.
+   *
+   * `firestore.rules` lets the owner move it to `false` and to nothing else, so
+   * a client can clear the flag it has satisfied and cannot raise it on anyone,
+   * itself included. Absent on every account provisioned before 2026-09-02 and
+   * on every account that never had a password, and absent reads as "nothing to
+   * change" — the safe direction, since the alternative is locking existing
+   * attendees out of the app behind a prompt they cannot satisfy.
+   */
+  mustChangePassword?: boolean;
 }
 
 /**

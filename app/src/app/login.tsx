@@ -62,10 +62,22 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  * mapping onto a seeded account, the bare-local-part expansion, the prefilled
  * fields, the printed credentials, and `OPEN_SIGNIN` — a bypass that signed
  * anybody in with no input at all. What is left is two boxes that send exactly
- * what was typed to `signInWithEmailAndPassword`. Nothing here now knows a
- * password, and no account this project creates has one: `provisionAttendeeAccount`
- * sets none, so in practice this route works only for an account somebody has
- * deliberately given a password to (`npm run claims`, against the emulator).
+ * what was typed to `signInWithEmailAndPassword`.
+ *
+ * ⚠️ **As of 2026-09-02 this is the route a buyer actually arrives on**, and the
+ * sentence that used to end this block — "no account this project creates has a
+ * password" — is no longer true. `provisionAttendeeAccount` now sets the shared
+ * demo password on the accounts it creates and mails it in the receipt, so an
+ * attendee who has just bought a ticket signs in here with their address and
+ * that temporary value.
+ *
+ * Nothing in this file knows the password, and that has not changed — it is
+ * still two boxes that forward what was typed. What is new is what happens
+ * *after*: the profile carries `mustChangePassword`, and `_layout.tsx` redirects
+ * to `/change-password` and refuses every other route until it is cleared. This
+ * screen deliberately does not mention it. A sign-in form that explained the
+ * shared password would be printing a credential hint to whoever is holding the
+ * phone, which is the demo-panel mistake in a smaller box.
  */
 export default function LoginScreen() {
   const colors = useTheme();

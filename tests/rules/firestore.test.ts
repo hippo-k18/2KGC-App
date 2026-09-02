@@ -505,6 +505,54 @@ describe('profiles and the directory', () => {
     );
   });
 
+  /**
+   * `mustChangePassword` is the flag that keeps the shared demo password from
+   * becoming somebody's permanent credential: the server stamps it true on an
+   * account provisioned with that password, and the app refuses to render any
+   * route until the attendee has cleared it. The rule therefore has to let a
+   * client write it — and let it travel one way only.
+   */
+  it('lets an attendee clear mustChangePassword on their own profile', async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(env.authenticatedContext(A, attendee(A)).firestore(), `users/${A}`),
+        { mustChangePassword: false, updatedAt: new Date() },
+      ),
+    );
+  });
+
+  it('refuses to let a client raise mustChangePassword', async () => {
+    // A client that could set it true could strand itself behind a prompt with
+    // nothing to satisfy — and, on any future screen that writes another user's
+    // document, strand somebody else.
+    await assertFails(
+      updateDoc(
+        doc(env.authenticatedContext(A, attendee(A)).firestore(), `users/${A}`),
+        { mustChangePassword: true, updatedAt: new Date() },
+      ),
+    );
+  });
+
+  it('refuses to let one attendee clear the flag on another profile', async () => {
+    await assertFails(
+      updateDoc(
+        doc(env.authenticatedContext(B, attendee(B)).firestore(), `users/${A}`),
+        { mustChangePassword: false, updatedAt: new Date() },
+      ),
+    );
+  });
+
+  it('still refuses an unrelated field alongside a legitimate flag clear', async () => {
+    // The allowlist is what stops `mustChangePassword` becoming a carrier for
+    // a write that would otherwise be rejected.
+    await assertFails(
+      updateDoc(
+        doc(env.authenticatedContext(A, attendee(A)).firestore(), `users/${A}`),
+        { mustChangePassword: false, roles: ['organizer'], updatedAt: new Date() },
+      ),
+    );
+  });
+
   it('still pins roles on a profile created client-side', async () => {
     // The relaxation above must not become a way to arrive as an organizer.
     const db = env.authenticatedContext('newcomer', attendee('newcomer')).firestore();

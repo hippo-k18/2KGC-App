@@ -28,12 +28,27 @@
  * `users/{uid}` profile with its `directory/{uid}` projection — which nothing
  * else does, because the `mirrorDirectory` trigger is undeployed.
  *
- * It **does not set a password**, and no caller may ask it to. The sign-in
- * mechanism is the six-digit code in `functions/src/callable/` — `requestOtp`
- * proves the buyer controls the address, `verifyOtp` returns a custom token. A
- * password set here would be a credential nobody asked for and nobody could
- * rotate. The demo path's shared, publicly printed password was exactly that
- * mistake; it and the wrapper that set it were deleted with demo mode.
+ * ⚠️ **It sets a password again, as of 2026-09-02, and that is a reversal.**
+ * This block used to say it did not and that no caller could ask it to. The
+ * shipping sign-in is still the six-digit code in `functions/src/callable/` —
+ * `requestOtp` proves the buyer controls the address, `verifyOtp` returns a
+ * custom token — and that remains the mechanism the product is built around.
+ * What has been added beside it, deliberately and on request, is the shared
+ * demo password from `@kgc/scripts/src/lib/demo-password.ts`: printed on the
+ * confirmation page, mailed in the receipt, and identical for every buyer.
+ *
+ * The objection the old text raised was right and has not gone away — a shared,
+ * publicly printed password is a credential anyone can use as anyone else. What
+ * answers it is that this one is not the credential the attendee keeps.
+ * `mustChangePassword` is stamped on every profile created holding it, and the
+ * app refuses to render anything until that flag is cleared, so the shared
+ * value opens the door exactly once. That is the difference between this and
+ * the demo password BUILD-PLAN 1.4 deleted, which had no such rotation and is
+ * still live on ~50 accounts (`OWNER-ACTIONS.md` §4).
+ *
+ * Set `DEMO_ATTENDEE_PASSWORD=` empty and every word of the paragraph above
+ * stops applying: no password is set, no flag is stamped, and the OTP code is
+ * the only way in again.
  *
  * ── Agreeing with `verifyOtp` about the uid ─────────────────────────────────
  *
@@ -55,6 +70,7 @@ import {
   type UserDoc,
 } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { demoPassword } from '@kgc/scripts/src/lib/demo-password';
 
 /**
  * The uid is derived from the email, not auto-assigned.
@@ -86,6 +102,16 @@ export interface ProvisionResult {
   claimsStamped: boolean;
   /** True when this call wrote `users/{uid}`. False on a replay. */
   profileCreated: boolean;
+  /**
+   * The shared password this call set, when it set one. `null` whenever the
+   * feature is off or the account already existed.
+   *
+   * Returned rather than re-read from the environment by the caller so that the
+   * receipt and the confirmation page cannot print a password that was never
+   * actually set — the two would drift the moment somebody changed the variable
+   * between the write and the render.
+   */
+  demoPassword?: string | null;
   /** Present only on `failed`. The message, for the log and the audit entry. */
   error?: string;
 }
@@ -120,13 +146,32 @@ export async function provisionAttendeeAccount(
     let existing = await auth.getUser(derivedUid).catch(() => null);
     if (!existing) existing = await auth.getUserByEmail(email).catch(() => null);
 
+    /**
+     * The demo password, and why it is only ever set on a *new* account.
+     *
+     * `demoPassword()` returns `null` when the feature is switched off, which
+     * restores the previous behaviour of provisioning no credential at all.
+     * When it returns a value, the account is created holding it and the
+     * profile below is stamped `mustChangePassword` so the app forces a
+     * rotation before letting the attendee anywhere.
+     *
+     * ⚠️ Never applied to an account that already exists. Somebody who bought
+     * a second ticket, or who signed in through OTP first, may already have
+     * chosen a password — resetting it to the shared one on a later purchase
+     * would silently hand their account to anybody who can read a receipt, and
+     * would do it to the people most engaged with the event. `created` is the
+     * whole condition, and a Stripe redelivery cannot re-enter this branch
+     * because the account exists by then.
+     */
+    const sharedPassword = demoPassword();
+
     let created = false;
     if (!existing) {
       existing = await auth.createUser({
         uid: derivedUid,
         email,
         displayName: input.name || undefined,
-        // No password, deliberately. See the module docblock.
+        ...(sharedPassword ? { password: sharedPassword } : {}),
       });
       created = true;
     }
@@ -195,6 +240,12 @@ export async function provisionAttendeeAccount(
         messagingEnabled: true,
         notificationPrefs: { announcements: true, messages: true, sessionReminders: true },
         roles: ['attendee'],
+        /**
+         * Stamped only when this call also created the Auth account holding the
+         * shared password. A profile written for an account that already
+         * existed must not carry it — that attendee's password is their own.
+         */
+        ...(created && sharedPassword ? { mustChangePassword: true } : {}),
         createdAt: now,
         updatedAt: now,
       };
@@ -212,13 +263,20 @@ export async function provisionAttendeeAccount(
       profileCreated = true;
     }
 
-    return { status: created ? 'created' : 'existing', uid, claimsStamped, profileCreated };
+    return {
+      status: created ? 'created' : 'existing',
+      uid,
+      claimsStamped,
+      profileCreated,
+      demoPassword: created ? sharedPassword : null,
+    };
   } catch (err) {
     return {
       status: 'failed',
       uid: null,
       claimsStamped: false,
       profileCreated: false,
+      demoPassword: null,
       error: err instanceof Error ? err.message : String(err),
     };
   }

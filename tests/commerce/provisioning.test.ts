@@ -43,6 +43,7 @@ import {
   withdrawOrderEntitlements,
 } from '../../apps/web/src/lib/app-account-core.js';
 import { decideRefund } from '../../apps/web/src/lib/refund-core.js';
+import { demoPassword } from '../../scripts/src/lib/demo-password.js';
 
 const FIRESTORE_EMULATOR = process.env.FIRESTORE_EMULATOR_HOST;
 const AUTH_EMULATOR = process.env.FIREBASE_AUTH_EMULATOR_HOST;
@@ -182,12 +183,70 @@ describe('provisioning an account from a paid ticket', () => {
     expect(entry.data()).toMatchObject({ name: 'Ada Nakamura', company: 'Cornell Tech' });
   });
 
-  it('sets no password, because the way in is the code emailed to the address', async () => {
-    // The deleted demo path printed a shared password on a public page;
-    // production must never do that, and "must never" is only a comment until
-    // something tries it.
+  /**
+   * ⚠️ This block used to assert the opposite — "sets no password, because the
+   * way in is the code emailed to the address". As of 2026-09-02 provisioning
+   * sets the shared demo password on request, and the tests below are the
+   * properties that keep that from being the mistake the old one guarded
+   * against.
+   */
+  it('sets the shared demo password, and it actually signs in', async () => {
+    const result = await provisionAttendeeAccount(auth, db, buyer);
+
+    expect(result.demoPassword).toBe(demoPassword());
+    // Asserted against Auth rather than against the return value: a result
+    // object claiming a password that was never set is exactly the drift the
+    // receipt and the confirmation page would then print.
+    expect(await canSignIn(lowercased, demoPassword()!)).toBe(true);
+  });
+
+  it('still refuses a password that is not the shared one', async () => {
     await provisionAttendeeAccount(auth, db, buyer);
     expect(await canSignIn(lowercased, ANY_PASSWORD)).toBe(false);
+  });
+
+  it('stamps mustChangePassword, which is what stops it being permanent', async () => {
+    // The shared value opens the door once. Without this flag the app has no
+    // reason to ask for a replacement, and a password printed on a public page
+    // becomes the credential every buyer keeps.
+    const { uid } = await provisionAttendeeAccount(auth, db, buyer);
+    const profile = await db.collection(COLLECTIONS.users).doc(uid!).get();
+    expect(profile.data()?.mustChangePassword).toBe(true);
+  });
+
+  it('never resets the password of an account that already exists', async () => {
+    // The important one. Somebody who bought a second ticket may have already
+    // chosen their own password; handing it back to the shared value on a later
+    // purchase would give their account away to anyone who can read a receipt.
+    const first = await provisionAttendeeAccount(auth, db, buyer);
+    await auth.updateUser(first.uid!, { password: 'their-own-choice' });
+    await db.collection(COLLECTIONS.users).doc(first.uid!).update({ mustChangePassword: false });
+
+    const again = await provisionAttendeeAccount(auth, db, buyer);
+
+    expect(again.status).toBe('existing');
+    expect(again.demoPassword).toBeNull();
+    expect(await canSignIn(lowercased, 'their-own-choice')).toBe(true);
+    expect(await canSignIn(lowercased, demoPassword()!)).toBe(false);
+    const profile = await db.collection(COLLECTIONS.users).doc(first.uid!).get();
+    expect(profile.data()?.mustChangePassword).toBe(false);
+  });
+
+  it('sets no password at all when the feature is switched off', async () => {
+    // `DEMO_ATTENDEE_PASSWORD=` empty restores the pre-2026-09-02 behaviour
+    // without a code change, which is the whole point of the switch.
+    const previous = process.env.DEMO_ATTENDEE_PASSWORD;
+    process.env.DEMO_ATTENDEE_PASSWORD = '';
+    try {
+      const result = await provisionAttendeeAccount(auth, db, buyer);
+      expect(result.demoPassword).toBeNull();
+      expect(await canSignIn(lowercased, '123456')).toBe(false);
+      const profile = await db.collection(COLLECTIONS.users).doc(result.uid!).get();
+      expect(profile.data()?.mustChangePassword).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.DEMO_ATTENDEE_PASSWORD;
+      else process.env.DEMO_ATTENDEE_PASSWORD = previous;
+    }
   });
 
   it('reports the failure instead of throwing, so a purchase is never lost to it', async () => {

@@ -276,6 +276,18 @@ export interface PurchaseEmailInput {
   claimCode: string;
   orderId?: string;
   registrationId?: string;
+  /**
+   * The shared demo password this buyer's account was created with, when one
+   * was set. Omitted or null for an account that already existed, and whenever
+   * `DEMO_ATTENDEE_PASSWORD` is empty.
+   *
+   * ⚠️ Passed in rather than read from the environment here, so the receipt can
+   * only ever print a password that provisioning actually set. Reading it
+   * independently would mail a credential to somebody whose account does not
+   * have it the moment the two disagree — which is precisely the support
+   * ticket nobody can diagnose.
+   */
+  demoPassword?: string | null;
 }
 
 /**
@@ -301,6 +313,13 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
      </table>
      <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> open the KGC app and sign in with <strong>${esc(input.to)}</strong> — that address is how the app finds your ticket. Your claim code is:</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.claimCode)}</p>
+     ${
+       input.demoPassword
+         ? `<p style="margin:18px 0 6px;font-size:15px;line-height:1.6;">Your temporary password is:</p>
+     <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.demoPassword)}</p>
+     <p style="margin:6px 0 0;font-size:13px;color:#6b7280;line-height:1.6;"><strong>The app will ask you to change it the first time you sign in.</strong> Everyone who buys a ticket is given this same temporary password, so it is not private and it is not yours until you have replaced it.</p>`
+         : ''
+     }
      ${button(input.orderUrl, 'View your ticket')}
      <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link — it shows your badge QR code, which is what gets scanned at the door. Don't forward it; anyone with the link can see your ticket.</p>`,
   );
@@ -313,7 +332,7 @@ Paid:          ${price}
 Sign in with:  ${input.to}
 
 Claim code: ${input.claimCode}
-
+${input.demoPassword ? `\nTemporary password: ${input.demoPassword}\nThe app will ask you to change it the first time you sign in. Everyone who\nbuys a ticket is given this same temporary password, so it is not private\nand it is not yours until you have replaced it.\n` : ''}
 Next step: open the KGC app and sign in with ${input.to}.
 View your ticket: ${input.orderUrl}
 

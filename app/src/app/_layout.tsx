@@ -1,7 +1,7 @@
 // expo-router 6 does not re-export the navigation theme helpers; they come
 // straight from React Navigation. (expo-router 7 re-exports them again.)
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
@@ -50,7 +50,8 @@ const navThemes = {
 const AUTH_TIMEOUT_MS = 8000;
 
 function RootNavigator() {
-  const { loading } = useAuth();
+  const { loading, user, profile } = useAuth();
+  const pathname = usePathname();
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
@@ -66,6 +67,27 @@ function RootNavigator() {
   // Fall through to the router once we give up waiting: the tab guard will send
   // an unauthenticated user to /login, which is a screen they can act on.
   if (loading && !timedOut) return null;
+
+  /**
+   * The gate in front of the shared demo password.
+   *
+   * An account provisioned by a ticket purchase holds a password that is
+   * identical for every buyer and printed on a web page, and
+   * `mustChangePassword` is true until the attendee has replaced it. Redirecting
+   * here rather than inside each screen is the point: a per-screen check is one
+   * a new route forgets to add, and `/messages` — the route where the shared
+   * password does the most damage — is exactly the kind of thing reached by a
+   * notification deep link rather than by tapping through the tabs.
+   *
+   * ⚠️ Only on an explicit `true`. `profile` is null while it loads and the
+   * field is absent on every account created before 2026-09-02 and on every
+   * account that never had a password; both must fall through. Treating
+   * "unknown" as "must change" would strand the entire existing attendee list
+   * behind a prompt asking for a temporary password they were never given.
+   */
+  if (user && profile?.mustChangePassword === true && pathname !== '/change-password') {
+    return <Redirect href="/change-password" />;
+  }
 
   return (
     <Stack>
@@ -83,6 +105,13 @@ function RootNavigator() {
       <Stack.Screen name="messages" options={{ headerShown: false }} />
       {/* Full screen rather than a modal — it gates the app. */}
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      {/*
+        No header, and therefore no back button, on purpose. This screen is
+        reached by a redirect that fires again the moment anything navigates
+        away from it, so a back affordance would be a control that visibly does
+        nothing. Signing out is the only other way off it.
+      */}
+      <Stack.Screen name="change-password" options={{ headerShown: false }} />
     </Stack>
   );
 }

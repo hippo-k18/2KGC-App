@@ -289,12 +289,27 @@ service cloud.firestore {
       // And when it does change, an outright field *removal* is allowed
       // through untouched: `FieldValue.delete()` makes `photoURL` disappear
       // from `request.resource.data`, so there is nothing left to validate.
+      //
+      // `mustChangePassword` is on the allowlist but may only travel in ONE
+      // direction. The server stamps it true on an account provisioned with the
+      // shared demo password; the app clears it after the attendee has actually
+      // replaced that password. Letting a client set it *true* would let anyone
+      // strand themselves — or, on a future screen that writes another user's
+      // document, strand somebody else — behind a prompt with nothing to
+      // satisfy. So the rule pins the only value a client may write.
+      //
+      // Note this gate cannot verify the password was really changed: that
+      // happens in Firebase Auth, which rules cannot see. It is a flag the
+      // attendee's own client lowers after `updatePassword` resolves, and the
+      // thing it protects is the prompt, not the credential.
       allow update: if isSelf(uid)
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
           'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
-          'notificationPrefs', 'updatedAt',
+          'notificationPrefs', 'mustChangePassword', 'updatedAt',
         ])
+        && (!('mustChangePassword' in changed())
+            || request.resource.data.mustChangePassword == false)
         && (!('photoURL' in changed())
             || !('photoURL' in request.resource.data)
             || isFirebaseStorageUrl(request.resource.data.photoURL));
