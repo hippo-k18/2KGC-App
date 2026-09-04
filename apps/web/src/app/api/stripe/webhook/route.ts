@@ -442,10 +442,10 @@ export async function POST(req: NextRequest) {
           orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
           claimCode: result.claimCode,
           registrationId: result.registrationId,
-          // Only ever the password this call actually set. `null` on a
+          // Only ever the password this call actually generated. `null` on a
           // redelivery, so a retried webhook does not mail a credential for an
           // account that has since had its password changed.
-          demoPassword: account.demoPassword,
+          temporaryPassword: account.temporaryPassword,
         });
       }
 
@@ -727,7 +727,7 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
       orderUrl: `${origin}/order/${mintOrderToken({ rid: seat.registrationId })}`,
       claimCode: seat.claimCode,
       registrationId: seat.registrationId,
-      demoPassword: seatAccount.demoPassword,
+      temporaryPassword: seatAccount.temporaryPassword,
     });
   }
 
@@ -798,7 +798,7 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
     claimCode: result.claimCode,
     registrationId: result.registrationId,
-    demoPassword: account.demoPassword,
+    temporaryPassword: account.temporaryPassword,
   });
 
   return NextResponse.json({

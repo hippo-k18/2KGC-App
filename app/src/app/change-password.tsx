@@ -20,22 +20,22 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { getDb, getFirebaseAuth } from '@/lib/firebase/client';
 
 /**
- * Replace the shared demo password, before the app will show anything else.
+ * Replace the temporary password, before the app will show anything else.
  *
  * ── Why this screen exists at all ───────────────────────────────────────────
  *
- * A ticket purchase provisions an Auth account holding a password that is the
- * same for every buyer, printed on the confirmation page and mailed in the
- * receipt (`@kgc/scripts/src/lib/demo-password.ts`). That is a credential
- * anyone can use as anyone else, and the only thing that stops it being one for
- * the rest of the event is this screen. `mustChangePassword` on the profile is
+ * A ticket purchase provisions an Auth account holding six random digits, shown
+ * on the confirmation page and mailed in the receipt
+ * (`@kgc/scripts/src/lib/temporary-password.ts`). One million combinations is
+ * not a credential anybody should keep, and the only thing that stops it being
+ * one for the rest of the event is this screen. `mustChangePassword` on the profile is
  * the flag, the root navigator refuses to render any other route while it is
  * true, and this is the single place that lowers it.
  *
  * So the interesting requirement is not the form. It is that there is **no way
  * past it** except changing the password or signing out — no skip, no "later",
  * and no back gesture, because a prompt that can be dismissed is a prompt that
- * leaves the shared password live on an account that has read access to the
+ * leaves a six-digit password live on an account that has read access to the
  * attendee's own messages.
  *
  * ── The order of the two writes, which is not arbitrary ─────────────────────
@@ -43,8 +43,8 @@ import { getDb, getFirebaseAuth } from '@/lib/firebase/client';
  * Firebase Auth first, Firestore second, and the flag is cleared only after
  * `updatePassword` has actually resolved.
  *
- * Reversed, a failed password change would leave the flag down and the shared
- * password live — the exact state this screen exists to prevent, reached by the
+ * Reversed, a failed password change would leave the flag down and the
+ * temporary password live — the exact state this screen exists to prevent, reached by the
  * screen meant to prevent it. In the order below the bad case is the harmless
  * one: the password is changed, the flag write fails, and the attendee is asked
  * once more on next launch. Annoying, and safe. The copy on a flag-write
@@ -82,8 +82,8 @@ export default function ChangePasswordScreen() {
   /**
    * Firebase's own floor, stated here rather than imported from the web app.
    * The number is a property of Auth, and the app must not depend on a module
-   * whose whole subject is the demo password — the app never needs to know the
-   * value, only that six characters is the minimum.
+   * whose whole subject is the temporary password — the app never needs to know
+   * the value, only that six characters is the minimum.
    */
   const MIN_LENGTH = 6;
 
@@ -173,9 +173,8 @@ export default function ChangePasswordScreen() {
         <View style={{ gap: 6 }}>
           <Text variant="title3">Choose your password</Text>
           <Text variant="subhead" tone="secondary">
-            The password in your ticket email is a temporary one, and every attendee is given the
-            same one. Pick your own before you go any further — it is what protects your messages
-            and your badge.
+            The six digits in your ticket email are temporary. Pick your own password before you
+            go any further — it is what protects your messages and your badge.
           </Text>
         </View>
 
@@ -184,7 +183,7 @@ export default function ChangePasswordScreen() {
             value={current}
             onChangeText={setCurrent}
             style={field}
-            placeholder="Temporary password"
+            placeholder="Temporary password (6 digits)"
             placeholderTextColor={colors.textTertiary}
             secureTextEntry
             autoCapitalize="none"

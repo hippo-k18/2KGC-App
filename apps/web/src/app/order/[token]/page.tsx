@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
-import { pendingDemoPasswordFor } from '@/lib/app-account';
+import { pendingTemporaryPasswordFor } from '@/lib/app-account';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { QrCode } from '@/components/qr-code';
 import { APP_DISTRIBUTION, APP_URL, SITE } from '@/lib/site';
@@ -62,9 +62,10 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
   const reg = await getRegistration(payload.rid);
   if (!reg) notFound();
 
-  // Null unless the feature is on AND this account still carries
-  // `mustChangePassword` — so the block disappears once they have changed it.
-  const tempPassword = await pendingDemoPasswordFor(reg.email);
+  // Null unless a password was stored for this registration AND the account
+  // still carries `mustChangePassword` — so the block disappears, and the
+  // stored credential is swept, once they have changed it.
+  const tempPassword = await pendingTemporaryPasswordFor(reg.email);
 
   /*
    * `name`, `ticketType` and `claimCode` are all optional on `RegistrationDoc`,
@@ -213,11 +214,10 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
             {tempPassword ? (
               <p>
                 Your account was created by this purchase. Open the app and sign in with{' '}
-                <strong>{reg.email}</strong> and the temporary password above.{' '}
-                <strong>The app will ask you to change it straight away</strong> — everyone who
-                buys a ticket gets the same temporary password, so it is not private until you
-                have replaced it. You can also sign in with a six-digit code instead, which the
-                app emails to this address.
+                <strong>{reg.email}</strong> and the temporary password above — it is also in your
+                receipt. <strong>The app will ask you to change it straight away</strong>, and it
+                stops working once you do. You can also sign in with a six-digit code instead,
+                which the app emails to this address.
               </p>
             ) : (
               <p>

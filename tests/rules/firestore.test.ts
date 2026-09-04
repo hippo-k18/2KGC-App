@@ -506,7 +506,7 @@ describe('profiles and the directory', () => {
   });
 
   /**
-   * `mustChangePassword` is the flag that keeps the shared demo password from
+   * `mustChangePassword` is the flag that keeps the temporary password from
    * becoming somebody's permanent credential: the server stamps it true on an
    * account provisioned with that password, and the app refuses to render any
    * route until the attendee has cleared it. The rule therefore has to let a

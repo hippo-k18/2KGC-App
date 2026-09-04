@@ -66,18 +66,18 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  *
  * ⚠️ **As of 2026-09-02 this is the route a buyer actually arrives on**, and the
  * sentence that used to end this block — "no account this project creates has a
- * password" — is no longer true. `provisionAttendeeAccount` now sets the shared
- * demo password on the accounts it creates and mails it in the receipt, so an
- * attendee who has just bought a ticket signs in here with their address and
- * that temporary value.
+ * password" — is no longer true. `provisionAttendeeAccount` now issues six random
+ * digits per buyer, sets them on the account it creates and mails them in the
+ * receipt, so an attendee who has just bought a ticket signs in here with their
+ * address and that temporary value.
  *
  * Nothing in this file knows the password, and that has not changed — it is
  * still two boxes that forward what was typed. What is new is what happens
  * *after*: the profile carries `mustChangePassword`, and `_layout.tsx` redirects
  * to `/change-password` and refuses every other route until it is cleared. This
  * screen deliberately does not mention it. A sign-in form that explained the
- * shared password would be printing a credential hint to whoever is holding the
- * phone, which is the demo-panel mistake in a smaller box.
+ * temporary password would be printing a hint to whoever is holding the phone,
+ * which is the demo-panel mistake in a smaller box.
  */
 export default function LoginScreen() {
   const colors = useTheme();

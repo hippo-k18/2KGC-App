@@ -69,10 +69,10 @@ function RootNavigator() {
   if (loading && !timedOut) return null;
 
   /**
-   * The gate in front of the shared demo password.
+   * The gate in front of the temporary password.
    *
-   * An account provisioned by a ticket purchase holds a password that is
-   * identical for every buyer and printed on a web page, and
+   * An account provisioned by a ticket purchase holds six random digits shown
+   * on a web page and mailed in a receipt, and
    * `mustChangePassword` is true until the attendee has replaced it. Redirecting
    * here rather than inside each screen is the point: a per-screen check is one
    * a new route forgets to add, and `/messages` — the route where the shared

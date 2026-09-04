@@ -114,12 +114,12 @@ export interface UserDoc extends BaseDoc {
   /** Written only by Cloud Functions; mirrored into the custom claim. */
   roles: Role[];
   /**
-   * True while this account still holds the shared demo password it was
+   * True while this account still holds the temporary password it was
    * provisioned with, and the app must not let the attendee past the change
    * screen until it is false.
    *
-   * ⚠️ The flag is what makes handing out a shared password defensible at all
-   * — see `@kgc/scripts/src/lib/demo-password.ts` for the full argument. Set to
+   * ⚠️ The flag is what makes handing out a weak password defensible at all
+   * — see `@kgc/scripts/src/lib/temporary-password.ts` for the argument. Set to
    * `true` by `provisionAttendeeAccount` on the accounts it *creates*, never on
    * one that already existed, because an attendee who has already chosen a
    * password must not be told to change it by somebody else's second purchase.
@@ -162,6 +162,23 @@ export interface DirectoryDoc {
  * oracle — anyone who can attempt a read learns who holds a ticket.
  */
 export interface RegistrationDoc extends BaseDoc {
+  /**
+   * The six-digit password this registration's account was provisioned with,
+   * held only until the attendee replaces it.
+   *
+   * ⚠️ A plaintext Auth credential at rest. It exists because the password is
+   * random per buyer and therefore cannot be recomputed, and the confirmation
+   * page at `/order/{token}` has to be able to show it. `clearTemporaryPassword`
+   * deletes it as soon as `users/{uid}.mustChangePassword` is false, so the
+   * window is "until first sign-in" rather than the life of the event.
+   *
+   * Same document and same rule as `qrSecret` and `claimCode`: readable by the
+   * registration's owner and by nothing else on the client. Absent on every
+   * registration created before 2026-09-04, on every account that already
+   * existed at purchase, and whenever `ISSUE_TEMPORARY_PASSWORDS=0`.
+   */
+  tempPassword?: string;
+
   email: string;
   /** Lowercased-and-hashed, so lookup never requires the plaintext as a key. */
   emailHash: string;

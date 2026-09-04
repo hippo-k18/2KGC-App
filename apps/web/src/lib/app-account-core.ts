@@ -33,22 +33,28 @@
  * shipping sign-in is still the six-digit code in `functions/src/callable/` —
  * `requestOtp` proves the buyer controls the address, `verifyOtp` returns a
  * custom token — and that remains the mechanism the product is built around.
- * What has been added beside it, deliberately and on request, is the shared
- * demo password from `@kgc/scripts/src/lib/demo-password.ts`: printed on the
- * confirmation page, mailed in the receipt, and identical for every buyer.
+ * What has been added beside it, deliberately and on request, is a temporary
+ * password from `@kgc/scripts/src/lib/temporary-password.ts`: shown on the
+ * confirmation page and mailed in the receipt.
  *
- * The objection the old text raised was right and has not gone away — a shared,
- * publicly printed password is a credential anyone can use as anyone else. What
- * answers it is that this one is not the credential the attendee keeps.
- * `mustChangePassword` is stamped on every profile created holding it, and the
- * app refuses to render anything until that flag is cleared, so the shared
- * value opens the door exactly once. That is the difference between this and
- * the demo password BUILD-PLAN 1.4 deleted, which had no such rotation and is
- * still live on ~50 accounts (`OWNER-ACTIONS.md` §4).
+ * ★ **Six random digits per buyer, since 2026-09-04.** The first version of
+ * this was one shared string for every attendee, and the objection to that was
+ * the obvious one — a value which, learned once, signs in as anybody. Per-buyer
+ * randomness removes it outright. What remains is a six-digit secret, which is
+ * weak on its own and is not meant to survive: `mustChangePassword` is stamped
+ * beside it and the app refuses every route until the attendee has replaced it.
+ * It gets somebody in once.
  *
- * Set `DEMO_ATTENDEE_PASSWORD=` empty and every word of the paragraph above
- * stops applying: no password is set, no flag is stamped, and the OTP code is
- * the only way in again.
+ * Because it is random it cannot be recomputed, so it is written to
+ * `registrations/{rid}.tempPassword` for the confirmation page to read back.
+ * That is a live credential at rest, which is a real cost and is why it is
+ * deleted the moment the flag clears (`clearTemporaryPassword`). It sits beside
+ * `qrSecret` and `claimCode`, which are credentials on the same document under
+ * the same rule — the owner may read it and nobody else.
+ *
+ * Set `ISSUE_TEMPORARY_PASSWORDS=0` and every word of the paragraphs above
+ * stops applying: no password is set, no flag is stamped, nothing is stored,
+ * and the OTP code is the only way in again.
  *
  * ── Agreeing with `verifyOtp` about the uid ─────────────────────────────────
  *
@@ -70,7 +76,10 @@ import {
   type UserDoc,
 } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { demoPassword } from '@kgc/scripts/src/lib/demo-password';
+import {
+  generateTemporaryPassword,
+  temporaryPasswordsEnabled,
+} from '@kgc/scripts/src/lib/temporary-password';
 
 /**
  * The uid is derived from the email, not auto-assigned.
@@ -103,7 +112,7 @@ export interface ProvisionResult {
   /** True when this call wrote `users/{uid}`. False on a replay. */
   profileCreated: boolean;
   /**
-   * The shared password this call set, when it set one. `null` whenever the
+   * The temporary password this call set, when it set one. `null` whenever the
    * feature is off or the account already existed.
    *
    * Returned rather than re-read from the environment by the caller so that the
@@ -111,7 +120,7 @@ export interface ProvisionResult {
    * actually set — the two would drift the moment somebody changed the variable
    * between the write and the render.
    */
-  demoPassword?: string | null;
+  temporaryPassword?: string | null;
   /** Present only on `failed`. The message, for the log and the audit entry. */
   error?: string;
 }
@@ -147,13 +156,14 @@ export async function provisionAttendeeAccount(
     if (!existing) existing = await auth.getUserByEmail(email).catch(() => null);
 
     /**
-     * The demo password, and why it is only ever set on a *new* account.
+     * The temporary password, and why it is only ever set on a *new* account.
      *
-     * `demoPassword()` returns `null` when the feature is switched off, which
-     * restores the previous behaviour of provisioning no credential at all.
-     * When it returns a value, the account is created holding it and the
-     * profile below is stamped `mustChangePassword` so the app forces a
-     * rotation before letting the attendee anywhere.
+     * Six random digits, generated per buyer — never a value shared between
+     * accounts. `null` when the feature is switched off, which restores the
+     * behaviour of provisioning no credential at all. When there is one, the
+     * account is created holding it and the profile below is stamped
+     * `mustChangePassword` so the app forces a rotation before letting the
+     * attendee anywhere.
      *
      * ⚠️ Never applied to an account that already exists. Somebody who bought
      * a second ticket, or who signed in through OTP first, may already have
@@ -163,7 +173,7 @@ export async function provisionAttendeeAccount(
      * whole condition, and a Stripe redelivery cannot re-enter this branch
      * because the account exists by then.
      */
-    const sharedPassword = demoPassword();
+    const temporaryPassword = temporaryPasswordsEnabled() ? generateTemporaryPassword() : null;
 
     let created = false;
     if (!existing) {
@@ -171,7 +181,7 @@ export async function provisionAttendeeAccount(
         uid: derivedUid,
         email,
         displayName: input.name || undefined,
-        ...(sharedPassword ? { password: sharedPassword } : {}),
+        ...(temporaryPassword ? { password: temporaryPassword } : {}),
       });
       created = true;
     }
@@ -242,10 +252,10 @@ export async function provisionAttendeeAccount(
         roles: ['attendee'],
         /**
          * Stamped only when this call also created the Auth account holding the
-         * shared password. A profile written for an account that already
+         * temporary password. A profile written for an account that already
          * existed must not carry it — that attendee's password is their own.
          */
-        ...(created && sharedPassword ? { mustChangePassword: true } : {}),
+        ...(created && temporaryPassword ? { mustChangePassword: true } : {}),
         createdAt: now,
         updatedAt: now,
       };
@@ -263,12 +273,40 @@ export async function provisionAttendeeAccount(
       profileCreated = true;
     }
 
+    /**
+     * The password, parked where the confirmation page can find it.
+     *
+     * `registrations/{rid}` and `users/{uid}` share a key — both are
+     * `sha256(email)` — so this needs no extra lookup. It is written only
+     * alongside a freshly created account, so a redelivered webhook cannot
+     * overwrite a stored value with a newly generated one that does not match
+     * what Auth actually holds.
+     *
+     * ⚠️ A plaintext credential in Firestore, deliberately and reluctantly. The
+     * alternative is not showing it on the confirmation page, which was asked
+     * for. `clearTemporaryPassword` removes it as soon as the attendee has
+     * changed their password, so the window is "until first sign-in" rather
+     * than "forever", and the rule on this collection lets only its owner read
+     * it. A `set` with merge rather than `update`, because a registration
+     * written by the CSV importer may not exist under this id yet.
+     */
+    if (created && temporaryPassword) {
+      await db
+        .collection(COLLECTIONS.registrations)
+        .doc(uid)
+        .set({ tempPassword: temporaryPassword, updatedAt: new Date() }, { merge: true })
+        .catch(() => {
+          // Non-fatal on purpose, like everything else on this path. The buyer
+          // still has the password in their receipt; only the web page loses it.
+        });
+    }
+
     return {
       status: created ? 'created' : 'existing',
       uid,
       claimsStamped,
       profileCreated,
-      demoPassword: created ? sharedPassword : null,
+      temporaryPassword: created ? temporaryPassword : null,
     };
   } catch (err) {
     return {
@@ -276,7 +314,7 @@ export async function provisionAttendeeAccount(
       uid: null,
       claimsStamped: false,
       profileCreated: false,
-      demoPassword: null,
+      temporaryPassword: null,
       error: err instanceof Error ? err.message : String(err),
     };
   }

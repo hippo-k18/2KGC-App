@@ -1,9 +1,9 @@
 import 'server-only';
 
 import { getAuth } from 'firebase-admin/auth';
+import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firestore';
-import { COLLECTIONS, type UserDoc } from '@kgc/shared';
-import { demoPassword } from '@kgc/scripts/src/lib/demo-password';
+import { COLLECTIONS, type RegistrationDoc, type UserDoc } from '@kgc/shared';
 import { provisionAttendeeAccount, uidForEmail, type ProvisionResult } from './app-account-core';
 import { recordError } from './errors';
 
@@ -22,19 +22,19 @@ import { recordError } from './errors';
  * still the OTP flow in `functions/src/callable/` — a six-digit code mailed to
  * the address, which is what proves the buyer controls it.
  *
- * ⚠️ **As of 2026-09-02 it also sets a shared demo password**, on request, and
- * this block used to say that must never happen. The objection it raised stands
- * on its own terms: a constant credential on a real attendee list means anyone
- * who knows an address can read that person's messages. What has changed is not
- * the objection but the window — `mustChangePassword` is stamped alongside, and
- * the app will not render anything until the attendee has replaced the shared
- * value. It opens the door once rather than standing in for a credential.
+ * ⚠️ **As of 2026-09-02 it also sets a temporary password**, on request, and
+ * this block used to say that must never happen. The objection it raised was
+ * about a *constant* credential, and since 2026-09-04 there is not one: the
+ * password is six random digits per buyer. What remains is a weak secret, and
+ * the window is what handles it — `mustChangePassword` is stamped alongside,
+ * and the app will not render anything until the attendee has replaced it. It
+ * opens the door once rather than standing in for a credential.
  *
  * ★ **The better shape is still the one this file already named**, and it is
  * worth doing when the demo pressure is off: an Admin-SDK
  * `generatePasswordResetLink()` in the receipt — per-buyer, time-limited,
  * single-use — which needs no shared secret, no printed password and no forced
- * rotation, because there is nothing to rotate. `DEMO_ATTENDEE_PASSWORD=` empty
+ * rotation, because there is nothing to rotate. `ISSUE_TEMPORARY_PASSWORDS=0`
  * is the switch that reverts to password-less provisioning in the meantime.
  */
 
@@ -71,39 +71,56 @@ export async function provisionPurchaserAccount(input: {
 }
 
 /**
- * The temporary password to print for a buyer, or `null` if there is none.
+ * The temporary password to show a buyer, or `null` if there is none to show.
  *
- * ── Why this is derived rather than stored ──────────────────────────────────
+ * ── Two documents, and both have to agree ───────────────────────────────────
  *
- * The confirmation page renders long after the webhook that provisioned the
- * account, and it is a capability link somebody can reopen next week. Storing
- * the password on the registration so the page could read it back would put a
- * live credential in Firestore, in a document the dashboard lists — which is a
- * worse thing to own than the shared password itself.
+ * `registrations/{rid}.tempPassword` is the value; `users/{uid}.mustChangePassword`
+ * is whether it is still the account's actual password. Either one alone is a
+ * wrong answer. The stored value with the flag already cleared is a password
+ * the attendee has replaced — printing it would send somebody to the desk with
+ * a credential that stopped working a week ago. The flag without a value is an
+ * account provisioned before 2026-09-04, when the password was shared and
+ * nothing was stored, and there is nothing truthful to print for it.
  *
- * So the page asks two questions instead. Is the feature on, and does this
- * account still carry `mustChangePassword`? Both true means the account still
- * holds whatever `DEMO_ATTENDEE_PASSWORD` currently is, and printing that value
- * is accurate. Either false means printing anything would be a guess.
+ * They share a key, so this is two `get`s and no query: `rid` and `uid` are
+ * both `sha256(email)`.
  *
- * ★ The useful consequence is that the page **stops** showing a password the
- * moment the attendee changes theirs. A page that kept printing a replaced
- * credential would be confidently wrong, and would send somebody to the desk
- * with a password that has not worked for a week.
- *
- * The uid is derived from the address, so an account created by `verifyOtp`
- * under an auto-assigned uid has no profile at this key and this returns
- * `null`. That is the safe direction: no password is shown for an account this
- * function cannot positively identify as holding one.
+ * ★ It also cleans up. Once the flag is down the stored credential has no
+ * remaining purpose, and this is the one server-side path that reliably runs
+ * afterwards — the app cannot write `registrations` under any rule, and the
+ * trigger that would do it properly is undeployed. Opportunistic rather than
+ * guaranteed: a buyer who never reopens their confirmation link leaves the
+ * value until something else reads it. Worth doing anyway, and worth being
+ * honest that it is a sweep rather than a delete-on-change.
  */
-export async function pendingDemoPasswordFor(email: string): Promise<string | null> {
-  const shared = demoPassword();
-  if (!shared) return null;
+export async function pendingTemporaryPasswordFor(email: string): Promise<string | null> {
+  const id = uidForEmail(email);
 
   try {
-    const snap = await db().collection(COLLECTIONS.users).doc(uidForEmail(email)).get();
-    if (!snap.exists) return null;
-    return (snap.data() as UserDoc).mustChangePassword === true ? shared : null;
+    const [profile, registration] = await Promise.all([
+      db().collection(COLLECTIONS.users).doc(id).get(),
+      db().collection(COLLECTIONS.registrations).doc(id).get(),
+    ]);
+
+    const stored = registration.exists
+      ? (registration.data() as RegistrationDoc).tempPassword
+      : undefined;
+    const mustChange =
+      profile.exists && (profile.data() as UserDoc).mustChangePassword === true;
+
+    if (mustChange) return stored ?? null;
+
+    if (stored) {
+      await db()
+        .collection(COLLECTIONS.registrations)
+        .doc(id)
+        .update({ tempPassword: FieldValue.delete() })
+        .catch(() => {
+          // A failed sweep is not worth a 500 on somebody's ticket page.
+        });
+    }
+    return null;
   } catch {
     // A confirmation page that 500s because a profile read failed is a worse
     // outcome than one that omits the password block. The claim code, the badge

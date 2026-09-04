@@ -43,7 +43,7 @@ import {
   withdrawOrderEntitlements,
 } from '../../apps/web/src/lib/app-account-core.js';
 import { decideRefund } from '../../apps/web/src/lib/refund-core.js';
-import { demoPassword } from '../../scripts/src/lib/demo-password.js';
+
 
 const FIRESTORE_EMULATOR = process.env.FIRESTORE_EMULATOR_HOST;
 const AUTH_EMULATOR = process.env.FIREBASE_AUTH_EMULATOR_HOST;
@@ -185,30 +185,55 @@ describe('provisioning an account from a paid ticket', () => {
 
   /**
    * ⚠️ This block used to assert the opposite — "sets no password, because the
-   * way in is the code emailed to the address". As of 2026-09-02 provisioning
-   * sets the shared demo password on request, and the tests below are the
-   * properties that keep that from being the mistake the old one guarded
-   * against.
+   * way in is the code emailed to the address". Provisioning now issues a
+   * temporary one, and these are the properties that keep that from being the
+   * mistake the old test guarded against.
    */
-  it('sets the shared demo password, and it actually signs in', async () => {
+  it('sets a six-digit password that actually signs in', async () => {
     const result = await provisionAttendeeAccount(auth, db, buyer);
 
-    expect(result.demoPassword).toBe(demoPassword());
+    expect(result.temporaryPassword).toMatch(/^\d{6}$/);
     // Asserted against Auth rather than against the return value: a result
     // object claiming a password that was never set is exactly the drift the
     // receipt and the confirmation page would then print.
-    expect(await canSignIn(lowercased, demoPassword()!)).toBe(true);
+    expect(await canSignIn(lowercased, result.temporaryPassword!)).toBe(true);
   });
 
-  it('still refuses a password that is not the shared one', async () => {
+  it('issues a different password to every buyer', async () => {
+    // The property the shared-password version did not have, and the reason
+    // this was changed. Two accounts, two provisions, two values.
+    const a = await provisionAttendeeAccount(auth, db, buyer);
+    const b = await provisionAttendeeAccount(auth, db, {
+      email: 'second.buyer@example.com',
+      name: 'Second Buyer',
+    });
+
+    expect(a.temporaryPassword).not.toBe(b.temporaryPassword);
+    // And one buyer's password must not open the other's account.
+    expect(await canSignIn('second.buyer@example.com', a.temporaryPassword!)).toBe(false);
+    expect(await canSignIn(lowercased, b.temporaryPassword!)).toBe(false);
+  });
+
+  it('still refuses a password that is not the issued one', async () => {
     await provisionAttendeeAccount(auth, db, buyer);
     expect(await canSignIn(lowercased, ANY_PASSWORD)).toBe(false);
   });
 
+  it('stores the password on the registration so the page can show it', async () => {
+    // Random per buyer means it cannot be recomputed, so the confirmation page
+    // reads it back from here. `rid` and `uid` are the same hash of the email.
+    // Its own address, for the reason spelled out in the switched-off test.
+    const result = await provisionAttendeeAccount(auth, db, {
+      email: 'stored-password-probe@example.com',
+      name: 'Probe',
+    });
+    const reg = await db.collection(COLLECTIONS.registrations).doc(result.uid!).get();
+    expect(reg.data()?.tempPassword).toBe(result.temporaryPassword);
+  });
+
   it('stamps mustChangePassword, which is what stops it being permanent', async () => {
-    // The shared value opens the door once. Without this flag the app has no
-    // reason to ask for a replacement, and a password printed on a public page
-    // becomes the credential every buyer keeps.
+    // Six digits is a weak secret and is not meant to survive. Without this
+    // flag the app has no reason to ask for a replacement.
     const { uid } = await provisionAttendeeAccount(auth, db, buyer);
     const profile = await db.collection(COLLECTIONS.users).doc(uid!).get();
     expect(profile.data()?.mustChangePassword).toBe(true);
@@ -216,8 +241,8 @@ describe('provisioning an account from a paid ticket', () => {
 
   it('never resets the password of an account that already exists', async () => {
     // The important one. Somebody who bought a second ticket may have already
-    // chosen their own password; handing it back to the shared value on a later
-    // purchase would give their account away to anyone who can read a receipt.
+    // chosen their own password; reissuing on a later purchase would break the
+    // credential they are actually using.
     const first = await provisionAttendeeAccount(auth, db, buyer);
     await auth.updateUser(first.uid!, { password: 'their-own-choice' });
     await db.collection(COLLECTIONS.users).doc(first.uid!).update({ mustChangePassword: false });
@@ -225,27 +250,36 @@ describe('provisioning an account from a paid ticket', () => {
     const again = await provisionAttendeeAccount(auth, db, buyer);
 
     expect(again.status).toBe('existing');
-    expect(again.demoPassword).toBeNull();
+    expect(again.temporaryPassword).toBeNull();
     expect(await canSignIn(lowercased, 'their-own-choice')).toBe(true);
-    expect(await canSignIn(lowercased, demoPassword()!)).toBe(false);
+    expect(await canSignIn(lowercased, first.temporaryPassword!)).toBe(false);
     const profile = await db.collection(COLLECTIONS.users).doc(first.uid!).get();
     expect(profile.data()?.mustChangePassword).toBe(false);
   });
 
   it('sets no password at all when the feature is switched off', async () => {
-    // `DEMO_ATTENDEE_PASSWORD=` empty restores the pre-2026-09-02 behaviour
+    // `ISSUE_TEMPORARY_PASSWORDS=0` restores the pre-2026-09-02 behaviour
     // without a code change, which is the whole point of the switch.
-    const previous = process.env.DEMO_ATTENDEE_PASSWORD;
-    process.env.DEMO_ATTENDEE_PASSWORD = '';
+    //
+    // ⚠️ Its own address, deliberately. `beforeEach` clears `users`,
+    // `directory`, `ticketTypes` and Auth but NOT `registrations` — and it must
+    // not, because `fulfilment.test.ts` runs against the same emulator and owns
+    // fixtures in that collection. A shared address would read a `tempPassword`
+    // left by an earlier test in this file and assert on somebody else's data.
+    const email = 'switch-off-probe@example.com';
+    const previous = process.env.ISSUE_TEMPORARY_PASSWORDS;
+    process.env.ISSUE_TEMPORARY_PASSWORDS = '0';
     try {
-      const result = await provisionAttendeeAccount(auth, db, buyer);
-      expect(result.demoPassword).toBeNull();
-      expect(await canSignIn(lowercased, '123456')).toBe(false);
+      const result = await provisionAttendeeAccount(auth, db, { email, name: 'Probe' });
+      expect(result.status).toBe('created');
+      expect(result.temporaryPassword).toBeNull();
       const profile = await db.collection(COLLECTIONS.users).doc(result.uid!).get();
       expect(profile.data()?.mustChangePassword).toBeUndefined();
+      const reg = await db.collection(COLLECTIONS.registrations).doc(result.uid!).get();
+      expect(reg.data()?.tempPassword).toBeUndefined();
     } finally {
-      if (previous === undefined) delete process.env.DEMO_ATTENDEE_PASSWORD;
-      else process.env.DEMO_ATTENDEE_PASSWORD = previous;
+      if (previous === undefined) delete process.env.ISSUE_TEMPORARY_PASSWORDS;
+      else process.env.ISSUE_TEMPORARY_PASSWORDS = previous;
     }
   });
 
