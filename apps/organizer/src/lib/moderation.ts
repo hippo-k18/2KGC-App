@@ -41,6 +41,26 @@ import { db } from './firestore';
  *
  * A moderation queue where every row says `demo_014` is a queue nobody can act
  * on. One read of `users` joins them; at conference volumes that is one query.
+ *
+ * ── `replyCount` is recomputed, not read off the stored counter ─────────────
+ *
+ * `communityPosts/{id}.replyCount` is trigger-owned (`onReplyWrite`,
+ * functions/SPEC.md #1) and the trigger is unbuilt (Spark plan), so the stored
+ * value holds whatever the seed wrote and never moves — reading it here would
+ * show a moderator a number the underlying replies no longer support. Counted
+ * instead from `replySnap.size` below, which this function already fetches for
+ * the `replies` array, so this costs no extra read.
+ *
+ * This count is **not** filtered to `status === 'visible'`, unlike
+ * `engagement.ts`'s `listCommunityPosts()`, which deliberately shows attendees
+ * only the visible count. Two different numbers for two different audiences,
+ * on purpose: SPEC.md #1 says the trigger "must not decrement on a status
+ * change (hidden/removed) — hiding a reply must not orphan the counter; only a
+ * real delete... changes the count", so the true stored value once deployed
+ * will include hidden and removed replies, and a moderator specifically needs
+ * that total — it is the record of how much got hidden, not just what
+ * survived. Matching `replySnap.size` here is what makes this value converge
+ * on the deployed trigger's own number rather than on a different, smaller one.
  */
 
 export interface ModeratedPost {
@@ -120,7 +140,7 @@ export async function listBoardForModeration(): Promise<ModeratedPost[]> {
         authorName: names.get(p.authorId) ?? p.authorId,
         authorId: p.authorId,
         status: p.status ?? 'visible',
-        replyCount: p.replyCount ?? 0,
+        replyCount: replySnap.size,
         reactionCount: p.reactionCount ?? 0,
         createdAt: iso(p.createdAt),
         replies,
