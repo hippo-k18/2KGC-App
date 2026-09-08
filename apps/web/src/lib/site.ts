@@ -55,7 +55,13 @@ export const SITE = {
   conferenceDays: 'Wednesday 5 – Friday 7 May',
 
   tagline: 'Where enterprise data becomes something a machine can reason about.',
-  contactEmail: 'contact@knowledgegraph.tech',
+  /*
+   * Declared in `@kgc/shared` rather than typed here, because the organizer
+   * dashboard has to name the same address: it is the fallback the code of
+   * conduct prints when no reporting address has been set, and the dashboard
+   * tells the organizer which address that is. Two copies could disagree.
+   */
+  contactEmail: EVENT.contactEmail,
   /*
    * The conference's real switchboard, read off the live /hcls "Find us" block.
    * Not invented — a wrong phone number on a conference site is worse than none,
@@ -215,8 +221,6 @@ export interface NavChild {
   label: string;
   /** Opens in a new tab and gets the external affordance. */
   external?: boolean;
-  /** Rendered but not yet built here — see the note below. */
-  todo?: boolean;
 }
 
 /**
@@ -230,8 +234,9 @@ export interface NavChild {
  *
  * Every entry resolves. Community, Meet the Team and the Lifetime Achievement
  * Award were built on 2026-08-20 for exactly this reason — a menu entry with
- * nowhere to point is worse than no entry. The `todo` flag stays on the type
- * because the next entry added may well arrive before its page does.
+ * nowhere to point is worse than no entry, and an entry that renders the words
+ * "not built yet" to a paying visitor is worse than either. There is deliberately
+ * no way to express a placeholder in this type: an item ships when its page does.
  */
 export const ABOUT_MENU: readonly NavChild[] = [
   { href: '/about', label: 'About KGC' },

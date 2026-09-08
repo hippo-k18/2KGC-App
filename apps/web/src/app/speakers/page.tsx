@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { FEATURED_2026, REST_2026, SPEAKERS_2026 } from '@kgc/scripts/src/lib/speakers-2026';
-import { SpeakerCard, SpeakerGrid, ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
+import { SpeakerCard, ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
 import { listSpeakers } from '@/lib/data';
 import { SPEAKERS_PAGE_SOURCE } from '@kgc/shared';
 

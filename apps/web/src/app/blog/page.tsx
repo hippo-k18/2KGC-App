@@ -7,7 +7,7 @@ import { formatPostDate, POST_CATEGORIES, POSTS, postsInCategory, type Post } fr
 export const metadata: Metadata = {
   title: 'Blog',
   description:
-    'The Knowledge Graph Conference blog archive — talks, news roundups and write-ups from the KGC community, 2019 to today.',
+    'The Knowledge Graph Conference blog archive: talks, news roundups and write-ups from the KGC community, 2019 to today.',
 };
 
 /** Twelve fills four rows of the three-column grid without a long scroll. */
@@ -64,12 +64,11 @@ export default async function BlogPage({
           <p className="eyebrow">Writing</p>
           <h1>Blog</h1>
           <p className="lede">
-            Talks, fortnightly news roundups and write-ups from the {SITE.shortName} community —{' '}
+            Talks, fortnightly news roundups and write-ups from the {SITE.shortName} community.{' '}
             {POSTS.length} posts, 2019 to today.
           </p>
           <p className="muted" style={{ maxWidth: '62ch' }}>
-            Each post is summarised here and published in full on knowledgegraph.tech. The authors
-            keep their bylines and their traffic.
+            Each post is summarised here and published in full on knowledgegraph.tech.
           </p>
           {category && (
             <p style={{ marginTop: 18, marginBottom: 0 }}>

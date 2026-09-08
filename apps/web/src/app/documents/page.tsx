@@ -6,7 +6,7 @@ import { SITE } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Documents',
   description:
-    'Handouts, maps and travel notes for the Knowledge Graph Conference 2027 — everything published for anyone to read.',
+    'Handouts, maps and travel notes for the Knowledge Graph Conference 2027.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -98,10 +98,7 @@ export default async function DocumentsPage() {
               <h2>
                 {documents.length} {documents.length === 1 ? 'document' : 'documents'}
               </h2>
-              <p className="muted">
-                In the order the organizers arranged them. Every one of these is hosted elsewhere
-                and opens in a new tab.
-              </p>
+              <p className="muted">Hosted elsewhere. Each opens in a new tab.</p>
 
               <ul className="doc-list">
                 {documents.map((d) => (

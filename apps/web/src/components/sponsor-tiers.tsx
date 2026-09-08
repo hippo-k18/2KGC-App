@@ -53,8 +53,8 @@ function Logo({ sponsor, size }: { sponsor: SponsorCard; size: 1 | 2 | 3 }) {
   ) : sponsor.logoURL.startsWith('/') ? (
     <Image src={sponsor.logoURL} alt={sponsor.name} width={box.w} height={box.h} />
   ) : (
-    // eslint-disable-next-line @next/next/no-img-element -- see above: an
-    // un-configured remote host cannot go through next/image.
+    // See above: an un-configured remote host cannot go through next/image.
+    // eslint-disable-next-line @next/next/no-img-element
     <img src={sponsor.logoURL} alt={sponsor.name} width={box.w} height={box.h} loading="lazy" />
   );
 

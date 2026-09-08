@@ -5,7 +5,7 @@ import { SLACK_WORKSPACE } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Community',
   description:
-    'The KGC community — around ten thousand knowledge graph professionals on Slack, LinkedIn and the newsletter.',
+    'The KGC community: around ten thousand knowledge graph professionals on Slack, LinkedIn and the newsletter.',
 };
 
 /**
@@ -47,7 +47,7 @@ const CHANNELS = [
 const LIBRARIES = [
   {
     name: 'YouTube channel',
-    body: 'Keynotes, panel discussions, workshops and tutorials from the conference, across every track — data architecture, graph data science, deep learning, decentralisation, NLP, ontologies and taxonomies, EU projects, open knowledge networks, business use cases and product graphs.',
+    body: 'Keynotes, panel discussions, workshops and tutorials from the conference, across every track.',
     href: 'https://www.youtube.com/@knowledgegraphconference',
   },
   {

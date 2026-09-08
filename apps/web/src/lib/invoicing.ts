@@ -133,7 +133,7 @@ export async function raiseInvoice(req: InvoiceRequest): Promise<InvoiceResult> 
       // dropped `unit_amount` from invoice items in favour of `amount` and a
       // `pricing` object. One seat per item, so the two are the same number.
       amount: seat.priceCents,
-      description: `KGC 2027 — ${seat.ticketType} — ${seat.name} <${seat.email}>`,
+      description: `KGC 2027: ${seat.ticketType} · ${seat.name} <${seat.email}>`,
       tax_code: 'txcd_20030000',
     });
   }

@@ -1,4 +1,4 @@
-import { PAGE_CONTENT_KEYS, type CodeOfConductContent } from '@kgc/shared';
+import { EVENT, PAGE_CONTENT_KEYS, type CodeOfConductContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import { pageContent } from '@/lib/data';
 import { SITE } from '@/lib/site';
@@ -72,9 +72,37 @@ const SANCTIONS = [
  * fill it". `pageContent()` takes it as a required argument precisely so that
  * an empty collection, a wrong `eventId` or an unreachable Firestore all render
  * exactly what is written here.
+ *
+ * ── Why the fallback is the general mailbox ─────────────────────────────────
+ *
+ * There were three options for what this page shows before anyone has set the
+ * 2027 reporting address, and only one of them is safe.
+ *
+ * Rendering *nothing* leaves a code of conduct with no way to report a breach —
+ * a policy that names ten sanctions and no one to invoke them. Rendering the
+ * dashboard's house phrase for an empty collection, "Not inputted yet", is
+ * worse still: this is the page that has to read as authoritative to somebody
+ * who has just been harassed, and an unfinished-website placeholder tells them
+ * nobody is minding it.
+ *
+ * So it falls back to a real address. `EVENT.contactEmail` is
+ * `contact@knowledgegraph.tech`, which this repo already publishes on `/learn`,
+ * on `/community` and in this page's own footer line below — so if it ever
+ * stops being read, three public pages break loudly rather than one incident
+ * report vanishing quietly. It was chosen over the two other candidates on
+ * exactly that test: `info@knowledgegraph.tech`, which this page used to carry,
+ * appeared nowhere else in the repository and nothing here corroborates that
+ * anyone reads it; and `EMAIL_REPLY_TO` (`hello@knowledgegraph.tech`) is the
+ * reply-to on ticket receipts, an automated-mail address configured per
+ * deployment, which is not where a harassment report should land.
+ *
+ * ⚠️ It is still a *general* mailbox, and that is the cost: whoever answers
+ * marketing enquiries would read an incident report. That is a reason for an
+ * organizer to set the real address, not a reason to print nothing in the
+ * meantime — and the dashboard says so on the screen where it is set.
  */
 const CONTACT: CodeOfConductContent = {
-  reportEmail: 'info@knowledgegraph.tech',
+  reportEmail: EVENT.contactEmail,
   committee: [
     'François Scharffe, Co-Founder, Conference Chair',
     'Thomas Deely, Co-Founder',

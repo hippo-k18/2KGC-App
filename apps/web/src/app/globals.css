@@ -1330,8 +1330,21 @@ section.tint {
   margin-bottom: 5px;
 }
 
+/*
+ * `textarea` is here with the two it always should have been with. The checkout
+ * form has rendered one for a `long-text` registration question since August and
+ * it came out unstyled — a bare browser box with a 13px monospace-ish default
+ * between two 8px-radius inputs — because this rule named only `input` and
+ * `select`. The abstract portal makes the same field the largest control on the
+ * page, so the omission stops being cosmetic.
+ *
+ * `font: inherit` is the load-bearing half: a `textarea` does not inherit the
+ * page font on its own, and the abstract is the one field somebody reads back
+ * before submitting.
+ */
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   font: inherit;
   padding: 11px 12px;
@@ -1339,6 +1352,11 @@ section.tint {
   border-radius: 8px;
   background: var(--white);
   color: var(--ink);
+}
+
+.field textarea {
+  line-height: 1.55;
+  resize: vertical;
 }
 
 /*
@@ -1368,7 +1386,8 @@ section.tint {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   outline: 2px solid var(--blue);
   outline-offset: 1px;
   border-color: var(--blue);
@@ -3536,149 +3555,397 @@ section.tint {
   margin: 18px 0 0;
 }
 
-/* ---------------------------------------------------- live ticket cards -- */
+/* ------------------------------------------------------- the tickets page -- */
 
 /*
- * The live page's two headline tickets are wide centred panels — one navy, one
- * pale — with underlined group headings and bulleted contents, not the four
- * equal feature-list cards this site had. `align-items: start` because the two
- * panels hold different numbers of lines and stretching them to match invents a
- * symmetry the original does not have.
+ * The page head, where a hero used to be.
+ *
+ * The old opening was a full-bleed navy band: an orange kicker, the conference
+ * name at display size, the dates, two buttons that both pointed further down
+ * this same page, a starred line of copy and a photograph — a screen and a
+ * quarter in front of somebody who has already clicked "Tickets". It is now a
+ * heading and one line, on the page's own ground, so the first price is visible
+ * without scrolling.
+ *
+ * Capped and left-aligned to the same 1120 as the grid below, so the h1 sits on
+ * the first card's left edge rather than floating in the middle of a 2000px
+ * `.wrap`.
  */
-.kgc-tickets {
+.tickets-head {
+  padding: 44px 0 0;
+}
+
+.tickets-head .wrap {
+  max-width: 1120px;
+}
+
+.tickets-head h1 {
+  margin: 0;
+  font-size: 2.4rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.tickets-head > .wrap > p {
+  margin: 10px 0 0;
+  max-width: 46rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.tickets-head .notice {
+  margin-top: 22px;
+  max-width: 46rem;
+}
+
+/* The grid carries its own top space from the head above it, so this band sets
+   only the gap to the checkout below. */
+.tickets-band {
+  padding: 28px 0 64px;
+}
+
+/* ----------------------------------------------------------- ticket tiers -- */
+
+/*
+ * Every tier on the page, in one grid.
+ *
+ * ── What this replaced ─────────────────────────────────────────────────────
+ *
+ * Two card designs for one object. The flagship tiers were wide centred panels,
+ * one navy and one pale, with every bullet on show; the rest were narrower
+ * cards on a second navy band under a second heading. The narrow ones were the
+ * visible failure — centred prose in a 340px track, wrapping every three or
+ * four words into a ragged column pinched in the middle of a wide dark band —
+ * but the real cost was that four tickets took three screens to compare.
+ *
+ * ── Why the cards are bordered and not shadowed ─────────────────────────────
+ *
+ * A row of identical rounded rectangles each floating on its own soft grey
+ * shadow is the house style of every pricing page on the web. A hairline on the
+ * page's own ground is quieter, holds up in a row of four, and leaves the one
+ * piece of visual weight on the page — the filled button on the featured tier —
+ * with nothing competing against it.
+ *
+ * Two radii doing two jobs: 18px on the card, a full pill on the button. One
+ * radius applied to everything regardless of scale is the tell that no decision
+ * was made.
+ */
+.tier-grid {
   display: grid;
-  gap: 26px;
-  align-items: start;
-  grid-template-columns: 1fr;
-  margin-top: 40px;
-}
-
-@media (width >= 860px) {
-  .kgc-tickets {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  gap: 16px;
   /*
-   * The lighter tiers are however many the catalogue holds, not two.
+   * `auto-fit` over a `minmax` track rather than a fixed column count: the
+   * catalogue decides how many tiers there are, and a hard `repeat(4, …)` puts
+   * a fifth ticket on its own row beside three empty cells.
    *
-   * A fixed two-column grid capped at 760px was right for the seeded pair and
-   * wrong for anything else: a third ticket type created in the dashboard
-   * dropped onto its own row, left-aligned, with an empty cell beside it.
-   * `auto-fit` over fixed-width tracks lays down as many columns as fit and
-   * collapses the rest, and `justify-content: center` keeps the row centred at
-   * any count — so two cards still sit where they always did.
+   * 200px is the narrowest a card can be before "Main Conference" breaks across
+   * two lines at the name's size. It has to be that low: four tracks at 240
+   * plus three gaps need 1008px of *content* width, which a 1041px window does
+   * not have once `.wrap` takes its side padding — so the fourth ticket wrapped
+   * onto its own row with three empty cells beside it on exactly the laptop
+   * width this page is most often read at.
    *
-   * The tracks are a fixed width rather than `1fr` on purpose. Under `1fr` two
-   * cards would stretch to fill the whole cap and the section would change
-   * shape depending on how many tickets are on sale.
+   * `min(200px, 100%)` rather than a bare 200px so the track can still collapse
+   * below 200 on a 320px phone instead of overflowing the viewport.
    */
-  .kgc-tickets.small {
-    grid-template-columns: repeat(auto-fit, minmax(0, 340px));
-    justify-content: center;
-    /* Four across before it wraps: 4 × 340 + 3 × 26 gap. */
-    max-width: 1438px;
-    margin-inline: auto;
-  }
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  /*
+   * `start`, not `stretch`. Equal-height cards look right until one is opened:
+   * the row grows to the tallest and the other three carry the difference as
+   * empty space under their buttons. Every collapsed card is the same height
+   * anyway, because `.tier-card-line` reserves its two lines — so the row is
+   * even when nothing is open and only the opened card grows.
+   */
+  align-items: start;
+  max-width: 1120px;
+  margin: 0 auto;
 }
 
-.kgc-ticket {
-  padding: 36px 30px 30px;
-  text-align: center;
-  border-radius: var(--radius-sm);
+.tier-card {
+  display: flex;
+  flex-direction: column;
+  padding: 26px 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+  text-align: left;
 }
 
-.kgc-ticket.dark {
-  background: var(--palette-2);
-  color: var(--palette-3);
+/*
+ * A featured tier, marked twice and quietly: the hairline goes navy, and the
+ * button below it is filled rather than outlined. No badge and no ribbon.
+ *
+ * Navy rather than `--palette-4`, which was the first attempt and was wrong:
+ * a pale-blue ring is the loudest thing in a row of white cards, it is not a
+ * colour used anywhere else on this page, and `featured` is set on two tiers
+ * in the seeded catalogue — so the page came out with two baby-blue boxes
+ * shouting at each other. The brand hairline says the same thing at a fifth of
+ * the volume, and reads correctly whether one tier is featured or three.
+ */
+.tier-card.is-featured {
+  border-color: var(--palette-2);
 }
 
-.kgc-ticket.light {
-  background: var(--palette-3);
+/*
+ * Two lines reserved whether the name needs them or not.
+ *
+ * "All Access (VIP)" and "Main Conference" wrap at a 244px card and "Virtual"
+ * does not, so without this the four prices sat at three different heights and
+ * the row read as four unrelated boxes rather than as one price list. Every
+ * fixed height in this card exists for that reason — see `.tier-card-line`.
+ */
+.tier-card-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
   color: var(--ink);
 }
 
-.kgc-ticket h3 {
-  font-size: 2rem;
-  line-height: 1.15;
-  margin: 0;
-}
-
-.kgc-ticket.dark h3 {
-  color: var(--white);
-}
-
-.kgc-ticket .price {
-  font-size: 1.9rem;
-  font-weight: 400;
-  margin: 10px 0 22px;
+/*
+ * `tabular-nums` so a column of prices lines up on the decimal, and negative
+ * tracking because the site's face sets figures loosely at display size — at
+ * 2.3rem "$1,199" opens a visible gap either side of the comma.
+ */
+.tier-card-price {
+  margin: 6px 0 0;
+  font-size: 2.3rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 /*
- * The tier's one-line description, directly under the price — which is where
- * `TicketTypeDoc.tagline` says it goes.
+ * The tagline, given three lines whether it fills them or not.
  *
- * Deliberately not `.group`, which the audience pages reuse for the same field:
- * `.group` is bold and underlined because it is a *heading* over a bullet list,
- * and a tagline set in heading style above the first real heading reads as two
- * competing headings rather than as a sentence about the ticket.
+ * This is what keeps the rule, the disclosure and the button on one baseline
+ * across the row without forcing the cards to equal heights — see the note on
+ * `align-items` above. `line-clamp` rather than `overflow: hidden` alone so a
+ * tagline an organizer writes at 300 characters truncates instead of pushing
+ * one card's button out of line with the other three.
+ *
+ * Three and not two: at four cards across a laptop window each column is about
+ * 195px of text, and "The whole week, in the room and on demand." — the shortest
+ * real tagline in the catalogue — needs three lines there. Clamping at two
+ * ellipsised every card on the page. On a wide window the third line is usually
+ * empty, which costs 22px of air and is the cheaper mistake.
  */
-.kgc-ticket .tagline {
-  margin: -14px 0 0;
-  font-size: 1rem;
+.tier-card-line {
+  margin: 10px 0 0;
+  font-size: 0.92rem;
   line-height: 1.5;
-  opacity: 0.85;
+  color: var(--muted);
 }
 
-.kgc-ticket .group {
+/*
+ * The reserved lines, and why they are behind a query.
+ *
+ * They exist to align four cards across a row; in a single column there is
+ * nothing to align to, and the same rules read as a gap under every name and a
+ * gap under every tagline — on the screen with the least room to spare.
+ *
+ * 470px is where a second column first fits: two 200px tracks plus a 16px gap
+ * plus `.wrap`'s side padding. Below it the grid is one column whatever the
+ * catalogue holds, so the reservation can be dropped without any risk of an
+ * unaligned row.
+ */
+@media (width >= 470px) {
+  .tier-card-name {
+    min-height: calc(2 * 1.3 * 1.15rem);
+  }
+
+  /*
+   * Three lines reserved, four allowed.
+   *
+   * Not the same number on purpose. Reserving three aligns every card whose
+   * tagline is written to fit — which is all four on `/tickets` — and clamping
+   * at four rather than three means the one sponsorship package with a longer
+   * line grows by 22px instead of ending in an ellipsis. Clamping at the
+   * reserved height cut "Bronze, plus a presence attendees walk past all week"
+   * mid-phrase; reserving the clamped height put two empty lines under every
+   * tagline on the page that matters most.
+   */
+  .tier-card-line {
+    min-height: calc(3 * 1.5 * 0.92rem);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+  }
+}
+
+/*
+ * "What's included", as a disclosure.
+ *
+ * The contents are not the decision — a buyer narrows on name, price and one
+ * line of scope, and reads eleven bullets only once they are down to two. A
+ * `<details>` keeps them one keystroke away, costs no JavaScript, is found by
+ * the browser's own in-page search, and prints open.
+ */
+.tier-card-more {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.tier-card-more > summary {
+  /* `list-style: none` alone leaves Safari's own triangle, which needs the
+     `::-webkit-details-marker` rule below to remove. */
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tier-card-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A drawn caret rather than a glyph: ▾ and ⌄ render at a different weight and
+   baseline in every fallback font, which at this size reads as a rendering
+   fault rather than as an affordance. */
+.tier-card-more > summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.tier-card-more[open] > summary::after {
+  transform: translateY(1px) rotate(225deg);
+}
+
+.tier-card-more > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tier-card-more > summary::after {
+    transition: none;
+  }
+}
+
+.tier-card-detail {
+  padding-bottom: 4px;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--body);
+}
+
+/*
+ * The group heading — "All In-person Sessions", "Everything in Main
+ * Conference". Bold at body size rather than underlined: an underline inside a
+ * panel that also contains links is a false affordance, and it was the live
+ * site's way of separating lists that are now separated by space.
+ */
+.tier-card-group {
+  margin: 14px 0 6px;
   font-weight: 700;
-  text-decoration: underline;
-  margin: 18px 0 8px;
+  color: var(--ink);
 }
 
-.kgc-ticket ul {
+.tier-card-group:first-child {
+  margin-top: 0;
+}
+
+.tier-card-detail ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 0.95rem;
-  line-height: 1.7;
 }
 
-.kgc-ticket li::before {
-  content: '• ';
+/* A drawn tick, matching the order rail's. `•` before a wrapped line hangs the
+   second line under the bullet; the absolute mark keeps the whole item indented
+   to one edge. */
+.tier-card-detail li {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 4px;
 }
 
-.kgc-ticket .btn {
-  margin-top: 24px;
-}
-
-/*
- * The line a closed tier shows where its button would be — "Sold out", "Sales
- * closed", "Not on sale yet". It sits on the button's own top margin so the card
- * does not change height when a tier closes, and it inherits the card's colour
- * rather than the hero's orange: orange italic on the navy panel reads as a
- * promotion, which is the opposite of what this line says.
- */
-.kgc-ticket .sold-out {
-  margin: 24px 0 0;
-  font-style: italic;
-  font-weight: 600;
-  opacity: 0.8;
+.tier-card-detail li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 8px;
+  height: 4px;
+  border-left: 1.5px solid var(--highlight);
+  border-bottom: 1.5px solid var(--highlight);
+  transform: rotate(-45deg);
 }
 
 /*
- * The live footnotes are centred, star-prefixed and set below both cards.
+ * `margin-top: auto` pins the button to the bottom of the card, so a tier with
+ * a one-line tagline does not float its call to action half a card higher than
+ * the tier beside it.
  */
-.ticket-notes {
-  margin: 34px auto 0;
-  max-width: 640px;
+.tier-card-cta {
+  margin-top: auto;
+  display: block;
+  padding: 11px 18px;
+  border: 1px solid var(--palette-2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--palette-2);
+  font-weight: 700;
+  font-size: 0.92rem;
   text-align: center;
-  font-size: 0.95rem;
-  line-height: 1.7;
+  text-decoration: none;
 }
 
-.ticket-notes p {
-  margin: 0 0 6px;
-  max-width: none;
+.tier-card.is-featured .tier-card-cta {
+  background: var(--palette-2);
+  color: var(--white);
+}
+
+.tier-card-cta:hover {
+  background: var(--palette-2);
+  color: var(--white);
+}
+
+.tier-card.is-featured .tier-card-cta:hover {
+  background: var(--blue-dark);
+  border-color: var(--blue-dark);
+}
+
+.tier-card-cta:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/*
+ * A closed tier keeps its card and loses its button. The reason sits where the
+ * button was, at the button's own height, so a tier closing does not reflow the
+ * row — and in the body colour rather than the accent, because orange on a line
+ * that says "Sold out" reads as a promotion.
+ */
+.tier-card.is-closed {
+  background: var(--palette-8);
+}
+
+.tier-card-closed {
+  margin: auto 0 0;
+  padding: 12px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--muted);
 }
 
 /* ------------------------------------------------------ numbered pillars -- */
@@ -3901,27 +4168,15 @@ section.tint {
 }
 
 /*
- * `.band-navy h3` was recolouring the *pale* ticket panels that sit on the navy
- * band, so "Workshops" and "Virtual" rendered white on `#e0e5ee` and vanished.
- * The dark-band heading colour has to stop at anything that carries its own
- * background — same for the lede and the footnotes, which were inheriting the
- * dark body colour onto navy.
+ * The dark-band body colour has to stop at anything carrying its own
+ * background, or white text lands on a pale card. Nothing on a navy band does
+ * that any more — the ticket cards moved onto the page ground — but the rule
+ * is kept scoped rather than widened, because the sponsor pages still open on
+ * a navy band with prose in it.
  */
-.band-navy .kgc-ticket.light,
-.band-navy .kgc-ticket.light h3,
-.band-navy .kgc-ticket.light strong {
-  color: var(--ink);
-}
-
 .band-navy .lede,
-.band-navy .ticket-notes,
 .band-navy p {
   color: var(--palette-3);
-}
-
-.band-navy .kgc-ticket.light p,
-.band-navy .kgc-ticket.light li {
-  color: var(--ink);
 }
 
 /*
@@ -4248,6 +4503,128 @@ section.tint {
 .speakers-more {
   text-align: center;
   margin-top: 40px;
+}
+
+/*
+ * Search and sort for the "All N Speakers" grid.
+ *
+ * ⚠️ These controls do not exist on the page this one copies. Everything else
+ * under `.speakers-head` is measured from inside Whova's embedded widget, which
+ * offers no way to order or filter 137 people at all — so the departure is
+ * deliberate and is kept as quiet as the shape allows: the toolbar sits below
+ * the heading rather than above it, it inherits the site's own `.field` styling
+ * instead of the widget's blue, and `Roster order` is the default, so a first
+ * paint is byte-for-byte the grid that was there before.
+ *
+ * `--line` / `--ink` / `--blue` rather than the `#f6f6f6` and `#2dacee` the
+ * cards and the View All button use: those two hexes are copied Whova values,
+ * pinned for fidelity and explicitly not part of the palette. A control that
+ * has no counterpart upstream has nothing to be faithful to, so it belongs to
+ * this site's design system instead.
+ */
+.speaker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 16px;
+  margin: 0 0 20px;
+}
+
+.speaker-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+
+.speaker-tool label {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.speaker-tool input,
+.speaker-tool select {
+  font: inherit;
+  min-height: 44px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.speaker-tool input {
+  min-width: 260px;
+}
+
+/*
+ * Same drawn chevron as `.field select`, and for the same reason recorded
+ * there: clearing `appearance` is what makes the control honour its padding
+ * rather than render at the platform's own height, and it takes the native
+ * arrow with it.
+ */
+.speaker-tool select {
+  appearance: none;
+  min-width: 200px;
+  padding-right: 38px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 19px) calc(50% + 2px), calc(100% - 14px) calc(50% + 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.speaker-tool input:focus,
+.speaker-tool select:focus {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+  border-color: var(--blue);
+}
+
+/*
+ * Empty when nothing is being searched for, so it must not reserve a line of
+ * its own — `:empty` collapses the margin rather than leaving a 24px gap
+ * between the toolbar and the grid that appears and disappears as you type.
+ */
+.speaker-count {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.speaker-count:empty {
+  margin: 0;
+}
+
+.speaker-clear {
+  font: inherit;
+  color: var(--blue);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (width < 620px) {
+  /*
+   * Stacked and full-width below the grid's own single-column breakpoint. A
+   * 260px search box beside a 200px select is 476px of controls, which on a
+   * 375px phone wraps into two centred rows of different widths.
+   */
+  .speaker-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .speaker-tool input,
+  .speaker-tool select {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 /*
@@ -4769,10 +5146,12 @@ section.tint {
  *
  * Two decisions carry the whole thing:
  *
- *   1. The order summary is navy and the form it sits beside is white. That
- *      contrast is the page's own device, borrowed from the two headline ticket
- *      panels above it (`.kgc-ticket.dark` / `.light`) rather than invented: the
- *      brand colour says "what you get", the paper says "what you type".
+ *   1. The order summary is navy and the form it sits beside is white. The
+ *      brand colour says "what you get", the paper says "what you type". It is
+ *      now the only navy surface on the page — the tier cards above it were
+ *      two-tone panels when this was written and are hairline-on-white today,
+ *      which leaves the rail as the page's single piece of colour rather than
+ *      one of three.
  *
  *   2. The confirmation renders the order as a physical pass with a tear line,
  *      because the tear line is true. Left of it is a record; right of it are
@@ -5149,6 +5528,51 @@ section.tint {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/*
+ * ------------------------------------------------------------- the seats ----
+ *
+ * Every attendee on the purchase, in one list.
+ *
+ * The buyer's own name and email used to be loose fields above the quantity
+ * dropdown while the extra attendees were bordered cards below it, so the one
+ * control that changes the length of the form sat in the middle of the list it
+ * changes and visibly split seat one off from seats two onward. The dropdown
+ * moved above the list; the list is now uniform.
+ */
+.seats {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+/*
+ * `4px` of bottom padding, not 16: the last `.field` inside a card brings its
+ * own `margin-bottom: 16px`, and matching it here would leave 32px of dead
+ * space under every attendee.
+ */
+.seat-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 16px 4px;
+  background: var(--white);
+}
+
+.seat-card-title {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Seat one carries the tier radio group, whose own `18px` bottom margin was set
+   for a form-level fieldset rather than for the first block inside a card. */
+.seat-card .tier-choice {
+  margin-bottom: 14px;
+}
+
 
 .tier-option:focus-within {
   outline: 2px solid var(--blue);

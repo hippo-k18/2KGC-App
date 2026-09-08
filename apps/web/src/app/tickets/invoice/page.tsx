@@ -22,7 +22,7 @@ import { InvoiceForm } from './invoice-form';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: `Invoice a company — ${SITE.name}`,
+  title: `Invoice a company | ${SITE.name}`,
   description:
     'Register a group for the Knowledge Graph Conference and pay by invoice on net terms, with a purchase order number.',
 };
@@ -85,14 +85,13 @@ export default async function InvoicePage() {
               */}
               <p className="notice" style={{ marginTop: 18 }}>
                 <strong>Tickets are issued on payment, not on the invoice.</strong> If your finance
-                team needs longer than the event allows, email us — we&rsquo;d rather sort it out in
-                advance than have somebody arrive without a badge.
+                team needs longer than the event allows, email us.
               </p>
 
               <h3 style={{ fontSize: '1.05rem', marginTop: 26 }}>Prefer to pay by card?</h3>
               <p>
                 For one or two people, <Link href="/tickets#buy">the normal checkout</Link> is
-                faster — you&rsquo;ll have a ticket in about a minute.
+                faster.
               </p>
 
               <h3 style={{ fontSize: '1.05rem', marginTop: 26 }}>Larger groups</h3>

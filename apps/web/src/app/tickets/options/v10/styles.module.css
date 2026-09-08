@@ -1,0 +1,446 @@
+/*
+ * Option 10 — the ledger.
+ *
+ * There is not one box in this file: no border-radius, no box-shadow, no filled
+ * panel behind anything. Every piece of hierarchy is made out of weight, size,
+ * space and rule thickness, which is the whole point of the variant. Three rule
+ * weights carry meaning and nothing else uses a rule: 1px hairline separates
+ * entries, 2px navy marks the head of the price column and the promoted entry,
+ * 3px navy opens a section, and a 5px double rule closes the sum — the printer's
+ * convention for a final total.
+ *
+ * The figures are set with `font-variant-numeric: tabular-nums` and the digits
+ * are given a fixed minimum column so that the currency mark hangs at one left
+ * edge and the numerals stack against one right edge, the way a price list is
+ * set on paper.
+ */
+
+.sheet {
+  padding: 3.5rem 0 4rem;
+  background: var(--white);
+}
+
+.measure {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding-inline: var(--edge-padding);
+}
+
+/* ── The masthead ───────────────────────────────────────────────────────── */
+
+.masthead {
+  padding-bottom: 1.25rem;
+  border-bottom: 3px solid var(--navy);
+}
+
+.h1 {
+  margin: 0;
+  color: var(--navy);
+  font-size: clamp(2.375rem, 7vw, 3.75rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+
+.dek {
+  max-width: 60ch;
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.cancelled {
+  margin: 1.5rem 0 0;
+  padding: 0.35rem 0 0.35rem 1rem;
+  border-left: 4px solid var(--orange);
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* ── The price column head ──────────────────────────────────────────────── */
+
+.colHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  justify-content: space-between;
+  margin-top: 2.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--navy);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* ── The entries ────────────────────────────────────────────────────────── */
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/*
+ * The promoted entry is the one the arithmetic favours, not the one flagged
+ * `featured` — two tiers carry that flag, and promoting both promotes neither.
+ */
+.entryLead {
+  padding-bottom: 2rem;
+}
+
+.entry + .entryLead {
+  border-top: 2px solid var(--navy);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 1.25rem;
+  align-items: baseline;
+}
+
+.name {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.3125rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+}
+
+.entryLead .name {
+  color: var(--navy);
+  font-size: clamp(1.75rem, 4.5vw, 2.375rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.figures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  margin: 0;
+}
+
+.price {
+  color: var(--ink);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.entryLead .price {
+  color: var(--navy);
+  font-size: clamp(1.875rem, 5vw, 2.625rem);
+  font-weight: 800;
+}
+
+.where {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.tagline {
+  max-width: 54ch;
+  margin: 0.5rem 0 0;
+  color: var(--body);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.entryLead .tagline {
+  font-size: 1.125rem;
+}
+
+/* The one line of persuasion on the page, and it is arithmetic. */
+.leadNote {
+  max-width: 56ch;
+  margin: 0.9rem 0 0;
+  padding-left: 0.9rem;
+  border-left: 3px solid var(--orange);
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* ── What each entry contains ───────────────────────────────────────────── */
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(13.5rem, 100%), 1fr));
+  gap: 1.25rem 2.25rem;
+  margin-top: 1.35rem;
+}
+
+.groupHeading {
+  margin: 0 0 0.45rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--navy);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.015em;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  color: var(--body);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.items li {
+  margin-top: 0.3rem;
+  padding-left: 0.95em;
+  text-indent: -0.95em;
+  break-inside: avoid;
+}
+
+.items li::before {
+  content: '–\00a0';
+  color: var(--muted);
+}
+
+.itemsWide {
+  margin-top: 1.35rem;
+  column-gap: 2.25rem;
+  columns: 2;
+}
+
+.itemsWide li:first-child {
+  margin-top: 0;
+}
+
+/* ── The one control per entry ──────────────────────────────────────────── */
+
+.act {
+  margin: 1.2rem 0 0;
+  text-align: right;
+}
+
+.choose {
+  display: inline-block;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--muted);
+  color: var(--navy);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.choose:hover {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.chooseLead {
+  border-bottom-width: 3px;
+  border-bottom-color: var(--orange);
+  font-size: 1.125rem;
+}
+
+.choose:focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: 4px;
+  background: #fdeacf;
+}
+
+.closed {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* ── The reckoning: the reason this variant exists ──────────────────────── */
+
+.reckoning {
+  margin-top: 3rem;
+  padding-top: 1.75rem;
+  border-top: 3px solid var(--navy);
+}
+
+.reckoningTitle {
+  margin: 0 0 1.1rem;
+  color: var(--navy);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+.sums {
+  width: 100%;
+  max-width: 32rem;
+  border-collapse: collapse;
+}
+
+.sums th {
+  padding: 0.4rem 1.5rem 0.4rem 0;
+  color: var(--body);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.sums td {
+  padding: 0.4rem 0;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.subtotal th,
+.subtotal td {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--ink);
+  font-weight: 700;
+}
+
+.deduct th,
+.deduct td {
+  padding-bottom: 0.6rem;
+}
+
+.total th {
+  border-top: 1px solid var(--ink);
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.total td {
+  padding-bottom: 0.4rem;
+  border-top: 1px solid var(--ink);
+  border-bottom: 5px double var(--navy);
+  color: var(--navy);
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.reckoningNote {
+  max-width: 58ch;
+  margin: 1.5rem 0 0;
+  color: var(--body);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.steps {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 62ch;
+  margin: 1.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: minmax(9.5rem, auto) 1fr;
+  gap: 0 1.25rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.9375rem;
+}
+
+.stepFrom {
+  color: var(--navy);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.stepBody {
+  color: var(--body);
+  line-height: 1.5;
+}
+
+/* ── Money, set as a column ─────────────────────────────────────────────── */
+
+.amount {
+  display: inline-grid;
+  grid-template-columns: 1ch 1ch auto;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.015em;
+}
+
+.op {
+  text-align: left;
+}
+
+.sym {
+  font-size: 0.68em;
+  font-weight: 600;
+  text-align: left;
+}
+
+.fig {
+  min-width: 4.7ch;
+  text-align: right;
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Narrow ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 40rem) {
+  .sheet {
+    padding-top: 2.5rem;
+  }
+
+  .itemsWide {
+    columns: 1;
+  }
+
+  .steps li {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .head {
+    gap: 0.25rem 0.75rem;
+  }
+
+  .sums th {
+    padding-right: 0.75rem;
+    font-size: 0.9375rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choose {
+    transition: none;
+  }
+}

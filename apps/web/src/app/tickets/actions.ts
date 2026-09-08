@@ -1,7 +1,11 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { demoCheckoutAllowed } from '@/lib/demo-checkout';
+import { fulfilOrder } from '@/lib/fulfil-order';
+import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { tierById, tierFulfilment } from '@/lib/catalogue';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
@@ -62,32 +66,51 @@ export interface CheckoutState {
   fieldErrors?: Record<string, string>;
 }
 
-export async function startCheckout(
-  _prev: CheckoutState,
-  form: FormData,
-): Promise<CheckoutState> {
+/**
+ * Everything both buy buttons have to agree about, in one place.
+ *
+ * There are two ways off this form: Stripe, and the localhost-only rehearsal
+ * button that skips it. They must apply *identical* rules — the same price
+ * lookup, the same seat validation, the same capacity check, the same
+ * questions — or the rehearsal stops rehearsing anything. The moment the demo
+ * path has its own shortened validation is the moment it starts succeeding on
+ * inputs the real one rejects, which is the one thing a demo must never do.
+ *
+ * So this function is the whole of the decision, and each caller does nothing
+ * afterwards but arrange payment (or, for the demo, decline to).
+ *
+ * ⚠️ It is not a pure function: it stashes the buyer's answers as its last act,
+ * so it must not be called speculatively. Both callers do their own fail-closed
+ * check *before* reaching it, for the reason `startCheckout` gives — a
+ * misconfigured deployment must not leave a trail of `pendingAnswers` documents
+ * belonging to purchases that were never possible.
+ */
+/**
+ * Either a `CheckoutState` to hand straight back to the form, or the settled
+ * facts of a purchase. The failure arm is the form state itself rather than a
+ * wrapper, so every refusal below reads exactly as it did when this code was
+ * inline — `return { error: … }` — and the callers narrow on `'ok' in`.
+ */
+type Prepared =
+  | CheckoutState
+  | {
+      ok: true;
+      name: string;
+      email: string;
+      seats: SeatInput[];
+      /** Every tier the seats name, read once each from Firestore. */
+      tiers: Map<string, Tier | undefined>;
+      /** The buyer's own tier — the one the order and the receipt are named for. */
+      primary: Tier;
+      answersRef?: string;
+      campaignCode?: string;
+      origin: string;
+    };
+
+async function prepareCheckout(form: FormData): Promise<Prepared> {
   const name = String(form.get('name') ?? '').trim();
   const email = String(form.get('email') ?? '').trim();
   const tierId = String(form.get('tier') ?? '');
-
-  /**
-   * Fail closed, before anything is written or stashed.
-   *
-   * First, so that a misconfigured deployment cannot leave a trail of
-   * `pendingAnswers` documents belonging to purchases that were never possible.
-   * The message names the variable rather than saying "temporarily unavailable"
-   * — that phrasing has cost this project a day before, and the audience for
-   * this string is whoever deployed the site.
-   */
-  if (!stripeEnabled()) {
-    console.error('[checkout] refused: STRIPE_SECRET_KEY is not set, so no payment can be taken');
-    return {
-      error:
-        'Ticket sales are not configured on this deployment — STRIPE_SECRET_KEY is not set, ' +
-        'so no payment can be taken. Nothing was charged and no registration was created.',
-    };
-  }
-
   /**
    * Seat one is the buyer, the rest are the extra attendees.
    *
@@ -173,8 +196,7 @@ export async function startCheckout(
       case 'duplicate':
         return {
           error:
-            `${problem.email} appears twice. Each attendee needs their own address — ` +
-            'a ticket is issued per address, so two seats on one would be one badge.',
+            `${problem.email} appears twice. Each attendee needs their own address.`,
         };
     }
   }
@@ -190,7 +212,7 @@ export async function startCheckout(
     const tier = tiers.get(seat.tierId);
     if (!tier) return { error: 'Choose a ticket type for every attendee.' };
     if (!tier.onSale) {
-      return { error: `${tier.name} is not available — ${(tier.unavailableReason ?? 'sales closed').toLowerCase()}.` };
+      return { error: `${tier.name} is not available (${(tier.unavailableReason ?? 'sales closed').toLowerCase()}).` };
     }
     /**
      * Stripe will not accept a session mixing currencies, and finding that out
@@ -294,6 +316,36 @@ export async function startCheckout(
   const ref = (await cookies()).get(ATTRIBUTION_COOKIE)?.value ?? '';
   const campaignCode = validCode(ref) ? ref : undefined;
 
+  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, origin };
+}
+
+export async function startCheckout(
+  _prev: CheckoutState,
+  form: FormData,
+): Promise<CheckoutState> {
+
+  /**
+   * Fail closed, before anything is written or stashed.
+   *
+   * First, so that a misconfigured deployment cannot leave a trail of
+   * `pendingAnswers` documents belonging to purchases that were never possible.
+   * The message names the variable rather than saying "temporarily unavailable"
+   * — that phrasing has cost this project a day before, and the audience for
+   * this string is whoever deployed the site.
+   */
+  if (!stripeEnabled()) {
+    console.error('[checkout] refused: STRIPE_SECRET_KEY is not set, so no payment can be taken');
+    return {
+      error:
+        'Ticket sales are not configured on this deployment. STRIPE_SECRET_KEY is not set, ' +
+        'so no payment can be taken. Nothing was charged and no registration was created.',
+    };
+  }
+
+  const prepared = await prepareCheckout(form);
+  if (!('ok' in prepared)) return prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin } = prepared;
+
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card
   // data touches our server or our DOM — that is the reason for Checkout over
@@ -328,7 +380,7 @@ export async function startCheckout(
             currency: tier.currency,
             unit_amount: tier.priceCents,
             product_data: {
-              name: `KGC 2027 — ${tier.name}`,
+              name: `KGC 2027: ${tier.name}`,
               description: tier.tagline,
               /**
                * `txcd_20030000` is Stripe's "General - Services" code, which is
@@ -411,7 +463,7 @@ export async function startCheckout(
     // they can act on rather than a 500 page; the detail goes to the server
     // log, because a Stripe error message can name the account.
     console.error('[checkout] Stripe session creation failed', err);
-    return { error: 'We could not reach the payment processor. Nothing was charged — please try again.' };
+    return { error: 'We could not reach the payment processor. Nothing was charged. Please try again.' };
   }
 
   if (!url) return { error: 'Stripe did not return a checkout URL. Try again.' };
@@ -459,7 +511,7 @@ export async function startCheckout(
       return {
         error:
           'We could not save the attendee list, so we have not taken you to payment. ' +
-          'Nothing was charged — please try again.',
+          'Nothing was charged. Please try again.',
       };
     }
   }
@@ -467,4 +519,160 @@ export async function startCheckout(
   // Outside the try: `redirect` signals by throwing, and catching it here
   // would turn every successful checkout into the error branch above.
   redirect(url);
+}
+
+/**
+ * The rehearsal button: a real ticket, with the payment step skipped.
+ *
+ * ── Why this exists, given that the same branch was deliberately deleted ────
+ *
+ * `lib/stripe.ts` records removing exactly this — a path that completed a
+ * registration with no payment processor, gated behind `DEMO_MODE=1` — and the
+ * argument was right: a reachable deployment that hands out free tickets hands
+ * out free tickets. What brought it back is narrower. A Stripe **test card**
+ * only exercises half the system, because the half that matters most for a demo
+ * lives in the webhook: the confirmation email, the Firebase Auth account and
+ * its `registered` claim, the entitlements, and `quantitySold` moving. With no
+ * `stripe listen` forwarding to a laptop, none of that happens, and the demo
+ * ends on a ticket that cannot sign into the app.
+ *
+ * ── What makes it safe is not a flag ────────────────────────────────────────
+ *
+ * `demoCheckoutAllowed()` is `NODE_ENV !== 'production'` **and** a localhost
+ * host, and the first half is fixed at build time — so on the Netlify sites
+ * this function's body is unreachable code and no environment variable anybody
+ * sets can wake it. That is deliberately not the `DEMO_MODE` design: a variable
+ * is a thing that can be set on the wrong deployment by accident.
+ *
+ * ── Why it validates through `prepareCheckout` ──────────────────────────────
+ *
+ * Because a demo that accepts input the real checkout rejects is worse than no
+ * demo. Same price lookup from Firestore by tier id, same seat rules, same
+ * sold-out and capacity checks, same registration questions. The *only* thing
+ * this skips is Stripe.
+ *
+ * ── And why the order says `demo` ───────────────────────────────────────────
+ *
+ * `channel: 'demo'` is what `scripts/ops/reset-demo-sales.mjs` scopes to, so a
+ * rehearsal is one command to undo and cannot take a real order with it. A
+ * demo purchase that looked like a real one would silently pollute the revenue
+ * figures on the organizer dashboard with no way to tell the two apart.
+ */
+export async function completeDemoCheckout(
+  _prev: CheckoutState,
+  form: FormData,
+): Promise<CheckoutState> {
+  /**
+   * Fail closed first, before `prepareCheckout` stashes anything — the same
+   * ordering, and for the same reason, as the `stripeEnabled()` refusal above.
+   */
+  if (!(await demoCheckoutAllowed())) {
+    return {
+      error:
+        'The demo checkout is only available on localhost. Nothing was charged and no ' +
+        'registration was created.',
+    };
+  }
+
+  const prepared = await prepareCheckout(form);
+  if (!('ok' in prepared)) return prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin } = prepared;
+
+  /**
+   * A synthetic id where a Stripe Checkout Session id would be.
+   *
+   * Everything downstream treats this as the purchase's identity: the order id
+   * is a hash of it, and `cartLines` finds the seat list by it. Random rather
+   * than derived from the buyer, so two rehearsals with the same email address
+   * are two orders — which is what a second run of the demo should look like on
+   * the orders screen. The `demo_` prefix makes one obvious in Firestore.
+   */
+  const externalId = `demo_${randomUUID().replace(/-/g, '')}`;
+
+  /**
+   * The total, added up here rather than taken from a payment processor.
+   *
+   * This is the one figure the demo has to compute for itself, and it is the
+   * sum of the same `priceCents` values `startCheckout` puts on the Stripe line
+   * items. No tax and no discount: Stripe Tax is what produces those, and
+   * inventing a plausible tax line would put a number on the dashboard that
+   * nothing could reconcile.
+   */
+  const amountCents = seats.reduce(
+    (sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0),
+    0,
+  );
+
+  /**
+   * The seat list, written before fulfilment for the same reason the Stripe
+   * path writes it before the redirect: `fulfilOrder` reads it back to register
+   * seats two and three, and `fulfilPurchase` clobbers `items` on the way past.
+   *
+   * Refuses rather than degrades, exactly as the real path does — a rehearsal
+   * that silently registered one of three attendees would demo a bug.
+   */
+  if (seats.length > 1) {
+    const cartSeats: CartSeat[] = seats.map((seat) => {
+      const tier = tiers.get(seat.tierId)!;
+      return {
+        name: seat.name,
+        email: seat.email,
+        ticketType: tier.name,
+        ticketTypeId: tier.id,
+        priceCents: tier.priceCents,
+      };
+    });
+
+    try {
+      await recordCartOrder({
+        sessionId: externalId,
+        buyerEmail: email,
+        buyerName: name,
+        seats: cartSeats,
+        currency: primary.currency,
+        campaignCode,
+        channel: 'demo',
+      });
+    } catch (err) {
+      console.error('[demo-checkout] could not record the seat list for', externalId, err);
+      return { error: 'We could not save the attendee list, so nothing was registered.' };
+    }
+  }
+
+  /**
+   * The same fulfilment the webhook runs — registration, order, account,
+   * entitlements, sold counter, receipt. Not a reduced copy of it: running the
+   * real one is the entire point.
+   */
+  let registrationId: string;
+  try {
+    const outcome = await fulfilOrder({
+      externalId,
+      email,
+      name,
+      buyerName: name,
+      ticketType: primary.name,
+      tierId: primary.id,
+      amountCents,
+      currency: primary.currency,
+      subtotalCents: amountCents,
+      taxCents: 0,
+      discountCents: 0,
+      campaignCode,
+      answersRef,
+      channel: 'demo',
+      origin,
+    });
+    registrationId = outcome.registrationId;
+    console.info('[demo-checkout] fulfilled', externalId, outcome);
+  } catch (err) {
+    // Unlike the webhook, there is a person waiting on this one, so the failure
+    // is worth showing them rather than only logging it.
+    console.error('[demo-checkout] fulfilment failed for', externalId, err);
+    return { error: 'The demo purchase could not be completed. See the server log.' };
+  }
+
+  // Outside the try: `redirect` signals by throwing, and catching it here would
+  // turn every successful demo purchase into the error branch above.
+  redirect(`/order/${mintOrderToken({ rid: registrationId })}`);
 }

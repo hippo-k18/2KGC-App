@@ -1,7 +1,7 @@
 import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { pageContent } from '@/lib/data';
+import { callMilestones, pageContent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 
 /**
@@ -9,11 +9,9 @@ import { SITE } from '@/lib/site';
  *
  * Transcribed from `knowledgegraph.tech/startup-pitch/` rather than written, so
  * the framing, the reasons to enter and the format are the conference's own
- * words. Two things were changed deliberately and both are marked below: the
- * edition year, because this build is the 2027 site, and the deadlines, which
- * are the 2026 dates shifted by a year and are therefore **placeholders** — the
- * real ones do not exist yet and inventing a precise date that reads as
- * confirmed is the defect this repo keeps having.
+ * words. One thing was changed deliberately: the edition year, because this
+ * build is the 2027 site. The four deadlines the 2026 page carries are **not**
+ * reproduced — see the note on `CALL` below.
  *
  * The claim that previous winners have raised over $100M, and the four companies
  * named, are real and are left exactly as the live page states them.
@@ -28,10 +26,32 @@ export const metadata: Metadata = {
  * The application link and the calendar — editable without a deploy, for the
  * same reasons as `/call-for-posters`, which shares this shape.
  *
- * PLACEHOLDER dates: the 2026 page's deadlines moved forward a year so the
- * sequence stays coherent, and the F6S link still names `2026`. "Replace when
- * the real calendar is set" has been the note here since August; it is now
- * something an organizer can do rather than something that needs a build.
+ * ── Why the F6S link stays and the poster page's did not ────────────────────
+ *
+ * `/call-for-posters` now sends submissions to our own `/submit/{callId}` when
+ * a call is open, because `calls` can genuinely serve a poster: `poster` is one
+ * of `SessionFormat`'s six values, `CallDoc.sessionTypes` is typed to that
+ * vocabulary, and an accepted abstract is promoted into a session on the agenda.
+ *
+ * A pitch is none of those things. There is no `pitch` session format, so no
+ * call can name this audience; what the portal collects is a title, an abstract,
+ * a track and a session type, and what this page asks for is a ninety-second
+ * video judged by investors. Bending one into the other would put a submission
+ * into the reviewers' queue that has no rubric and no track, and would end with
+ * a translation table between two vocabularies — the thing `CallDoc` chose
+ * `SessionFormat` specifically to avoid. So the link stays external until the
+ * pitch competition has a call of its own, and this is where to start when it
+ * does.
+ *
+ * ── The dates are gone, not merely captioned ────────────────────────────────
+ *
+ * `dates` was four deadlines: the 2026 page's, moved forward a year so the
+ * sequence stayed coherent. Nobody ever confirmed them, the page printed them
+ * under "Important dates" with a muted line calling them provisional, and a
+ * founder plans a quarter around the date rather than the caption. The owner
+ * has since confirmed the 2027 calendar is unset, so the page says that and
+ * prints nothing that looks like a deadline. An organizer entering real ones in
+ * Content › Basics › Website Copy is what brings the list back.
  *
  * The reasons to enter, the format and the $100M claim stay in React — they are
  * the page's argument, not its calendar.
@@ -40,12 +60,7 @@ const CALL: CallPageContent = {
   submitUrl: 'https://www.f6s.com/kgc-startup-pitch-2026/apply',
   submitLabel: 'Submit your pitch',
   datesConfirmed: false,
-  dates: [
-    { when: 'April 16, 2027', what: 'Application deadline' },
-    { when: 'April 23, 2027', what: 'Notification of acceptance' },
-    { when: 'April 30, 2027', what: 'Startup pitch event, online' },
-    { when: 'May 6, 2027', what: 'Winner announced live at the conference' },
-  ],
+  dates: [],
 };
 
 /** Deadlines are read per request: a moved date must not wait for a build. */
@@ -60,6 +75,7 @@ const REASONS = [
 
 export default async function StartupPitchPage() {
   const call = await pageContent(PAGE_CONTENT_KEYS.startupPitch, CALL);
+  const dates = callMilestones(call.dates);
 
   return (
     <>
@@ -125,20 +141,36 @@ export default async function StartupPitchPage() {
 
           <h2 style={{ marginTop: 40 }}>Important dates</h2>
           {/*
-            Marked as provisional in the interface, not only in a comment. The
-            live 2026 page carries firm dates; ours are shifted and nobody has
-            confirmed them, and a date that looks confirmed is worse than no date.
+            Nothing here until a date exists to print. The live 2026 page carries
+            firm dates; the four this page used to show were those shifted by a
+            year, and a muted line calling them provisional did not stop them
+            reading as a calendar to plan around. `datesConfirmed` still gates
+            the caption, for dates an organizer has entered but not settled.
           */}
-          {call.datesConfirmed ? null : (
-            <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+          {dates.length === 0 ? (
+            <p className="muted">
+              The {SITE.year} calendar is not confirmed yet, so this page states no dates. The
+              application deadline and the date of the pitch event appear here once they are set —
+              write to{' '}
+              <a href="mailto:startup-pitch@knowledgegraph.tech">
+                startup-pitch@knowledgegraph.tech
+              </a>{' '}
+              if you need to know before then.
+            </p>
+          ) : (
+            <>
+              {call.datesConfirmed ? null : (
+                <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+              )}
+              <ul>
+                {dates.map((d) => (
+                  <li key={d.when} style={{ padding: '4px 0' }}>
+                    <strong>{d.when}</strong> — {d.what}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
-          <ul>
-            {call.dates.map((d) => (
-              <li key={d.when} style={{ padding: '4px 0' }}>
-                <strong>{d.when}</strong> — {d.what}
-              </li>
-            ))}
-          </ul>
 
           <p style={{ marginTop: 32 }}>
             Not a startup? <Link href="/sponsor">Sponsorship packages</Link> and the{' '}

@@ -17,7 +17,7 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
             <Image src="/kgc-mark.png" alt="" width={300} height={300} className="mark" />
             <p>
               The Knowledge Graph Conference brings together the people building the semantic layer
-              underneath enterprise AI — practitioners, researchers and the vendors they argue with.
+              underneath enterprise AI: practitioners, researchers and vendors.
             </p>
             {/*
               The only place on the site that renders the organizer's

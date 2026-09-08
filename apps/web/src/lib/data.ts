@@ -8,6 +8,7 @@ import {
   type AnnouncementDoc,
   type BoothDoc,
   type BrandingSettings,
+  type CallMilestone,
   type DocumentDoc,
   type ExhibitorDoc,
   type PageContentDoc,
@@ -165,6 +166,35 @@ export async function pageContent<K extends PageContentKey>(
     },
     { ...fallback },
   );
+}
+
+/**
+ * The dated lines of a call page that are safe to print.
+ *
+ * ── Why this is needed now and was not before ───────────────────────────────
+ *
+ * `usable()` validates a stored array against the *first element of the
+ * fallback*, so a half-malformed deadline list used to fall back to the page's
+ * own constant. Both call pages now ship `dates: []` — because the constants
+ * they used to ship were the 2026 deadlines shifted a year and nobody had
+ * confirmed them, and a plausible invented date is the one thing those pages
+ * must not print. An empty fallback leaves `usable()` no template to check
+ * against, so the check moves here, to the last moment before render.
+ *
+ * A row missing either half is dropped rather than printed: a deadline with no
+ * date and a date with no deadline are both worse than a shorter list.
+ */
+export function callMilestones(dates: CallMilestone[]): CallMilestone[] {
+  return (Array.isArray(dates) ? dates : []).filter((d): d is CallMilestone => {
+    const row = d as Partial<CallMilestone> | null;
+    return (
+      !!row &&
+      typeof row.when === 'string' &&
+      row.when.trim() !== '' &&
+      typeof row.what === 'string' &&
+      row.what.trim() !== ''
+    );
+  });
 }
 
 export interface SpeakerCard {

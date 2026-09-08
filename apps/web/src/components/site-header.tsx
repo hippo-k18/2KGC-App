@@ -108,14 +108,7 @@ export function SiteHeader() {
 
               <div className="submenu" role="group" aria-label="About KGC">
                 {ABOUT_MENU.map((item) =>
-                  item.todo ? (
-                    // Not built here yet. Rendered so the shape of the live menu
-                    // is visible, but inert — a link to a 404 is worse than none.
-                    <span key={item.href} className="submenu-todo" aria-disabled="true">
-                      {item.label}
-                      <em>not built yet</em>
-                    </span>
-                  ) : item.external ? (
+                  item.external ? (
                     <a key={item.href} href={item.href} target="_blank" rel="noreferrer">
                       {item.label}
                     </a>

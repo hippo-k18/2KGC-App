@@ -3,8 +3,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { COLLECTIONS, EVENT_ID, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { cartLines, restoreCartOrder } from '@/app/tickets/cart-order';
-import { seatsToCount, splitAcrossSeats } from '@/app/tickets/seats-core';
+import { cartLines } from '@/app/tickets/cart-order';
+import { splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import {
   grantOrderEntitlements,
@@ -15,13 +15,12 @@ import { incrementSold, tierFulfilment } from '@/lib/catalogue';
 import { sendPurchaseConfirmation, sendRefundConfirmation } from '@/lib/email';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
+import { fulfilOrder } from '@/lib/fulfil-order';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
-import { claimAnswers } from '@/lib/question-forms';
 import {
   cancelRegistrationByOrder,
   ensureRegistration,
-  fulfilPurchase,
   markInvoiceOrderPaid,
   seatsFromOrder,
 } from '@/lib/registrations';
@@ -541,7 +540,15 @@ async function sessionDetail(session: Stripe.Checkout.Session): Promise<{
   }
 }
 
-/** Turn a paid Checkout session into a registration. */
+/**
+ * Turn a paid Checkout session into a registration.
+ *
+ * Everything Stripe-shaped happens here; everything that writes to Firestore,
+ * provisions an account or sends a receipt happens in `lib/fulfil-order.ts`.
+ * The split exists because there is now a second caller — the localhost-only
+ * rehearsal button on the tickets page — and the only way a rehearsal proves
+ * anything is by running the same fulfilment the real purchase runs.
+ */
 async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, origin: string) {
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
     // Still settling. `async_payment_succeeded` will arrive when it clears, and
@@ -558,41 +565,18 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
   }
 
   const detail = await sessionDetail(session);
-  const tierId = session.metadata?.tier;
   const customer = session.customer;
   const paymentIntent = session.payment_intent;
 
-  /**
-   * Who else is on this purchase — read **before** fulfilment, not after.
-   *
-   * A multi-seat cart writes its seat list onto the order document before the
-   * buyer is ever sent to Stripe (`apps/web/src/app/tickets/cart-order.ts`),
-   * because a Stripe metadata value caps at 500 characters and the invoice path
-   * has already proved what a truncated attendee list costs: it parses to
-   * nothing and the webhook registers nobody.
-   *
-   * ⚠️ The ordering is load-bearing. `fulfilPurchase` below writes `items` as a
-   * single line describing the buyer, and a Firestore merge replaces an array
-   * rather than merging into it — so reading this afterwards would find seats
-   * two and three already gone. `restoreCartOrder` puts them back once the
-   * registrations exist.
-   *
-   * Empty for an ordinary single-seat purchase, which is most of them, and the
-   * whole of this function's behaviour then is what it always was.
-   */
-  const cart = await cartLines(session.id);
-
-  const result = await fulfilPurchase({
+  const outcome = await fulfilOrder({
+    externalId: session.id,
     email,
     name: session.metadata?.name ?? session.customer_details?.name ?? '',
+    buyerName: session.customer_details?.name ?? undefined,
     ticketType: session.metadata?.ticketType ?? 'Main Conference',
-    externalId: session.id,
+    tierId: session.metadata?.tier,
     amountCents: session.amount_total ?? 0,
     currency: session.currency ?? 'usd',
-    paid: true,
-    channel: 'checkout',
-    tierId,
-    buyerName: session.customer_details?.name ?? undefined,
     // Stripe's own arithmetic, kept rather than recomputed — the dashboard
     // should show the same subtotal and tax the buyer's receipt shows.
     subtotalCents: session.amount_subtotal ?? undefined,
@@ -611,205 +595,28 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     campaignCode: session.metadata?.campaignCode || undefined,
     /**
      * The registration questions, answered on our page before the redirect and
-     * held in `pendingAnswers` until now.
-     *
-     * Claimed and deleted in one step. A webhook replay finds nothing there and
-     * passes `undefined`, which leaves the answers already on the registration
-     * untouched — the correct outcome, and the reason the merge above is a
-     * merge rather than a set.
+     * held in `pendingAnswers` until now. Claimed inside `fulfilOrder`, so a
+     * replay finds nothing there and leaves the answers already on the
+     * registration untouched.
      */
-    answers: await claimAnswers(session.metadata?.answersRef),
+    answersRef: session.metadata?.answersRef,
+    channel: 'checkout',
+    origin,
     stripeCustomerId: typeof customer === 'string' ? customer : (customer?.id ?? undefined),
     stripePaymentIntentId:
       typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),
     stripeChargeId: detail.chargeId,
   });
 
-  /**
-   * Everything below is after the fact and none of it may throw upward.
-   *
-   * The counter is advisory (see `incrementSold`), the account is repairable by
-   * the OTP flow, and the email is a courtesy; the ticket already exists and is
-   * valid. A failure in any of them must not turn into a non-2xx, because
-   * Stripe would retry the event and eventually disable the endpoint — losing
-   * fulfilment for everyone because one receipt bounced.
-   */
-
-  /**
-   * What each seat cost, from one figure Stripe reports for the whole payment.
-   *
-   * Split rather than read off the tier prices, because tax and any promotion
-   * code are Stripe's arithmetic and land only on `amount_total`. Three people
-   * each get a confirmation naming their own share, and the three add up to the
-   * receipt — which is the property `splitAcrossSeats` exists to guarantee.
-   */
-  const shares = splitAcrossSeats(session.amount_total ?? 0, Math.max(1, cart.length));
-  const buyerEmail = normaliseEmail(result.email);
-
-  /**
-   * What each seat did to its tier's capacity, gathered and counted once.
-   *
-   * The rule is `seatsToCount` in `tickets/seats-core.ts`, where it is pure and
-   * pinned by `tests/commerce` — three seats must take three off the tier, and
-   * a redelivered event must take none. The buyer's tier comes from the
-   * session metadata rather than from their cart line, so a single-seat
-   * purchase (which has no cart at all) counts exactly as it always did.
-   */
-  const seatOutcomes: { created: boolean; ticketTypeId?: string }[] = [
-    { created: result.created, ticketTypeId: tierId },
-  ];
-
-  /**
-   * The other seats, each an independent registration keyed on its own address.
-   *
-   * Idempotent for the same structural reason the buyer's is: `registrationId`
-   * is a hash of the email, so a redelivery rewrites the same three documents
-   * rather than minting six. That is the whole answer to "what stops a webhook
-   * replay issuing six tickets" — there is no counter to guard and no
-   * de-duplication table to keep, because the ids are derived from the people.
-   */
-  const registrationIds = [result.registrationId];
-  const entitlementsFor = new Map<string, Awaited<ReturnType<typeof tierFulfilment>>>();
-  let seatsRegistered = 0;
-  let seatAccountsCreated = 0;
-  let seatAccountsFailed = 0;
-  let buyerShare = session.amount_total ?? 0;
-
-  for (const [i, line] of cart.entries()) {
-    const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
-    if (!seatEmail) continue;
-    // Seat one is the buyer, fulfilled above. Their share of the total is
-    // taken here so the email below reports it rather than the whole payment.
-    if (seatEmail === buyerEmail) {
-      buyerShare = shares[i] ?? buyerShare;
-      continue;
-    }
-
-    const seat = await ensureRegistration({
-      email: seatEmail,
-      name: line.attendeeName ?? '',
-      ticketType: line.ticketTypeName,
-    });
-    registrationIds.push(seat.registrationId);
-    seatsRegistered += 1;
-    seatOutcomes.push({ created: seat.created, ticketTypeId: line.ticketTypeId });
-
-    /**
-     * One account per attendee, not one per order — the same rule the invoice
-     * path follows, and for the same reason. The person who paid may be the
-     * only one of the three whose address is on the card; the other two still
-     * need an identity to sign in with, and `provisionPurchaserAccount` is
-     * keyed by the attendee's own address and idempotent per address.
-     */
-    const seatAccount = await provisionPurchaserAccount({
-      email: seat.email,
-      name: seat.name ?? line.attendeeName ?? '',
-    });
-    if (seatAccount.status === 'created') seatAccountsCreated += 1;
-    if (seatAccount.status === 'failed') seatAccountsFailed += 1;
-
-    if (seatAccount.uid && line.ticketTypeId) {
-      if (!entitlementsFor.has(line.ticketTypeId)) {
-        entitlementsFor.set(line.ticketTypeId, await tierFulfilment(line.ticketTypeId));
-      }
-      const tier = entitlementsFor.get(line.ticketTypeId);
-      if (tier) await grantSeatEntitlements(seatAccount.uid, tier.entitlements);
-    }
-
-    // Their own claim code, to their own address. The buyer's copy of the
-    // receipt does not get a colleague into the app.
-    await sendPurchaseConfirmation({
-      to: seat.email,
-      name: seat.name ?? line.attendeeName ?? '',
-      ticketType: seat.ticketType ?? line.ticketTypeName,
-      amountCents: shares[i] ?? 0,
-      currency: session.currency ?? 'usd',
-      orderUrl: `${origin}/order/${mintOrderToken({ rid: seat.registrationId })}`,
-      claimCode: seat.claimCode,
-      registrationId: seat.registrationId,
-      temporaryPassword: seatAccount.temporaryPassword,
-    });
-  }
-
-  // Only count a seat the first time. A webhook replay must not sell the same
-  // ticket twice against a tier's capacity.
-  const soldPerTier = seatsToCount(seatOutcomes);
-  for (const [id, count] of soldPerTier) await incrementSold(id, count);
-
-  /**
-   * Put the seat list back, and attach every registration the payment bought.
-   *
-   * `fulfilPurchase` has just overwritten `items` with the buyer's single line,
-   * because a Firestore merge replaces an array rather than merging into it.
-   * Without this the order would remember one seat out of three: the dashboard
-   * would show `seatCount: 1`, and a refund would give one seat back to
-   * `quantitySold` and cancel one of the three tickets.
-   *
-   * Swallowed rather than surfaced as a non-2xx, per the rule at the top of
-   * this file — the three registrations already exist and are valid, and a
-   * retry storm that disables the endpoint would cost everybody's fulfilment to
-   * fix one order's bookkeeping. ⚠️ But it is recorded loudly, because a retry
-   * cannot repair it: the next delivery reads `items` and finds the clobbered
-   * single line, so this is the only chance to write the list down.
-   */
-  if (cart.length > 1) {
-    try {
-      await restoreCartOrder({ sessionId: session.id, lines: cart, registrationIds });
-    } catch (err) {
-      await recordError('order.seats', err, { path: 'orders', id: session.id });
-    }
-  }
-
-  /**
-   * The buyer's account.
-   *
-   * Deliberately **not** behind `result.created`, unlike the counter above, and
-   * the difference is worth stating because the two look interchangeable.
-   * `incrementSold` is an increment: running it twice is wrong, and nothing
-   * about the operation itself can tell that it already ran, so it needs an
-   * external guard. Provisioning is keyed by a uid derived from the address and
-   * checks for the account before creating one, so running it twice is a no-op
-   * by construction — and gating it on `result.created` would *skip* it for the
-   * case that most needs it, an attendee imported from the Whova export who
-   * then buys a ticket. The registration already exists; the account does not.
-   */
-  const account = await provisionPurchaserAccount({
-    email: result.email,
-    name: result.name ?? session.metadata?.name ?? '',
-  });
-
-  /**
-   * What the ticket unlocks, from the tier's own `includesWorkshops` /
-   * `includesVideoLibrary`. The dashboard has always been able to set them and
-   * nothing has ever written the grant they imply, so a tier could sell a video
-   * library that no surface would let anybody watch.
-   */
-  if (account.uid && tierId) {
-    const tier = await tierFulfilment(tierId);
-    if (tier) await grantSeatEntitlements(account.uid, tier.entitlements);
-  }
-
-  await sendPurchaseConfirmation({
-    to: result.email,
-    name: result.name ?? '',
-    ticketType: result.ticketType ?? '',
-    amountCents: buyerShare,
-    currency: session.currency ?? 'usd',
-    orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
-    claimCode: result.claimCode,
-    registrationId: result.registrationId,
-    temporaryPassword: account.temporaryPassword,
-  });
-
   return NextResponse.json({
     received: true,
     eventId: event.id,
-    registrationId: result.registrationId,
-    created: result.created,
+    registrationId: outcome.registrationId,
+    created: outcome.created,
     // `created` / `existing` / `failed`. In the response so a replay is visible
     // from Stripe's own event log: the first delivery says `created`, every
     // later one says `existing`.
-    account: account.status,
+    account: outcome.account,
     /**
      * The seat figures, in the response so a replay is legible from Stripe's
      * own event log without opening Firestore: `seats` is what the payment
@@ -818,11 +625,13 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
      * every delivery after the first, which is what idempotent looks like from
      * the outside.
      */
-    seats: cart.length || 1,
-    seatsRegistered,
-    seatsCounted: [...soldPerTier.values()].reduce((a, b) => a + b, 0),
-    ...(seatAccountsCreated > 0 ? { seatAccountsCreated } : {}),
-    ...(seatAccountsFailed > 0 ? { seatAccountsFailed } : {}),
+    seats: outcome.seats,
+    seatsRegistered: outcome.seatsRegistered,
+    seatsCounted: outcome.seatsCounted,
+    ...(outcome.seatAccountsCreated > 0
+      ? { seatAccountsCreated: outcome.seatAccountsCreated }
+      : {}),
+    ...(outcome.seatAccountsFailed > 0 ? { seatAccountsFailed: outcome.seatAccountsFailed } : {}),
   });
 }
 

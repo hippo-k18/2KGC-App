@@ -79,9 +79,7 @@ export default async function ExhibitorsPage() {
               <h2>
                 {total} {total === 1 ? 'exhibitor' : 'exhibitors'}
               </h2>
-              <p className="muted">
-                Grouped by aisle, in booth order — the way the hall is laid out.
-              </p>
+              <p className="muted">Grouped by aisle, in booth order.</p>
 
               {zones.map((zone) => (
                 <section className="exhibitor-zone" key={zone.zone || 'unplaced'}>
@@ -155,8 +153,7 @@ export default async function ExhibitorsPage() {
             <h2>Exhibit at {SITE.shortName} {SITE.year}</h2>
             <p>
               Booth packages include a staffed space for the whole week and full conference passes
-              for your team. The people walking the hall are the ones deciding what their
-              organisation&rsquo;s graph runs on next year.
+              for your team.
             </p>
             <p>
               <Link className="btn btn-primary" href="/tickets/exhibitor">

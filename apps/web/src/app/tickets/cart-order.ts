@@ -89,6 +89,13 @@ export async function recordCartOrder(input: {
   seats: CartSeat[];
   currency: string;
   campaignCode?: string;
+  /**
+   * Defaults to `checkout`, which is every real purchase. The localhost-only
+   * rehearsal button passes `demo` so that `scripts/ops/reset-demo-sales.mjs`
+   * — which scopes strictly to `channel: 'demo'` and therefore cannot touch a
+   * real order — can undo the whole rehearsal, seat list included.
+   */
+  channel?: NonNullable<OrderDoc['channel']>;
 }): Promise<string> {
   const oid = orderIdForSession(input.sessionId);
 
@@ -107,7 +114,7 @@ export async function recordCartOrder(input: {
     eventId: EVENT_ID,
     externalId: input.sessionId,
     provider: 'stripe',
-    channel: 'checkout',
+    channel: input.channel ?? 'checkout',
     email: normaliseEmail(input.buyerEmail),
     buyerName: input.buyerName,
     // A promise to pay, and nothing more. The money has not moved and no

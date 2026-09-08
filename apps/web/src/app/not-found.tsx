@@ -17,8 +17,8 @@ export default function NotFound() {
         <p className="eyebrow">404</p>
         <h1>This node has no edges</h1>
         <p className="lede">
-          That page does not exist. If you followed an order confirmation link, it may simply have
-          expired — those are deliberately short-lived, because they show a claim code.
+          That page does not exist. Order confirmation links expire, because they show a claim
+          code.
         </p>
         <p className="muted">Anything below will reconnect you.</p>
 

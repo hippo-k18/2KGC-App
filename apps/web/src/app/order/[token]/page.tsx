@@ -108,8 +108,8 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
         </h1>
 
         <p className="notice">
-          Stripe has emailed your receipt to <strong>{reg.email}</strong>. This page is your ticket
-          — bookmark it, or screenshot the pass below.
+          Stripe has emailed your receipt to <strong>{reg.email}</strong>. This page is your
+          ticket. Bookmark it, or screenshot the pass below.
         </p>
 
         {/*
@@ -186,9 +186,8 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
 
         <p className="pass-note">
           Keep the claim code. It also appears in the app under <strong>Me → Badge</strong> once
-          you have signed in — but if you cannot sign in, this page is the only place you will find
-          it. Give it to the registration desk and they will attach this ticket to whichever
-          account you signed in with.
+          you have signed in. If you cannot sign in, give it to the registration desk and they will
+          attach this ticket to your account.
         </p>
 
         <h2 className="order-next-title">Three things, then you’re done</h2>
@@ -214,16 +213,15 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
             {tempPassword ? (
               <p>
                 Your account was created by this purchase. Open the app and sign in with{' '}
-                <strong>{reg.email}</strong> and the temporary password above — it is also in your
-                receipt. <strong>The app will ask you to change it straight away</strong>, and it
-                stops working once you do. You can also sign in with a six-digit code instead,
-                which the app emails to this address.
+                <strong>{reg.email}</strong> and the temporary password above, which is also in
+                your receipt. <strong>The app will ask you to change it straight away.</strong> You
+                can also sign in with a six-digit code, which the app emails to this address.
               </p>
             ) : (
               <p>
                 Your account was created by this purchase. Open the app, enter{' '}
-                <strong>{reg.email}</strong>, and it emails you a six-digit code — that address is
-                what matches you to this ticket, and a different one will not find it.
+                <strong>{reg.email}</strong>, and it emails you a six-digit code. Use that address;
+                another one will not find this ticket.
               </p>
             )}
             <p className="muted">{APP_DISTRIBUTION}</p>
@@ -236,7 +234,7 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
             <h3>Build your schedule</h3>
             <p>
               Star the sessions you want from the agenda and they sync to your phone. Workshops
-              fill up, so the useful time to do this is now rather than in May.
+              fill up.
             </p>
             <Link href="/agenda" className="btn btn-outline">
               Plan your week

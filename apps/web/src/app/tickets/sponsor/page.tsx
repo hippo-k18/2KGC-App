@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { SITE } from '@/lib/site';
 import { AudienceTicketsPage } from '../audience-page';
 
@@ -45,7 +46,7 @@ export default async function SponsorTicketsPage({
           },
           {
             title: 'Sessions, not just signage',
-            body: 'The upper tiers include a sponsored session on the programme, listed in the agenda like any other — because a talk people choose to attend outperforms a banner people walk past.',
+            body: 'The upper tiers include a sponsored session on the programme, listed in the agenda like any other.',
           },
           {
             title: 'Conference passes for your team',
@@ -53,13 +54,13 @@ export default async function SponsorTicketsPage({
           },
           {
             title: 'The attendee list, properly',
-            body: 'Aggregate demographics and the contacts who opt in through the app. Not a scraped list — a consented one, which is the only kind worth having.',
+            body: 'Aggregate demographics, and the contacts who opt in through the app.',
           },
         ],
         emptyHint: (
           <>
             <strong>Sponsorship tiers have not been published yet.</strong> The prospectus at{' '}
-            <a href="/sponsor">/sponsor</a> describes what is on offer while pricing is finalised.
+            <Link href="/sponsor">/sponsor</Link> describes what is on offer while pricing is finalised.
           </>
         ),
       }}

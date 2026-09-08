@@ -53,7 +53,7 @@ export async function requestInvoice(
 
   if (companyName.length < 2) return { error: 'Enter the company name to invoice.' };
   if (!EMAIL.test(billingEmail)) {
-    return { error: 'Enter a valid billing email address — this is where the invoice goes.' };
+    return { error: 'Enter a valid billing email address.' };
   }
   if (![14, 30, 45, 60].includes(daysUntilDue)) return { error: 'Choose payment terms.' };
 
@@ -122,7 +122,7 @@ export async function requestInvoice(
     if (!tier) return { error: `Attendee ${i + 1}: choose a ticket type.` };
     if (!tier.onSale) {
       return {
-        error: `Attendee ${i + 1}: ${tier.name} is not available — ${(tier.unavailableReason ?? 'sales closed').toLowerCase()}.`,
+        error: `Attendee ${i + 1}: ${tier.name} is not available (${(tier.unavailableReason ?? 'sales closed').toLowerCase()}).`,
       };
     }
     if (currency && currency !== tier.currency) {
@@ -156,8 +156,8 @@ export async function requestInvoice(
     console.error('[invoice] Stripe invoice creation failed', err);
     return {
       error:
-        'We could not raise the invoice. Nothing has been charged or committed — ' +
-        'please try again, or email us and we will do it by hand.',
+        'We could not raise the invoice. Nothing has been charged or committed. ' +
+        'Please try again, or email us and we will do it by hand.',
     };
   }
 

@@ -1,0 +1,521 @@
+/*
+ * Option 2 — the comparison matrix.
+ *
+ * The whole design is one table, so the type is set like a ledger rather than
+ * like a card deck: hairline rules, tabular figures, a lot of white, and only
+ * two accents — navy for what you get, orange for the one column that gets all
+ * of it. The mobile problem is solved the only way a matrix can be: the label
+ * column is sticky, the scroll is contained inside the table's own wrapper, and
+ * the page itself never moves sideways.
+ */
+
+.container {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 var(--edge-padding);
+}
+
+/* ── The heading ─────────────────────────────────────────────────────────── */
+
+.head {
+  padding: 3.5rem 0 2rem;
+  background: var(--white);
+}
+
+.h1 {
+  margin: 0;
+  font-size: clamp(2rem, 1.3rem + 2.6vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.022em;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.lede {
+  margin: 1rem 0 0;
+  max-width: 62ch;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--body);
+}
+
+.cancelled {
+  margin: 1.25rem 0 0;
+  padding: 0.7rem 0.95rem;
+  border-left: 4px solid var(--orange);
+  background: var(--wash);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.empty {
+  margin: 0;
+  padding: 1.5rem 0;
+  color: var(--body);
+}
+
+/* ── The band the table sits in ──────────────────────────────────────────── */
+
+.matrixBand {
+  padding: 1rem 0 3.5rem;
+  background: var(--white);
+}
+
+.tableHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 2rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 2px solid var(--navy);
+}
+
+.h2 {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--body);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.scrollHint {
+  display: none;
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* ── The scroll container ────────────────────────────────────────────────── */
+
+.scroller {
+  overflow-x: auto;
+  /*
+   * `overflow-x: auto` alone does not stop this table widening the page.
+   * Something inside the scrolled table — the sticky column's edge shadow —
+   * still counts toward the document's scroll width in Chrome, so a 320px
+   * screen scrolls sideways even though the table itself is scrolling
+   * correctly inside its own box. `contain: paint` clips that overspill
+   * without changing anything visible.
+   */
+  contain: paint;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-left: var(--label-col);
+  max-width: 100%;
+  /* Room for the focus ring and the sticky column's shadow. */
+  padding: 2px 2px 0;
+  margin: 0 -2px;
+}
+
+.scroller:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.matrix {
+  --label-col: 16.5rem;
+  --tier-col: 12.5rem;
+  --pad-x: 0.9rem;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9375rem;
+  color: var(--body);
+}
+
+/* ── The sticky label column ─────────────────────────────────────────────── */
+
+.corner,
+.rowLabel {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: var(--label-col);
+  min-width: var(--label-col);
+  background: var(--white);
+  box-shadow: 7px 0 7px -7px rgb(16 36 58 / 22%);
+}
+
+.corner {
+  border-bottom: 1px solid var(--line);
+}
+
+.rowLabel {
+  padding: 0.85rem var(--pad-x) 0.85rem 0;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── Column headers: name, price, tagline ────────────────────────────────── */
+
+.col {
+  min-width: var(--tier-col);
+  scroll-snap-align: start;
+}
+
+.tierHead {
+  padding: 1.15rem var(--pad-x) 1rem;
+  text-align: left;
+  vertical-align: bottom;
+  border-bottom: 1px solid var(--line);
+}
+
+.tierName {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--navy);
+}
+
+.tierPrice {
+  display: block;
+  margin: 0.25rem 0 0;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.tierTagline {
+  display: block;
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.tierFlag {
+  display: block;
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #b8570b;
+}
+
+.tierClosed {
+  display: block;
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--accent);
+}
+
+/* ── Group bands inside the table ────────────────────────────────────────── */
+
+.groupCell {
+  padding: 0.55rem var(--pad-x) 0.5rem 0;
+  text-align: left;
+  background: var(--wash);
+  border-bottom: 1px solid var(--line);
+}
+
+.groupLabel {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--navy);
+}
+
+/* ── Cells ───────────────────────────────────────────────────────────────── */
+
+.cell {
+  padding: 0.85rem var(--pad-x);
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:hover .rowLabel,
+.row:hover .cell {
+  background: #f7fafc;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glyph {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.markYes {
+  color: var(--navy);
+}
+
+.markLimited {
+  color: var(--accent);
+}
+
+/* The dash is a meaningful graphic, so it clears 3:1 against white rather than
+   sitting at the pale grey a "nothing here" mark usually gets. */
+.markNo {
+  color: var(--muted);
+}
+
+.cellNote {
+  display: block;
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.cellRest {
+  vertical-align: top;
+}
+
+.restList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--body);
+}
+
+.restList li + li {
+  margin-top: 0.35rem;
+}
+
+.restNone {
+  color: var(--muted);
+}
+
+/* ── The highlighted column: a border, nothing else ──────────────────────── */
+
+.colLead {
+  border-left: 2px solid var(--orange);
+  border-right: 2px solid var(--orange);
+  padding-left: calc(var(--pad-x) - 2px);
+  padding-right: calc(var(--pad-x) - 2px);
+}
+
+.tierHead.colLead {
+  border-top: 2px solid var(--orange);
+  padding-top: calc(1.15rem - 2px);
+}
+
+.footCell.colLead {
+  border-bottom: 2px solid var(--orange);
+}
+
+.colClosed .tierPrice,
+.colClosed .tierName {
+  color: var(--muted);
+}
+
+/* ── The footer row ──────────────────────────────────────────────────────── */
+
+.footLabel {
+  padding-top: 1.1rem;
+  vertical-align: middle;
+  border-bottom: 0;
+}
+
+.footCell {
+  padding-top: 1.1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 0;
+  vertical-align: middle;
+}
+
+.cta {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--navy);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--navy);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  text-decoration: none;
+}
+
+.cta:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.cta:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.ctaLead {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.ctaLead:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--white);
+}
+
+.ctaOff {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ── The arithmetic under the table ──────────────────────────────────────── */
+
+.arithmetic {
+  max-width: 68ch;
+  margin: 1.75rem 0 0;
+  padding: 0.9rem 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--body);
+}
+
+.arithmetic strong {
+  color: var(--ink);
+}
+
+.arithmetic em {
+  font-style: normal;
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--palette-4);
+}
+
+/* ── Screen-reader text ──────────────────────────────────────────────────── */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Narrower screens ────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .matrix {
+    --label-col: 11rem;
+    --tier-col: 11rem;
+    --pad-x: 0.7rem;
+    font-size: 0.875rem;
+  }
+
+  .tierPrice {
+    font-size: 1.6rem;
+  }
+
+  .scrollHint {
+    display: block;
+  }
+}
+
+@media (max-width: 560px) {
+  .head {
+    padding-top: 2.5rem;
+  }
+
+  .matrix {
+    --label-col: 9.25rem;
+    --tier-col: 10.25rem;
+    --pad-x: 0.6rem;
+  }
+
+  .rowLabel {
+    font-size: 0.8125rem;
+  }
+
+  .tierPrice {
+    font-size: 1.45rem;
+  }
+
+  .tableHead {
+    display: block;
+  }
+
+  .legend {
+    margin-top: 0.6rem;
+  }
+}
+
+/* At 320px the sticky label column has to give ground, or the ticket column
+   next to it is a sliver and the matrix stops being a comparison. */
+@media (max-width: 400px) {
+  .matrix {
+    --label-col: 7.75rem;
+    --tier-col: 9.5rem;
+    --pad-x: 0.55rem;
+    font-size: 0.8125rem;
+  }
+
+  .rowLabel {
+    font-size: 0.78125rem;
+  }
+
+  .tierPrice {
+    font-size: 1.3rem;
+  }
+
+  .cta,
+  .ctaOff {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.78125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroller {
+    scroll-snap-type: none;
+  }
+
+  .cta {
+    transition: none;
+  }
+}

@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
-import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
+import type { TicketId } from '@/lib/tickets';
+import { demoCheckoutAllowed } from '@/lib/demo-checkout';
 import { stripeEnabled } from '@/lib/stripe';
 import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
+import { TierCard } from './tier-card';
 
 export const metadata: Metadata = {
   title: 'Tickets',
@@ -20,66 +21,6 @@ export const metadata: Metadata = {
  * the build machine happened to be in.
  */
 export const dynamic = 'force-dynamic';
-
-/**
- * The live site's headline ticket panel: a centred card, one navy and one pale,
- * with underlined group headings above bulleted contents. Falls back to the
- * flat `includes` list for a tier that carries no groups.
- *
- * The price is printed in the tier's own currency and the call to action is
- * gated on `onSale` — both were missing here while `audience-page.tsx` had them
- * right, which made this page the outlier rather than the pattern. A tier
- * priced in EUR printed a dollar sign over a euro amount while Stripe charged
- * euros, and a sold-out tier kept advertising a live button that the checkout
- * radio then refused two scroll-lengths further down.
- */
-function TicketPanel({ tier, tone }: { tier: Tier; tone: 'dark' | 'light' }) {
-  const groups = tier.groups ?? [{ heading: 'Includes', items: [...tier.includes] }];
-
-  return (
-    <div className={`kgc-ticket ${tone}`}>
-      <h3>{tier.name}</h3>
-      <p className="price">{formatPrice(tier.priceCents, tier.currency)}</p>
-
-      {/*
-        `TicketTypeDoc.tagline` describes itself as "one line under the price on
-        the tickets page", the order rail renders it and `audience-page.tsx:119`
-        renders it — and this panel, the one the doc names, did not. An organizer
-        editing that field on the two flagship tiers changed nothing anybody saw.
-      */}
-      {tier.tagline && <p className="tagline">{tier.tagline}</p>}
-
-      {groups.map((g) => (
-        <div key={g.heading}>
-          <p className="group">{g.heading}</p>
-          {g.items && (
-            <ul>
-              {g.items.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ))}
-
-      {tier.onSale ? (
-        <Link
-          href={`/tickets?tier=${tier.id}#buy`}
-          className={`btn ${tone === 'dark' ? 'btn-accent' : 'btn-primary'}`}
-        >
-          Choose {tier.name}
-        </Link>
-      ) : (
-        /*
-          A closed tier still renders, for the reason `audience-page.tsx` gives:
-          one that vanishes reads as a bug to somebody who was sent a link to
-          it, and the reason it closed is the thing they actually need to know.
-        */
-        <p className="sold-out">{tier.unavailableReason ?? 'Not available'}</p>
-      )}
-    </div>
-  );
-}
 
 export default async function TicketsPage({
   searchParams,
@@ -99,7 +40,7 @@ export default async function TicketsPage({
   /**
    * `null` means the catalogue could not be read at all — no credentials, or
    * the database is unreachable. That is not the same as having no tickets, and
-   * it must never be rendered as a price. The page keeps its hero and its FAQ,
+   * it must never be rendered as a price. The page keeps its heading and its FAQ,
    * and says plainly that sales are not open rather than returning a 500.
    */
   const tiers = catalogue ?? [];
@@ -107,203 +48,68 @@ export default async function TicketsPage({
 
   const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
 
-  /**
-   * Which two tiers get the headline panels.
-   *
-   * This used to name `all-access` and `main-conference` as literal slugs, so
-   * `TicketTypeDoc.featured` — a field the dashboard's ticket editor writes and
-   * whose entire purpose is this decision — chose nothing here. Marking a new
-   * tier featured moved it nowhere, and deleting one of the two named tiers
-   * demoted whatever replaced it to the small cards.
-   *
-   * The layout is still bespoke to a pair: one dark panel and one light, side
-   * by side. So it takes the first two featured tiers in catalogue order, and
-   * falls back to the first two tiers when nothing is marked — a page with a
-   * headline band and nothing in it would be a worse answer to an unmigrated
-   * catalogue than showing the two tiers that sort first.
-   *
-   * One featured tier renders one panel and everything else falls to the small
-   * cards below, which is the correct reading of "feature this one".
-   */
-  const featured = tiers.filter((t) => t.featured);
-  const [headlineA, headlineB] = featured.length > 0 ? featured : tiers;
-  const smaller = tiers.filter((t) => t.id !== headlineA?.id && t.id !== headlineB?.id);
-
   return (
     <>
       {/*
-        The live page opens on a dark band: orange kicker, the conference name,
-        the dates, a call to action, and a photograph bleeding off the right.
-      */}
-      <section className="band band-navy">
-        <div className="wrap split-hero">
-          <div>
-            <p className="kicker">Tickets for</p>
-            <h1>{SITE.name}</h1>
-            <p className="when">
-              {SITE.datesLong} | {SITE.venueShort}
-            </p>
-            <div className="cta">
-              <Link href="#buy" className="btn btn-accent">
-                Register now
-              </Link>
-              <Link href="/agenda" className="btn btn-ghost">
-                See the agenda
-              </Link>
-            </div>
-            <p className="sold-out">✦ Every ticket includes the KGC app for the whole week ✦</p>
-          </div>
-          <Image
-            src="/kgc/tickets-hero.jpeg"
-            alt="Attendees at the Knowledge Graph Conference"
-            width={1024}
-            height={768}
-            priority
-          />
-        </div>
-      </section>
+        No hero.
 
-      {/* The two headline tickets. */}
-      <section className="band band-centred">
+        This page used to open on a full-bleed navy band: an orange kicker, the
+        conference name set at display size, the dates, two calls to action, a
+        line of starred copy and a photograph of three attendees — a little over
+        a screen's worth of height in front of somebody who has already told us
+        what they came for by clicking "Tickets". Both of its buttons pointed
+        further down this same page.
+
+        What replaces it is a heading and one line of orientation, on the page's
+        own ground rather than in a coloured band, so the first ticket price is
+        visible without scrolling.
+      */}
+      <section className="band tickets-head">
         <div className="wrap">
-          <h2>Main Ticket Types</h2>
+          <h1>Tickets</h1>
+          <p>
+            {SITE.datesLong} at {SITE.venueShort}.
+          </p>
 
           {params.cancelled && (
-            <p className="notice warn" style={{ marginTop: 20 }}>
-              Checkout was cancelled and nothing was charged. Your details are below if you want to
-              try again.
-            </p>
+            <p className="notice warn">Checkout was cancelled. Nothing was charged.</p>
           )}
+        </div>
+      </section>
 
-          <div className="kgc-tickets">
-            {headlineA && <TicketPanel tier={headlineA} tone="dark" />}
-            {headlineB && <TicketPanel tier={headlineB} tone="light" />}
-          </div>
+      {/*
+        Every tier in one grid.
 
-          {/*
-            Prose about two specific tiers, so it is shown only while those two
-            tiers are the ones on screen.
+        There were two bands here: the tiers marked `featured` as wide panels
+        under "Main Ticket Types", then everything else as narrow cards on a
+        navy band under "Smaller tickets, big impact." That second band is where
+        the pinched columns came from — centred text in a 240px track — and
+        between them the two headings, two ledes and two footnotes said little
+        that the cards do not.
 
-            The slugs appear here as a *guard*, not as the selection — the
-            panels above are chosen by `featured`. Before that change the notes
-            could not disagree with the panels, because the panels were these
-            two by definition. Now they can, and a paragraph explaining what
-            "All Access (VIP)" includes above a band that is not showing it is
-            the stale-copy failure this repo keeps finding.
-          */}
-          {(headlineA?.id === 'all-access' || headlineB?.id === 'all-access' ||
-            headlineA?.id === 'main-conference' || headlineB?.id === 'main-conference') && (
-            <div className="ticket-notes">
-              {(headlineA?.id === 'all-access' || headlineB?.id === 'all-access') && (
-                <p>
-                  ✶ <strong>All Access (VIP)</strong> — entry to <em>all</em> in-person sessions,
-                  including the limited-availability workshops, plus virtual streaming and
-                  recordings.
-                </p>
-              )}
-              {(headlineA?.id === 'main-conference' || headlineB?.id === 'main-conference') && (
-                <p>
-                  ✶ <strong>Main Conference</strong> — covers every main conference session, but{' '}
-                  <strong>does not include the workshops</strong> (space is limited).
-                </p>
-              )}
+        `featured` still decides something, and it is now the only thing that
+        distinguishes a tier visually: a featured card gets the filled button
+        and a slightly stronger edge, the rest get outlined buttons. Hierarchy
+        by weight rather than by a badge.
+      */}
+      {/*
+        Skipped entirely rather than rendered empty. An unreadable catalogue is
+        a real state — no credentials, or Firestore unreachable — and a band
+        with 92px of padding and nothing in it reads as a layout that broke,
+        which is a worse answer than the checkout's own "Registration is not
+        open yet" further down.
+      */}
+      {tiers.length > 0 && (
+        <section className="band tickets-band">
+          <div className="wrap">
+            <div className="tier-grid">
+              {tiers.map((t) => (
+                <TierCard key={t.id} tier={t} href={`/tickets?tier=${t.id}#buy`} />
+              ))}
             </div>
-          )}
-        </div>
-      </section>
-
-      {/*
-        The lighter tickets, on the live site's dark band.
-
-        ── Why this heading does not say "Two" ─────────────────────────────────
-
-        It used to, and it was wrong the moment an organizer added a fifth
-        ticket type in the dashboard: three cards appeared under a heading that
-        counted two. This section is `tiers` minus the two slugs handled above,
-        so its length is whatever the catalogue holds — the copy must not
-        restate a number the data owns.
-
-        The section is skipped entirely when nothing falls into it. Hiding
-        Workshops and Virtual in the dashboard is a supported thing to do, and
-        it used to leave a band with a heading, a lede and no tickets under it.
-      */}
-      {smaller.length > 0 && (
-      <section className="band band-navy band-centred">
-        <div className="wrap">
-          <h2>Smaller tickets, big impact.</h2>
-          <p className="lede">Ideal if you would like to start with a lighter commitment.</p>
-
-          <div className="kgc-tickets small">
-            {smaller.map((t) => (
-              <div key={t.id} className="kgc-ticket light">
-                <h3>{t.name}</h3>
-                <p className="price">{formatPrice(t.priceCents, t.currency)}</p>
-                <ul>
-                  {t.includes.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-                {t.onSale ? (
-                  <Link href={`/tickets?tier=${t.id}#buy`} className="btn btn-primary">
-                    Choose {t.name}
-                  </Link>
-                ) : (
-                  <p className="sold-out">{t.unavailableReason ?? 'Not available'}</p>
-                )}
-              </div>
-            ))}
           </div>
-
-          <p className="ticket-notes">
-            All sessions are available on demand for at least one month after the conference.
-          </p>
-        </div>
-      </section>
+        </section>
       )}
-
-      {/* Where it happens — the live page's location band. */}
-      <section className="band band-wave-light band-centred">
-        <div className="wrap">
-          <h2>It’s happening at {SITE.venueShort}.</h2>
-          <p className="lede">We’d love to see you here in May.</p>
-        </div>
-      </section>
-
-      {/*
-        The route from paying to standing in the room, as a strip rather than an
-        essay.
-
-        This content used to be four numbered paragraphs stacked beside the
-        checkout form, which put several hundred words of explanation in direct
-        competition with the one control on the page that takes money. It is a
-        genuine sequence — each step is only true once the one before it has
-        happened — so it keeps its numbers, but it earns them in one line each
-        and it sits above the form rather than next to it.
-      */}
-      <section className="band band-wash flow-band">
-        <div className="wrap">
-          <p className="eyebrow">How it works</p>
-          <h2 className="flow-title">From paying to standing in the room</h2>
-          <ol className="flow-strip">
-            <li>
-              <strong>Register</strong>
-              Pick a ticket, and give us the attendee’s name and email address.
-            </li>
-            <li>
-              <strong>Keep the claim code</strong>
-              Six characters, shown the moment you pay. It is the fallback door into your ticket.
-            </li>
-            <li>
-              <strong>Open the KGC app</strong>
-              Sign in with the same address. The schedule, messages and contacts are already there.
-            </li>
-            <li>
-              <strong>Scan in at the door</strong>
-              Your badge QR carries a random secret, not your name.
-            </li>
-          </ol>
-        </div>
-      </section>
 
       {/*
         Ours, and not on the live site, which hands checkout to a third party.
@@ -322,14 +128,15 @@ export default async function TicketsPage({
               tiers={tiers}
               initialTier={preselected}
               stripeReady={stripeEnabled()}
+              demoReady={await demoCheckoutAllowed()}
               questions={form.fields}
             />
           ) : (
             <div className="checkout checkout-closed">
               <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
               <p className="notice warn">
-                Ticket sales for {SITE.name} have not opened. Everything else on this page — the
-                dates, the venue, what each ticket includes — is current.
+                Ticket sales for {SITE.name} have not opened. Everything else on this page is
+                current.
               </p>
               <p>
                 Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we
@@ -337,6 +144,41 @@ export default async function TicketsPage({
               </p>
             </div>
           )}
+        </div>
+      </section>
+
+      {/*
+        The route from paying to standing in the room, as a strip rather than an
+        essay, and it sits below the purchase rather than in front of it.
+
+        This content used to be four numbered paragraphs stacked beside the
+        checkout form, which put several hundred words of explanation in direct
+        competition with the one control on the page that takes money. It is a
+        genuine sequence — each step is only true once the one before it has
+        happened — so it keeps its numbers, but it earns them in one line each
+        and it sits above the form rather than next to it.
+      */}
+      <section className="band band-wash flow-band">
+        <div className="wrap">
+          <h2 className="flow-title">From paying to standing in the room</h2>
+          <ol className="flow-strip">
+            <li>
+              <strong>Register</strong>
+              Pick a ticket, and give us the attendee’s name and email address.
+            </li>
+            <li>
+              <strong>Keep the claim code</strong>
+              Six characters, shown the moment you pay. Use it if you cannot sign in.
+            </li>
+            <li>
+              <strong>Open the KGC app</strong>
+              Sign in with the same address. The schedule, messages and contacts are already there.
+            </li>
+            <li>
+              <strong>Scan in at the door</strong>
+              Your badge QR carries a random secret, not your name.
+            </li>
+          </ol>
         </div>
       </section>
 
@@ -351,7 +193,7 @@ export default async function TicketsPage({
       */}
       <section className="band-wash">
         <div className="kgc-faq">
-          <h2>Questions people actually ask</h2>
+          <h2>Questions</h2>
 
           <details>
             <summary>Can I transfer my ticket to someone else?</summary>
@@ -359,8 +201,7 @@ export default async function TicketsPage({
               <p>
                 Yes, up to a week before the conference. Mail{' '}
                 <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the new
-                attendee’s details and we will move the registration rather than issue a second
-                one.
+                attendee’s details and we will move the registration.
               </p>
             </div>
           </details>
@@ -375,9 +216,7 @@ export default async function TicketsPage({
           <details>
             <summary>Do virtual tickets include the recordings?</summary>
             <div className="answer">
-              <p>
-                Yes — every session, on demand, for at least a month after the conference closes.
-              </p>
+              <p>Yes. Every session, on demand, for at least a month after the conference.</p>
             </div>
           </details>
 
@@ -395,9 +234,8 @@ export default async function TicketsPage({
             <summary>Can we pay by invoice?</summary>
             <div className="answer">
               <p>
-                Yes — <Link href="/tickets/invoice">request one here</Link>. We’ll email a payable
-                invoice with a PO number on it, on net-14 to net-60 terms. Useful for groups, and
-                for anywhere procurement has to sign off.
+                Yes. <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60 terms,
+                with a PO number on the invoice.
               </p>
             </div>
           </details>

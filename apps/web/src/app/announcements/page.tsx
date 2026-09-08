@@ -7,7 +7,7 @@ import { SITE } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Announcements',
   description:
-    'Everything the Knowledge Graph Conference organizers have announced — room changes, schedule updates and notices, newest first.',
+    'Everything the Knowledge Graph Conference organizers have announced: room changes, schedule updates and notices, newest first.',
 };
 
 export const dynamic = 'force-dynamic';

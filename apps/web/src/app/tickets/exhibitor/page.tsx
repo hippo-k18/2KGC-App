@@ -33,11 +33,11 @@ export default async function ExhibitorTicketsPage({
         points: [
           {
             title: 'A staffed booth for the whole week',
-            body: 'In the exhibition hall the coffee is served in, which is where the conversations actually start.',
+            body: 'In the exhibition hall, where the coffee is served.',
           },
           {
             title: 'Badges for your team',
-            body: 'Each package includes full conference passes for booth staff. They are ordinary attendee tickets — your people can sit in sessions rather than guard a table all week.',
+            body: 'Full conference passes for booth staff, as ordinary attendee tickets. Your people can sit in sessions.',
           },
           {
             title: 'Lead capture through the app',
@@ -59,7 +59,7 @@ export default async function ExhibitorTicketsPage({
              * built. Add it back the day `app/src` reads the collection.
              */
             title: 'A listing attendees can find',
-            body: 'Your logo, description, website and booth number on the public exhibitor listing, live from the moment your booth is assigned.',
+            body: 'Your logo, description, website and booth number on the public exhibitor listing.',
           },
         ],
         emptyHint: (

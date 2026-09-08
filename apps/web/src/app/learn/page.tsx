@@ -6,7 +6,7 @@ import { LEARN_FOUNDERS } from '@/lib/people';
 export const metadata: Metadata = {
   title: 'Learn',
   description:
-    'KGC | Learn — the team, the continuing education roster, and the four certificate programmes.',
+    'KGC | Learn: the team, the continuing education roster, and the four certificate programmes.',
 };
 
 /**

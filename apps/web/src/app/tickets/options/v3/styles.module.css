@@ -1,0 +1,691 @@
+/*
+ * Option 3 — the inheritance ladder.
+ *
+ * The page has one vertical axis and it means one thing: money. A single rail
+ * runs the whole height, brightening from grey to light blue to orange as the
+ * price climbs, and the type climbs with it — the ticket name, the price and
+ * the panel all get heavier at every step, so the summit is the loudest thing
+ * on the page without anything having to shout "most popular".
+ *
+ * Nothing here is four identical cards: the ground rung has no panel at all,
+ * the middle rung sits in wash, the summit is a navy block with an orange cap,
+ * and the one ticket that is not a rung hangs off the rail on a dotted tie.
+ */
+
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 3rem var(--edge-padding) 3.5rem;
+}
+
+/* ── The opening ─────────────────────────────────────────────────────────── */
+
+.intro {
+  max-width: 46rem;
+}
+
+.h1 {
+  margin: 0;
+  max-width: 17ch;
+  font-size: clamp(2rem, 6.2vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.deck {
+  margin: 1.1rem 0 0;
+  max-width: 58ch;
+  font-size: clamp(1rem, 2.4vw, 1.15rem);
+  line-height: 1.55;
+  color: var(--body);
+}
+
+.where {
+  margin: 0.85rem 0 0;
+  max-width: 58ch;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.rubric {
+  margin: 1.5rem 0 0;
+  max-width: 58ch;
+  padding: 0.75rem 0.95rem;
+  border-left: 3px solid var(--orange);
+  border-radius: 0 8px 8px 0;
+  background: var(--wash);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+.cancelled {
+  margin: 1.1rem 0 0;
+  max-width: 58ch;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  background: var(--white);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* ── The rail ────────────────────────────────────────────────────────────── */
+
+.ladder {
+  margin: 2.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail {
+  --pad: 2rem;
+  --branch-gap: 1.75rem;
+  position: relative;
+  padding-left: var(--pad);
+  border-left: 3px solid var(--line);
+}
+
+.middle {
+  border-left-color: var(--palette-4);
+}
+
+/* A branch only passes the rail on its way past; its stretch of the line stays
+   the quiet colour, so the climb is not credited with it. */
+.branchRail {
+  border-left-color: var(--line);
+}
+
+.summit {
+  border-left-color: var(--orange);
+}
+
+/* ── The riser between two rungs ─────────────────────────────────────────── */
+
+.step {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.65rem;
+  margin: 0;
+  padding: 1.6rem 0 1.3rem;
+}
+
+.step::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--pad) - 3px);
+  top: 2.05rem;
+  width: calc(var(--pad) - 0.5rem);
+  border-top: 2px dotted var(--line);
+}
+
+.stepDelta {
+  font: 700 1.05rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.summit .stepDelta {
+  padding: 0.3rem 0.5rem;
+  border-radius: 5px;
+  background: var(--orange);
+  color: var(--ink);
+  font-size: 1.15rem;
+}
+
+.stepFrom {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ── A rung ──────────────────────────────────────────────────────────────── */
+
+.rung {
+  position: relative;
+}
+
+.ground .rung {
+  padding: 0.2rem 0 1.4rem;
+}
+
+.middle .rung {
+  padding: 1.4rem 1.5rem 1.6rem;
+  border-radius: var(--radius);
+  background: var(--wash);
+}
+
+.summit .rung {
+  padding: 1.5rem 1.6rem 1.8rem;
+  border-top: 6px solid var(--orange);
+  border-radius: var(--radius);
+  background: var(--navy);
+  color: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.head {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 1.5rem;
+  align-items: start;
+}
+
+.node {
+  position: absolute;
+  top: 0.4rem;
+  left: calc(-1 * var(--pad) - 8.5px);
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+}
+
+/* The panelled rungs are inset, so their dot has to reach further left to sit
+   on the rail. */
+.middle .node {
+  left: calc(-1 * var(--pad) - 1.5rem - 8.5px);
+  border-color: var(--palette-4);
+}
+
+/* The summit's dot sits on the panel edge, so it is drawn as a filled ring. */
+.summit .node {
+  top: -0.5rem;
+  left: calc(-1 * var(--pad) - 1.6rem - 8.5px);
+  border-color: var(--orange);
+  background: var(--orange);
+}
+
+.headText {
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: clamp(1.35rem, 3.4vw, 1.9rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.ground .name {
+  font-size: clamp(1.15rem, 3vw, 1.45rem);
+  color: var(--navy);
+}
+
+.summit .name {
+  font-size: clamp(1.6rem, 4.4vw, 2.3rem);
+  color: var(--white);
+}
+
+.tagline {
+  margin: 0.4rem 0 0;
+  max-width: 44ch;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.summit .tagline {
+  color: var(--palette-4);
+}
+
+.headPrice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  text-align: right;
+}
+
+.price {
+  margin: 0;
+  font-size: clamp(1.5rem, 4.5vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy);
+}
+
+.ground .price {
+  font-size: clamp(1.2rem, 3.4vw, 1.6rem);
+}
+
+.summit .price {
+  font-size: clamp(1.9rem, 6vw, 3.1rem);
+  color: var(--orange);
+}
+
+/* One segment per line on the ticket: quiet for what you already had. */
+.meter {
+  display: flex;
+  gap: 3px;
+}
+
+.meter i {
+  display: block;
+  width: 12px;
+  height: 6px;
+  border-radius: 1px;
+}
+
+.mSame {
+  background: var(--line);
+}
+
+.mUp {
+  background: var(--palette-4);
+}
+
+.mNew {
+  background: var(--orange);
+}
+
+.tally {
+  margin: 0;
+  font: 500 0.75rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.summit .tally {
+  color: var(--palette-4);
+}
+
+/* ── What the step actually changes ──────────────────────────────────────── */
+
+.body {
+  margin-top: 1.15rem;
+}
+
+.deltaHead {
+  margin: 0 0 0.8rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.summit .deltaHead {
+  color: var(--palette-4);
+}
+
+.lines {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gain {
+  position: relative;
+  padding-left: 1.5rem;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--body);
+}
+
+.gain::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.75rem;
+  height: 2px;
+  background: var(--orange);
+}
+
+.summit .gain {
+  color: var(--white);
+  font-size: 1.05rem;
+}
+
+/* An upgrade: the line you already had, and what it turns into. */
+.upgrade {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  padding-left: 1.5rem;
+}
+
+.upgrade::before {
+  content: '';
+  position: absolute;
+  left: 0.15rem;
+  top: 0.6em;
+  bottom: 0.6em;
+  width: 0.6rem;
+  border-left: 2px solid var(--palette-4);
+  border-bottom: 2px solid var(--palette-4);
+  border-bottom-left-radius: 3px;
+}
+
+.summit .upgrade::before {
+  border-color: var(--orange);
+}
+
+.was {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.wasFrom {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.summit .wasFrom {
+  color: var(--palette-4);
+}
+
+.now {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--body);
+}
+
+.summit .was {
+  color: var(--palette-4);
+}
+
+.summit .now {
+  color: var(--white);
+  font-size: 1.05rem;
+}
+
+.kept {
+  margin: 0.95rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.keptLabel {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.summit .kept {
+  color: var(--palette-4);
+}
+
+.summit .keptLabel {
+  color: var(--white);
+}
+
+/* The honest half of a ladder: what the step leaves behind. */
+.dropped {
+  margin: 1.05rem 0 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--white);
+}
+
+.droppedHead {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.droppedNote {
+  margin: 0.15rem 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.droppedList {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--body);
+}
+
+.nothingLost {
+  margin: 1.05rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--accent);
+}
+
+.summit .nothingLost {
+  color: var(--orange);
+}
+
+/* The arithmetic of buying the week in two pieces. */
+.sums {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1.3rem 0 0;
+  padding: 0.9rem 1.05rem;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 7%);
+}
+
+.sums div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+}
+
+.sums dt {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--palette-4);
+}
+
+.sums dd {
+  margin: 0;
+  font: 700 1rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--white);
+}
+
+.sumsLast {
+  padding-top: 0.55rem;
+  border-top: 1px solid rgb(255 255 255 / 22%);
+}
+
+.sumsLast dt {
+  color: var(--white);
+  font-weight: 700;
+}
+
+.sumsLast dd {
+  font-size: 1.2rem;
+  color: var(--orange);
+}
+
+/* ── Choosing ────────────────────────────────────────────────────────────── */
+
+.cta {
+  display: inline-block;
+  margin-top: 1.35rem;
+  padding: 0.8rem 1.15rem;
+  border: 2px solid var(--navy);
+  border-radius: 10px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.ground .cta {
+  background: transparent;
+  color: var(--navy);
+}
+
+.cta:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--white);
+}
+
+.cta:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.summit .cta {
+  margin-top: 1.5rem;
+  padding: 0.95rem 1.4rem;
+  border-color: var(--orange);
+  background: var(--orange);
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.summit .cta:hover {
+  border-color: var(--palette-14);
+  background: var(--palette-14);
+  color: var(--ink);
+}
+
+.summit .cta:focus-visible {
+  outline-color: var(--palette-4);
+}
+
+.closed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 1.35rem 0 0;
+  padding: 0.7rem 1rem;
+  border: 1px dashed var(--muted);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.closedMark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.summit .closed {
+  border-color: var(--palette-4);
+  color: var(--palette-4);
+}
+
+/* ── The ticket that is not a rung ───────────────────────────────────────── */
+
+.branch {
+  position: relative;
+  margin: 1.6rem 0 0.3rem var(--branch-gap);
+  padding: 1.15rem 1.3rem 1.4rem;
+  border: 1px solid var(--line);
+  border-left: 3px dashed var(--accent);
+  border-radius: 0 12px 12px 0;
+  background: var(--white);
+}
+
+.branch::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--branch-gap) - var(--pad) - 3px);
+  top: 2.4rem;
+  width: calc(var(--branch-gap) + var(--pad) + 3px);
+  border-top: 2px dotted var(--accent);
+}
+
+.branch .name {
+  font-size: clamp(1.15rem, 3vw, 1.45rem);
+  color: var(--ink);
+}
+
+.branch .price {
+  font-size: clamp(1.2rem, 3.4vw, 1.6rem);
+}
+
+.branchTag {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.branchWhy {
+  margin: 0 0 0.95rem;
+  max-width: 58ch;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.branchNote {
+  margin: 1.05rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  background: var(--wash);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+/* ── Narrow ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 660px) {
+  .rail {
+    --pad: 1.1rem;
+    --branch-gap: 0.75rem;
+  }
+
+  .head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .headPrice {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.75rem;
+    text-align: left;
+  }
+
+  .middle .rung,
+  .summit .rung,
+  .branch {
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
+  }
+
+  .middle .node,
+  .summit .node {
+    left: calc(-1 * var(--pad) - 1.1rem - 8.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta {
+    transition: none;
+  }
+}

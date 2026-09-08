@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { AgendaDay } from '@/lib/data';
 import { formatDayTab, localTime, SITE } from '@/lib/site';
@@ -232,15 +233,15 @@ function ScheduleActions() {
    */
   const [url, setUrl] = useState('');
   useEffect(() => setUrl(window.location.href), []);
-  const text = `${SITE.name} — ${SITE.datesShort}`;
+  const text = `${SITE.name}, ${SITE.datesShort}`;
   return (
     <div className="schedule-actions">
       <button type="button" onClick={() => window.print()} aria-label="Print the schedule">
         <PrintIcon />
       </button>
-      <a href="/tickets" aria-label="Get the KGC mobile app">
+      <Link href="/tickets" aria-label="Get the KGC mobile app">
         <PhoneIcon />
-      </a>
+      </Link>
       <a
         href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}
         target="_blank"

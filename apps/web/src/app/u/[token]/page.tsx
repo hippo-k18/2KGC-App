@@ -118,14 +118,14 @@ export default async function UnsubscribePage({
             </form>
 
             <p className="muted" style={{ marginTop: 20 }}>
-              Nothing has changed yet — this takes effect when you press the button.
+              Nothing has changed yet. This takes effect when you press the button.
             </p>
           </>
         )}
 
         {state === 'off' && (
           <>
-            <h1>{done === '1' ? 'Done — you’re unsubscribed.' : 'You’re already unsubscribed.'}</h1>
+            <h1>{done === '1' ? 'You’re unsubscribed.' : 'You’re already unsubscribed.'}</h1>
             <p className="lede">
               <strong>{contact!.email}</strong> has been removed from our campaign mailing lists.
               You will not receive marketing or announcement email from the Knowledge Graph
@@ -139,9 +139,8 @@ export default async function UnsubscribePage({
               suppression list exists to prevent.
             */}
             <p>
-              Email about something you hold — a ticket, an order, a receipt, or a session you are
-              speaking at — is not marketing and still reaches you. There is nothing to unsubscribe
-              from there; those are sent only to the person they concern.
+              Email about something you hold (a ticket, an order, a receipt, or a session you are
+              speaking at) is not marketing and still reaches you.
             </p>
             <p className="muted">
               Changed your mind? We deliberately have no one-click way back on, because a link that

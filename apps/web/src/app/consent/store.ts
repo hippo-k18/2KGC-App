@@ -8,6 +8,7 @@ import {
   type ConsentResponseDoc,
   type RegistrationDoc,
   type SpeakerDoc,
+  type VolunteerDoc,
   type UserDoc,
 } from '@kgc/shared';
 import { db } from '@/lib/firestore';
@@ -45,7 +46,7 @@ export interface SigningSubject {
   key: string;
   name: string;
   email: string;
-  kind: 'speaker' | 'attendee';
+  kind: 'speaker' | 'attendee' | 'volunteer';
   /**
    * Set only when the token named a Firebase uid.
    *
@@ -84,11 +85,12 @@ function iso(t: { toDate(): Date } | undefined): string | undefined {
 /**
  * Resolve the token's `sub` to a real person.
  *
- * Three prefixes, and they are the three ways somebody can be named in this
- * project: `spk_` a speaker, `reg_` a ticket holder who has not opened the app,
- * and anything else a Firebase uid. Returning null for an unknown one rather
- * than inventing a placeholder — a consent record against "unknown person" is
- * worse than no consent record, because it looks like one.
+ * Four prefixes, and they are the four ways somebody can be named in this
+ * project: `spk_` a speaker, `vol_` a volunteer on the roster, `reg_` a ticket
+ * holder who has not opened the app, and anything else a Firebase uid.
+ * Returning null for an unknown one rather than inventing a placeholder — a
+ * consent record against "unknown person" is worse than no consent record,
+ * because it looks like one.
  */
 async function resolveSubject(sub: string): Promise<SigningSubject | null> {
   if (sub.startsWith('spk_')) {
@@ -97,6 +99,14 @@ async function resolveSubject(sub: string): Promise<SigningSubject | null> {
     if (!snap.exists) return null;
     const s = snap.data() as SpeakerDoc;
     return { key: sub, name: s.name, email: s.contactEmail ?? '', kind: 'speaker' };
+  }
+
+  if (sub.startsWith('vol_')) {
+    const id = sub.slice('vol_'.length);
+    const snap = await db().collection(COLLECTIONS.volunteers).doc(id).get();
+    if (!snap.exists) return null;
+    const v = snap.data() as VolunteerDoc;
+    return { key: sub, name: v.name, email: v.email ?? '', kind: 'volunteer' };
   }
 
   if (sub.startsWith('reg_')) {

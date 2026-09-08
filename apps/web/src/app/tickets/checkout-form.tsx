@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
-import { startCheckout, type CheckoutState } from './actions';
+import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
 import { MAX_SEATS } from './seats-core';
 
@@ -69,6 +70,7 @@ export function CheckoutForm({
   tiers,
   initialTier,
   stripeReady,
+  demoReady = false,
   questions = [],
 }: {
   /**
@@ -90,6 +92,16 @@ export function CheckoutForm({
    */
   stripeReady: boolean;
   /**
+   * Whether this request may skip payment — true only on a localhost dev
+   * server, decided server-side by `demoCheckoutAllowed()` and passed down
+   * because that function reads request headers and this runs in the browser.
+   *
+   * ⚠️ Not a security boundary. `completeDemoCheckout` re-checks it on the
+   * server, because a prop is a thing the browser can lie about; this only
+   * decides whether the button is drawn.
+   */
+  demoReady?: boolean;
+  /**
    * The organizer's registration questions, or none.
    *
    * Passed as props like the tiers, and for the same reason: this is a client
@@ -98,6 +110,17 @@ export function CheckoutForm({
   questions?: QuestionFieldDef[];
 }) {
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
+  /**
+   * The rehearsal button gets its own state because it is a second action on
+   * the same form. `shown` picks whichever one last had something to say —
+   * only one of them can be running, so the newer error is always the relevant
+   * one, and the alternative was two error banners stacked on one form.
+   */
+  const [demoState, demoAction] = useActionState<CheckoutState, FormData>(
+    completeDemoCheckout,
+    {},
+  );
+  const shown: CheckoutState = demoState.error || demoState.fieldErrors ? demoState : state;
   const [tier, setTier] = useState<TicketId>(initialTier);
   // Controlled, not merely `defaultValue`: React resets an uncontrolled form
   // once its action settles, so a failed payment would blank the fields the
@@ -195,9 +218,9 @@ export function CheckoutForm({
       <form action={action} className="checkout">
         <h2 className="checkout-title">Register</h2>
 
-        {state.error && (
+        {shown.error && (
           <p className="notice bad" role="alert">
-            {state.error}
+            {shown.error}
           </p>
         )}
 
@@ -215,83 +238,19 @@ export function CheckoutForm({
         ) : null}
 
         {/*
-          The tier picker.
+          How many, and then who — in that order.
 
-          A native `<select>` until now, which is the wrong control for this
-          decision: four options, each carrying a price, chosen once and worth
-          getting right. A radio group shows all four prices at once without
-          opening anything, gives a sold-out tier somewhere to say so, and makes
-          the "Choose All Access" links on the panels above land on something
-          visibly selected rather than on a collapsed menu.
+          This dropdown used to sit *below* the buyer's own name and email and
+          above the extra seats, which put the one control that changes the
+          form's length in the middle of the list it changes. Seat one was two
+          loose fields above the dropdown, seats two onward were bordered cards
+          below it, and nothing on the page said the first pair of fields was a
+          seat at all — so buying three tickets read as a rendering fault.
 
-          Still one `name="tier"` posting one id — the buyer's own seat. Extra
-          seats post their own `seatTier`, and the server is still the only
-          thing that turns any of those ids into money.
-        */}
-        <fieldset className="tier-choice">
-          <legend>Ticket</legend>
-          {tiers.map((t) => (
-            <label
-              key={t.id}
-              className={`tier-option${t.id === tier ? ' is-selected' : ''}${
-                t.onSale ? '' : ' is-unavailable'
-              }`}
-            >
-              <input
-                type="radio"
-                name="tier"
-                value={t.id}
-                checked={t.id === tier}
-                disabled={!t.onSale}
-                onChange={() => setTier(t.id)}
-              />
-              <span className="tier-option-name">{t.name}</span>
-              <span className="tier-option-price">
-                {t.onSale ? formatPrice(t.priceCents, t.currency) : (t.unavailableReason ?? 'Unavailable')}
-              </span>
-            </label>
-          ))}
-        </fieldset>
-
-        <div className="field">
-          <label htmlFor="name">Attendee name</label>
-          <input
-            id="name"
-            name="name"
-            autoComplete="name"
-            required
-            placeholder="Ada Nakamura"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <p className="hint">This is what gets printed on the badge.</p>
-        </div>
-
-        <div className="field">
-          <label htmlFor="email">Email address</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <p className="hint">
-            Use the address the attendee will sign into the KGC app with — that is how the ticket
-            finds them. You can add alternates later.
-          </p>
-        </div>
-
-        {/*
-          How many, and then who.
-
-          The control is a `<select>` rather than a number input because the
-          range is one to ten and every value has a consequence on the page
-          below it — a spinner invites typing "25" and earning an error, and a
-          free-text number is a field that arrives as "3 " or "three".
+          A `<select>` rather than a number input because the range is one to
+          ten and every value has a consequence on the page below it — a spinner
+          invites typing "25" and earning an error, and a free-text number is a
+          field that arrives as "3 " or "three".
         */}
         <div className="field">
           <label htmlFor="quantity">How many tickets?</label>
@@ -309,107 +268,169 @@ export function CheckoutForm({
               </option>
             ))}
           </select>
-          <p className="hint">
-            {quantity === 1
-              ? 'Buying for colleagues? Choose more and name each of them below — one card, one charge.'
-              : 'Each ticket needs its own name and email address — a ticket is issued per ' +
-                'address, so two seats on one would be a single badge.'}
-          </p>
         </div>
 
         {/*
-          One card per extra attendee, in the same shape as `/tickets/invoice`.
+          Every seat in one list, the buyer's own included.
 
-          Deliberately identical, down to the field names, because the two forms
-          post to the same parser. A second layout for the same three fields is
-          a second thing to keep in step with the first.
+          `SeatCard` draws the box and the "Attendee n" heading only when there
+          is more than one seat, so a single buyer sees exactly the fields they
+          always saw and a buyer of three sees three identical cards rather than
+          one loose pair of fields and two boxes below a dropdown.
         */}
-        {extras.map((seat, i) => (
-          <div
-            key={seat.key}
-            style={{
-              border: '1px solid rgba(0,0,0,.12)',
-              borderRadius: 6,
-              padding: '14px 14px 4px',
-              marginBottom: 12,
-            }}
-          >
-            <strong
-              style={{
-                display: 'block',
-                fontSize: '.85rem',
-                textTransform: 'uppercase',
-                letterSpacing: '.05em',
-                marginBottom: 8,
-              }}
-            >
-              Attendee {i + 2}
-            </strong>
+        <div className="seats">
+          <SeatCard label={quantity > 1 ? 'Attendee 1 · you' : null}>
+            {/*
+              The tier picker, which is seat one's ticket and only seat one's.
+
+              A radio group rather than the `<select>` it used to be: four
+              options, each carrying a price, chosen once and worth getting
+              right. All four figures are visible without opening anything, a
+              sold-out tier has somewhere to say so, and the "Choose All Access"
+              links on the panels above land on something visibly selected
+              rather than on a collapsed menu.
+
+              Inside seat one's card because that is whose ticket it is. Still
+              one `name="tier"` posting one id — extra seats post their own
+              `seatTier`, and the server is still the only thing that turns any
+              of those ids into money.
+            */}
+            <fieldset className="tier-choice">
+              <legend>Ticket</legend>
+              {tiers.map((t) => (
+                <label
+                  key={t.id}
+                  className={`tier-option${t.id === tier ? ' is-selected' : ''}${
+                    t.onSale ? '' : ' is-unavailable'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="tier"
+                    value={t.id}
+                    checked={t.id === tier}
+                    disabled={!t.onSale}
+                    onChange={() => setTier(t.id)}
+                  />
+                  <span className="tier-option-name">{t.name}</span>
+                  <span className="tier-option-price">
+                    {t.onSale
+                      ? formatPrice(t.priceCents, t.currency)
+                      : (t.unavailableReason ?? 'Unavailable')}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
 
             <div className="field">
-              <label htmlFor={`seatName-${seat.key}`}>Full name</label>
+              <label htmlFor="name">Attendee name</label>
               <input
-                id={`seatName-${seat.key}`}
-                name="seatName"
+                id="name"
+                name="name"
+                autoComplete="name"
                 required
                 placeholder="Ada Nakamura"
-                value={seat.name}
-                onChange={(e) => updateExtra(seat.key, { name: e.target.value })}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
+              <p className="hint">Printed on the badge.</p>
             </div>
 
             <div className="field">
-              <label htmlFor={`seatEmail-${seat.key}`}>Email address</label>
+              <label htmlFor="email">Email address</label>
               <input
-                id={`seatEmail-${seat.key}`}
-                name="seatEmail"
+                id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 required
-                placeholder="ada@company.com"
-                value={seat.email}
-                onChange={(e) => updateExtra(seat.key, { email: e.target.value })}
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
-              {/*
-                Said on the field people get wrong: a shared inbox looks like a
-                reasonable answer right up until three badges collapse into one
-                registration.
-              */}
               <p className="hint">
-                Their own address, not a shared inbox — it&rsquo;s how the app finds their ticket.
+                The address they will sign into the KGC app with. Alternates can be added later.
               </p>
             </div>
+          </SeatCard>
 
-            <div className="field">
-              <label htmlFor={`seatTier-${seat.key}`}>Ticket</label>
-              <select
-                id={`seatTier-${seat.key}`}
-                name="seatTier"
-                value={seat.tierId}
-                onChange={(e) => updateExtra(seat.key, { tierId: e.target.value })}
-              >
-                {tiers.map((t) => (
-                  <option key={t.id} value={t.id} disabled={!t.onSale}>
-                    {t.name} — {formatPrice(t.priceCents, t.currency)}
-                    {t.onSale ? '' : ` (${t.unavailableReason ?? 'unavailable'})`}
-                  </option>
-                ))}
-              </select>
+          {/*
+            One card per extra attendee, in the same shape as `/tickets/invoice`.
+
+            Deliberately identical, down to the field names, because the two
+            forms post to the same parser. A second layout for the same three
+            fields is a second thing to keep in step with the first.
+          */}
+          {extras.map((seat, i) => (
+            <SeatCard key={seat.key} label={`Attendee ${i + 2}`}>
               {/*
-                Per seat rather than one tier for the whole purchase, because
-                the mixed cart is the case that used to need three separate
+                Ticket first, then who — the same order as seat one's card
+                above, which leads with the tier picker. A card that asked for a
+                name, an address and *then* the ticket beside a card that asked
+                for the ticket first read as two different forms stacked.
+
+                Per seat rather than one tier for the whole purchase, because the
+                mixed cart is the case that used to need three separate
                 checkouts: a booth and two extra passes, or a colleague on the
                 cheaper ticket.
               */}
-            </div>
-          </div>
-        ))}
+              <div className="field">
+                <label htmlFor={`seatTier-${seat.key}`}>Ticket</label>
+                <select
+                  id={`seatTier-${seat.key}`}
+                  name="seatTier"
+                  value={seat.tierId}
+                  onChange={(e) => updateExtra(seat.key, { tierId: e.target.value })}
+                >
+                  {tiers.map((t) => (
+                    <option key={t.id} value={t.id} disabled={!t.onSale}>
+                      {t.name} · {formatPrice(t.priceCents, t.currency)}
+                      {t.onSale ? '' : ` (${t.unavailableReason ?? 'unavailable'})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor={`seatName-${seat.key}`}>Full name</label>
+                <input
+                  id={`seatName-${seat.key}`}
+                  name="seatName"
+                  required
+                  placeholder="Ada Nakamura"
+                  value={seat.name}
+                  onChange={(e) => updateExtra(seat.key, { name: e.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor={`seatEmail-${seat.key}`}>Email address</label>
+                <input
+                  id={`seatEmail-${seat.key}`}
+                  name="seatEmail"
+                  type="email"
+                  required
+                  placeholder="ada@company.com"
+                  value={seat.email}
+                  onChange={(e) => updateExtra(seat.key, { email: e.target.value })}
+                />
+                {/*
+                  Said on the field people get wrong: a shared inbox looks like a
+                  reasonable answer right up until three badges collapse into one
+                  registration.
+                */}
+                <p className="hint">Their own address, not a shared inbox.</p>
+              </div>
+            </SeatCard>
+          ))}
+        </div>
 
         {/*
           The organizer's questions, between the buyer's details and the total.
           Above the price rather than below it, because a question appearing after
           somebody has read the amount reads as a hurdle placed in front of paying.
         */}
-        <Questions fields={questions} ticketTypeId={tier} errors={state.fieldErrors} />
+        <Questions fields={questions} ticketTypeId={tier} errors={shown.fieldErrors} />
 
         <div className="summary">
           <span>
@@ -420,13 +441,52 @@ export function CheckoutForm({
 
         <SubmitButton stripeReady={stripeReady} price={formatPrice(totalCents, selected.currency)} />
 
+        {/*
+          The rehearsal button, drawn only on a localhost dev server.
+
+          Inside the same `<form>` and posting through `formAction`, so it sends
+          the *identical* fields the pay button sends — every seat, every
+          question, the tier. A separate form would have been a second thing to
+          keep in step with this one, and the first demo after they diverged
+          would be the one that fails.
+        */}
+        {demoReady && (
+          <DemoButton action={demoAction} price={formatPrice(totalCents, selected.currency)} />
+        )}
+
         <p className="hint" style={{ marginTop: 12 }}>
           {stripeReady
-            ? 'You will be taken to Stripe to pay, and the card is entered there — card details never touch this site.'
+            ? 'You pay on Stripe. Card details never touch this site.'
             : 'No ticket can be bought until a payment processor is configured.'}
         </p>
       </form>
     </div>
+  );
+}
+
+/**
+ * One seat's fields, boxed and numbered — but only when there is more than one.
+ *
+ * The box is what makes a three-ticket purchase read as three tickets. Without
+ * it the buyer's own name and email were bare fields and every other attendee
+ * was a bordered card, so the form looked like one thing followed by a list of
+ * a different thing.
+ *
+ * `label === null` renders the children with no wrapper at all rather than an
+ * unstyled `<div>`: a single buyer should see the form exactly as it has always
+ * looked, and a border drawn around one lone pair of fields is chrome that
+ * explains nothing. Toggling the label remounts the children, which is safe —
+ * every value in here is controlled state held above this component, and the
+ * only control that can change the quantity is the dropdown, not a field
+ * somebody is mid-way through typing into.
+ */
+function SeatCard({ label, children }: { label: string | null; children: ReactNode }) {
+  if (label === null) return <>{children}</>;
+  return (
+    <section className="seat-card">
+      <h3 className="seat-card-title">{label}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -522,7 +582,7 @@ function OrderRail({
         </li>
         <li>Names can be changed up to a week before the conference.</li>
         <li>
-          Need a PO number? <a href="/tickets/invoice">Pay by invoice instead</a>.
+          Need a PO number? <Link href="/tickets/invoice">Pay by invoice instead</Link>.
         </li>
       </ul>
     </aside>
@@ -535,6 +595,48 @@ function OrderRail({
  * returns `pending: false`. The redirect to Stripe takes a moment, and a
  * button that does not visibly change is a button people click twice.
  */
+/**
+ * Skip the payment and issue the ticket anyway — localhost only.
+ *
+ * Deliberately styled as a secondary button and labelled with what it actually
+ * does. A demo affordance that looks like the primary action is one somebody
+ * clicks by mistake while presenting, and "Skip payment" is the only honest
+ * name for it.
+ *
+ * `formAction` rather than its own form: it posts the fields the pay button
+ * posts. `useFormStatus` reads the enclosing form's pending state, so this
+ * disables while the Stripe button is mid-redirect too — which is correct, as
+ * both are one purchase and neither should be startable twice.
+ */
+function DemoButton({
+  action,
+  price,
+}: {
+  action: (formData: FormData) => void;
+  price: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <>
+      <button
+        type="submit"
+        formAction={action}
+        className="btn btn-secondary btn-block"
+        style={{ marginTop: 10 }}
+        disabled={pending}
+      >
+        {pending ? 'Working…' : `Skip payment and register (demo)`}
+      </button>
+      <p className="hint" style={{ marginTop: 8 }}>
+        Localhost only. Issues a real ticket for {price} without charging: registration, order,
+        app account, entitlements, sold count and confirmation email, exactly as a paid purchase
+        does. The order is marked <code>demo</code>, so{' '}
+        <code>scripts/ops/reset-demo-sales.mjs</code> undoes it.
+      </p>
+    </>
+  );
+}
+
 function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: string }) {
   const { pending } = useFormStatus();
   return (

@@ -1,8 +1,9 @@
 import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { pageContent } from '@/lib/data';
+import { callMilestones, pageContent } from '@/lib/data';
 import { SITE } from '@/lib/site';
+import { openCallFor, type OpenCall } from '@/lib/submissions';
 
 /**
  * The poster track — transcribed from `knowledgegraph.tech/call-for-posters/`.
@@ -12,9 +13,7 @@ import { SITE } from '@/lib/site';
  * and that proceedings go to CEUR-WS. Getting any of those subtly wrong on a
  * page an author works from is worse than not having the page.
  *
- * The chairs named on the live page are real people and are left as stated. The
- * dates are the 2026 deadlines shifted a year and are marked provisional in the
- * interface — see the same note in `startup-pitch/page.tsx`.
+ * The chairs named on the live page are real people and are left as stated.
  */
 
 export const metadata: Metadata = {
@@ -40,40 +39,115 @@ const RULES = [
 ];
 
 /**
- * The submission link and the calendar — the two things on this page that go
- * stale, and now the two an organizer can change without a deploy.
+ * Where a poster goes when we are not running the call ourselves.
  *
- * ⚠️ Both are wrong in the source as shipped, which is the argument for moving
- * them: the deadlines are the 2026 dates shifted a year and were never
- * confirmed, and the EasyChair link still names `kgc2026`. Neither is the kind
- * of mistake that survives because nobody noticed — a comment in this file has
- * said PLACEHOLDER since August. It survives because fixing it is a deploy, and
- * a deadline moves at the moment nobody wants to be running a build.
+ * ⚠️ **The URL still names `kgc2026` and that is left exactly as it is.** It is
+ * the address that currently works, an organizer can change it without a deploy
+ * from Content › Basics › Website Copy, and replacing a working external link
+ * with a guess at next year's is not an improvement. What has changed is that
+ * this is now the *second* answer rather than the only one — see `defaults()`.
+ *
+ * `dates` is empty on purpose. It used to hold three deadlines, and they were
+ * the 2026 dates shifted forward a year: nobody ever confirmed them, the file
+ * said PLACEHOLDER in a comment, and the page printed them under a heading
+ * reading "Important dates" with a muted line calling them provisional. An
+ * author plans a term around the date, not around the caption. So the page now
+ * states that the calendar is not settled and prints nothing that looks like a
+ * deadline until something can source one.
  *
  * The topics, the author guidelines and the CEUR-ART requirement stay in React.
  * They are rules an author formats a paper against, and getting one subtly
  * wrong on the page somebody works from is worse than not having the page —
  * the same reason the code of conduct's policy text stays put.
- *
- * This constant is the fallback and is what renders when the collection is
- * empty, which is its normal state.
  */
-const CALL: CallPageContent = {
+const EXTERNAL_CALL: CallPageContent = {
   submitUrl: 'https://easychair.org/conferences?conf=kgc2026',
   submitLabel: 'Submit on EasyChair',
   datesConfirmed: false,
-  dates: [
-    { when: 'March 25, 2027', what: 'Paper submission deadline (11:59pm AoE)' },
-    { when: 'April 9, 2027', what: 'Notification of acceptance' },
-    { when: 'April 15, 2027', what: 'Camera-ready deadline' },
-  ],
+  dates: [],
 };
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/**
+ * A call's `closesAtLocal` as a printed deadline, or null if it cannot be read.
+ *
+ * String surgery rather than `Date`, deliberately. `closesAtLocal` is wall time
+ * in the call's own zone — the authoring truth, exactly as on `SessionDoc` —
+ * and putting it through a `Date` on a server that runs in UTC on Netlify and
+ * in something else on a laptop is how "23:59 in New York" becomes 03:59 the
+ * next morning on the public page. The zone is printed beside it because a
+ * deadline without one is not a deadline.
+ */
+function printedDeadline(closesAtLocal: string, timeZone: string): string | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(closesAtLocal);
+  if (!parts) return null;
+  const [, year, month, day, hour, minute] = parts;
+  const name = MONTHS[Number(month) - 1];
+  if (!name) return null;
+  return `${name} ${Number(day)}, ${year}, ${hour}:${minute} (${timeZone})`;
+}
+
+/**
+ * What the page says before an organizer has edited a word of it.
+ *
+ * Two answers, and which one renders is read from `calls` on every request
+ * rather than from a flag: an open call accepting posters brings submissions
+ * in-house, and anything else — no call, a draft one, one that has closed —
+ * leaves the external link exactly where it was. `CFA-PLAN.md` §6 held that
+ * link back until phase 4 shipped, on the grounds that half a pipeline is worse
+ * than an external one that works; phase 4 has shipped, and the fallback is
+ * still the whole of that argument for the months when no call is running.
+ *
+ * ⚠️ Only the **close** is printed. `CallDoc` carries no notification or
+ * camera-ready date, so the other two lines this page used to show have nothing
+ * behind them and are not invented back. `datesConfirmed` is true here because
+ * the deadline came from the call the button points at — which is the only
+ * sense in which this page has ever been able to confirm a date.
+ *
+ * This is the *fallback* handed to `pageContent`, so an organizer who types a
+ * deadline into Website Copy still overrides it. That ordering is right: the
+ * call is derived, and what a human typed is a statement.
+ */
+function defaults(open: OpenCall | null): CallPageContent {
+  if (!open) return EXTERNAL_CALL;
+
+  const deadline = printedDeadline(open.closesAtLocal, open.timeZone);
+  return {
+    submitUrl: `/submit/${open.id}`,
+    submitLabel: 'Submit a poster',
+    datesConfirmed: deadline !== null,
+    dates: deadline ? [{ when: deadline, what: 'Poster submission deadline' }] : [],
+  };
+}
 
 /** Deadlines are read per request: a moved date must not wait for a build. */
 export const dynamic = 'force-dynamic';
 
 export default async function CallForPostersPage() {
-  const call = await pageContent(PAGE_CONTENT_KEYS.callForPosters, CALL);
+  const open = await openCallFor('poster');
+  const call = await pageContent(PAGE_CONTENT_KEYS.callForPosters, defaults(open));
+  const dates = callMilestones(call.dates);
+  /*
+   * A relative `submitUrl` is our own portal and must not open in a new tab or
+   * carry `rel="noopener"` — both of those describe handing somebody to a third
+   * party. It is also a `<Link>`, so the client router keeps the navigation
+   * inside the site.
+   */
+  const ownPortal = call.submitUrl.startsWith('/');
 
   return (
     <>
@@ -102,14 +176,20 @@ export default async function CallForPostersPage() {
           */}
           {call.submitUrl ? (
             <p>
-              <a
-                className="btn btn-primary"
-                href={call.submitUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                {call.submitLabel}
-              </a>
+              {ownPortal ? (
+                <Link className="btn btn-primary" href={call.submitUrl}>
+                  {call.submitLabel}
+                </Link>
+              ) : (
+                <a
+                  className="btn btn-primary"
+                  href={call.submitUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  {call.submitLabel}
+                </a>
+              )}
             </p>
           ) : null}
         </div>
@@ -154,21 +234,36 @@ export default async function CallForPostersPage() {
 
           <h2 style={{ marginTop: 40 }}>Important dates</h2>
           {/*
-            The provisional note is driven by the organizer's own assertion, not
-            inferred from the dates: a full list of plausible deadlines looks
-            exactly like a confirmed one, and an author planning their year
-            around a date we invented is the failure this line prevents.
+            A date is printed only when something could source it — the open
+            call's own `closesAtLocal`, or a deadline an organizer typed into
+            Website Copy. Otherwise the page says the calendar is not settled and
+            prints nothing, because the three deadlines this section used to
+            carry were the 2026 dates moved forward a year and the muted line
+            calling them provisional did not stop them reading as a date to plan
+            around. `datesConfirmed` still gates the caption, for the case where
+            an organizer has entered dates they are not finished arguing about.
           */}
-          {call.datesConfirmed ? null : (
-            <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+          {dates.length === 0 ? (
+            <p className="muted">
+              The {SITE.year} calendar is not confirmed yet, so this page states no deadline. The
+              submission dates appear here as soon as the committee sets them — write to{' '}
+              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> if you need to know
+              before then.
+            </p>
+          ) : (
+            <>
+              {call.datesConfirmed ? null : (
+                <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+              )}
+              <ul>
+                {dates.map((d) => (
+                  <li key={d.when} style={{ padding: '4px 0' }}>
+                    <strong>{d.when}</strong> — {d.what}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
-          <ul>
-            {call.dates.map((d) => (
-              <li key={d.when} style={{ padding: '4px 0' }}>
-                <strong>{d.when}</strong> — {d.what}
-              </li>
-            ))}
-          </ul>
 
           <p style={{ marginTop: 32 }}>
             Posters are not the only way to present. The{' '}

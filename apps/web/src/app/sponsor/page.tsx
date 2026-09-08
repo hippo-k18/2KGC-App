@@ -66,8 +66,8 @@ export default async function SponsorPage() {
           <h1>Sponsor KGC 2027</h1>
           <p className="lede">
             A thousand people who buy, build and operate knowledge graph infrastructure, in one
-            building for five days. KGC attendees are unusually senior and unusually technical — the
-            room is roughly a third architects and engineers, a third data leadership, a third
+            building for five days. Roughly a third architects and engineers, a third data
+            leadership, a third
             researchers.
           </p>
           <p>
@@ -137,8 +137,7 @@ export default async function SponsorPage() {
           <p>
             The programme committee reads every submission. What gets accepted is specific: a system
             you built, a modelling decision you regret, a migration that went sideways, an evaluation
-            with numbers in it. What does not get accepted is a product tour — that is what the booth
-            is for, and we would rather you sponsored.
+            with numbers in it. A product tour does not; that is what the booth is for.
           </p>
           <p>
             Formats are a 25-minute talk, a 45-minute deep dive, a panel or a half-day workshop.

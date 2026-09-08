@@ -284,8 +284,7 @@ export default async function HomePage() {
         <p>
           The applications of knowledge graphs are growing fast across healthcare and life sciences,
           finance, manufacturing, retail and government. KGC is run by practitioners for
-          practitioners: the talks that get accepted are the ones with a system diagram and a
-          post-mortem in them.
+          practitioners.
         </p>
         <p>
           {SITE.workshopDays} are workshops. {SITE.conferenceDays} are parallel tracks. Everything
@@ -306,9 +305,8 @@ export default async function HomePage() {
             aspect: '3 / 2',
             body: (
               <>
-                Workshops are the thing past attendees rate highest. Hands-on and instructor-led, at
-                beginner, intermediate and advanced level — you leave with the notebooks and the
-                datasets, not a slide deck.
+                Hands-on and instructor-led, at beginner, intermediate and advanced level. You
+                leave with the notebooks and the datasets.
               </>
             ),
             // The live site spells this "Limitied". Reproduced in shape, not in
@@ -369,7 +367,7 @@ export default async function HomePage() {
       >
         <p>
           A dedicated strand on data integration, profiling, curation, querying and ontology mapping
-          over clinical and biomedical graphs — and on the machine learning built on top of them.
+          over clinical and biomedical graphs, and on the machine learning built on top of them.
         </p>
         <p>It is the part of the programme that sells out first, every year.</p>
       </PhotoSplit>
@@ -462,7 +460,7 @@ export default async function HomePage() {
               and the city:
             </p>
             <ul>
-              <li>TownePlace Suites — Long Island City</li>
+              <li>TownePlace Suites, Long Island City</li>
               <li>Hotel 57</li>
             </ul>
             <p>
@@ -476,8 +474,8 @@ export default async function HomePage() {
           <summary>Will I qualify for the KGC Video Library subscription?</summary>
           <div className="answer">
             <p>
-              In-person and virtual tickets both include access to the recordings. Every session is
-              streamed and recorded, so two talks in the same slot is not a choice you have to make.
+              In-person and virtual tickets both include access to the recordings. Every session
+              is streamed and recorded.
             </p>
           </div>
         </details>
@@ -488,8 +486,7 @@ export default async function HomePage() {
           <summary>Will the in-person presentations be available online?</summary>
           <div className="answer">
             <p>
-              Yes — every session is recorded and published to the video library after the
-              conference.
+              Yes. Every session is recorded and published to the video library.
             </p>
           </div>
         </details>
@@ -498,9 +495,9 @@ export default async function HomePage() {
           <summary>How do I get to the Cornell Tech campus?</summary>
           <div className="answer">
             <p>
-              The campus is on Roosevelt Island. The tram from 59th Street and 2nd Avenue runs every
-              few minutes and takes about four; the F train stops on the island; and the ferry is
-              slower but you get a seat and the view.
+              The campus is on Roosevelt Island. The tram from 59th Street and 2nd Avenue runs
+              every few minutes and takes about four; the F train stops on the island; the ferry is
+              slower.
             </p>
           </div>
         </details>

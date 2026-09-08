@@ -133,9 +133,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
               people get wrong: a shared inbox looks like a reasonable answer
               until four badges collapse into one registration.
             */}
-            <p className="hint">
-              Their own address, not a shared inbox — it&rsquo;s how the app finds their ticket.
-            </p>
+            <p className="hint">Their own address, not a shared inbox.</p>
           </div>
 
           <div className="field">
@@ -199,9 +197,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
           commonest reason an accounts-payable system rejects an invoice, and
           the rejection arrives weeks later as silence.
         */}
-        <p className="hint">
-          If your finance team issues POs, add it — invoices without one are often bounced.
-        </p>
+        <p className="hint">Invoices without a PO number are often bounced.</p>
       </div>
 
       <div className="field">
@@ -229,8 +225,8 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
       <SubmitButton />
 
       <p className="hint" style={{ marginTop: 12 }}>
-        Tax is calculated by Stripe when the invoice is raised, so the final total may differ from
-        the subtotal above. You&rsquo;ll be taken to the invoice to review it.
+        Stripe adds tax when the invoice is raised, so the final total may differ from the
+        subtotal above.
       </p>
     </form>
   );

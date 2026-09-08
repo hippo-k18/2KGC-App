@@ -3,6 +3,7 @@ import 'server-only';
 import { existsSync } from 'node:fs';
 
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
@@ -108,6 +109,27 @@ export function db(): Firestore {
     getFirestore().settings({ ignoreUndefinedProperties: true });
   }
   return getFirestore();
+}
+
+/**
+ * Admin Auth, guaranteed to be initialised.
+ *
+ * `getAuth()` from `firebase-admin/auth` throws unless `initializeApp` has
+ * already run, and in this app the only thing that runs it is `db()`. That has
+ * been quietly load-bearing: `app-account.ts` calls
+ * `provisionAttendeeAccount(getAuth(), db(), …)`, where argument evaluation
+ * order puts `getAuth()` **first** — it works only because something earlier in
+ * the same request already called `db()`. That is a dependency on call order in
+ * a different file, which is the kind of thing that holds until somebody adds
+ * the first route where it does not.
+ *
+ * So anything needing Admin Auth should call this instead of `getAuth()`
+ * directly. It costs one already-initialised check and removes the ordering
+ * hazard entirely.
+ */
+export function adminAuth(): Auth {
+  db();
+  return getAuth();
 }
 
 export function targetDescription(): string {

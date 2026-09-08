@@ -1,0 +1,469 @@
+/*
+ * Option 7 — grouped by what you're buying.
+ *
+ * The page is a run of chapters, not a grid of cards: a heading rail on the
+ * left carrying the coverage and its dates, the ticket itself on the right.
+ * Only the first chapter is a filled panel, because only one ticket is being
+ * argued for; the rest sit on the page ground separated by a hairline. That is
+ * the whole hierarchy — no badges, no shadows repeated four times.
+ */
+
+.page {
+  background: var(--white);
+  padding: 3rem 0 4.5rem;
+}
+
+.shell {
+  max-width: 66rem;
+  margin: 0 auto;
+  padding: 0 var(--edge-padding);
+}
+
+/* ── The head ───────────────────────────────────────────────────────────── */
+
+.head {
+  max-width: 40rem;
+  margin: 0 0 2.5rem;
+}
+
+.h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(2rem, 6.2vw, 3.15rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 1rem 0 0;
+  max-width: 34em;
+  color: var(--muted);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.cancelled {
+  margin: 1.25rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 4px solid var(--orange);
+  background: #fdf3e8;
+  color: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* ── The four headings, as a contents list ──────────────────────────────── */
+
+.contents {
+  margin: 0 0 0.5rem;
+}
+
+.contents ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contents li + li {
+  border-top: 1px solid var(--line);
+}
+
+/* Grid rather than a wrapping flex row: the price belongs on the same baseline
+   as the ticket it prices, and a flex row drops it to a second line as soon as
+   the row gets tight. Narrow screens have no room for a dot leader, so the
+   dates go under the label instead and the leader leaves the grid entirely. */
+.contents a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  padding: 0.7rem 0.25rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (min-width: 48rem) {
+  .contents a {
+    grid-template-columns: minmax(0, auto) minmax(1.5rem, 1fr) auto;
+    column-gap: 0.6rem;
+  }
+}
+
+.contents a:hover .contentsLabel {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Label and dates travel together, so a 320px screen breaks the line between
+   the ticket and its dates rather than between the ticket and its price. */
+.contentsText {
+  min-width: 0;
+}
+
+.contentsLabel {
+  color: var(--navy);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.contentsWhen {
+  display: block;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* The dot leader that carries the eye to the price. Decorative, and hidden
+   from assistive tech at the markup. */
+.leader {
+  display: none;
+  align-self: center;
+  border-bottom: 1px dotted #b9c2d1;
+}
+
+@media (min-width: 48rem) {
+  .contentsWhen {
+    display: inline;
+    margin-left: 0.5rem;
+  }
+
+  .leader {
+    display: block;
+  }
+}
+
+.contentsPrice {
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── A chapter ──────────────────────────────────────────────────────────── */
+
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.1rem;
+  padding: 2.25rem 0 2.75rem;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 4.5rem;
+}
+
+.sectionLead {
+  border-top: 3px solid var(--navy);
+}
+
+@media (min-width: 60rem) {
+  .section {
+    grid-template-columns: 15rem minmax(0, 1fr);
+    column-gap: 3.25rem;
+  }
+}
+
+.rail {
+  min-width: 0;
+}
+
+.h2 {
+  margin: 0;
+  font-size: clamp(1.65rem, 4.6vw, 2.1rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.label {
+  display: block;
+  color: var(--navy);
+}
+
+/* The dates are part of the heading, under a rule that belongs to it —
+   not a separate label floating above. */
+.when {
+  display: block;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 2px solid var(--orange);
+  color: var(--accent);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+/* ── The ticket ─────────────────────────────────────────────────────────── */
+
+.body {
+  min-width: 0;
+}
+
+.bodyLead {
+  padding: 1.6rem 1.5rem 1.75rem;
+  border-radius: var(--radius);
+  background: var(--navy);
+  color: var(--palette-3);
+}
+
+@media (min-width: 40rem) {
+  .bodyLead {
+    padding: 1.9rem 2rem 2.1rem;
+  }
+}
+
+.tierHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1.5rem;
+}
+
+.tierName {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.bodyLead .tierName {
+  color: var(--white);
+}
+
+.tagline {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.bodyLead .tagline {
+  color: var(--palette-4);
+}
+
+.price {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.75rem, 5vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.bodyLead .price {
+  color: var(--white);
+}
+
+/* ── The receipt ────────────────────────────────────────────────────────── */
+
+.receiptBox {
+  margin: 1.4rem 0 0;
+  padding: 1.1rem 1.15rem 1.15rem;
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--body);
+}
+
+.receiptScroll {
+  overflow-x: auto;
+}
+
+/* `separate` rather than `collapse` so the saving row can carry a rounded
+   orange fill — a collapsed table drops border-radius on its cells. */
+.receipt {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9375rem;
+}
+
+.receiptCaption {
+  padding: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.receipt th {
+  padding: 0.32rem 0.75rem 0.32rem 0;
+  font-weight: 400;
+  text-align: left;
+}
+
+.receipt td {
+  padding: 0.32rem 0 0.32rem 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sumRow th,
+.sumRow td {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+
+.oursRow th,
+.oursRow td {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+/* Orange with near-black ink on it: the one place the page raises its voice,
+   and the only combination of the two brand colours that clears 4.5:1. */
+.savingRow th,
+.savingRow td {
+  padding: 0.55rem 0.7rem;
+  background: var(--orange);
+  color: #1f1a11;
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+
+.savingRow th {
+  border-radius: 6px 0 0 6px;
+}
+
+.savingRow td {
+  border-radius: 0 6px 6px 0;
+}
+
+.exclusive {
+  margin: 0.9rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  color: var(--body);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.exclusive strong {
+  color: var(--navy);
+}
+
+/* ── What is included ───────────────────────────────────────────────────── */
+
+.groups {
+  display: grid;
+  gap: 1.25rem 2.25rem;
+  margin: 1.4rem 0 0;
+}
+
+@media (min-width: 48rem) {
+  .groups {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+}
+
+.group {
+  min-width: 0;
+}
+
+.groupHeading {
+  margin: 0 0 0.5rem;
+  color: var(--accent);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.groupHeadingDark {
+  color: var(--palette-4);
+}
+
+.items {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.groups .items {
+  margin-top: 0;
+}
+
+.items li {
+  position: relative;
+  padding: 0 0 0 1.2rem;
+}
+
+.items li + li {
+  margin-top: 0.45rem;
+}
+
+.items li::before {
+  content: '';
+  position: absolute;
+  top: 0.68em;
+  left: 0;
+  width: 0.55rem;
+  height: 2px;
+  background: var(--orange);
+}
+
+/* ── The button ─────────────────────────────────────────────────────────── */
+
+.cta {
+  display: inline-block;
+  margin: 1.6rem 0 0;
+  padding: 0.8rem 1.4rem;
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cta:hover {
+  background: var(--white);
+  color: var(--navy);
+}
+
+.ctaLead {
+  border-color: var(--orange);
+  background: var(--orange);
+  color: #1f1a11;
+}
+
+.ctaLead:hover {
+  background: var(--white);
+  border-color: var(--white);
+  color: var(--navy);
+}
+
+.closed {
+  margin: 1.5rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 4px solid var(--muted);
+  background: var(--wash);
+  color: var(--body);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.bodyLead .closed {
+  background: rgb(255 255 255 / 12%);
+  border-left-color: var(--palette-4);
+  color: var(--white);
+}
+
+/* ── Focus ──────────────────────────────────────────────────────────────── */
+
+.contents a:focus-visible,
+.cta:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.bodyLead .cta:focus-visible {
+  outline-color: var(--palette-4);
+}

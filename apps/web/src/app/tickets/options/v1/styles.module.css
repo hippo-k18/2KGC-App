@@ -1,0 +1,607 @@
+/*
+ * Option 1 — the week strip.
+ *
+ * Written mobile-first, and that is not a habit here but the whole trick: a
+ * Gantt chart is a desktop shape, so the small screen gets the honest fallback
+ * (a five-cell day track under each ticket) and the wide screen gets the
+ * calendar (one shared set of day columns, every ticket a bar across it).
+ * Everything that has to move between the two is a custom property set on the
+ * element — `--m-from` / `--d-from` — because an inline `grid-column` cannot be
+ * overridden by a media query, and one grid that lies at 360px is worse than
+ * two grids that each tell the truth.
+ */
+
+.page {
+  /* The site's root font-size is 22px, not 16 — every rem below is measured
+     against that, which is why the numbers look small for what they render. */
+  --rail: 13rem;
+  --bar-inset: 3px;
+  --hero: var(--navy);
+  --hero-edge: var(--orange);
+  --strong: var(--accent);
+  --pale: #dcedf8;
+  --pale-edge: var(--palette-4);
+  --ghost: #f2f5f9;
+
+  background: var(--white);
+  color: var(--body);
+}
+
+.inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 2.5rem var(--edge-padding) 3.5rem;
+}
+
+/* ── The head ─────────────────────────────────────────────────────────────── */
+
+.h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 6vw, 2.7rem);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  color: var(--ink);
+  max-width: 16ch;
+}
+
+.lede {
+  margin: 1rem 0 0;
+  max-width: 58ch;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: #33404f;
+}
+
+.lede b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cancelled {
+  margin: 1.25rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 4px solid var(--orange);
+  background: #fdf2e4;
+  color: #6b3b06;
+  font-size: 0.9375rem;
+  max-width: 60ch;
+}
+
+/* ── The week header ──────────────────────────────────────────────────────── */
+
+.strip {
+  margin: 2.25rem 0 0;
+}
+
+.weekHead {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
+  padding: 0.35rem 0 0.3rem;
+  background: var(--white);
+  border-bottom: 2px solid var(--ink);
+}
+
+/* The halves sit above the rule, the day names under it. */
+.weekHead.headHalves {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.headRail {
+  display: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding-right: 1.25rem;
+  padding-bottom: 0.2rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.half {
+  grid-column: var(--m-from) / var(--m-to);
+  margin: 0 var(--bar-inset) 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  background: var(--wash);
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day {
+  padding: 0 var(--bar-inset);
+  line-height: 1.15;
+}
+
+.dayName {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dayDate {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────────────── */
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: 0;
+  row-gap: 0.5rem;
+  padding: 1.1rem 0 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.rowHero {
+  padding-bottom: 1.5rem;
+}
+
+.rail {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+}
+
+.name {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.rowHero .name {
+  font-size: 1.3rem;
+}
+
+.price {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowHero .price {
+  font-size: 1.6rem;
+}
+
+.tagline {
+  flex: 1 1 14ch;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.choose {
+  display: inline-block;
+  padding: 0.5rem 0.95rem;
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--navy);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.choose:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.chooseHero {
+  border-color: var(--orange);
+  background: var(--orange);
+  color: var(--ink);
+}
+
+.chooseHero:hover {
+  /* Dark enough that white sits at 5:1 on it — the brand orange is not, which
+     is why the resting state puts near-black on the orange instead. */
+  background: #a8540a;
+  border-color: #a8540a;
+  color: var(--white);
+}
+
+.closed {
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed #9aa5b4;
+  border-radius: 8px;
+  background: var(--wash);
+  color: #52606f;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ── The bars ─────────────────────────────────────────────────────────────── */
+
+.ghost {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: stretch;
+  min-height: 44px;
+  border-radius: 6px;
+  background-color: var(--ghost);
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(20% - 1px),
+    #dbe2ec calc(20% - 1px) 20%
+  );
+}
+
+.bar {
+  grid-column: var(--m-from) / var(--m-to);
+  grid-row: 2;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.6rem;
+  min-height: 44px;
+  margin: 0 var(--bar-inset);
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.barDays {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.barWhere {
+  display: none;
+  font-size: 0.8125rem;
+}
+
+/* All Access: the only solid navy on the page, and the only one wearing the
+   brand orange. Weight follows the span, which follows the price. */
+.barHero {
+  min-height: 60px;
+  background: var(--hero);
+  border-left: 5px solid var(--hero-edge);
+  color: var(--white);
+}
+
+.barHero .barDays {
+  font-size: 1.05rem;
+}
+
+.barHero .barWhere {
+  color: #c6d2e6;
+}
+
+.barFeatured {
+  background: var(--strong);
+  color: var(--white);
+}
+
+.barFeatured .barWhere {
+  color: #cde3ea;
+}
+
+.barPlain {
+  background: var(--pale);
+  border: 1px solid var(--pale-edge);
+  color: var(--ink);
+}
+
+.barPlain .barWhere {
+  color: #3d5566;
+}
+
+/* Virtual is everywhere and nowhere: the full week, but drawn as an outline
+   rather than a block, because it does not occupy a room. */
+.barVirtual {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    rgb(23 85 106 / 7%) 7px 8px
+  );
+  border: 2px dashed var(--accent);
+  color: #133e4d;
+}
+
+.barVirtual .barWhere {
+  color: #3d5566;
+}
+
+.barClosed {
+  opacity: 0.55;
+  filter: grayscale(0.5);
+}
+
+/* ── Bought separately ────────────────────────────────────────────────────── */
+
+.sep {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.sepTrack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.sepChip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.2rem 0.5rem;
+  border: 1px dashed #97a6b8;
+  border-radius: 6px;
+  background: #fbfcfe;
+  color: #4a5766;
+  font-size: 0.75rem;
+}
+
+.sepChip b {
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sepChipName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sepNote {
+  margin: 0.5rem 0 0;
+  max-width: 62ch;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #33404f;
+}
+
+.sepNote strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.saving {
+  color: #8a4a06;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── What is included ─────────────────────────────────────────────────────── */
+
+.detail {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
+.detailOnly {
+  grid-row: 3;
+}
+
+.only {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-left: 4px solid var(--orange);
+  background: #fff6ec;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #4a3413;
+}
+
+.only b {
+  color: var(--ink);
+}
+
+.groups {
+  display: grid;
+  gap: 0.9rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.groupHead {
+  margin: 0 0 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--accent);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.25rem;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #33404f;
+}
+
+.items li {
+  position: relative;
+  padding-left: 0.95rem;
+  margin-bottom: 0.2rem;
+}
+
+.items li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--palette-4);
+}
+
+.foot {
+  margin: 1.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+/* ── Wide screens: the calendar proper ────────────────────────────────────── */
+
+@media (min-width: 900px) {
+  .weekHead {
+    grid-template-columns: var(--rail) repeat(5, minmax(0, 1fr));
+    padding-top: 0.5rem;
+  }
+
+  .headRail {
+    display: block;
+  }
+
+  .half {
+    grid-column: var(--d-from) / var(--d-to);
+  }
+
+  /* Rows are declared explicitly so the ticket rail can span all of them with
+     `1 / -1`. Without a row template that `-1` resolves to the first line and
+     the rail collapses into the bar's row, which stretches a 60px bar to the
+     height of the whole rail. */
+  .row {
+    grid-template-columns: var(--rail) repeat(5, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    align-items: start;
+    padding: 1rem 0 1.15rem;
+  }
+
+  .rowHero {
+    grid-template-rows: auto auto auto;
+  }
+
+  .rail {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    display: block;
+    padding-right: 1.4rem;
+  }
+
+  .name {
+    font-size: 1.05rem;
+  }
+
+  .rowHero .name {
+    font-size: 1.2rem;
+  }
+
+  .price {
+    display: block;
+    margin: 0.15rem 0 0.1rem;
+  }
+
+  /* A full-rail button gives the four tickets one clean column of controls,
+     and lets the longest ticket name wrap without looking like a mistake. */
+  .choose {
+    display: block;
+    text-align: center;
+  }
+
+  .tagline {
+    margin: 0 0 0.6rem;
+  }
+
+  .ghost,
+  .sep,
+  .detail {
+    grid-column: 2 / -1;
+  }
+
+  .ghost {
+    grid-row: 1;
+  }
+
+  .bar {
+    grid-column: var(--d-from) / var(--d-to);
+    grid-row: 1;
+  }
+
+  .barWhere {
+    display: inline;
+  }
+
+  .sep {
+    grid-row: 2;
+  }
+
+  .sepTrack {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+  }
+
+  /* The chips sit in their own five-column track, so they carry their own pair
+     of line numbers — the row's `--d-*` are offset by the ticket rail. */
+  .sepChip {
+    grid-column: var(--s-from) / var(--s-to);
+    /* Every chip on one line. Without an explicit row, sparse auto-placement
+       drops a chip that starts left of the previous one onto a second row. */
+    grid-row: 1;
+    margin: 0 var(--bar-inset);
+  }
+
+  .detail {
+    grid-row: 3;
+    grid-column: var(--d-from) / var(--d-to);
+  }
+
+  .detailOnly {
+    grid-row: 2;
+  }
+}
+
+/* ── The floor ────────────────────────────────────────────────────────────── */
+
+.page a:focus-visible,
+.page summary:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .choose {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+}

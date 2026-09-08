@@ -3,10 +3,12 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { tiersOrNull } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
-import { formatPrice, type TicketId } from '@/lib/tickets';
+import type { TicketId } from '@/lib/tickets';
+import { demoCheckoutAllowed } from '@/lib/demo-checkout';
 import { stripeEnabled } from '@/lib/stripe';
 import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
+import { TierCard } from './tier-card';
 
 /**
  * The exhibitor and sponsor registration pages.
@@ -29,8 +31,9 @@ import { CheckoutForm } from './checkout-form';
  *
  * ── Deliberately plainer than `/tickets` ────────────────────────────────────
  *
- * No hero photograph, no two-panel headline layout, no FAQ about student
- * rates. An exhibitor arrives from a sales conversation already knowing what
+ * This page keeps a short navy heading band and a column of reasons beside the
+ * form; `/tickets` has neither, because an attendee lands there to compare
+ * prices. An exhibitor arrives from a sales conversation already knowing what
  * they want; the page's job is to take the money without making them read.
  * Copying the attendee page's furniture here would be mimicry rather than
  * design.
@@ -96,9 +99,10 @@ export async function AudienceTicketsPage({
       </section>
 
       {/*
-        The packages, listed rather than panelled. An exhibitor comparing three
-        booth sizes wants them in a column where the prices line up, not in the
-        attendee page's side-by-side cards which only work for two.
+        The packages, in the same grid `/tickets` uses. Three booth sizes want
+        their prices on one line where they can be read against each other, and
+        their contents behind a disclosure — an exhibitor comparing packages is
+        deciding on the number first.
       */}
       {tiers.length > 0 && (
         <section className="band band-centred">
@@ -111,33 +115,16 @@ export async function AudienceTicketsPage({
               </p>
             )}
 
-            <div className="kgc-tickets small">
+            {/*
+              The same card the attendee tickets page uses. Sponsorship
+              packages are ticket tiers with bigger numbers on them, and two
+              layouts for one object is two things to keep in step — which is
+              how this page ended up with prices that lined up and a `/tickets`
+              page whose prices did not.
+            */}
+            <div className="tier-grid">
               {tiers.map((t) => (
-                <div key={t.id} className={`kgc-ticket ${t.featured ? 'dark' : 'light'}`}>
-                  <h3>{t.name}</h3>
-                  <p className="price">{formatPrice(t.priceCents, t.currency)}</p>
-                  {t.tagline && <p className="group">{t.tagline}</p>}
-                  <ul>
-                    {t.includes.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                  {t.onSale ? (
-                    <Link
-                      href={`?tier=${t.id}#buy`}
-                      className={`btn ${t.featured ? 'btn-accent' : 'btn-primary'}`}
-                    >
-                      Choose {t.name}
-                    </Link>
-                  ) : (
-                    /*
-                      A closed package still renders. One that vanishes reads as
-                      a bug to somebody who was sent a link to it, and the
-                      reason it closed is the thing they actually need to know.
-                    */
-                    <p className="sold-out">{t.unavailableReason ?? 'Not available'}</p>
-                  )}
-                </div>
+                <TierCard key={t.id} tier={t} href={`?tier=${t.id}#buy`} />
               ))}
             </div>
           </div>
@@ -181,6 +168,7 @@ export async function AudienceTicketsPage({
               tiers={tiers}
               initialTier={preselected}
               stripeReady={stripeEnabled()}
+              demoReady={await demoCheckoutAllowed()}
               questions={form.fields}
             />
           ) : (
