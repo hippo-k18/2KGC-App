@@ -7,7 +7,9 @@
     "import:whova": "tsx src/import-whova.ts",
     "typecheck": "tsc --noEmit",
     "claims": "tsx src/set-claims.ts",
-    "import:speakers-2026": "tsx src/import-speakers-2026.ts"
+    "import:speakers-2026": "tsx src/import-speakers-2026.ts",
+    "avatars:speakers": "tsx src/generate-speaker-avatars.ts",
+    "rebuild:programme": "tsx src/rebuild-programme.ts"
   },
   "dependencies": {
     "@kgc/shared": "*",

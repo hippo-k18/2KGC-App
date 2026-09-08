@@ -1,4 +1,9 @@
-import type { QuestionFieldDef } from "@kgc/shared";
+import type {
+  FieldTrigger,
+  FieldVisibility,
+  FormFieldDef,
+  QuestionFieldDef,
+} from "@kgc/shared";
 
 /**
  * Form definitions and the validator that gates them.
@@ -49,100 +54,31 @@ import type { QuestionFieldDef } from "@kgc/shared";
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * Every field kind either form can ask.
+ * The four shapes below are declared in `@kgc/shared` and re-exported here.
  *
- * The six registration kinds are `QuestionFieldDef["kind"]` in `@kgc/shared`
- * and are not re-spelled here, so adding one there adds it here. `description`
- * is the seventh and the only one that is not a question: it renders a block of
- * text between questions — the instructions above the abstract box, the note
- * about the word limit — and collects nothing.
+ * They were written in this file first, because the schema for the call for
+ * abstracts was being drafted in parallel and a type cannot be imported from a
+ * document type that does not exist yet. It exists now, so they moved: a form
+ * field is a *stored* shape — it goes into `questionForms/{audience}.fields` and
+ * into `calls/{id}.form` — and every other stored shape in this project is
+ * declared in `models.ts`. Keeping a second declaration here would have meant
+ * `CallFormFieldDef` and `FormFieldDef` being structurally almost identical,
+ * which typechecks right up until somebody adds a property to one of them.
  *
- * The abstract/summary field is **not** an eighth kind. It is a `long-text`
- * with an explicit `maxLength`; a separate kind would be `long-text` with a
- * different name and two code paths that have to agree about trimming.
+ * Re-exported rather than left to be imported from `@kgc/shared` directly, so
+ * that the callers who already say `from "@kgc/scripts/src/lib/question-forms"`
+ * — the organizer's editor, the website's renderer — keep working, and so that
+ * a reader of this file can still see what the functions below operate on.
  */
-export type FormFieldKind = QuestionFieldDef["kind"] | "description";
-
-/**
- * Who may see the answer to a question.
- *
- * The submitter always sees their own answers — this is about everybody else,
- * and it is the "Who can see this question?" control on Whova's abstract form.
- * `organizers` is the default when absent, because that is what every answer
- * this project has ever stored is today, and a field whose visibility somebody
- * forgot to set must not become the one that publishes an email address.
- *
- * ⚠️ This is a *display* decision and it is enforced by whoever renders the
- * answer, through `canSee` / `redactAnswers`. It is not a security boundary —
- * `firestore.rules` filters documents, not fields (AGENTS.md, Security model),
- * so a genuinely secret answer belongs in a subcollection, the way
- * `submissions/{id}/identity` does for blind review.
- */
-export type FieldVisibility = "public" | "reviewers" | "organizers";
+export type {
+  FieldTrigger,
+  FieldVisibility,
+  FormFieldDef,
+  FormFieldKind,
+} from "@kgc/shared";
 
 /** The classes of reader `canSee` knows about. */
 export type FieldViewer = "public" | "reviewer" | "organizer";
-
-/**
- * What makes a sub-question appear.
- *
- * One parent, one answer. Whova's own control is "show this when the answer to
- * X is Y", and anything richer — two conditions, a range, "any answer except" —
- * is a rules engine that has to be rendered, validated and explained to an
- * organizer in a dropdown.
- */
-export interface FieldTrigger {
-  /** The id of the parent question. Never a prompt: ids are what answers key on. */
-  fieldId: string;
-  /**
-   * The parent answer that reveals this question. For `multi-choice` it is
-   * satisfied when the value is among those picked; for `checkbox`/`consent` it
-   * is the string `"true"`, meaning ticked.
-   */
-  equals: string;
-}
-
-/**
- * One field on any form this project builds.
- *
- * A widening of `QuestionFieldDef`, not a replacement: every `QuestionFieldDef`
- * is a valid `FormFieldDef`, so `questionForms/{audience}` documents flow
- * through everything here untouched and every existing caller keeps its own
- * narrower type through the generics below.
- *
- * ⚠️ Defined here rather than in `packages/shared/src/models.ts` only because
- * the schema for the call for abstracts is being written in parallel. The
- * intent is that this shape lands there — `FormFieldDef`, plus `version` and a
- * retired-version archive on the form document, plus `formVersion` on a
- * submission — and this local definition is deleted in favour of the import.
- */
-export interface FormFieldDef extends Omit<QuestionFieldDef, "kind"> {
-  kind: FormFieldKind;
-  /**
-   * Characters allowed in a text answer. Absent means the default for the kind:
-   * 200 for `short-text`, 2,000 for `long-text` — the numbers registration has
-   * always enforced, so an existing form is unaffected.
-   *
-   * Capped by `MAX_ANSWER_LENGTH`. 10,000 for a paragraph is Whova's ceiling on
-   * an abstract and is a real limit rather than a round number: Firestore's own
-   * limit is a megabyte per *document*, and a submission carries a title, a
-   * summary and every other answer beside it.
-   */
-  maxLength?: number;
-  /** Who may see the answer. Absent means `organizers`. */
-  visibility?: FieldVisibility;
-  /**
-   * Present on a sub-question: the parent answer that reveals it.
-   *
-   * Sub-questions are held in the same flat `fields` array as everything else,
-   * not nested inside their parent. Answers are a flat map keyed by field id at
-   * every depth, `fieldsForTier` already orders the array, and a nested array
-   * inside a Firestore document is a shape the editor would have to walk twice.
-   * The nesting is one level deep and `validateForm` enforces that — see
-   * `MAX_SUB_QUESTIONS`.
-   */
-  showIf?: FieldTrigger;
-}
 
 /** Whova's limit, and a sensible one: five sub-questions per parent answer. */
 export const MAX_SUB_QUESTIONS = 5;

@@ -711,3 +711,219 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ...(unsubscribe ? { unsubscribeUrl: unsubscribe.oneClick } : {}),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Call for abstracts
+//
+// Two transactional templates, added rather than a second mail path. Everything
+// below goes through the same `send()` as every receipt: one place that knows
+// the Resend key, one place that writes `emailLog`, one place that decides what
+// a plain-text part looks like. `CFA-PLAN.md` §4 calls the accept/reject mail
+// "the cheapest piece — the bulk sender is built" and this is what that meant.
+//
+// ⚠️ Neither carries an unsubscribe link, and that is deliberate. `List-Unsubscribe`
+// is for mail governed by the suppression list; an author who submitted a paper
+// has asked for these, and offering to stop them would be offering something
+// this code will not honour — the decision mail is sent whatever `contacts`
+// says. See `unsubscribeUrlFor` for the same argument in the other direction.
+// ---------------------------------------------------------------------------
+
+export interface SubmissionReceiptInput {
+  to: string;
+  /** The author's name, as they typed it. */
+  name?: string;
+  /** The call, in the words on the public page. */
+  callTitle: string;
+  /** The abstract's title, as submitted. */
+  title: string;
+  /** `/submit/token/{token}` — the way back to their own draft. */
+  link: string;
+  /**
+   * When the call closes, already formatted for a human in the call's own zone.
+   *
+   * A string rather than a `Date`, because the deadline is authored as wall
+   * clock in a named timezone and the only correct rendering of it is the one
+   * the organizer typed. Formatting it here would do so in the server's zone,
+   * which on Netlify is UTC and on a laptop is not.
+   */
+  closesAtLabel: string;
+  /** Whether this is a finished submission or a draft they can come back to. */
+  draft: boolean;
+}
+
+/**
+ * The acknowledgement, and — more importantly — the link back.
+ *
+ * The link is the whole point of the mail. There is no account here, so this
+ * message *is* the author's only route back to their own work: lose it and the
+ * answer is "ask an organizer to re-send it", which is a support ticket per
+ * author. It says what the link does and that it should not be forwarded,
+ * because it is a bearer credential for unpublished work and the reader has no
+ * other way to know that.
+ */
+export async function sendSubmissionReceipt(
+  store: Firestore,
+  input: SubmissionReceiptInput,
+): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const heading = input.draft
+    ? 'Your abstract has been saved as a draft'
+    : 'We have your abstract';
+
+  const opening = input.draft
+    ? `we have saved your draft for <strong>${esc(input.callTitle)}</strong>. It has <strong>not</strong> been submitted yet — use the link below to finish it before ${esc(input.closesAtLabel)}.`
+    : `thank you — your abstract has been submitted to <strong>${esc(input.callTitle)}</strong>. There is nothing else to do for now.`;
+
+  const html = shell(
+    heading,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${opening}</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:6px 0 0;">
+       ${row('Title', esc(input.title))}
+       ${row('Call', esc(input.callTitle))}
+       ${row('Closes', esc(input.closesAtLabel))}
+     </table>
+     ${button(input.link, input.draft ? 'Finish your submission' : 'View or edit your submission')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       That link opens your submission and nothing else — no other submission, no reviews, no
+       scores. Please do not forward it: anybody who has it can read and, while the call is open,
+       edit your abstract. It stops working after twelve months.
+     </p>`,
+  );
+
+  const text = `${greeting} ${
+    input.draft
+      ? `we have saved your draft for ${input.callTitle}. It has NOT been submitted yet — use the link below to finish it before ${input.closesAtLabel}.`
+      : `thank you — your abstract has been submitted to ${input.callTitle}.`
+  }
+
+Title:  ${input.title}
+Call:   ${input.callTitle}
+Closes: ${input.closesAtLabel}
+
+${input.draft ? 'Finish your submission' : 'View or edit your submission'}:
+${input.link}
+
+That link opens your submission and nothing else. Please do not forward it —
+anybody who has it can read, and while the call is open edit, your abstract.
+It stops working after twelve months.
+
+—
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: input.draft
+      ? `Your draft for ${input.callTitle}`
+      : `We have your abstract — ${input.title}`,
+    html,
+    text,
+    template: 'submission-receipt',
+  });
+}
+
+export interface SubmissionDecisionInput {
+  to: string;
+  name?: string;
+  callTitle: string;
+  title: string;
+  accepted: boolean;
+  /** The author's link back, so they can read their own submission beside the decision. */
+  link: string;
+  /**
+   * Anything the committee chose to forward — reviewer comments marked for
+   * authors, or a note typed on the decision screen.
+   *
+   * Plain text, and only what an organizer explicitly sent. ⚠️ Never
+   * `commentsToCommittee`: `ReviewDoc` keeps the two in separate fields for
+   * exactly this reason, and one textarea doing both jobs is how a private
+   * remark about a submitter ends up in their rejection.
+   */
+  note?: string;
+  /** Who pressed send, recorded per recipient in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * Accept or reject, in one template.
+ *
+ * ── The rejection gets the same care as the acceptance ──────────────────────
+ *
+ * Most of the mail this function sends is a rejection — that is what a call for
+ * papers is — and the version of this template that only reads well when
+ * `accepted` is true is the version that gets written by accident. So the
+ * rejection has a first sentence that says the answer in the first line, a
+ * reason it was competitive rather than a form apology, and the same "here is
+ * your submission" link, because somebody who was turned down is entitled to
+ * read what they sent.
+ *
+ * ⚠️ It says nothing about the agenda. Acceptance is not scheduling: promoting a
+ * submission into a session is a separate, deliberate step in Session Manager
+ * (`CFA-PLAN.md` §4), and a mail promising a slot before anybody has decided a
+ * room and a time is a promise this system has not made.
+ */
+export async function sendSubmissionDecision(
+  store: Firestore,
+  input: SubmissionDecisionInput,
+): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  const opening = input.accepted
+    ? `we are delighted to say that <strong>“${esc(input.title)}”</strong> has been accepted for ${esc(input.callTitle)}.`
+    : `thank you for submitting <strong>“${esc(input.title)}”</strong> to ${esc(input.callTitle)}. After review, we are not able to include it in the programme this year.`;
+
+  const next = input.accepted
+    ? `We will be in touch separately about scheduling — the date, time and room are decided as the programme is assembled, so this is not a slot yet.`
+    : `We had more good submissions than we have room for, and a decision not to include one is not a judgement that it was weak. We would be glad to see you submit again.`;
+
+  const noteHtml = input.note?.trim()
+    ? `<div style="margin:20px 0 0;padding:14px 16px;background:#fafbfc;border:1px solid #e3e5e8;border-radius:4px;">
+         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6b7280;">From the committee</p>
+         ${input.note
+           .split(/\n\s*\n/)
+           .map((para) => para.trim())
+           .filter(Boolean)
+           .map(
+             (para) =>
+               `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+           )
+           .join('')}
+       </div>`
+    : '';
+
+  const html = shell(
+    input.accepted ? 'Your abstract has been accepted' : `About your abstract for ${esc(input.callTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${opening}</p>
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${next}</p>
+     ${noteHtml}
+     ${button(input.link, 'Read your submission')}`,
+  );
+
+  const text = `${greeting} ${
+    input.accepted
+      ? `we are delighted to say that "${input.title}" has been accepted for ${input.callTitle}.`
+      : `thank you for submitting "${input.title}" to ${input.callTitle}. After review, we are not able to include it in the programme this year.`
+  }
+
+${
+  input.accepted
+    ? 'We will be in touch separately about scheduling — the date, time and room are decided as the programme is assembled, so this is not a slot yet.'
+    : 'We had more good submissions than we have room for, and a decision not to include one is not a judgement that it was weak. We would be glad to see you submit again.'
+}
+${input.note?.trim() ? `\nFrom the committee:\n${input.note.trim()}\n` : ''}
+Read your submission:
+${input.link}
+
+—
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: input.accepted
+      ? `Accepted — ${input.title}`
+      : `Your submission to ${input.callTitle}`,
+    html,
+    text,
+    template: 'submission-decision',
+    actor: input.actor,
+  });
+}
