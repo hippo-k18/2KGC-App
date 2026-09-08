@@ -23,12 +23,15 @@
     "ios": "npm run ios --workspace=app",
     "android": "npm run android --workspace=app",
     "dev": "npm run start --workspace=app",
-    "test:commerce": "firebase emulators:exec --only firestore,auth \"vitest run tests/commerce\"",
+    "test:commerce": "firebase emulators:exec --only firestore,auth \"vitest run tests/commerce --no-file-parallelism\"",
+    "test:cfa": "firebase emulators:exec --only firestore --config firebase.cfa-test.json --project kgc-cfa-test \"vitest run --config vitest.cfa.mts\"",
     "test:denormalise": "firebase emulators:exec --only firestore \"vitest run tests/denormalise\"",
     "test:attendance": "firebase emulators:exec --only firestore \"vitest run tests/attendance\"",
     "test:programme": "vitest run tests/programme",
     "test:programme-import": "firebase emulators:exec --only firestore --config firebase.import-test.json --project kgc-import-test \"vitest run --config vitest.import-emulator.mts\"",
-    "smoke": "bash scripts/smoke-dashboard.sh"
+    "smoke": "bash scripts/smoke-dashboard.sh",
+    "avatars:speakers": "npm run avatars:speakers --workspace=@kgc/scripts --",
+    "rebuild:programme": "npm run rebuild:programme --workspace=@kgc/scripts --"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

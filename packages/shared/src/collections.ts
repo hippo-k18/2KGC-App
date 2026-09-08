@@ -50,6 +50,16 @@ export const COLLECTIONS = {
   exhibitorListings: "exhibitorListings",
   /** The exhibition floor plan, one document per sellable space. Server-only. */
   booths: "booths",
+  /**
+   * Complimentary passes, one document per *issued* seat. Server-only.
+   *
+   * Keyed `{orderId}__seat-{n}` so that issuing one is a `create` that fails
+   * rather than a counter that races — the same reason `booths` is keyed by
+   * booth number. What remains on a sponsorship is the tier's
+   * `complimentaryPasses` minus the number of these that exist, and is never
+   * stored anywhere.
+   */
+  compPasses: "compPasses",
   /** Round tables and bookable meeting slots — an organizer's plan, not an app feature. */
   gatherings: "gatherings",
   /** Marketing contacts — people to email who hold no ticket. */
@@ -98,6 +108,29 @@ export const COLLECTIONS = {
    * hold a ticket, and most external committee members never buy one.
    */
   reviewers: "reviewers",
+  /**
+   * The volunteer roster — people working a shift, with the shift on the row.
+   *
+   * Server-only, like `contacts`, and for a sharper reason: a volunteer row
+   * carries a phone number and a shift, which together say where a named person
+   * will be standing at a given hour. It has no `firestore.rules` match block
+   * and must not get one.
+   *
+   * ⚠️ Deliberately **not** `contacts`. That collection is a mailing list whose
+   * `unsubscribedAt` suppresses sends, and a volunteer who opted out of the
+   * newsletter still has to be told which door to stand at.
+   */
+  volunteers: "volunteers",
+  /**
+   * Issued attendance certificates, one document per registration per issue.
+   *
+   * Server-only. The record is the point: a certificate names hours somebody may
+   * claim professional credit for, so what was issued, to whom, on which
+   * evidence and by which organizer has to survive the next recount. Re-issuing
+   * the same registration overwrites its own document rather than appending, so
+   * a corrected certificate has one authoritative version.
+   */
+  certificates: "certificates",
   /** Server-only: written and read by Cloud Functions with the Admin SDK. */
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",

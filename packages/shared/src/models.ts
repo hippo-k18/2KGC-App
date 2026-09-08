@@ -132,6 +132,21 @@ export interface UserDoc extends BaseDoc {
    * attendees out of the app behind a prompt they cannot satisfy.
    */
   mustChangePassword?: boolean;
+  /**
+   * True when the account has **no password at all** and the attendee is being
+   * asked to choose their first one, rather than replace a temporary one.
+   *
+   * Set by `verifySignInCode` on the sign-in that creates the account: an
+   * account minted from a six-digit email code is created with an address and
+   * no credential, so there is nothing for `/change-password` to reauthenticate
+   * against. That screen asks for the current password and would otherwise
+   * present a required field nobody can fill.
+   *
+   * Always accompanied by `mustChangePassword: true` — that is the flag
+   * `_layout.tsx` gates the redirect on, and this one only says *which* of the
+   * two situations the attendee is in. Cleared together with it.
+   */
+  mustSetPassword?: boolean;
 }
 
 /**
@@ -255,6 +270,97 @@ export interface QuestionFieldDef {
    */
   ticketTypeIds?: string[];
   order: number;
+}
+
+/**
+ * The kinds every form in this project can hold.
+ *
+ * `description` is a block of prose that collects no answer. It is deliberately
+ * *not* on `QuestionFieldDef`: `apps/web`'s checkout renderer switches on that
+ * narrower union with a text-input fallback, so widening it would render an
+ * explanatory paragraph as an empty box on the payment page and typecheck
+ * cleanly while doing it.
+ *
+ * There is no separate "abstract" kind. An abstract is a `long-text` with an
+ * explicit `maxLength`; a kind of its own would be `long-text` under a different
+ * name, with two code paths that then have to agree about trimming.
+ */
+export type FormFieldKind = QuestionFieldDef["kind"] | "description";
+
+/**
+ * Who may see the answer to a question.
+ *
+ * The submitter always sees their own answers — this is about everybody else.
+ * `organizers` is what an absent value means, because that is what every answer
+ * this project has ever stored is today, and a field whose visibility somebody
+ * forgot to set must not become the one that publishes an email address.
+ *
+ * ⚠️ This is a *display* decision, enforced by whoever renders the answer
+ * (`canSee` / `redactAnswers` in `@kgc/scripts/src/lib/question-forms.ts`). It is
+ * not a security boundary — `firestore.rules` filters documents and not fields —
+ * so a genuinely secret answer belongs in a subcollection, the way
+ * `submissions/{id}/identity` does for blind review.
+ */
+export type FieldVisibility = "public" | "reviewers" | "organizers";
+
+/**
+ * What makes a sub-question appear: one parent, one answer.
+ *
+ * Anything richer — two conditions, a range, "any answer except" — is a rules
+ * engine that has to be rendered, validated and then explained to an organizer
+ * inside a dropdown.
+ */
+export interface FieldTrigger {
+  /** The id of the parent question. Never a prompt: ids are what answers key on. */
+  fieldId: string;
+  /**
+   * The parent answer that reveals this question. For `multi-choice` it is
+   * satisfied when the value is among those picked; for `checkbox`/`consent` it
+   * is the string `"true"`, meaning ticked.
+   */
+  equals: string;
+}
+
+/**
+ * One field on any form this project builds — registration questions and the
+ * call for abstracts alike.
+ *
+ * A widening of `QuestionFieldDef`, not a replacement: every `QuestionFieldDef`
+ * is a valid `FormFieldDef`, so `questionForms/{audience}` documents flow
+ * through the shared builder untouched and every existing caller keeps its own
+ * narrower type. Nothing changes for registration until somebody defines a field
+ * that uses one of the three properties below.
+ *
+ * The builder, the validator and the version planner that operate on this shape
+ * live in `@kgc/scripts/src/lib/question-forms.ts` rather than here, for the
+ * reason that package exists at all: `apps/web` renders these forms and
+ * `apps/organizer` edits them, and neither can import the other. This file holds
+ * the shape; that one holds the rules about it.
+ */
+export interface FormFieldDef extends Omit<QuestionFieldDef, "kind"> {
+  kind: FormFieldKind;
+  /**
+   * Characters allowed in a text answer. Absent means the default for the kind:
+   * 200 for `short-text`, 2,000 for `long-text` — the numbers registration has
+   * always enforced, so an existing form is unaffected.
+   *
+   * Capped by `MAX_ANSWER_LENGTH` in the validator. 10,000 for a paragraph is a
+   * real limit rather than a round number: Firestore's own ceiling is a megabyte
+   * per *document*, and a submission carries a title, an abstract and every
+   * other answer beside it.
+   */
+  maxLength?: number;
+  /** Who may see the answer. Absent means `organizers`. */
+  visibility?: FieldVisibility;
+  /**
+   * Present on a sub-question: the parent answer that reveals it.
+   *
+   * Sub-questions live in the same flat `fields` array as everything else rather
+   * than nested inside their parent, because answers are a flat map keyed by
+   * field id at every depth. The nesting is one level deep and the validator
+   * enforces that.
+   */
+  showIf?: FieldTrigger;
 }
 
 /**
@@ -382,6 +488,23 @@ export interface SessionDoc extends BaseDoc {
   tags: string[];
   slidesUrl?: string;
   status: PublishStatus;
+  /**
+   * Where this session's *content* came from. Absent means authored normally.
+   *
+   * `'fabricated'` marks a session whose title, abstract and speaker assignment
+   * were generated rather than supplied by a programme committee — written by
+   * `scripts/src/lib/programme-2026.ts`, which carries the full argument.
+   *
+   * It exists because that programme puts **real, named speakers** on talks
+   * they never gave. The people are real, the tracks and the timetable are
+   * scraped from the published conference, and the talks are invented; without
+   * a field saying so, the only record of which half is which is a docblock in
+   * a script nobody reads before pointing a demo at a room full of people.
+   * Nothing renders it — it is for answering "is this programme real?" with a
+   * query instead of an argument, and for finding every such document again on
+   * the day a genuine programme replaces them.
+   */
+  provenance?: "fabricated";
   /** Soft delete. Attendees have this saved and Firestore has no cascade. */
   deletedAt?: Timestamp;
   /** Groups repeated runs of the same workshop. */
@@ -915,6 +1038,81 @@ export interface TicketTypeDoc extends BaseDoc {
    * are not necessarily the same product for tax purposes.
    */
   taxCode: string;
+
+  /**
+   * How many attendee registrations **one unit** of this package entitles the
+   * buyer to hand out — a sponsor's complimentary passes. Absent means none.
+   *
+   * ── Why this is a number and not a bullet in `includes` ────────────────────
+   *
+   * `includes` is marketing copy. A sponsor tier that reads "includes 4 full
+   * conference passes" promised four passes and minted none of them, and the
+   * obvious repair — parse the digit out of the sentence — breaks the first
+   * time somebody writes "four", or "4 passes (2 in person)", or renames the
+   * bullet. It is the same mistake as deriving workshop access from the prose
+   * instead of from `includesWorkshops`, and it fails in the same direction:
+   * silently, in favour of the buyer, months after the sale.
+   *
+   * The passes themselves are *not* counted here. Issuance is one
+   * `compPasses/{orderId}__seat-{n}` document per pass, and what remains is
+   * that count subtracted from this one — never a field decremented in place,
+   * because a decremented counter that loses a write hands out a free ticket
+   * twice.
+   */
+  complimentaryPasses?: number;
+}
+
+/**
+ * `compPasses/{orderId}__seat-{n}` — one complimentary pass, once it is named.
+ *
+ * ── The seat is the key, and that is the whole allocation ───────────────────
+ *
+ * A sponsorship that includes four passes is four addressable seats:
+ * `{orderId}__seat-1` … `__seat-4`. Redeeming one is a transaction that reads
+ * every seat and `create`s the lowest free one, so two organizers clicking at
+ * the same moment do not both get the last pass — one write wins and the other
+ * finds no seat left and is refused. This is the shape `booths` uses, for the
+ * reason it uses it: an oversold allocation is not a rounding error, it is a
+ * second person standing at the door with a ticket that should not exist.
+ *
+ * Deliberately **not** a counter. `ExhibitorDoc.passesAllocated` /
+ * `passesUsed` is the other pattern, and it cannot refuse anything: two writes
+ * that both read `passesUsed: 3` both store `4`.
+ *
+ * ── What a pass *is* ────────────────────────────────────────────────────────
+ *
+ * An ordinary registration, minted by the one `ensureRegistration` in
+ * `@kgc/scripts/src/lib/fulfilment.ts` — the same function a paid seat goes
+ * through, with the same `qrSecret` and the same `claimCode`. There is no
+ * second registration product and there must not be one (`CFA-PLAN.md` §1.3):
+ * a comped seat is the existing path at zero, and a parallel path to a badge is
+ * a badge that scans differently at the door.
+ *
+ * Server-only. No `firestore.rules` match block, and it must not get one — the
+ * document carries a named attendee's address, and a `list` of this collection
+ * is every sponsor's guest list in one query.
+ */
+export interface CompPassDoc {
+  eventId: string;
+  /** The purchase this pass came out of. `orders/{orderId}`. */
+  orderId: string;
+  /** 1-based, and the tail of the document id. Never reused after a release. */
+  seat: number;
+  /** The tier that granted it, so a renamed package does not orphan the record. */
+  ticketTypeId: string;
+  ticketTypeName: string;
+  name: string;
+  /** Lower-cased. The registration is keyed off it, so it is the identity here. */
+  email: string;
+  /**
+   * Absent only in the window between claiming the seat and minting the
+   * registration — the seat is claimed first, because minting first would hand
+   * out the ticket before the allocation had agreed to it.
+   */
+  registrationId?: string;
+  issuedAt: Timestamp;
+  /** The organizer who named this attendee. */
+  issuedBy: string;
 }
 
 /**
@@ -1051,7 +1249,24 @@ export interface EmailLogDoc {
      * not once per campaign — "did Ada get it?" is the question this log exists
      * to answer, and a single row saying "sent to 45 speakers" cannot.
      */
-    | "bulk-message";
+    | "bulk-message"
+    /**
+     * The acknowledgement an author gets when they submit an abstract, carrying
+     * the capability link back to their own submission.
+     *
+     * It is transactional and it is **not** governed by the suppression list:
+     * somebody who unsubscribed from the newsletter has still just submitted a
+     * paper, and withholding the link to their own work would be honouring an
+     * opt-out they did not give. `sendBulkMessage` is the one sender that
+     * consults `contacts`; these two deliberately do not.
+     */
+    | "submission-receipt"
+    /**
+     * Accepted, or rejected. One template rather than two, because they are the
+     * same mail with a different first sentence and splitting them is how the
+     * rejection quietly loses the paragraph explaining what happens next.
+     */
+    | "submission-decision";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */
@@ -1850,15 +2065,20 @@ export type ReviewStatus = "assigned" | "submitted" | "declined";
  *
  * · A `description` kind — a block of prose that collects no answer, which a
  *   call needs ("your abstract will be read by three reviewers; 300 words") and
- *   a checkout form does not. It is added *here* rather than widened onto
- *   `QuestionFieldDef` deliberately: `apps/web`'s checkout renderer switches on
- *   `kind` with a text-input fallback, so widening the shared union would render
- *   an explanatory paragraph as an empty box on the payment page, and typecheck
- *   cleanly while doing it.
+ *   a checkout form does not. It is added on `FormFieldDef` rather than widened
+ *   onto `QuestionFieldDef` deliberately: `apps/web`'s checkout renderer
+ *   switches on `kind` with a text-input fallback, so widening the shared union
+ *   would render an explanatory paragraph as an empty box on the payment page,
+ *   and typecheck cleanly while doing it.
+ *
+ * ⚠️ It is an alias of `FormFieldDef` and not a second declaration of one. The
+ * builder, the validator and the version planner in
+ * `@kgc/scripts/src/lib/question-forms.ts` all take `FormFieldDef`, and a
+ * separately-declared call field would be structurally *almost* the same — which
+ * is worse than either identical or different, because it typechecks until the
+ * day somebody adds a property to one of them.
  */
-export interface CallFormFieldDef extends Omit<QuestionFieldDef, "ticketTypeIds" | "kind"> {
-  kind: QuestionFieldDef["kind"] | "description";
-}
+export type CallFormFieldDef = Omit<FormFieldDef, "ticketTypeIds">;
 
 /**
  * A superseded version of a call's form, kept so an old submission can still be
@@ -2328,4 +2548,101 @@ export interface ReviewerDoc extends BaseDoc {
   assignedCount: number;
   /** Set only if this reviewer is ever given a real account. See the docblock. */
   uid?: string;
+}
+
+/**
+ * `volunteers/{id}` — one person working one shift.
+ *
+ * ── Why a volunteer is not a `contacts` row and not a `Role` ────────────────
+ *
+ * `contacts` is a mailing list: it carries `unsubscribedAt`, and a suppression
+ * that stops a newsletter must never stop "you are on the 07:00 registration
+ * desk". `Role` is the list the custom claim mirrors, and a claim is minted only
+ * by `scripts/src/set-claims.ts` from a laptop — so a volunteer expressed as a
+ * role could be added here and silently grant nothing, which is the defect class
+ * AGENTS.md counts.
+ *
+ * ── The shift lives on the row, not in a `shifts` subcollection ─────────────
+ *
+ * One person working Friday morning and Saturday afternoon is two documents. It
+ * duplicates the name and the address, and that is the cheaper mistake: the
+ * question an organizer asks is "who is on the desk at 08:00", which is a filter
+ * over rows, and the alternative — a person with an array of shifts — cannot
+ * answer it without unrolling the array in memory on every read. Deduplicating
+ * the person is a join on `email`, the same fallback key every other
+ * cross-collection read in this project uses.
+ *
+ * `registrationId` is set when the volunteer also holds a ticket, so a volunteer
+ * badge and a volunteer check-in reuse the registration that already exists
+ * rather than minting a second identity for the same human.
+ */
+export type VolunteerStatus = "invited" | "confirmed" | "declined" | "no-show";
+
+export interface VolunteerDoc extends BaseDoc {
+  name: string;
+  /** Lower case. The join key against `registrations` and consent signatures. */
+  email: string;
+  phone?: string;
+  /** What they are doing: "Registration desk", "Room steward". Free text. */
+  role: string;
+  /**
+   * The day key, `YYYY-MM-DD`, in the event's timezone — the same denormalised
+   * shape `SessionDoc.day` carries, so a roster and the agenda can be compared
+   * without either one doing timezone arithmetic.
+   */
+  day?: string;
+  /** Wall clock in the event's timezone, `HH:mm`. Authoring truth, like sessions. */
+  startsAtLocal?: string;
+  endsAtLocal?: string;
+  status: VolunteerStatus;
+  notes?: string;
+  /** Present when this volunteer also holds a ticket. Matched on the address. */
+  registrationId?: string;
+}
+
+/**
+ * `certificates/{registrationId}` — an issued attendance certificate.
+ *
+ * Keyed by registration rather than auto-id, so issuing twice corrects one
+ * certificate instead of putting two contradictory ones into the world. That is
+ * the opposite of the `checkIns` rule next door, and deliberately: a check-in is
+ * an event that happened at a time and must never be restamped, while a
+ * certificate is a *statement* about the record, and the current statement is
+ * the only one worth holding.
+ *
+ * ⚠️ `minutes` and `sessionTitles` are copied at issue time, not read live. A
+ * certificate that silently changed its hours when a later scan landed would be
+ * a document somebody has already sent to an accrediting body.
+ */
+export interface CertificateDoc extends BaseDoc {
+  registrationId: string;
+  name: string;
+  email: string;
+  /** Scheduled minutes across the sessions this person was counted into. */
+  minutes: number;
+  /** Titles as they read at issue, for the printed body. */
+  sessionTitles: string[];
+  /** The wording this certificate was issued under — printed, and pinned. */
+  statement: string;
+  /**
+   * The event mark printed at the head of the certificate, pinned like the
+   * wording rather than read live from a settings document.
+   *
+   * A certificate is handed over and then kept; changing the logo next year
+   * must not change what the copy in somebody's file looks like, and a URL read
+   * at render time would do exactly that.
+   *
+   * Two forms, both pinned the same way: a Firebase Storage download URL when
+   * an organizer uploaded their own — see `apps/organizer/src/lib/uploads.ts`,
+   * which is the only writer of those — or the dashboard-relative path of the
+   * bundled KGC mark, which is what a first run stamps on by default. Absent
+   * means a certificate deliberately issued with no mark at all.
+   */
+  logoUrl?: string;
+  /** Who signs it: a person's name and their role, both as printed. */
+  signatoryName: string;
+  signatoryRole: string;
+  issuedAt: Timestamp;
+  /** The allowlisted organizer identity, as every other audited write records it. */
+  issuedBy: string;
 }

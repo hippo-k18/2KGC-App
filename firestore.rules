@@ -657,6 +657,59 @@ service cloud.firestore {
     }
 
     /**
+     * Handouts — slide decks, datasets and the code of conduct.
+     *
+     * ── The honest subset, and why it is a subset ───────────────────────────
+     *
+     * `DocumentDoc.visibleToTicketTypes` restricts a handout to holders of a
+     * named ticket type: a workshop dataset belongs to the people who paid for
+     * the workshop. Nothing in this file can express that. The token carries
+     * `registered` and `roles` and nothing else — tier is **not** a claim — and
+     * rules filter documents rather than fields, so there is no predicate that
+     * hands a restricted document to the right readers and withholds it from
+     * the rest.
+     *
+     * So the boundary is drawn where it can actually be drawn: published, and
+     * restricted to nobody. A tier-restricted handout is **absent** from every
+     * client read rather than filtered out of one — its `url` never reaches a
+     * device, which matters more here than it looks, because these are links to
+     * files somebody else is hosting and a leaked one cannot be revoked. That
+     * is the same resolution `directory/{uid}` reaches for `users/{uid}` and
+     * `exhibitorListings/{id}` for `exhibitors/{id}`, for the same reason, and
+     * it is the reason `apps/web/src/lib/data.ts` filters on the server too.
+     *
+     * Widening this is a decision about the *token*, not about this block: it
+     * needs the tier minted as a claim at provisioning time, which changes what
+     * `ensureRegistration` writes and what every existing signed-in attendee
+     * holds. Do not add a tier claim here to make a document appear.
+     *
+     * ── Both verbs, and the shape the query must have ───────────────────────
+     *
+     * A `list` is evaluated against what the query could return, not against
+     * the rows that come back, so an unfiltered query over this collection is
+     * refused entirely — the client's constraints have to prove the predicate.
+     * `useDocuments` therefore carries both equalities, `status == 'published'`
+     * and `visibleToTicketTypes == []`, and the suite pins the `get` and the
+     * `list` separately: this is exactly the asymmetry that took the inbox down
+     * once, and the empty-array equality is the half nobody expects to matter.
+     *
+     * Organizers keep the unrestricted read the rest of this file gives them,
+     * so a draft can be checked from a phone before it is published.
+     */
+    match /documents/{documentId} {
+      allow read: if isRegistered()
+        && ((resource.data.status == 'published'
+             && resource.data.visibleToTicketTypes.size() == 0)
+            || isOrganizer());
+      // Admin SDK only, like `settings` and the two projections above. The
+      // dashboard's Content › Documents writes these server-side and bypasses
+      // rules; an organizer is a client with a role, and a client that could
+      // write this could put an attacker-chosen `url` in front of every
+      // attendee — a document tile is a link people are told to tap.
+      allow write: if false;
+    }
+
+    /**
      * Surveys — session feedback and the post-event survey.
      *
      * The `status` predicate is the one `sessions` already makes, for the same
