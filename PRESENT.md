@@ -1,23 +1,25 @@
 # KGC 2027 — demo run sheet
 
-> ## ⚠️ Out of date as of 2026-08-31 — this run sheet no longer works
+> ## ⚠️ Superseded on 2026-09-07 by `DEMO-SCRIPT.md`
 >
-> BUILD-PLAN 1.4–1.8 removed demo mode. Three steps below now fail:
+> **Follow `DEMO-SCRIPT.md` instead.** This file is kept as the record of the
+> August demo and its removal, not as instructions.
 >
-> - **Buying a ticket on tab 2.** The pay button is disabled and the site says
->   `STRIPE_SECRET_KEY` is not set. There is no longer any path that completes a
->   purchase without Stripe (`OWNER-ACTIONS.md` §2).
-> - **Signing into the dashboard on tab 3.** The credentials are no longer
->   printed in a panel on the login screen. The two boxes are still there; you
->   have to know the values.
-> - **Signing into the app on tab 4.** `demo` / `123` no longer maps to
->   anything, the fields are not prefilled, and nothing is printed under the
->   form. Sign-in is a six-digit code, and the callable that sends it is
->   undeployed (`OWNER-ACTIONS.md` §3 and §6).
+> What changed since this was written:
 >
-> Everything else — the dashboard's screens, the price edit reaching the public
-> site, the badge and the check-in desk — still works. Rewrite this file when the
-> Stripe test key and the OTP deployment land; do not follow it as it stands.
+> - **The demo runs on localhost now, not the Netlify sites.** The button that
+>   completes a purchase without a card is compiled out of any production build,
+>   so a deployed demo cannot show a sale.
+> - **Sign-in is two named choices** — Sign in (email + password) and Create
+>   account (a six-digit code, then you pick a password). The code endpoints are
+>   served by `apps/web`, not by the undeployed Cloud Functions.
+> - **A ticket purchase no longer issues a temporary password.**
+>   `ISSUE_TEMPORARY_PASSWORDS=0`.
+> - **Email does not arrive at all** — Resend refuses to send from an unverified
+>   domain. `DEMO-SCRIPT.md` has the localhost route to the code.
+>
+> The three steps below that were already broken on 2026-08-31 are still
+> broken, and are now fixed elsewhere rather than here.
 
 Everything below runs against the **live** Firebase project
 `kgc-conference-app-and-website`. The website, the dashboard and the phone all

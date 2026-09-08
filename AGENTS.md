@@ -102,17 +102,27 @@ because the CLI is refused.
 - **Push:** the dashboard sends via the Admin SDK today. The *app* still cannot
   receive — nothing imports `expo-notifications`, `fcmTokens` has no writer, and
   receiving needs a development build rather than Expo Go.
-- **File upload exists now.** `apps/organizer/src/lib/uploads.ts` is the writer
-  `storage.rules` never had, wired to exhibitor, sponsor and speaker images.
-  ⚠️ **The Storage bucket itself has never been created** — see
-  `OWNER-ACTIONS.md` §1. The code fails with an actionable error until it is.
-  ⚠️ And the blocker is one layer earlier than "no bucket", probed 2026-08-31:
-  **`firebasestorage.googleapis.com` is not enabled** on the project, so the
-  bucket cannot be created until it is. `storage.googleapis.com` and its two
-  siblings *are* enabled, which is why this reads as a bucket problem rather
-  than an API problem. Enabling it needs `serviceusage.services.enable`, which
-  `roles/firebase.admin` does not carry — the console's **Build → Storage →
-  Get started** click does it as a side effect. `OWNER-ACTIONS.md` §3b.
+- **File upload works, end to end, as of 2026-09-01.**
+  `apps/organizer/src/lib/uploads.ts` is the writer `storage.rules` never had,
+  wired to exhibitor, sponsor and speaker images.
+  ★ **The Storage blocker is gone.** For months this file said the bucket had
+  never been created and that `firebasestorage.googleapis.com` was not enabled.
+  Both were true and both were fixed on 2026-09-01: the bucket
+  `kgc-conference-app-and-website.firebasestorage.app` exists, the API reports
+  `ENABLED`, and `storage.rules` is published to it — proven by a round trip
+  rather than by a console screen, a 70-byte PNG written with the Admin SDK,
+  fetched anonymously through its token URL and deleted. `OWNER-ACTIONS.md` §1
+  and §3b are the record.
+  ⚠️ Do not reintroduce the old claim. Five dashboard screens still repeated
+  "the bucket has never been created" a week after it had, because they were
+  copied from each other and from this paragraph. If you are about to write on
+  a screen that uploads are impossible, check `OWNER-ACTIONS.md` first.
+  ⚠️ One fix went in with the bucket and is worth knowing: `storage.rules` had
+  match blocks for `avatars`, `sessions`, `sponsors` and `exhibitors` but not
+  `speakers`, which is the third folder `uploads.ts` writes to. Nothing had
+  noticed because every render goes through the `?alt=media&token=` URL, which
+  does not evaluate the rules file at all — so a rules gap in this project is
+  invisible to the app that depends on it.
 - **Badge *printing*** (`badgeTemplates`, `badgePrintJobs`) is still only
   modelled.
 
@@ -280,6 +290,7 @@ npm run typecheck --workspace=@kgc/scripts
 npm run test:rules                   # 203 tests against firestore.rules
 npm test                             # 362 unit tests — INCLUDES test:programme
 npm run test:commerce                # 84 tests: fulfilment, refunds, provisioning, multi-seat
+npm run test:cfa                     # 64 tests: the call-for-abstracts write paths, on the emulator
 npm run test:programme               # 149 tests: conflicts, CSV, speed-networking, attendance
 npm run test:functions               # 55 tests: the triggers and callables, on the emulator
 npm run test:denormalise             # 25 tests: the session-cache fan-out and reconcile
@@ -443,7 +454,16 @@ more naturally and typechecks identically. ⚠️ It bites hardest on a field wh
 *absence* is meaningful — a session's `roomId`, a survey's `sessionId` — where
 "cannot be un-set" is a record permanently pointing at the wrong thing. Nested
 maps need the same care: under `merge` they merge key by key, so name every key
-on every write rather than sending a partial map.
+on every write rather than sending a partial map. ⚠️ **That nested case was
+found live on 2026-09-06**, in `apps/web/src/lib/submissions.ts`: the abstract
+portal used `FieldValue.delete()` correctly in all four *top-level* places and
+then wrote `answers` as the map the validator returned, which holds only the
+questions that were answered — so an author who cleared an answer was told
+"Saved" and carried the old text into review. Four correct uses in one file did
+not prevent the fifth from being wrong, because the map does not look like a
+field. `tests/cfa/portal.test.ts` now pins it, in both directions: an emptied
+answer is deleted, and an answer to a question the organizers have since
+withdrawn is kept.
 
 **7. Env vars need the `EXPO_PUBLIC_` prefix** and are compiled into the bundle.
 After changing them restart with `npx expo start -c`; a plain restart will not
