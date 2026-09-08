@@ -135,7 +135,12 @@ async function decide(
     const nextBudget = tickWindow(
       budgetSnap.data() as WindowCounterDoc | undefined,
       'agenda-fanout',
-      now,
+      // `tickWindow` takes a `Date` rather than a `Timestamp` because it is
+      // shared with `apps/web`, where a `Timestamp` built in `@kgc/scripts`
+      // fails the store's `instanceof` check (AGENTS.md gotcha 8). Nothing is
+      // lost here — the same instant, and the counter fields it returns are
+      // written by the `tx.set` below, which converts a `Date` on write.
+      now.toDate(),
       FANOUT_WINDOW_MS,
       FANOUT_MAX_SESSIONS,
     );
