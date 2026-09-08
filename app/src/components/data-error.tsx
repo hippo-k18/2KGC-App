@@ -82,16 +82,13 @@ function copyFor(error: unknown, subject: string): Copy {
         icon: 'lock',
         title: 'Your pass has not reached this device',
         message:
-          `The server refused to send ${subject} — it is there, and this device was ` +
-          'not allowed to read it. Access is carried in the token this device ' +
-          'received when you signed in, and that can be up to an hour behind your ' +
-          'registration. Trying again fetches a new one. If that does not help, ' +
-          'sign out and sign in again; if it still fails, the registration desk can ' +
-          'check your ticket.',
+          `The server refused to send ${subject}. Access is carried in the token this ` +
+          'device received when you signed in, and that can be up to an hour behind ' +
+          'your registration. Try again, or sign out and sign in again. If it still ' +
+          'fails, the registration desk can check your ticket.',
         short:
           `The server refused to send ${subject}. This device's sign-in token is ` +
-          'older than your registration — try again to fetch a new one, or sign out ' +
-          'and sign in again.',
+          'older than your registration. Try again, or sign out and sign in again.',
         retryLabel: 'Refresh access and try again',
         offerSignOut: true,
       };
@@ -111,9 +108,8 @@ function copyFor(error: unknown, subject: string): Copy {
         icon: 'wifi.slash',
         title: 'No connection',
         message:
-          `Could not reach the server to load ${subject}. This is the network, not ` +
-          'your ticket — nothing is wrong with your registration, and it will load ' +
-          'on its own once you are back online.',
+          `Could not reach the server to load ${subject}. Nothing is wrong with your ` +
+          'registration; it will load once you are back online.',
         short:
           `Could not reach the server to load ${subject}. Nothing is wrong with your ` +
           'registration; it will load once you are back online.',
@@ -129,7 +125,7 @@ function copyFor(error: unknown, subject: string): Copy {
           'is missing a database index for it. Nothing you can do from here changes ' +
           'that, so please tell someone at the registration desk.',
         short:
-          'The server rejected the query itself — a database index is missing. ' +
+          'The server rejected the query itself; a database index is missing. ' +
           'Please tell someone at the registration desk.',
         retryLabel: 'Try again',
         offerSignOut: false,

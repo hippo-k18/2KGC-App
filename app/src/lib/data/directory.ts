@@ -25,8 +25,15 @@ export type Sponsor = WithId<SponsorDoc>;
  *
  * At 1,000 attendees the projection is roughly 450 KB and about $0.30 of reads
  * for the entire event. In-memory search is sub-millisecond, matches on any
- * field, works offline once cached, and needs no search service. Typesense only
- * starts to earn its keep above roughly 3,000–5,000 people.
+ * field, costs no round trip per keystroke, and needs no search service.
+ * Typesense only starts to earn its keep above roughly 3,000–5,000 people.
+ *
+ * This used to claim the search "works offline once cached". It does not, and
+ * the word was doing real damage: the Firebase JS SDK has no disk persistence on
+ * React Native, so the cache is memory-only and dies with the process. What is
+ * true is narrower and still worth having — once the listener has delivered, a
+ * dropped connection does not empty the list or slow a keystroke, but a cold
+ * start with no network has nothing to search.
  *
  * A hidden attendee has no `directory` document at all — the projection is
  * deleted when they opt out, rather than filtered here. Their data never

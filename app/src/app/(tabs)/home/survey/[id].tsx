@@ -100,7 +100,7 @@ export default function SurveyScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="this survey"
-            slowNotice="Still loading. The app cannot reach the server — this will fill in as soon as it can.">
+            slowNotice="Still loading. The app cannot reach the server.">
             <SkeletonBlock width="60%" height={26} />
             <SkeletonBlock height={70} radius={Radius.lg} />
             <SkeletonBlock height={70} radius={Radius.lg} />
@@ -199,8 +199,7 @@ function SurveyForm({ survey }: { survey: Survey }) {
           }}>
           <Text variant="heading">Answered</Text>
           <Text variant="subhead" tone="secondary">
-            Thank you. Your answers are below, and they cannot be changed — the
-            organizers have them as they were given.
+            Your answers are below and cannot be changed.
           </Text>
         </View>
       ) : !open ? (

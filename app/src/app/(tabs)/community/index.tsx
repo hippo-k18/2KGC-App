@@ -342,7 +342,7 @@ export default function CommunityScreen() {
             <View style={{ padding: Spacing.md, gap: Spacing.md }}>
               <SkeletonScreen
                 label="the community board"
-                slowNotice="Still loading. The app cannot reach the server — the board will fill in as soon as it can.">
+                slowNotice="Still loading. The app cannot reach the server.">
                 {[0, 1, 2].map((i) => (
                   <View key={i} style={{ gap: Spacing.sm }}>
                     <SkeletonBlock width="35%" height={12} />
@@ -355,11 +355,16 @@ export default function CommunityScreen() {
           ) : (
             <EmptyState
               icon="bubble.left.and.bubble.right"
-              title={search.trim() ? 'No matching topics' : category ? 'Nothing here yet' : 'No topics yet'}
+              // A query the attendee typed is its own answer. An empty board —
+              // whole or filtered to one category — is the app-wide phrase for a
+              // collection nobody has written to, matching the dashboard.
+              title={search.trim() ? 'No matching topics' : 'Not inputted yet'}
               message={
                 search.trim()
                   ? 'Try a different word from the topic title.'
-                  : 'Start a meet-up, ask a question, or offer a ride from the tram.'
+                  : category
+                    ? 'No topics have been posted in this category yet.'
+                    : 'No topics yet. Start a meet-up, ask a question, or offer a ride from the tram.'
               }
             />
           )

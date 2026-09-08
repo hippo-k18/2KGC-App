@@ -93,7 +93,7 @@ export default function SpeakerScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="this speaker"
-            slowNotice="Still loading. The app cannot reach the server — this will fill in as soon as it can.">
+            slowNotice="Still loading. The app cannot reach the server.">
             <View style={{ alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm }}>
               <SkeletonBlock width={AVATAR} height={AVATAR} radius={Radius.pill} />
               <SkeletonBlock width="45%" height={22} />

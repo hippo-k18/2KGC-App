@@ -27,57 +27,60 @@ import {
 import { getFirebaseAuth } from '@/lib/firebase/client';
 
 /**
- * Sign-in — two routes to the same session, one of which is on its way out.
+ * Sign-in — two named choices, because there are genuinely two situations.
  *
- * ── The route that ships: a six-digit code ──────────────────────────────────
+ * ── The screen ─────────────────────────────────────────────────────────────
  *
- * `requestOtp` mails a code; `verifyOtp` redeems it, mints the account on first
- * use with the `registered` claim on it, and returns a custom token this screen
- * exchanges for a session. Both live in `functions/src/callable/`, both are
- * rate-limited per address and per IP, and `app/src/lib/auth/otp.ts` is the only
- * thing here that knows their error codes.
+ * A landing with two buttons, and each opens exactly one form:
  *
- * ⚠️ **They are not deployed.** `firebase deploy` is refused on this project
- * with a `serviceusage` 403 and no script works around it for functions
- * (OWNER-ACTIONS.md §3). Against the live project the callable URL 404s, and
- * this screen reports that as "could not reach the sign-in service, so no code
- * was sent" rather than moving on to a code box that can never be satisfied.
- * The flow has been exercised end to end against the functions emulator; it is
- * unverified against production.
+ *   **Sign in** — email + password, straight to `signInWithEmailAndPassword`.
+ *     For an attendee who has been here before and chosen a password.
  *
- * ⚠️ **The screen after "send me a code" is the same screen for every address.**
- * `requestOtp` deliberately answers identically whether or not an address holds
- * a ticket, which is what stops it being a query against the delegate list.
- * Nothing here may vary on that — see the header of `lib/auth/otp.ts` for the
- * three ways a UI can undo it.
+ *   **Create account** — email, a six-digit code from that mailbox, then
+ *     `/change-password` to choose a password. For an attendee holding a ticket
+ *     who has not signed in yet.
  *
- * ── The route that survives: email + password ───────────────────────────────
+ * The previous version showed both forms stacked on one screen, with "email me
+ * a code" as the primary action and a password box under an "or" rule. That
+ * asked every arriving attendee to work out which of two things they were,
+ * from two controls that looked like alternatives rather than answers. Naming
+ * the two situations is the whole change.
  *
- * Kept, at the owner's request, as one of exactly two demo affordances to
- * outlive the rest. It is a real Firebase credential against a real project with
- * real claims behind it, so what it exercises downstream is the shipping
- * authorization path either way.
+ * ⚠️ **"Create account" is a misnomer that is kept on purpose.** It does not
+ * create anything on its own — `verifySignInCode` mints the account only after
+ * the code is redeemed *and* an active `registrations` document is found for
+ * the address. Somebody with no ticket can press it, receive a code, type it
+ * correctly and still be refused. The button is named for what the attendee is
+ * trying to do, not for what the server does, because "first time here?" is the
+ * question they can actually answer about themselves.
  *
- * BUILD-PLAN 1.4 has taken everything that was *around* it: the `demo` / `123`
- * mapping onto a seeded account, the bare-local-part expansion, the prefilled
- * fields, the printed credentials, and `OPEN_SIGNIN` — a bypass that signed
- * anybody in with no input at all. What is left is two boxes that send exactly
- * what was typed to `signInWithEmailAndPassword`.
+ * ── The property this screen must not break ────────────────────────────────
  *
- * ⚠️ **As of 2026-09-02 this is the route a buyer actually arrives on**, and the
- * sentence that used to end this block — "no account this project creates has a
- * password" — is no longer true. `provisionAttendeeAccount` now issues six random
- * digits per buyer, sets them on the account it creates and mails them in the
- * receipt, so an attendee who has just bought a ticket signs in here with their
- * address and that temporary value.
+ * The screen after "email me a code" is **the same screen for every address**.
+ * `requestSignInCode` deliberately answers identically whether or not an
+ * address holds a ticket, which is what stops it being a query against the
+ * delegate list. Nothing here may vary on that — not the copy, not the
+ * destination, not the shape of a failure. See the header of `lib/auth/otp.ts`
+ * for the three ways a UI can undo it.
  *
- * Nothing in this file knows the password, and that has not changed — it is
- * still two boxes that forward what was typed. What is new is what happens
- * *after*: the profile carries `mustChangePassword`, and `_layout.tsx` redirects
- * to `/change-password` and refuses every other route until it is cleared. This
- * screen deliberately does not mention it. A sign-in form that explained the
- * temporary password would be printing a hint to whoever is holding the phone,
- * which is the demo-panel mistake in a smaller box.
+ * Ticket status is disclosed exactly once, on a *failed verify*, and that is
+ * safe: by then the caller has proved they read the mailbox.
+ *
+ * ── Where the code flow now runs ───────────────────────────────────────────
+ *
+ * Not Cloud Functions. `requestOtp` / `verifyOtp` were never deployable on this
+ * project — the grant is `iam.serviceAccounts.ActAs` and only the owner can
+ * give it (OWNER-ACTIONS.md §3) — so the same logic is served by `apps/web` at
+ * `/api/auth/request-code` and `/api/auth/verify-code`, from one shared
+ * implementation in `@kgc/scripts/src/lib/otp-core.ts`.
+ *
+ * ── What this screen still does not say ────────────────────────────────────
+ *
+ * Nothing about passwords, and no printed credential. A sign-in form that
+ * explains a temporary password is printing a hint to whoever is holding the
+ * phone, which is the demo-panel mistake in a smaller box. `/change-password`
+ * is where that conversation belongs, after the attendee has proved who
+ * they are.
  */
 export default function LoginScreen() {
   const colors = useTheme();
@@ -94,14 +97,18 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
 
   /**
-   * Which half of the code flow is on screen.
+   * Which of the four panels is on screen.
    *
-   * `'code'` is reached only after `requestOtp` has actually returned — never
-   * optimistically, and never because the address "looked known". A code box
-   * shown after a failed request is the shape of a screen that says a code was
-   * sent when none was.
+   * `'choose'` is the landing with the two buttons; `'password'` and `'email'`
+   * are the forms they open; `'code'` is the second half of create-account.
+   *
+   * ⚠️ `'code'` is reached **only after `requestSignInCode` has actually
+   * returned** — never optimistically, and never because the address "looked
+   * known". A code box shown after a failed request is the shape of a screen
+   * that says a code was sent when none was, which is the defect class
+   * AGENTS.md counts fourteen instances of.
    */
-  const [step, setStep] = useState<'start' | 'code'>('start');
+  const [step, setStep] = useState<'choose' | 'password' | 'email' | 'code'>('choose');
   /**
    * The address the code was requested for, frozen at the moment of the request.
    * Read back on screen so an attendee who mistyped can see it, and used for the
@@ -302,7 +309,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  setStep('start');
+                  setStep('email');
                   setCode('');
                   setError(null);
                   setNotice(null);
@@ -316,8 +323,83 @@ export default function LoginScreen() {
               </Pressable>
             </View>
           </>
-        ) : (
+        ) : step === 'choose' ? (
           <>
+            {/*
+              Two buttons, no fields. The email box used to sit above them,
+              which meant the screen asked for a value before it had settled
+              which of two things it was going to do with it — and the address
+              is typed in both branches anyway, so hoisting it saved nothing.
+            */}
+            <View style={{ gap: 6 }}>
+              <Text variant="heading">Welcome</Text>
+              <Text variant="subhead" tone="secondary">
+                Your ticket gets you in. Choose how you want to sign in.
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => {
+                setStep('password');
+                setError(null);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with email and password"
+              style={({ pressed }) => ({
+                backgroundColor: colors.accent,
+                opacity: pressed ? 0.85 : 1,
+                borderRadius: Radius.md,
+                alignItems: 'center',
+                height: 50,
+                justifyContent: 'center',
+              })}>
+              <Text variant="heading" tone="onAccent">
+                Sign in
+              </Text>
+            </Pressable>
+
+            {/*
+              Outlined rather than filled, so there is one primary action.
+              Create account is the branch a first-time attendee needs and the
+              *second* button on purpose: over the life of the event almost
+              every press is a returning attendee, and the ordering should match
+              that rather than the order one individual meets the two.
+            */}
+            <Pressable
+              onPress={() => {
+                setStep('email');
+                setError(null);
+                setNotice(null);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Create an account with a code sent to your email"
+              style={({ pressed }) => ({
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: pressed ? colors.surfacePressed : colors.surface,
+                borderRadius: Radius.md,
+                alignItems: 'center',
+                height: 50,
+                justifyContent: 'center',
+              })}>
+              <Text variant="heading" tone="tint">
+                Create account
+              </Text>
+            </Pressable>
+
+            <Text variant="caption" tone="tertiary" style={{ textAlign: 'center' }}>
+              First time here? Choose Create account and we will email you a code.
+            </Text>
+          </>
+        ) : step === 'password' ? (
+          <>
+            <View style={{ gap: 6 }}>
+              <Text variant="heading">Sign in</Text>
+              <Text variant="subhead" tone="secondary">
+                Use the password you chose when you first opened the app.
+              </Text>
+            </View>
+
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -329,10 +411,93 @@ export default function LoginScreen() {
               keyboardType="email-address"
               textContentType="emailAddress"
               accessibilityLabel="Email address"
+              autoFocus
+              returnKeyType="next"
+            />
+
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              style={field}
+              secureTextEntry
+              placeholder="Password"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              textContentType="password"
+              accessibilityLabel="Password"
+              onSubmitEditing={submit}
+              returnKeyType="go"
+            />
+
+            {error ? (
+              <Text tone="danger" accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+            ) : null}
+
+            <Pressable
+              onPress={submit}
+              disabled={busy || !email || !password}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in"
+              style={({ pressed }) => ({
+                backgroundColor: colors.accent,
+                opacity: busy || !email || !password ? 0.5 : pressed ? 0.85 : 1,
+                borderRadius: Radius.md,
+                alignItems: 'center',
+                height: 50,
+                justifyContent: 'center',
+              })}>
+              {busy ? (
+                <ActivityIndicator color={colors.onAccent} />
+              ) : (
+                <Text variant="heading" tone="onAccent">
+                  Sign in
+                </Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setStep('choose');
+                setPassword('');
+                setError(null);
+              }}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              style={{ alignItems: 'center' }}>
+              <Text variant="subhead" tone="secondary">
+                Back
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <View style={{ gap: 6 }}>
+              <Text variant="heading">Create your account</Text>
+              <Text variant="subhead" tone="secondary">
+                Enter the address you bought your ticket with. We will email you a{' '}
+                {CODE_LENGTH}-digit code.
+              </Text>
+            </View>
+
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              style={field}
+              placeholder="Email"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              accessibilityLabel="Email address"
+              autoFocus
               onSubmitEditing={() => {
                 if (emailLooksValid) void sendCode();
               }}
-              returnKeyType="next"
+              returnKeyType="go"
             />
 
             {error ? (
@@ -342,9 +507,10 @@ export default function LoginScreen() {
             ) : null}
 
             {/*
-              The primary route. Enabled on the same regex the server uses, so
-              the button is live for exactly the addresses `requestOtp` accepts
-              — and for every one of them equally, ticket or not.
+              Enabled on the same regex the server uses, so the button is live
+              for exactly the addresses the endpoint accepts — and for every one
+              of them equally, ticket or not. Anything narrower here would be
+              the enumeration oracle rebuilt on the client.
             */}
             <Pressable
               onPress={() => sendCode()}
@@ -363,59 +529,25 @@ export default function LoginScreen() {
                 <ActivityIndicator color={colors.onAccent} />
               ) : (
                 <Text variant="heading" tone="onAccent">
-                  Email me a sign-in code
+                  Email me a code
                 </Text>
               )}
             </Pressable>
 
-            {/*
-              The password route, kept beside the code route rather than under
-              it — one of the two demo affordances the owner asked to survive.
-              Outlined rather than filled so there is one primary action on the
-              screen. BUILD-PLAN 1.4 deleted what was around it, not the field.
-            */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-              <Text variant="caption" tone="tertiary">
-                or
+            <Pressable
+              onPress={() => {
+                setStep('choose');
+                setError(null);
+                setNotice(null);
+              }}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              style={{ alignItems: 'center' }}>
+              <Text variant="subhead" tone="secondary">
+                Back
               </Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-            </View>
-
-            <View style={{ gap: 10 }}>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                style={field}
-                secureTextEntry
-                placeholder="Password"
-                placeholderTextColor={colors.textTertiary}
-                textContentType="password"
-                accessibilityLabel="Password"
-                onSubmitEditing={submit}
-                returnKeyType="go"
-              />
-
-              <Pressable
-                onPress={submit}
-                disabled={busy || !email || !password}
-                accessibilityRole="button"
-                accessibilityLabel="Sign in with a password"
-                style={({ pressed }) => ({
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: pressed ? colors.surfacePressed : colors.surface,
-                  opacity: busy || !email || !password ? 0.5 : 1,
-                  borderRadius: Radius.md,
-                  alignItems: 'center',
-                  height: 50,
-                  justifyContent: 'center',
-                })}>
-                <Text variant="heading" tone="tint">
-                  Sign in with a password
-                </Text>
-              </Pressable>
-            </View>
+            </Pressable>
           </>
         )}
       </Screen>

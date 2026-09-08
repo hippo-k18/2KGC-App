@@ -98,7 +98,7 @@ export default function SessionFeatureScreen() {
         ) : loading ? null : (
           <EmptyState
             icon="questionmark.circle"
-            title="Nothing open right now"
+            title="Not inputted yet"
             message={copy.empty}
           />
         )}

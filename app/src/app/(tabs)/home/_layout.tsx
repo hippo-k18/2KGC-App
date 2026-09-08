@@ -17,8 +17,8 @@ export default function HomeLayout() {
       <Stack.Screen name="session-feature" options={{ title: 'Session Q&A' }} />
       <Stack.Screen name="surveys" options={{ title: 'Surveys' }} />
       <Stack.Screen name="logistics" options={{ title: 'Logistics' }} />
+      <Stack.Screen name="documents" options={{ title: 'Documents' }} />
       <Stack.Screen name="survey/[id]" options={{ title: 'Survey' }} />
-      <Stack.Screen name="coming-soon" options={{ title: 'Not built yet' }} />
     </Stack>
   );
 }

@@ -91,11 +91,10 @@ const EVENT_DESCRIPTION =
   'unlock the potential of AI in real-world enterprise applications, driving ' +
   'scalable systems and trusted outcomes.\n\n' +
   'Five days at Cornell Tech on Roosevelt Island bring together the people ' +
-  'building enterprise knowledge graphs — practitioners, researchers, vendors ' +
+  'building enterprise knowledge graphs: practitioners, researchers, vendors ' +
   'and the teams putting graphs into production behind retrieval, reasoning and ' +
-  'data governance. Expect workshops, case studies from the companies actually ' +
-  'running these systems, and the corridor conversations that are the real ' +
-  'reason to fly in.';
+  'data governance. Expect workshops and case studies from the companies running ' +
+  'these systems.';
 
 /**
  * Home, rebuilt to Whova's shape.
@@ -119,9 +118,26 @@ const EVENT_DESCRIPTION =
  *    `useNowNext` and `formatTime` in `lib/data/sessions.ts`), so a control that
  *    did nothing would be worse than no control.
  *
- * Every resource tile goes somewhere. The ones with no screen behind them yet
- * route to `coming-soon`, which names what is missing, rather than being drawn
- * as a live tile that swallows the tap.
+ * Every resource tile opens a screen that reads real data. Three of Whova's —
+ * Floormap, Photos and Leaderboard — are not drawn at all, because none of them
+ * has a screen this app could open: the venue has supplied no floor plans, a
+ * photo stream needs an upload path the app does not have at either end, and
+ * scoring needs a Cloud Function that cannot deploy.
+ *
+ * **Documents was the fourth, and it is built.** `documents/{id}` was seeded,
+ * written by the dashboard and rendered on the public website for months; the
+ * only thing keeping it off the phone was that the collection had no `match`
+ * block in `firestore.rules`, so the default-closed posture refused every read.
+ * The block exists now, and it serves the honest subset — published, and
+ * restricted to nobody. A handout limited to a ticket type still does not
+ * arrive, because tier is not a claim on the token and rules filter documents
+ * rather than fields; `lib/data/documents.ts` and the rule block hold the
+ * argument, and the dashboard is where an organizer is told about it.
+ *
+ * All four used to be drawn anyway and routed to a `coming-soon` screen that
+ * explained the gap. That screen is gone: a tile whose only job is to tell an
+ * attendee what the app cannot do is the product narrating its own
+ * incompleteness to the one person who can do nothing about it.
  */
 export default function HomeScreen() {
   const colors = useTheme();
@@ -423,7 +439,7 @@ interface Resource {
 /**
  * Whova's "Additional Resources" — a three-across grid of bordered tiles.
  *
- * Text only, no icons: that is what the reference does, and at fifteen tiles a
+ * Text only, no icons: that is what the reference does, and at a dozen tiles a
  * glyph per tile would turn the block into a sticker sheet.
  *
  * ## The dots are real
@@ -449,10 +465,6 @@ function ResourceGrid({ unread }: { unread: number }) {
 
   const contentWidth = width - CARD_PADDING * 2;
   const tileWidth = (contentWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
-
-  /** Anything with no screen behind it lands here, saying so. */
-  const notBuilt = (title: string, detail: string) => () =>
-    router.push({ pathname: '/home/coming-soon', params: { title, detail } });
 
   const resources: Resource[] = [
     {
@@ -487,51 +499,21 @@ function ResourceGrid({ unread }: { unread: number }) {
       badge: unread ? `${unread} unread` : undefined,
     },
     { label: 'My profile', onPress: () => router.push('/me/profile') },
-    {
-      label: 'Documents',
-      onPress: notBuilt(
-        'Documents',
-        'Slides and handouts are modelled as a materials subcollection on each ' +
-          'session, but nothing writes to them yet and there is no screen that reads ' +
-          'them. Once speakers can upload, this becomes the event-wide list.',
-      ),
-    },
-    {
-      label: 'Floormap',
-      onPress: notBuilt(
-        'Floormap',
-        'Cornell Tech spans three buildings, so this needs real floor plans from the ' +
-          'venue rather than a placeholder image. Rooms are in Firestore already; the ' +
-          'plans are not.',
-      ),
-    },
     // Was a `notBuilt` tile saying this lived "on an event document that does
     // not exist yet — there is no events collection to read it from". Both
     // halves were false by the time anyone read them: the bag is
     // `settings/logistics`, it exists, and the dashboard's Emergency Manager
     // writes it weekly. Same stale-gap-copy defect as the Surveys tile below.
     { label: 'Logistics', onPress: () => router.push('/home/logistics') },
-    {
-      label: 'Photos',
-      onPress: notBuilt(
-        'Photos',
-        'A shared photo stream needs Firebase Storage provisioned and moderation ' +
-          'behind it. Neither is in place.',
-      ),
-    },
     // Was a `notBuilt` tile saying surveys waited on "the organizer console".
     // The console has authored them since August 2026; the copy outlived the gap
     // it described by several months, which is the defect class AGENTS.md counts.
     { label: 'Surveys', onPress: () => router.push('/home/surveys') },
-    {
-      label: 'Leaderboard',
-      onPress: notBuilt(
-        'Leaderboard',
-        'Whova gamifies engagement with points for posting and scanning. Scoring ' +
-          'has to be server-side to be worth anything, and Cloud Functions are ' +
-          'blocked on the project moving to the Blaze plan.',
-      ),
-    },
+    // Whova's own tile, back after the rules block that made the collection
+    // readable at all. It is the fourth of the four described in this file's
+    // header, and the only one of them that needed a decision rather than a
+    // capability nobody has.
+    { label: 'Documents', onPress: () => router.push('/home/documents') },
   ];
 
   return (

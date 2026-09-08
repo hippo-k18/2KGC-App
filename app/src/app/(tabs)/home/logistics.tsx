@@ -62,7 +62,7 @@ export default function LogisticsScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="the emergency information"
-            slowNotice="Still loading. The app cannot reach the server — this will fill in as soon as it can.">
+            slowNotice="Still loading. The app cannot reach the server.">
             <SkeletonBlock height={64} radius={Radius.lg} />
             <SkeletonBlock height={64} radius={Radius.lg} />
           </SkeletonScreen>
@@ -111,8 +111,7 @@ export default function LogisticsScreen() {
       <PushedHeader backTitle="Home" backHref="/home" />
       <Screen grouped contentStyle={{ gap: Spacing.lg }}>
         <Text variant="subhead" tone="secondary">
-          Published by the organizers for KGC 2027. Save the numbers you would need
-          before you need them.
+          Published by the organizers for KGC 2027.
         </Text>
 
         {rows.length ? (

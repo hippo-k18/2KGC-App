@@ -87,15 +87,29 @@ export default function ChangePasswordScreen() {
    */
   const MIN_LENGTH = 6;
 
+  /**
+   * Whether this attendee is choosing a **first** password or replacing one.
+   *
+   * An account minted by the six-digit email code is created with an address
+   * and no credential at all, so there is nothing to type into "current
+   * password" and nothing to reauthenticate against. `verifySignInCode` stamps
+   * `mustSetPassword` alongside `mustChangePassword` to say so.
+   *
+   * Getting this wrong in either direction is a lockout: a required field
+   * nobody can fill on one side, and on the other a form that lets somebody
+   * skip proving they hold the current password.
+   */
+  const settingFirst = profile?.mustSetPassword === true;
+
   const tooShort = next.length > 0 && next.length < MIN_LENGTH;
   const mismatch = confirm.length > 0 && next !== confirm;
   const unchanged = next.length > 0 && current.length > 0 && next === current;
   const canSubmit =
     !busy &&
-    current.length > 0 &&
+    (settingFirst || current.length > 0) &&
     next.length >= MIN_LENGTH &&
     next === confirm &&
-    next !== current;
+    (settingFirst || next !== current);
 
   async function submit() {
     if (!canSubmit) return;
@@ -115,9 +129,20 @@ export default function ChangePasswordScreen() {
       } catch (err) {
         const code = (err as { code?: string }).code;
         if (code !== 'auth/requires-recent-login') throw err;
-        // The session went stale while this screen was open. The attendee has
-        // the current password in the box above, so this is recoverable
-        // without sending them back to sign in.
+        // The session went stale while this screen was open.
+        if (settingFirst) {
+          // There is no current password to reauthenticate with, so the only
+          // way back is a fresh code. Say that, rather than throwing an error
+          // whose remedy is a field this screen is not showing.
+          setBusy(false);
+          setError(
+            'This sign-in has expired. Sign in again with a new code, and the app ' +
+              'will ask for your password once more.',
+          );
+          return;
+        }
+        // The attendee has the current password in the box above, so this is
+        // recoverable without sending them back to sign in.
         await reauthenticateWithCredential(me, EmailAuthProvider.credential(me.email, current));
         await updatePassword(me, next);
       }
@@ -126,13 +151,17 @@ export default function ChangePasswordScreen() {
       try {
         await updateDoc(doc(getDb(), COLLECTIONS.users, me.uid), {
           mustChangePassword: false,
+          // Cleared together with the flag above — the account now has a
+          // password, so a later prompt would be the "replace" case, not this
+          // one. Leaving it set would show the wrong form next time.
+          mustSetPassword: false,
           updatedAt: serverTimestamp(),
         });
       } catch {
         setBusy(false);
         setError(
-          'Your password was changed — use the new one from now on. The app could not record ' +
-            'that, so it may ask you once more next time it opens.',
+          'Your password was changed. The app could not record that, so it may ask ' +
+            'you once more next time it opens.',
         );
         return;
       }
@@ -148,7 +177,7 @@ export default function ChangePasswordScreen() {
         code === 'auth/wrong-password' || code === 'auth/invalid-credential'
           ? 'That current password is not right. It is the one from your ticket email.'
           : code === 'auth/weak-password'
-            ? `Pick something longer — at least ${MIN_LENGTH} characters.`
+            ? `Pick something longer: at least ${MIN_LENGTH} characters.`
             : code === 'auth/too-many-requests'
               ? 'Too many attempts. Wait a minute and try again.'
               : 'Could not change the password. Check your connection and try again.',
@@ -173,23 +202,31 @@ export default function ChangePasswordScreen() {
         <View style={{ gap: 6 }}>
           <Text variant="title3">Choose your password</Text>
           <Text variant="subhead" tone="secondary">
-            The six digits in your ticket email are temporary. Pick your own password before you
-            go any further — it is what protects your messages and your badge.
+            {settingFirst
+              ? 'Your account is confirmed. Pick a password so you can sign in without a code next time.'
+              : 'The six digits in your ticket email are temporary. Pick your own password before you go any further.'}
           </Text>
         </View>
 
         <View style={{ gap: Spacing.sm }}>
-          <TextInput
-            value={current}
-            onChangeText={setCurrent}
-            style={field}
-            placeholder="Temporary password (6 digits)"
-            placeholderTextColor={colors.textTertiary}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="current-password"
-            accessibilityLabel="Temporary password from your ticket email"
-          />
+          {/*
+            Not rendered at all when there is no password to replace, rather
+            than rendered and disabled. A greyed-out required field is a dead
+            end an attendee will try to fill; an absent one asks nothing.
+          */}
+          {settingFirst ? null : (
+            <TextInput
+              value={current}
+              onChangeText={setCurrent}
+              style={field}
+              placeholder="Temporary password (6 digits)"
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="current-password"
+              accessibilityLabel="Temporary password from your ticket email"
+            />
+          )}
           <TextInput
             value={next}
             onChangeText={setNext}

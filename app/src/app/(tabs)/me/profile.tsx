@@ -68,7 +68,7 @@ export default function EditProfileScreen() {
     if (!user) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError('A name is required — it is what other attendees see.');
+      setError('A name is required. It is what other attendees see.');
       return;
     }
     setBusy(true);

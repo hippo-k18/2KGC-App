@@ -62,7 +62,7 @@ export default function SurveysScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="the surveys"
-            slowNotice="Still loading. The app cannot reach the server — this will fill in as soon as it can.">
+            slowNotice="Still loading. The app cannot reach the server.">
             <SkeletonBlock width="40%" height={26} />
             <SkeletonBlock height={64} radius={Radius.lg} />
             <SkeletonBlock height={64} radius={Radius.lg} />
@@ -126,8 +126,10 @@ export default function SurveysScreen() {
         ) : (
           <EmptyState
             icon="square.and.pencil"
-            title="No surveys yet"
-            message="Feedback forms appear here once the organizers publish them."
+            title="Not inputted yet"
+            message={
+              'Feedback forms appear here once the organizers publish them.'
+            }
           />
         )}
 

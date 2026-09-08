@@ -147,8 +147,7 @@ export default function BadgeScreen() {
 
           <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: Spacing.xs }}>
             {source === 'cache'
-              ? 'Showing the badge saved on this phone — it is the same code and it will scan. ' +
-                'Your ticket details will refresh when there is a connection.'
+              ? 'Showing the badge saved on this phone. It is the same code and it will scan.'
               : 'This badge is saved on your phone, so it still works with no signal.'}
             {'\n\n'}
             Treat the code like a boarding pass: anyone who photographs it could be checked in as
@@ -191,7 +190,7 @@ function CheckInBanner({
         label: loading ? 'Checking…' : 'Check-in status unavailable',
         detail: loading
           ? 'Asking the door list.'
-          : 'This needs a connection. The QR above works either way — show it at the desk.',
+          : 'This needs a connection. The QR above works either way.',
       }
     : checkedInAt
       ? {
@@ -265,9 +264,8 @@ function BadgeUnavailable({ onRetry }: { onRetry: () => void }) {
       }}>
       <Text variant="heading">Could not load your badge</Text>
       <Text tone="secondary">
-        Your ticket is fine — this device could not reach it. Try again, and if you are at the door,
-        the registration desk can find you by name or by the claim code on your order confirmation
-        page.
+        Your ticket is fine; this device could not reach it. At the door, the registration desk
+        can find you by name or by the claim code on your order confirmation page.
       </Text>
       <Pressable
         onPress={onRetry}
@@ -308,8 +306,7 @@ function NoTicket({ email }: { email: string | null }) {
       <Text variant="heading">No ticket on this account</Text>
       <Text tone="secondary">
         We could not find a registration for {email ?? 'this account'}. Tickets are matched by
-        email address, so if you registered with a different one — a work address, or a colleague
-        booked for you — sign in with that instead.
+        email address. If you registered with a different one, sign in with that instead.
       </Text>
       <Text variant="caption" tone="tertiary">
         The registration desk can attach your ticket to this account using the claim code on your

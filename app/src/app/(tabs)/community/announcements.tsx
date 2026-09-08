@@ -82,8 +82,10 @@ export default function AnnouncementsScreen() {
           ) : (
             <EmptyState
               icon="megaphone"
-              title="No announcements yet"
-              message="Organizer notices about room changes, wifi and timings appear here."
+              title="Not inputted yet"
+              message={
+                'Organizer notices about room changes, wifi and timings appear here.'
+              }
             />
           )
         }

@@ -214,7 +214,7 @@ export default function SessionDetailScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="session details"
-            slowNotice="Still loading. The app cannot reach the server — this will fill in as soon as it can.">
+            slowNotice="Still loading. The app cannot reach the server.">
             <View style={{ gap: Spacing.sm }}>
               <SkeletonBlock width="35%" height={12} />
               <SkeletonBlock width="90%" height={26} />

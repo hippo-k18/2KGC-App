@@ -968,6 +968,13 @@ function AddToAgenda({
  * location and speaker across every published day, which is what these strings
  * say and no more. Description and track name are *not* matched, so this stops
  * short of promising "anything about the session".
+ *
+ * Only the last of the four is "the organizers have entered nothing", and only
+ * that one carries the app-wide phrase for it — "Not inputted yet", the same
+ * words the organizer dashboard uses for an empty collection. A search with no
+ * hit, a day with nothing in one track, and an agenda the attendee has not added
+ * to are three different answers, and collapsing them into that phrase would
+ * tell somebody the programme is unpublished when it is five days long.
  */
 function AgendaEmpty({
   mine,
@@ -1026,8 +1033,8 @@ function AgendaEmpty({
   return (
     <EmptyState
       icon="calendar"
-      title="No sessions yet"
-      message="The programme appears here once it is published."
+      title="Not inputted yet"
+      message="No sessions have been entered for this event yet."
     />
   );
 }

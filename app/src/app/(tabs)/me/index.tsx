@@ -240,7 +240,15 @@ export default function MeScreen() {
             />
             <ListRow
               title="Allow direct messages"
-              subtitle="Not yet enforced — see note below"
+              // Says what the switch does, not where to read about it. Turning
+              // it off records the preference on the profile and stops the
+              // dashboard's broadcasts reaching you; nothing stops another
+              // attendee writing to you, because that would take a rule on
+              // `threads` and there is none. The paragraph under the section
+              // says the same thing at length — this line has to be true on its
+              // own, because a subtitle reading "see note below" is a pointer
+              // rather than an answer and the switch is thrown from here.
+              subtitle="Recorded on your profile; does not block other attendees yet"
               last
               trailing={
                 <Switch
@@ -267,8 +275,11 @@ export default function MeScreen() {
             style={{ paddingHorizontal: Spacing.xs, paddingTop: Spacing.sm }}>
             Turning off directory visibility deletes your entry, so your profile
             is not sent to other devices at all.{'\n\n'}
-            Message blocking is not enforced yet — it is recorded but does not
-            stop anyone contacting you until the server work lands.
+            Message blocking is only half enforced, and the halves are worth
+            telling apart. The organizers’ desk checks this switch before it
+            sends, so turning it off does stop their messages. Another attendee
+            can still write to you: that would take a rule on the server, and
+            there is not one yet.
           </Text>
 
           <SectionHeader>Account</SectionHeader>

@@ -56,32 +56,22 @@ const SEGMENT_FOR_PARAM: Record<string, number> = {
 /**
  * What an empty segment means, per segment.
  *
- * One shared sentence — "Attendees appear here as they join and opt in" — used
- * to be shown under all of them, so an empty exhibitor hall explained itself as
- * an attendee privacy setting. The exhibitor line is the one that has to be
- * exact: `exhibitorListings` is a projection of `exhibitors`, and nothing writes
- * it on the live project yet except the seed, so an empty list here genuinely
- * means "not projected", never "no exhibitors booked".
+ * All four share one title — "Not inputted yet", the phrase the organizer
+ * dashboard uses for a collection nobody has filled in, so the two surfaces
+ * describe the same state in the same words. The *sentence* under it still
+ * differs per segment, and that is the part that carries the meaning: one shared
+ * line — "Attendees appear here as they join and opt in" — used to be shown
+ * under all of them, so an empty exhibitor hall explained itself as an attendee
+ * privacy setting. The exhibitor line is the one that has to be exact:
+ * `exhibitorListings` is a projection of `exhibitors`, and nothing writes it on
+ * the live project yet except the seed, so an empty list here genuinely means
+ * "not projected", never "no exhibitors booked".
  */
 const EMPTY = [
-  {
-    title: 'Nobody here yet',
-    message: 'Attendees appear here as they join and opt in.',
-  },
-  {
-    title: 'No speakers listed',
-    message: 'The programme has no speakers on it yet.',
-  },
-  {
-    title: 'No sponsors listed',
-    message: 'Sponsors appear here once the organizers publish them.',
-  },
-  {
-    title: 'No exhibitors listed',
-    message:
-      'The hall list is published separately from the organizers\' own exhibitor ' +
-      'records, and none has been published yet.',
-  },
+  'No attendees have opted into the directory yet.',
+  'No speakers have been entered on the programme yet.',
+  'No sponsors have been entered for this event yet.',
+  'No exhibitor listings have been published yet.',
 ] as const;
 
 /**
@@ -551,11 +541,14 @@ export default function PeopleScreen() {
             ) : loading ? null : (
               <EmptyState
                 icon={segment === 3 ? 'storefront' : 'person.2'}
-                title={search || interest ? 'No matches' : EMPTY[segment].title}
+                // A query the attendee typed is not an empty collection, so it
+                // keeps its own answer — see `data-error.tsx` for the third
+                // state these three must never be folded into.
+                title={search || interest ? 'No matches' : 'Not inputted yet'}
                 message={
                   search || interest
                     ? 'Try a different name, company or category.'
-                    : EMPTY[segment].message
+                    : EMPTY[segment]
                 }
               />
             )
