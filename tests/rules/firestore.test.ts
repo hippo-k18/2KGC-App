@@ -167,6 +167,34 @@ beforeEach(async () => {
       eventId: 'kgc-2027', exhibitorId: 'ex1', name: 'Graphwise', boothNumber: 'E01',
       description: 'Graph database tooling.',
     });
+    /*
+     * Handouts, in the four shapes the predicate has to answer for: the one an
+     * attendee may have, a draft, one restricted to a ticket type, and one
+     * written before `visibleToTicketTypes` existed at all.
+     *
+     * The last is not decoration. `resource.data.visibleToTicketTypes.size()`
+     * throws on a document that has no such field, which Firestore reports as
+     * permission-denied — so the fixture pins the *direction* that failure
+     * takes. Fail-closed is the right one here: a malformed document must not
+     * read as "open to everyone", which is the mistake `listPublicDocuments`
+     * in `apps/web` guards against with `Array.isArray` for the same reason.
+     */
+    await setDoc(doc(db, 'documents/doc_open'), {
+      eventId: 'kgc-2027', title: 'Code of conduct', url: 'https://example.org/coc.pdf',
+      kind: 'pdf', visibleToTicketTypes: [], status: 'published', order: 0,
+    });
+    await setDoc(doc(db, 'documents/doc_draft'), {
+      eventId: 'kgc-2027', title: 'Unfinished handout', url: 'https://example.org/draft.pdf',
+      kind: 'pdf', visibleToTicketTypes: [], status: 'draft', order: 1,
+    });
+    await setDoc(doc(db, 'documents/doc_restricted'), {
+      eventId: 'kgc-2027', title: 'Workshop dataset', url: 'https://example.org/dataset.zip',
+      kind: 'link', visibleToTicketTypes: ['Workshop'], status: 'published', order: 2,
+    });
+    await setDoc(doc(db, 'documents/doc_legacy'), {
+      eventId: 'kgc-2027', title: 'Written before the field existed',
+      url: 'https://example.org/old.pdf', kind: 'pdf', status: 'published', order: 3,
+    });
     // A published survey and a draft one, so the `status` predicate is exercised
     // in both directions on both verbs — and one response, belonging to A, so
     // "somebody else may not read mine" is tested against a document that exists.
@@ -1999,6 +2027,113 @@ describe('the exhibitor hall', () => {
     await assertFails(getDoc(doc(asOrg(), 'booths/E01')));
     await assertFails(getDocs(collection(asOrg(), 'booths')));
     await assertFails(setDoc(doc(asOrg(), 'booths/E02'), { eventId: 'kgc-2027', number: 'E02' }));
+  });
+});
+
+describe('handouts', () => {
+  // `documents` had no match block at all until the app needed one, so
+  // default-deny was the whole story and there was nothing to test. What is
+  // tested now is the honest subset: published and unrestricted reaches a
+  // phone, and everything else stays on the server.
+
+  it('lets a ticket holder read a published, unrestricted handout', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'documents/doc_open')));
+  });
+
+  it('hides a draft handout from attendees', async () => {
+    // The `sessions` and `surveys` predicate, on a third collection: a draft is
+    // a link an organizer has not decided to give out.
+    await assertFails(getDoc(doc(asA(), 'documents/doc_draft')));
+  });
+
+  it('hides a handout restricted to a ticket type from every attendee', async () => {
+    // Including one who holds that very ticket. Tier is not a claim, so the
+    // rules cannot tell A's "All Access" from anybody else's — and rules filter
+    // documents rather than fields, so there is no half-measure. Absent rather
+    // than filtered: the `url` never reaches a device, which is what matters
+    // for a link to a file this project does not host and cannot revoke.
+    await assertFails(getDoc(doc(asA(), 'documents/doc_restricted')));
+    await assertFails(getDoc(doc(asB(), 'documents/doc_restricted')));
+  });
+
+  it('refuses a handout that carries no visibleToTicketTypes at all', async () => {
+    // `.size()` on an absent field throws, and a throw is a denial. That is the
+    // direction this has to fail in: a document written by something other than
+    // the dashboard must not default to "open to everyone".
+    await assertFails(getDoc(doc(asA(), 'documents/doc_legacy')));
+  });
+
+  it('refuses a handouts list that is not filtered to published and unrestricted', async () => {
+    // Both verbs, because passing one proves nothing about the other. A `list`
+    // is judged on what the query could return, so an unfiltered one is refused
+    // whole — and the empty-array equality is as load-bearing as the `status`
+    // one, which is the half that is easy to leave out.
+    await assertFails(getDocs(collection(asA(), 'documents')));
+    await assertFails(
+      getDocs(query(collection(asA(), 'documents'), where('eventId', '==', 'kgc-2027'))),
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(asA(), 'documents'),
+          where('eventId', '==', 'kgc-2027'),
+          where('status', '==', 'published'),
+        ),
+      ),
+    );
+    // The exact query `useDocuments` issues, all three equalities in that order.
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(asA(), 'documents'),
+          where('eventId', '==', 'kgc-2027'),
+          where('status', '==', 'published'),
+          where('visibleToTicketTypes', '==', []),
+        ),
+      ),
+    );
+  });
+
+  it('refuses handouts to somebody signed in without a ticket', async () => {
+    await assertFails(getDoc(doc(noClaim(), 'documents/doc_open')));
+    await assertFails(getDoc(doc(unauth(), 'documents/doc_open')));
+    await assertFails(
+      getDocs(
+        query(
+          collection(noClaim(), 'documents'),
+          where('eventId', '==', 'kgc-2027'),
+          where('status', '==', 'published'),
+          where('visibleToTicketTypes', '==', []),
+        ),
+      ),
+    );
+  });
+
+  it('lets an organizer read a draft and a restricted handout', async () => {
+    await assertSucceeds(getDoc(doc(asOrg(), 'documents/doc_draft')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'documents/doc_restricted')));
+    await assertSucceeds(getDocs(collection(asOrg(), 'documents')));
+  });
+
+  it('lets no client write a handout, organizers included', async () => {
+    // The dashboard writes these with the Admin SDK and bypasses rules. A
+    // client that could write here could point a tile every attendee is told to
+    // tap at an address of its choosing.
+    await assertFails(setDoc(doc(asA(), 'documents/doc_mine'), {
+      eventId: 'kgc-2027', title: 'Mine', url: 'https://evil.example/x',
+      kind: 'link', visibleToTicketTypes: [], status: 'published', order: 9,
+    }));
+    await assertFails(setDoc(doc(asOrg(), 'documents/doc_mine'), {
+      eventId: 'kgc-2027', title: 'Mine', url: 'https://evil.example/x',
+      kind: 'link', visibleToTicketTypes: [], status: 'published', order: 9,
+    }));
+    await assertFails(
+      updateDoc(doc(asOrg(), 'documents/doc_open'), { url: 'https://evil.example/x' }),
+    );
+    await assertFails(
+      updateDoc(doc(asA(), 'documents/doc_restricted'), { visibleToTicketTypes: [] }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), 'documents/doc_open')));
   });
 });
 

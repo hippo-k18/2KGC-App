@@ -118,8 +118,17 @@ beforeEach(async () => {
   ]);
 });
 
-const buyer = { email: 'Ada.Nakamura@Example.com', name: 'Ada Nakamura' };
-const lowercased = 'ada.nakamura@example.com';
+/*
+ * A different person from the one `fulfilment.test.ts` buys as, and that is
+ * load-bearing rather than cosmetic. `registrationId` is `reg_` + sha256(email),
+ * so two suites sharing an address address the *same document* — and each of
+ * them opens with a `beforeEach` that deletes every registration for the event.
+ * Whichever ran second wiped the first's row out from under it, which surfaced
+ * as "expected +0 to be 1" in roughly one commerce run in three. Give a suite
+ * its own buyer and the suites cannot reach each other.
+ */
+const buyer = { email: 'Ines.Okafor@Example.com', name: 'Ines Okafor' };
+const lowercased = 'ines.okafor@example.com';
 
 /**
  * Can somebody sign in with this address and this password?
@@ -165,7 +174,7 @@ describe('provisioning an account from a paid ticket', () => {
 
   it('normalises the address, so the account and the registration share one key', async () => {
     const result = await provisionAttendeeAccount(auth, db, buyer);
-    expect(result.uid).toBe(uidForEmail('  ADA.NAKAMURA@example.com '));
+    expect(result.uid).toBe(uidForEmail('  INES.OKAFOR@example.com '));
   });
 
   it('writes the directory projection, which nothing else in the deployment does', async () => {
@@ -180,7 +189,7 @@ describe('provisioning an account from a paid ticket', () => {
 
     const entry = await db.collection(COLLECTIONS.directory).doc(uid!).get();
     expect(entry.exists).toBe(true);
-    expect(entry.data()).toMatchObject({ name: 'Ada Nakamura', company: 'Cornell Tech' });
+    expect(entry.data()).toMatchObject({ name: 'Ines Okafor', company: 'Cornell Tech' });
   });
 
   /**
@@ -390,7 +399,7 @@ describe('an account that already exists under a different uid', () => {
     // `verify-otp.ts` creates with an auto-assigned uid when somebody signs in
     // before the webhook lands. Two accounts for one address would put the
     // claim on one and the profile on the other, and the app would look empty.
-    const seeded = await auth.createUser({ email: lowercased, displayName: 'Ada Nakamura' });
+    const seeded = await auth.createUser({ email: lowercased, displayName: 'Ines Okafor' });
 
     const result = await provisionAttendeeAccount(auth, db, buyer);
 

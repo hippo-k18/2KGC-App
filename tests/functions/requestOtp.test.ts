@@ -285,8 +285,22 @@ describe('requestOtp delivery', () => {
   }, 20_000);
 
   it('never prints the code, at any log level', async () => {
+    /*
+     * `otp-core.ts`, not `request-otp.ts`. The logic moved there when the two
+     * OTP endpoints gained a second host — `apps/web` serves them as route
+     * handlers, because deploying a Cloud Function on this project is blocked
+     * on an IAM grant only the owner can give (OWNER-ACTIONS.md §3). The
+     * callable is now a thin transport, and every `console` call this test
+     * exists to police went with the logic.
+     *
+     * ⚠️ Reading the callable instead would leave this test **passing
+     * vacuously**: it would find no `console` calls, the loop below would run
+     * zero times, and the guarantee would quietly stop being checked. That is
+     * exactly what the `toBeGreaterThan(0)` assertion below is for, and it is
+     * what caught the move.
+     */
     const source = await readFile(
-      new URL('../../functions/src/callable/request-otp.ts', import.meta.url),
+      new URL('../../scripts/src/lib/otp-core.ts', import.meta.url),
       'utf8',
     );
 

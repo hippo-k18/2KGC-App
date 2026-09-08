@@ -260,10 +260,12 @@ describe('audienceSources', () => {
     expect(audienceSources('speaker')).toEqual(['speaker']);
   });
 
-  it('returns no source for volunteer, because no volunteer roster exists', () => {
-    // ⚠️ An empty register and a register of zero outstanding signatures look
-    // identical and mean opposite things. This empty array is what lets the
-    // screen tell them apart.
-    expect(audienceSources('volunteer')).toEqual([]);
+  it('maps volunteer to the roster, now that one exists', () => {
+    // This asserted `[]` while there was no `volunteers` collection, and the
+    // reason it did still matters for whichever audience is added next: an
+    // empty register and a register of zero outstanding signatures render
+    // identically and mean opposite things, so a missing *source* has to be
+    // distinguishable from a source with nobody in it.
+    expect(audienceSources('volunteer')).toEqual(['volunteer']);
   });
 });
