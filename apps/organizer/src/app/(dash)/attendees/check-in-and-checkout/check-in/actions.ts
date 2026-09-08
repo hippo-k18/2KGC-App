@@ -255,7 +255,7 @@ export async function createListAction(
   const name = String(formData.get('name') ?? '').trim();
   const kind = String(formData.get('kind') ?? 'event') as CheckInListDoc['kind'];
 
-  if (!name) return { error: 'Name the list — "Day 2 door", "Workshop A".' };
+  if (!name) return { error: 'Name the list: "Day 2 door", "Workshop A".' };
   if (!['event', 'session', 'meal', 'workshop'].includes(kind)) {
     return { error: 'Unknown list kind.' };
   }

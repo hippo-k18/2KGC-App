@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
 /**
  * Exhibitor Orders and Sponsor Orders.
@@ -99,6 +99,16 @@ export async function AudienceOrders({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>Attributed by line, not by order</strong>
+            <p>
+              An order carries no audience; each line points at a ticket type and the type carries
+              one. The money column shows only this audience&rsquo;s share, so the three ledgers sum
+              to the takings rather than exceeding them.
+            </p>
+          </>
+        }
         tags={
           <Tag color={matched.length > 0 ? 'blue' : 'grey'}>
             {matched.length} {matched.length === 1 ? 'order' : 'orders'}
@@ -117,25 +127,6 @@ export async function AudienceOrders({
           ...(links ?? []),
         ]}
       />
-
-      {tiers.length === 0 ? (
-        <Banner kind="warning">
-          <strong>
-            There are no {noun} orders because there is no {noun} catalogue.
-          </strong>{' '}
-          No ticket type has <code>audience: &apos;{audience}&apos;</code>, so no order line can
-          point at one. This is zero by construction, not an empty search — set the catalogue up on{' '}
-          <Link href={catalogueHref}>{catalogueLabel}</Link> and this becomes a real question.
-        </Banner>
-      ) : (
-        <Banner kind="info">
-          <strong>Attributed by line, not by order.</strong> An order carries no audience; each line
-          points at a ticket type and the type carries one. An invoice mixing a sponsorship with
-          attendee passes appears in both ledgers, and the money column shows only this
-          audience&rsquo;s share — so the three ledgers sum to the takings rather than exceeding
-          them.
-        </Banner>
-      )}
 
       <StatTiles
         tiles={[
@@ -204,24 +195,15 @@ export async function AudienceOrders({
             </strong>,
           ])}
           empty={
-            tiers.length === 0 ? (
-              <>
-                <strong>Nothing to show.</strong> All {real.length} orders in the ledger buy
-                attendee tiers, and they are listed on{' '}
-                <Link href={ROUTES.attendeeOrders}>Attendee Orders</Link>, which is where refunds
-                and mark-paid live.
-              </>
-            ) : (
-              <>
-                <strong>
-                  {tiers.length} {noun} {tiers.length === 1 ? 'package is' : 'packages are'} priced,
-                  and none has sold.
-                </strong>{' '}
-                They are on sale at{' '}
-                <code>/tickets/{audience === 'attendee' ? '' : audience}</code> — this is an empty
-                ledger, not a broken query.
-              </>
-            )
+            <NotInputted
+              what={`${noun} orders`}
+              compact
+              action={
+                <Link className="btn btn-primary" href={catalogueHref}>
+                  {catalogueLabel}
+                </Link>
+              }
+            />
           }
         />
       </Panel>

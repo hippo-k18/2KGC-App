@@ -97,9 +97,9 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
             <>
               As it appears on the agenda and the badge. Renaming rewrites the cached name on{' '}
               {existing.sessionCount === 0
-                ? 'no sessions — they are not on the programme yet'
+                ? 'no sessions. They are not on the programme yet'
                 : `their ${existing.sessionCount} session${existing.sessionCount === 1 ? '' : 's'}`}
-              . Id <code>{existing.id}</code> never changes — sessions point at it.
+              . Id <code>{existing.id}</code> never changes. Sessions point at it.
             </>
           ) : (
             'As it should appear on the agenda and the badge.'
@@ -137,7 +137,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
         label="Bio"
         rows={6}
         defaultValue={existing?.bio}
-        hint="Shown on the speaker page in the app and on the website. Two or three sentences is what the programme designer wants."
+        hint="Shown on the speaker page in the app and on the website. Two or three sentences."
       />
 
       <Field
@@ -150,7 +150,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
         width="lg"
         hint={
           <>
-            The address the programme committee corresponds with — known from the call for papers,
+            The address the programme committee corresponds with. Known from the call for papers,
             months before they hold a ticket. Message Speakers sends here in preference to whatever
             address they later bought a ticket with. Without one, this speaker cannot be chased for
             a bio or a slide deck.
@@ -187,7 +187,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
         hint={
           <>
             These two used to be unreachable from here. The website rendered a roster checked into
-            its own source, so the highlighted five and their order were a deploy, not a decision —
+            its own source, so the highlighted five and their order were a deploy, not a decision,
             and this screen could not change either. They are fields on the speaker now.
           </>
         }
@@ -199,11 +199,9 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           label="Highlight in “Our First Speakers”"
           description={
             <>
-              Lifts them into the block of large cards at the top of{' '}
-              <code>/speakers</code>, above the main grid. Whova called this
-              <code> highlight_speakers</code> and allowed exactly five; nothing here enforces a
-              count, and the heading below the block counts whatever you choose. Highlight nobody
-              and the page is a single grid.
+              Lifts them into the block of large cards at the top of <code>/speakers</code>, above
+              the main grid. Nothing enforces a count, and the heading below the block counts
+              whatever you choose. Highlight nobody and the page is a single grid.
             </>
           }
         />
@@ -219,7 +217,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           hint={
             <>
               Lower numbers come first. Leave it empty and they sort by surname after everyone who
-              has a number — so a speaker you add today lands at the end of the roster rather than
+              has a number, so a speaker you add today lands at the end of the roster rather than
               in the middle of it. The imported 2026 roster is numbered in the order it was
               published, which is why the page did not move when it came out of the bundle.
             </>

@@ -80,9 +80,9 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
       <Field
         name="venueSecurity"
         label="Venue security"
-        help="Cornell Tech campus security — the people who can unlock a door or meet an ambulance at the right entrance."
+        help="Cornell Tech campus security. The people who can unlock a door or meet an ambulance at the right entrance."
         defaultValue={plan.venueSecurity}
-        placeholder="Cornell Tech security — (607) 000-0000"
+        placeholder="Cornell Tech security, (607) 000-0000"
       />
       <Field
         name="medicalPoint"
@@ -107,7 +107,7 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
       />
       <Field
         name="onSiteLeadPhone"
-        label="On-site lead — phone"
+        label="On-site lead: phone"
         defaultValue={plan.onSiteLeadPhone}
         placeholder="Mobile, reachable during sessions"
         width={260}

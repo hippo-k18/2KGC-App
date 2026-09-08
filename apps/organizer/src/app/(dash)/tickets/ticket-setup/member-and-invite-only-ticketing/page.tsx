@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,16 @@ export default async function MemberAndInviteOnlyTicketingPage() {
     <>
       <PageHeader
         title="Member & Invite-Only Ticketing"
+        info={
+          <>
+            <strong>A hidden tier is unlisted, not restricted</strong>
+            <p>
+              Anyone holding the link can buy it and nothing checks who they are. Fine for a
+              speaker comp rate circulated by email, wrong where the restriction has to hold. The
+              only identity check available is a promotion code with a redemption limit of one.
+            </p>
+          </>
+        }
         tags={
           <Tag color={hidden.length > 0 ? 'orange' : 'grey'} fill="outline">
             {hidden.length} hidden {hidden.length === 1 ? 'tier' : 'tiers'}
@@ -50,12 +60,6 @@ export default async function MemberAndInviteOnlyTicketingPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>A hidden tier is unlisted, not restricted.</strong> Anyone who has the link can buy
-        it, and nothing checks who they are. That is fine for a speaker comp rate circulated by
-        email and wrong for anything where the restriction has to hold.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Tiers not shown in the catalogue</h2>
         <Table
@@ -66,7 +70,7 @@ export default async function MemberAndInviteOnlyTicketingPage() {
             { key: 't', label: 'Tagline', className: 'cell-fill' },
           ]}
           rows={hidden.map((t) => [t.name, money(t.priceCents, t.currency), t.audience, t.tagline || '—'])}
-          empty="Every tier is public. Set visible: false on a ticket type to make it link-only."
+          empty="Every tier is listed in the public catalogue."
         />
       </Panel>
 
@@ -87,7 +91,7 @@ export default async function MemberAndInviteOnlyTicketingPage() {
             [
               'Promotion code',
               <Tag key="s" color="green" small>works</Tag>,
-              'Stripe owns the code, its redemption limit and its expiry. Restricts the price, not the right to attend — and a code with a limit of one is the closest thing to an invite this project has today.',
+              'Stripe owns the code, its redemption limit and its expiry. Restricts the price, not the right to attend, and a code with a limit of one is the closest thing to an invite this project has today.',
             ],
             [
               'Membership check',

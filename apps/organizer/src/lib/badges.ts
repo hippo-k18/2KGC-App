@@ -1,24 +1,14 @@
 import 'server-only';
 
 import { COLLECTIONS, EVENT_ID, type RegistrationDoc, type UserDoc } from '@kgc/shared';
-/**
- * The badge QR is drawn with the attendee app's own encoder.
- *
- * Not a second copy and not an npm package: `app/src/lib/qr/encode.ts` is a
- * pure function with no dependencies, no network and no state, and it is the
- * encoder whose output the door scanner already reads every day. A second
- * implementation here would be a second thing that can disagree with the phone
- * screen, and the day they disagree is the day a printed badge stops scanning
- * while somebody holds it at the desk — the same argument AGENTS.md makes
- * against a second copy of `ensureRegistration`.
- *
- * The relative path is ugly because `apps/organizer` is deliberately not a
- * workspace member, so there is no package specifier to reach the app by. That
- * is the cost of the arrangement, paid once here rather than avoided by
- * duplicating 500 lines of Reed–Solomon.
- */
-import { encodeQr } from '../../../../app/src/lib/qr/encode';
 import { db } from './firestore';
+/**
+ * The badge QR is drawn with the attendee app's own encoder, reached through
+ * `./qr` — which holds the reasoning for why it is that encoder and not a
+ * second one, and which is now the single path builder in this app rather than
+ * the two that used to sit here and in `apps/web`.
+ */
+import { qrPath } from './qr';
 
 /**
  * Data and geometry for Attendees → Name Badges.
@@ -104,46 +94,20 @@ export async function listBadgeRows(): Promise<BadgeRow[]> {
 }
 
 /**
- * One QR symbol as a single SVG path.
+ * One badge symbol as a single SVG path, at error-correction level M.
  *
- * A path rather than one `<rect>` per module: a version-3 symbol is 29×29, so a
- * sheet of 25 badges is ~10,000 rects of markup against 25 path strings. The
- * browser is the print pipeline here — there is no image step, no server-side
- * rasteriser and nothing to install — so the size of the document it has to lay
- * out is the whole performance budget.
- *
- * Coordinates are in module units and the caller scales with `viewBox`, which
- * keeps the symbol crisp at any printer resolution: a vector QR has no pixel
- * grid to fight with the printer's.
+ * A named wrapper rather than a direct `qrPath` call at the call site, because
+ * the argument is a credential: a screen that reaches for `badgeQr` is holding
+ * a `qrSecret`, and the type of the thing it prints is worth stating in the
+ * name. Level M is the badge's level — see `./qr` for why a link QR uses Q.
  */
 export function badgeQr(qrSecret: string): { d: string; size: number } {
-  const m = encodeQr(qrSecret, 'M');
-  const parts: string[] = [];
-
-  for (let r = 0; r < m.size; r++) {
-    let c = 0;
-    while (c < m.size) {
-      if (!m.modules[r][c]) {
-        c++;
-        continue;
-      }
-      // Runs of dark modules merge into one rectangle, which roughly halves the
-      // path length again on the dense rows through the middle of a symbol.
-      let run = 1;
-      while (c + run < m.size && m.modules[r][c + run]) run++;
-      parts.push(`M${c} ${r}h${run}v1h-${run}z`);
-      c += run;
-    }
-  }
-
-  return { d: parts.join(''), size: m.size };
+  return qrPath(qrSecret, 'M');
 }
 
 /**
- * The quiet zone, in modules, required by the spec on all four sides.
+ * Re-exported so a badge screen imports its geometry from one place.
  *
- * Four is the standard minimum. It is not decoration — a symbol printed hard
- * against the edge of a badge, or against a coloured band, is a symbol many
- * handheld readers will not find at all.
+ * The constant itself lives in `./qr` beside the path builder that assumes it.
  */
-export const QR_QUIET_ZONE = 4;
+export { QR_QUIET_ZONE } from './qr';

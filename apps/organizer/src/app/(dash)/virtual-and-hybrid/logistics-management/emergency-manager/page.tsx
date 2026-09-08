@@ -21,13 +21,16 @@ export const dynamic = 'force-dynamic';
  *
  * Whova's Emergency Manager can broadcast an alert to every phone. Ours cannot,
  * and the reason is specific rather than general: `apps/organizer/src/lib/push.ts`
- * really does send FCM from this dashboard, but nothing in the app ever writes
- * `users/{uid}/fcmTokens`, so the token list it queries is empty. A broadcast
- * button here would send successfully to nobody, which in an emergency is the
- * worst possible failure mode — it reports success.
+ * really does send FCM from this dashboard (the sender is real and works), but
+ * nothing in the app ever writes `users/{uid}/fcmTokens`, so the token list it
+ * queries is empty, and receiving a push needs a development build rather than
+ * Expo Go. A broadcast button here would send successfully to nobody, which in
+ * an emergency is the worst possible failure mode: it reports success.
  *
- * So this stores the plan and says plainly that the delivery mechanism is a
- * human with a microphone. That is what most conferences actually use.
+ * So this stores the plan, and the Banner says what the team actually does
+ * instead — which is a human with a microphone, and is what most conferences
+ * use. That sequence is the operational content; the reason push is absent is a
+ * caveat and lives in the `info` tip.
  */
 export default async function EmergencyManagerPage() {
   await requireOrganizer();
@@ -38,6 +41,17 @@ export default async function EmergencyManagerPage() {
     <>
       <PageHeader
         title="Emergency Manager"
+        info={
+          <>
+            <strong>This card does not page anybody</strong>
+            <p>
+              The dashboard can send push, but no device has ever registered a token. Nothing in
+              the app writes <code>fcmTokens</code>, and receiving one needs a development build
+              rather than Expo Go. A broadcast button here would reach zero people and report
+              success.
+            </p>
+          </>
+        }
         tags={
           <Tag color={ready ? 'green' : 'orange'} fill="outline">
             {ready ? 'Plan marked ready' : 'Draft'}
@@ -53,12 +67,17 @@ export default async function EmergencyManagerPage() {
         ]}
       />
 
+      {/*
+        Kept as a Banner. It is not a caveat about the software — it is the
+        order the team acts in during an incident, and it has to be readable
+        without a hover by somebody who is not calm.
+      */}
       <Banner kind="warning">
-        <strong>Nothing here alerts anybody.</strong> This is a reference card the organizing team
-        fills in and reads — it does not page, call, text or push. In a real incident the sequence
-        is emergency services first, then venue security, then an announcement from the stage.
-        Reaching phones would need push, and no device has ever registered a token (nothing in the
-        app writes <code>fcmTokens</code>), so a broadcast button would silently reach zero people.
+        <strong>In an incident: emergency services, then venue security, then an announcement from
+        the stage.</strong>{' '}
+        This card is a reference the organizing team fills in and reads aloud. It does not page,
+        call, text or push. Reaching attendees means{' '}
+        <Link href={ROUTES.announcements}>an announcement</Link>, which is real.
       </Banner>
 
       <Panel>
@@ -92,10 +111,6 @@ export default async function EmergencyManagerPage() {
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>No alert broadcast.</strong> As above — the sender is real, the audience is
-            empty. Push needs a development build of the app to receive it, which Expo Go cannot do.
-          </li>
           <li>
             <strong>The plan is not visible to attendees — yet.</strong> It lives in the{' '}
             <code>settings</code> collection, which has no <code>match</code> block in{' '}

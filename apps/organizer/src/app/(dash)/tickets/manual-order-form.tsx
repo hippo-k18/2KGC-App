@@ -44,7 +44,7 @@ export function ManualOrderForm({
   if (packages.length === 0) {
     return (
       <p className="muted" style={{ fontSize: 13 }}>
-        No {audienceNoun} package exists to record a payment against. Price one first — an order
+        No {audienceNoun} package exists to record a payment against. Price one first. An order
         pointing at no ticket type cannot produce a badge.
       </p>
     );
@@ -113,7 +113,7 @@ export function ManualOrderForm({
         <input id="email" name="email" type="email" required placeholder="ada@example.com" />
         <p className="muted" style={{ fontSize: 12 }}>
           The join key. The registration id is derived from it, and it is the address they sign in
-          with — recording the same address twice updates one registration rather than making two.
+          with. Recording the same address twice updates one registration rather than making two.
         </p>
       </div>
 
@@ -164,7 +164,7 @@ export function ManualOrderForm({
           Email
         </label>
         <label style={{ fontSize: 13 }}>
-          <input id="silent" type="checkbox" name="silent" /> Do not send a confirmation — they have
+          <input id="silent" type="checkbox" name="silent" /> Do not send a confirmation. They have
           already been told
         </label>
         <p className="muted" style={{ fontSize: 12 }}>

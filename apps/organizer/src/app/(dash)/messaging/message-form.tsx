@@ -94,7 +94,7 @@ export function MessageForm({
         */}
         <p className="muted" style={{ fontSize: 12 }}>
           Plain text. A blank line starts a new paragraph; nothing else is formatted. Each person
-          gets &ldquo;Hi &lt;first name&gt;,&rdquo; automatically — don&rsquo;t write your own
+          gets &ldquo;Hi &lt;first name&gt;,&rdquo; automatically. Don&rsquo;t write your own
           greeting.
         </p>
       </div>
@@ -115,7 +115,7 @@ export function MessageForm({
             checked={testOnly}
             onChange={(e) => setTestOnly(e.target.checked)}
           />{' '}
-          <strong>Send me a test first</strong> — nothing goes to any {audience.noun}
+          <strong>Send me a test first</strong>. Nothing goes to any {audience.noun}
         </label>
 
         {testOnly ? (

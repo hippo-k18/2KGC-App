@@ -54,7 +54,7 @@ export function AdminSettingsForm({
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
           Recorded, and read back by this screen only. The app decides both of these for itself
-          today — see the banner above before promising either to anybody.
+          today, so neither switch changes what an attendee sees.
         </p>
       </div>
 

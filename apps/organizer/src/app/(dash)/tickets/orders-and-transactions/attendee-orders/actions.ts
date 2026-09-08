@@ -92,7 +92,7 @@ export async function refundOrderAction(
         : order.channel === 'demo'
           ? 'it is a test purchase and no money was taken'
           : order.channel === 'invoice'
-            ? 'it is an invoice — refunding one is a credit note, which has to be done in Stripe'
+            ? 'it is an invoice. Refunding one is a credit note, which has to be done in Stripe'
             : 'it has no Stripe payment to refund against';
     return { error: `This order cannot be refunded here because ${why}.` };
   }
@@ -168,7 +168,7 @@ export async function refundOrderAction(
     message:
       `Refunded ${money(order.totalCents, order.currency)} to ${order.email}. ` +
       'Their registration is withdrawn and they are emailed automatically when Stripe ' +
-      'confirms it — usually within a few seconds. Refresh to see the status change.',
+      'confirms it, usually within a few seconds. Refresh to see the status change.',
   };
 }
 
@@ -210,7 +210,7 @@ export async function markInvoicePaidAction(
   if (note.length < 3) {
     // Required, because "why is this marked paid?" asked six months later has
     // no other answer, and "the PO is on file" is a sentence somebody must own.
-    return { error: 'Say why — a PO number, or who authorised it. This is the only record.' };
+    return { error: 'Say why: a PO number, or who authorised it. This is the only record.' };
   }
 
   const order = await getOrder(orderId);

@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { money, salesSummary } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +41,16 @@ export default async function OrdersSummaryPage() {
     <>
       <PageHeader
         title="Summary"
+        info={
+          <>
+            <strong>Net leads, not gross</strong>
+            <p>
+              Every figure is computed from <code>orders</code> rather than from a price list times
+              a headcount, so discounts, tax and partial refunds are already in it. Stripe&rsquo;s
+              processing fees are not. They are charged against the payout, not the order.
+            </p>
+          </>
+        }
         tags={
           stripeEnabled() ? (
             <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
@@ -67,7 +77,7 @@ export default async function OrdersSummaryPage() {
         <Banner kind="warning">
           <strong>{s.demoOrders} test {s.demoOrders === 1 ? 'purchase' : 'purchases'}</strong> are
           excluded from every figure below. They were made with no payment processor configured, so
-          no money was taken — but they wrote real registrations, and those attendees appear on the
+          no money was taken, but they wrote real registrations, and those attendees appear on the
           check-in list.
         </Banner>
       )}
@@ -116,7 +126,7 @@ export default async function OrdersSummaryPage() {
             </span>,
             <strong key="n">{money(t.netCents, s.currency)}</strong>,
           ])}
-          empty="No orders yet. Sales appear here the moment the first ticket is bought."
+          empty={<NotInputted what="orders" compact />}
         />
         {/*
           Said explicitly because the arithmetic is genuinely approximate on
@@ -142,7 +152,7 @@ export default async function OrdersSummaryPage() {
             {s.daily.map((d) => (
               <div
                 key={d.date}
-                title={`${d.date} — ${money(d.netCents, s.currency)} across ${d.orders} ${d.orders === 1 ? 'order' : 'orders'}`}
+                title={`${d.date}: ${money(d.netCents, s.currency)} across ${d.orders} ${d.orders === 1 ? 'order' : 'orders'}`}
                 style={{
                   background: 'var(--link)',
                   // A floor of 2px so a day with one small sale is still a
@@ -183,7 +193,7 @@ export default async function OrdersSummaryPage() {
             [
               'Tax collected',
               s.taxCents === 0 ? (
-                <span className="muted">— not enabled in Stripe</span>
+                <span className="muted">Not enabled in Stripe</span>
               ) : (
                 money(s.taxCents, s.currency)
               ),
@@ -196,7 +206,7 @@ export default async function OrdersSummaryPage() {
           ]}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          Stripe&rsquo;s processing fees are not deducted here — they are charged against the payout,
+          Stripe&rsquo;s processing fees are not deducted here. They are charged against the payout,
           not the order, and only Stripe knows them. Expect roughly 2.9% + $0.30 per transaction.
         </p>
       </Panel>

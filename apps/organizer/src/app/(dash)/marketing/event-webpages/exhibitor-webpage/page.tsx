@@ -3,7 +3,17 @@ import { requireOrganizer } from '@/lib/auth';
 import { listBooths } from '@/lib/booths';
 import { exhibitorSummary, listExhibitors } from '@/lib/exhibitors';
 import { exhibitorLogoRenders, publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
+import {
+  Banner,
+  GapPanel,
+  NotInputted,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  StatTiles,
+  Table,
+  Tag,
+} from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,19 +80,19 @@ export default async function ExhibitorWebpagePage() {
   // find, then a blurb that says nothing, then a dead link.
   const gaps = [
     {
-      label: 'no logo — leaves a hole in the grid',
+      label: 'no logo. Leaves a hole in the grid',
       count: listed.filter((r) => !exhibitorLogoRenders(r.logoURL)).length,
     },
     {
-      label: 'no booth on the floor plan — not findable in the hall',
+      label: 'no booth on the floor plan, not findable in the hall',
       count: listed.filter((r) => !assignedBooths.has(r.id)).length,
     },
     {
-      label: 'no description — the card would be a name only',
+      label: 'no description. The card would be a name only',
       count: listed.filter((r) => !r.description).length,
     },
     {
-      label: 'no website link — nowhere for a visitor to go next',
+      label: 'no website link. Nowhere for a visitor to go next',
       count: listed.filter((r) => !r.website).length,
     },
   ].filter((g) => g.count > 0);
@@ -97,6 +107,16 @@ export default async function ExhibitorWebpagePage() {
     <>
       <PageHeader
         title="Exhibitor Webpage"
+        info={
+          <>
+            <strong>The web half only</strong>
+            <p>
+              <code>/exhibitors</code> publishes the confirmed records grouped by aisle. The app has
+              no exhibitor surface, so somebody standing in the hall cannot look one up on their
+              phone.
+            </p>
+          </>
+        }
         tags={<Tag color="green" fill="outline">live at /exhibitors</Tag>}
         actions={
           <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer" className="whova-btn-main">
@@ -113,15 +133,18 @@ export default async function ExhibitorWebpagePage() {
         ]}
       />
 
+      {/*
+        Operational: confirming an exhibitor puts them in front of the public
+        immediately, which is a thing to know before pressing it. The caveat that
+        the app has no matching surface is in the header's `info` tip.
+      */}
       <Banner kind="info">
-        <strong>Everything you confirm here is on the public site.</strong> The{' '}
-        <code>exhibitors</code> collection holds {summary.total} records and{' '}
+        <strong>Confirming an exhibitor publishes them.</strong> {listed.length} of{' '}
+        {summary.total} are live at{' '}
         <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer">
           /exhibitors
         </a>{' '}
-        renders the confirmed ones, grouped by aisle, on every request. ⚠️ The <em>app</em> still
-        has no exhibitor surface, so somebody standing in the hall cannot look one up on their
-        phone — see below.
+        right now, grouped by aisle, and a status change there takes effect on the next request.
       </Banner>
 
       <StatTiles
@@ -151,7 +174,7 @@ export default async function ExhibitorWebpagePage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What is wrong with the page today?</h2>
         {listed.length === 0 ? (
           <p className="muted" style={{ marginBottom: 0 }}>
-            Nothing — no exhibitor is confirmed yet, so the page shows an empty hall. Confirm them
+            Nothing, no exhibitor is confirmed yet, so the page shows an empty hall. Confirm them
             in Exhibitor Manager first.
           </p>
         ) : gaps.length === 0 ? (
@@ -212,7 +235,7 @@ export default async function ExhibitorWebpagePage() {
                   believing they are findable.
                 */
                 <span key="b" className="muted">
-                  {r.boothNumber} — not on the plan
+                  {r.boothNumber}, not on the plan
                 </span>
               ) : (
                 <span key="b" className="muted">—</span>
@@ -242,7 +265,20 @@ export default async function ExhibitorWebpagePage() {
               ),
             ];
           })}
-          empty="No exhibitors yet."
+          empty={
+            <NotInputted
+              what="exhibitors"
+              compact
+              action={
+                <Link
+                  className="btn btn-primary"
+                  href="/content/exhibitor-center/exhibitor-manager"
+                >
+                  Add one in Exhibitor Manager
+                </Link>
+              }
+            />
+          }
         />
       </Panel>
 
@@ -250,12 +286,11 @@ export default async function ExhibitorWebpagePage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Logos, which are blocked one layer down.</strong> The public card has a box for
-            one and falls back to the name in a grey square without it. Exhibitor Manager has a
-            real upload field and <code>lib/uploads.ts</code> is a real writer — but the Cloud
-            Storage bucket itself has never been created (<code>OWNER-ACTIONS.md</code> §1), so
-            every upload fails with an actionable error. The count in the table above is how many
-            cards that costs.
+            <strong>Logos are an organizer&rsquo;s job now, not a blocked one.</strong> The public card
+            has a box for one and falls back to the name in a grey square without it. Exhibitor
+            Manager has a real upload field, <code>lib/uploads.ts</code> is a real writer, and the
+            Storage bucket exists as of 2026-09-01 — so the count in the table above is exhibitors
+            who have not sent artwork rather than a capability we lack.
           </li>
           <li>
             <strong>An exhibitor surface in the app.</strong> The People tab has attendees,

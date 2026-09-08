@@ -12,6 +12,7 @@ import {
   type RegistrationDoc,
   type SpeakerDoc,
   type UserDoc,
+  type VolunteerDoc,
   type WithId,
 } from '@kgc/shared';
 import {
@@ -94,6 +95,18 @@ function iso(t: { toDate(): Date } | undefined): string | undefined {
 const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
 
 /**
+ * `vol_{volunteerId}` — a volunteer as a consent signatory.
+ *
+ * The same prefixed shape as `spk_`, and for the same reason: one field holds
+ * Firebase uids, `reg_` ids, speaker ids and now these, and the signing page
+ * decides which collection to read from the prefix alone. It lives here rather
+ * than in `@kgc/scripts/src/lib/consent-token` beside `speakerSignatory` only
+ * because the website resolves it by literal prefix; if a third caller ever
+ * needs to mint one, move it there rather than writing the string twice.
+ */
+export const volunteerSignatory = (volunteerId: string) => `vol_${volunteerId}`;
+
+/**
  * Every consent form, with both signature counts.
  *
  * One equality filter and an in-memory sort, the rule everywhere in this
@@ -150,10 +163,12 @@ export interface ConsentRegister {
   /** Signatures matching nobody currently in the audience. See the core module. */
   orphans: SignatureRecord[];
   /**
-   * True when the audience has no source list in this project at all — which
-   * today means `volunteer`, because there is no `volunteers` collection. An
-   * empty register and a register of zero outstanding signatures look identical
-   * and mean opposite things, so the screen has to be told which it is.
+   * True when the audience has no source list in this project at all.
+   *
+   * No audience is in that state today — `volunteers` closed the last one — but
+   * the flag stays, because an empty register and a register of zero
+   * outstanding signatures render identically and mean opposite things, and the
+   * next audience somebody adds will arrive without a source list too.
    */
   audienceUnavailable: boolean;
 }
@@ -166,7 +181,9 @@ export interface ConsentRegister {
  * For an attendee form, the union of `users` and `registrations` — the same
  * union `listAttendees()` builds, and for the same reason: somebody who bought a
  * ticket this morning has no profile yet and is still somebody whose release is
- * outstanding. For a speaker form, `speakers`.
+ * outstanding. For a speaker form, `speakers`. For a volunteer form,
+ * `volunteers` — deduplicated by address, because a roster holds one row per
+ * shift and a person working three shifts signs one waiver, not three.
  *
  * A ticket holder with no account cannot sign in the app, because there is no
  * account for `firestore.rules` to check. They are not dropped from the
@@ -233,7 +250,7 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
         name: r.name?.trim() || r.email,
         email: r.email,
         kind: 'attendee',
-        note: 'has not opened the app — needs a link',
+        note: 'has not opened the app. Needs a link',
       });
     }
 
@@ -256,6 +273,40 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
         note: s.contactEmail ? undefined : 'no contact address on file',
       });
     }
+  }
+
+  if (sources.includes('volunteer')) {
+    const snap = await db()
+      .collection(COLLECTIONS.volunteers)
+      .where('eventId', '==', EVENT_ID)
+      .get();
+
+    /*
+      One row per person, not per shift. The roster deliberately holds a row per
+      shift — that is what makes "who is on the desk at 08:00" a filter rather
+      than an unrolled array — but a waiver is signed once by a human, so three
+      shifts must not become three outstanding signatures against one person.
+      The first row wins the key; the rest become aliases so a signature made
+      under any of them still lands on the same register line.
+    */
+    const byEmail = new Map<string, ConsentSubject>();
+    for (const d of snap.docs) {
+      const v = d.data() as VolunteerDoc;
+      const k = emailKey(v.email) || d.id;
+      const existing = byEmail.get(k);
+      if (existing) {
+        existing.aliases = [...(existing.aliases ?? []), volunteerSignatory(d.id)];
+        continue;
+      }
+      byEmail.set(k, {
+        key: volunteerSignatory(d.id),
+        name: v.name || v.email || d.id,
+        email: v.email,
+        kind: 'volunteer',
+        note: v.role || undefined,
+      });
+    }
+    subjects.push(...byEmail.values());
   }
 
   subjects.sort((a, b) => a.name.localeCompare(b.name));

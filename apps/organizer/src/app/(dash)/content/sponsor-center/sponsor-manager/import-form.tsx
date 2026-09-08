@@ -40,7 +40,7 @@ export function SponsorImportForm() {
           <div>{state.message}</div>
         </div>
         <p className="whova-form-description">
-          Nothing was removed. A sponsor missing from the file stays on the list — an import is
+          Nothing was removed. A sponsor missing from the file stays on the list. An import is
           additive, because a truncated export must not quietly take a paying sponsor off the
           public website.
         </p>
@@ -130,7 +130,7 @@ export function SponsorImportForm() {
                             key={j}
                             style={{ borderBottom: '1px solid var(--hairline)', padding: 6 }}
                           >
-                            {v || <span className="muted">—</span>}
+                            {v || <span className="muted">blank in the file</span>}
                           </td>
                         ))}
                       </tr>

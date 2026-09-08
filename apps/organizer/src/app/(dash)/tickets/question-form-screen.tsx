@@ -4,7 +4,17 @@ import type { TicketAudience } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { answerSummary, getForm } from '@/lib/question-forms';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import {
+  Banner,
+  GapPanel,
+  NotInputted,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  StatTiles,
+  Table,
+  Tag,
+} from '../ui';
 import { deleteQuestionAction, moveQuestionAction, toggleFormAction } from './question-form-actions';
 import { QuestionEditor } from './question-form-editor';
 import { PUBLIC_PAGE } from './audience-catalogue';
@@ -68,6 +78,16 @@ export async function QuestionFormScreen({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>Answers belong to the person, not to the purchase</strong>
+            <p>
+              The buyer answers on <code>{PUBLIC_PAGE[audience]}</code> before the Stripe redirect,
+              and the webhook copies the answers onto the registration. They survive a transferred
+              ticket and a re-bought order, and nothing querying <code>orders</code> can read them.
+            </p>
+          </>
+        }
         tags={
           form.active ? (
             <Tag color="green" fill="outline">
@@ -88,27 +108,14 @@ export async function QuestionFormScreen({
         ]}
       />
 
-      {form.fields.length === 0 ? (
-        <Banner kind="info">
-          <strong>No questions yet.</strong> Add one below and switch the form on, and every{' '}
-          {audience} buyer is asked before they reach Stripe. Answers land on the registration, not
-          on the order — they belong to the person and survive a transferred ticket.
-        </Banner>
-      ) : form.active ? (
-        <Banner kind="info">
-          <strong>
-            These {form.fields.length} questions are asked on{' '}
-            <code>{PUBLIC_PAGE[audience]}</code> before checkout.
-          </strong>{' '}
-          The buyer answers on our page and then goes to Stripe — hosted Checkout takes at most
-          three custom fields and only text or dropdown, which is enough for a t-shirt size and not
-          for a consent flow.
-        </Banner>
-      ) : (
+      {form.fields.length > 0 && !form.active && (
         <Banner kind="warning">
-          <strong>The form is written but switched off, so nobody is asked anything.</strong> That
-          is the honest default for a half-written question set — turn it on below when the
-          questions are the ones you want, because editing a live form is not a draft.
+          <strong>
+            These {form.fields.length} questions are switched off, so nobody is being asked
+            anything.
+          </strong>{' '}
+          Turn the form on below when the questions are the ones you want. Editing a live form is
+          not a draft.
         </Banner>
       )}
 
@@ -210,7 +217,7 @@ export async function QuestionFormScreen({
                       </div>
                     ) : (
                       <div className="muted" style={{ fontSize: 11 }}>
-                        free text — not tallied
+                        free text, not tallied
                       </div>
                     )}
                     {summary.answered > 0 && (
@@ -248,7 +255,7 @@ export async function QuestionFormScreen({
               </div>,
             ];
           })}
-          empty="No questions. Checkout collects a name, an email address and a card, and nothing else."
+          empty={<NotInputted what="questions" compact />}
         />
 
         {form.updatedAt && (

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { SettingsReach } from '../../../settings-reach';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
 import { AppBrandingForm } from '../branding-forms';
 
 export const dynamic = 'force-dynamic';
@@ -24,10 +24,14 @@ export const dynamic = 'force-dynamic';
  * it, and the reach table below is rendered from it. A surface that starts
  * reading a field flips one entry there and this screen follows.
  *
- * The logo and banner halves are not a form at all, because **no screen in this
- * dashboard can put a file into Firebase Storage.** There is no upload
- * component anywhere in the project, which is also why `SponsorDoc.logoURL` and
- * `ExhibitorDoc.logoURL` are populated by the importer rather than by a person.
+ * The logo and banner halves are not a form either, and the reason changed in
+ * September 2026: uploading is no longer the blocker. The bucket is live and
+ * `lib/uploads.ts` writes to it — sponsor, exhibitor and speaker images all go
+ * through it. What is still missing is a *reader*. The app's logo and palette
+ * are compiled into the bundle, so a file stored here would reach no phone, and
+ * a picker whose result nothing renders is the capability-claiming defect
+ * AGENTS.md counts fourteen instances of. The app learning to read its branding
+ * at runtime is the change that unblocks this, and it is an `app/` change.
  */
 export default async function AppBrandingPage() {
   await requireOrganizer();
@@ -38,6 +42,16 @@ export default async function AppBrandingPage() {
     <>
       <PageHeader
         title="App Branding"
+        info={
+          <>
+            <strong>Recorded, not applied</strong>
+            <p>
+              The palette ships inside the app bundle and is fixed at build time, so a colour saved
+              here reaches no phone until the app reads its theme at runtime. This is where the
+              decision is written down.
+            </p>
+          </>
+        }
         links={[
           <Link key="b" href="/content/basics">
             Basics
@@ -47,14 +61,6 @@ export default async function AppBrandingPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="warning">
-        <strong>Saving here records a decision. It does not change the app.</strong> The palette
-        ships inside the bundle (<code>app/src/constants/theme.ts</code>) and is fixed at build
-        time, so a colour saved on this screen reaches no phone until the app learns to read its
-        theme at runtime. Treat this as the place the answer is written down, not the place it takes
-        effect.
-      </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Text</h2>
@@ -73,26 +79,6 @@ export default async function AppBrandingPage() {
         )}
       </Panel>
 
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Images</h2>
-        <p className="body-2">
-          Whova takes a 256×256 logo, a 750×300 banner and an optional 2000×750 web-app header,
-          resizes them server-side and serves them from its own CDN. Fonts are explicitly not
-          customisable — theirs either.
-        </p>
-        <p className="body-2">
-          There is no upload here because there is no upload anywhere in this project. Firebase
-          Storage is provisioned and <code>storage.rules</code> is written, but nothing in the
-          dashboard, the website or the app writes a file to it. Building the first one means an
-          upload component, a rule that only organizers can pass, a size and dimension check, and
-          somewhere to put the resulting URL — after which every other screen that wants an image
-          becomes cheap.
-        </p>
-        <p className="body-2">
-          Roughly <strong>2–3 days</strong>, most of it the image pipeline rather than the form.
-        </p>
-      </Panel>
-
       <SettingsReach
         bag={SETTINGS_KEYS.branding}
         fields={['brandColor', 'accentColor', 'tagline', 'supportEmail', 'hashtag']}
@@ -103,18 +89,17 @@ export default async function AppBrandingPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Logo, banner and header upload.</strong> No file-upload UI exists in this
-            project at all.
+            <strong>Logo, banner and header upload.</strong> Not blocked on Storage any more — the
+            bucket is live and <code>lib/uploads.ts</code> writes to it. Blocked on a reader: the
+            app compiles its logo in, so a stored file would reach nobody.
           </li>
           <li>
-            <strong>A preview.</strong> Whova renders a phone mock-up beside the form. Ours would
-            have to fake it, and a mock-up of a change that does not happen is the worst version of
-            this screen available.
+            <strong>A preview.</strong> A phone mock-up here would have to fake it, and a mock-up
+            of a change that does not happen is the worst version of this screen available.
           </li>
           <li>
-            <strong>Contrast checking.</strong> Three of Whova&rsquo;s own default pairings fail
-            WCAG AA and <code>constants/theme.ts</code> documents the fixes. A colour picked here is
-            checked by nobody.
+            <strong>Contrast checking.</strong> <code>constants/theme.ts</code> documents which
+            pairings fail WCAG AA. A colour picked here is checked by nobody.
           </li>
         </ul>
       </GapPanel>

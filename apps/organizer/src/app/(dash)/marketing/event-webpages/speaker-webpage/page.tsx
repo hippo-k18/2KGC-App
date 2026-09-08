@@ -19,7 +19,7 @@ export default async function SpeakerWebpagePage() {
       editorLabel="Speaker Manager"
       notBuilt={[
         'Ordering speakers by hand. The public page leads with the five the live site leads with and lists the rest alphabetically; Whova lets you drag them.',
-        'A per-speaker public profile page. Ours are cards on one page — a speaker with no bio would otherwise get a page that is mostly empty.',
+        'A per-speaker public profile page. Ours are cards on one page. A speaker with no bio would otherwise get a page that is mostly empty.',
         'Speaker self-service editing. Chasing a bio is Message Speakers today; a form the speaker fills in themselves needs an auth path they do not have.',
       ]}
     />

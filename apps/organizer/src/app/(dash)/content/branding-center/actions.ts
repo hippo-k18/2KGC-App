@@ -31,7 +31,7 @@ function reach(fields: readonly (keyof typeof SETTINGS_REGISTER.branding)[]): st
   // organizer cannot see. "Saved" alone is the message this task exists to fix.
   if (live.length === facts.length) return 'Saved and live.';
   const parts = ['Recorded and audited.'];
-  if (recorded) parts.push('No surface can apply the colours — that is a decision, not a gap.');
+  if (recorded) parts.push('No surface can apply the colours. That is a decision, not a gap.');
   if (waiting) parts.push(`The rest is waiting on ${waiting} in docs/audit-2026-08-30/FOLLOW-UPS.md.`);
   return parts.join(' ');
 }
@@ -81,7 +81,7 @@ export async function saveBrandingAction(
       return { error: 'That support address is not a valid email.' };
     }
     if (hashtag && !/^[A-Za-z0-9_]{1,30}$/.test(hashtag)) {
-      return { error: 'A hashtag is letters, digits and underscores — no spaces or punctuation.' };
+      return { error: 'A hashtag is letters, digits and underscores, no spaces or punctuation.' };
     }
     if (tagline.length > 80) return { error: 'Keep the tagline under 80 characters.' };
 

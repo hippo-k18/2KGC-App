@@ -28,7 +28,7 @@ export function ImportForm() {
         <p className="ok">{state.message}</p>
         <p className="muted" style={{ fontSize: 12 }}>
           Imported attendees get a registration and appear on the list above.{' '}
-          <strong>No order is created</strong> — they did not pay through us, and inventing one
+          <strong>No order is created</strong>. They did not pay through us, and inventing one
           would put money in the revenue figures that nobody received.
         </p>
       </>

@@ -102,7 +102,7 @@ export async function saveSurveyAction(
       return {
         error:
           `This survey already has ${existing.responseCount} responses, so its questions cannot ` +
-          'change — the answers already stored would start meaning something else. Create a new ' +
+          'change. The answers already stored would start meaning something else. Create a new ' +
           'survey instead.',
       };
     }

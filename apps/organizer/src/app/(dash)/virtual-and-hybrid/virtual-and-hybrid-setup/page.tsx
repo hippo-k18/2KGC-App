@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money, salesSummary } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +25,28 @@ export const dynamic = 'force-dynamic';
  * a line in a backlog.
  *
  * So this page reads the tier out of `ticketTypes` and the sales out of
- * `orders`, and puts the two side by side.
+ * `orders`, and puts the two side by side. That is its whole job: it is an
+ * entitlement report, not an essay about streaming.
+ *
+ * ── The three options, kept here rather than on screen ──────────────────────
+ *
+ * They are a decision for the owner, not a thing an organizer reads on the way
+ * to a number, so they live in this comment.
+ *
+ * **Stop selling it.** Set `visible: false` on the tier in Create Tickets and
+ * refund the ones already sold. Cheapest, and the only option that is true
+ * today.
+ *
+ * **Sell recordings instead of streams.** Rewrite the tier as post-event
+ * access, which is a video-hosting bill rather than a live-production
+ * commitment — one provider, one link per session, no rehearsals, no run of
+ * show.
+ *
+ * **Actually stream.** A provider account, a stream key per room, an AV
+ * operator per room for five days, a player in the app behind the entitlement,
+ * and a rehearsal process. That is a different product with a different cost
+ * base, and choosing it because a ticket tier already mentions it is the wrong
+ * order to make the decision in.
  */
 export default async function VirtualAndHybridSetupPage() {
   await requireOrganizer();
@@ -46,7 +67,23 @@ export default async function VirtualAndHybridSetupPage() {
     <>
       <PageHeader
         title="Virtual & Hybrid Setup"
-        tags={<Tag color="red" fill="solid">Sold, not delivered</Tag>}
+        info={
+          <>
+            <strong>An entitlement report, not a setup wizard</strong>
+            <p>
+              This project runs one event format, in person. There is no switch between virtual,
+              hybrid and in-person to flip, and no per-session stream configuration. What this
+              screen does is compare what remote tiers were sold as against what exists.
+            </p>
+          </>
+        }
+        tags={
+          remoteSold > 0 ? (
+            <Tag color="red" fill="solid">
+              Sold, not delivered
+            </Tag>
+          ) : undefined
+        }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
             Create Tickets
@@ -60,14 +97,23 @@ export default async function VirtualAndHybridSetupPage() {
         ]}
       />
 
-      <Banner kind="danger">
-        <strong>A paid ticket promises something that does not exist.</strong> The{' '}
-        <code>virtual</code> tier is on sale on the public site and its first bullet is &ldquo;Live
-        streams of every conference and workshop session&rdquo;. Nothing in this project streams
-        anything: no player in the app, no stream URL on a session, no provider account. Every
-        virtual ticket sold before that changes is a refund conversation waiting to happen, and the
-        count below is how many.
-      </Banner>
+      {/*
+        The one Banner in this cluster that stays a Banner. It is not a caveat
+        about the software's scope — money has changed hands against a promise
+        nothing keeps, and every day it stays on sale adds a refund
+        conversation. It changes what the organizer does in the next minute.
+      */}
+      {remoteSold > 0 && (
+        <Banner kind="danger">
+          <strong>
+            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold against
+            a promise nothing delivers.
+          </strong>{' '}
+          The remote tiers below are on sale on the public site and nothing in this project streams:
+          no player in the app, no stream URL on a session, no provider account. Every one of them is
+          a refund conversation waiting to happen.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -80,11 +126,7 @@ export default async function VirtualAndHybridSetupPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What the buyer was told</h2>
         {remote.length === 0 ? (
-          <p className="body-2">
-            No ticket type has <code>inPerson: false</code>. Nothing is being sold as remote
-            access, so the promise problem above does not currently apply — run{' '}
-            <code>npm run seed</code> if you expected the demo tiers here.
-          </p>
+          <NotInputted what="remote ticket tiers" />
         ) : (
           remote.map((t) => (
             <div key={t.id} style={{ marginBottom: 18 }}>
@@ -118,37 +160,11 @@ export default async function VirtualAndHybridSetupPage() {
         <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
           ⚠️ Note the Virtual tier promises &ldquo;on-demand replays&rdquo; in prose while its{' '}
           <code>includesVideoLibrary</code> entitlement is <code>false</code>. Those two disagree
-          with each other before any player exists — see{' '}
+          with each other before any player exists. See{' '}
           <Link href="/content/documents-and-videos/attendee-video-access">
             Attendee Video Access
           </Link>
           .
-        </p>
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The three honest options</h2>
-        <ol className="body-2" style={{ paddingLeft: 18, lineHeight: 1.8 }}>
-          <li>
-            <strong>Stop selling it.</strong> Set <code>visible: false</code> on the tier in{' '}
-            <Link href={ROUTES.createTickets}>Create Tickets</Link> and refund the ones already
-            sold. Cheapest, and the only option that is true today.
-          </li>
-          <li>
-            <strong>Sell recordings instead of streams.</strong> Rewrite the tier as post-event
-            access, which is a video-hosting bill rather than a live-production commitment — one
-            provider, one link per session, no rehearsals, no run of show.
-          </li>
-          <li>
-            <strong>Actually stream.</strong> A provider account, a stream key per room, an AV
-            operator per room for five days, a player in the app behind the entitlement, and a
-            rehearsal process. This is the fifteen screens and the reason the roadmap suggests
-            cutting them.
-          </li>
-        </ol>
-        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
-          Option 3 is a different product with a different cost base, and choosing it because a
-          ticket tier already mentions it is the wrong order to make that decision in.
         </p>
       </Panel>
 

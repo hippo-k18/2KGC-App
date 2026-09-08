@@ -216,6 +216,6 @@ export async function feedbackTargets(): Promise<{ id: string; label: string }[]
     .sort((a, b) => a.doc.startsAtLocal.localeCompare(b.doc.startsAtLocal))
     .map((r) => ({
       id: r.id,
-      label: `${r.doc.day} ${r.doc.startsAtLocal.slice(11, 16)} — ${r.doc.title}`,
+      label: `${r.doc.day} ${r.doc.startsAtLocal.slice(11, 16)} · ${r.doc.title}`,
     }));
 }

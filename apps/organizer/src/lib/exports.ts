@@ -82,7 +82,7 @@ export const EXPORTS: ExportDef[] = [
   def<AttendeeRow>(
     'attendees',
     'Attendee list',
-    'The everyday one — badge printing, catering numbers, a delegate list.',
+    'The everyday one: badge printing, catering numbers, a delegate list.',
     'Name, email, title, company, ticket type, and whether they have the app.',
     listAttendees,
     [
@@ -103,7 +103,7 @@ export const EXPORTS: ExportDef[] = [
     'catering',
     'Badge and catering list',
     'The one you send to a supplier. Deliberately the narrowest export here.',
-    'Name and company only — no email, no ticket price, nothing personal.',
+    'Name and company only, no email, no ticket price, nothing personal.',
     async () => {
       const all = await listAttendees();
       // Refunded tickets are excluded: this list becomes a headcount somebody

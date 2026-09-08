@@ -140,7 +140,7 @@ export async function sendCampaignAction(
 
   if (Number(confirmCount) !== recipients.length) {
     return {
-      error: `Type ${recipients.length} to confirm — that is how many people will receive this${
+      error: `Type ${recipients.length} to confirm. That is how many people will receive this${
         suppressed > 0 ? `, with ${suppressed} suppressed and excluded` : ''
       }.`,
       keep,
@@ -219,7 +219,7 @@ export async function sendCampaignAction(
       ? ''
       : skipLog.written === skipLog.attempted
         ? ` ${suppressed} were excluded as unsubscribed or bounced, and each is logged as skipped.`
-        : ` ${suppressed} were excluded as unsubscribed or bounced — none of them was emailed, but only ` +
+        : ` ${suppressed} were excluded as unsubscribed or bounced, none of them was emailed, but only ` +
           `${skipLog.written} of ${skipLog.attempted} could be written to the log. ` +
           `See the transaction log for the write failure.`;
 
@@ -227,7 +227,7 @@ export async function sendCampaignAction(
     ok: true,
     message:
       `Sent to ${sent} of ${recipients.length} on "${list}".` +
-      (failed > 0 ? ` ${failed} failed — see the log below.` : '') +
+      (failed > 0 ? ` ${failed} failed. See the log below.` : '') +
       excludedNote,
   };
 }

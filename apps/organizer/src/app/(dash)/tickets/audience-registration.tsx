@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 import { PUBLIC_PAGE } from './audience-catalogue';
 
 /**
@@ -35,6 +35,21 @@ const AUDIENCE_LABEL: Record<TicketAudience, string> = {
   sponsor: 'sponsor',
 };
 
+/**
+ * Where each audience's registration-page screen lives in this dashboard.
+ *
+ * The widget screen used to build this link as `audience === 'attendee' ? path
+ * : ''`, so on the exhibitor and sponsor copies it rendered an anchor with an
+ * empty `href` — a link that reloads whatever page you are already on. Whova's
+ * numbering means the three screens have unrelated paths, so they have to be
+ * named rather than derived.
+ */
+const REGISTRATION_PAGE: Record<TicketAudience, string> = {
+  attendee: '/tickets/ticket-setup/1-4-registration-pages',
+  exhibitor: '/tickets/exhibitor-ticket-setup/2-7-registration-page',
+  sponsor: '/tickets/sponsor-ticket-setup/registration-page',
+};
+
 // ---------------------------------------------------------------------------
 // Registration page
 // ---------------------------------------------------------------------------
@@ -58,6 +73,16 @@ export async function AudienceRegistrationPage({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>The page is data; the copy is code</strong>
+            <p>
+              Packages, prices, inclusion lists, sold-out state and sales windows are read from{' '}
+              <code>ticketTypes</code> on every request. Headings and the surrounding argument are
+              React components in <code>apps/web</code> and change with a deploy.
+            </p>
+          </>
+        }
         tags={
           <Tag color={listed.length > 0 ? 'green' : 'grey'} fill="outline">
             {listed.length} listed
@@ -74,24 +99,13 @@ export async function AudienceRegistrationPage({
         ]}
       />
 
-      {listed.length === 0 ? (
+      {listed.length === 0 && (
         <Banner kind="warning">
           <strong>
-            <code>{path}</code> renders, but it has nothing to sell.
+            <code>{path}</code> is live and has nothing to sell.
           </strong>{' '}
-          The page tells a visitor that {noun} packages are not open yet and offers an email
-          address, which is the honest thing for it to do — but it is not a registration page until
-          a tier is listed.
-        </Banner>
-      ) : (
-        <Banner kind="info">
-          <strong>
-            This page is live at <code>{path}</code>.
-          </strong>{' '}
-          Everything on it that is data — the packages, prices, inclusion lists, sold-out state and
-          sales windows — is read from <code>ticketTypes</code> on every request. Edit a price in{' '}
-          <Link href={ROUTES.createTickets}>Create Tickets</Link> and the page changes on the next
-          load, with no deploy.
+          A visitor reaching it is offered an email address instead of a package. List a tier in{' '}
+          <Link href={ROUTES.createTickets}>Create Tickets</Link> to open sales.
         </Banner>
       )}
 
@@ -130,29 +144,25 @@ export async function AudienceRegistrationPage({
               </span>
             ) : (
               <span key="s" className="muted">
-                Hidden — purchasable by direct link only
+                Hidden: purchasable by direct link only
               </span>
             ),
           ])}
-          empty={`No ${noun} packages exist. Create one in Create Tickets with the audience set to ${noun}.`}
+          empty={
+            <NotInputted
+              what={`${noun} packages`}
+              compact
+              action={
+                <Link
+                  className="btn btn-primary"
+                  href={`${ROUTES.createTickets}?audience=${audience}`}
+                >
+                  Create one
+                </Link>
+              }
+            />
+          }
         />
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does that this does not</h2>
-        <p className="body-2">
-          Hosts the page with a theme editor — banner image, brand colours, arbitrary content
-          sections, a terms checkbox. Ours is a React component in <code>apps/web</code>, so the
-          headings and the surrounding argument change with a deploy while the prices change
-          instantly. That split is deliberate: the part that costs money to get wrong is the part
-          that is editable without a release.
-        </p>
-        <p className="body-2">
-          The genuinely missing piece is a <strong>content editor for the copy</strong>, which is
-          Phase 5 of <code>ROADMAP.md</code> and is a content-management project rather than a
-          screen. Until it exists, the {noun} pitch on that page is written by whoever last edited{' '}
-          <code>apps/web/src/app/tickets/{audience === 'attendee' ? 'page.tsx' : `${audience}/page.tsx`}</code>.
-        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -197,54 +207,60 @@ export async function AudienceRegistrationWidget({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>There is no embed snippet</strong>
+            <p>
+              The marketing site and the checkout are one deployment, so anywhere a widget would go,
+              a link to <code>{path}</code> goes instead. A partner site selling KGC packages is
+              what would need a real embed, and the requirements would come from that partner.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">No embed</Tag>}
         links={[
-          <Link key="p" href={`${path === '/tickets' ? '/tickets/ticket-setup/1-4-registration-pages' : ''}`}>
+          <Link key="p" href={REGISTRATION_PAGE[audience]}>
             Registration Page
           </Link>,
           <Link key="c" href={ROUTES.createTickets}>
             Create Tickets
           </Link>,
           ...(links ?? []),
-        ].filter(Boolean)}
+        ]}
       />
 
-      <Banner kind="warning">
-        <strong>There is no embeddable widget and no snippet to copy.</strong> A code block here
-        would be pasted into a real site and render nothing, so there is not one — a copyable code
-        block is the most convincing possible lie.
-      </Banner>
-
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Why the need is smaller here</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What to put on a partner&rsquo;s site</h2>
         <p className="body-2">
-          Whova&rsquo;s widget bridges two systems: your website, and their ticketing. This project
-          has one — <code>apps/web</code> serves the marketing pages, the agenda and the checkout
-          from a single deployment reading a single Firestore database. Anywhere a widget would go,
-          a link to <code>{path}</code> goes instead, and it is faster, accessible, and impossible
-          to break by upgrading a host page&rsquo;s CSS.
+          A link to the {noun} registration page, with a tracked code on it so the partner can be
+          credited for what it brings in.
         </p>
-        <p className="body-2">
-          The case that would genuinely need one for {noun}s is a <em>partner</em> site selling KGC
-          packages — an association&rsquo;s events page, a co-marketing partner. That is worth
-          building when such a partner exists, and its requirements come from them.
-        </p>
-
-        <h2 className="section-header">What it would take, if a partner asked</h2>
-        <p className="body-2">
-          A public JSON endpoint for the catalogue (there is none — <code>catalogue.ts</code> is{' '}
-          <code>server-only</code> and reads with the Admin SDK), an iframe route with a frame
-          policy naming permitted origins, and a decision about where checkout opens. The last is
-          the awkward one: Stripe&rsquo;s hosted Checkout will not run inside a cross-origin iframe,
-          so the buy button has to break out to a top-level navigation — exactly the thing an embed
-          was adopted to avoid.
-        </p>
-        <p className="body-2">
-          A <strong>link with a campaign parameter</strong> does most of what a partner actually
-          wants, which is credit for the sale. That is{' '}
-          <Link href="/tickets/ticket-marketing/campaign-link-tracking">Campaign Link Tracking</Link>
-          , and it is built.
-        </p>
+        <Table
+          cols={[
+            { key: 'w', label: 'What', className: 'cell-md' },
+            { key: 'v', label: 'Use this', className: 'cell-fill' },
+          ]}
+          rows={[
+            [
+              'Plain link',
+              <a key="v" href={`${publicSiteOrigin()}${path}`} target="_blank" rel="noreferrer">
+                {publicSiteOrigin()}
+                {path}
+              </a>,
+            ],
+            [
+              'Credited link',
+              <span key="v">
+                Give the partner their own <code>/r/</code> code on{' '}
+                <Link href="/tickets/ticket-marketing/campaign-link-tracking">
+                  Campaign Link Tracking
+                </Link>
+                . Clicks are counted by the redirect and a purchase within thirty days is credited
+                back to it.
+              </span>,
+            ],
+          ]}
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -273,13 +289,10 @@ export async function AudienceRegistrationSettings({
   audience,
   title,
   links,
-  extraGaps,
 }: {
   audience: TicketAudience;
   title: string;
   links?: ReactNode[];
-  /** Audience-specific rows for the "settings with no home" table. */
-  extraGaps?: [string, string][];
 }) {
   const noun = AUDIENCE_LABEL[audience];
   const tiers = (await listTicketTypes()).filter((t) => t.audience === audience);
@@ -290,6 +303,17 @@ export async function AudienceRegistrationSettings({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>These settings live on the package, not on the event</strong>
+            <p>
+              Sales windows, capacity and visibility are per tier, checked on every catalogue read
+              and again at checkout. Edit them in{' '}
+              <Link href={ROUTES.createTickets}>Create Tickets</Link>; there is deliberately no
+              second editor here.
+            </p>
+          </>
+        }
         tags={<Tag color="blue">{tiers.length} packages</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
@@ -298,13 +322,6 @@ export async function AudienceRegistrationSettings({
           ...(links ?? []),
         ]}
       />
-
-      <Banner kind="info">
-        <strong>These settings live on the package, not on the event.</strong> Sales windows,
-        capacity and visibility are per tier, checked on every catalogue read and again at
-        checkout — so closing a package closes it for somebody who kept the page open. Edit them in{' '}
-        <Link href={ROUTES.createTickets}>Create Tickets</Link>.
-      </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Per-package settings that are enforced</h2>
@@ -339,39 +356,14 @@ export async function AudienceRegistrationSettings({
               </Tag>
             ),
           ])}
-          empty={`No ${noun} packages exist yet.`}
+          empty={<NotInputted what={`${noun} packages`} compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Sold out is <code>quantitySold &gt;= quantityTotal</code>, and <code>quantitySold</code>{' '}
-          is incremented server-side at fulfilment — not from a client, and not from a count of
+          is incremented server-side at fulfilment, not from a client, and not from a count of
           orders that would double-count a partially refunded one. ⚠️ It is a counter, not a
           reservation: two buyers can pass the check and both pay for the last one.
         </p>
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Event-level settings that have no home</h2>
-        <Table
-          cols={[
-            { key: 's', label: 'Setting', className: 'cell-md' },
-            { key: 'n', label: 'Where it would have to live', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              'Waitlist when sold out',
-              'A collection of hopefuls plus a rule for who gets released capacity. Sold out today is a dead end with a message on it.',
-            ],
-            [
-              'Transfer to another person',
-              'The registration is keyed by a hash of the email address, so a transfer is a new registration and a revoked qrSecret — not an edit. Worth designing before it is needed at the door.',
-            ],
-            [
-              'Refund policy and self-service refunds',
-              'Refunds are issued by an organizer from Attendee Orders. Letting a buyer trigger one needs a policy window and an authenticated path that does not exist.',
-            ],
-            ...(extraGaps ?? []),
-          ]}
-        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -448,6 +440,17 @@ export async function AudienceConfirmationEmails({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>One set of templates, shared by every audience</strong>
+            <p>
+              A {noun} purchase goes through the same checkout, webhook and{' '}
+              <code>sendPurchaseConfirmation</code> as an attendee one, so it carries the same claim
+              code and writes the same per-recipient row to <code>emailLog</code>. The wording is
+              TypeScript in <code>scripts/src/lib/email.ts</code>.
+            </p>
+          </>
+        }
         tags={
           failed.length > 0 ? (
             <Tag color="red" fill="solid">
@@ -478,14 +481,15 @@ export async function AudienceConfirmationEmails({
         ]}
       />
 
-      <Banner kind="info">
-        <strong>{noun[0].toUpperCase() + noun.slice(1)} receipts are the same three templates.</strong>{' '}
-        A {noun} purchase goes through the same checkout, the same webhook and the same
-        `sendPurchaseConfirmation` as an attendee one — so it gets the same claim code and the same
-        capability-token order link, and it writes the same per-recipient row to{' '}
-        <code>emailLog</code>. There is no separate {noun} template, and inventing one would mean
-        two places to break the claim code.
-      </Banner>
+      {failed.length > 0 && (
+        <Banner kind="danger">
+          <strong>
+            {failed.length} {failed.length === 1 ? 'receipt' : 'receipts'} did not reach the buyer.
+          </strong>{' '}
+          Each failed row below names the reason. Somebody has paid and has no claim code, so they
+          cannot create their account until the address is corrected and fulfilment re-run.
+        </Banner>
+      )}
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Receipts for {noun} packages</h2>
@@ -512,7 +516,7 @@ export async function AudienceConfirmationEmails({
               {e.reason ? <span> · {e.reason}</span> : null}
             </span>,
           ])}
-          empty={`No ${noun} package has been bought yet, so no receipt has been sent for one.`}
+          empty={<NotInputted what={`${noun} receipts`} compact />}
         />
       </Panel>
 

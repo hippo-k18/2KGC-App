@@ -4,7 +4,7 @@ import type { GatheringDoc } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listRooms, listSessions } from '@/lib/data';
 import { listGatherings, roomClashes } from '@/lib/gatherings';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { removeAttendeeAction, setStatusAction } from './gathering-actions';
 import { GatheringForm, PlaceForm } from './gathering-forms';
 
@@ -38,7 +38,7 @@ export async function GatheringScreen({
   kind,
   title,
   links,
-  lead,
+  info,
   formCopy,
   notBuilt,
   searchParams,
@@ -46,7 +46,13 @@ export async function GatheringScreen({
   kind: GatheringDoc['kind'];
   title: string;
   links?: ReactNode[];
-  lead: ReactNode;
+  /**
+   * What this screen is and is not, behind the header's "i". It used to be a
+   * full-width warning banner above the plan itself — a paragraph about the
+   * absent app surface standing between an organizer and the table they came
+   * here to add.
+   */
+  info: ReactNode;
   formCopy: {
     titleLabel: string;
     titlePlaceholder: string;
@@ -103,6 +109,7 @@ export async function GatheringScreen({
     <>
       <PageHeader
         title={title}
+        info={info}
         tags={
           clashes.length + programmeClashes.length > 0 ? (
             <Tag color="red" fill="solid">
@@ -124,8 +131,6 @@ export async function GatheringScreen({
           ...(links ?? []),
         ]}
       />
-
-      <Banner kind="warning">{lead}</Banner>
 
       <StatTiles
         tiles={[
@@ -171,7 +176,7 @@ export async function GatheringScreen({
             ]}
           />
           <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-            Checked against the agenda as well as against each other — a room double-booked between
+            Checked against the agenda as well as against each other. A room double-booked between
             a session and a table is the clash that actually happens, because the two are planned by
             different people weeks apart. Back-to-back is not a clash.
           </p>
@@ -268,7 +273,7 @@ export async function GatheringScreen({
               )}
             </div>,
           ])}
-          empty={`Nothing planned. Add the first one below — it is the list the front desk will work from.`}
+          empty={<NotInputted what={formCopy.noun.toLowerCase()} />}
         />
       </Panel>
 

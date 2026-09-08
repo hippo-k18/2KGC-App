@@ -85,9 +85,17 @@ export default async function PublishTicketsPage() {
       label: 'A payment processor is configured',
       state: stripeEnabled() ? (stripeIsLive() ? 'pass' : 'warn') : 'fail',
       detail: !stripeEnabled() ? (
+        /*
+          This check used to say purchases "complete as clearly-labelled demos
+          taking no money". That branch was deleted on 2026-08-31 and the claim
+          outlived it, which made this the worst possible wrong sentence: a
+          pre-flight telling an organizer that sales work when the site refuses
+          every one of them. It fails closed now, and this says so.
+        */
         <>
-          <code>STRIPE_SECRET_KEY</code> is unset. Purchases complete as clearly-labelled demos
-          taking no money — fine for a walkthrough, not for selling.
+          <code>STRIPE_SECRET_KEY</code> is unset, so nothing can be bought. The pay button on{' '}
+          <code>/tickets</code> is disabled and checkout refuses before it reads a tier, no sale
+          completes without a processor.
         </>
       ) : stripeIsLive() ? (
         <>Live key. Cards will be charged.</>
@@ -109,7 +117,7 @@ export default async function PublishTicketsPage() {
       ) : (
         <>
           No provider configured. Every send is logged as <code>skipped</code>, so a buyer gets a
-          ticket and <strong>no claim code</strong> — which is a support ticket per sale.
+          ticket and <strong>no claim code</strong>, which is a support ticket per sale.
         </>
       ),
     },
@@ -122,7 +130,7 @@ export default async function PublishTicketsPage() {
         ) : (
           <>
             {freeAndVisible.map((t) => t.name).join(', ')} {freeAndVisible.length === 1 ? 'is' : 'are'}{' '}
-            listed at no charge. A comp rate belongs hidden — it stays purchasable by direct link.
+            listed at no charge. A comp rate belongs hidden. It stays purchasable by direct link.
           </>
         ),
     },
@@ -174,8 +182,7 @@ export default async function PublishTicketsPage() {
         ) : (
           <>
             {demoOrders} demo {demoOrders === 1 ? 'order is' : 'orders are'} in the ledger. They
-            carry <code>channel: &apos;demo&apos;</code> and are excluded from every takings figure
-            — real, visible, and not counted as money.
+            carry <code>channel: &apos;demo&apos;</code> and are excluded from every takings figure. Real, visible, and not counted as money.
           </>
         ),
     },
@@ -188,6 +195,17 @@ export default async function PublishTicketsPage() {
     <>
       <PageHeader
         title="Publish Tickets"
+        info={
+          <>
+            <strong>There is no publish button</strong>
+            <p>
+              A tier with <code>visible: true</code> is on the public page at the next request, no
+              deploy and no switch. A button here would either do nothing or become a fourth place
+              that decides whether a ticket is on sale. The pre-flight below is what a publish step
+              is actually for.
+            </p>
+          </>
+        }
         tags={
           blockers.length > 0 ? (
             <Tag color="red" fill="solid">
@@ -214,21 +232,17 @@ export default async function PublishTicketsPage() {
         ]}
       />
 
-      <Banner kind={blockers.length > 0 ? 'warning' : 'info'}>
-        <strong>There is no publish button, and that is not a missing feature.</strong> A tier with{' '}
-        <code>visible: true</code> is on the public page at the next request — no deploy, no switch.
-        A button here would either do nothing or become a fourth place that decides whether a ticket
-        is on sale.{' '}
-        {blockers.length > 0 ? (
-          <>
-            What matters is the {blockers.length} blocking{' '}
-            {blockers.length === 1 ? 'problem' : 'problems'} below: somebody will hand over money and
-            something will go wrong.
-          </>
-        ) : (
-          <>The checks below are the thing a publish step is actually for.</>
-        )}
-      </Banner>
+      {blockers.length > 0 && (
+        <Banner kind="danger">
+          <strong>
+            {blockers.length} blocking {blockers.length === 1 ? 'problem' : 'problems'} on the live
+            ticket page.
+          </strong>{' '}
+          Tickets are on sale now, so somebody can hand over money while{' '}
+          {blockers.length === 1 ? 'this is' : 'these are'} unfixed. Each one is marked{' '}
+          <strong>stop</strong> in the pre-flight below.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -299,7 +313,7 @@ export default async function PublishTicketsPage() {
                 : 'always'}
             </span>,
           ])}
-          empty="Nothing is buyable. That is the blocking problem above, not an empty table."
+          empty="Nothing is buyable right now. See the pre-flight above."
         />
       </Panel>
 

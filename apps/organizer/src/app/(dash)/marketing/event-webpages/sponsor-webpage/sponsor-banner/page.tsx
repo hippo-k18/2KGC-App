@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listSponsors, TIER_ORDER } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +38,16 @@ export default async function SponsorBannerPage() {
     <>
       <PageHeader
         title="Sponsor Banner"
+        info={
+          <>
+            <strong>Artwork, not placement</strong>
+            <p>
+              These logos render on <code>/sponsor</code> and on the sponsor cards in the
+              app&rsquo;s People tab. Nothing rotates a banner on Home, the agenda or a profile, so
+              there is no placement to configure and no impression to count.
+            </p>
+          </>
+        }
         tags={
           topMissing.length === 0 ? (
             <Tag color="green" fill="outline">artwork complete</Tag>
@@ -59,12 +69,6 @@ export default async function SponsorBannerPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="warning">
-        <strong>The app has no banner slots.</strong> These logos render on the public sponsor page
-        and on the sponsor cards in the app&rsquo;s People tab. Nothing rotates a banner on Home, the
-        agenda or a profile, so there is no placement to configure and no impression to count.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -123,11 +127,21 @@ export default async function SponsorBannerPage() {
                 </span>
               ) : (
                 <span key="w" className="muted" style={{ fontSize: 12 }}>
-                  nowhere — no image
+                  nowhere, no image
                 </span>
               ),
             ])}
-          empty="No sponsors yet."
+          empty={
+            <NotInputted
+              what="sponsors"
+              compact
+              action={
+                <Link className="btn btn-primary" href={ROUTES.sponsorManager}>
+                  Add one in Sponsor Manager
+                </Link>
+              }
+            />
+          }
         />
       </Panel>
 
@@ -148,8 +162,10 @@ export default async function SponsorBannerPage() {
             app records either, and a sponsor report that invented them would be worse than none.
           </li>
           <li>
-            <strong>Uploading artwork here.</strong> <code>logoURL</code> is a link to an image
-            hosted elsewhere; no screen in this dashboard uploads to Storage or resizes an image.
+            <strong>Re-cropping artwork.</strong> Sponsor Manager uploads to Storage through{' '}
+            <code>lib/uploads.ts</code> and the bucket exists, so a logo can be replaced from this
+            dashboard — but nothing resizes or re-crops one, so a 4:1 wordmark stays a 4:1
+            wordmark.
           </li>
         </ul>
       </GapPanel>

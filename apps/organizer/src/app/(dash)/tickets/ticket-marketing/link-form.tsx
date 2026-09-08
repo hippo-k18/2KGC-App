@@ -61,7 +61,7 @@ export function LinkForm({
         />
         <p className="muted" style={{ fontSize: 12 }}>
           Appears in the public URL as <code>/r/your-code</code>. Re-using a code edits that link
-          rather than creating a second one — and never resets the clicks it has already counted.
+          rather than creating a second one, and never resets the clicks it has already counted.
         </p>
       </div>
 
@@ -113,7 +113,7 @@ export function LinkForm({
             style={{ maxWidth: 300 }}
           />
           <p className="muted" style={{ fontSize: 12 }}>
-            Who gets the credit on the leaderboard. Free text — most of the people a referral
+            Who gets the credit on the leaderboard. Free text. Most of the people a referral
             contest rewards are speakers and partners who will never hold an account here.
           </p>
         </div>

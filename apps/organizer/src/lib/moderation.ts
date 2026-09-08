@@ -63,6 +63,15 @@ export interface ModeratedReply {
   postId: string;
   body: string;
   authorName: string;
+  /**
+   * The uid, carried alongside the resolved name.
+   *
+   * A moderator reads the name; anything that *joins* a reply to a person needs
+   * the id, because names are not unique in a room of a thousand and matching
+   * on one would attribute an abusive reply to the wrong Chen. Attendee
+   * Activity joins on this.
+   */
+  authorId: string;
   status: CommunityReplyDoc['status'];
   createdAt: string;
 }
@@ -106,6 +115,7 @@ export async function listBoardForModeration(): Promise<ModeratedPost[]> {
             postId: d.id,
             body: rep.body,
             authorName: names.get(rep.authorId) ?? rep.authorId,
+            authorId: rep.authorId,
             status: rep.status ?? 'visible',
             createdAt: iso(rep.createdAt),
           };

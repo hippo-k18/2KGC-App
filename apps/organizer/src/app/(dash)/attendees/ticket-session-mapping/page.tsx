@@ -4,7 +4,7 @@ import { listTicketEntitlements } from '@/lib/cohorts';
 import { listTicketTypes } from '@/lib/commerce';
 import { listAttendees, listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +100,17 @@ export default async function TicketSessionMappingPage() {
     <>
       <PageHeader
         title="Ticket Session Mapping"
+        info={
+          <>
+            <strong>Derived from two booleans</strong>
+            <p>
+              A ticket type carries <code>includesWorkshops</code> and{' '}
+              <code>includesVideoLibrary</code>, and <code>workshop</code> is one session format,
+              so the only line this data can draw is between workshops and everything else. There
+              is no cell to click because there is no cell.
+            </p>
+          </>
+        }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
             Ticket Setup
@@ -114,15 +125,6 @@ export default async function TicketSessionMappingPage() {
       />
 
       <Panel>
-        <Banner kind="info">
-          <strong>This mapping is derived from two booleans, not authored.</strong> Whova gives you
-          a full ticket-by-session matrix with a switch in every cell. The model here has{' '}
-          <code>includesWorkshops</code> and <code>includesVideoLibrary</code> on the ticket type,
-          and <code>workshop</code> as one value of <code>SessionDoc.format</code> — so the only
-          line this data can draw is between the workshops and everything else. There is no cell to
-          click, because there is no cell.
-        </Banner>
-
         <StatTiles
           tiles={[
             { label: 'Ticket types', value: tiers.length, sub: `${live.length} live sessions` },
@@ -196,7 +198,7 @@ export default async function TicketSessionMappingPage() {
               <strong>{r.sessionsGranted}</strong> of {live.length}
               {r.inPersonFlag === false && (
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Marked not in-person on the tickets page — see below, that flag grants nothing.
+                  Marked not in-person on the tickets page. See below, that flag grants nothing.
                 </div>
               )}
             </span>,
@@ -207,8 +209,8 @@ export default async function TicketSessionMappingPage() {
           <p className="body-2">
             {unmatched.length} tier{unmatched.length === 1 ? '' : 's'} could not be read for
             entitlements and {unmatched.length === 1 ? 'is' : 'are'} shown as granting nothing extra.
-            An absent boolean is treated as <em>not granted</em> rather than defaulted to true —
-            handing out workshop access on the strength of a missing key is the wrong direction to
+            An absent boolean is treated as <em>not granted</em> rather than defaulted to true.
+            Handing out workshop access on the strength of a missing key is the wrong direction to
             fail in.
           </p>
         )}
@@ -276,7 +278,7 @@ export default async function TicketSessionMappingPage() {
           like it should split virtual attendees from the room, and it does not:{' '}
           <code>TicketTypeRow</code> reads it as <code>t.inPerson ?? true</code>, it is a checkbox on
           the ticket form that drives a catalogue card, and the seeded <code>virtual</code> tier has
-          no such field — so defaulting it would report a virtual ticket as granting in-person
+          no such field, so defaulting it would report a virtual ticket as granting in-person
           access. This screen shows the flag where it is explicitly set and derives no access from
           it.
         </p>

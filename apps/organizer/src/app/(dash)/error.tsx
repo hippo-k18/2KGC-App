@@ -76,7 +76,7 @@ export default function DashError({
             <>
               <dt>Digest</dt>
               <dd>
-                <code>{error.digest}</code> — the id to grep for in the server log.
+                <code>{error.digest}</code>. The id to grep for in the server log.
               </dd>
             </>
           ) : null}

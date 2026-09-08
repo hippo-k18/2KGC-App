@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listAnnouncements } from '@/lib/data';
-import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { Banner, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 import { AnnouncementForm } from './announcement-form';
 
 export const dynamic = 'force-dynamic';
@@ -48,6 +48,22 @@ export default async function AnnouncementsPage({
     <>
       <PageHeader
         title="Announcements"
+        info={
+          <>
+            <strong>One audience, no schedule</strong>
+            <p>
+              An announcement writes a document every signed-in attendee reads, and the optional
+              push is a topic broadcast, so there is nowhere for a narrower audience to be
+              expressed, and nothing records who a sent one reached.
+            </p>
+            <p>
+              An announcement is not emailed. The bulk sender exists and is wired to speakers,
+              sponsors and exhibitors, but mailing every attendee needs an unsubscribe that this
+              collection has no field for, and a newsletter sent to somebody who opted out takes
+              the ticket receipts down with it.
+            </p>
+          </>
+        }
         links={[
           <Link key="e" href="/engagement">
             Engagement
@@ -59,11 +75,6 @@ export default async function AnnouncementsPage({
       />
 
       <Panel>
-        <p className="body-2" style={{ marginTop: 0 }}>
-          Conveniently use templates and customise your announcement with images, links and
-          highlights.
-        </p>
-
         {/*
           Whova's four compose buttons — Start from scratch, Quick reminder,
           Reuse past announcement, From other organizers — are gone rather than
@@ -73,32 +84,27 @@ export default async function AnnouncementsPage({
           would need is in the gap panel at the foot.
         */}
 
-        <Banner kind="info">
-          <strong>Push sends from this server, not a Cloud Function.</strong> FCM&apos;s send API is
-          part of the Admin SDK, so the free plan is no obstacle — Blaze is only required to
-          <em> deploy a Cloud Function</em>. Sending also writes an <code>announcements</code>{' '}
-          document, which the app&apos;s home screen is already listening to, so it appears in the
-          app within about a second even for someone with notifications off. Email is still
-          unbuilt.
+        {/*
+          Kept as a banner, and the only one on this screen: it is about a
+          message that is one click from reaching every attendee, which is the
+          test for a banner rather than an `info` tip. Everything that was here
+          about *how* the push is sent moved into the header's "i".
+        */}
+        <Banner kind="warning">
+          <strong>This reaches all {attendees} attendees and cannot be recalled.</strong> It appears
+          on their home screen within about a second. There is no scheduling and no draft. An
+          announcement goes out when somebody presses the button.
         </Banner>
 
         <AnnouncementForm recipientCount={attendees} />
       </Panel>
 
-      <Panel>
-        <h2 className="section-header">Drafts</h2>
-        <Table
-          cols={[
-            { key: 's', label: 'Subject', className: 'cell-lg' },
-            { key: 't', label: 'Send to', className: 'cell-mdsm' },
-            { key: 'c', label: 'Time created', className: 'cell-mdsm' },
-            { key: 'a', label: 'Actions', className: 'cell-sm' },
-          ]}
-          rows={[]}
-          empty="No drafts — there is nowhere to save one yet"
-        />
-      </Panel>
-
+      {/*
+        Whova's Drafts table used to be rendered here, permanently empty, with a
+        caption explaining that drafts have nowhere to save to. An empty table
+        for a feature that does not exist is a promise, not a disclosure — the
+        remaining note about drafts is in the gap panel below.
+      */}
       <Panel>
         <h2 className="section-header">Sent</h2>
         <Table
@@ -110,7 +116,7 @@ export default async function AnnouncementsPage({
             { key: 'p', label: 'Push', className: 'cell-xs' },
           ]}
           sort={sort}
-          empty="Nothing sent yet"
+          empty={<NotInputted what="announcements" />}
           rows={pageRows.map((a) => [
             <strong key="s">{a.title}</strong>,
             <span key="b" style={{ fontSize: 13 }}>

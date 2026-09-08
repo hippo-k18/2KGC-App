@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
 
@@ -53,6 +53,16 @@ export default async function SocialSharingPage() {
     <>
       <PageHeader
         title="Social Sharing"
+        info={
+          <>
+            <strong>Nothing here posts anything</strong>
+            <p>
+              Posting is done by a person, in a tab they already have open. What this screen
+              automates is knowing which post worked, which is a tracked link per channel, so make
+              one code per post rather than one for the platform.
+            </p>
+          </>
+        }
         links={[
           <Link key="l" href="/tickets/ticket-marketing/campaign-link-tracking">
             Link Tracking
@@ -65,14 +75,6 @@ export default async function SocialSharingPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>Nothing here posts anything.</strong> Automating that means OAuth against four
-        platforms whose APIs change more often than a conference happens, and most now charge for
-        write access — a subscription and a maintenance burden for something you do by pasting a
-        link into a tab you already have open. What is worth automating is knowing{' '}
-        <em>which post worked</em>, and that is a tracked link per channel.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -110,7 +112,7 @@ export default async function SocialSharingPage() {
         <LinkTable
           links={social}
           publicOrigin={publicOrigin}
-          emptyMessage="No channel links yet. Make one per platform rather than one for all of them — otherwise 'social brought 40 clicks' is the only thing you ever learn."
+          emptyMessage={<NotInputted what="channel links" compact />}
         />
       </Panel>
 
@@ -130,7 +132,7 @@ export default async function SocialSharingPage() {
           rows={[
             [
               'Open Graph tags on the destination',
-              'A link posted to LinkedIn is rendered by LinkedIn from the page’s OG tags. Missing ones make the post a bare URL, which performs a fraction as well — and nobody notices until after it is posted.',
+              'A link posted to LinkedIn is rendered by LinkedIn from the page’s OG tags. Missing ones make the post a bare URL, which performs a fraction as well, and nobody notices until after it is posted.',
               <Tag key="s" color="green" small>
                 set
               </Tag>,

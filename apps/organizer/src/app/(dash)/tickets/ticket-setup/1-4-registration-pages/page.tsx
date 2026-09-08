@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +26,34 @@ export default async function RegistrationPagesPage() {
   const tiers = await listTicketTypes();
   const visible = tiers.filter((t) => t.visible);
 
+  /**
+   * `/tickets` sells the attendee catalogue only, so the "nothing to sell"
+   * check has to be attendee-scoped. Counting every visible tier would let a
+   * listed exhibitor package silence a warning about a page that exhibitor
+   * package does not appear on.
+   */
+  const attendeeVisible = tiers.filter((t) => t.visible && t.audience === 'attendee').length;
+
   return (
     <>
       <PageHeader
         title="1.4 Registration Pages"
-        tags={<Tag color="green" fill="outline">{visible.length} tiers live</Tag>}
+        info={
+          <>
+            <strong>The page is data; the copy is code</strong>
+            <p>
+              Prices, tiers and availability are read live from <code>ticketTypes</code>. Edit them
+              in <Link href={ROUTES.createTickets}>Create Tickets</Link> and the public page changes
+              on the next request. Headings and surrounding copy are React components in{' '}
+              <code>apps/web</code> and change with a deploy.
+            </p>
+          </>
+        }
+        tags={
+          <Tag color={visible.length > 0 ? 'green' : 'grey'} fill="outline">
+            {visible.length} tiers live
+          </Tag>
+        }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
             Create Tickets
@@ -44,13 +67,13 @@ export default async function RegistrationPagesPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>The page is real; the editor is not.</strong> Prices, tiers and availability are
-        read live from <code>ticketTypes</code> — edit them in{' '}
-        <Link href={ROUTES.createTickets}>Create Tickets</Link> and the public page changes on the
-        next request. Headings and copy are React components in <code>apps/web</code> and change
-        with a deploy.
-      </Banner>
+      {attendeeVisible === 0 && (
+        <Banner kind="warning">
+          <strong>Nothing is listed, so the public page has nothing to sell.</strong> A visitor
+          reaching <code>/tickets</code> is shown no purchasable tier. List one in{' '}
+          <Link href={ROUTES.createTickets}>Create Tickets</Link> to open sales.
+        </Banner>
+      )}
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What the buyer sees right now</h2>
@@ -87,24 +110,22 @@ export default async function RegistrationPagesPage() {
               </span>
             ) : (
               <span key="s" className="muted">
-                Hidden — purchasable by direct link only
+                Hidden: purchasable by direct link only
               </span>
             ),
           ])}
-          empty="No ticket types. The catalogue throws rather than falling back to a stale price list — run `npm run seed`."
+          empty={
+            <NotInputted
+              what="ticket types"
+              compact
+              action={
+                <Link className="btn btn-primary" href={ROUTES.createTickets}>
+                  Create one
+                </Link>
+              }
+            />
+          }
         />
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does that this does not</h2>
-        <p className="body-2">
-          Hosts the registration page on their own domain with a theme editor: banner image, colours,
-          custom sections, a terms checkbox, multiple pages for different audiences. The one that
-          would earn its keep for KGC is <strong>separate pages per audience</strong> — attendee,
-          exhibitor and sponsor registration are three different conversations, and the nav already
-          has three ticket-setup trees to match. Ours has one page with one catalogue on it, filtered
-          by the tier&rsquo;s <code>audience</code> field.
-        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

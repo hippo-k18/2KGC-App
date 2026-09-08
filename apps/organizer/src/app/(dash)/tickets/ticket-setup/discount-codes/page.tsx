@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listDiscountCodes, type DiscountCodeRow } from '@/lib/discount-codes';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
-import { Banner, EmptyState, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 import { toggleDiscountCodeAction } from './actions';
 import { CodeForm } from './code-form';
 
@@ -41,16 +41,21 @@ export default async function DiscountCodesPage() {
   if (!stripeEnabled()) {
     return (
       <>
-        <PageHeader title="Discount Codes" tags={<Tag color="grey">no Stripe key</Tag>} />
+        <PageHeader
+          title="Discount Codes"
+          info={
+            <>
+              <strong>Waiting on a Stripe key</strong>
+              <p>
+                Codes are held and validated by Stripe rather than stored here, so this screen has
+                nothing to read until <code>STRIPE_SECRET_KEY</code> is set on the deployment.
+              </p>
+            </>
+          }
+          tags={<Tag color="grey">no Stripe key</Tag>}
+        />
         <Panel>
-          <EmptyState icon="◌">
-            <strong>Discount codes live in Stripe, and no Stripe key is configured.</strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Codes are validated by Stripe at the moment of payment rather than stored here, so
-              there is nothing to show without a key. Set <code>STRIPE_SECRET_KEY</code> — see{' '}
-              <code>SETUP-PAYMENTS.md</code> §1.
-            </p>
-          </EmptyState>
+          <NotInputted what="discount codes" />
         </Panel>
       </>
     );
@@ -72,6 +77,16 @@ export default async function DiscountCodesPage() {
     <>
       <PageHeader
         title="Discount Codes"
+        info={
+          <>
+            <strong>Codes live in Stripe, not in this database</strong>
+            <p>
+              A buyer enters one on Stripe&rsquo;s checkout page and Stripe validates it against its
+              own redemption counters, so a code created here works immediately with nothing to
+              publish. The list is every promotion code on the Stripe account, not only KGC&rsquo;s.
+            </p>
+          </>
+        }
         tags={
           <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
             {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
@@ -90,14 +105,9 @@ export default async function DiscountCodesPage() {
       {loadError && (
         <Banner kind="danger">
           <strong>Could not read codes from Stripe.</strong> {loadError} This screen reads Stripe
-          live rather than a local copy — nothing is wrong with your codes, only with reading them.
+          live rather than a local copy. Nothing is wrong with your codes, only with reading them.
         </Banner>
       )}
-
-      <Banner kind="info">
-        Codes are entered by the buyer on Stripe&rsquo;s checkout page and validated there. A code
-        created here works immediately — there is nothing to publish and no cache to clear.
-      </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Create a code</h2>
@@ -158,10 +168,10 @@ export default async function DiscountCodesPage() {
               </button>
             </form>,
           ])}
-          empty="No discount codes yet. Speakers, sponsor allocations, early-bird and academic rates are the usual four."
+          empty={<NotInputted what="discount codes" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          ⚠️ This lists every promotion code on the Stripe account, not only KGC&rsquo;s — nothing on
+          ⚠️ This lists every promotion code on the Stripe account, not only KGC&rsquo;s. Nothing on
           a Stripe code scopes it to an event unless it was created here. Codes are deactivated
           rather than deleted, because Stripe keeps the code attached to every payment that used it.
         </p>

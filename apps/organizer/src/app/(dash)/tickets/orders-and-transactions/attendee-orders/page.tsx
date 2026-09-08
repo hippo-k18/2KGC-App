@@ -4,11 +4,11 @@ import { listOrders, money, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
 import {
-  Banner,
   listParams,
   PageHeader,
   paginate,
   Pagination,
+  NotInputted,
   Panel,
   PER_PAGE,
   SearchInput,
@@ -78,7 +78,11 @@ export default async function AttendeeOrdersPage({
   const sp = await searchParams;
   const { page, sort, baseParams } = listParams(sp);
 
-  const q = String(sp.q ?? '').trim().toLowerCase();
+  // Kept in both cases: the lower-cased copy does the matching, the typed one
+  // goes back into the box, so searching for "Cornell" does not come back as
+  // "cornell".
+  const qRaw = String(sp.q ?? '').trim();
+  const q = qRaw.toLowerCase();
   const status = String(sp.status ?? '').trim();
 
   const all = await listOrders();
@@ -106,24 +110,58 @@ export default async function AttendeeOrdersPage({
   const rows = paginate(sorted, page, PER_PAGE);
   const needsPassphrase = requirePassphrase();
 
+  /**
+   * One count per status the ledger can actually be in.
+   *
+   * `partially_refunded` and `cancelled` were missing from this row, and their
+   * absence was not neutral: a partial refund leaves the ticket valid, so those
+   * orders are neither "paid" nor "refunded" and were reachable only by paging
+   * through All. The two states an organizer most needs to isolate — money
+   * partly returned, and a checkout that expired — were the two with no filter.
+   */
   const counts = {
     all: all.length,
     paid: all.filter((o) => o.status === 'paid').length,
     pending: all.filter((o) => o.status === 'pending').length,
+    partially_refunded: all.filter((o) => o.status === 'partially_refunded').length,
     refunded: all.filter((o) => o.status === 'refunded').length,
+    cancelled: all.filter((o) => o.status === 'cancelled').length,
   };
 
   return (
     <>
       <PageHeader
         title="Attendee Orders"
+        info={
+          <>
+            <strong>This screen shows buyer personal data</strong>
+            <p>
+              Names, addresses and company names, plus a button that moves money. The CSV carries
+              the same and leaves the building, no badge secret or claim code is ever in it.
+              {stripeEnabled()
+                ? ' A partial refund leaves the ticket valid; a full one cancels it.'
+                : ' Refunds need STRIPE_SECRET_KEY on this deployment and are issued from the Stripe dashboard until it is set.'}
+            </p>
+          </>
+        }
+        actions={
+          /*
+            A plain link, not a form: a CSV download is a GET that changes
+            nothing, and `download` plus the route's Content-Disposition is what
+            makes the browser save it rather than render it. The registry entry
+            it points at already existed and had no way in from this screen.
+          */
+          <a href="/export/orders" className="whova-btn-main secondary" download>
+            Export CSV
+          </a>
+        }
         tags={
           stripeEnabled() ? (
             <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key — refunds disabled</Tag>
+            <Tag color="grey">No Stripe key: refunds disabled</Tag>
           )
         }
         links={[
@@ -136,23 +174,42 @@ export default async function AttendeeOrdersPage({
         ]}
       />
 
-      {!stripeEnabled() && (
-        <Banner kind="info">
-          No <code>STRIPE_SECRET_KEY</code> is set on this deployment, so orders are read-only here.
-          Refunds have to be issued from the Stripe dashboard.
-        </Banner>
-      )}
-
       <Panel>
-        <div style={{ alignItems: 'center', display: 'flex', gap: 12, marginBottom: 12 }}>
-          <SearchInput placeholder="Name, email, company, PO number…" />
+        {/*
+          A real GET form, which it was not.
+
+          `q` was read out of the query string and the box was rendered outside
+          any form, so typing in it and pressing Enter did nothing at all — the
+          search on the busiest money screen in the dashboard was decorative.
+          The hidden inputs carry the other query parameters through, because a
+          GET submit replaces the whole query string and would otherwise drop
+          the status filter and the sort the organizer had chosen.
+        */}
+        <form
+          method="get"
+          style={{ alignItems: 'center', display: 'flex', gap: 12, marginBottom: 12 }}
+        >
+          {status ? <input type="hidden" name="status" value={status} /> : null}
+          {sort.by ? <input type="hidden" name="sort" value={sort.by} /> : null}
+          {sort.dir ? <input type="hidden" name="dir" value={sort.dir} /> : null}
+          <SearchInput defaultValue={qRaw} placeholder="Name, email, company, PO number…" />
+          <button type="submit" className="btn btn-default">
+            Search
+          </button>
+          {q ? (
+            <Link className="btn btn-default" href="?">
+              Clear
+            </Link>
+          ) : null}
           <span style={{ flex: 1 }} />
           {(
             [
               ['', `All ${counts.all}`],
               ['paid', `Paid ${counts.paid}`],
               ['pending', `Unpaid ${counts.pending}`],
+              ['partially_refunded', `Part refunded ${counts.partially_refunded}`],
               ['refunded', `Refunded ${counts.refunded}`],
+              ['cancelled', `Cancelled ${counts.cancelled}`],
             ] as const
           ).map(([value, label]) => {
             const p = new URLSearchParams(baseParams);
@@ -173,7 +230,7 @@ export default async function AttendeeOrdersPage({
               </Link>
             );
           })}
-        </div>
+        </form>
 
         <Table
           sort={sort}
@@ -314,9 +371,7 @@ export default async function AttendeeOrdersPage({
             </div>,
           ])}
           empty={
-            q || status
-              ? 'No orders match that filter.'
-              : 'No orders yet. The first ticket bought on the website appears here immediately.'
+            q || status ? 'No orders match that filter.' : <NotInputted what="orders" compact />
           }
         />
 

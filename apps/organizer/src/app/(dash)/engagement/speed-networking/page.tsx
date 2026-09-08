@@ -69,6 +69,19 @@ export default async function SpeedNetworkingPage({
     <>
       <PageHeader
         title="Speed Networking"
+        info={
+          <>
+            <strong>A schedule you print</strong>
+            <p>
+              Round-robin pairing: nobody meets the same person twice while somebody else meets
+              nobody, which is what random pairing quietly fails to do.
+            </p>
+            <p>
+              Attendees see nothing (there is no app surface) and nothing is saved. The schedule
+              lives in the URL, so you can send the link to whoever runs the timer.
+            </p>
+          </>
+        }
         tags={
           schedule.rounds.length > 0 ? (
             <Tag color={repeats.length === 0 ? 'green' : 'red'} fill="outline">
@@ -91,14 +104,6 @@ export default async function SpeedNetworkingPage({
         ]}
       />
 
-      <Banner kind="info">
-        <strong>The pairing is the hard part, and it is done here.</strong> Attendees see nothing —
-        there is no app surface, and speed networking at an in-person conference is run from a
-        printed sheet and a microphone anyway. What this gives you is a schedule where{' '}
-        <strong>nobody meets the same person twice</strong> while somebody else meets nobody, which
-        is what random pairing quietly fails to do.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Who is in the room</h2>
         {/*
@@ -120,9 +125,9 @@ export default async function SpeedNetworkingPage({
               style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }}
             />
             <p className="muted" style={{ fontSize: 12 }}>
-              Whoever turns up — that is genuinely the input. Duplicates are dropped
-              case-insensitively, because one person entered twice would otherwise be paired with
-              themselves and nobody notices until it is printed.
+              Whoever turns up: that is genuinely the input. Duplicates are dropped
+              case-insensitively: one person entered twice would otherwise be paired with
+              themselves, and nobody notices until it is printed.
             </p>
           </div>
 
@@ -157,7 +162,7 @@ export default async function SpeedNetworkingPage({
               Paste from the attendee list ({attendees.length} people)
             </summary>
             <p className="muted" style={{ fontSize: 12 }}>
-              A convenience, not a roster — nobody here has signed up for anything. Copy the ones in
+              A convenience, not a roster. Nobody here has signed up for anything. Copy the ones in
               the room.
             </p>
             <textarea
@@ -190,20 +195,25 @@ export default async function SpeedNetworkingPage({
               {
                 label: 'Repeated pairs',
                 value: repeats.length,
-                sub: repeats.length === 0 ? 'none, by construction' : 'a bug — please report it',
+                sub: repeats.length === 0 ? 'none, by construction' : 'a bug. Please report it',
               },
             ]}
           />
 
+          {/*
+            Kept as a banner: it is about the schedule the organizer is about to
+            print, not about the software. Somebody reading "round 5" off the
+            screen needs to know it is not the last one.
+          */}
           {!schedule.complete && (
             <Banner kind="info">
               <strong>
-                {schedule.rounds.length} rounds of the {schedule.roundsForFullCover} it would take
+                {schedule.rounds.length} of the {schedule.roundsForFullCover} rounds it would take
                 for everybody to meet everybody.
               </strong>{' '}
-              Nobody is paired twice in what you have, and every person gets{' '}
-              {fewest === most ? `${fewest} meetings` : `${fewest} or ${most} meetings`} — so the
-              short schedule is fair, just not exhaustive.
+              Nobody is paired twice in what you have and every person gets{' '}
+              {fewest === most ? `${fewest} meetings` : `${fewest} or ${most} meetings`}. Fair, just
+              not exhaustive.
             </Banner>
           )}
 

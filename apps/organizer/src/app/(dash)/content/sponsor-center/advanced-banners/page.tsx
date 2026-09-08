@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSponsors, TIER_ORDER } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,9 +11,8 @@ export const dynamic = 'force-dynamic';
  *
  * ── Two surfaces, and only one of them exists ──────────────────────────────
  *
- * Whova's banners appear inside their mobile app, on a rotation weighted by
- * tier. This project has two places a sponsor can appear and they are in very
- * different states:
+ * A sponsor banner rotation is weighted by tier. This project has two places a
+ * sponsor can appear and they are in very different states:
  *
  *   **The website** renders sponsors from Firestore today, at
  *   `/sponsor`, grouped and ordered by tier. Editing a sponsor changes that
@@ -36,9 +35,9 @@ export const dynamic = 'force-dynamic';
  */
 
 /**
- * Whova's own size weights, from their public sponsor-design payload:
- * Platinum 3, Gold 2, Silver 1, Bronze 1. Copied because a rotation that
- * treats a platinum sponsor as a bronze one is a refund conversation.
+ * The size weights: Platinum 3, Gold 2, Silver 1, Bronze 1. Written down rather
+ * than guessed at each call site, because a rotation that treats a platinum
+ * sponsor as a bronze one is a refund conversation.
  */
 const WEIGHT: Record<string, number> = { platinum: 3, gold: 2, silver: 1, bronze: 1 };
 
@@ -77,6 +76,16 @@ export default async function AdvancedBannersPage() {
     <>
       <PageHeader
         title="Advanced Banners"
+        info={
+          <>
+            <strong>Derived, not configured</strong>
+            <p>
+              The order below comes from each sponsor&rsquo;s tier, so it cannot disagree with the
+              records. The app has no banner surface for it to drive yet. The public sponsor page
+              is the one that applies it today.
+            </p>
+          </>
+        }
         tags={
           withoutLogo.length > 0 ? (
             <Tag color="orange">{withoutLogo.length} without a logo</Tag>
@@ -99,14 +108,6 @@ export default async function AdvancedBannersPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>The app has no banner surface, so there is no rotation editor here.</strong> Nothing
-        in <code>app/</code> renders a sponsor banner — not a broken component, not an empty one.
-        Placement rules for a surface that does not exist would configure nothing, and a settings
-        screen that configures nothing is worse than an honest empty one. The website{' '}
-        <em>does</em> render sponsors, and what it shows is below.
-      </Banner>
-
       <StatTiles
         tiles={[
           { label: 'Sponsors', value: sponsors.length, sub: `${withLogo.length} with a logo` },
@@ -119,11 +120,9 @@ export default async function AdvancedBannersPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What a tier buys, as a number</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          Weights are Whova&rsquo;s own — Platinum 3, Gold 2, Silver 1, Bronze 1 — read from their
-          public sponsor-design payload and copied rather than invented, because a rotation that
-          treats a platinum sponsor as a bronze one is a refund conversation. Share counts only
-          sponsors with a logo: one without cannot appear, and including it would overstate the
-          total and understate everybody else.
+          Platinum 3, Gold 2, Silver 1, Bronze 1. Share counts only sponsors with a logo: one
+          without cannot appear at all, and including it would overstate the total and understate
+          everybody else.
         </p>
         <Table
           cols={[
@@ -140,11 +139,11 @@ export default async function AdvancedBannersPage() {
             <span key="n">
               {r.shown}
               {r.shown !== r.count ? (
-                <span className="muted"> of {r.count} — rest have no logo</span>
+                <span className="muted"> of {r.count}. Rest have no logo</span>
               ) : null}
             </span>,
             <span key="s" style={{ fontSize: 13 }}>
-              {r.share > 0 ? `${(r.share * 100).toFixed(1)}%` : <span className="muted">—</span>}
+              {r.share > 0 ? `${(r.share * 100).toFixed(1)}%` : <span className="muted">0%</span>}
             </span>,
           ])}
         />
@@ -157,6 +156,16 @@ export default async function AdvancedBannersPage() {
           would mean two answers to &ldquo;why is one above the other?&rdquo;, and the stored one
           would go stale the moment a sponsor upgrades.
         </p>
+        {sponsors.length === 0 ? (
+          <NotInputted
+            what="sponsors"
+            action={
+              <Link className="whova-btn-main" href="/content/sponsor-center/sponsor-manager?new=1">
+                Add the first one
+              </Link>
+            }
+          />
+        ) : (
         <Table
           cols={[
             { key: 'p', label: '#', className: 'cell-xs' },
@@ -179,7 +188,7 @@ export default async function AdvancedBannersPage() {
             </Tag>,
             !s.hasLogo ? (
               <span key="s" style={{ color: 'var(--danger)', fontSize: 12 }}>
-                no logo — cannot be shown
+                no logo. Cannot be shown
               </span>
             ) : !s.website ? (
               <span key="s" className="muted" style={{ fontSize: 12 }}>
@@ -191,8 +200,8 @@ export default async function AdvancedBannersPage() {
               </Tag>
             ),
           ])}
-          empty="No sponsors yet — add them in Sponsor Manager."
         />
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -206,13 +215,14 @@ export default async function AdvancedBannersPage() {
           </li>
           <li>
             <strong>No uploaded banner artwork.</strong> A rotation would use the logo, which is a
-            square wordmark and not a banner. Real banner assets need the Storage upload pipeline —
-            blocker 3 in <code>ROADMAP.md</code> — plus a size spec sponsors can actually meet.
+            square wordmark and not a banner. Storage uploads work now; what is missing is a
+            banner-shaped field, a size spec sponsors can actually meet, and somewhere to show it.
           </li>
           <li>
             <strong>No impression or click counting.</strong> The number a sponsor asks for at
             renewal. Counting impressions from a mobile app needs either a write per view — which is
-            a Firestore bill and a rate limit — or an aggregate trigger, which needs Blaze.
+            a Firestore bill and a rate limit — or an aggregate trigger, and no trigger in this
+            project has ever deployed.
           </li>
           <li>
             <strong>No sponsored-session placement.</strong> The upper tiers include one, and it is

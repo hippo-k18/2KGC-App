@@ -20,7 +20,7 @@ export default async function AgendaWebpagePage() {
       editorLabel="Session Manager"
       notBuilt={[
         'A filtered "special purpose" variant for one track or day. On our site that is a query parameter on /agenda rather than a separate page, and nothing yet reads one.',
-        'Page traffic analytics. Nothing measures visits to the public site — adding a tracker is a privacy decision nobody has taken, not an oversight.',
+        'Page traffic analytics. Nothing measures visits to the public site. Adding a tracker is a privacy decision nobody has taken, not an oversight.',
         'Per-session registration caps shown publicly. Session Cap is its own unbuilt screen under Attendees.',
       ]}
     />

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,9 +8,15 @@ export const dynamic = 'force-dynamic';
  * Content › Artifact Center › Artifact Streaming.
  *
  * Live video from a poster board or a demo table, so a remote attendee can watch
- * somebody explain their work. Two independent blockers, and the second is the
- * one that decides it: there are no artifacts, and there is no video
- * infrastructure of any kind in this project.
+ * somebody explain their work. Two independent blockers, and the second decides
+ * it: there are no artifacts, and there is no video infrastructure of any kind
+ * in this project.
+ *
+ * The cheap version worth naming: a link field on the artifact record pointing
+ * at whatever meeting room the presenter already has. Worse than a scheduled
+ * video room, near-free, and for a poster session whose value is standing in
+ * front of the board, close to the right trade. It still needs the artifact
+ * record.
  */
 export default async function ArtifactStreamingPage() {
   await requireOrganizer();
@@ -19,6 +25,15 @@ export default async function ArtifactStreamingPage() {
     <>
       <PageHeader
         title="Artifact Streaming"
+        info={
+          <>
+            <strong>No artifacts, and no video</strong>
+            <p>
+              A scheduled live slot needs an artifact to attach it to and a video provider to serve
+              it. Video Hosting sets out the second; Artifact Manager the first.
+            </p>
+          </>
+        }
         links={[
           <Link key="a" href="/content/artifact-center-poster-pitch-gallery/artifact-manager">
             Artifact Manager
@@ -30,28 +45,7 @@ export default async function ArtifactStreamingPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Gives each poster or demo a scheduled live slot with a video room, so remote attendees can
-          drop in on a presenter at their board. In practice it is a Zoom link per artifact with a
-          timetable around it.
-        </p>
-
-        <h2 className="section-header">What this would need</h2>
-        <p className="body-2">
-          The artifact model first — <strong>6–8 days</strong>, sized on Artifact Manager. Then
-          video, which is not a screen but a bill: a provider, a room per artifact, an access rule
-          tying a room to a ticket, and signed URLs that expire, which needs a trusted server to
-          sign them. Video Hosting sets out that argument in full and reaches the same conclusion:
-          the realistic answer is a hosting provider with this screen holding ids, not anything we
-          run.
-        </p>
-        <p className="body-2">
-          The cheap version that is worth naming: a link field on the artifact record, pointing at
-          whatever meeting room the presenter already has. Worse than Whova, near-free, and for a
-          poster session where the value is standing in front of the board, close to the right
-          trade.
-        </p>
+        <NotInputted what="streamed artifacts" />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

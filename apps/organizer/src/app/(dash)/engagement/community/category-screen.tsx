@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { requireOrganizer } from '@/lib/auth';
 import {
   CATEGORY_LABEL,
@@ -8,7 +9,7 @@ import {
   type CommunityPostRow,
 } from '@/lib/engagement';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../ui';
 
 /**
  * One screen, rendered three times: Meet-ups, Discussion Topics, Social Groups.
@@ -33,12 +34,17 @@ import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tag } from 
 export async function CategoryScreen({
   title,
   categories,
-  intro,
+  info,
   notBuilt,
 }: {
   title: string;
   categories: readonly CommunityCategory[];
-  intro: string;
+  /**
+   * How this view differs from the three separate products Whova has here,
+   * behind the header's "i" rather than as a paragraph above the board. It is a
+   * caveat about scope, not something an organizer acts on in the next minute.
+   */
+  info: ReactNode;
   notBuilt: string[];
 }) {
   await requireOrganizer();
@@ -47,12 +53,14 @@ export async function CategoryScreen({
 
   const visible = posts.filter((p) => p.status === 'visible');
   const replies = posts.reduce((n, p) => n + p.replyCount, 0);
+  const reactions = posts.reduce((n, p) => n + p.reactionCount, 0);
   const people = new Set(posts.flatMap((p) => p.participants.map((x) => x.name))).size;
 
   return (
     <>
       <PageHeader
         title={title}
+        info={info}
         tags={<Tag color="blue">{visible.length} live</Tag>}
         links={[
           <Link key="m" href={ROUTES.moderateBoard}>
@@ -64,25 +72,18 @@ export async function CategoryScreen({
         ]}
       />
 
-      <Banner kind="info">{intro}</Banner>
-
       <StatTiles
         tiles={[
           { label: 'Posts', value: posts.length, sub: `${posts.length - visible.length} hidden` },
-          { label: 'Replies', value: replies, sub: 'not RSVPs — see below' },
+          { label: 'Replies', value: replies, sub: 'counted, not RSVPs' },
+          { label: 'Reactions', value: reactions, sub: 'counted at read time' },
           { label: 'People replying', value: people, sub: 'distinct attendees' },
         ]}
       />
 
       <Panel>
         {posts.length === 0 ? (
-          <EmptyState icon="◌">
-            <strong>Nothing posted yet.</strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Attendees create these from the Community tab in the app. Organizers cannot post on
-              their behalf — a meet-up nobody proposed is a meet-up nobody attends.
-            </p>
-          </EmptyState>
+          <NotInputted what="posts in these categories" />
         ) : (
           posts.map((p) => <PostRow key={p.id} post={p} />)
         )}
@@ -142,6 +143,9 @@ function PostRow({ post }: { post: CommunityPostRow }) {
         */}
         <strong>{post.replyCount}</strong> {post.replyCount === 1 ? 'reply' : 'replies'}
         {post.hiddenReplyCount > 0 && ` (${post.hiddenReplyCount} hidden)`}
+        {' · '}
+        <strong>{post.reactionCount}</strong>{' '}
+        {post.reactionCount === 1 ? 'reaction' : 'reactions'}
         {post.lastReplyAt && ` · last ${post.lastReplyAt.slice(0, 10)}`}
         {post.participants.length > 0 && (
           <> · replied: {post.participants.map((x) => x.name).join(', ')}</>

@@ -128,7 +128,7 @@ async function resolveReferences(
   if (unknownSpeakers.length) {
     return {
       ok: false,
-      error: `No speaker with id ${unknownSpeakers.map((id) => `"${id}"`).join(', ')}. Reload the page — the speaker list changed while this form was open.`,
+      error: `No speaker with id ${unknownSpeakers.map((id) => `"${id}"`).join(', ')}. Reload the page. The speaker list changed while this form was open.`,
     };
   }
 
@@ -139,7 +139,7 @@ async function resolveReferences(
   if (unknownTracks.length) {
     return {
       ok: false,
-      error: `No track with id ${unknownTracks.map((id) => `"${id}"`).join(', ')}. Reload the page — the track list changed while this form was open.`,
+      error: `No track with id ${unknownTracks.map((id) => `"${id}"`).join(', ')}. Reload the page. The track list changed while this form was open.`,
     };
   }
 
@@ -565,7 +565,7 @@ export async function commitSessionImportAction(
       csv,
       error:
         outcome.errors.length > 0 || failed.length > 0
-          ? 'Nothing was imported — the file still has problems. Fix them, or tick “import the good rows anyway”.'
+          ? 'Nothing was imported. The file still has problems. Fix them, or tick “import the good rows anyway”.'
           : 'Nothing was imported.',
       errors: outcome.errors,
       failed,

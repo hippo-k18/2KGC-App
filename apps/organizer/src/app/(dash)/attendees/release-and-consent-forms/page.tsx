@@ -59,6 +59,18 @@ export default async function ReleaseAndConsentFormsPage({
     <>
       <PageHeader
         title="Release & Consent Forms"
+        info={
+          <>
+            <strong>Recorded, and these are its limits</strong>
+            <p>
+              A signature is pinned to the version and the hash of the wording, and is append-only. Nothing here can edit or delete one.
+            </p>
+            <p>
+              Nothing blocks on an unsigned form, nothing mails the signing links, and a withdrawal
+              is handled by a person.
+            </p>
+          </>
+        }
         tags={<Tag color="blue">{forms.length} form{forms.length === 1 ? '' : 's'}</Tag>}
         actions={
           showForm || reg ? (
@@ -92,7 +104,7 @@ export default async function ReleaseAndConsentFormsPage({
       ) : reg ? (
         <>
           <Banner kind="info">
-            <strong>{reg.form.title}</strong> — version {reg.form.version}, {reg.form.status}
+            <strong>{reg.form.title}</strong>. Version {reg.form.version}, {reg.form.status}
             {reg.form.publishedAt
               ? `, first published ${new Date(reg.form.publishedAt).toLocaleDateString('en-GB', {
                   day: 'numeric',
@@ -100,28 +112,18 @@ export default async function ReleaseAndConsentFormsPage({
                   year: 'numeric',
                 })}`
               : ', never published'}
-            . Every signature below is stored against the sha256 of the wording as it stood when it
-            was given, and no client — this dashboard included — can edit or delete one.
+            . Every signature below is against the wording as it stood at that version.
           </Banner>
           <ConsentRegisterView register={reg} />
         </>
       ) : (
         <>
-          <Banner kind="info">
-            <strong>Consent is recorded here now, and these are its limits.</strong> Signing is
-            real: a form has a version and a hash of its wording, a signature records who agreed to
-            which version and when, and the record is append-only — nothing in this product can
-            edit or delete one. What it does <em>not</em> do: nothing blocks on an unsigned form
-            (a ticket still scans, a session still runs), nothing here emails the signing links,
-            and there is no withdrawal flow, so a request to withdraw is handled by a person.
-          </Banner>
-
           {forms.length === 0 ? (
             <Panel>
               <EmptyState icon="◌">
                 <strong>No consent form has been written yet.</strong>
                 <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-                  Nothing is being collected until one is published — and until then, nothing on
+                  Nothing is being collected until one is published, and until then, nothing on
                   this screen should be read as evidence that anybody agreed to anything.{' '}
                   <Link href="?new=1">Write one</Link>.
                 </div>
@@ -179,21 +181,23 @@ export default async function ReleaseAndConsentFormsPage({
                 what the form actually said at that moment rather than to what the browser claimed;
                 and <code>update</code> and <code>delete</code> are closed to every client in{' '}
                 <code>firestore.rules</code>. Rewording a form publishes a new version and makes
-                the old signatures outstanding — which is the uncomfortable answer and the correct
+                the old signatures outstanding, which is the uncomfortable answer and the correct
                 one.
               </li>
               <li>
                 <strong>Reachable by people who have no account.</strong> Most speakers never buy a
                 ticket, so there is nothing for the rules to authenticate. They sign through a
-                capability link — the same HMAC pattern <code>/order/&#123;token&#125;</code> uses
-                — and the record says <code>channel: link</code> rather than pretending that
+                capability link. The same HMAC pattern <code>/order/&#123;token&#125;</code> uses, and the record says <code>channel: link</code> rather than pretending that
                 possession of a mailed URL is authentication.
               </li>
               <li>
-                <strong>Withdrawable — and this is the part that is not built.</strong> Someone who
-                withdraws consent needs their photograph pulled, which is a workflow reaching
-                whoever handles the photographs, not a column. Nothing here does that. The signing
-                page tells people to email a human, which is honest and is not a feature.
+                <strong>Withdrawable by a person, deliberately.</strong> Withdrawing consent means
+                somebody&rsquo;s photograph has to be pulled from a gallery, a slide deck and a
+                press release, which is a conversation with whoever holds those files rather than a
+                column in this table. The signing page therefore gives an address to write to, and
+                the register is not the system of record for a withdrawal. Making it one would need
+                a decision first: a signature here is append-only on purpose, so a withdrawal has
+                to be a second record that supersedes the first, never an edit to it.
               </li>
               <li>
                 <strong>Directory opt-out is not consent.</strong>{' '}

@@ -3,11 +3,11 @@ import { requireOrganizer } from '@/lib/auth';
 import { consentRegister, listConsentForms } from '@/lib/consents';
 import { listSpeakers } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 // The register is shared with Attendees › Release & Consent Forms, which is
-// where the form is authored. Whova nests the same screen twice and the two
-// differ only in which audience the form is for — the same arrangement
-// `SurveyScreen` has for Surveys and Session Feedback.
+// where the form is authored. The same screen is nested twice in the navigation
+// and the two differ only in which audience the form is for — the same
+// arrangement `SurveyScreen` has for Surveys and Session Feedback.
 import { ConsentRegisterView } from '../../../attendees/release-and-consent-forms/register-view';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +44,13 @@ export const dynamic = 'force-dynamic';
  * or identity verification. For forty-five speakers once a year, a signing
  * service with this screen holding a link and a status may still be the better
  * trade. Nothing below pretends that decision was made.
+ *
+ * ── The wording is typed, not attached ──────────────────────────────────────
+ *
+ * Storage uploads work now, so a PDF release *could* be attached. It is
+ * deliberately not: a hash over plain text is what makes a signature bind to
+ * wording that can be diffed between versions, and a countersigned PDF is the
+ * signing-service question above rather than a file field here.
  */
 export default async function ReleaseAndConsentFormsPage({
   searchParams,
@@ -71,6 +78,16 @@ export default async function ReleaseAndConsentFormsPage({
     <>
       <PageHeader
         title="Release & Consent Forms"
+        info={
+          <>
+            <strong>Signatures bind to the wording</strong>
+            <p>
+              Each signature stores the sha256 of the release as it stood when it was given, and no
+              client (this dashboard included) can edit or delete one. A speaker with no account
+              signs through the link in their row.
+            </p>
+          </>
+        }
         tags={
           speakerForms.length > 0 ? (
             <Tag color="blue">{speakerForms.length} speaker form{speakerForms.length === 1 ? '' : 's'}</Tag>
@@ -97,11 +114,9 @@ export default async function ReleaseAndConsentFormsPage({
       {speakerForms.length === 0 ? (
         <>
           <Banner kind="warning">
-            <strong>No speaker release has been published.</strong> Consent can be recorded in this
-            project now — the store, the rules and the signing page are all real — but nothing is
-            being collected from speakers until somebody writes the wording. Until then this screen
-            counts the size of the job and not a single signature, and no recording should be
-            published on the assumption that anybody agreed to it.
+            <strong>No speaker release has been published.</strong> Nothing is being collected, so
+            no recording should be published on the assumption that anybody agreed to it. Write the
+            wording and this screen becomes a register.
           </Banner>
 
           <StatTiles
@@ -113,24 +128,28 @@ export default async function ReleaseAndConsentFormsPage({
           />
 
           <Panel>
-            <EmptyState icon="◌">
-              <strong>Write the release, then this becomes a register.</strong>
-              <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-                Forms are authored on{' '}
-                <Link href="/attendees/release-and-consent-forms?new=1">
-                  Attendees › Release &amp; Consent Forms
-                </Link>{' '}
-                — one screen for all three audiences, because the machinery is the same and only
-                the audience differs. Choose <strong>Speakers</strong> and it appears here.
-              </div>
-            </EmptyState>
+            <NotInputted
+              what="speaker releases"
+              action={
+                <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main">
+                  Write the release
+                </Link>
+              }
+            />
+            <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
+              Forms are authored on{' '}
+              <Link href="/attendees/release-and-consent-forms">
+                Attendees › Release &amp; Consent Forms
+              </Link>{' '}. One screen for all three audiences, because the machinery is the same and only the
+              audience differs. Choose <strong>Speakers</strong> and it appears here.
+            </p>
           </Panel>
         </>
       ) : !reg ? (
-        <>
-          <Banner kind="info">
-            More than one speaker release is published. Pick the one whose register you want.
-          </Banner>
+        <Panel>
+          <h2 style={{ fontSize: 15, marginTop: 0 }}>
+            More than one speaker release is published. Pick a register
+          </h2>
           <Table
             cols={[
               { key: 'title', label: 'Form', className: 'cell-fill' },
@@ -147,15 +166,12 @@ export default async function ReleaseAndConsentFormsPage({
               f.currentSignatureCount,
             ])}
           />
-        </>
+        </Panel>
       ) : (
         <>
-          <Banner kind="info">
-            <strong>{reg.form.title}</strong> — version {reg.form.version}, {reg.form.status}. Each
-            signature is stored against the sha256 of the wording as it stood when it was given,
-            and no client, this dashboard included, can edit or delete one. A speaker with no
-            account signs through the link in their row.
-          </Banner>
+          <p className="body-2">
+            <strong>{reg.form.title}</strong>. Version {reg.form.version}, {reg.form.status}.
+          </p>
           {noAddress > 0 && (
             <Banner kind="warning">
               <strong>
@@ -163,7 +179,7 @@ export default async function ReleaseAndConsentFormsPage({
                 on file.
               </strong>{' '}
               Their signing link exists and there is nowhere to send it. That is a Speaker Manager
-              problem before it is a consent problem — a chase that cannot be addressed is a chase
+              problem before it is a consent problem. A chase that cannot be addressed is a chase
               that silently does not happen.
             </Banner>
           )}
@@ -172,27 +188,19 @@ export default async function ReleaseAndConsentFormsPage({
       )}
 
       <Panel>
-        <h2 className="section-header">What Whova does, and where this differs</h2>
+        <h2 className="section-header">Chasing a signature</h2>
         <p className="body-2">
-          Whova uploads a release document, sends it to every speaker, collects a typed signature
-          and shows a signed / unsigned column beside the speaker list, chasing the unsigned on a
-          schedule. The value is entirely in that column — the document itself is a PDF a lawyer
-          wrote once.
+          Each unsigned row carries its own link, minted with the capability-token pattern{' '}
+          <code>/order/&#123;token&#125;</code> uses and honoured by <code>/consent/&#123;token&#125;</code>{' '}
+          on the public site. Copy it into a message and the speaker signs without an account.{' '}
+          <Link href={ROUTES.messageSpeakers}>Message Speakers</Link> sends to a segment but has no
+          &ldquo;has not signed&rdquo; one, so the chase is per person for now.
         </p>
         <p className="body-2">
-          The column is here and it is real. Two things of Whova&rsquo;s are not: the{' '}
-          <strong>uploaded document</strong>, because the Storage bucket for this project has never
-          been created (<code>OWNER-ACTIONS.md</code> §1), so the wording is typed as plain text
-          rather than attached as a PDF — which is also what makes it hashable and diffable between
-          versions; and the <strong>chase</strong>, because nothing here sends mail. Message
-          Speakers already sends to a segment, and &ldquo;has not signed&rdquo; would be one more
-          segment, which is the smallest remaining piece of this feature.
-        </p>
-        <p className="body-2">
-          The honest alternative is still a signing service — DocuSign or Dropbox Sign — with this
-          screen holding a link and a status. For forty-five speakers once a year that may be the
-          better trade, and what this build buys is the ability to make that decision against a
-          working thing rather than against an estimate.
+          What is stored is a typed name against the hash of the wording, not a countersigned PDF,
+          a certificate of completion, or an identity check. For forty-five speakers once a year a
+          signing service holding those may still be the better trade; the register says{' '}
+          <code>by link</code> or <code>in the app</code> rather than implying more.
         </p>
       </Panel>
 
@@ -214,8 +222,7 @@ export default async function ReleaseAndConsentFormsPage({
           </li>
           <li>
             <strong>A verifiable signed document.</strong> No PDF, no certificate, no identity
-            check. A typed name against a hashed body of text is what is stored, and the register
-            says <code>by link</code> or <code>in the app</code> rather than implying more.
+            check.
           </li>
           <li>
             <strong>Withdrawal.</strong> The record is append-only by design; there is no

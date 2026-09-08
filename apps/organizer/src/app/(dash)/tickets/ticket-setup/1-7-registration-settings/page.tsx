@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +33,17 @@ export default async function RegistrationSettingsPage() {
     <>
       <PageHeader
         title="1.7 Registration Settings"
+        info={
+          <>
+            <strong>These settings live on the ticket type, not on the event</strong>
+            <p>
+              Sales windows, capacity and visibility are per tier, checked on every catalogue read
+              and again at checkout. Edit them in{' '}
+              <Link href={ROUTES.createTickets}>Create Tickets</Link>. There is no event-wide
+              registration switch. Closing registration means closing each tier.
+            </p>
+          </>
+        }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
             Create Tickets
@@ -45,13 +56,6 @@ export default async function RegistrationSettingsPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>These settings live on the ticket type, not on the event.</strong> Sales windows,
-        capacity and visibility are per tier, checked on every catalogue read and again at checkout —
-        so closing a tier closes it for someone who kept the page open. Edit them in{' '}
-        <Link href={ROUTES.createTickets}>Create Tickets</Link>.
-      </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Per-tier settings that are enforced</h2>
@@ -86,45 +90,27 @@ export default async function RegistrationSettingsPage() {
               </Tag>
             ),
           ])}
-          empty="No ticket types — run `npm run seed`. An empty catalogue throws rather than charging a stale price."
+          empty={
+            <NotInputted
+              what="ticket types"
+              compact
+              action={
+                <Link className="btn btn-primary" href={ROUTES.createTickets}>
+                  Create one
+                </Link>
+              }
+            />
+          }
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Sold-out is <code>quantitySold &gt;= quantityTotal</code>, and <code>quantitySold</code> is
-          incremented server-side at fulfilment — not from a client, and not from a count of orders
+          incremented server-side at fulfilment, not from a client, and not from a count of orders
           that would double-count a partially refunded one. It is never decremented on a refund, so
           it ratchets: correct one tier on{' '}
           <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link>, where the figure recomputed
           from the orders ledger is offered beside it, or the whole catalogue with{' '}
           <code>npm run reconcile:sold</code>.
         </p>
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Event-level settings that have no home</h2>
-        <Table
-          cols={[
-            { key: 's', label: 'Setting', className: 'cell-md' },
-            { key: 'n', label: 'Where it would have to live', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              'Waitlist when sold out',
-              'A collection of hopefuls plus a rule for who gets released capacity. Sold-out today is a dead end with a message.',
-            ],
-            [
-              'Ticket transfer to another person',
-              'The registration is keyed by a hash of the email address, so a transfer is a new registration and a revoked qrSecret — not an edit. Worth designing before it is needed at the door.',
-            ],
-            [
-              'Refund policy and self-service refunds',
-              'Refunds are issued by an organizer from Attendee Orders. Letting an attendee trigger one needs a policy window and an authenticated path from the app, which does not exist.',
-            ],
-            [
-              'Registration cut-off for the whole event',
-              'Would be one date rather than four. Today closing registration means setting a close date on each tier.',
-            ],
-          ]}
-        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

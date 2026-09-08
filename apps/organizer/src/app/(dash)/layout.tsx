@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { COLLECTIONS, EVENT, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { adoptionCounts, countWhereEvent, listSessions } from '@/lib/data';
-import { IMPLEMENTED, NAV, counts, searchIndex, type NavNode } from '@/lib/nav';
+import { IMPLEMENTED, NAV, searchIndex, type NavNode } from '@/lib/nav';
 import { logoutAction } from '../login/actions';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
 import { FeatureSearch } from './feature-search';
@@ -99,7 +99,6 @@ export default async function DashLayout({ children }: { children: React.ReactNo
         : `${prettyDay(days[0])} – ${prettyDay(days[days.length - 1])}`;
 
   const published = sessions.filter((s) => s.status === 'published').length;
-  const { implemented, total } = counts();
   const nav = slim(NAV);
 
   return (
@@ -227,14 +226,14 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <div className="layout-boxed frame-wrapper">
         <Sidebar
           nav={nav}
-          footnote={`${implemented} of ${total} screens are real. The rest name the gap rather than fake it — open one to see what it would take.`}
+          footnote={`${EVENT.shortName} Event Management System`}
         />
         <div className="frame-right-side">{children}</div>
       </div>
 
       <footer className="main-footer">
-        <strong>{EVENT.shortName} EMS</strong> — an organizer dashboard rebuilt one-to-one against
-        Whova&apos;s, on KGC&apos;s own Firestore. {implemented} of {total} screens carry real data.
+        <strong>{EVENT.shortName} EMS</strong>. The event management system for{' '}
+        {EVENT.name}.
       </footer>
     </>
   );

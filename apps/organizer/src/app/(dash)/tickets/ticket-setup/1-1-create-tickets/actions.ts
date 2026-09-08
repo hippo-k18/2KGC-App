@@ -137,7 +137,7 @@ export async function saveTicketTypeAction(
   const opensRaw = String(formData.get('salesOpenAt') ?? '').trim();
   const closesRaw = String(formData.get('salesCloseAt') ?? '').trim();
 
-  if (name.length < 2) return { error: 'Give the ticket a name — it prints on the badge.' };
+  if (name.length < 2) return { error: 'Give the ticket a name. It prints on the badge.' };
 
   const priceCents = parseMoney(priceRaw);
   if (priceCents === null) {
@@ -148,7 +148,7 @@ export async function saveTicketTypeAction(
     // almost always a typo rather than a comp rate someone meant to publish.
     return {
       error:
-        'A free ticket cannot be publicly visible — untick "Show on the website" if you meant a comp rate.',
+        'A free ticket cannot be publicly visible. Untick "Show on the website" if you meant a comp rate.',
     };
   }
   if (!/^[a-z]{3}$/.test(currency)) return { error: 'Currency must be a three-letter code.' };
@@ -180,7 +180,7 @@ export async function saveTicketTypeAction(
   if (groups === null) {
     return {
       error:
-        'The grouped list starts with a bullet. Put a heading above it — a line with no dash — or leave the box empty.',
+        'The grouped list starts with a bullet. Put a heading above it (a line with no dash) or leave the box empty.',
     };
   }
 
@@ -341,10 +341,10 @@ export async function saveTicketTypeAction(
       message: existing
         ? `Saved. The website shows the new details immediately${
             changed.changed.includes('priceCents')
-              ? ' — including the new price, which applies to purchases from now on.'
+              ? '. Including the new price, which applies to purchases from now on.'
               : '.'
           }`
-        : `Created "${name}" as ${docId}. It is ${visible ? 'live on the website now' : 'hidden — tick "Show on the website" when you are ready'}.`,
+        : `Created "${name}" as ${docId}. It is ${visible ? 'live on the website now' : 'hidden. Tick "Show on the website" when you are ready'}.`,
     };
   } catch (err) {
     recordError('ticketType.save', err);
@@ -399,14 +399,14 @@ export async function adjustSoldCountAction(
   // Required, and required to be a sentence. This is the audit entry somebody
   // reads a year later; "0" or "fix" answers nothing.
   if (reason.length < 8) {
-    return { error: 'Say why in a few words — it is the only record of this correction.' };
+    return { error: 'Say why in a few words. It is the only record of this correction.' };
   }
 
   const existing = await getTicketType(id);
   if (!existing) return { error: `No ticket type with the id "${id}".` };
 
   const was = existing.quantitySold ?? 0;
-  if (was === sold) return { error: `That is already the count — ${sold} sold.` };
+  if (was === sold) return { error: `That is already the count: ${sold} sold.` };
 
   try {
     await db()
@@ -438,7 +438,7 @@ export async function adjustSoldCountAction(
       (cap === undefined
         ? ' This tier is uncapped, so the figure is a readout rather than a gate.'
         : sold >= cap
-          ? ` That is at or over the cap of ${cap} — the tier is closed on the website.`
+          ? ` That is at or over the cap of ${cap}. The tier is closed on the website.`
           : ` ${cap - sold} of ${cap} still on sale.`),
   };
 }

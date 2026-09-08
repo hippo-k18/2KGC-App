@@ -4,7 +4,17 @@ import { listBooths } from '@/lib/booths';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { listExhibitors } from '@/lib/exhibitors';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
+import {
+  Banner,
+  GapPanel,
+  NotInputted,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  StatTiles,
+  Table,
+  Tag,
+} from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +87,17 @@ export default async function ExhibitorAddOnsPage() {
     <>
       <PageHeader
         title="2.5 Ticket Add-ons"
+        info={
+          <>
+            <strong>An exhibitor extra is priced as its own cheap package</strong>
+            <p>
+              A staff pass or a power upgrade has a price and no dependency on the parent purchase,
+              so a low-priced <code>audience: exhibitor</code> tier is on sale at{' '}
+              <code>/tickets/exhibitor</code> with no new model. Nothing links a pass purchase back
+              to an exhibitor&rsquo;s allocation. That is set by hand on Exhibitor Manager.
+            </p>
+          </>
+        }
         tags={
           over.length > 0 ? (
             <Tag color="red" fill="solid">
@@ -99,14 +120,18 @@ export default async function ExhibitorAddOnsPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>An exhibitor extra is a cheap package, and that is enough.</strong> The attendee
-        case genuinely needs an add-on model — a dinner and a workshop day are independent, and a
-        tier per combination is a combinatorial price list. Exhibitor extras are not: an extra staff
-        pass has a price and no dependency on the parent purchase, so pricing it as its own{' '}
-        <code>audience: &apos;exhibitor&apos;</code> tier puts it on sale at{' '}
-        <code>/tickets/exhibitor</code> today with no new code.
-      </Banner>
+      {over.length > 0 && (
+        <Banner kind="warning">
+          <strong>
+            {over.length} {over.length === 1 ? 'exhibitor has' : 'exhibitors have'} claimed more
+            staff passes than their package allows.
+          </strong>{' '}
+          Nothing enforces the allocation, so the shortfall arrives at the badge desk on the morning
+          of day one. Correct the allocation on{' '}
+          <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link> or
+          record the extra passes as a purchase.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -167,7 +192,7 @@ export default async function ExhibitorAddOnsPage() {
           ⚠️ Every package below names a pass count in its inclusion list and{' '}
           <strong>nothing reads it</strong>. <code>passesAllocated</code> is typed in on Exhibitor
           Manager; <code>passesUsed</code> is counted. The two disagreeing is discovered at the desk
-          on the morning of day one, by somebody expecting a badge that was never allocated — so it
+          on the morning of day one, by somebody expecting a badge that was never allocated, so it
           is worth reading this table in April rather than in May.
         </p>
         <Table
@@ -207,7 +232,7 @@ export default async function ExhibitorAddOnsPage() {
 
             x.overAllocated ? (
               <span key="s" style={{ color: 'var(--danger)', fontSize: 12 }}>
-                {x.passesUsed - (x.passesAllocated ?? 0)} more claimed than the package allows — sell
+                {x.passesUsed - (x.passesAllocated ?? 0)} more claimed than the package allows. Sell
                 them an extra pass or raise the allocation.
               </span>
             ) : typeof x.passesAllocated !== 'number' ? (
@@ -230,7 +255,7 @@ export default async function ExhibitorAddOnsPage() {
           cols={[
             { key: 'n', label: 'Package', className: 'cell-md' },
             { key: 'p', label: 'Price', className: 'cell-sm' },
-            { key: 'i', label: 'Inclusion list — prose, not data', className: 'cell-fill' },
+            { key: 'i', label: 'Inclusion list: prose, not data', className: 'cell-fill' },
           ]}
           rows={packages.map((t) => [
             t.name,
@@ -239,18 +264,9 @@ export default async function ExhibitorAddOnsPage() {
               {(t.includes ?? []).join(' · ') || <em>nothing listed</em>}
             </span>,
           ])}
-          empty="No exhibitor packages priced."
+          empty={<NotInputted what="exhibitor packages" compact />}
         />
       </Panel>
-
-      <Banner kind="info">
-        <strong>A package and its extras are one purchase now.</strong> <code>/tickets/exhibitor</code>{' '}
-        asks how many passes and then takes a name, an address and a ticket type per seat; seats
-        sharing a tier become one Stripe line item with a real quantity. A booth and two extra
-        passes are one payment and one order with three <code>items</code> — where they used to be
-        three separate checkouts. Each extra pass still needs its own attendee address, because a
-        registration is keyed on one.
-      </Banner>
 
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>

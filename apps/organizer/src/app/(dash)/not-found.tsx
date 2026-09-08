@@ -43,7 +43,7 @@ export default function DashNotFound() {
         <Banner kind="info">
           <div>
             <strong>Nothing is routed here.</strong> This dashboard carries {total} navigation
-            paths and every one of them resolves — a section renders an index of its children, a
+            paths and every one of them resolves. A section renders an index of its children, a
             leaf renders its screen. So an address that lands on this page is not in the navigation
             at all: a typed URL, an old bookmark, or a record that has since been deleted.
           </div>

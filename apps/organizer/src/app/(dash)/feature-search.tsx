@@ -197,9 +197,6 @@ export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
                     {h.trail || 'Top level'}
                   </span>
                 </span>
-                {h.built ? (
-                  <span className="whova-tag-main green-tag outline-tag small">built</span>
-                ) : null}
               </Link>
             ))}
           </div>

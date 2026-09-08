@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { GAPS } from '@/lib/gaps';
 import { IMPLEMENTED, resolve, type NavNode } from '@/lib/nav';
-import { Banner, PageHeader, Panel } from '../ui';
+import { gapNotesVisible } from '@/lib/gap-notes';
+import { PageHeader, Panel } from '../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,11 +36,7 @@ function Index({ node, base }: { node: NavNode; base: string }) {
               {c.tag ? <span className={`menu-tag ${c.tag}`}>{c.tagLabel ?? c.tag}</span> : null}
             </span>
             <span className="index-sub">
-              {built
-                ? 'Built — real data'
-                : c.children
-                  ? `${c.children.length} screens`
-                  : 'In the nav, not yet built'}
+              {c.children ? `${c.children.length} screens` : built ? 'Open' : 'Not inputted yet'}
             </span>
           </Link>
         );
@@ -63,6 +60,17 @@ export default async function CatchAll({ params }: { params: Promise<{ slug: str
     <>
       <PageHeader
         title={node.title}
+        info={
+          node.children ? undefined : (
+            <>
+              <strong>Nothing entered yet</strong>
+              <p>
+                {gap?.whova ?? `This screen holds ${node.title} for the event.`} Once content is
+                added it appears here.
+              </p>
+            </>
+          )
+        }
         tags={
           node.tag ? <span className={`menu-tag ${node.tag}`}>{node.tagLabel ?? node.tag}</span> : null
         }
@@ -92,11 +100,16 @@ export default async function CatchAll({ params }: { params: Promise<{ slug: str
           </>
         ) : (
           <>
-            <Banner kind="warning">
-              <strong>Not built.</strong> This screen exists in the navigation because it exists in
-              Whova, and clicking it should tell you where you stand rather than nothing at all.
-            </Banner>
+            <p className="body-2" style={{ marginTop: 0 }}>
+              Nothing has been entered for {node.title} yet.
+            </p>
 
+            {/*
+              Not `display: none`. Hiding this with CSS still ships every word to
+              the page, where a screen reader reads it out and a text search
+              finds it — which is the same defect as printing it.
+            */}
+            {gapNotesVisible() ? (
             <dl className="gap-grid">
               <dt>Whova does</dt>
               <dd>{gap?.whova ?? `Whova ships a full ${node.title} screen here.`}</dd>
@@ -125,6 +138,7 @@ export default async function CatchAll({ params }: { params: Promise<{ slug: str
                 <code>{node.name}</code>
               </dd>
             </dl>
+            ) : null}
           </>
         )}
       </Panel>

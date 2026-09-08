@@ -3,7 +3,16 @@ import { requireOrganizer } from '@/lib/auth';
 import { listBooths, summarise } from '@/lib/booths';
 import { listOrders, listTicketTypes } from '@/lib/commerce';
 import { listExhibitors } from '@/lib/exhibitors';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import {
+  Banner,
+  GapPanel,
+  NotInputted,
+  PageHeader,
+  Panel,
+  StatTiles,
+  Table,
+  Tag,
+} from '../../../ui';
 import { releaseBoothAction, toggleBoothBlockedAction } from './actions';
 import { AddBoothForm, AssignBoothForm } from './booth-forms';
 
@@ -80,6 +89,16 @@ export default async function BoothSelectionPage() {
     <>
       <PageHeader
         title="2.3 Booth Selection"
+        info={
+          <>
+            <strong>A package sells a booth size, not a space</strong>
+            <p>
+              Which particular booth somebody gets is decided here, after the sale, because a floor
+              plan is agreed with the venue later than the catalogue is priced. Allocation is
+              transactional. A booth already held or assigned is refused rather than overwritten.
+            </p>
+          </>
+        }
         tags={
           <Tag color={stats.available > 0 ? 'green' : 'red'} fill="outline">
             {stats.available} free
@@ -98,26 +117,14 @@ export default async function BoothSelectionPage() {
         ]}
       />
 
-      {booths.length === 0 ? (
-        <Banner kind="warning">
-          <strong>The floor plan is empty.</strong> Add the spaces the venue has confirmed, below.
-          Until then an exhibitor package sells a booth <em>size</em> and nothing records which
-          particular booth anybody ends up in.
-        </Banner>
-      ) : stats.unallocatedSales > 0 ? (
+      {stats.unallocatedSales > 0 && (
         <Banner kind="warning">
           <strong>
-            {stats.unallocatedSales} paid {stats.unallocatedSales === 1 ? 'package has' : 'packages have'}{' '}
-            no space allocated.
+            {stats.unallocatedSales} paid{' '}
+            {stats.unallocatedSales === 1 ? 'package has' : 'packages have'} no space allocated.
           </strong>{' '}
           Somebody has bought a booth and does not yet know where it is. That is the number this
           screen exists to drive to zero.
-        </Banner>
-      ) : (
-        <Banner kind="info">
-          <strong>Every paid package has a space.</strong> Allocation is transactional — a booth
-          already held or assigned to somebody else is refused rather than overwritten, because two
-          companies in one space is not a problem a refund solves.
         </Banner>
       )}
 
@@ -217,7 +224,7 @@ export default async function BoothSelectionPage() {
               )}
             </div>,
           ])}
-          empty="No booths yet. Add the first one below."
+          empty={<NotInputted what="booths" compact />}
         />
       </Panel>
 

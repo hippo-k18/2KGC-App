@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +18,22 @@ export const dynamic = 'force-dynamic';
 export default async function AttendeeVideoAccessPage() {
   await requireOrganizer();
   const tickets = await listTicketTypes();
+  const entitled = tickets.filter((t) => t.includes.some((i) => /video library/i.test(i)));
 
   return (
     <>
       <PageHeader
         title="Attendee Video Access"
+        info={
+          <>
+            <strong>The entitlement, not the library</strong>
+            <p>
+              This reads <code>TicketTypeDoc.includesVideoLibrary</code>, which Checkout charges
+              against. Nothing serves a recording yet. Video Hosting is waiting on a provider
+              account.
+            </p>
+          </>
+        }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
             Ticket types
@@ -33,15 +44,22 @@ export default async function AttendeeVideoAccessPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>The entitlement is sold; the library is not built.</strong> Two ticket tiers
-        advertise &ldquo;three months of the KGC Video Library&rdquo; on the public price list and
-        nothing serves one. That is a promise on a paid ticket — worth resolving before doors open,
-        either by building it or by changing the copy.
-      </Banner>
+      {entitled.length > 0 ? (
+        <Banner kind="warning">
+          <strong>
+            {entitled.length} ticket {entitled.length === 1 ? 'tier advertises' : 'tiers advertise'}{' '}
+            a video library that nothing serves.
+          </strong>{' '}
+          It is on the public price list and buyers are paying for it. Resolve it before doors open. Either serve it, or change the copy on{' '}
+          <Link href={ROUTES.createTickets}>Ticket types</Link>.
+        </Banner>
+      ) : null}
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Who would get access</h2>
+        {tickets.length === 0 ? (
+          <NotInputted what="ticket types" />
+        ) : (
         <Table
           cols={[
             { key: 't', label: 'Ticket type', className: 'cell-fill' },
@@ -67,8 +85,8 @@ export default async function AttendeeVideoAccessPage() {
               </span>
             ),
           ])}
-          empty="No ticket types yet."
         />
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

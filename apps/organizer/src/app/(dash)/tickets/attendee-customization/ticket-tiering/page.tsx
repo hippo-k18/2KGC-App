@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money, salesSummary } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +35,16 @@ export default async function TicketTieringPage() {
     <>
       <PageHeader
         title="Ticket Tiering"
+        info={
+          <>
+            <strong>There is no automatic price change</strong>
+            <p>
+              A price is one number on the ticket type. Early bird is done by hand (close one tier,
+              open another) and the two are then separate products in every report. What this
+              screen does have is entitlements, which other screens read rather than infer.
+            </p>
+          </>
+        }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
             Create Tickets
@@ -70,35 +80,22 @@ export default async function TicketTieringPage() {
               {t.includesVideoLibrary ? <Tag color="green" small>video library</Tag> : null}
             </span>,
           ])}
-          empty="No ticket types — run `npm run seed`."
+          empty={
+            <NotInputted
+              what="ticket types"
+              compact
+              action={
+                <Link className="btn btn-primary" href={ROUTES.createTickets}>
+                  Create one
+                </Link>
+              }
+            />
+          }
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Sold counts come from order line items, not from multiplying a price by a headcount — a
+          Sold counts come from order line items, not from multiplying a price by a headcount. A
           discount code or a partial refund makes the second number plausibly wrong, which is worse
           than obviously wrong.
-        </p>
-      </Panel>
-
-      <Banner kind="warning">
-        <strong>There is no automatic price change.</strong> A price is one number on the ticket
-        type. Early bird is currently done by hand: close one tier, open another, and accept that
-        the two are separate products in every report.
-      </Banner>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Why two tiers is not the same as one tier that changes price</h2>
-        <p className="body-2">
-          Closing &ldquo;Early Bird&rdquo; and opening &ldquo;Standard&rdquo; gets the money right
-          and the reporting wrong. They become two rows everywhere — the sales summary, the tier
-          breakdown, the exports — so &ldquo;how many main-conference tickets have we sold&rdquo;
-          needs somebody to remember to add two numbers, forever. Whova&rsquo;s version keeps one
-          product with a schedule of prices, which is a small data-model change (a price list with
-          dates) and a large reporting difference.
-        </p>
-        <p className="body-2">
-          The volume-based variant — first 50 at one price — is harder than it looks for the same
-          reason capacity is: the switch has to happen server-side at fulfilment, not when the page
-          renders, or two people who load the page at the same time see the same last cheap seat.
         </p>
       </Panel>
 

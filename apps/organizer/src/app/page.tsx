@@ -100,7 +100,7 @@ export default async function EventListPage() {
         <p className="caption" style={{ marginTop: 20 }}>
           One event today. Every top-level document carries <code>EVENT_ID</code> and every
           composite index leads with it, so a second year is a second row here rather than a second
-          database — but nothing creates one yet, and there is no event switcher because there is
+          database, but nothing creates one yet, and there is no event switcher because there is
           nothing to switch to.
         </p>
       </div>

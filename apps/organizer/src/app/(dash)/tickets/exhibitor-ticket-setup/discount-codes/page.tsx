@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +30,17 @@ export default async function ExhibitorDiscountCodesPage() {
     <>
       <PageHeader
         title="Discount Codes"
+        info={
+          <>
+            <strong>Discount codes are not scoped per audience</strong>
+            <p>
+              They are Stripe promotion codes, and a Stripe promotion code belongs to the Stripe
+              account rather than to a catalogue. There is one list, on{' '}
+              <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, and it applies
+              wherever Checkout accepts a code.
+            </p>
+          </>
+        }
         links={[
           <Link key="d" href={ROUTES.discountCodes}>
             Discount Codes (all audiences)
@@ -40,37 +51,15 @@ export default async function ExhibitorDiscountCodesPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Discount codes are not scoped per audience here.</strong> They are Stripe promotion
-        codes, and a Stripe promotion code belongs to the Stripe account, not to a catalogue. There
-        is one list, managed on{' '}
-        <Link href={ROUTES.discountCodes}>Tickets › Ticket Setup › Discount Codes</Link>, and it
-        applies wherever Checkout accepts a code.
-      </Banner>
-
       <Panel>
-        <h2 className="section-header">What Whova does here</h2>
-        <dl className="gap-grid">
-          <dt>Whova does</dt>
-          <dd>
-            A separate code list per audience, each code restricted to chosen ticket types, with a
-            redemption cap, a date window and a percentage or fixed amount. That per-tier
-            restriction is the entire reason the screen exists three times.
-          </dd>
-          <dt>We would need</dt>
-          <dd>
-            Per-tier restriction, which Stripe expresses as a coupon limited to specific{' '}
-            <code>price</code> objects. This project creates no durable Stripe Prices — Checkout is
-            handed <code>price_data</code> built from <code>ticketTypes</code> at session time — so
-            restricting a coupon to a tier means giving every tier a Stripe Price first. A day or
-            two, and it changes the money path, which is the part carrying the most tests.
-          </dd>
-          <dt>Read</dt>
-          <dd>
-            <code>apps/organizer/src/lib/discount-codes.ts</code> for what is actually read from
-            Stripe, and <code>SETUP-PAYMENTS.md</code> for the account it reads.
-          </dd>
-        </dl>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where an exhibitor code is created</h2>
+        <p className="body-2" style={{ marginTop: 0 }}>
+          On <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, with the one
+          list every checkout reads. A code created there works at{' '}
+          <code>/tickets/exhibitor</code> immediately, and equally at the attendee checkout. A code
+          meant for exhibitors only has no way to refuse anyone else. Where the discount has to be
+          exhibitor-specific, agree the figure and raise an invoice for it instead.
+        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

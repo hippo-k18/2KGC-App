@@ -3,7 +3,18 @@ import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money, recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
-import { listParams, PageHeader, paginate, Pagination, Panel, PER_PAGE, Table, Tag } from '../../../ui';
+import {
+  listParams,
+  NotInputted,
+  PageHeader,
+  paginate,
+  Pagination,
+  Panel,
+  PER_PAGE,
+  SearchInput,
+  Table,
+  Tag,
+} from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +69,7 @@ export default async function TransactionHistoryPage({
         at: o.purchasedAt,
         kind: 'invoice-raised',
         who: o.companyName ?? o.email,
-        what: `Invoice raised — ${o.seatCount} ${o.seatCount === 1 ? 'seat' : 'seats'}`,
+        what: `Invoice raised: ${o.seatCount} ${o.seatCount === 1 ? 'seat' : 'seats'}`,
         detail: o.poNumber ? `PO ${o.poNumber}` : undefined,
         amount: money(o.totalCents, o.currency),
         href: o.stripeInvoiceId ? stripeInvoiceUrl(o.stripeInvoiceId) : undefined,
@@ -122,7 +133,42 @@ export default async function TransactionHistoryPage({
   }
 
   entries.sort((a, b) => b.at.localeCompare(a.at));
-  const rows = paginate(entries, page, PER_PAGE);
+
+  /**
+   * The two filters this log was missing.
+   *
+   * "What happened, and when" is the question under pressure, and it is asked
+   * about one person ("did Maria get her confirmation?") or about one kind of
+   * event ("show me every refund"). Neither was reachable: the only way through
+   * was paging a merged stream in which one busy day of email buries every
+   * refund. Both filters run in memory over rows already loaded, so neither adds
+   * a query or a composite index.
+   */
+  // Kept in both cases: the lower-cased copy matches, the typed one goes back
+  // into the box so the search term survives the round trip as it was written.
+  const qRaw = String(sp.q ?? '').trim();
+  const q = qRaw.toLowerCase();
+  const kind = String(sp.kind ?? '').trim();
+
+  const counts = {
+    all: entries.length,
+    purchase: entries.filter((e) => e.kind === 'purchase').length,
+    refund: entries.filter((e) => e.kind === 'refund').length,
+    'invoice-raised': entries.filter((e) => e.kind === 'invoice-raised').length,
+    email: entries.filter((e) => e.kind === 'email').length,
+  };
+
+  const filtered = entries.filter((e) => {
+    if (kind && e.kind !== kind) return false;
+    if (!q) return true;
+    return (
+      e.who.toLowerCase().includes(q) ||
+      e.what.toLowerCase().includes(q) ||
+      (e.detail ?? '').toLowerCase().includes(q)
+    );
+  });
+
+  const rows = paginate(filtered, page, PER_PAGE);
 
   const failedEmails = emails.filter((e) => e.status === 'failed').length;
   const skippedEmails = emails.filter((e) => e.status === 'skipped').length;
@@ -131,6 +177,16 @@ export default async function TransactionHistoryPage({
     <>
       <PageHeader
         title="Transaction History"
+        info={
+          <>
+            <strong>One row per event, not per order</strong>
+            <p>
+              A refund is timestamped when the money went back, not when it was taken, so it sits
+              three weeks later in the log rather than folded into the purchase. Email rows cover
+              the most recent 200 sends; orders are complete.
+            </p>
+          </>
+        }
         tags={
           failedEmails > 0 ? (
             <Tag color="red" fill="outline">
@@ -138,7 +194,7 @@ export default async function TransactionHistoryPage({
             </Tag>
           ) : skippedEmails > 0 ? (
             <Tag color="grey" fill="outline">
-              {skippedEmails} not sent — no email provider
+              {skippedEmails} not sent, no email provider
             </Tag>
           ) : undefined
         }
@@ -153,6 +209,50 @@ export default async function TransactionHistoryPage({
       />
 
       <Panel>
+        <form
+          method="get"
+          style={{ alignItems: 'center', display: 'flex', gap: 12, marginBottom: 12 }}
+        >
+          {kind ? <input type="hidden" name="kind" value={kind} /> : null}
+          <SearchInput defaultValue={qRaw} placeholder="Name, email, subject…" />
+          <button type="submit" className="btn btn-default">
+            Search
+          </button>
+          {q ? (
+            <Link className="btn btn-default" href="?">
+              Clear
+            </Link>
+          ) : null}
+          <span style={{ flex: 1 }} />
+          {(
+            [
+              ['', `All ${counts.all}`],
+              ['purchase', `Purchases ${counts.purchase}`],
+              ['refund', `Refunds ${counts.refund}`],
+              ['invoice-raised', `Invoices ${counts['invoice-raised']}`],
+              ['email', `Emails ${counts.email}`],
+            ] as const
+          ).map(([value, label]) => {
+            const p = new URLSearchParams(baseParams);
+            if (value) p.set('kind', value);
+            else p.delete('kind');
+            p.delete('page');
+            return (
+              <Link
+                key={value || 'all'}
+                href={`?${p.toString()}`}
+                style={{
+                  fontSize: 12,
+                  fontWeight: kind === value ? 700 : 400,
+                  textDecoration: 'none',
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </form>
+
         <Table
           cols={[
             { key: 'when', label: 'When', className: 'cell-sm' },
@@ -193,14 +293,15 @@ export default async function TransactionHistoryPage({
               {e.amount ?? <span className="muted">—</span>}
             </span>,
           ])}
-          empty="Nothing has happened yet. Purchases, refunds and emails all appear here."
+          empty={
+            q || kind ? 'Nothing matches that filter.' : <NotInputted what="transactions" compact />
+          }
         />
-        <Pagination total={entries.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
+        <Pagination total={filtered.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
 
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          Email entries cover the most recent 200 sends. Orders are complete. Stripe&rsquo;s own
-          dashboard is the authority on payouts and fees, which are charged against the payout
-          rather than the order and are not visible here.
+          Stripe&rsquo;s own dashboard is the authority on payouts and fees, which are charged
+          against the payout rather than the order and are not visible here.
         </p>
       </Panel>
     </>

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +24,16 @@ export default async function AttendeeCategoriesPage() {
     <>
       <PageHeader
         title="Attendee Categories"
+        info={
+          <>
+            <strong>One list, kept under Attendees</strong>
+            <p>
+              A category here is <code>UserDoc.roles</code>, which the project already keeps because
+              a speaker is also an attendee. Nothing turns a purchase into a category. Where a
+              purchase decides something it does it through an entitlement on the ticket type.
+            </p>
+          </>
+        }
         actions={
           <Link href="/attendees/categories" className="whova-btn-main">
             Open Attendees › Categories
@@ -39,36 +49,19 @@ export default async function AttendeeCategoriesPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Categories live under Attendees.</strong> Whova puts the same feature in two places
-        in its nav; duplicating the screen would mean two lists of the same people that can drift
-        apart, so this one is a signpost.{' '}
-        <Link href="/attendees/categories">Attendees › Categories</Link> has the real data.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What a category is here</h2>
         <p className="body-2">
-          Not an organizer-authored label. Categories are <code>UserDoc.roles</code> — the list this
-          project already keeps because a speaker is also an attendee — surfaced as the cohorts they
-          already are. That is a smaller thing than Whova&rsquo;s and it has one advantage: nobody
-          has to maintain it, and it cannot disagree with what the app and{' '}
-          <code>firestore.rules</code> actually believe about a person.
-        </p>
-
-        <h2 className="section-header">The Tickets-side half that is missing</h2>
-        <p className="body-2">
-          Whova can say &ldquo;anyone who buys the Workshops ticket is categorised as a Workshop
-          Attendee&rdquo;, and then use that category for badge colour, session access and who a
-          message goes to. Ours cannot: a purchase writes a registration and increments a tier
-          count, and nothing derives a label from it.
+          Categories are <code>UserDoc.roles</code> (the list this project already keeps because a
+          speaker is also an attendee) surfaced as the cohorts they already are. Nobody has to
+          maintain a second one, and it cannot disagree with what the app and{' '}
+          <code>firestore.rules</code> believe about a person. The list itself is at{' '}
+          <Link href="/attendees/categories">Attendees › Categories</Link>.
         </p>
         <p className="body-2">
-          Where a purchase <em>does</em> decide something, it does it through an entitlement rather
-          than a category — <code>includesWorkshops</code> on the ticket type, read by{' '}
-          <Link href="/attendees/ticket-session-mapping">Ticket Session Mapping</Link>. That is the
-          narrower, more reliable version of the same idea, and it covers the one case KGC actually
-          has.
+          Where a purchase decides what somebody may attend, it does so through an entitlement on
+          the ticket type rather than through a category: <code>includesWorkshops</code>, read by{' '}
+          <Link href="/attendees/ticket-session-mapping">Ticket Session Mapping</Link>.
         </p>
       </Panel>
 

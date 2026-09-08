@@ -181,7 +181,7 @@ export async function saveField(input: {
       ok: true,
       message:
         index >= 0
-          ? `Updated “${field.prompt}”. Answers already given to it are kept — the question keeps its id.`
+          ? `Updated “${field.prompt}”. Answers already given to it are kept. The question keeps its id.`
           : `Added “${field.prompt}”.`,
     };
   } catch (err) {
@@ -231,7 +231,7 @@ export async function deleteField(input: {
 
     return {
       ok: true,
-      message: `Removed “${gone.prompt}”. Answers already given to it stay on the registrations — nothing was destroyed.`,
+      message: `Removed “${gone.prompt}”. Answers already given to it stay on the registrations. Nothing was destroyed.`,
     };
   } catch (err) {
     recordError('questionForms.deleteField', err);

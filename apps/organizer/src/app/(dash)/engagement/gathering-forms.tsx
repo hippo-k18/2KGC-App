@@ -108,7 +108,7 @@ export function GatheringForm({
           defaultValue={editing?.roomId ? `${editing.roomId}|${editing.roomName}` : ''}
           style={{ maxWidth: 300 }}
         >
-          <option value="">— not decided —</option>
+          <option value="">Not decided…</option>
           {rooms.map((r) => (
             <option key={r.id} value={`${r.id}|${r.name}`}>
               {r.name}
@@ -122,7 +122,7 @@ export function GatheringForm({
           Day
         </label>
         <select id="day" name="day" defaultValue={editing?.day ?? ''} style={{ maxWidth: 220 }}>
-          <option value="">— not decided —</option>
+          <option value="">Not decided…</option>
           {days.map((d) => (
             <option key={d} value={d}>
               {d}
@@ -185,7 +185,7 @@ export function GatheringForm({
           name="notes"
           maxLength={200}
           defaultValue={editing?.notes}
-          placeholder="optional — AV needed, catering, anything the desk should know"
+          placeholder="optional. AV needed, catering, anything the desk should know"
         />
       </div>
 
@@ -213,7 +213,7 @@ export function PlaceForm({
   if (gathering.full) {
     return (
       <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-        Full at {gathering.capacity}. Raise the capacity to add anybody else — the cap is refused
+        Full at {gathering.capacity}. Raise the capacity to add anybody else. The cap is refused
         rather than exceeded, because somebody sent to a table with no chair is worse than a number
         being wrong.
       </p>

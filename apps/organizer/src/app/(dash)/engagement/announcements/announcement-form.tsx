@@ -39,9 +39,8 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
           <span>Recipients</span>
           <span className="whova-form-label-suffix">*</span>
           <HelpTip>
-            Whova targets by ticket type, category or segment and shows a live count before you
-            send. All three derive from registration question answers, which nothing collects yet —
-            so the only real audience here is everyone.
+            A narrower audience would have to derive from registration question answers, which
+            nothing collects yet, so the only audience is everyone, counted live before you send.
           </HelpTip>
         </div>
         <div className="whova-radio-group">
@@ -56,9 +55,7 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
             <span>All attendees ({recipientCount})</span>
           </label>
           <div className="whova-radio-description">
-            The only audience there is. An announcement writes one document that every signed-in
-            attendee reads, and the push goes to a topic rather than to a list of devices — so
-            there is nowhere for a narrower audience to be expressed even if one could be computed.
+            Counted live from the attendee list, so this is the number it will actually reach.
           </div>
         </div>
       </div>
@@ -107,9 +104,8 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
               <span>Also send as a push notification</span>
             </label>
             <div className="whova-checkbox-description">
-              One FCM topic send from this server via the Admin SDK — no Cloud Function, so this
-              works on the free plan. It refuses while the dashboard is pointed at the emulator and
-              tells you so, rather than pretending to have sent.
+              Reaches phones that have notifications on. Without it the announcement still lands on
+              every attendee&rsquo;s home screen the next time they open the app.
             </div>
           </div>
         </div>
@@ -126,9 +122,8 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
             <span>Send now</span>
           </label>
           <div className="whova-radio-description">
-            The only option, and one of them on purpose: a 6am wrong-timezone blast is a common real
-            failure, and requiring a human to press the button — awake, in the room — is the
-            cheapest defence there is.
+            Deliberately the only option. A queued blast fires whether or not anybody is awake to
+            stop it, and a wrong-timezone send at 6am is the failure that actually happens.
           </div>
         </div>
       </div>

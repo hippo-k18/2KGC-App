@@ -1,108 +1,175 @@
 import Link from 'next/link';
+import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
+import { listLinks } from '@/lib/campaigns';
+import { money } from '@/lib/commerce';
+import { listSessions } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Marketing › Event Webpages › Agenda Webpage › Analytics.
  *
- * Whova counts views of the hosted agenda page and shows you a line chart.
+ * Whova counts views of its hosted agenda page and draws a line chart.
  *
- * ── Why this screen has no numbers on it ────────────────────────────────────
+ * ── What is measurable here, and what is not ────────────────────────────────
  *
- * There is no analytics anywhere in `apps/web`. No Google Analytics, no Plausible,
- * no first-party beacon, no server-side log aggregation. So the honest answer to
- * "how many people looked at the agenda" is **nobody knows**, and the only thing
- * this screen can usefully do is say that once, clearly, and lay out what each
- * way of fixing it would actually cost — because the cost is not engineering
- * time, it is a privacy position taken on behalf of every visitor.
+ * No page on knowledgegraph.tech is instrumented: no Google Analytics, no
+ * Plausible, no first-party beacon. So "how many people looked at the agenda"
+ * has no answer, and this screen used to be three paragraphs saying so followed
+ * by a table of privacy trade-offs — an argument written for whoever was
+ * building the dashboard rather than for the organizer opening it.
  *
- * A zero here would be a lie of a particular kind: it looks like a measurement.
- * That is why nothing on this page is presented as a figure.
+ * One kind of traffic *is* real: every link created on Campaign Link Tracking
+ * is counted by the `/r/{code}` redirect itself, and fulfilment stamps
+ * `campaignCode` onto the order, so a click can be followed to a purchase. None
+ * of that waits on a Cloud Function. This screen is therefore the links that
+ * point at the agenda, and what they did — which is a smaller claim than
+ * Whova's and an entirely true one.
+ *
+ * The honest boundary, kept in the header's `info` tip: the denominator is
+ * "people who clicked a link we made", never "people who came".
  */
-
-/**
- * The three real options, with the part that decides between them.
- *
- * Ordered by how much of the visitor they take, not by how easy they are.
- */
-const OPTIONS = [
-  {
-    option: 'Nothing (today)',
-    gets: 'No idea how many people visit any public page.',
-    costs: 'Nothing to build, nothing to disclose, nothing to consent to.',
-    tone: 'green' as const,
-  },
-  {
-    option: 'Server-side counts',
-    gets: 'Requests per path per day, from the hosting logs. No visitor identity, no cross-page journey.',
-    costs:
-      'A log pipeline plus somewhere to keep the aggregate. Legitimate interest under GDPR without a banner, because nothing is stored against a person.',
-    tone: 'blue' as const,
-  },
-  {
-    option: 'A third-party tracker',
-    gets: 'Sessions, sources, funnels — everything an organizer asks for when they ask this question.',
-    costs:
-      'A processor handling visitor data, a consent banner, a privacy-policy change, and a cookie on the machine of everyone reading the code of conduct.',
-    tone: 'orange' as const,
-  },
-];
-
 export default async function AgendaAnalyticsPage() {
   await requireOrganizer();
+
+  const [links, sessions] = await Promise.all([listLinks(), listSessions()]);
+  const origin = publicSiteOrigin();
+
+  /*
+   * `/agenda` and every slice of it. A special-purpose agenda is a query string
+   * on the same page here rather than a second page, so a link to
+   * `/agenda?track=…` is still a link to the agenda and belongs in this total.
+   */
+  const agendaLinks = links.filter((l) => l.destination.split('?')[0] === '/agenda');
+
+  const clicks = agendaLinks.reduce((n, l) => n + l.clicks, 0);
+  const orders = agendaLinks.reduce((n, l) => n + l.orders, 0);
+  const revenue = agendaLinks.reduce((n, l) => n + l.revenueCents, 0);
+  const currency = agendaLinks.find((l) => l.revenueCents > 0)?.currency ?? 'usd';
+  const lastClick = agendaLinks
+    .map((l) => l.lastClickedAt)
+    .filter((d): d is string => Boolean(d))
+    .sort()
+    .at(-1);
+
+  const published = sessions.filter((s) => s.status === 'published').length;
 
   return (
     <>
       <PageHeader
         title="Agenda Webpage Analytics"
-        tags={<Tag color="grey" fill="outline">nothing is measured</Tag>}
+        info={
+          <>
+            <strong>Links, not page views</strong>
+            <p>
+              Nothing on knowledgegraph.tech is instrumented, so a visitor who typed the address is
+              invisible here. Every figure below is a link KGC made and the redirect counted.
+              Adding a page tracker is a privacy decision nobody has taken.
+            </p>
+          </>
+        }
+        tags={
+          agendaLinks.length > 0 ? (
+            <Tag color="green" fill="outline">
+              {agendaLinks.length} tracked {agendaLinks.length === 1 ? 'link' : 'links'}
+            </Tag>
+          ) : (
+            <Tag color="grey" fill="outline">
+              nothing tracked yet
+            </Tag>
+          )
+        }
         actions={
           <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main">
             View the live agenda ↗
           </a>
         }
         links={[
+          <Link key="c" href="/tickets/ticket-marketing/campaign-link-tracking">
+            Campaign links
+          </Link>,
           <Link key="g" href="/marketing/event-webpages/agenda-webpage/general-purpose">
             General-purpose agenda
           </Link>,
-          <Link key="w" href="/marketing/event-website">
-            Event Website
+          <Link key="s" href="/marketing/event-webpages/agenda-webpage/special-purpose">
+            Slices of the agenda
           </Link>,
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>Nothing on knowledgegraph.tech measures traffic.</strong> Not the agenda page, not
-        any of the other eighteen. This screen shows no numbers because there are none — a zero
-        here would read as a measurement, and it would not be one.
-      </Banner>
+      <StatTiles
+        tiles={[
+          {
+            label: 'Clicks to the agenda',
+            value: clicks,
+            sub: lastClick ? `last ${lastClick.slice(0, 10)}` : 'not inputted yet',
+          },
+          {
+            label: 'Orders credited',
+            value: orders,
+            sub: clicks > 0 ? `${Math.round((orders / clicks) * 100)}% of clicks` : 'no clicks yet',
+          },
+          { label: 'Revenue credited', value: money(revenue, currency), sub: 'net of refunds' },
+          { label: 'Published sessions', value: published, sub: 'what the page shows' },
+        ]}
+      />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What measuring it would mean</h2>
-        <p className="body-2">
-          This is a decision about visitors, not a missing feature. The three options differ mostly
-          in how much of a stranger&rsquo;s browsing they take in exchange for the answer.
-        </p>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Links pointing at the agenda</h2>
         <Table
           cols={[
-            { key: 'o', label: 'Option', className: 'cell-md' },
-            { key: 'g', label: 'What you learn', className: 'cell-fill' },
-            { key: 'c', label: 'What it costs', className: 'cell-fill' },
+            { key: 'l', label: 'Link', className: 'cell-fill' },
+            { key: 'd', label: 'Slice', className: 'cell-md' },
+            { key: 'c', label: 'Clicks', className: 'cell-sm' },
+            { key: 'n', label: 'Orders', className: 'cell-sm' },
+            { key: 'r', label: 'Net', className: 'cell-sm' },
           ]}
-          rows={OPTIONS.map((o) => [
-            <Tag key="o" color={o.tone} fill="outline" small>
-              {o.option}
-            </Tag>,
-            o.gets,
-            o.costs,
+          rows={agendaLinks.map((l) => [
+            <span key="l">
+              <a href={`${origin}/r/${l.code}`} target="_blank" rel="noreferrer">
+                /r/{l.code}
+              </a>
+              {!l.active ? (
+                <>
+                  {' '}
+                  <Tag color="grey" small>
+                    retired
+                  </Tag>
+                </>
+              ) : null}
+              <div className="muted" style={{ fontSize: 11 }}>
+                {l.label}
+                {l.channel ? ` · ${l.channel}` : ''}
+              </div>
+            </span>,
+            <code key="d" style={{ fontSize: 12 }}>
+              {l.destination}
+            </code>,
+            l.clicks,
+            l.orders,
+            l.revenueCents > 0 ? money(l.revenueCents, l.currency) : <span className="muted">—</span>,
           ])}
+          empty={
+            <NotInputted
+              what="links pointing at the agenda"
+              compact
+              action={
+                <Link
+                  className="btn btn-primary"
+                  href="/tickets/ticket-marketing/campaign-link-tracking"
+                >
+                  Create one
+                </Link>
+              }
+            />
+          }
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          The middle row is the one worth arguing about: it answers &ldquo;is the agenda page being
-          read&rdquo; without a banner, and it cannot answer &ldquo;did that LinkedIn post work&rdquo;.
+          Clicks are raw hits rather than unique visitors, and attribution is last-click within the
+          cookie&rsquo;s thirty days, both stated so a number here can be argued with.
         </p>
       </Panel>
 
@@ -111,21 +178,18 @@ export default async function AgendaAnalyticsPage() {
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
             <strong>Page views, unique visitors, referrers, time on page.</strong> None of these are
-            collected, stored or estimated anywhere in this repo.
+            collected, stored or estimated anywhere in this repo. A server-side count from the
+            hosting logs would answer &ldquo;is the agenda being read&rdquo; with no consent banner
+            and no processor; a third-party tracker would answer more and cost a cookie on the
+            machine of everybody reading the code of conduct.
           </li>
           <li>
-            <strong>The chart.</strong> Whova draws views per day. Drawing one from no data would
-            mean inventing it.
+            <strong>The chart.</strong> One counter per link, not a time series. A per-day chart
+            needs a document per day per link.
           </li>
           <li>
-            <strong>Conversion from agenda to ticket.</strong> Ticket sales are real and countable
-            in Tickets &rsaquo; Orders, but nothing joins a purchase to the page the buyer arrived
-            from — that join is precisely what a tracker is for.
-          </li>
-          <li>
-            <strong>In-app engagement is a different question</strong> and partly answerable today:
-            saved sessions are real documents. That belongs on an agenda screen, not on a webpage
-            traffic screen, and conflating the two would make both misleading.
+            <strong>In-app engagement.</strong> Saved sessions are real documents and answer a
+            different question; putting them on a webpage-traffic screen would make both misleading.
           </li>
         </ul>
       </GapPanel>

@@ -51,7 +51,7 @@ export function SoldCountForm({
     <details style={{ marginTop: 16 }}>
       <summary className="linkish" style={{ cursor: 'pointer' }}>
         Correct the sold count
-        {drift !== 0 ? ` — the ledger says ${ledger}, not ${stored}` : ''}
+        {drift !== 0 ? `. The ledger says ${ledger}, not ${stored}` : ''}
       </summary>
 
       <form
@@ -83,8 +83,8 @@ export function SoldCountForm({
                 </>
               ) : (
                 <>
-                  {drift} {drift === 1 ? 'seat was' : 'seats were'} sold without the counter moving —
-                  an increment that failed and was logged rather than retried.
+                  {drift} {drift === 1 ? 'seat was' : 'seats were'} sold without the counter moving.
+                  An increment that failed and was logged rather than retried.
                 </>
               )}
             </>

@@ -1,20 +1,35 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Virtual & Hybrid › Other Tools.
  *
- * Whova's grab-bag: name pronunciation, virtual backgrounds, a countdown, a
- * lobby video, an interpreter channel. Individually small, and that is exactly
- * why the page is worth writing carefully — "it's only a countdown" is how a
- * cut cluster grows back one screen at a time.
+ * Whova's grab-bag: name pronunciation, virtual backgrounds, a session
+ * countdown, a lobby video, interpreter channels, live captioning. None of the
+ * six exists here, and the useful way to think about them is by what they
+ * depend on — because four are downstream of streaming and two are not.
  *
- * The useful move is to sort them by whether they depend on streaming at all,
- * because two of them do not and are therefore genuinely cheap.
+ * **Not stream-dependent, and therefore not really this screen's:**
+ * *name pronunciation* is a field plus an audio clip on a speaker profile —
+ * storable today, since `lib/uploads.ts` writes to a live bucket, but useless
+ * until the app has somewhere to play it; the *session countdown* is a
+ * presentation of data the app already computes for the Home tab's now/next.
+ * Neither belongs under Virtual & Hybrid at all, which is why neither is built
+ * here — putting them on this screen is how a cut cluster grows back one item
+ * at a time.
+ *
+ * **Stream-dependent, and meaningless without one:** virtual backgrounds need a
+ * meeting client in the loop; a lobby video needs a remote view to hold;
+ * interpretation channels are a second audio track, which in person is hardware
+ * and interpreters rather than software.
+ *
+ * **Live captioning is a budget line, not a screen.** If it is wanted as an
+ * accessibility commitment it should be decided for the in-person rooms, where
+ * it helps the audience actually attending.
  */
 export default async function OtherToolsPage() {
   await requireOrganizer();
@@ -22,74 +37,36 @@ export default async function OtherToolsPage() {
     <>
       <PageHeader
         title="Other Tools"
+        info={
+          <>
+            <strong>Nothing here is configured</strong>
+            <p>
+              Virtual backgrounds, a lobby video, interpretation channels and live captioning all
+              need a streaming or captioning provider to supply the feed they attach to. The two
+              that do not (pronunciation audio and a countdown) belong on the speaker profile and
+              in the app rather than here.
+            </p>
+          </>
+        }
         links={[
           <Link key="s" href="/virtual-and-hybrid/virtual-and-hybrid-setup">
             Virtual &amp; Hybrid Setup
           </Link>,
-          <Link key="t" href="/virtual-and-hybrid/tutorials-and-tips">
-            Tutorials and Tips
+          <Link key="r" href={ROUTES.speakerManager}>
+            Speaker Manager
           </Link>,
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Whova&rsquo;s list, sorted by what it depends on</h2>
-        <Table
-          cols={[
-            { key: 't', label: 'Tool', className: 'cell-md' },
-            { key: 'd', label: 'Depends on a stream', className: 'cell-sm' },
-            { key: 'n', label: 'Note', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              'Name pronunciation',
-              <Tag key="d" color="green" small>
-                No
-              </Tag>,
-              'A recorded clip or a phonetic spelling on a profile. Genuinely useful at an international conference, and it is a field plus an audio upload — which puts it behind the file-upload blocker, not this one.',
-            ],
-            [
-              'Session countdown',
-              <Tag key="d" color="green" small>
-                No
-              </Tag>,
-              'The app already computes now/next from session times on the Home tab. A countdown is a presentation of data that exists.',
-            ],
-            [
-              'Virtual backgrounds',
-              <Tag key="d" color="orange" small>
-                Yes
-              </Tag>,
-              'Branded images for speakers to load into their meeting client. Meaningless without a meeting client in the loop.',
-            ],
-            [
-              'Lobby / holding video',
-              <Tag key="d" color="orange" small>
-                Yes
-              </Tag>,
-              'What remote attendees see before a session starts. There is no remote view to hold.',
-            ],
-            [
-              'Live interpretation channels',
-              <Tag key="d" color="orange" small>
-                Yes
-              </Tag>,
-              'A second audio track per session. In person this is hardware and interpreters, not software.',
-            ],
-            [
-              'Live captioning',
-              <Tag key="d" color="orange" small>
-                Yes
-              </Tag>,
-              'A paid third-party service billed per hour, per room. Worth costing separately as an accessibility commitment rather than as a virtual feature.',
-            ],
-          ]}
+        <NotInputted
+          what="virtual event tools"
+          action={
+            <Link href={ROUTES.sessionManager} className="whova-btn-main">
+              Open Session Manager
+            </Link>
+          }
         />
-        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
-          The two marked <strong>No</strong> are the only ones that would survive cutting this
-          cluster, and neither belongs on this screen — pronunciation is a speaker field, the
-          countdown is an app concern.
-        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -100,15 +77,9 @@ export default async function OtherToolsPage() {
             <code>SpeakerDoc</code>, no countdown component, no asset library.
           </li>
           <li>
-            <strong>The two cheap ones are blocked on something else.</strong> Pronunciation audio
-            needs the file-upload pipeline the roadmap lists as blocker 3 — Storage rules exist and
-            there is no upload UI anywhere in this project.
-          </li>
-          <li>
-            <strong>Captioning is a budget line, not a screen.</strong> If accessibility captioning
-            is wanted it should be decided for the in-person rooms, where it helps the audience
-            actually attending —{' '}
-            <Link href={ROUTES.sessionManager}>Session Manager</Link> is where those rooms are.
+            <strong>The two cheap ones belong elsewhere.</strong> Pronunciation is a field on{' '}
+            <code>SpeakerDoc</code> plus an app surface that plays it; the countdown is an app
+            concern, not a dashboard one.
           </li>
         </ul>
       </GapPanel>

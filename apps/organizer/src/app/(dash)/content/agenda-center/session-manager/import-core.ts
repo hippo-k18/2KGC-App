@@ -371,7 +371,7 @@ export function planSessionImport(
 
     const alreadyClaimed = claimed.get(docId);
     if (alreadyClaimed !== undefined) {
-      fail(`This is the same session as line ${alreadyClaimed} — same title, same start time.`);
+      fail(`This is the same session as line ${alreadyClaimed}. Same title, same start time.`);
       return;
     }
 
@@ -385,7 +385,7 @@ export function planSessionImport(
         fail(
           `“${title}” is already on the programme at ${when}, and this row would add a second ` +
             `one at ${times.startsAtLocal.replace('T', ' ')}. Move the existing session in ` +
-            'Session Manager instead — an import cannot remove the original.',
+            'Session Manager instead: an import cannot remove the original.',
         );
         return;
       }
@@ -435,7 +435,7 @@ export function planSessionImport(
       for (const name of speakerCells) {
         if (ambiguousSpeakers.has(key(name))) {
           return void fail(
-            `Two speakers are called “${name}”. Import cannot tell them apart — put this ` +
+            `Two speakers are called “${name}”. Import cannot tell them apart. Put this ` +
               'session together on the session page instead.',
           );
         }

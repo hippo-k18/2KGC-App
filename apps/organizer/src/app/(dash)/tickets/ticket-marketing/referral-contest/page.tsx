@@ -3,7 +3,7 @@ import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
 
@@ -74,6 +74,17 @@ export default async function ReferralContestPage() {
     <>
       <PageHeader
         title="Referral Contest"
+        info={
+          <>
+            <strong>This measures link-sharing, not referring</strong>
+            <p>
+              A friend told about KGC over coffee who then searches for it and buys is
+              unattributed. Attribution is last-click over thirty days, so the ranking rewards the
+              people who posted a link. Narrower than the people who brought somebody. Worth
+              knowing before anybody is told they came second.
+            </p>
+          </>
+        }
         links={[
           <Link key="l" href="/tickets/ticket-marketing/campaign-link-tracking">
             Link Tracking
@@ -86,24 +97,6 @@ export default async function ReferralContestPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind={owned.length === 0 ? 'info' : 'warning'}>
-        {owned.length === 0 ? (
-          <>
-            <strong>No referral links yet.</strong> Give each speaker, partner or committee member
-            their own <code>/r/</code> code below and this becomes a leaderboard. It is the same
-            mechanism as Campaign Link Tracking — the only difference is the name attached.
-          </>
-        ) : (
-          <>
-            <strong>This measures link-sharing, not referring.</strong> A friend told about KGC over
-            coffee who then searches for it and buys is <em>unattributed</em>. Attribution is
-            last-click over thirty days, so a contest run on these numbers rewards the people who
-            posted a link — which is narrower than the people who brought somebody. Worth saying
-            before anybody is told they came second.
-          </>
-        )}
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -140,10 +133,10 @@ export default async function ReferralContestPage() {
             <strong key="n">{r.orders}</strong>,
             r.revenueCents > 0 ? money(r.revenueCents, r.currency) : '—',
           ])}
-          empty="Nobody has a referral link yet. Ranked by orders, then by net value — never by clicks, which reward posting rather than persuading."
+          empty={<NotInputted what="referral links" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          One person may hold several links, and the leaderboard sums them — otherwise the winner is
+          One person may hold several links, and the leaderboard sums them. Otherwise the winner is
           whoever split their audience least. Ties break on net value, then alphabetically, so the
           order is stable between page loads.
         </p>

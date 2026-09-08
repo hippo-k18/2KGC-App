@@ -61,9 +61,9 @@ export function AppBrandingForm({
           style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}
         />
         <p className="whova-form-description">
-          The app currently ships <code>#2069BC</code>, sampled from Whova&rsquo;s own header. White
-          text on it is 5.51:1, which clears AA — a colour chosen here would need checking the same
-          way before it went anywhere near a screen.
+          The app currently ships <code>#2069BC</code>. White text on it is 5.51:1, which clears
+          AA. A colour chosen here would need checking the same way before it went anywhere near a
+          screen.
         </p>
       </div>
 
@@ -171,7 +171,7 @@ export function BrandedUrlForm({ brandedSlug }: { brandedSlug: string }) {
         */}
         <p className="whova-form-description">
           Reserving the word costs nothing and settles the argument before it reaches a flyer.
-          Making the address resolve is a separate job — see below.
+          Making the address resolve is a separate job. See below.
         </p>
       </div>
 

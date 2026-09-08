@@ -2462,6 +2462,24 @@ html:has(dialog[open]) {
   text-align: center;
 }
 
+.whova-empty-state__content .empty-title {
+  color: var(--faint);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+  margin: 0;
+}
+
+.whova-empty-state__content .empty-sub {
+  color: var(--faint);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 19px;
+  margin: 6px 0 0;
+  opacity: 0.85;
+}
+
 .whova-progress-bar {
   background-color: var(--line-strong);
   border-radius: 6px;
@@ -2575,4 +2593,144 @@ html:has(dialog[open]) {
   .skeleton-pulse {
     animation: none;
   }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   InfoTip — the hover "i".
+
+   Every screen used to carry its caveats as a full-width coloured banner, which
+   meant an organizer read six lines about what the software does not do before
+   reaching the thing it does. The caveats are still true and still worth having,
+   so they moved here: an 15px circled "i" beside the feature name that reveals
+   the text on hover or keyboard focus and occupies no vertical space otherwise.
+
+   Pure CSS on purpose. Every dashboard screen is a Server Component, so a
+   tooltip that needed `useState` would drag the whole page across the client
+   boundary. `:focus-within` on a `tabindex="0"` span gives keyboard and screen
+   reader users the same content without a line of JavaScript.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.infotip {
+  display: inline-flex;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 6px;
+  outline: none;
+}
+
+.infotip__icon {
+  align-items: center;
+  background: transparent;
+  border: 1.5px solid var(--muted, #8a949e);
+  border-radius: 50%;
+  color: var(--muted, #8a949e);
+  cursor: help;
+  display: inline-flex;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 700;
+  height: 15px;
+  justify-content: center;
+  line-height: 1;
+  transition: border-color 120ms ease, color 120ms ease;
+  width: 15px;
+}
+
+.infotip:hover .infotip__icon,
+.infotip:focus-within .infotip__icon {
+  border-color: var(--interactive, #2b7bd4);
+  color: var(--interactive, #2b7bd4);
+}
+
+.infotip__bubble {
+  background: #22282e;
+  border-radius: 5px;
+  box-shadow: 0 6px 20px rgba(16, 22, 28, 0.28);
+  color: #f2f5f8;
+  font-size: 12.5px;
+  font-weight: 400;
+  left: 50%;
+  letter-spacing: 0;
+  line-height: 18px;
+  opacity: 0;
+  padding: 10px 12px;
+  pointer-events: none;
+  position: absolute;
+  text-align: left;
+  text-transform: none;
+  top: calc(100% + 9px);
+  transform: translateX(-50%) translateY(-3px);
+  transition: opacity 110ms ease, transform 110ms ease;
+  visibility: hidden;
+  width: max-content;
+  max-width: 340px;
+  z-index: 900;
+}
+
+/* Nudge back inside the viewport when the "i" sits near the right-hand edge. */
+.infotip.right .infotip__bubble {
+  left: auto;
+  right: 0;
+  transform: translateY(-3px);
+}
+
+.infotip__bubble::before {
+  border: 6px solid transparent;
+  border-bottom-color: #22282e;
+  bottom: 100%;
+  content: '';
+  left: 50%;
+  margin-left: -6px;
+  position: absolute;
+}
+
+.infotip.right .infotip__bubble::before {
+  left: auto;
+  margin-left: 0;
+  right: 5px;
+}
+
+.infotip:hover .infotip__bubble,
+.infotip:focus-within .infotip__bubble {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+  visibility: visible;
+}
+
+.infotip.right:hover .infotip__bubble,
+.infotip.right:focus-within .infotip__bubble {
+  transform: translateY(0);
+}
+
+.infotip__bubble strong {
+  color: #fff;
+  display: block;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.infotip__bubble p {
+  margin: 0 0 6px;
+}
+
+.infotip__bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.infotip__bubble code {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  font-size: 11.5px;
+  padding: 1px 4px;
+}
+
+.infotip__bubble a {
+  color: #8ec2ff;
+}
+
+.infotip__bubble ul {
+  margin: 0;
+  padding-left: 16px;
 }

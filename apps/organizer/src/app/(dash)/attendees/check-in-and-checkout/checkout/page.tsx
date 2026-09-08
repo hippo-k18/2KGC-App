@@ -2,22 +2,40 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, GapTag, NotBuilt, PageHeader, Panel, StatTiles } from '../../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Attendees › Check-in & Checkout › Checkout.
  *
- * Whova's checkout is dashboard-only and never appears in the attendee app —
- * it exists so a venue can answer "how many people are in the building right
- * now", which is a fire-safety question rather than a marketing one.
+ * Whova's checkout is dashboard-only and never appears in the attendee app — it
+ * exists so a venue can answer "how many people are in the building right now",
+ * which is a fire-safety question rather than a marketing one.
  *
  * We record arrivals and nothing else. `CheckInDoc` is
  * `{ registrationId, checkedInAt, stationId, operatorUid? }` — there is no exit
  * field and no second document, so the number below is *ever checked in*, not
  * *currently present*. Those two are the same only on the first morning, and
- * the difference is exactly the number a fire marshal asks for.
+ * the difference is exactly the number a fire marshal asks for. Every figure on
+ * this page is therefore labelled as an arrival, and the one that would be an
+ * occupancy count reads `—`.
+ *
+ * ── What building it would take, kept here rather than on the screen ────────
+ *
+ * Two shapes are plausible and they are not equivalent. A boolean or an
+ * `outAt` field on the existing check-in document is one write and loses
+ * history: somebody who leaves for lunch and returns overwrites their own
+ * record, and the day's traffic is unrecoverable. A separate append-only
+ * `movements` log, keyed for idempotency the way `scanEvents` already is, keeps
+ * every crossing and makes occupancy a fold over it. The second is right and is
+ * the more work.
+ *
+ * Whichever shape, the operational catch is unchanged: people leave without
+ * scanning out. Occupancy derived from voluntary exits over-counts steadily
+ * through the day, and an over-counting safety number is worse than an absent
+ * one, because somebody will trust it. Any build of this needs an end-of-day
+ * reset and a stated margin, not just a field.
  */
 export default async function CheckoutPage() {
   await requireOrganizer();
@@ -28,14 +46,23 @@ export default async function CheckoutPage() {
   // would fail first in production rather than in a test.
   const [registrations, stations] = await Promise.all([listRegistrations(), listStations()]);
   const rows = registrations.map((r) => r.row);
-  const { total: checkedIn } = await recentCheckIns(DEFAULT_LIST_ID, rows, stations);
+  const { rows: recent, total: checkedIn } = await recentCheckIns(DEFAULT_LIST_ID, rows, stations);
   const active = rows.filter((r) => r.status === 'active').length;
 
   return (
     <>
       <PageHeader
         title="Checkout"
-        tags={<GapTag />}
+        info={
+          <>
+            <strong>Arrivals, never occupancy</strong>
+            <p>
+              A check-in document has no exit field, so nobody can be checked out and no figure
+              here means &ldquo;in the building&rdquo;. Occupancy is a safety number; this is not
+              one.
+            </p>
+          </>
+        }
         links={[
           <Link key="c" href={ROUTES.checkIn}>
             Attendee Check-in
@@ -46,46 +73,44 @@ export default async function CheckoutPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>Nobody can be checked out, and no number here means &ldquo;in the
-        building&rdquo;.</strong> The check-in document has no exit field. Read the tile below as
-        &ldquo;arrived at some point&rdquo; — treating it as an occupancy figure is the one misuse
-        of this screen that could actually matter, because occupancy is a safety number.
-      </Banner>
-
       <StatTiles
         tiles={[
-          { label: 'Ever checked in', value: checkedIn, sub: 'arrivals, not occupancy' },
+          { label: 'Arrived at some point', value: checkedIn, sub: 'not a headcount for now' },
           { label: 'Active registrations', value: active, sub: 'expected over the whole event' },
-          { label: 'Checked out', value: 0, sub: 'no exit is recorded' },
+          { label: 'Currently on site', value: '—', sub: 'no exit is recorded' },
         ]}
       />
 
       <Panel>
-        <h2 className="section-header">What checkout would be</h2>
+        <h2 className="section-header">Arrivals at the main door ({checkedIn})</h2>
         <p className="body-2">
-          The same scan at the same desk with a direction on it. Two shapes are plausible and they
-          are not equivalent. A boolean or an <code>outAt</code> field on the existing check-in
-          document is one write and loses history: an attendee who leaves for lunch and returns
-          overwrites their own record, and the day&rsquo;s traffic is unrecoverable. A separate{' '}
-          <code>movements</code> append-only log keyed for idempotency the way{' '}
-          <code>scanEvents</code> already is keeps every crossing, and occupancy becomes a fold over
-          it. The second is the right one, and it is the more work.
+          The most recent scans on the door list, in the order they happened. This is the whole of
+          what the building knows: each row is somebody who came through the entrance, and none of
+          them says whether that person is still here.
         </p>
-        <p className="body-2">
-          Whichever shape, the operational catch is unchanged: people leave without scanning out.
-          An occupancy figure derived from voluntary exits over-counts steadily through the day, and
-          an over-counting safety number is worse than an absent one, because somebody will trust
-          it. Any build of this needs an end-of-day reset and a stated margin, not just a field.
-        </p>
+        <Table
+          cols={[
+            { key: 'w', label: 'Arrived', className: 'cell-mdsm' },
+            { key: 'n', label: 'Attendee', className: 'cell-md' },
+            { key: 't', label: 'Ticket', className: 'cell-sm' },
+            { key: 's', label: 'Station', className: 'cell-fill' },
+          ]}
+          empty="Nobody has checked in yet"
+          rows={recent.map((c) => [
+            <span key="w" style={{ whiteSpace: 'nowrap' }}>
+              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+            </span>,
+            <span key="n">
+              <strong>{c.name}</strong>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {c.email}
+              </div>
+            </span>,
+            c.ticketType ?? <span className="muted">—</span>,
+            c.stationLabel || <span className="muted">—</span>,
+          ])}
+        />
       </Panel>
-
-      <NotBuilt
-        whova="A dashboard-only checkout that pairs with check-in so an organizer can see who is currently on site. Never exposed in the attendee app."
-        needs="An append-only movement log beside checkIns, a direction on the scanner, and an honest treatment of unscanned exits."
-        size="2–3 days for the write path; the reporting is the interesting part"
-        refs="packages/shared/src/models.ts — CheckInDoc has no exit field today"
-      />
 
       <GapPanel>
         <h2 className="section-header">Not built here</h2>
@@ -95,14 +120,14 @@ export default async function CheckoutPage() {
             <Link href={ROUTES.checkIn}>Attendee Check-in</Link> records arrivals only.
           </li>
           <li>
-            <strong>Live occupancy.</strong> Needs exits, which need the above, and even then needs
-            a stated error margin.
+            <strong>Live occupancy.</strong> Needs exits, which need an append-only movement log,
+            and even then needs a stated error margin for the people who leave without scanning.
           </li>
           <li>
             <strong>Re-entry counts.</strong> The current key —{' '}
-            <code>checkIns/{'{registrationId}'}</code> — makes a second arrival an{' '}
-            <code>already-exists</code> failure by design. That is the right behaviour for a door
-            count and the wrong storage for a movement history.
+            <code>checkIns/&#123;registrationId&#125;</code> — makes a second arrival an{' '}
+            <code>already-exists</code> by design. That is the right behaviour for a door count and
+            the wrong storage for a movement history.
           </li>
         </ul>
       </GapPanel>

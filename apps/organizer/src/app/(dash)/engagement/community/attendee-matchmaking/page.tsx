@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { readMatchmaking } from '@/lib/engagement';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +35,19 @@ export default async function AttendeeMatchmakingPage() {
     <>
       <PageHeader
         title="Attendee Matchmaking"
+        info={
+          <>
+            <strong>A report, not a recommender</strong>
+            <p>
+              Nothing here is sent to anybody. It shows an organizer where interests overlap so
+              they can seed a discussion topic or a meet-up.
+            </p>
+            <p>
+              Attendees who turned off directory visibility are counted but never paired.
+              Suggesting them would use exactly the data they asked us not to use.
+            </p>
+          </>
+        }
         tags={<Tag color="blue">{m.clusters.length} interests</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
@@ -45,13 +58,6 @@ export default async function AttendeeMatchmakingPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>Nothing here is sent to anybody.</strong> This shows an organizer where interests
-        overlap so they can seed a discussion topic or a meet-up. Whova pushes suggested
-        introductions into the app; doing that would mean using the profiles of people who opted
-        out of being found, so we do not.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -65,13 +71,7 @@ export default async function AttendeeMatchmakingPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Interest clusters</h2>
         {m.clusters.length === 0 ? (
-          <EmptyState icon="◌">
-            <strong>Nobody has listed an interest yet.</strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Interests come from the attendee&rsquo;s own profile in the app, which they fill in
-              during onboarding.
-            </p>
-          </EmptyState>
+          <NotInputted what="attendee interests" />
         ) : (
           <Table
             cols={[
@@ -97,9 +97,7 @@ export default async function AttendeeMatchmakingPage() {
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>People worth introducing</h2>
         {m.pairs.length === 0 ? (
-          <p className="muted" style={{ marginBottom: 0 }}>
-            No two attendees share two or more interests yet.
-          </p>
+          <NotInputted what="pairs sharing two or more interests" compact />
         ) : (
           <Table
             cols={[
@@ -129,7 +127,7 @@ export default async function AttendeeMatchmakingPage() {
         {m.pairsFound > m.pairs.length && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
             Showing {m.pairs.length} of {m.pairsFound}. The rest are cut for length, not filtered
-            out — said plainly because a silently truncated list reads as a complete one.
+            out. Said plainly because a silently truncated list reads as a complete one.
           </p>
         )}
       </Panel>

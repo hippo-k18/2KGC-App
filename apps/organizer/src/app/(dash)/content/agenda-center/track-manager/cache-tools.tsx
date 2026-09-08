@@ -44,7 +44,7 @@ export function CacheTools() {
               {state.dangling.length} reference{state.dangling.length === 1 ? '' : 's'} point at a
               document that no longer exists.
             </strong>{' '}
-            The cached name is kept rather than blanked — a stale room name still gets somebody to
+            The cached name is kept rather than blanked. A stale room name still gets somebody to
             roughly the right place, and an empty one gets them nowhere. Each is{' '}
             <code>session → collection/id</code>:
             <ul style={{ fontSize: 12, marginBottom: 0, paddingLeft: 18 }}>

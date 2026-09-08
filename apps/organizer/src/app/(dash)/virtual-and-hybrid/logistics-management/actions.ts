@@ -59,7 +59,7 @@ export async function saveEmergencyPlanAction(
   if (values.planReady && !values.assemblyPoint && !values.onSiteLead) {
     return {
       error:
-        'Set at least an assembly point and an on-site lead before marking the plan ready — a card with neither is not a plan.',
+        'Set at least an assembly point and an on-site lead before marking the plan ready. A card with neither is not a plan.',
     };
   }
 

@@ -12,10 +12,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Add a session.
  *
- * Whova opens this as a modal from the hour bucket you clicked in, and it
- * prefills that hour. The bucket's "Add session" link carries `day` and `hour`
- * for exactly that reason — clicking the 2 PM bucket should not then ask you
- * what time it is.
+ * Opened from the hour bucket you clicked in, prefilling that hour. The
+ * bucket's "Add session" link carries `day` and `hour` for exactly that reason
+ * — clicking the 2 PM bucket should not then ask you what time it is.
  *
  * A route rather than a modal, for the same reason the edit screen is one: the
  * URL is shareable, a mistyped date survives a refresh, and the create and edit
@@ -107,7 +106,7 @@ export default async function NewSessionPage({
         <p className="body-2">
           One document is written, in one transaction. <code>startsAt</code>, <code>endsAt</code> and{' '}
           <code>day</code> are derived from the wall clock above in <code>{TIME_ZONE}</code> by the
-          same <code>deriveTimes()</code> the seed and the Whova importer use — a 21:00 reception is
+          same <code>deriveTimes()</code> the seed and the CSV importer use. A 21:00 reception is
           01:00 UTC the next day, and deriving <code>day</code> anywhere else puts it on the wrong tab
           on every phone. The id is derived from the title and the start time, so a later import of
           the same programme updates this session instead of duplicating it, and pressing Create

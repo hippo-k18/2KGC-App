@@ -26,20 +26,6 @@ export default async function ExhibitorRegistrationSettingsPage() {
           Pre-paid Exhibitors
         </Link>,
       ]}
-      extraGaps={[
-        [
-          'Which booth a purchase allocates',
-          'A package sells a booth size, not a specific space. Assignment happens on 2.3 Booth Selection, after the sale, because a floor plan is agreed with the venue later than the catalogue is priced.',
-        ],
-        [
-          'Load-in and load-out windows',
-          'The single most-asked exhibitor question, and it is not modelled anywhere. It belongs on the exhibitor record rather than the ticket type — two exhibitors buying the same package can have different slots.',
-        ],
-        [
-          'Staff pass allocation',
-          'Every package names a number of passes in its inclusion list, and nothing enforces it. The passes are prose today; making them real means issuing registrations against the exhibitor order, which is what Pre-paid Exhibitors does by hand.',
-        ],
-      ]}
     />
   );
 }

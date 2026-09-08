@@ -38,7 +38,7 @@ export function stripe(): Stripe {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) {
       throw new Error(
-        'stripe() called with STRIPE_SECRET_KEY unset — check stripeEnabled() first.',
+        'stripe() called with STRIPE_SECRET_KEY unset. Check stripeEnabled() first.',
       );
     }
     cached = new Stripe(key, {

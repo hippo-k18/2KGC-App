@@ -39,6 +39,18 @@ export default async function BalancePage() {
     <>
       <PageHeader
         title="Balance"
+        info={
+          <>
+            <strong>Where these figures come from</strong>
+            <p>
+              KGC&rsquo;s own <code>orders</code>, not Stripe&rsquo;s ledger. The fee line is an
+              estimate; the real rate varies by card type and country.
+            </p>
+            {stripeEnabled() ? null : (
+              <p>No Stripe key is configured yet, so nothing has been charged.</p>
+            )}
+          </>
+        }
         tags={
           stripeEnabled() ? (
             <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
@@ -68,12 +80,17 @@ export default async function BalancePage() {
         ]}
       />
 
+      {/*
+        Operational, and the one banner on this screen that earns its space: an
+        organizer wondering where their money is needs to know it is not here.
+        Payouts land on Stripe's schedule without anybody pressing anything, and
+        the authoritative figure is the one in Stripe's dashboard.
+      */}
       <Banner kind="info">
         <strong>Stripe holds the money, not KGC.</strong> Payouts land in the bank account attached
-        to the Stripe account, on a rolling schedule — that is the main reason this project uses
-        Stripe rather than a ticketing platform, which would hold ticket revenue until after the
-        event. The authoritative balance is in Stripe; the figures below come from our own order
-        records and will differ by fees.
+        to the Stripe account, on Stripe&rsquo;s own rolling schedule. Nobody has to release them.
+        The authoritative balance is the one in Stripe; the figures below are what KGC sold, and
+        differ by fees.
       </Banner>
 
       <StatTiles

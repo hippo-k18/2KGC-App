@@ -77,7 +77,7 @@ export async function commitAttendeeImport(input: {
       errors: [
         {
           line: 0,
-          message: `${preview.totalRows} rows is above the ${MAX_ROWS} cap. A file this large is usually the wrong file — check it is a delegate list and not a full CRM export.`,
+          message: `${preview.totalRows} rows is above the ${MAX_ROWS} cap. A file this large is usually the wrong file. Check it is a delegate list and not a full CRM export.`,
         },
       ],
       totalRows: preview.totalRows,

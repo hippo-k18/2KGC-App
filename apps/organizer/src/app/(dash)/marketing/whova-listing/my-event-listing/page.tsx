@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,21 +30,67 @@ export const dynamic = 'force-dynamic';
 export default async function MyEventListingPage() {
   await requireOrganizer();
 
-  // The mapping that makes "not applicable" useful rather than dismissive:
-  // every field of a Whova listing has somewhere it already lives for us.
-  const EQUIVALENTS = [
-    { whova: 'Listing title', ours: 'The <title> on knowledgegraph.tech', where: 'apps/web layout' },
-    { whova: 'Short description', ours: 'The meta description and OG description', where: 'apps/web layout' },
-    { whova: 'Cover image', ours: 'The Open Graph image', where: 'apps/web layout' },
-    { whova: 'Dates, venue, price', ours: 'Written into the pages themselves', where: '/about, /agenda, /tickets' },
-    { whova: 'Categories and tags', ours: 'Not applicable — no directory to be filed in', where: '—' },
-    { whova: 'Public / private toggle', ours: 'Not applicable — the site is public', where: '—' },
+  /*
+   * What a stranger has to be able to find, and where each answer is kept.
+   *
+   * This was a Whova-listing-field-to-ours mapping, which made the screen a
+   * comparison rather than a piece of information: an organizer looking for
+   * "how do people find us" had to read a column about a product they are not
+   * using to reach the column they wanted.
+   */
+  const DISCOVERY = [
+    {
+      need: 'The name shown in a search result',
+      ours: 'The page <title> on knowledgegraph.tech',
+      where: 'apps/web layout',
+      live: false,
+    },
+    {
+      need: 'The sentence under it',
+      ours: 'The meta description, also used when a link is shared',
+      where: 'apps/web layout',
+      live: false,
+    },
+    {
+      need: 'The picture when a link is pasted into Slack',
+      ours: 'The Open Graph image',
+      where: 'apps/web layout',
+      live: false,
+    },
+    {
+      need: 'The dates and the venue',
+      ours: 'Written into the pages a visitor lands on',
+      where: '/about',
+      live: false,
+    },
+    {
+      need: 'The programme',
+      ours: 'Rendered from this dashboard on every request',
+      where: '/agenda',
+      live: true,
+    },
+    {
+      need: 'The price',
+      ours: 'Rendered from ticketTypes on every request',
+      where: '/tickets',
+      live: true,
+    },
   ];
 
   return (
     <>
       <PageHeader
         title="My Event Listing"
+        info={
+          <>
+            <strong>No directory to be listed in</strong>
+            <p>
+              Whova&rsquo;s version edits {EVENT.shortName}&rsquo;s card inside its own event
+              directory. On the open web the equivalent is the site&rsquo;s own metadata, which is
+              what this screen accounts for.
+            </p>
+          </>
+        }
         tags={<Tag color="grey" fill="outline">not applicable</Tag>}
         actions={
           <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main">
@@ -61,39 +107,36 @@ export default async function MyEventListingPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>There is no directory to be listed in.</strong> This screen edits{' '}
-        {EVENT.shortName}&rsquo;s card inside Whova&rsquo;s public event directory. Building an
-        equivalent means building a directory of other people&rsquo;s conferences — a different
-        product, not a missing screen. What the listing is <em>for</em> is being found, and on the
-        open web that is the site&rsquo;s own metadata.
-      </Banner>
-
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where each listing field already lives</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>How somebody finds {EVENT.shortName}</h2>
         <Table
           cols={[
-            { key: 'w', label: 'Whova listing field', className: 'cell-md' },
-            { key: 'o', label: 'Our equivalent', className: 'cell-fill' },
+            { key: 'n', label: 'What a stranger sees', className: 'cell-md' },
+            { key: 'o', label: 'Where it comes from', className: 'cell-fill' },
             { key: 'p', label: 'Maintained in', className: 'cell-md' },
           ]}
-          rows={EQUIVALENTS.map((e) => [
-            e.whova,
+          rows={DISCOVERY.map((e) => [
+            e.need,
             e.ours,
-            e.where === '—' ? (
-              <span key="p" className="muted">
-                —
+            e.live ? (
+              <span key="p" style={{ fontSize: 12 }}>
+                <Tag color="green" fill="outline" small>
+                  live
+                </Tag>{' '}
+                <a href={publicUrl(e.where)} target="_blank" rel="noreferrer">
+                  <code>{e.where}</code> ↗
+                </a>
               </span>
             ) : (
-              <code key="p" style={{ fontSize: 12 }}>
-                {e.where}
-              </code>
+              <span key="p" className="muted" style={{ fontSize: 12 }}>
+                <code>{e.where}</code>. Needs a deploy
+              </span>
             ),
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          All four of the ones that map are code, so changing them is a deploy — the same trade the
-          Event Website screen describes for the sixteen static pages.
+          The four marked <em>needs a deploy</em> are code in <code>apps/web</code>. The same trade{' '}
+          <Link href="/marketing/event-website">Event Website</Link> sets out for every prose page.
         </p>
       </Panel>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import type { TicketAudience } from '@kgc/shared';
 import type { TicketTypeRow } from '@/lib/commerce';
 import {
   CheckboxField,
@@ -50,7 +51,19 @@ import { groupsToText } from './groups';
  * to prove a component works was not worth the risk; the next editor written
  * against this vocabulary can return them from the start.
  */
-export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
+export function TicketForm({
+  existing,
+  defaultAudience,
+}: {
+  existing?: TicketTypeRow;
+  /**
+   * Which catalogue a *new* tier starts in. The exhibitor and sponsor
+   * catalogues link here to create a package, and landing on a form set to
+   * "Attendees" is one un-noticed Save away from a booth appearing on the
+   * public attendee page. Ignored when editing — the stored value wins.
+   */
+  defaultAudience?: TicketAudience;
+}) {
   const [state, action] = useActionState<TicketState, FormData>(saveTicketTypeAction, {});
 
   return (
@@ -73,7 +86,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
             {existing && (
               <>
                 {' '}
-                Id <code>{existing.id}</code> stays the same — orders point at it.
+                Id <code>{existing.id}</code> stays the same. Orders point at it.
               </>
             )}
           </>
@@ -109,7 +122,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
         hint={
           <>
             One bullet per line. Shown on the checkout order rail, on the smaller ticket cards, and
-            on the ticket panel — <strong>unless</strong> the grouped list below has something in
+            on the ticket panel, <strong>unless</strong> the grouped list below has something in
             it, in which case the panel shows that instead.
           </>
         }
@@ -121,7 +134,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
 
         The public tickets page renders `groups` when a tier has one and falls
         back to the flat list when it does not, and All Access and Main
-        Conference — the two panels a buyer actually reads — both carry a
+        Conference The two panels a buyer actually reads… both carry a
         `groups` from the seed. So for those two tiers the flat box above
         changed the order rail and the cards and nothing on the panel, silently,
         and it is the only ticket-copy edit anyone is likely to make.
@@ -170,7 +183,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
           <>
             Blank for unlimited. {existing ? `${existing.quantitySold} sold so far. ` : ''}
             This closes the tier when it is reached, but it is{' '}
-            <strong>not a hard reservation</strong> — two people can pass the check at the same
+            <strong>not a hard reservation</strong>. Two people can pass the check at the same
             moment and both pay.
           </>
         }
@@ -214,7 +227,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
       <Select
         name="audience"
         label="Catalogue"
-        defaultValue={existing?.audience ?? 'attendee'}
+        defaultValue={existing?.audience ?? defaultAudience ?? 'attendee'}
         width="sm"
         options={[
           { value: 'attendee', label: 'Attendees' },
@@ -241,7 +254,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
 
       <FieldSet
         legend="Options"
-        hint="A hidden ticket can still be bought by direct link — that is how a comp or speaker rate works without appearing in the catalogue."
+        hint="A hidden ticket can still be bought by direct link. That is how a comp or speaker rate works."
       >
         <CheckboxField
           name="visible"
@@ -287,7 +300,7 @@ export function TicketForm({ existing }: { existing?: TicketTypeRow }) {
           label={
             <>
               Includes the video library
-              <span className="muted"> — sold, but nothing serves it yet</span>
+              <span className="muted">. Sold, but nothing serves it yet</span>
             </>
           }
           defaultChecked={existing?.includesVideoLibrary ?? false}

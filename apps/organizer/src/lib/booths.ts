@@ -345,7 +345,7 @@ export async function upsertBooth(input: {
 }): Promise<BoothResult> {
   const number = input.number.trim().toUpperCase();
   if (!/^[A-Z0-9-]{1,12}$/.test(number)) {
-    return { ok: false, error: 'A booth number is letters, digits and hyphens — up to twelve.' };
+    return { ok: false, error: 'A booth number is letters, digits and hyphens, up to twelve.' };
   }
   if (!input.size.trim()) return { ok: false, error: 'Give the booth a size, as printed on the plan.' };
 

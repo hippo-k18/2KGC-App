@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
 
 /**
  * The exhibitor and sponsor ticket catalogues.
@@ -44,6 +44,7 @@ export async function AudienceCatalogue({
   noun,
   links,
   notBuilt,
+  info,
 }: {
   audience: TicketAudience;
   title: string;
@@ -52,6 +53,12 @@ export async function AudienceCatalogue({
   links?: ReactNode[];
   /** Audience-specific items appended to the shared &ldquo;Not built here&rdquo; list. */
   notBuilt?: ReactNode[];
+  /**
+   * Audience-specific caveats, appended inside the header&rsquo;s &ldquo;i&rdquo;
+   * bubble. Only the sponsor catalogue uses it: it is the one of the three that
+   * carries an entitlement — complimentary passes — beyond the price.
+   */
+  info?: ReactNode;
 }) {
   const all = await listTicketTypes();
   const tickets = all.filter((t) => t.audience === audience);
@@ -81,6 +88,17 @@ export async function AudienceCatalogue({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>The public page reads this list live</strong>
+            <p>
+              A price edited here is the price charged on the next request; there is nothing to
+              publish. Hidden tiers stay purchasable by direct link, which is how a negotiated rate
+              works without a second code path.
+            </p>
+            {info}
+          </>
+        }
         tags={
           <Tag color={tickets.length > 0 ? 'blue' : 'grey'}>
             {tickets.length} {tickets.length === 1 ? 'type' : 'types'}
@@ -97,14 +115,8 @@ export async function AudienceCatalogue({
         ]}
       />
 
-      {tickets.length === 0 ? (
-        <Banner kind="warning">
-          <strong>No {noun} package is priced yet.</strong> Create one in{' '}
-          <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link> with the audience set to{' '}
-          <em>{audience}</em>, and it appears on <code>{PUBLIC_PAGE[audience]}</code> immediately.
-        </Banner>
-      ) : (
-        <Banner kind="info">
+      {tickets.length > 0 && (
+        <Banner kind={sellable === 0 ? 'warning' : 'info'}>
           <strong>
             {sellable} of {tickets.length} sell right now at{' '}
             <a href={`${publicOrigin}${PUBLIC_PAGE[audience]}`} target="_blank" rel="noreferrer">
@@ -112,28 +124,22 @@ export async function AudienceCatalogue({
             </a>
             .
           </strong>{' '}
-          That page reads this list live — a price edited here is the price charged on the next
-          request. Hidden tiers stay purchasable by direct link, which is how a negotiated rate
-          works without a second code path.
+          {sellable === 0
+            ? 'Every package is hidden, outside its sales window or at capacity, so the page has nothing a visitor can buy.'
+            : null}
         </Banner>
       )}
 
       <Panel>
         {tickets.length === 0 ? (
-          <EmptyState icon="◇">
-            <strong>
-              No ticket type in the catalogue has <code>audience: &apos;{audience}&apos;</code>.
-            </strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              {all.length} tiers exist in <code>ticketTypes</code> and none of them is a {noun}{' '}
-              package. <code>npm run seed</code> writes three exhibitor and four sponsor tiers, so
-              an empty list here usually means the seed has not been run against this database.
-            </p>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Otherwise, <Link href={ROUTES.createTickets}>create one</Link> and set{' '}
-              <em>Audience</em> to {audience}.
-            </p>
-          </EmptyState>
+          <NotInputted
+            what={`${noun} packages`}
+            action={
+              <Link className="btn btn-primary" href={`${ROUTES.createTickets}?audience=${audience}`}>
+                Create one
+              </Link>
+            }
+          />
         ) : (
           <>
             <Table
@@ -196,12 +202,6 @@ export async function AudienceCatalogue({
                 </Link>,
               ])}
             />
-            <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-              Edit opens the one ticket editor this dashboard has, on 1.1 Create Tickets. It
-              preserves <code>audience</code>, so saving a {noun} tier there leaves it a {noun}{' '}
-              tier — which was not true until August 2026 and is the reason this screen was
-              read-only for as long as it was.
-            </p>
           </>
         )}
       </Panel>
@@ -216,8 +216,8 @@ export async function AudienceCatalogue({
             count, banner placement. Those live on other screens or nowhere.
           </li>
           <li>
-            <strong>Anything past the price.</strong> Whova attaches question forms, add-ons and —
-            for exhibitors — booth inventory to these tiers. Each is its own nav item; none of them
+            <strong>Anything past the price.</strong> Whova attaches question forms, add-ons and,
+            for exhibitors, booth inventory to these tiers. Each is its own nav item; none of them
             is implied by the table above.
           </li>
           {notBuilt}

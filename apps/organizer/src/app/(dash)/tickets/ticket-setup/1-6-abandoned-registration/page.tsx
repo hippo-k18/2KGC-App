@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +52,17 @@ export default async function AbandonedRegistrationPage() {
     <>
       <PageHeader
         title="1.6 Abandoned Registration"
+        info={
+          <>
+            <strong>Abandonment is recorded, not recoverable</strong>
+            <p>
+              A single-seat card checkout writes no order until payment succeeds, so an expired one
+              leaves a placeholder with no address. The buyer&rsquo;s details are on the Stripe
+              session, not here. A multi-seat cart is the exception: it records its seat list before
+              the redirect.
+            </p>
+          </>
+        }
         tags={<Tag color={abandoned.length > 0 ? 'orange' : 'grey'} fill="outline">{abandoned.length} cancelled</Tag>}
         links={[
           <Link key="o" href={`${ROUTES.attendeeOrders}?status=cancelled`}>
@@ -79,16 +90,6 @@ export default async function AbandonedRegistrationPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Abandonment is recorded, not recoverable.</strong> Stripe fires{' '}
-        <code>checkout.session.expired</code> and the webhook marks the order <code>cancelled</code>{' '}
-        — so nothing sits at <code>pending</code> for ever. But a single-seat card checkout writes
-        no order until payment succeeds, so an expired one usually leaves a placeholder with no
-        email and no amount; the buyer&rsquo;s address is on the Stripe session, not in this
-        database. A <em>multi-seat</em> cart is the exception: it records its seat list before the
-        redirect, so an abandoned group checkout keeps the buyer, the attendees and the total.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Cancelled and expired orders</h2>
         <Table
@@ -109,7 +110,7 @@ export default async function AbandonedRegistrationPage() {
               </div>
             </span>,
           ])}
-          empty="Nothing abandoned. Either nobody has left a checkout open past its expiry, or no live traffic has reached Stripe yet."
+          empty={<NotInputted what="abandoned checkouts" compact />}
         />
         {/*
           `refundedAt` is doing double duty here: `cancelRegistrationByOrder`
@@ -121,7 +122,7 @@ export default async function AbandonedRegistrationPage() {
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           ⚠️ The timestamp comes from <code>refundedAt</code>, which the cancellation path stamps for
           every terminal outcome. On these rows it means <em>when Stripe told us</em>, not that
-          anything was refunded — no money ever moved on an abandoned checkout.
+          anything was refunded, no money ever moved on an abandoned checkout.
         </p>
       </Panel>
 
@@ -130,7 +131,7 @@ export default async function AbandonedRegistrationPage() {
         <p className="body-2">
           Unpaid <strong>invoices</strong> are different, and they are the abandonment worth
           chasing. An invoice writes its order at the moment it is raised, with the company, the
-          billing contact, the PO number and the seat list — so there is a real person to email and a
+          billing contact, the PO number and the seat list, so there is a real person to email and a
           real amount to ask for. Those rows are in{' '}
           <Link href={ROUTES.attendeeOrders}>Attendee Orders</Link> as <code>pending</code> with the{' '}
           <code>invoice</code> channel, and Stripe sends its own reminders on a schedule set in the

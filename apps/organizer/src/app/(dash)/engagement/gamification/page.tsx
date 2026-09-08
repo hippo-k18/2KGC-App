@@ -1,67 +1,52 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Engagement › Gamification.
  *
- * Whova's version is a points economy: attendees earn points for scanning
- * badges, joining sessions, posting on the board and visiting booths, and a
- * leaderboard ranks them.
+ * A points economy — points for scanning badges, joining sessions, posting on
+ * the board and visiting booths, with a leaderboard over the total.
  *
- * ── Every ingredient is a write we do not observe ───────────────────────────
+ * ── Why there is no leaderboard here, stated once in a comment ─────────────
  *
- * The blocker is not a missing collection, it is that points are inherently
- * derived from other people's writes. An attendee posting on the board is a
- * client write; awarding a point for it from the client means the client
- * decides its own score, which is a leaderboard anybody can win with a debugger.
- * Awarding it from a trigger needs Cloud Functions, and this project is on the
- * Spark plan. That is the same wall that freezes reply counts and poll tallies —
- * so gamification is not one feature away, it is behind the same door as six
- * others.
+ * Points are inherently derived from other people's writes. An attendee posting
+ * on the board is a *client* write; awarding a point for it from the client
+ * means the client decides its own score, which is a leaderboard anybody wins
+ * with a debugger. Awarding it from a trigger is the right shape, and the 10
+ * Firestore triggers in `functions/` are written and tested but undeployed —
+ * blocked on one IAM grant (`OWNER-ACTIONS.md` §3), not on code.
  *
- * Two of Whova's game mechanics **do** have screens here already, both under
- * Exhibitor Center, and both are honest gap notes for the same reason. Linking
- * them rather than restating them keeps the argument in one place.
+ * The dashboard can count at read time where a screen needs a number, and does
+ * so on Live Polling and the community board. A score cannot be handled that
+ * way: it is not a count of one collection, it is an accumulation over events
+ * that have to be observed as they happen and attributed to a person.
+ *
+ * So this screen measures the ceiling — how many people could ever appear on a
+ * leaderboard — and stops. The counting arguments live in `functions/SPEC.md`.
  */
 export default async function GamificationPage() {
   await requireOrganizer();
   const a = await eventAnalytics();
 
-  // The four scoring events Whova counts, against whether this repo can observe
-  // one happening. "Observed" is the operative word: several are recorded, and
-  // none is recorded anywhere a score could safely be incremented from.
-  const MECHANICS = [
-    {
-      earn: 'Checking in at the door',
-      have: 'yes' as const,
-      note: 'checkIns is real, server-written and idempotent — the one scoring event that is already trustworthy.',
-    },
-    {
-      earn: 'Posting on the community board',
-      have: 'client' as const,
-      note: 'The post is a client write. A client that also writes its own score is a client that writes any score.',
-    },
-    {
-      earn: 'Attending a session',
-      have: 'yes' as const,
-      note: 'A session door on Check-in writes the same server-side, idempotent check-in as the front door — but only for rooms somebody staffed. Saving a session to your schedule remains an intention rather than a turnstile, and is not this.',
-    },
-    {
-      earn: 'Visiting a booth',
-      have: 'no' as const,
-      note: 'The passport contest is the feature that would record this, and it is unbuilt.',
-    },
-  ];
-
   return (
     <>
       <PageHeader
         title="Gamification"
-        tags={<Tag color="red" fill="outline">blocked on Spark</Tag>}
+        info={
+          <>
+            <strong>Nothing is scored yet</strong>
+            <p>
+              A score has to be written by something the scorer does not control, which means a
+              Firestore trigger. Those are written and tested, and deploying them needs one IAM
+              grant only the project owner can make.
+            </p>
+            <p>Check-in is the one event already recorded server-side and safe to score.</p>
+          </>
+        }
         links={[
           <Link key="p" href="/content/exhibitor-center/passport-contest">
             Passport contest
@@ -72,47 +57,25 @@ export default async function GamificationPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>A score has to be written by something the scorer does not control.</strong> That
-        means a Cloud Function trigger, and the Firebase project is on the Spark plan, so no trigger
-        can be deployed. The same wall freezes reply counts, upvote counts and poll tallies — see{' '}
-        <Link href="/engagement/live-polling">Live Polling</Link> for the version of this that is
-        already visible to attendees.
-      </Banner>
+      <StatTiles
+        tiles={[
+          { label: 'Points awarded', value: 0, sub: 'not inputted yet' },
+          { label: 'Scoring rules', value: 0, sub: 'not inputted yet' },
+          {
+            label: 'Could appear on a leaderboard',
+            value: a.ticketHoldersSignedIn,
+            sub: `of ${a.ticketHolders} ticket holders`,
+          },
+        ]}
+      />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What we could score, if we could score</h2>
-        <Table
-          cols={[
-            { key: 'e', label: 'Whova awards points for', className: 'cell-md' },
-            { key: 'h', label: 'Do we see it?', className: 'cell-sm' },
-            { key: 'n', label: '', className: 'cell-fill' },
-          ]}
-          rows={MECHANICS.map((m) => [
-            m.earn,
-            m.have === 'yes' ? (
-              <Tag key="h" color="green" fill="outline" small>
-                yes
-              </Tag>
-            ) : m.have === 'client' ? (
-              <Tag key="h" color="orange" fill="outline" small>
-                client-written
-              </Tag>
-            ) : (
-              <Tag key="h" color="red" fill="outline" small>
-                no
-              </Tag>
-            ),
-            <span key="n" className="muted" style={{ fontSize: 12 }}>
-              {m.note}
-            </span>,
-          ])}
-        />
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Leaderboard</h2>
+        <NotInputted what="scoring rules" />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          One of four is scorable today. A leaderboard built on that single signal would rank
-          attendees by whether they turned up, which is a list the check-in desk already has. Of{' '}
-          {a.ticketHolders} ticket holders, {a.ticketHoldersSignedIn} have opened the app at all — the ceiling on
-          how many could ever appear on a leaderboard.
+          Of the four things a conference normally awards points for, one (turning up at the door) is recorded server-side and could be scored honestly today. A leaderboard built on that
+          single signal ranks attendees by attendance, which is a list the{' '}
+          <Link href="/attendees/check-in-and-checkout/check-in">check-in desk</Link> already has.
         </p>
       </Panel>
 
@@ -120,22 +83,21 @@ export default async function GamificationPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Points, rules and a leaderboard.</strong> No collection, no screen in this
-            dashboard, no surface in the app. Blocked on triggers before it is blocked on UI.
+            <strong>Points, rules and a leaderboard.</strong> No collection and no surface in the
+            app. Blocked on the trigger deploy (`OWNER-ACTIONS.md` §3) before it is blocked on UI.
           </li>
           <li>
             <strong>Prizes and redemption.</strong> Follows from the above — nothing to redeem
             against.
           </li>
           <li>
-            <strong>The passport contest and exhibitor trivia.</strong> Both are Whova game
-            mechanics, both already have honest gap notes under Exhibitor Center, and both are
-            blocked on a booth-side scan path rather than on triggers.
+            <strong>Board posts and booth visits as scoring events.</strong> A post is a client
+            write, and a client that writes its own score writes any score. A booth visit is not
+            recorded at all — the passport contest is the feature that would record it.
           </li>
           <li>
-            <strong>Attendance gamification for online sessions.</strong> A separate Whova screen
-            under Virtual &amp; Hybrid. There is no streaming integration at all, so there is no
-            attendance to gamify.
+            <strong>Attendance gamification for online sessions.</strong> There is no streaming
+            integration, so there is no online attendance to score.
           </li>
         </ul>
       </GapPanel>

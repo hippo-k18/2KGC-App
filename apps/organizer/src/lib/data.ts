@@ -165,6 +165,15 @@ export interface RoomRow extends RoomOption {
   building?: string;
   floor?: string;
   capacity?: number;
+  /**
+   * The pin, as a 0–1 fraction of each axis of a floorplan image.
+   *
+   * Carried here so the Venue Map screen can say whether a room has been placed
+   * rather than asserting that none has. Both are present or neither is: a pin
+   * with one coordinate cannot be drawn, so a half-written pair reads as unset.
+   */
+  mapX?: number;
+  mapY?: number;
   /** Sessions scheduled in this room, and how many of those are published. */
   sessionCount: number;
   publishedCount: number;
@@ -188,12 +197,17 @@ export async function listRoomRows(): Promise<RoomRow[]> {
     .map((d) => {
       const r = d.data() as RoomDoc;
       const here = docs.filter((s) => s.roomId === d.id);
+      // Both or neither: a pin with one coordinate cannot be drawn, so a
+      // half-written pair is reported as unset rather than as half-placed.
+      const placed = typeof r.mapX === 'number' && typeof r.mapY === 'number';
       return {
         id: d.id,
         name: r.name,
         building: r.building,
         floor: r.floor,
         capacity: r.capacity,
+        mapX: placed ? r.mapX : undefined,
+        mapY: placed ? r.mapY : undefined,
         sessionCount: here.length,
         publishedCount: here.filter((s) => s.status === 'published').length,
         overCapacityCount:
@@ -487,7 +501,16 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
     const u = d.data() as UserDoc;
     rows.set(emailKey(u.email) || d.id, {
       uid: d.id,
-      name: u.name,
+      /*
+       * `UserDoc.name` is typed as required and the live project holds profiles
+       * without one, which threw `Cannot read properties of undefined (reading
+       * 'localeCompare')` out of the sort below and took down every screen that
+       * lists attendees — Speed Networking, Profile Photo Frames, Gamification
+       * and the desk inbox among them. Falling back the way
+       * `listCommunityPosts` already does keeps the row addressable rather than
+       * dropping a real ticket holder off a list because a field is blank.
+       */
+      name: u.name || u.email || d.id,
       email: u.email,
       title: u.title,
       company: u.company,

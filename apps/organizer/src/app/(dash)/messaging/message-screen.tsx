@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
 import { AUDIENCES, listCampaigns, resolveAudience, type AudienceId } from '@/lib/messaging';
-import { Banner, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
+import { Banner, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
 import { MessageForm } from './message-form';
 
 /**
@@ -42,6 +42,19 @@ export async function MessageScreen({
     <>
       <PageHeader
         title={audience.title}
+        info={
+          <>
+            <strong>This screen sends email</strong>
+            <p>
+              Every address it will reach is listed below before you send, together with everyone
+              excluded for having none. A count is the thing you cannot check.
+            </p>
+            <p>
+              To message one person inside the app instead, use Direct Messages. There is no
+              scheduling: a queued blast fires whether or not anybody is awake to stop it.
+            </p>
+          </>
+        }
         tags={
           emailEnabled() ? (
             <Tag color="green" fill="outline">
@@ -63,17 +76,16 @@ export async function MessageScreen({
         ]}
       />
 
-      <Banner kind="info">
-        This screen sends <strong>email</strong>. To message one person inside the app instead —
-        the speaker whose flight is delayed, the attendee who wrote to the desk — use{' '}
-        <Link href="/messaging">Direct Messages</Link>.
-      </Banner>
-
+      {/*
+        Kept as a banner, and the only one left here: an organizer about to
+        write to 45 speakers needs to know before they write it that pressing
+        send will not deliver anything. The rest of what used to sit above the
+        form is a caveat and lives behind the header's "i".
+      */}
       {!emailEnabled() && (
         <Banner kind="warning">
-          <code>RESEND_API_KEY</code> is not set on this deployment, so nothing can actually be
-          sent. The form still resolves and previews the audience — see{' '}
-          <code>SETUP-PAYMENTS.md</code> §3.
+          <strong>Nothing can be sent from this deployment.</strong> No email provider is
+          configured, so the form below resolves and previews the audience and stops there.
         </Banner>
       )}
 
@@ -120,14 +132,14 @@ export async function MessageScreen({
               {r.detail ?? ''}
             </span>,
           ])}
-          empty={`No ${audience.noun} match this segment, or none of them have an email address on file.`}
+          empty={<NotInputted what={`${audience.noun} with an email address in this segment`} />}
         />
         {withoutEmail > 0 && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
             <strong>{withoutEmail}</strong> {withoutEmail === 1 ? 'record has' : 'records have'} no
             email address and are not in the list above.
             {audienceId === 'speakers' &&
-              ' A speaker only has one once they hold a ticket — contact details live on the user record, not the speaker record.'}
+              ' A speaker only has one once they hold a ticket. Contact details live on the user record, not the speaker record.'}
             {audienceId === 'sponsors' && ' Add a main contact in Sponsor Manager.'}
           </p>
         )}
@@ -172,15 +184,14 @@ export async function MessageScreen({
               )}
             </span>,
           ])}
-          empty="Nothing has been sent yet."
+          empty={<NotInputted what="sent email" />}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          Every recipient of every send is recorded individually — see{' '}
+          Every recipient of every send is recorded individually. See{' '}
           <Link href="/tickets/orders-and-transactions/transaction-history">
             Transaction History
           </Link>{' '}
-          to answer &ldquo;did this specific person get it?&rdquo;. There is no scheduling here on
-          purpose: a queued blast fires whether or not anybody is awake to stop it.
+          to answer &ldquo;did this specific person get it?&rdquo;
         </p>
       </Panel>
     </>

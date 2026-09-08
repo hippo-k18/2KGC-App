@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { getSpeaker, listSpeakers } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
 import { CsvImportPanel } from '../../csv-import-panel';
 import { commitSpeakerImportAction, previewSpeakerImportAction } from './actions';
@@ -13,17 +13,15 @@ export const dynamic = 'force-dynamic';
 /**
  * Content > Speaker Center > Speaker Manager.
  *
- * Whova's three stat tiles across the top are TOTAL SPEAKERS / NUMBER OF EDITED
- * PROFILES / SPEAKERS WHO RECEIVED LINK. The third counts emails we cannot send
- * yet, so it is replaced with the number that actually drives work here —
- * profiles missing a bio or a photo — and the substitution is called out on the
- * tile rather than left to look like the Whova metric.
+ * Two things earn this screen its place at 150 speakers: the completeness
+ * column and the bulk reminder. Both are here — the reminder as a link into
+ * Message Speakers with the segment preselected, because that screen already
+ * resolves the audience and already refuses to pretend it reached the people
+ * with no address on file.
  *
- * The research is explicit about what earns this screen its place at 150
- * speakers: the completeness column and the bulk reminder. Both are here now —
- * the reminder as a link into Message Speakers with the segment preselected,
- * because that screen already resolves the audience and already refuses to
- * pretend it reached the people with no address on file.
+ * The third stat tile counts profiles with no contact address rather than
+ * invitations sent, because no invitation is minted per speaker; the tile says
+ * so rather than leaving the substitution to be guessed.
  *
  * ── There is no delete, and that is the design ──────────────────────────────
  *
@@ -232,6 +230,17 @@ export default async function SpeakerManagerPage({
             ))}
           </div>
 
+          {all.length === 0 ? (
+            <NotInputted
+              what="speakers"
+              action={
+                <Link className="whova-btn-main" href="?new=1">
+                  Add the first one
+                </Link>
+              }
+            />
+          ) : (
+            <>
           <Table
             cols={[
               { key: 's', label: 'Speaker', className: 'cell-md', sortKey: 'speaker' },
@@ -241,7 +250,7 @@ export default async function SpeakerManagerPage({
               { key: 'act', label: '', className: 'cell-xs cell-end-align' },
             ]}
             sort={sort}
-            empty="Your event has no speakers"
+            empty="Not inputted yet"
             rows={pageRows.map((s) => [
               <span key="s">
                 <strong>{s.name}</strong>
@@ -251,7 +260,7 @@ export default async function SpeakerManagerPage({
                   </div>
                 ) : null}
               </span>,
-              s.company ?? <span className="muted">—</span>,
+              s.company ?? <span className="muted">not set</span>,
               <span key="p" style={{ display: 'flex', gap: 4 }}>
                 <Tag color={s.hasBio ? 'green' : 'red'} small>
                   bio
@@ -276,7 +285,7 @@ export default async function SpeakerManagerPage({
                     email and refuses to pretend it reached anyone with no
                     address; a one-off note to one speaker is a thing an
                     organizer does from their own outbox, where the reply lands.
-                    Absent — not greyed out — when there is nothing to send to.
+                    Absent Not greyed out… when there is nothing to send to.
                   */
                   ...(s.contactEmail
                     ? [{ label: 'Email speaker', href: `mailto:${s.contactEmail}` }]
@@ -286,10 +295,12 @@ export default async function SpeakerManagerPage({
             ])}
           />
           <Pagination total={rows.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
+            </>
+          )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
             <strong>There is no delete.</strong> Sessions point at a speaker by id, and so does
-            every phone that has one of their talks saved — removing the document would leave those
+            every phone that has one of their talks saved. Removing the document would leave those
             resolving to nothing, days later and with no warning. A speaker who has dropped out is
             taken off their sessions in{' '}
             <Link href={ROUTES.sessionManager}>Session Manager</Link>, which leaves the record
@@ -339,15 +350,10 @@ export default async function SpeakerManagerPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>The speaker self-service form.</strong> Whova&apos;s whole design here is that
-            organizers never collect bios by email — each speaker gets a personal link and fills
-            their own profile in, and the reminder schedule chases the ones who have not. That
-            personal-link pattern is Whova&apos;s real permission model and it is worth copying;
-            the mechanism to generalise is <code>/order/{'{token}'}</code>.
-          </li>
-          <li>
-            <strong>Release &amp; consent forms.</strong> One per event in Whova, and it locks at
-            publish; deleting it requires emailing their support.
+            <strong>The speaker self-service form.</strong> A personal link letting each speaker
+            fill in their own profile, so organizers never collect bios by email. The mechanism to
+            generalise is the capability token behind <code>/order/{'{token}'}</code>, which the
+            consent register already reuses.
           </li>
         </ul>
       </GapPanel>

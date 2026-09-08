@@ -18,7 +18,13 @@ import 'server-only';
  * paste in front of a thousand attendees.
  */
 
-export const APP_IS_ON_STORES = false;
-
-/** Expo Go is how a phone opens the app today. */
+/**
+ * Expo Go is how a phone opens the app today.
+ *
+ * A boolean `APP_IS_ON_STORES` used to sit beside this, guarding a banner that
+ * announced the absence of store badges. The absence is now stated once in the
+ * screen's `info` tip and the flag had exactly one reader, so it has gone: a
+ * constant whose only job is to be `false` forever is a thing somebody
+ * eventually flips without checking what it gates.
+ */
 export const EXPO_GO_URL = 'https://expo.dev/go';

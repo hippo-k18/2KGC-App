@@ -28,7 +28,7 @@ export async function recordManualOrderAction(
 
   const amountCents = parseAmount(String(form.get('amount') ?? ''));
   if (amountCents === null) {
-    return { error: 'The amount must be a number like 1499 or 1499.00 — enter whole units, not cents.' };
+    return { error: 'The amount must be a number like 1499 or 1499.00. Enter whole units, not cents.' };
   }
 
   const result = await recordManualOrder({

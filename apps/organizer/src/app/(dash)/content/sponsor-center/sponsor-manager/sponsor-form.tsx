@@ -65,7 +65,7 @@ export function SponsorForm({
           hint={
             existing ? (
               <>
-                Id <code>{existing.id}</code> stays the same when you rename them — lead scans and
+                Id <code>{existing.id}</code> stays the same when you rename them. Lead scans and
                 the website&rsquo;s logo files both point at it.
               </>
             ) : (
@@ -80,7 +80,7 @@ export function SponsorForm({
           required
           width="sm"
           defaultValue={existing?.tier ?? ''}
-          placeholder="— choose —"
+          placeholder="Choose…"
           options={tiers.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
           error={state.fieldErrors?.tier}
           hint="What they bought. Decides logo size on the public sponsor page and position in the app."
@@ -109,7 +109,7 @@ export function SponsorForm({
           placeholder="https://example.com"
           width="lg"
           error={state.fieldErrors?.website}
-          hint="The logo on the public page links here, and the app shows a Visit website button. Left blank, both render without a link rather than a dead one."
+          hint="The logo on the public page links here, and the app shows a Visit website button."
         />
 
         <Field
@@ -138,12 +138,12 @@ export function SponsorForm({
         defaultValue={existing?.offers?.join('\n')}
         placeholder={'Live demo at 2pm each day\nFree espresso all conference'}
         error={state.fieldErrors?.offers}
-        hint="One per line. The app shows the first two as tags on the directory row and the whole list on the sponsor's screen — so they are phrases, not paragraphs."
+        hint="One per line, as phrases rather than paragraphs. The directory row shows the first two."
       />
 
       <FieldSet
         legend="Main contact"
-        hint="Where sponsorship logistics go. Message Sponsors mails exactly this address, and a sponsor without one cannot be contacted from this dashboard at all — which matters most when you are chasing the logo above."
+        hint="Where sponsorship logistics go. Message Sponsors mails exactly this address."
       >
         <FormGrid>
           <Field name="contactName" label="Name" defaultValue={existing?.contactName} width="lg" />

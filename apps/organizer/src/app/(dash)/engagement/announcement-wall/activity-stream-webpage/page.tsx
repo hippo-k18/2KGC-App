@@ -4,7 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listAnnouncements } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +51,17 @@ export default async function AnnouncementWallStreamPage() {
     <>
       <PageHeader
         title="Activity Stream Webpage"
+        info={
+          <>
+            <strong>A foyer screen, not a live feed</strong>
+            <p>
+              The page reads the announcements collection on every request, so writing one puts it
+              on the wall, but the page does not refresh itself. A browser left open shows what was
+              true when it loaded; set the kiosk browser to reload.
+            </p>
+            <p>The wall renders the newest {ANNOUNCEMENT_WALL_LIMIT}.</p>
+          </>
+        }
         tags={<Tag color="green" fill="outline">live at /announcements</Tag>}
         actions={
           <a
@@ -71,18 +82,6 @@ export default async function AnnouncementWallStreamPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        These {announcements.length} announcements are already a broadcast — written by organizers,
-        sent to everyone — and{' '}
-        <a href={publicUrl('/announcements')} target="_blank" rel="noreferrer">
-          /announcements
-        </a>{' '}
-        is the wall that renders them, sized to be read across a room. It stays the only wall in
-        the nav that could be published at all; the{' '}
-        <Link href="/marketing/social-wall/social-wall-customization">social wall</Link> is
-        deliberately closed and is the other kind.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -134,7 +133,7 @@ export default async function AnnouncementWallStreamPage() {
               </span>
             ),
           ])}
-          empty="No announcements yet."
+          empty={<NotInputted what="announcements" />}
         />
       </Panel>
 

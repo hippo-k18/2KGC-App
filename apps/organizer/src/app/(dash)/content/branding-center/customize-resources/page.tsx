@@ -1,17 +1,16 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listDocuments } from '@/lib/planning';
-import { GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Content › Branding Center › Customize Resources.
  *
- * Whova&rsquo;s screen renames the app&rsquo;s own menu items and adds custom
- * entries — turn &ldquo;Community&rdquo; into &ldquo;Networking&rdquo;, hide
- * &ldquo;Photos&rdquo;, add a &ldquo;Shuttle Times&rdquo; link. It is a
- * navigation editor wearing a branding hat.
+ * Renaming the app's own menu items and adding custom entries — turn
+ * "Community" into "Networking", hide "Photos", add a "Shuttle Times" link. It
+ * is a navigation editor wearing a branding hat.
  *
  * ── Why this is not a settings form ─────────────────────────────────────────
  *
@@ -35,6 +34,16 @@ export default async function CustomizeResourcesPage() {
     <>
       <PageHeader
         title="Customize Resources"
+        info={
+          <>
+            <strong>The tabs are compiled in</strong>
+            <p>
+              The five tabs are declared in the app&rsquo;s layout at build time, each needing an
+              iOS symbol <em>and</em> an Android vector icon. A new entry is a code change and a
+              store release, not a row in a database.
+            </p>
+          </>
+        }
         links={[
           <Link key="d" href="/content/documents-and-videos/documents">
             Documents
@@ -53,30 +62,26 @@ export default async function CustomizeResourcesPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Add it as a document instead</h2>
         <p className="body-2">
-          Renames, reorders, hides and adds items in the attendee app&rsquo;s menu, and lets an
-          organizer point a new item at a web page. Most events use it for one thing: a
-          &ldquo;Venue&rdquo; or &ldquo;Shuttle&rdquo; entry that the standard menu has no slot for.
+          The <Link href="/content/documents-and-videos/documents">Documents</Link> screen writes a
+          titled link the app already renders, which covers the shuttle timetable, the venue map
+          PDF and the code of conduct. The three things a custom menu entry is asked for. It is a
+          worse place to put them than a menu item, and it needs no app-store release.
         </p>
-
-        <h2 className="section-header">Why ours cannot do it</h2>
-        <p className="body-2">
-          The five tabs are declared in <code>app/src/app/(tabs)/_layout.tsx</code> and compiled into
-          the bundle. Each needs an iOS SF Symbol <em>and</em> an Android vector icon — supply only
-          the first and Android ships labels with no icons — so a new entry is not a row in a
-          database, it is a code change and an app-store release. Renaming alone could be read from
-          Firestore, but shipping only that would suggest the menu is editable when its shape,
-          order and icons are not.
-        </p>
-
-        <h2 className="section-header">What to do instead, today</h2>
-        <p className="body-2">
-          Add it as a document. The Documents screen writes a titled link that the app already
-          renders, which covers the shuttle timetable, the venue map PDF and the code of conduct —
-          which is what this screen is used for in practice. It is a worse place to put it than a
-          menu item, and it needs no release.
-        </p>
+        {documents.length === 0 ? (
+          <NotInputted
+            what="documents"
+            action={
+              <Link
+                className="whova-btn-main"
+                href="/content/documents-and-videos/documents?new=1"
+              >
+                Add the first one
+              </Link>
+            }
+          />
+        ) : null}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
+import { listSessions } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,13 +39,42 @@ export const dynamic = 'force-dynamic';
 export default async function EventListingPage() {
   await requireOrganizer();
 
-  const tickets = await listTicketTypes();
+  const [tickets, sessions] = await Promise.all([listTicketTypes(), listSessions()]);
   const onSale = tickets.filter((t) => t.visible && t.audience === 'attendee').length;
+
+  /**
+   * The dates a calendar submission asks for, read rather than typed.
+   *
+   * They used to be a hard-coded string on this page, which is the one thing a
+   * screen like this must not have: a submission form filled in from a date
+   * nothing checks is how a conference advertises the wrong week. `day` is the
+   * denormalised local day key the programme is authored against, so the range
+   * is the first and last day anything is actually published on.
+   */
+  const publishedDays = [
+    ...new Set(sessions.filter((s) => s.status === 'published').map((s) => s.day)),
+  ].sort();
+  const dateRange =
+    publishedDays.length === 0
+      ? null
+      : publishedDays.length === 1
+        ? publishedDays[0]
+        : `${publishedDays[0]} to ${publishedDays[publishedDays.length - 1]}`;
 
   return (
     <>
       <PageHeader
         title="Event Listing"
+        info={
+          <>
+            <strong>There is no marketplace to list in</strong>
+            <p>
+              The channels below are the ones that work for a conference on its own domain, and none
+              of them is a button here, each is a form somebody fills in once. The second table is
+              the copy those forms ask for, read from the programme and the catalogue.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">Not applicable</Tag>}
         links={[
           <Link key="w" href="/tickets/ticket-marketing/event-website">
@@ -58,21 +89,12 @@ export default async function EventListingPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>There is nothing to list in, and that is not a gap.</strong> Whova&rsquo;s Event
-        Listing advertises your conference inside Whova&rsquo;s own marketplace, whose value comes
-        from the thousands of other events it hosts. Reproducing it would mean building a
-        marketplace — a different product, and an empty one. It is on{' '}
-        <code>ROADMAP.md</code>&rsquo;s cut list beside Organizer Co-Promo for the same reason.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What an event listing is actually for</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
           Being findable by people who are <em>not already looking for you</em>. For a conference on
           its own domain that is search, the field&rsquo;s own calendars, and other people&rsquo;s
-          newsletters. None of them is a button in this dashboard, and pretending otherwise would be
-          worse than saying so.
+          newsletters.
         </p>
         <Table
           cols={[
@@ -94,7 +116,7 @@ export default async function EventListingPage() {
                 <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer">
                   /agenda
                 </a>{' '}
-                now, generated from the programme and the ticket catalogue rather than typed — the
+                now, generated from the programme and the ticket catalogue rather than typed. The
                 dates come from the published sessions, the price range from{' '}
                 <code>ticketTypes</code>, so it cannot drift from what the pages say.
               </span>,
@@ -104,7 +126,7 @@ export default async function EventListingPage() {
             ],
             [
               'Community calendars',
-              'The knowledge-graph field has a handful — mailing lists, a few aggregators, the semantic-web community calendar. Each is a form somebody fills in once. There is no API to integrate with and no screen would help.',
+              'The knowledge-graph field has a handful. Mailing lists, a few aggregators, the semantic-web community calendar. Each is a form somebody fills in once. There is no API to integrate with and no screen would help.',
               <Tag key="s" color="grey" small>
                 by hand
               </Tag>,
@@ -125,7 +147,7 @@ export default async function EventListingPage() {
               'Speakers’ own audiences',
               <span key="w">
                 Bigger than any directory. Give each speaker a{' '}
-                <Link href="/tickets/ticket-marketing/referral-contest">referral link</Link> — built,
+                <Link href="/tickets/ticket-marketing/referral-contest">referral link</Link>. Built,
                 and the closest thing here to what a listing promises.
               </span>,
               <Tag key="s" color="green" small>
@@ -148,10 +170,22 @@ export default async function EventListingPage() {
             { key: 'v', label: 'Value', className: 'cell-fill' },
           ]}
           rows={[
-            ['Name', 'Knowledge Graph Conference 2027'],
-            ['Dates', '3–7 May 2027'],
-            ['Venue', 'Cornell Tech, Roosevelt Island, New York City'],
-            ['Format', 'In person, with a virtual ticket tier'],
+            ['Name', EVENT.name],
+            [
+              'Dates',
+              dateRange ?? (
+                <span key="v" className="muted">
+                  Not inputted yet, no session is published
+                </span>
+              ),
+            ],
+            ['Venue', EVENT.venue],
+            [
+              'Format',
+              tickets.some((t) => t.visible && !t.inPerson)
+                ? 'In person, with a remote ticket tier'
+                : 'In person',
+            ],
             [
               'Tickets',
               <span key="v">

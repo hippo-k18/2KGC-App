@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { exhibitorSummary, getExhibitor, listExhibitors } from '@/lib/exhibitors';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { setExhibitorStatusAction } from './actions';
 import { ExhibitorForm } from './exhibitor-form';
 
@@ -13,9 +13,8 @@ export const dynamic = 'force-dynamic';
  *
  * Separate from Sponsor Manager on purpose. A sponsor buys visibility — a tier,
  * a logo, a banner. An exhibitor buys floor space — a booth, staff passes,
- * somewhere to scan leads. The fields barely intersect, and Whova sells them as
- * two products. A company that is both is two records, which is correct: they
- * bought two things.
+ * somewhere to scan leads. The fields barely intersect. A company that is both
+ * is two records, which is correct: they bought two things.
  */
 export default async function ExhibitorManagerPage({
   searchParams,
@@ -73,6 +72,9 @@ export default async function ExhibitorManagerPage({
           <Link key="s" href={ROUTES.sponsorManager}>
             Sponsor Manager
           </Link>,
+          <Link key="m" href="/content/exhibitor-center/message-exhibitors">
+            Message Exhibitors
+          </Link>,
           <Link key="x" href={ROUTES.analyticsExports}>
             Exports
           </Link>,
@@ -103,7 +105,7 @@ export default async function ExhibitorManagerPage({
       {summary.overAllocated > 0 && (
         <Banner kind="danger">
           <strong>{summary.overAllocated} exhibitor{summary.overAllocated === 1 ? ' has' : 's have'} claimed more staff passes than their package allows.</strong>{' '}
-          Worth settling before doors open — it is otherwise an argument at the desk with somebody
+          Worth settling before doors open. It is otherwise an argument at the desk with somebody
           who is already holding a box of leaflets.
         </Banner>
       )}
@@ -122,20 +124,14 @@ export default async function ExhibitorManagerPage({
           </div>
 
           {all.length === 0 ? (
-            <EmptyState
-              icon="▤"
+            <NotInputted
+              what="exhibitors"
               action={
                 <Link href="?new=1" className="whova-btn-main">
-                  Add the first exhibitor
+                  Add the first one
                 </Link>
               }
-            >
-              <strong>No exhibitors yet.</strong>
-              <p className="muted" style={{ marginTop: 6 }}>
-                These are the companies with a booth in the hall, as distinct from sponsors, who
-                buy visibility rather than floor space.
-              </p>
-            </EmptyState>
+            />
           ) : (
             <>
               <Table
@@ -274,13 +270,13 @@ export default async function ExhibitorManagerPage({
             has no scanner for either.
           </li>
           <li>
-            <strong>Exhibitor tickets.</strong> Whova sells staff passes through a parallel ticket
-            catalogue. <code>TicketAudience</code> allows for it and no screen builds one, so passes
-            here are a number in a contract rather than issued badges.
+            <strong>Exhibitor tickets.</strong> Staff passes would be sold through a parallel
+            ticket catalogue. <code>TicketAudience</code> allows for it and no screen builds one, so
+            passes here are a number in a contract rather than issued badges.
           </li>
           <li>
-            <strong>Booth selection.</strong> Whova lets an exhibitor pick their own booth off a
-            floor plan. There is no floor plan.
+            <strong>Booth selection.</strong> An exhibitor picking their own booth needs a floor
+            plan. There is none.
           </li>
           <li>
             <strong>Where the logos go.</strong> Uploading one works — this is the first screen in

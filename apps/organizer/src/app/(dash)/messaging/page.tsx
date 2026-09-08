@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { DESK_NAME, deskRecipients, listDeskThreads } from '@/lib/messaging';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../ui';
 import { DeskComposer } from './desk-composer';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +41,19 @@ export default async function DeskInboxPage() {
     <>
       <PageHeader
         title="Direct Messages"
+        info={
+          <>
+            <strong>One desk, not one organizer</strong>
+            <p>
+              Everything here is sent and received as <em>{DESK_NAME}</em>, a shared identity, the
+              way a support address works. The audit log records which of you sent what.
+            </p>
+            <p>
+              A message waits in the attendee&rsquo;s app inbox until they next open it. The app
+              cannot receive push yet.
+            </p>
+          </>
+        }
         tags={
           waiting > 0 ? (
             <Tag color="orange" fill="solid">
@@ -61,13 +74,11 @@ export default async function DeskInboxPage() {
         ]}
       />
 
-      <Banner kind="info">
-        Messages here are sent and received as <strong>{DESK_NAME}</strong>, a single shared
-        identity — every organizer writes as the desk and an attendee replies to the desk, the way a
-        support address works. There is no per-organizer account to send from; the audit log records
-        which of you sent what.
-      </Banner>
-
+      {/*
+        The header's "i" carries what used to be a banner here. Nothing on this
+        screen is operational until somebody is actually waiting — and that is
+        already the orange "N waiting" tag beside the title.
+      */}
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Conversations ({threads.length})</h2>
         <Table
@@ -107,7 +118,7 @@ export default async function DeskInboxPage() {
               ) : null}
             </span>,
           ])}
-          empty="Nobody has messaged the desk and the desk has messaged nobody. Start a conversation below — it arrives in their app inbox, not their email."
+          empty={<NotInputted what="conversations" />}
         />
       </Panel>
 
@@ -126,7 +137,7 @@ export default async function DeskInboxPage() {
           {notSignedIn > 0 && (
             <>
               <strong>{notSignedIn}</strong> hold a ticket but have never opened the app, so they
-              have no inbox — email is the only way to reach them.{' '}
+              have no inbox. Email is the only way to reach them.{' '}
             </>
           )}
           {messagingOff > 0 && (

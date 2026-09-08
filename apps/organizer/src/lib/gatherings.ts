@@ -109,7 +109,7 @@ export async function saveGathering(input: {
   actor: string;
 }): Promise<GatheringResult> {
   const title = input.title.trim();
-  if (title.length < 3) return { ok: false, error: 'Give it a title — it prints on the table card.' };
+  if (title.length < 3) return { ok: false, error: 'Give it a title. It prints on the table card.' };
 
   if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 200) {
     return { ok: false, error: 'Capacity must be a whole number between 1 and 200.' };

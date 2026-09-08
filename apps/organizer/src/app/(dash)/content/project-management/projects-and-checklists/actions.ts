@@ -80,7 +80,7 @@ export async function saveTaskAction(_prev: TaskState, formData: FormData): Prom
 
   if (title.length < 2) return { error: 'Give the task a title.' };
   if (project.length < 2) {
-    return { error: 'Every task belongs to a project — that is how the list groups.' };
+    return { error: 'Every task belongs to a project. That is how the list groups.' };
   }
 
   const status = parseStatus(statusRaw);
@@ -90,7 +90,7 @@ export async function saveTaskAction(_prev: TaskState, formData: FormData): Prom
   if (dueOn === undefined) return { error: 'The due date must be a real date, or blank.' };
 
   const existing = id ? await getTask(id) : null;
-  if (id && !existing) return { error: 'That task no longer exists — somebody may have removed it.' };
+  if (id && !existing) return { error: 'That task no longer exists. Somebody may have removed it.' };
 
   try {
     const ref = id

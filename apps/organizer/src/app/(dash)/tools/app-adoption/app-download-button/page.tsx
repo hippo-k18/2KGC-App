@@ -1,25 +1,28 @@
 import Link from 'next/link';
-import { publicSiteOrigin } from '@kgc/shared';
+import { APP_DISTRIBUTION, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
-import { APP_IS_ON_STORES, EXPO_GO_URL } from '../adoption-context';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
+import { EXPO_GO_URL } from '../adoption-context';
+import { QrSymbol, Snippet, qrSvgMarkup } from '../snippet';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Tools › App Adoption › App Download Button.
  *
- * ── The snippets below are honest about a thing Whova's are not ─────────────
+ * ── Everything on this screen resolves to one URL ────────────────────────────
  *
- * Whova gives you App Store and Google Play badges. This app is on neither —
- * it runs in Expo Go — so a store badge would be a button that goes nowhere,
- * pasted by an organizer onto a page a thousand people read. That failure has
- * already happened once on this project: the order confirmation told buyers to
- * search the App Store, and `APP_DISTRIBUTION` in `@kgc/shared` carries a long
- * comment about it.
+ * `publicSiteOrigin()` plus `/tickets`. Whova gives you App Store and Google
+ * Play badges; this app is on neither — it runs in Expo Go — so a store badge
+ * would be a button that goes nowhere, pasted by an organizer onto a page a
+ * thousand people read. That failure has already happened once on this project:
+ * the order confirmation told buyers to search the App Store, and
+ * `APP_DISTRIBUTION` in `@kgc/shared` carries a long comment about it.
  *
- * So the snippets link to the tickets page, which explains the real route in
- * one sentence that the owner can change in one place.
+ * So the snippets point at the tickets page, which carries the real route in one
+ * sentence the owner changes in one place, and the QR below encodes the same
+ * URL. On the day the app is listed, `APP_DISTRIBUTION` changes and every
+ * snippet here changes with it.
  */
 export default async function AppDownloadButtonPage() {
   await requireOrganizer();
@@ -32,14 +35,20 @@ export default async function AppDownloadButtonPage() {
   Get the KGC 2027 app
 </a>`;
 
-  const markdown = `[Get the KGC 2027 app](${href})`;
-
-  const plain = `Get the KGC 2027 app: ${href}`;
-
   return (
     <>
       <PageHeader
         title="App Download Button"
+        info={
+          <>
+            <strong>No store badges, deliberately</strong>
+            <p>
+              The app is not listed on the App Store or Google Play, so a store badge would be a
+              button that goes nowhere. Every snippet here points at <code>/tickets</code>, which
+              carries the real install route.
+            </p>
+          </>
+        }
         links={[
           <Link key="e" href="/tools/app-adoption/app-adoption-email">
             Adoption email
@@ -47,61 +56,53 @@ export default async function AppDownloadButtonPage() {
           <Link key="s" href="/tools/app-adoption/social-media">
             Social posts
           </Link>,
+          <Link key="g" href="/tools/app-adoption/downloadable-graphics">
+            Downloadable graphics
+          </Link>,
         ]}
       />
 
-      {!APP_IS_ON_STORES && (
-        <Banner kind="warning">
-          <strong>There are no store badges here on purpose.</strong> The app is not listed on the
-          App Store or Google Play — it runs in Expo Go — so an App Store badge would be a button
-          that goes nowhere, pasted somewhere a thousand people read it. Every snippet below points
-          at the tickets page, which explains the real route in a sentence the owner controls.
-        </Banner>
-      )}
-
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>HTML</h2>
-        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          For a WordPress block, an email, or anywhere that takes raw HTML.
-        </p>
-        <pre className="whova-code">{html}</pre>
-
-        <h2 className="section-header">Markdown</h2>
-        <pre className="whova-code">{markdown}</pre>
-
-        <h2 className="section-header">Plain text</h2>
-        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          For a slide, a printed sign, or a Slack message.
-        </p>
-        <pre className="whova-code">{plain}</pre>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+          <div>
+            <QrSymbol text={href} px={168} label={href} />
+          </div>
+          <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+            <h2 style={{ fontSize: 15, marginTop: 0 }}>The link everything points at</h2>
+            <p className="body-2">
+              <code>{href}</code>
+            </p>
+            <p className="body-2">{APP_DISTRIBUTION}</p>
+            <p className="body-2 muted" style={{ fontSize: 12, marginBottom: 0 }}>
+              Expo Go itself is at <a href={EXPO_GO_URL}>{EXPO_GO_URL}</a> if somebody asks what it
+              is.
+            </p>
+          </div>
+        </div>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the link goes</h2>
-        <p className="body-2">
-          <code>{href}</code> — the tickets page, which carries the one sentence about how the app
-          is distributed. That sentence lives in <code>packages/shared</code>, which this dashboard
-          and the website both read, so it changes once on the day the app is actually listed.
-        </p>
-        <p className="body-2">
-          Expo Go itself is at <a href={EXPO_GO_URL}>{EXPO_GO_URL}</a> if somebody asks what it is.
-        </p>
+        <Snippet
+          title="HTML"
+          note="For a WordPress block, an email, or anywhere that takes raw HTML."
+          text={html}
+        />
+        <Snippet title="Markdown" text={`[Get the KGC 2027 app](${href})`} />
+        <Snippet
+          title="Plain text"
+          note="For a slide, a printed sign, or a Slack message."
+          text={`Get the KGC 2027 app: ${href}`}
+        />
+        <Snippet
+          title="The QR as SVG"
+          note="Paste into a slide or a page. Vector, so it prints at whatever resolution the printer has."
+          text={qrSvgMarkup(href)}
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>A QR code</strong>, which is how people actually install a conference app from
-            a table sign. The encoder exists and is dependency-free —{' '}
-            <code>app/src/lib/qr/encode.ts</code> — but it lives in the <em>mobile app</em>, and
-            this dashboard resolves only <code>@kgc/shared</code> and <code>@kgc/scripts</code>{' '}
-            (see <code>apps/organizer/package.json</code>; the dashboard is deliberately not a
-            workspace member). So the work is not the encoder, it is a move: lift{' '}
-            <code>encode.ts</code> into <code>packages/shared</code> and repoint the badge screen at
-            it. Copying it here instead would give the project two QR implementations, and the one
-            that drifts is the one printing badges.
-          </li>
           <li>
             <strong>Store badges and deep links.</strong> Both need the app to be listed.
           </li>

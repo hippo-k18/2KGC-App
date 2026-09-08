@@ -61,7 +61,7 @@ function badSubmitUrl(url: string): string | undefined {
   } catch {
     return 'That is not a URL. Include the scheme, e.g. https://easychair.org/…';
   }
-  if (parsed.protocol !== 'https:') return 'Use an https:// address — this link is public.';
+  if (parsed.protocol !== 'https:') return 'Use an https:// address. This link is public.';
   return undefined;
 }
 
@@ -162,7 +162,7 @@ async function commit<K extends PageContentKey>(
     message:
       overridden === 0
         ? 'Cleared. The page is back to the copy compiled into it.'
-        : `Saved. The page is live with ${overridden === 1 ? 'this override' : `these ${overridden} overrides`} on the next request — no deploy.`,
+        : `Saved. The page is live with ${overridden === 1 ? 'this override' : `these ${overridden} overrides`} on the next request, no deploy.`,
   };
 }
 

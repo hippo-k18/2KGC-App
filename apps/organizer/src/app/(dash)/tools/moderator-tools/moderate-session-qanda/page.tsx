@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listQaSessions } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
+import { clockOf, todayInEventZone } from '@/lib/time';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,23 +15,63 @@ export const dynamic = 'force-dynamic';
  * about a shift. Both open one queue.
  *
  * The manager is already built at Content › Agenda Center › Session Q&A
- * Manager, so this screen sends people there instead of rendering a second copy
- * with its own moderate action. Two queues over one collection is how a
- * question gets hidden in one tab and answered in the other; the counts here
- * are read-only for exactly that reason.
+ * Manager, so this screen renders no second set of hide buttons: two queues
+ * over one collection is how a question gets hidden in one tab and answered in
+ * the other. What it adds instead is the shift view the manager does not have —
+ * which room has a backlog, in the order the rooms are running — so a moderator
+ * arriving mid-morning knows where to go first.
  */
 export default async function ModerateSessionQandAPage() {
   await requireOrganizer();
   const { sessions, questions } = await listQaSessions();
+  const today = todayInEventZone();
 
   const pending = questions.filter((q) => q.state === 'pending').length;
   const hidden = questions.filter((q) => q.state === 'hidden').length;
   const answered = questions.filter((q) => q.state === 'answered').length;
 
+  /**
+   * Only the sessions with Q&A switched on and at least one question waiting.
+   *
+   * A moderator's screen should be a work list, not a catalogue: a session with
+   * an empty queue needs nothing from them, and printing thirty rows of zeroes
+   * is how the two rows that matter get missed. Today's sessions sort first for
+   * the same reason.
+   */
+  const backlog = sessions
+    .filter((s) => s.qaEnabled && s.pendingCount > 0)
+    .sort(
+      (a, b) =>
+        Number(b.day === today) - Number(a.day === today) ||
+        b.pendingCount - a.pendingCount ||
+        a.startsAtLocal.localeCompare(b.startsAtLocal),
+    );
+
   return (
     <>
       <PageHeader
         title="Moderate Session Q&A"
+        info={
+          <>
+            <strong>One queue, reached from two places</strong>
+            <p>
+              Every hide and mark-answered lives in the Session Q&amp;A Manager. A second set of
+              buttons over the same questions would let two moderators disagree about the same row,
+              so this screen only says where the work is.
+            </p>
+          </>
+        }
+        tags={
+          pending > 0 ? (
+            <Tag color="orange" fill="solid">
+              {pending} waiting
+            </Tag>
+          ) : (
+            <Tag color="green" fill="outline">
+              queue clear
+            </Tag>
+          )
+        }
         actions={
           <Link href={ROUTES.qaManager} className="whova-btn-main">
             Open Session Q&amp;A Manager
@@ -46,36 +87,43 @@ export default async function ModerateSessionQandAPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>One queue, reached from two places.</strong> Every moderation action lives in{' '}
-        <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link>. This screen only counts what
-        is waiting — a second set of hide buttons over the same questions would let two moderators
-        disagree about the same row.
-      </Banner>
-
       <StatTiles
         tiles={[
           { label: 'Waiting', value: pending, sub: 'not yet reviewed' },
           { label: 'Answered', value: answered, sub: 'marked from the stage' },
           { label: 'Hidden', value: hidden, sub: 'taken down by a moderator' },
-          { label: 'Sessions with Q&A', value: sessions.length, sub: 'switched on' },
+          {
+            label: 'Sessions with Q&A',
+            value: sessions.filter((s) => s.qaEnabled).length,
+            sub: `${sessions.length} on the programme`,
+          },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a moderator can actually do</h2>
-        <p className="body-2">
-          Two of Whova&rsquo;s three powers: <strong>hide</strong> and <strong>mark answered</strong>
-          . <strong>Pin</strong> is missing on purpose — pinning reorders a board ranked by{' '}
-          <code>upvoteCount</code>, and that counter is written by a Cloud Function trigger that
-          cannot be deployed on the Spark plan. A pin control fighting a frozen ranking would be
-          worse than no pin control.
-        </p>
-        <p className="body-2">
-          There is also no per-session moderator assignment. Today every organizer can moderate every
-          session, which is honest for a team of ten and would need a role the rules can read before
-          it could be anything else.
-        </p>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the backlog is</h2>
+        {backlog.length === 0 ? (
+          <NotInputted what="questions waiting for a moderator" />
+        ) : (
+          <Table
+            cols={[
+              { key: 'w', label: 'When', className: 'cell-sm' },
+              { key: 's', label: 'Session', className: 'cell-fill' },
+              { key: 'p', label: 'Waiting', className: 'cell-sm' },
+              { key: 'h', label: 'Hidden', className: 'cell-sm' },
+            ]}
+            rows={backlog.map((s) => [
+              <span key="w" style={{ whiteSpace: 'nowrap' }}>
+                {s.day === today ? <strong>today</strong> : s.day} {clockOf(s.startsAtLocal)}
+              </span>,
+              <Link key="s" href={`${ROUTES.qaManager}?session=${s.id}&view=pending`}>
+                {s.title}
+              </Link>,
+              <strong key="p">{s.pendingCount}</strong>,
+              s.hiddenCount || <span className="muted">—</span>,
+            ])}
+          />
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -91,8 +139,9 @@ export default async function ModerateSessionQandAPage() {
             organise around.
           </li>
           <li>
-            <strong>Upvote counts do not move.</strong> They are whatever the seed wrote, because the
-            counter trigger is unbuilt — so the queue is ordered by time instead of popularity.
+            <strong>Pin is absent and upvote counts do not move.</strong> Both wait on the
+            `upvoteCount` trigger, which is written and undeployed — a pin control fighting a frozen
+            ranking would be worse than no pin control.
           </li>
         </ul>
       </GapPanel>

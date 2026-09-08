@@ -64,7 +64,7 @@ export async function saveConsentFormAction(
     return {
       error:
         'The wording is too short to be an agreement. Paste the actual text people are being ' +
-        'asked to agree to — it is what every signature will be stored against.',
+        'asked to agree to. It is what every signature will be stored against.',
     };
   }
   if (!AUDIENCES.includes(audience)) return { error: 'Choose who this form is for.' };
@@ -94,7 +94,7 @@ export async function saveConsentFormAction(
         ok: true,
         message:
           `The wording changed, so this is now version ${saved.version}. Everybody who signed ` +
-          `version ${saved.version - 1} is outstanding against the new text — their earlier ` +
+          `version ${saved.version - 1} is outstanding against the new text. Their earlier ` +
           'agreement still stands for what it said, and it does not cover this.',
       };
     }

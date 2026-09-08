@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { money, salesSummary } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { stripeIsLive } from '@/lib/stripe';
+import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table } from '../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +42,18 @@ export default async function PublishTaxPage() {
     <>
       <PageHeader
         title="Publish"
+        info={
+          <>
+            <strong>Whova&rsquo;s name for tax settings</strong>
+            <p>
+              Stripe computes and collects the tax, so there are no rates to type here. A second
+              set would disagree with what checkout actually charged.
+            </p>
+            {stripeEnabled() ? null : (
+              <p>No Stripe key is configured yet, so nothing has been taxed.</p>
+            )}
+          </>
+        }
         actions={
           <a href={dash('settings/tax')} target="_blank" rel="noreferrer" className="whova-btn-main">
             Stripe Tax settings ↗
@@ -62,7 +74,7 @@ export default async function PublishTaxPage() {
 
       <Banner kind="warning">
         <strong>An event ticket is taxed where the event happens, not where the buyer lives.</strong>{' '}
-        KGC is at Cornell Tech, Roosevelt Island, so the jurisdiction is New York — a buyer in Berlin
+        KGC is at Cornell Tech, Roosevelt Island, so the jurisdiction is New York. A buyer in Berlin
         owes New York&rsquo;s treatment, not German VAT. Until the event location is set in Stripe,
         Stripe taxes by billing address instead, and that produces a wrong number that looks
         entirely reasonable.
@@ -98,7 +110,7 @@ export default async function PublishTaxPage() {
             [
               'Automatic tax',
               <span key="s">
-                Done in code — <code>automatic_tax: {'{'} enabled: true {'}'}</code> on both paths.
+                Done in code: <code>automatic_tax: {'{'} enabled: true {'}'}</code> on both paths.
                 It stays inert until tax is enabled in the Stripe dashboard, which is why turning it
                 on early was safe.
               </span>,

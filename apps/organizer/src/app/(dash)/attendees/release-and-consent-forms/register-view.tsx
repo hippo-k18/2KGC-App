@@ -39,12 +39,11 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
         <EmptyState icon="◌">
           <strong>There is nobody to show a register against.</strong>
           <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-            This form is for <strong>{form.audience}s</strong>, and this project has no{' '}
-            <code>volunteers</code> collection and no volunteer role — so there is no list of people
-            to mark signed or unsigned. The form itself is real and can be signed by anybody sent a
-            link; what is missing is the roster to measure it against. An empty register and a
-            register showing nobody outstanding look identical and mean opposite things, which is
-            why this says which one it is.
+            This form is for <strong>{form.audience}s</strong> and this project keeps no list of
+            them, so there is nobody to mark signed or unsigned. The form itself is real and can be
+            signed by anybody sent a link; what is missing is the roster to measure it against. An
+            empty register and a register showing nobody outstanding look identical and mean
+            opposite things, which is why this says which one it is.
           </div>
         </EmptyState>
       </Panel>
@@ -167,7 +166,7 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
             nobody in this audience
           </h2>
           <p className="body-2">
-            Real signatures with no row to sit on — usually somebody removed from the programme
+            Real signatures with no row to sit on, usually somebody removed from the programme
             after signing, or an address corrected afterwards. They are shown rather than dropped:
             a register that quietly discarded them would understate what has actually been
             collected, and nothing in this project can delete one.

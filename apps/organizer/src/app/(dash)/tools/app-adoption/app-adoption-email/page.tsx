@@ -3,7 +3,8 @@ import { APP_DISTRIBUTION, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles } from '../../../ui';
+import { GapPanel, PageHeader, Panel, ProgressBar, StatTiles } from '../../../ui';
+import { Snippet } from '../snippet';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ It gives you:
 
 ${APP_DISTRIBUTION}
 
-Your ticket is already waiting — sign in with the email address you bought it
+Your ticket is already waiting. Sign in with the email address you bought it
 with and it will find you.
 
 Your ticket and claim code: ${origin}/tickets
@@ -58,6 +59,16 @@ The KGC team`;
     <>
       <PageHeader
         title="App Adoption Email"
+        info={
+          <>
+            <strong>This does not send</strong>
+            <p>
+              Copy it into whatever you already mail attendees from. Speakers and sponsors{' '}
+              <em>can</em> be mailed from this dashboard; a thousand attendees needs batching, an
+              unsubscribe register and bounce handling.
+            </p>
+          </>
+        }
         links={[
           <Link key="x" href={ROUTES.analyticsExports}>
             Analytics &amp; Exports
@@ -84,26 +95,13 @@ The KGC team`;
         </p>
       </Panel>
 
-      <Banner kind="info">
-        <strong>This does not send.</strong> Copy it into whatever you already mail attendees from.
-        Bulk attendee email is Whova&rsquo;s Email Campaign and is unbuilt on purpose — a thousand
-        recipients needs batching, an unsubscribe register and bounce handling, and getting that
-        wrong is how a sending domain gets blocked. Speakers and sponsors <em>can</em> be mailed
-        from here, because forty-five is a different problem.
-      </Banner>
-
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Subject</h2>
-        <pre className="whova-code">{subject}</pre>
-
-        <h2 className="section-header">Body</h2>
-        <pre className="whova-code">{body}</pre>
-
-        <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          The install sentence comes from one constant shared with the public site. On the day the
-          app is listed on a store, change it there and on the website — and not in a dozen pasted
-          copies of this email, which is why it is written this way.
-        </p>
+        <Snippet title="Subject" text={subject} />
+        <Snippet
+          title="Body"
+          note="The install sentence comes from one constant shared with the public site, so the day the app is listed it changes in one place rather than in a dozen pasted copies of this email."
+          text={body}
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

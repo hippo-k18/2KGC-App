@@ -3,7 +3,7 @@ import { allowlist, requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { SettingsReach } from '../../settings-reach';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
+import { GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +40,16 @@ export default async function AdminSettingsPage() {
     <>
       <PageHeader
         title="Admin Settings"
+        info={
+          <>
+            <strong>The switches are saved, not enforced</strong>
+            <p>
+              They write a real audited document that only this screen reads: the app decides for
+              itself whether to show the attendee list, and <code>firestore.rules</code> knows about
+              neither setting. The administrator table above them is live.
+            </p>
+          </>
+        }
         tags={<Tag color="blue">{admins.length} administrators</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
@@ -54,17 +64,10 @@ export default async function AdminSettingsPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>The switches below are saved and not enforced.</strong> They write a real audited
-        document that this screen reads back, and nothing else reads it: the app decides for itself
-        whether to show the attendee list, and <code>firestore.rules</code> knows nothing about
-        either setting. The administrator table above them <em>is</em> live.
-      </Banner>
-
       <Panel>
         <h2 className="section-header">Administrators</h2>
         <p className="body-2">
-          Every identity in <code>CONSOLE_ALLOWLIST</code>, re-checked on every request — removing
+          Every identity in <code>CONSOLE_ALLOWLIST</code>, re-checked on every request. Removing
           someone from the env var ends their live session too, not just their next sign-in. There
           is one privilege level: anybody on this list can refund an order, edit the agenda and
           check somebody in. Whova offers named roles and then says they grant identical rights;
@@ -75,18 +78,18 @@ export default async function AdminSettingsPage() {
             { key: 'e', label: 'Identity', className: 'cell-md' },
             { key: 'r', label: 'Privileges', className: 'cell-fill' },
           ]}
-          empty="CONSOLE_ALLOWLIST is empty — nobody can sign in"
+          empty="CONSOLE_ALLOWLIST is empty: nobody can sign in"
           rows={admins.map((e) => [
             <strong key="e">{e}</strong>,
             <span key="r" className="muted">
-              Full — read, write, refund, check-in
+              Full: read, write, refund, check-in
             </span>,
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           Editing this from a browser is deliberately impossible. A screen that can add an
           administrator is a screen that can grant Admin-SDK write access to the whole event, and
-          today the only credential in front of it is a shared passphrase — see the warning at the
+          today the only credential in front of it is a shared passphrase. See the warning at the
           top of <code>src/lib/auth.ts</code>, which is unambiguous that this is not to be exposed
           beyond localhost before SSO and MFA land.
         </p>

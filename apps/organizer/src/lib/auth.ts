@@ -71,7 +71,7 @@ function secret(): string {
   if (!s || s.length < 16) {
     throw new Error(
       'CONSOLE_SESSION_SECRET is missing or too short. Set at least 16 characters in ' +
-        'apps/organizer/.env.local — it signs the session cookie, and an unsigned cookie ' +
+        'apps/organizer/.env.local. It signs the session cookie, and an unsigned cookie ' +
         'is a text field that says "I am an organizer".',
     );
   }

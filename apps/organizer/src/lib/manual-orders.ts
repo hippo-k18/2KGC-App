@@ -111,7 +111,7 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
     return {
       ok: false,
       error:
-        'Say why this is being recorded — a cheque number, a wire reference, a contract id. ' +
+        'Say why this is being recorded. A cheque number, a wire reference, a contract id. ' +
         'This is the only record that the money is real.',
     };
   }

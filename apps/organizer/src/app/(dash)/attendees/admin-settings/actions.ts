@@ -49,6 +49,6 @@ export async function saveAdminSettingsAction(
     // Deliberately not "applied". The document is written and audited; nothing
     // reads it but this screen, and claiming otherwise is the defect class
     // AGENTS.md says this codebase keeps repeating.
-    message: 'Saved. Recorded and audited — no client enforces these yet.',
+    message: 'Saved. Recorded and audited, no client enforces these yet.',
   };
 }

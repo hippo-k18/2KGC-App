@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +33,16 @@ export default async function HybridSettingsPage() {
     <>
       <PageHeader
         title="Hybrid Settings"
+        info={
+          <>
+            <strong>KGC 2027 is in-person only</strong>
+            <p>
+              The data model has no remote half: no virtual flag on a session, no stream URL, no
+              audience on a registration. Nothing here is switched off. It is absent, which is why
+              there is no switch.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">in-person event</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
@@ -43,12 +53,6 @@ export default async function HybridSettingsPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>KGC 2027 is in-person only, and the data model has no remote half.</strong> There is
-        no virtual flag on a session, no stream URL, no audience on a registration and no player in
-        the app. Nothing here is switched off — it is absent, which is why there is no switch.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -63,7 +67,7 @@ export default async function HybridSettingsPage() {
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
             <strong>An audience on the registration, decided at purchase.</strong> Remote tickets
-            are a ticket type, so the money path is where this starts — and a remote ticket that
+            are a ticket type, so the money path is where this starts, and a remote ticket that
             still mints a <code>qrSecret</code> is a badge for a door somebody will never walk
             through. The check-in denominator on the desk screen would need to exclude them, or the
             progress bar reads permanently stalled.
@@ -78,7 +82,7 @@ export default async function HybridSettingsPage() {
           <li>
             <strong>A player in Expo Go.</strong> Video is a native module and Expo Go ships a fixed
             set. This is the same constraint that made the QR encoder hand-rolled, and video has no
-            equivalent pure-JS escape hatch — hybrid would need the development build that WP-06
+            equivalent pure-JS escape hatch. Hybrid would need the development build that WP-06
             already wants for other reasons.
           </li>
           <li>

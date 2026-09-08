@@ -79,8 +79,8 @@ export function TrackForm({ existing }: { existing?: EditableTrack }) {
               {existing.primaryCount === 0
                 ? 'none of which display it'
                 : `${existing.primaryCount} of which display it on the agenda card`}
-              . A rename rewrites those cards. Id <code>{existing.id}</code> never changes —
-              sessions point at it.
+              . A rename rewrites those cards. Id <code>{existing.id}</code> never changes.
+              Sessions point at it.
             </>
           ) : (
             'The filter chip an attendee taps in the app. Short enough to read on a phone.'
@@ -140,7 +140,7 @@ export function TrackForm({ existing }: { existing?: EditableTrack }) {
         label="Description"
         rows={3}
         defaultValue={existing?.description}
-        hint="Organizer-facing. Nothing in the app or on the website renders it yet — it is here so a programme committee can record what belongs in the track."
+        hint="Organizer-facing. Nothing in the app or on the website renders it yet."
       />
 
       <FormActions>

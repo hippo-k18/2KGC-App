@@ -104,7 +104,7 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
         <p className="body-2">
           <code>startsAt</code>, <code>endsAt</code> and <code>day</code> are recomputed from the
           wall clock above in <code>{session.timeZone}</code> every time you save, using the same{' '}
-          <code>deriveTimes()</code> the seed and the Whova importer use. A 21:00 reception is 01:00
+          <code>deriveTimes()</code> the seed and the CSV importer use. A 21:00 reception is 01:00
           UTC the next day; deriving <code>day</code> anywhere else puts it on the wrong tab on
           every phone. <Link href={ROUTES.report}>Report</Link> shows the audit trail.
         </p>

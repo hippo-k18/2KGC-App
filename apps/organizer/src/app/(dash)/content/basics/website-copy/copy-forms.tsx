@@ -31,9 +31,17 @@ function useCopyForm() {
 
 export function CodeOfConductForm({
   reportEmail,
+  fallbackEmail,
   committee,
 }: {
   reportEmail: string;
+  /**
+   * What `/code-of-conduct` prints while the box above is empty. Passed in
+   * rather than imported so this file holds no address of its own — the string
+   * is `EVENT.contactEmail`, declared once in `@kgc/shared` and read by the
+   * public page as well, so the hint cannot come to disagree with the page.
+   */
+  fallbackEmail: string;
   committee: string;
 }) {
   const [state, action] = useCopyForm();
@@ -52,7 +60,7 @@ export function CodeOfConductForm({
         width="xl"
         defaultValue={reportEmail}
         error={state.fieldErrors?.reportEmail}
-        hint="Where an incident is reported. Empty means the page keeps the address compiled into it."
+        hint={`Where an incident is reported. Leave it empty and the page prints ${fallbackEmail} instead. It does not print nothing.`}
       />
 
       <Textarea
@@ -131,7 +139,7 @@ export function CallPageForm({
         name="datesConfirmed"
         label="These dates are confirmed"
         defaultChecked={datesConfirmed}
-        description="Leave this off while the calendar is provisional. It only applies when the box above has dates in it — an author planning their year around a date nobody confirmed is what this flag exists to prevent."
+        description="Leave this off while the calendar is provisional. It only applies when the box above has dates in it. An author planning their year around a date nobody confirmed is what this flag exists to prevent."
       />
 
       <FormActions>

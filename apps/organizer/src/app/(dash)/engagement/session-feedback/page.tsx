@@ -18,7 +18,19 @@ export default async function SessionFeedbackPage({
     <SurveyScreen
       mode="session"
       title="Session Feedback"
-      intro="Feedback attached to a specific session. Three questions is the right length — a rating, a match-to-description, and one free-text box — and the free-text box is where everything useful comes from."
+      info={
+        <>
+          <strong>Feedback on one session</strong>
+          <p>
+            Three questions is the right length. A rating, a match-to-description, and one free-text
+            box, which is where everything useful comes from.
+          </p>
+          <p>
+            Answers are never attributed, and the app has no screen that renders a survey yet, so a
+            published one is not yet answerable from a phone.
+          </p>
+        </>
+      }
       searchParams={searchParams}
     />
   );

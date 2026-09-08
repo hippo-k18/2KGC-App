@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +12,11 @@ export const dynamic = 'force-dynamic';
  * because remote attendees have no other way to react to a talk; in a physical
  * room they turn to the person next to them.
  *
- * That makes this screen doubly absent: the feature it moderates is missing,
- * and the reason the feature is missing is the same streaming decision recorded
- * across the Virtual & Hybrid cluster. Worth stating rather than filing as
- * generic unbuilt work — this is not a gap somebody forgot, it is downstream of
- * a choice.
+ * That makes this screen doubly absent — the feature it moderates is missing,
+ * and it is missing because of the streaming decision recorded across the
+ * Virtual & Hybrid cluster rather than because anybody forgot. What the screen
+ * does instead is answer the question a moderator actually arrives with: where
+ * does attendee text go, and which of those places has a queue.
  */
 export default async function ModerateSessionChatsPage() {
   await requireOrganizer();
@@ -24,6 +24,15 @@ export default async function ModerateSessionChatsPage() {
     <>
       <PageHeader
         title="Session Chats"
+        info={
+          <>
+            <strong>Sessions have no chat channel</strong>
+            <p>
+              A live chat is a companion to a stream, and nothing streams. What an attendee can
+              write during a talk is a Q&amp;A question, and that has a real queue.
+            </p>
+          </>
+        }
         links={[
           <Link key="b" href={ROUTES.moderateBoard}>
             Community Board
@@ -31,19 +40,21 @@ export default async function ModerateSessionChatsPage() {
           <Link key="q" href={ROUTES.qaManager}>
             Session Q&amp;A Manager
           </Link>,
-          <Link key="v" href="/virtual-and-hybrid/virtual-and-hybrid-setup">
-            Virtual &amp; Hybrid Setup
-          </Link>,
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Sessions have no chat.</strong> A live chat channel is a companion to a stream, and
-        nothing streams. What attendees can write during a talk is a Q&amp;A question, and that has
-        a real moderation screen.
-      </Banner>
-
       <Panel>
+        <NotInputted
+          what="session chat messages"
+          action={
+            <Link href="/tools/moderator-tools/moderate-session-qanda" className="whova-btn-main">
+              Moderate Session Q&amp;A
+            </Link>
+          }
+        />
+      </Panel>
+
+      <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where attendee text actually goes</h2>
         <Table
           cols={[
@@ -54,32 +65,24 @@ export default async function ModerateSessionChatsPage() {
             [
               'Session Q&A',
               <span key="m">
-                Real, and moderated at{' '}
-                <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link> — hide and mark
-                answered. Pinning is deliberately absent because it would reorder a board ranked by
-                a counter that does not move on the Spark plan.
+                Hide and mark answered, at{' '}
+                <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link>.
               </span>,
             ],
             [
               'Community board',
               <span key="m">
-                Real, with posts and replies, moderated at{' '}
+                Posts and replies: hide, restore and delete, at{' '}
                 <Link href={ROUTES.moderateBoard}>Community Board</Link>.
               </span>,
             ],
             [
               'Direct messages',
               <span key="m">
-                Real, and deliberately <strong>not</strong> moderated. Thread membership comes from{' '}
-                <code>participantIds</code> and the rules deny everyone else — a moderator inbox
+                Deliberately <strong>not</strong> moderated. Thread membership comes from{' '}
+                <code>participantIds</code> and the rules deny everyone else. A moderator inbox
                 over private messages would mean loosening that, which is a much larger decision
                 than a screen.
-              </span>,
-            ],
-            [
-              'Session chat',
-              <span key="m" className="muted">
-                Does not exist.
               </span>,
             ],
           ]}

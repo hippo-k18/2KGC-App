@@ -71,7 +71,7 @@ export function CodeForm() {
             style={{ maxWidth: 120 }}
           />
           <span className="muted" style={{ fontSize: 13 }}>
-            {kind === 'percent' ? '% off the ticket' : 'US dollars off — enter whole dollars'}
+            {kind === 'percent' ? '% off the ticket' : 'US dollars off: enter whole dollars'}
           </span>
         </div>
       </div>
@@ -94,7 +94,7 @@ export function CodeForm() {
           of it is a revenue figure that does not add up.
         */}
         <p className="muted" style={{ fontSize: 12 }}>
-          Blank for unlimited. Set it for anything you hand to a third party — an uncapped code that
+          Blank for unlimited. Set it for anything you hand to a third party. An uncapped code that
           escapes is a discount for everyone.
         </p>
       </div>

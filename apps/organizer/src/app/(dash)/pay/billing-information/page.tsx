@@ -28,6 +28,19 @@ export default async function BillingInformationPage() {
     <>
       <PageHeader
         title="Billing Information"
+        info={
+          <>
+            <strong>Nothing here is an input</strong>
+            <p>
+              This dashboard signs in with a shared passphrase and no per-person identity, so payout
+              and tax details stay behind Stripe&rsquo;s own login and its two-factor. Every row
+              below is a deep link.
+            </p>
+            {stripeEnabled() ? null : (
+              <p>No Stripe key is configured yet, so these links open an empty account.</p>
+            )}
+          </>
+        }
         tags={
           stripeEnabled() ? (
             <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
@@ -47,11 +60,17 @@ export default async function BillingInformationPage() {
         ]}
       />
 
+      {/*
+        Operational, and about money: an organizer who came here to change the
+        bank account has to be told, before they hunt for a form, that the change
+        happens in Stripe. The reasoning behind that — a shared passphrase is the
+        wrong credential for a payout detail — is a caveat and sits in the `info`
+        tip instead.
+      */}
       <Banner kind="warning">
-        <strong>Payout and tax details are edited in Stripe, never here.</strong> This dashboard
-        signs in with a shared passphrase and no per-person identity — changing a bank account
-        behind that would be the easiest theft in the product. Stripe has its own login and
-        enforces two-factor on exactly these screens, which is where they belong.
+        <strong>Payout and tax details are edited in Stripe, never here.</strong> Stripe enforces
+        two-factor on exactly these settings, and a change made there takes effect for KGC
+        immediately. Every row below opens the {stripeIsLive() ? 'live' : 'test'} Stripe dashboard.
       </Banner>
 
       <Panel>
@@ -79,7 +98,7 @@ export default async function BillingInformationPage() {
             ],
             [
               'Tax registration and the event location',
-              'An event ticket is taxed where the event happens, not where the buyer lives. Setting the location is what makes that correct — see SETUP-PAYMENTS.md §5.',
+              'An event ticket is taxed where the event happens, not where the buyer lives. Setting the location is what makes that correct. See SETUP-PAYMENTS.md §5.',
               <a key="l" href={`${base}settings/tax`} target="_blank" rel="noreferrer">
                 Open ↗
               </a>,
@@ -105,10 +124,9 @@ export default async function BillingInformationPage() {
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What KGC pays</h2>
         <p className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
-          Nothing to a platform — that is the point of running this ourselves. Stripe takes roughly
-          2.9% + $0.30 per transaction and nothing else: no monthly fee, no per-ticket fee, and no
-          charge at all in a month with no sales. <code>PAYMENTS.md</code> works through the
-          comparison that decided it, which came out at roughly $30,000 across a thousand tickets.
+          Stripe takes roughly 2.9% + $0.30 per transaction and nothing else: no monthly fee, no
+          per-ticket fee, and no charge at all in a month with no sales. There is no platform fee on
+          top of it, so the whole of the rest of a ticket price reaches KGC&rsquo;s bank.
         </p>
       </Panel>
     </>

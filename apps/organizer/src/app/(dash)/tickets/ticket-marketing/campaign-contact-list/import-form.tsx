@@ -42,7 +42,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
         )}
         <p className="muted" style={{ fontSize: 12 }}>
           Contacts are <strong>not</strong> registrations. Nobody imported here holds a ticket or
-          appears on the attendee list — they are people to email, and folding them together would
+          appears on the attendee list. They are people to email, and folding them together would
           put non-attendees into the collection that decides who gets through the door.
         </p>
       </>
@@ -79,7 +79,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
             </datalist>
             <p className="muted" style={{ fontSize: 12 }}>
               Contacts can be on several lists at once, and re-importing{' '}
-              <strong>adds</strong> to their lists rather than replacing them — so somebody on last
+              <strong>adds</strong> to their lists rather than replacing them, so somebody on last
               year&rsquo;s list who also joins the workshop waitlist stays on both.
             </p>
           </div>
@@ -176,7 +176,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
 
           <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
             ⚠️ Anyone in this file who has already unsubscribed <strong>stays unsubscribed</strong>.
-            An import cannot clear a suppression — that is how a conference loses its sending domain,
+            An import cannot clear a suppression. That is how a conference loses its sending domain,
             and the damage lands on the ticket receipts rather than on the newsletter that caused it.
           </p>
 

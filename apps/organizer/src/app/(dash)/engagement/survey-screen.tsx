@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { requireOrganizer } from '@/lib/auth';
 import { feedbackTargets, listSurveys, summarise, type SurveyRow } from '@/lib/surveys';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { setSurveyStatusAction } from './survey-actions';
 import { SurveyForm } from './survey-form';
 
@@ -23,12 +24,17 @@ import { SurveyForm } from './survey-form';
 export async function SurveyScreen({
   mode,
   title,
-  intro,
+  info,
   searchParams,
 }: {
   mode: 'event' | 'session';
   title: string;
-  intro: string;
+  /**
+   * The screen's caveats, behind the header's "i". What used to sit here was a
+   * full-width banner of prose about how this differs from Whova's two
+   * products, which an organizer read before reaching the survey list.
+   */
+  info: ReactNode;
   searchParams: Promise<{ edit?: string; new?: string; results?: string }>;
 }) {
   await requireOrganizer();
@@ -49,6 +55,7 @@ export async function SurveyScreen({
     <>
       <PageHeader
         title={title}
+        info={info}
         tags={<Tag color="blue">{scoped.length} total</Tag>}
         actions={
           showForm || summary ? (
@@ -68,7 +75,21 @@ export async function SurveyScreen({
         ]}
       />
 
-      <Banner kind="info">{intro}</Banner>
+      {/*
+        The one operational thing on this screen: a published survey is open to
+        answers right now, and unpublishing it is the only way to close it.
+        Everything else that used to be a banner here — how this differs from
+        Whova's two products, that the app cannot yet render a survey — is a
+        caveat and lives behind the header's "i".
+      */}
+      {live > 0 && !showForm && !summary ? (
+        <Banner kind="info">
+          <strong>
+            {live} {live === 1 ? 'survey is' : 'surveys are'} published and open to answers.
+          </strong>{' '}
+          Unpublishing closes it to new ones; answers already given stay.
+        </Banner>
+      ) : null}
 
       <StatTiles
         tiles={[
@@ -89,7 +110,7 @@ export async function SurveyScreen({
             {summary.responses === 1 ? 'response' : 'responses'}
           </h2>
           {summary.responses === 0 ? (
-            <p className="muted">Nobody has answered yet.</p>
+            <NotInputted what="responses" compact />
           ) : (
             summary.questions.map((q) => (
               <div key={q.id} style={{ borderTop: '1px solid var(--hairline)', paddingTop: 12, marginTop: 12 }}>
@@ -129,7 +150,7 @@ export async function SurveyScreen({
           )}
           <p className="muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>
             No answer here is attributed to anyone. Responses are keyed by uid so nobody can answer
-            twice, and this screen deliberately cannot join the two — feedback a speaker can trace
+            twice, and this screen deliberately cannot join the two. Feedback a speaker can trace
             back to a name is feedback nobody gives honestly.
           </p>
         </Panel>
@@ -143,21 +164,14 @@ export async function SurveyScreen({
       ) : (
         <Panel>
           {scoped.length === 0 ? (
-            <EmptyState
-              icon="◔"
+            <NotInputted
+              what={mode === 'session' ? 'session feedback forms' : 'event surveys'}
               action={
                 <Link href="?new=1" className="whova-btn-main">
                   Create the first one
                 </Link>
               }
-            >
-              <strong>Nothing yet.</strong>
-              <p className="muted" style={{ marginTop: 6 }}>
-                {mode === 'session'
-                  ? 'Session feedback is the single most useful thing to collect — it decides next year’s programme.'
-                  : 'An event survey goes out after the conference and asks about the whole thing.'}
-              </p>
-            </EmptyState>
+            />
           ) : (
             <Table
               cols={[

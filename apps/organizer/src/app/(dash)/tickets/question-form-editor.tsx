@@ -92,10 +92,10 @@ export function QuestionEditor({
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
           {needsOptions
-            ? 'Choices are countable — the catering figure comes from these, and free text does not add up.'
+            ? 'Choices are countable: the catering figure comes from these, and free text does not add up.'
             : kind === 'consent'
               ? 'A consent box records a decision rather than a preference. It is never pre-ticked and cannot be required.'
-              : 'Free text is exported but not tallied — a hundred distinct sentences is a list, not a distribution.'}
+              : 'Free text is exported but not tallied. A hundred distinct sentences is a list, not a distribution.'}
         </p>
       </div>
 
@@ -112,8 +112,8 @@ export function QuestionEditor({
             placeholder={'Vegetarian\nVegan\nGluten-free\nNo requirements'}
           />
           <p className="muted" style={{ fontSize: 12 }}>
-            One per line, at least two. Include the &ldquo;none of these&rdquo; option explicitly —
-            a blank answer and &ldquo;no requirements&rdquo; look identical in an export and mean
+            One per line, at least two. Include the &ldquo;none of these&rdquo; option explicitly.
+            A blank answer and &ldquo;no requirements&rdquo; look identical in an export and mean
             different things to a caterer.
           </p>
         </div>
@@ -128,7 +128,7 @@ export function QuestionEditor({
           name="helpText"
           maxLength={200}
           defaultValue={editing?.helpText}
-          placeholder="optional — shown under the field"
+          placeholder="optional. Shown under the field"
         />
       </div>
 
@@ -153,7 +153,7 @@ export function QuestionEditor({
           <p className="muted" style={{ fontSize: 12 }}>
             Consent that cannot be withheld is not consent, and in several jurisdictions does not
             count as it. If this is genuinely a condition of attending, make it a{' '}
-            <strong>Checkbox</strong> and say so in the prompt — &ldquo;I have read the code of
+            <strong>Checkbox</strong> and say so in the prompt. &ldquo;I have read the code of
             conduct&rdquo; is a gate, not a consent.
           </p>
         )}
@@ -180,7 +180,7 @@ export function QuestionEditor({
         <p className="muted" style={{ fontSize: 12 }}>
           Select nothing to ask everybody, which is what most questions want. A buyer who answers
           and then switches to a tier that does not ask this has their answer{' '}
-          <strong>dropped, not rejected</strong> — they have done nothing wrong.
+          <strong>dropped, not rejected</strong>. They have done nothing wrong.
         </p>
       </div>
 

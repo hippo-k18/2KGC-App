@@ -1,35 +1,93 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, GapTag, NotBuilt, PageHeader, Panel } from '../../../ui';
+import { listVolunteers, overlappingShifts, summariseRoster, withRegistrations } from '@/lib/volunteers';
+import { ConfirmButton } from '../../../form';
+import { Banner, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, StatTiles, Table, Tag, listParams, paginate } from '../../../ui';
+import { deleteVolunteerAction, setVolunteerStatusAction } from './actions';
+import { VolunteerForm } from './form';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Attendees › Call for Volunteers › Volunteer Manager.
  *
- * There is no volunteer anywhere in this project. Not a collection, not a
- * field, not a role — `Role` in `packages/shared/src/models.ts` is the list the
- * custom claim mirrors, and a volunteer is not in it.
+ * ── What this is, and what it deliberately is not ───────────────────────────
  *
- * So this screen has nothing to show, and it shows nothing rather than an empty
- * table with column headers. A table implies rows will arrive; the truthful
- * shape of "this entity does not exist" is a sentence.
+ * A roster: people, shifts, and whether each one has said yes. `volunteers` is
+ * its own server-only collection rather than a role on `users`, because a role
+ * is a claim minted from a laptop by `scripts/src/set-claims.ts` and adding a
+ * volunteer through this screen would have granted precisely nothing — the
+ * silent-no-op defect AGENTS.md counts fourteen instances of. It is also not
+ * `contacts`: that collection's `unsubscribedAt` suppresses sends, and somebody
+ * who left the newsletter still has to be told which door to stand at.
  *
- * Worth naming what the gap actually is, because it is bigger than a CRUD
- * screen: a volunteer is someone with a *shift*, and a shift is a time, a
- * place, a required headcount and a person who did or did not turn up. That is
- * a small rostering product, not a list of names — which is why the estimate
- * below is not the two days a plain entity screen would cost.
+ * The shift is on the row, so one person working two shifts is two rows joined
+ * by their address. That is the shape the question needs — "who is on the desk
+ * at 08:00" is a filter over rows — and `overlappingShifts()` is the one piece
+ * of roster arithmetic done on read, because a volunteer double-booked at 09:00
+ * is a hole in the plan that nobody notices until 09:00.
+ *
+ * ── Recruitment is still a form this project does not have ──────────────────
+ *
+ * Whova's call for volunteers is a public submission portal, the same missing
+ * capability behind Call for Speakers. Rows arrive here by hand or from the
+ * CSV import on Attendees. That is stated in the header tip rather than on the
+ * page, because it is a limit of this software and not something an organizer
+ * does anything about in the next minute.
  */
-export default async function VolunteerManagerPage() {
+export default async function VolunteerManagerPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
+
+  const sp = await searchParams;
+  const filter = typeof sp.status === 'string' ? sp.status : undefined;
+  const { page, baseParams } = listParams(sp);
+
+  const [roster, sessions] = await Promise.all([
+    listVolunteers().then(withRegistrations),
+    listSessions(),
+  ]);
+
+  const summary = summariseRoster(roster);
+  const clashes = overlappingShifts(roster);
+
+  // The days the event actually runs on, offered to the shift field so a roster
+  // cannot be built for a Saturday the conference does not use.
+  const days = [...new Set(sessions.filter((s) => s.status !== 'cancelled').map((s) => s.day))].sort();
+
+  const matched = filter ? roster.filter((r) => r.status === filter) : roster;
+  const pageRows = paginate(matched, page, PER_PAGE);
+
+  const chip = (value: string | undefined, label: string, count: number) => (
+    <Link
+      key={label}
+      className={`whova-tag-main ${value === filter ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+      href={value ? `?status=${value}` : '/attendees/call-for-volunteers/volunteer-manager'}
+      style={{ textDecoration: 'none' }}
+    >
+      {label} ({count})
+    </Link>
+  );
 
   return (
     <>
       <PageHeader
         title="Volunteer Manager"
-        tags={<GapTag />}
+        info={
+          <>
+            <strong>A roster, not a recruitment portal</strong>
+            <p>
+              Volunteers are added here or imported; there is no public sign-up form yet. A
+              volunteer holds no extra access. The roster records who is doing what and when.
+            </p>
+          </>
+        }
+        tags={<Tag color="blue">{summary.total} on the roster</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
             Attendees
@@ -40,72 +98,209 @@ export default async function VolunteerManagerPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>No volunteer model exists.</strong> There is no <code>volunteers</code> collection,
-        no volunteer role on <code>UserDoc.roles</code>, and no shift anywhere in the schema.
-        Nothing on this screen is stored, filtered or exported, because there is nothing to store.
-      </Banner>
+      {clashes.length > 0 ? (
+        <Banner kind="warning">
+          <strong>
+            {clashes.length} {clashes.length === 1 ? 'volunteer is' : 'volunteers are'} rostered on
+            two shifts at once.
+          </strong>{' '}
+          {clashes
+            .slice(0, 3)
+            .map(([a, b]) => `${a.name}: ${a.role} and ${b.role} on ${a.day}`)
+            .join('; ')}
+          {clashes.length > 3 ? `, and ${clashes.length - 3} more` : ''}. One of each pair has
+          nobody standing at it.
+        </Banner>
+      ) : null}
 
-      <Panel>
-        <EmptyState icon="◌">
-          <strong>Nothing to manage yet.</strong>
-          <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-            Volunteers today are people in the <Link href={ROUTES.attendees}>attendee list</Link>{' '}
-            who someone knows to be helping. That knowledge lives in a spreadsheet or a head, and
-            this dashboard has no view of it.
-          </div>
-        </EmptyState>
-      </Panel>
-
-      <Panel>
-        <h2 className="section-header">What building it would involve</h2>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>A volunteer is an attendee with a shift, not a separate person.</strong> Modelling
-            them as their own collection duplicates the name, the email and the check-in; the
-            cheaper shape is a <code>shifts</code> collection referencing{' '}
-            <code>registrationId</code>, so a volunteer badge, a volunteer check-in and a volunteer
-            message all reuse what already works.
-          </li>
-          <li>
-            <strong>Roster arithmetic is the real feature.</strong> Required headcount per shift
-            against confirmed, clashes against the agenda, and a view by person and by slot. The
-            conflict-detection code in <code>lib/conflicts-core.ts</code> is the nearest thing here
-            and it is about sessions, not people.
-          </li>
-          <li>
-            <strong>Recruitment needs a public form.</strong> A call for volunteers is a submission
-            portal, which is the same missing capability that blocks Call for Speakers and
-            registration Question Forms. Building any one of the three is most of the work for all
-            three.
-          </li>
-        </ul>
-      </Panel>
-
-      <NotBuilt
-        whova="A call-for-volunteers form, a volunteer list with roles and shifts, and bulk messaging to volunteers."
-        needs="A shifts collection keyed to registrations, a public submission form, and roster views. The submission form is shared with Call for Speakers and Question Forms."
-        size="5–7 days, of which the generic submission form is roughly half"
-        refs="ROADMAP.md — the five missing capabilities that each block a cluster of screens"
+      <StatTiles
+        tiles={[
+          {
+            label: 'Shifts',
+            value: summary.total,
+            sub: summary.total
+              ? `${summary.people} ${summary.people === 1 ? 'person' : 'people'}`
+              : 'not inputted yet',
+          },
+          {
+            label: 'Confirmed',
+            value: summary.confirmed,
+            sub: summary.total ? `of ${summary.total} shifts` : 'not inputted yet',
+          },
+          {
+            label: 'Awaiting an answer',
+            value: summary.outstanding,
+            sub: summary.outstanding ? 'invited, not yet replied' : 'nobody outstanding',
+          },
+          {
+            label: 'No shift yet',
+            value: summary.unscheduled,
+            sub: summary.unscheduled ? 'said yes to nothing in particular' : 'every row has a time',
+          },
+        ]}
       />
 
-      <GapPanel>
-        <h2 className="section-header">Not built here</h2>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>Everything on this screen.</strong> No volunteer is stored, listed, assigned or
-            contacted from here.
-          </li>
-          <li>
-            <strong>Volunteer check-in.</strong> The door scanner checks in whoever holds a ticket;
-            it has no concept of arriving for a shift.
-          </li>
-          <li>
-            <strong>Consent and release forms.</strong> A separate gap with its own screen — see{' '}
-            <Link href="/attendees/release-and-consent-forms">Release &amp; Consent Forms</Link>.
-          </li>
-        </ul>
-      </GapPanel>
+      <Panel>
+        <h2 className="section-header">Roster ({matched.length})</h2>
+
+        {roster.length === 0 ? (
+          <NotInputted what="volunteers" />
+        ) : (
+          <>
+            <div className="toolbar">
+              {chip(undefined, 'Everyone', summary.total)}
+              {chip('confirmed', 'Confirmed', summary.confirmed)}
+              {chip('invited', 'Invited', summary.outstanding)}
+              {chip('declined', 'Declined', roster.filter((r) => r.status === 'declined').length)}
+              {chip('no-show', 'No-show', roster.filter((r) => r.status === 'no-show').length)}
+            </div>
+
+            <Table
+              cols={[
+                { key: 'n', label: 'Volunteer', className: 'cell-md' },
+                { key: 'r', label: 'Role', className: 'cell-mdsm' },
+                { key: 's', label: 'Shift', className: 'cell-mdsm' },
+                { key: 'st', label: 'Status', className: 'cell-sm' },
+                { key: 'a', label: '', className: 'cell-fill' },
+              ]}
+              empty="Nobody matches that filter"
+              rows={pageRows.map((v) => [
+                <span key="n">
+                  <strong>{v.name}</strong>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {v.email}
+                    {v.phone ? ` · ${v.phone}` : ''}
+                  </div>
+                  {v.registrationId ? (
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      also holds a ticket
+                    </div>
+                  ) : null}
+                </span>,
+                <span key="r">
+                  {v.role}
+                  {v.notes ? (
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      {v.notes}
+                    </div>
+                  ) : null}
+                </span>,
+                v.day ? (
+                  <span key="s" style={{ fontSize: 13 }}>
+                    {v.day}
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {v.startsAtLocal || '—'}
+                      {v.endsAtLocal ? `–${v.endsAtLocal}` : ''}
+                    </div>
+                  </span>
+                ) : (
+                  <span key="s" className="muted">
+                    no shift yet
+                  </span>
+                ),
+                <Tag
+                  key="st"
+                  color={
+                    v.status === 'confirmed'
+                      ? 'green'
+                      : v.status === 'invited'
+                        ? 'orange'
+                        : v.status === 'declined'
+                          ? 'grey'
+                          : 'red'
+                  }
+                  small
+                >
+                  {v.status}
+                </Tag>,
+                /*
+                  Two plain server-action forms rather than a select: the reply an
+                  organizer wants is the row changing, and a `<select>` that needs
+                  a Save beside it turns one click into three at the moment the
+                  roster is actually being worked through.
+                */
+                <span key="a" style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+                  {v.status !== 'confirmed' ? (
+                    <form action={setVolunteerStatusAction}>
+                      <input type="hidden" name="id" value={v.id} />
+                      <input type="hidden" name="status" value="confirmed" />
+                      <button type="submit" className="linkish">
+                        Confirm
+                      </button>
+                    </form>
+                  ) : null}
+                  {v.status !== 'declined' ? (
+                    <form action={setVolunteerStatusAction}>
+                      <input type="hidden" name="id" value={v.id} />
+                      <input type="hidden" name="status" value="declined" />
+                      <button type="submit" className="linkish">
+                        Declined
+                      </button>
+                    </form>
+                  ) : null}
+                  {v.status !== 'no-show' ? (
+                    <form action={setVolunteerStatusAction}>
+                      <input type="hidden" name="id" value={v.id} />
+                      <input type="hidden" name="status" value="no-show" />
+                      <button type="submit" className="linkish">
+                        No-show
+                      </button>
+                    </form>
+                  ) : null}
+                  <ConfirmButton
+                    action={deleteVolunteerAction}
+                    label="Remove"
+                    confirmLabel="Remove from roster"
+                    hidden={{ id: v.id }}
+                  >
+                    Takes {v.name} off the roster. Any waiver they signed stays. Consent
+                    signatures are append-only and nothing here can delete one.
+                  </ConfirmButton>
+                </span>,
+              ])}
+            />
+            <Pagination
+              total={matched.length}
+              page={page}
+              perPage={PER_PAGE}
+              baseParams={baseParams}
+            />
+          </>
+        )}
+      </Panel>
+
+      {summary.days.length > 0 ? (
+        <Panel>
+          <h2 className="section-header">Cover by day</h2>
+          <Table
+            cols={[
+              { key: 'd', label: 'Day', className: 'cell-sm' },
+              { key: 's', label: 'Shifts', className: 'cell-xs' },
+              { key: 'c', label: 'Confirmed', className: 'cell-xs' },
+              { key: 'g', label: '', className: 'cell-fill' },
+            ]}
+            rows={summary.days.map((d) => [
+              <strong key="d">{d.day}</strong>,
+              d.count,
+              d.confirmed,
+              d.confirmed < d.count ? (
+                <span key="g" style={{ fontSize: 13 }}>
+                  {d.count - d.confirmed} still to answer
+                </span>
+              ) : (
+                <span key="g" className="muted" style={{ fontSize: 13 }}>
+                  fully confirmed
+                </span>
+              ),
+            ])}
+          />
+        </Panel>
+      ) : null}
+
+      <Panel>
+        <h2 className="section-header">Add a volunteer</h2>
+        <VolunteerForm days={days} />
+      </Panel>
     </>
   );
 }

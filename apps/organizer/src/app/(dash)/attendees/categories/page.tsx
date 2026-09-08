@@ -162,7 +162,7 @@ export default async function CategoriesPage({
             {
               label: 'In more than one',
               value: multi,
-              sub: 'roles is a list — a speaker is also an attendee',
+              sub: 'roles is a list. A speaker is also an attendee',
             },
           ]}
         />
@@ -293,7 +293,7 @@ export default async function CategoriesPage({
           The category shown against a person is <code>users/&#123;uid&#125;.roles</code>, and that
           document decides nothing. <code>firestore.rules</code> gates on the <code>roles</code>{' '}
           <strong>custom claim</strong> carried in the ID token —{' '}
-          <code>request.auth.token.roles</code> — and never reads the profile to work out who you
+          <code>request.auth.token.roles</code>, and never reads the profile to work out who you
           are, deliberately: an earlier version did, which cost a document read per rule evaluation
           and counted against the hard cap of ten access calls per request.
         </p>
@@ -302,7 +302,7 @@ export default async function CategoriesPage({
           <code>setCustomUserClaims</code> is <code>scripts/src/set-claims.ts</code>, run from a
           laptop as the stand-in for the <code>verifyOtp</code> Cloud Function that Spark cannot
           deploy. An &ldquo;add to category&rdquo; button here would therefore write the mirror,
-          leave the claim alone, and display a speaker with none of a speaker&apos;s access — a row
+          leave the claim alone, and display a speaker with none of a speaker&apos;s access. A row
           that looks correct and is not. Claims also only refresh when a token is issued, so even
           after someone ran the script the person would carry the old one until they signed out and
           back in, for up to an hour.
@@ -311,7 +311,7 @@ export default async function CategoriesPage({
           Of the six values <code>Role</code> defines, exactly one changes behaviour today:{' '}
           <code>organizer</code>, which opens every user document and every draft and is the gate on
           this dashboard. <code>reviewer</code>, <code>exhibitor</code> and <code>checkin</code> are
-          modelled and read by nothing — <code>checkin</code> in particular grants no check-in
+          modelled and read by nothing. <code>checkin</code> in particular grants no check-in
           rights, because every write under <code>checkInLists</code> and <code>scanEvents</code> is
           denied to all clients and made with the Admin SDK instead.
         </p>

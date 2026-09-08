@@ -81,7 +81,7 @@ export function DeskComposer({
               <option key={r.uid} value={r.uid}>
                 {r.isSpeaker ? '★ ' : ''}
                 {r.name}
-                {r.detail ? ` — ${r.detail}` : ''}
+                {r.detail ? ` · ${r.detail}` : ''}
               </option>
             ))}
           </select>
@@ -112,8 +112,8 @@ export function DeskComposer({
           phone buzzes will assume the message was ignored when it was not.
         */}
         <p className="muted" style={{ fontSize: 12 }}>
-          Plain text, delivered to their app inbox. <strong>There is no push notification</strong> —
-          they see it when they next open the app. For anything that cannot wait, ring them.
+          Plain text, delivered to their app inbox. <strong>There is no push notification</strong>.
+          They see it when they next open the app. For anything that cannot wait, ring them.
         </p>
       </div>
 

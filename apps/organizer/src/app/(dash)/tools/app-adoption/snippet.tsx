@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { listSessions } from '@/lib/data';
+import { QR_QUIET_ZONE, linkQr } from '@/lib/qr';
 
 /**
  * The one thing every App Adoption screen is actually made of: text an
@@ -116,3 +117,73 @@ export async function eventWindow(): Promise<string | null> {
 
 /** The placeholder every snippet uses for the link nobody can generate yet. */
 export const INSTALL_LINK_PLACEHOLDER = '{{install link}}';
+
+/**
+ * A link QR, drawn inline.
+ *
+ * ── This is not the badge symbol, and the difference is the whole point ─────
+ *
+ * `linkQr` encodes a public URL. The badge QR encodes `qrSecret`, which is a
+ * bearer credential for attendance, and nothing on an App Adoption screen may
+ * ever carry one: these screens exist to hand an organizer something they will
+ * print on a table sign and paste in front of a thousand people. `@/lib/qr`
+ * keeps the two builders apart so that the mistake has to be made deliberately.
+ *
+ * Level Q (chosen inside `linkQr`) rather than the encoder's default, because
+ * this symbol gets read off a printed card under conference lighting by a phone
+ * at arm's length — 25% recovery buys back the glare spot and the coffee ring.
+ *
+ * `shapeRendering="crispEdges"` matters more than it looks: the default
+ * antialiasing softens a module edge, and a soft edge at small print sizes is
+ * the difference between a symbol that reads first time and one somebody has to
+ * hold still for.
+ */
+export function QrSymbol({
+  text,
+  px = 180,
+  label,
+}: {
+  text: string;
+  px?: number;
+  /** Accessible name. The URL itself, usually — it is what the symbol says. */
+  label: string;
+}) {
+  const { d, size } = linkQr(text);
+  const box = size + QR_QUIET_ZONE * 2;
+
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox={`0 0 ${box} ${box}`}
+      role="img"
+      aria-label={label}
+      shapeRendering="crispEdges"
+      style={{ background: '#fff', display: 'block' }}
+    >
+      <path d={d} fill="#000" transform={`translate(${QR_QUIET_ZONE} ${QR_QUIET_ZONE})`} />
+    </svg>
+  );
+}
+
+/**
+ * The same symbol as standalone SVG markup, for pasting into a slide, an email
+ * or a page.
+ *
+ * SVG rather than a PNG data URI because there is no rasteriser in this
+ * project and a vector symbol prints at whatever resolution the printer has —
+ * which is exactly what a table sign needs. It is also small enough to paste:
+ * a version-4 symbol is a few kilobytes of path, against a hundred for an
+ * image big enough to print.
+ */
+export function qrSvgMarkup(text: string, px = 240): string {
+  const { d, size } = linkQr(text);
+  const box = size + QR_QUIET_ZONE * 2;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" ` +
+    `viewBox="0 0 ${box} ${box}" shape-rendering="crispEdges" role="img">` +
+    `<rect width="${box}" height="${box}" fill="#fff"/>` +
+    `<path transform="translate(${QR_QUIET_ZONE} ${QR_QUIET_ZONE})" fill="#000" d="${d}"/>` +
+    `</svg>`
+  );
+}

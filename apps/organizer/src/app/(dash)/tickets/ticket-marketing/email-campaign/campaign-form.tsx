@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { sendCampaignAction, type CampaignState } from './actions';
@@ -43,7 +44,8 @@ export function CampaignForm({
     return (
       <p className="muted" style={{ fontSize: 13 }}>
         There are no contact lists to send to. Import one on{' '}
-        <a href="/tickets/ticket-marketing/campaign-contact-list">Campaign Contact List</a> first.
+        <Link href="/tickets/ticket-marketing/campaign-contact-list">Campaign Contact List</Link>{' '}
+        first.
       </p>
     );
   }
@@ -76,7 +78,7 @@ export function CampaignForm({
           required
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          placeholder="KGC 2027 tickets are open — early-bird until 1 March"
+          placeholder="KGC 2027 tickets are open. Early-bird until 1 March"
           maxLength={120}
         />
       </div>
@@ -98,7 +100,7 @@ export function CampaignForm({
         />
         <p className="muted" style={{ fontSize: 12 }}>
           Plain text. A blank line starts a new paragraph; nothing else is formatted. Each person
-          gets &ldquo;Hi &lt;first name&gt;,&rdquo; automatically — don&rsquo;t write your own
+          gets &ldquo;Hi &lt;first name&gt;,&rdquo; automatically. Don&rsquo;t write your own
           greeting. Use a <code>/r/</code> link so you can tell afterwards whether this worked.
         </p>
       </div>
@@ -119,7 +121,7 @@ export function CampaignForm({
             checked={testOnly}
             onChange={(e) => setTestOnly(e.target.checked)}
           />{' '}
-          <strong>Send me a test first</strong> — nothing goes to the list
+          <strong>Send me a test first</strong>. Nothing goes to the list
         </label>
 
         {testOnly ? (

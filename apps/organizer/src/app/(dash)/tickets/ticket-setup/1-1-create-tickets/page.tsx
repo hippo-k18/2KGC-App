@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money, soldCountLedger } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import type { TicketAudience } from '@kgc/shared';
 import {
   Banner,
-  EmptyState,
   GapPanel,
+  NotInputted,
   PageHeader,
   Panel,
   ProgressBar,
@@ -43,10 +44,20 @@ export const dynamic = 'force-dynamic';
 export default async function CreateTicketsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ edit?: string; new?: string }>;
+  searchParams: Promise<{ edit?: string; new?: string; audience?: string }>;
 }) {
   await requireOrganizer();
-  const { edit, new: creating } = await searchParams;
+  const { edit, new: creating, audience } = await searchParams;
+
+  // The exhibitor and sponsor catalogues send people here to price a package.
+  // Carrying the audience through means the form opens on the right catalogue
+  // rather than on the attendee one, which is the default that would silently
+  // publish a booth to the public tickets page.
+  const requestedAudience = (['attendee', 'exhibitor', 'sponsor'] as const).includes(
+    audience as TicketAudience,
+  )
+    ? (audience as TicketAudience)
+    : undefined;
 
   const [all, ledger] = await Promise.all([listTicketTypes(), soldCountLedger()]);
 
@@ -62,7 +73,7 @@ export default async function CreateTicketsPage({
    */
   const tickets = all.filter((t) => t.audience === 'attendee');
   const editing = edit ? all.find((t) => t.id === edit) : undefined;
-  const showForm = Boolean(creating) || Boolean(editing);
+  const showForm = Boolean(creating) || Boolean(editing) || Boolean(requestedAudience);
 
   const totalSold = tickets.reduce((n, t) => n + t.quantitySold, 0);
 
@@ -70,6 +81,16 @@ export default async function CreateTicketsPage({
     <>
       <PageHeader
         title="1.1 Create Tickets"
+        info={
+          <>
+            <strong>These documents are the price list</strong>
+            <p>
+              The website reads <code>ticketTypes</code> to decide what to sell and hands Stripe the
+              same <code>priceCents</code>, so an edit here changes what the next buyer pays with no
+              deploy. A tier cannot be deleted (orders point at it by id) only hidden.
+            </p>
+          </>
+        }
         tags={<Tag color="blue">{tickets.length} types</Tag>}
         actions={
           !showForm ? (
@@ -108,13 +129,13 @@ export default async function CreateTicketsPage({
             <Banner kind="info">
               <strong>This is a {editing.audience} package, not an attendee ticket.</strong> It
               sells at <code>/tickets/{editing.audience}</code> and stays a {editing.audience}{' '}
-              package when you save — the Audience field below is what decides that.
+              package when you save. The Audience field below is what decides that.
             </Banner>
           )}
           {editing && editing.quantitySold > 0 && (
             <Banner kind="info">
               <strong>{editing.quantitySold} of these have already been sold.</strong> Changing the
-              price affects future purchases only — past orders keep the amount they were charged.
+              price affects future purchases only. Past orders keep the amount they were charged.
             </Banner>
           )}
           {/*
@@ -143,7 +164,7 @@ export default async function CreateTicketsPage({
                 them will register on payment whatever this cap says.
               </Banner>
             )}
-          <TicketForm existing={editing} />
+          <TicketForm existing={editing} defaultAudience={requestedAudience} />
           {editing && (
             <SoldCountForm
               id={editing.id}
@@ -156,21 +177,14 @@ export default async function CreateTicketsPage({
       ) : (
         <Panel>
           {tickets.length === 0 ? (
-            <EmptyState
-              icon="◇"
+            <NotInputted
+              what="ticket types"
               action={
-                <Link href="?new=1" className="whova-btn-main">
+                <Link href="?new=1" className="btn btn-primary">
                   Create the first ticket
                 </Link>
               }
-            >
-              <strong>Nothing is on sale.</strong>
-              <p className="muted" style={{ marginTop: 6 }}>
-                The website has nothing to sell until a ticket type exists here — its tickets page
-                will show an error rather than guess at a price. Run <code>npm run seed</code> to
-                restore the four standard tiers, or create one now.
-              </p>
-            </EmptyState>
+            />
           ) : (
             <>
               <Table

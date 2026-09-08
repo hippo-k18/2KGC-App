@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { LinkRow } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
 import { Table, Tag } from '../../ui';
@@ -26,7 +27,7 @@ export function LinkTable({
   links: LinkRow[];
   publicOrigin: string;
   showOwner?: boolean;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
 }) {
   return (
     <Table

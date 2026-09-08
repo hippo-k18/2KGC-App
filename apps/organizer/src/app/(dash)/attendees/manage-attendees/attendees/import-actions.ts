@@ -93,7 +93,7 @@ export async function commitImportAction(
       csv,
       error:
         outcome.errors.length > 0
-          ? 'Nothing was imported — the file still has problems. Fix them, or tick “import the good rows anyway”.'
+          ? 'Nothing was imported. The file still has problems. Fix them, or tick “import the good rows anyway”.'
           : 'Nothing was imported.',
       errors: outcome.errors,
       totalRows: outcome.totalRows,

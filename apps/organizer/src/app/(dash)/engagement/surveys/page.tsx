@@ -12,7 +12,18 @@ export default async function SurveysPage({
     <SurveyScreen
       mode="event"
       title="Surveys"
-      intro="Event-wide surveys — the post-conference one, or anything asked of everybody. A survey attached to a session appears under Session Feedback instead."
+      info={
+        <>
+          <strong>Event-wide surveys</strong>
+          <p>
+            Asked of everybody. One attached to a session appears under Session Feedback instead.
+          </p>
+          <p>
+            Answers are never attributed, and the app has no screen that renders a survey yet, so a
+            published one is not yet answerable from a phone.
+          </p>
+        </>
+      }
       searchParams={searchParams}
     />
   );

@@ -96,7 +96,7 @@ export async function commitTrackImport(input: {
       errors: [
         {
           line: 0,
-          message: `${preview.totalRows} rows is above the ${MAX_ROWS} cap. That looks like a session list rather than a track list — importing it would create one track per talk.`,
+          message: `${preview.totalRows} rows is above the ${MAX_ROWS} cap. That looks like a session list rather than a track list. Importing it would create one track per talk.`,
         },
       ],
       totalRows: preview.totalRows,
@@ -179,7 +179,7 @@ export async function commitTrackImport(input: {
           // Stated, never swallowed: a half-applied recolour leaves some cards
           // in the old palette and there is no second pass that would notice.
           fanOutFailures.push(
-            `${name}: ${fan.failed.length} session(s) still show the old colour — ${fan.errors[0] ?? 'the batch failed'}`,
+            `${name}: ${fan.failed.length} session(s) still show the old colour. ${fan.errors[0] ?? 'the batch failed'}`,
           );
         }
       }

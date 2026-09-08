@@ -4,7 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { getRoom, listRoomRows } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { RoomForm, type EditableRoom } from './room-form';
 
 export const dynamic = 'force-dynamic';
@@ -14,11 +14,11 @@ export const dynamic = 'force-dynamic';
  *
  * ── Why the room editor is here ─────────────────────────────────────────────
  *
- * `nav.ts` is Whova's own tree, lifted from their shipped bundle, and it has no
+ * `nav.ts` is a transcription of a shipped product's own tree and it has no
  * rooms node — Logistics Center is the leaf that owns the venue, and it was
  * already the one screen displaying a room count. Adding
- * `logistics-center/room-manager` would put a path in the sidebar that Whova
- * does not have, and on IA questions `nav.ts` wins. So the rooms live here.
+ * `logistics-center/room-manager` would put a path in the sidebar the tree does
+ * not have, and on IA questions `nav.ts` wins. So the rooms live here.
  *
  * That closes the largest hole on this screen. Rooms were readable by three
  * modules (`data.ts`, `conflicts.ts`, `cohorts.ts`) and writable by nothing but
@@ -84,6 +84,16 @@ export default async function LogisticsCenterPage({
     <>
       <PageHeader
         title="Logistics Center"
+        info={
+          <>
+            <strong>Rooms, not venue notes</strong>
+            <p>
+              Wifi, parking, shuttles and accessibility have no screen in the app to read them, so
+              there is no form for them here. Until there is, a titled link on the Documents screen
+              is what the app renders.
+            </p>
+          </>
+        }
         actions={
           showForm ? (
             <Link href="/content/logistics-center" className="whova-btn-main secondary">
@@ -149,11 +159,21 @@ export default async function LogisticsCenterPage({
           </h2>
           <p className="body-2">
             The room name is copied onto every session held in it, and that copy is what a phone
-            shows — the app has no read access to this collection, so there is no second source.
+            shows. The app has no read access to this collection, so there is no second source.
             Renaming a room here rewrites the name on every session in it, in one go, and says how
             many it touched.
           </p>
 
+          {rooms.length === 0 ? (
+            <NotInputted
+              what="rooms"
+              action={
+                <Link className="whova-btn-main" href="?new=1">
+                  Add the first one
+                </Link>
+              }
+            />
+          ) : (
           <Table
             cols={[
               { key: 'n', label: 'Room', className: 'cell-lg' },
@@ -163,7 +183,7 @@ export default async function LogisticsCenterPage({
               { key: 'p', label: 'Published', className: 'cell-xs cell-end-align' },
               { key: 'a', label: '', className: 'cell-xs cell-end-align' },
             ]}
-            empty="No rooms yet — add the first one and sessions can be placed in it."
+            empty="Not inputted yet"
             rows={rooms.map((r) => [
               <span key="n">
                 <strong>{r.name}</strong>
@@ -202,10 +222,11 @@ export default async function LogisticsCenterPage({
               </Link>,
             ])}
           />
+          )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
             <strong>There is no delete.</strong> Every session in a room points at it by id, and
-            the cached room name is the attendee&rsquo;s only wayfinding — deleting the document
+            the cached room name is the attendee&rsquo;s only wayfinding. Deleting the document
             would leave that name unrepairable, because the name needed to repair it went with it.
             A room that is no longer in use is emptied by moving its sessions in{' '}
             <Link href={ROUTES.sessionManager}>Session Manager</Link>, after which it appears above
@@ -216,20 +237,13 @@ export default async function LogisticsCenterPage({
 
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
-          What is fixed, and what is not here
+          The venue
         </h2>
         <p className="body-2">
-          The venue is <strong>{EVENT.venue}</strong>, and it is a compile-time constant in{' '}
-          <code>@kgc/shared</code> shared by the app, the seed script, the importer and this
-          dashboard — deliberately, so the four cannot drift. Basics explains why that is read-only
-          rather than a text input.
-        </p>
-        <p className="body-2">
-          Venue <em>notes</em> — arrival and parking, wifi, accessibility, shuttle times — would
-          share the <code>{SETTINGS_KEYS.logistics}</code> bag with the emergency card, and there
-          is no screen in the app to read them, so no form is offered here. Until there is one, the
-          Documents screen writes a titled link the app already renders, which covers a venue map
-          PDF or an arrival note — and that is what most of this screen is used for.
+          <strong>{EVENT.venue}</strong>. A compile-time constant in <code>@kgc/shared</code>{' '}
+          shared by the app, the seed script, the importer and this dashboard, so the four cannot
+          drift. <Link href="/content/basics">Basics</Link> explains why that is read-only rather
+          than a text input.
         </p>
         <p className="body-2">
           <strong>Emergency card:</strong>{' '}
@@ -264,8 +278,7 @@ export default async function LogisticsCenterPage({
             <strong>Venue notes for attendees.</strong> No wifi, parking, accessibility or shuttle
             fields, because the app has no screen that would show them. Adding a sixth tab means an
             SF Symbol, an Android vector icon and a release, so realistically this lives under Home
-            or Me — two to three days, and the form here is half a day once it exists. In that
-            order, not this one.
+            or Me — the app change first, the form here second.
           </li>
           <li>
             <strong>A venue map, and room pins on it.</strong> <code>RoomDoc</code> models{' '}
@@ -274,9 +287,8 @@ export default async function LogisticsCenterPage({
             blocks booth selection and poster board numbering.
           </li>
           <li>
-            <strong>Emergency information.</strong> Whova has a separate Emergency Manager under
-            Virtual &amp; Hybrid; it is unbuilt too, and it is the one item on this page that would
-            genuinely matter at 3pm on day two.
+            <strong>Emergency information.</strong> Filed on a separate screen under Virtual &amp;
+            Hybrid, and the one item on this page that would genuinely matter at 3pm on day two.
           </li>
         </ul>
       </GapPanel>

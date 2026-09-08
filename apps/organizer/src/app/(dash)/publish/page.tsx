@@ -1,10 +1,13 @@
 import Link from 'next/link';
+import { PAGE_CONTENT_KEYS, type PageContentKey } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { pageReadiness, publicUrl } from '@/lib/webpages';
-import { listTicketTypes } from '@/lib/commerce';
+import { listTicketTypes, salesSummary } from '@/lib/commerce';
+import { listSpeakers } from '@/lib/data';
+import { readPageContentMeta } from '@/lib/page-content';
 import { findConflicts } from '@/lib/conflicts';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 
 export const dynamic = 'force-dynamic';
@@ -12,14 +15,28 @@ export const dynamic = 'force-dynamic';
 /**
  * Publish — the pre-flight check.
  *
- * Whova's Publish tab is a button that makes your event live. Ours has nothing
- * to switch on: the website is already deployed, the app already reads
- * Firestore, and a session becomes public the moment its status is `published`.
+ * ── There is no publish flag, and that was checked rather than assumed ──────
  *
- * So this is the more useful thing that button implies — **is the event
- * actually ready to be seen?** Every check below is computed from real data and
- * links to the screen that fixes it. It is the one screen an organizer should
- * open the week before doors open.
+ * Whova's Publish tab flips a hosted event from private to public. The question
+ * for us is whether an equivalent switch exists to be built, and the answer is
+ * no: `SETTINGS_KEYS` in `@kgc/shared` has three bags — `branding`, `access`
+ * and `logistics` — and none of them gates a surface. `apps/web` is a deployed
+ * marketing site whose pages render whatever Firestore holds, and the app reads
+ * the same documents. What actually decides whether the public sees a thing is
+ * per record and already exists: `SessionDoc.status`, `TicketTypeDoc.visible`,
+ * `ExhibitorDoc.status`, `DocumentDoc.visibleToTicketTypes`.
+ *
+ * Adding a global `published` flag on top of those would be a fourth kind of
+ * hidden — and the failure mode is the one that matters: a switch that has to
+ * be read by two installs neither of which currently reads settings at request
+ * time, so the day somebody flips it off the site keeps serving. A switch that
+ * does not switch anything is worse than no switch.
+ *
+ * ── So this is the checklist that button implied ────────────────────────────
+ *
+ * Every row is computed from live data and links to the screen that fixes it.
+ * Blocking means the event does not work; the rest are things a visitor would
+ * notice. It is the one screen worth opening the week before doors open.
  */
 
 interface Check {
@@ -31,16 +48,37 @@ interface Check {
   blocking: boolean;
 }
 
+/** The three public pages whose copy goes stale between editions. */
+const COPY_PAGES: { key: PageContentKey; title: string }[] = [
+  { key: PAGE_CONTENT_KEYS.codeOfConduct, title: 'Code of conduct' },
+  { key: PAGE_CONTENT_KEYS.callForPosters, title: 'Call for posters' },
+  { key: PAGE_CONTENT_KEYS.startupPitch, title: 'Startup pitch' },
+];
+
+const WEBSITE_COPY = '/content/basics/website-copy';
+
 export default async function PublishPage() {
   await requireOrganizer();
 
-  const [pages, tickets, conflicts] = await Promise.all([
+  const [pages, tickets, conflicts, speakers, sales, copyMeta] = await Promise.all([
     pageReadiness(),
     listTicketTypes(),
     findConflicts(),
+    listSpeakers(),
+    salesSummary(),
+    Promise.all(COPY_PAGES.map((p) => readPageContentMeta(p.key))),
   ]);
 
   const sellable = tickets.filter((t) => t.visible);
+  const noBio = speakers.filter((s) => !s.hasBio);
+  /*
+   * A page whose copy has never been saved for this edition is rendering last
+   * edition's compiled-in constant — which is where the PLACEHOLDER deadlines
+   * and the submission URLs still carrying `2026` live. `readPageContentMeta`
+   * returns nothing for a document stamped with another `eventId`, so an
+   * absent `updatedAt` is exactly "nobody has confirmed this for 2027".
+   */
+  const unconfirmedCopy = COPY_PAGES.filter((_, i) => !copyMeta[i].updatedAt);
 
   const checks: Check[] = [
     {
@@ -59,10 +97,29 @@ export default async function PublishPage() {
       detail: stripeEnabled()
         ? stripeIsLive()
           ? 'Stripe is in live mode. Real cards will be charged.'
-          : 'Stripe is in TEST mode — no real money will move. Switch keys before doors open.'
-        : 'No Stripe key. The website completes purchases as clearly-labelled tests and takes no money.',
+          : 'Stripe is in TEST mode, no real money will move. Switch keys before doors open.'
+        : /*
+           * ⚠️ This used to read "the website completes purchases as
+           * clearly-labelled tests and takes no money", which described the
+           * demo-mode branch deleted in August 2026. The purchase path fails
+           * closed now: /tickets disables the button and the server action
+           * refuses before it reads a tier. Saying otherwise on the one screen
+           * an organizer opens to check readiness is the exact defect this
+           * dashboard keeps having.
+           */
+          'No Stripe key is set, so the website refuses every purchase. Nothing can be bought until one is supplied.',
       href: ROUTES.ordersSummary,
       blocking: true,
+    },
+    {
+      label: 'A purchase has completed end to end',
+      ok: sales.paidOrders > 0,
+      detail:
+        sales.paidOrders > 0
+          ? `${sales.paidOrders} paid ${sales.paidOrders === 1 ? 'order has' : 'orders have'} been fulfilled, so checkout and the webhook both work.`
+          : 'No order has ever been fulfilled. Until one has, nothing has proved that the Stripe webhook reaches this project.',
+      href: ROUTES.ordersSummary,
+      blocking: false,
     },
     {
       label: 'The programme has no clashes',
@@ -70,7 +127,7 @@ export default async function PublishPage() {
       detail:
         conflicts.errors === 0
           ? `${conflicts.sessionsChecked} sessions checked, nothing double-booked.`
-          : `${conflicts.errors} to fix — a speaker or room booked twice, or a published session with no room.`,
+          : `${conflicts.errors} to fix. A speaker or room booked twice, or a published session with no room.`,
       href: ROUTES.conflictCheck,
       blocking: true,
     },
@@ -91,9 +148,26 @@ export default async function PublishPage() {
       ok: pages.speakers.problems.length === 0,
       detail:
         pages.speakers.problems.length === 0
-          ? `${pages.speakers.published} speakers, nothing missing.`
+          ? `${pages.speakers.published} speakers, nothing the public page prints is missing.`
           : pages.speakers.problems.map((p) => `${p.count} ${p.label}`).join(', ') + '.',
       href: ROUTES.messageSpeakers,
+      blocking: false,
+    },
+    {
+      /*
+       * Separate from the row above because they are about different surfaces.
+       * `/speakers` renders a portrait, a name, a company and a job title and
+       * stops there; the bio only appears on the speaker's profile in the app.
+       * Folding them together would send an organizer to chase a bio for a page
+       * that never shows one.
+       */
+      label: 'Speakers have a bio for the app',
+      ok: noBio.length === 0,
+      detail:
+        noBio.length === 0
+          ? `All ${speakers.length} speakers have a bio.`
+          : `${noBio.length} of ${speakers.length} have none, so their profile in the app is a name and a job title.`,
+      href: ROUTES.speakerManager,
       blocking: false,
     },
     {
@@ -106,6 +180,16 @@ export default async function PublishPage() {
       href: ROUTES.messageSponsors,
       blocking: false,
     },
+    {
+      label: 'Website copy is confirmed for this edition',
+      ok: unconfirmedCopy.length === 0,
+      detail:
+        unconfirmedCopy.length === 0
+          ? 'The reporting address, the submission links and the deadlines have all been saved for 2027.'
+          : `${unconfirmedCopy.map((p) => p.title).join(', ')} still ${unconfirmedCopy.length === 1 ? 'renders' : 'render'} last edition’s built-in text, including its deadlines and submission links.`,
+      href: WEBSITE_COPY,
+      blocking: false,
+    },
   ];
 
   const blockers = checks.filter((c) => !c.ok && c.blocking);
@@ -115,6 +199,16 @@ export default async function PublishPage() {
     <>
       <PageHeader
         title="Publish"
+        info={
+          <>
+            <strong>Nothing here to switch on</strong>
+            <p>
+              The website is deployed and the app reads the same database, so a session goes public
+              the moment its status is <code>published</code>. This is the check that a publish
+              button would have implied.
+            </p>
+          </>
+        }
         tags={
           blockers.length === 0 ? (
             <Tag color="green" fill="solid">
@@ -131,13 +225,15 @@ export default async function PublishPage() {
             View the live site ↗
           </a>
         }
+        links={[
+          <Link key="w" href="/marketing/event-website">
+            Event Website
+          </Link>,
+          <Link key="c" href={WEBSITE_COPY}>
+            Website Copy
+          </Link>,
+        ]}
       />
-
-      <Banner kind="info">
-        <strong>There is no publish button, because there is nothing to switch on.</strong> The
-        website is deployed, the app reads the same database, and a session goes public the moment
-        its status is <code>published</code>. This is the check that button would have implied.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -181,26 +277,6 @@ export default async function PublishPage() {
             ),
           ])}
         />
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Not checked here</h2>
-        <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>Whether rules and indexes are deployed.</strong> They are written and tested
-            against the emulator but have never been pushed to the real project — see AGENTS.md.
-            Nothing in this dashboard can tell you the state of the live project.
-          </li>
-          <li>
-            <strong>Whether the Stripe webhook works.</strong> It has never received a live event.
-            <code> SETUP-PAYMENTS.md</code> §4 closes that in about ten minutes and it should happen
-            before any real money does.
-          </li>
-          <li>
-            <strong>Whether anyone can actually install the app.</strong> Distribution is Expo Go
-            and TestFlight, not the app stores.
-          </li>
-        </ul>
       </Panel>
     </>
   );

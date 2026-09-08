@@ -109,7 +109,7 @@ export async function saveSponsorAction(
     const clash = await getSponsor(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” already uses the id “${docId}”. Edit that record instead of creating a second one — the app and the website both key sponsors by this id.`,
+        error: `“${clash.name}” already uses the id “${docId}”. Edit that record instead of creating a second one. The app and the website both key sponsors by this id.`,
       };
     }
   }
@@ -305,7 +305,7 @@ export async function commitSponsorImportAction(
       csv,
       error:
         outcome.errors.length > 0
-          ? 'Nothing was imported — the file still has problems. Fix them, or tick “import the good rows anyway”.'
+          ? 'Nothing was imported. The file still has problems. Fix them, or tick “import the good rows anyway”.'
           : 'Nothing was imported.',
       errors: outcome.errors,
       totalRows: outcome.totalRows,

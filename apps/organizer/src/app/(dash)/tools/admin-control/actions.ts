@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
 
@@ -43,7 +42,7 @@ export async function saveAccessSettingsAction(
           message:
             days === 0
               ? 'Saved. Access ends when the event does.'
-              : `Saved — attendees keep access for ${days} days after the event.`,
+              : `Saved: attendees keep access for ${days} days after the event.`,
         }
       : { error: res.error };
   }
@@ -61,7 +60,7 @@ export async function saveAccessSettingsAction(
       return { error: 'Set a code of at least 4 characters, or untick “require a code”.' };
     }
     if (code && !/^[A-Za-z0-9-]{4,32}$/.test(code)) {
-      return { error: 'Codes are 4–32 letters, digits or hyphens — they get read out loud.' };
+      return { error: 'Codes are 4–32 letters, digits or hyphens. They get read out loud.' };
     }
 
     const res = await saveSettings(

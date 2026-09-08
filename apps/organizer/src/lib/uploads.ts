@@ -49,16 +49,19 @@ import { IMAGE_EXTENSIONS, MAX_UPLOAD_BYTES, type AcceptedImageType } from './up
  * stripping, HEIC), revisit (3) — but it is a decision, not a detail, because
  * `sharp` is the largest dependency in the tree the moment it lands.
  *
- * ── The bucket does not exist yet ───────────────────────────────────────────
+ * ── The bucket exists, since 2026-09-01 ─────────────────────────────────────
  *
- * Verified 2026-08-30 by probing the anonymous GCS API: both
- * `kgc-conference-app-and-website.firebasestorage.app` and `…appspot.com`
- * return 404 "The specified bucket does not exist". The value in `.env.local`
- * is the SDK config string the Firebase console hands out, not evidence that
- * anything was provisioned. So the failure this code is most likely to hit in
- * its first year is a missing bucket, and it says so in words that name the fix
- * rather than surfacing a bare `404` from `@google-cloud/storage`.
- * `docs/storage-uploads.md` has the provisioning steps.
+ * ⚠️ This docblock said the opposite for a month, and eleven dashboard screens
+ * copied it. `kgc-conference-app-and-website.firebasestorage.app` is real,
+ * `firebasestorage.googleapis.com` is ENABLED, and `storage.rules` is published
+ * to it — proven by a round trip rather than by a console screen. See
+ * `OWNER-ACTIONS.md` §1 and §3b, and check there before writing anywhere that
+ * uploads are impossible.
+ *
+ * `bucketMissing()` below stays, because a *second* environment starts with no
+ * bucket and the failure is otherwise a bare `404` from
+ * `@google-cloud/storage`. It is now a message about somewhere else, not about
+ * this project. `docs/storage-uploads.md` has the provisioning steps.
  */
 
 /**
@@ -158,7 +161,7 @@ function bucketMissing(bucket: string): UploadUnavailable {
     `The Firebase Storage bucket "${bucket}" does not exist, so there is nowhere to ` +
       'put this file. It has to be created once, by hand:\n' +
       '  1. Firebase console → Build → Storage → Get started. Choose location ' +
-      'us-central1 — it matches the nam5 Firestore database and CANNOT be changed later.\n' +
+      'us-central1. It matches the nam5 Firestore database and CANNOT be changed later.\n' +
       `  2. node scripts/ops/deploy-rules.mjs storage.rules firebase.storage/${bucket}\n` +
       'See docs/storage-uploads.md.',
   );
@@ -259,7 +262,7 @@ export async function uploadImage(file: File, target: UploadTarget): Promise<Upl
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new UploadRejected(
       `That image is ${Math.round(file.size / 1024)} KB. The limit is ` +
-        `${Math.round(MAX_UPLOAD_BYTES / 1024)} KB — pick a smaller one, or let the ` +
+        `${Math.round(MAX_UPLOAD_BYTES / 1024)} KB. Pick a smaller one, or let the ` +
         'picker resize it for you.',
     );
   }

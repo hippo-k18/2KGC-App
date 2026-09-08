@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { directoryUids } from '@/lib/cohorts';
 import { listAttendees, type AttendeeRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,7 +106,7 @@ export default async function SegmentsPage({
     {
       key: 'app:partial',
       label: 'Signed in, onboarding unfinished',
-      note: 'A users document exists with onboarded false — a half-filled profile.',
+      note: 'A users document exists with onboarded false. A half-filled profile.',
       members: all.filter((a) => a.signedIn && !a.onboarded),
     },
     {
@@ -141,7 +141,7 @@ export default async function SegmentsPage({
     {
       key: 'dir:pending',
       label: 'Opted in, but not projected',
-      note: 'Wants to be listed and has no directory document — the mirroring trigger is unbuilt.',
+      note: 'Wants to be listed and has no directory document. The mirroring trigger is unbuilt.',
       members: wants.filter((a) => !a.uid || !listed.has(a.uid)),
     },
     {
@@ -264,6 +264,16 @@ export default async function SegmentsPage({
     <>
       <PageHeader
         title="Segments"
+        info={
+          <>
+            <strong>Derived, not authored</strong>
+            <p>
+              These cohorts are computed on every load from fields that exist for other reasons.
+              Nothing here can be created, named, saved or used as a send target, and neither the
+              app nor the badge reads any of it.
+            </p>
+          </>
+        }
         links={[
           <Link key="a" href={ROUTES.attendees}>
             Attendees
@@ -278,19 +288,9 @@ export default async function SegmentsPage({
       />
 
       <Panel>
-        <Banner kind="warning">
-          <strong>These segments are derived, not authored.</strong> Whova builds a segment out of a{' '}
-          registration answer — you ask a question on the ticket form and every answer becomes a
-          cohort you can message, print on a badge and count at the door. This project has no
-          question forms and no answers store, so there is nothing of that kind to derive from. What
-          is below is computed from fields that already exist for other reasons, every time this page
-          loads. Nothing here can be created, named, edited, saved or used as a send target, and no
-          part of the app or the badge reads any of it.
-        </Banner>
-
         <p className="body-2">
-          {all.length} attendees, grouped four ways. The families overlap by design — one person is
-          in one row of each — so the counts within a family sum to the total and the counts across
+          {all.length} attendees, grouped four ways. The families overlap by design (one person is
+          in one row of each) so the counts within a family sum to the total and the counts across
           families do not.
         </p>
       </Panel>
@@ -309,7 +309,7 @@ export default async function SegmentsPage({
               { key: 'w', label: 'What the number means', className: 'cell-fill' },
               { key: 'v', label: '', className: 'cell-xs cell-end-align' },
             ]}
-            empty="Nothing to group — the attendee list is empty"
+            empty="Nothing to group: the attendee list is empty"
             rows={f.segments.map((s) => [
               <span key="s">
                 <strong>{s.label}</strong>

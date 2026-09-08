@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, todayInEventZone } from '@/lib/time';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
 import { CsvImportPanel } from '../../csv-import-panel';
 import { commitSessionImportAction, previewSessionImportAction } from './actions';
 
@@ -39,10 +39,10 @@ export const dynamic = 'force-dynamic';
  * *reader* either (`tags`, `slidesUrl`, `seriesId`); the fourth is `deletedAt`,
  * which is deliberate — retiring a session is `status: 'cancelled'`.
  *
- * Not built here, and it is the expensive half: the Excel round-trip *in*, bulk
- * edit, block move and swap, and the drag-drop calendar. Those are ~15–20 days
- * against a programme that is authored in a spreadsheet by a committee anyway,
- * which is why §35.1 trades them for one good importer.
+ * Not built here, and it is the expensive half: the multi-sheet Excel
+ * round-trip *in*, bulk edit, block move and swap, and the drag-drop calendar.
+ * A programme is authored in a spreadsheet by a committee anyway, which is why
+ * that whole family is traded for one good importer.
  */
 
 function prettyDayTab(day: string): { weekday: string; date: string } {
@@ -164,8 +164,8 @@ export default async function SessionManagerPage({
         )
       : onDay;
 
-  // Whova collapses everything before 07:00 into one bucket, then one per hour
-  // through the last hour that actually has something in it.
+  // Everything before 07:00 collapses into one bucket, then one per hour through
+  // the last hour that actually has something in it.
   const byHour = new Map<number, SessionRow[]>();
   for (const s of rows) {
     const h = Number(clockOf(s.startsAtLocal).slice(0, 2));
@@ -202,6 +202,17 @@ export default async function SessionManagerPage({
           <Link key="cc" href="/content/agenda-center/conflict-check">
             Conflict Check
           </Link>,
+          /*
+           * Promotion out of the call for abstracts is a step *here*, and
+           * deliberately not a side effect of accepting a submission. Whova's
+           * marketing claims acceptance synchronises with the agenda; Whova's
+           * own help centre says it does not, and the help centre is right — a
+           * session needs a day, a time and a room, and acceptance decides none
+           * of them. See `CFA-PLAN.md` §4.
+           */
+          <Link key="fa" href="/content/agenda-center/session-manager/from-accepted">
+            From accepted submissions
+          </Link>,
           <span key="n" className="muted">
             {all.length} sessions · {days.length} days
           </span>,
@@ -216,12 +227,11 @@ export default async function SessionManagerPage({
         ) : null}
 
         {/*
-          Whova's toolbar has five controls here. Four of them — Import, Reuse
-          from past event, Copy day, Bulk edit — were rendered `disabled` with a
-          tooltip saying so, which is the failure mode `SHOW_GAP_NOTES` was
-          invented to prevent: a greyed-out button is a promise made in the demo
-          and broken in the room. They are gone, and the "Not built here" panel
-          below still says what is missing and roughly what it costs.
+          Four controls that used to sit here — Import, Reuse from past event,
+          Copy day, Bulk edit — were rendered `disabled` with a tooltip saying
+          so, which is the failure mode `SHOW_GAP_NOTES` was invented to
+          prevent: a greyed-out button is a promise made in the demo and broken
+          in the room. They are gone.
 
           The two that survive are the two that are real. Export was disabled
           although `lib/exports.ts` has served the programme CSV all along — it
@@ -284,6 +294,16 @@ export default async function SessionManagerPage({
           })}
         </div>
 
+        {all.length === 0 ? (
+          <NotInputted
+            what="sessions"
+            action={
+              <Link className="whova-btn-main" href={`${ROUTES.sessionManager}/new?day=${today}`}>
+                Add the first one
+              </Link>
+            }
+          />
+        ) : (
         <div style={{ background: 'var(--surface-alt)', borderRadius: 4, padding: 10 }}>
           {byHour.has(-1) ? (
             <div style={{ background: '#fff', border: '1px solid var(--hairline)', borderRadius: 4, marginBottom: 10, padding: 10 }}>
@@ -326,6 +346,7 @@ export default async function SessionManagerPage({
             </div>
           ))}
         </div>
+        )}
       </Panel>
 
       <Panel>
@@ -375,18 +396,16 @@ export default async function SessionManagerPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Whova&apos;s three-sheet Excel round-trip.</strong> The CSV importer above
-            covers the agenda itself, and it uses the same id function the CLI importer and the
-            seed use, so all three agree about which document a re-import updates. What it does not
-            reproduce is Whova&apos;s workbook: three linked sheets in one file, and 25 rows of
-            instructions that must not be deleted because data starts at row 26. Here the three
-            entities are three files imported in order, which is the same information with a
-            simpler failure mode.
+            <strong>A single multi-sheet workbook.</strong> The CSV importer above covers the
+            agenda itself and uses the same id function the CLI importer and the seed use, so all
+            three agree about which document a re-import updates. What it does not read is one file
+            holding three linked sheets. Here the three entities are three files imported in order,
+            which is the same information with a simpler failure mode.
           </li>
           <li>
             <strong>Sub-sessions and non-session items.</strong> Adding a session is built; nesting
-            one inside another is not, and neither is the time cascade Whova does when a parent
-            moves and its children shuffle to fit the new bounds. <code>SessionDoc</code> has{' '}
+            one inside another is not, and neither is the time cascade a parent move would need to
+            shuffle its children into the new bounds. <code>SessionDoc</code> has{' '}
             <code>seriesId</code> for repeated runs but no parent link, and nothing reads{' '}
             <code>seriesId</code> today — which is why the editor has no control for it.
           </li>
@@ -394,14 +413,14 @@ export default async function SessionManagerPage({
             <strong>Bulk edit, block move and swap, copy a day, and reuse a past event</strong>,
             plus the neighbour-aware prompts that offer to extend or shorten an adjacent session
             when an edit opens a gap. That last one is small and genuinely good; the rest is what
-            §35.1 trades away. All five were <code>disabled</code> buttons on the toolbar until now; a
-            greyed-out control is a promise made in the demo and broken in the room, so they are
-            described here instead of being shown.
+            the CSV importer trades away. All five were <code>disabled</code> buttons on the
+            toolbar until now; a greyed-out control is a promise made in the demo and broken in the
+            room, so they are described here instead of being shown.
           </li>
           <li>
-            <strong>Telling attendees a session moved.</strong> Whova has nothing here either — no
-            versioning, no diff, no automatic notice, only a manual announcement. Editing a session
-            below writes one document that every phone watching it picks up within about a second.
+            <strong>Telling attendees a session moved.</strong> No versioning, no diff, no
+            automatic notice — only a manual announcement. Editing a session below writes one
+            document that every phone watching it picks up within about a second.
             The people who saved it are notified by the <code>onSessionAgendaChange</code> Cloud
             Function, which fires on that write whoever made it — the CSV importer included — and
             targets savers rather than broadcasting. <code>roomChangePush()</code> in{' '}

@@ -6,6 +6,7 @@ import {
   DOOR_CHECK_IN_LIST_ID,
   EVENT_ID,
   SUBCOLLECTIONS,
+  TIME_ZONE,
   type CheckInDoc,
   type CheckInListDoc,
   type CheckInStationDoc,
@@ -20,6 +21,7 @@ import {
   SCOPE_GRACE_MINUTES,
   sessionListId,
 } from './checkin-core';
+import { recordError } from './errors';
 import { db } from './firestore';
 
 /**
@@ -128,7 +130,7 @@ export async function listCheckInLists(): Promise<CheckInListRow[]> {
     try {
       await col.doc(DEFAULT_LIST_ID).create({
         eventId: EVENT_ID,
-        name: 'KGC 2027 — Main Door',
+        name: 'KGC 2027: Main Door',
         kind: 'event',
         createdAt: now,
         updatedAt: now,
@@ -423,7 +425,7 @@ export async function ensureSessionList(sessionId: string): Promise<EnsureListRe
   const session = sessionSnap.data() as SessionDoc;
 
   const id = sessionListId(sessionId);
-  const name = `${session.title} — ${session.startsAtLocal.slice(11, 16)}`;
+  const name = `${session.title} · ${session.startsAtLocal.slice(11, 16)}`;
   const grace = SCOPE_GRACE_MINUTES * 60 * 1000;
 
   return {
@@ -456,7 +458,7 @@ export async function ensureSessionList(sessionId: string): Promise<EnsureListRe
 export async function ensureDayList(day: string): Promise<EnsureListResult> {
   if (!DAY_PATTERN.test(day)) throw new Error('That is not a programme day.');
   const id = dayListId(day);
-  const name = `Day — ${day}`;
+  const name = `Day ${day}`;
   return {
     id,
     name,
@@ -545,4 +547,121 @@ export async function touchStation(deviceId: string, label: string): Promise<voi
       updatedAt: now,
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Throughput — how fast the door is actually moving
+// ---------------------------------------------------------------------------
+
+export interface ScanBucket {
+  /** `HH:MM` in the event's zone, the start of a fifteen-minute bucket. */
+  label: string;
+  count: number;
+}
+
+export interface ScanThroughput {
+  total: number;
+  /** A scan that checked somebody in. */
+  ok: number;
+  /** A badge already scanned. Not an error — it is the idempotency mechanism working. */
+  duplicate: number;
+  /** A code no registration matched, or a cancelled ticket. These need a human. */
+  rejected: number;
+  lastScanAt: string | null;
+  /** Oldest first, one entry per quarter hour from the first scan in the window. */
+  buckets: ScanBucket[];
+  /** Busiest quarter hour in the window, in scans. */
+  peakPerQuarterHour: number;
+  /** How many stations have scanned anything in the window. */
+  stations: number;
+}
+
+/**
+ * Scan volume over a recent window, for Tools › Report.
+ *
+ * The door's own screen answers "who is in"; this answers "is the queue
+ * moving", which is a different question and the one asked from the office at
+ * 08:55. `duplicate` is reported separately from `rejected` on purpose: a
+ * duplicate is the idempotent `create` failing with `already-exists`, which is
+ * the check-in engine working correctly, while a `unknown` or `cancelled`
+ * result is somebody standing at the desk who cannot get in.
+ *
+ * Ordered by `scannedAt` with no `where` beside it — the same single-field
+ * index `recentScanEvents` depends on, and the same reason: a composite index
+ * this repo does not declare would pass on the emulator and fail live. There
+ * is exactly one event, so the filter would buy nothing anyway.
+ *
+ * Returns an empty report rather than throwing when the collection is missing,
+ * because a report page that 500s during an incident is worse than one with a
+ * blank panel on it.
+ */
+export async function scanThroughput(
+  windowMinutes = 180,
+  cap = 500,
+): Promise<ScanThroughput> {
+  const empty: ScanThroughput = {
+    total: 0,
+    ok: 0,
+    duplicate: 0,
+    rejected: 0,
+    lastScanAt: null,
+    buckets: [],
+    peakPerQuarterHour: 0,
+    stations: 0,
+  };
+
+  let snap;
+  try {
+    snap = await db()
+      .collection(COLLECTIONS.scanEvents)
+      .orderBy('scannedAt', 'desc')
+      .limit(cap)
+      .get();
+  } catch (err) {
+    recordError('checkin.scanThroughput', err);
+    return empty;
+  }
+
+  const rows = snap.docs
+    .map((d) => d.data() as ScanEventDoc)
+    .map((e) => ({ at: iso(e.scannedAt), result: e.result, deviceId: e.deviceId }))
+    .filter((e): e is { at: string; result: ScanOutcome; deviceId: string } => e.at !== null);
+
+  if (rows.length === 0) return empty;
+
+  // The window is measured from the newest scan rather than from `now`, so the
+  // panel still says something the morning after: "the last three hours the
+  // door was open" is the useful frame, and an empty chart at 22:00 on day two
+  // reads as a broken query rather than as a closed door.
+  const newest = Date.parse(rows[0].at);
+  const cutoff = newest - windowMinutes * 60_000;
+  const inWindow = rows.filter((r) => Date.parse(r.at) >= cutoff);
+
+  const QUARTER = 15 * 60_000;
+  const counts = new Map<number, number>();
+  for (const r of inWindow) {
+    const slot = Math.floor(Date.parse(r.at) / QUARTER) * QUARTER;
+    counts.set(slot, (counts.get(slot) ?? 0) + 1);
+  }
+
+  const clock = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: TIME_ZONE,
+  });
+
+  const buckets = [...counts.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([slot, count]) => ({ label: clock.format(new Date(slot)), count }));
+
+  return {
+    total: inWindow.length,
+    ok: inWindow.filter((r) => r.result === 'ok').length,
+    duplicate: inWindow.filter((r) => r.result === 'duplicate').length,
+    rejected: inWindow.filter((r) => r.result === 'unknown' || r.result === 'cancelled').length,
+    lastScanAt: rows[0].at,
+    buckets,
+    peakPerQuarterHour: buckets.reduce((n, b) => Math.max(n, b.count), 0),
+    stations: new Set(inWindow.map((r) => r.deviceId)).size,
+  };
 }

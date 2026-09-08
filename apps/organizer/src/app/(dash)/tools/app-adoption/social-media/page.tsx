@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
+import { Snippet, eventWindow } from '../snippet';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,17 +16,18 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SocialMediaPage() {
   await requireOrganizer();
-  const a = await eventAnalytics();
+  const [a, dates] = await Promise.all([eventAnalytics(), eventWindow()]);
   const origin = publicSiteOrigin();
+  const missing = a.ticketHolders - a.ticketHoldersSignedIn;
 
   const posts = [
     {
       label: 'Announcing the app',
-      text: `The KGC 2027 app is live. Your agenda, your badge, and everyone else who's coming — all in one place.\n\nGet it: ${origin}/tickets\n\n#KGC2027 #KnowledgeGraphs`,
+      text: `The KGC 2027 app is live. Your agenda, your badge, and everyone else who's coming. All in one place.\n\nGet it: ${origin}/tickets\n\n#KGC2027 #KnowledgeGraphs`,
     },
     {
       label: 'A week out',
-      text: `One week until KGC 2027 at Cornell Tech.\n\nIf you have a ticket, get the app before you travel — it has your badge QR, and the door scans it.\n\n${origin}/tickets`,
+      text: `One week until KGC 2027 at Cornell Tech.\n\nIf you have a ticket, get the app before you travel. It has your badge QR, and the door scans it.\n\n${origin}/tickets`,
     },
     {
       label: 'Day one, morning',
@@ -33,7 +35,7 @@ export default async function SocialMediaPage() {
     },
     {
       label: 'For speakers to share',
-      text: `I'm speaking at KGC 2027, 3–7 May at Cornell Tech in New York.\n\nThe full programme is up: ${origin}/agenda\n\n#KGC2027`,
+      text: `I'm speaking at KGC 2027${dates ? `, ${dates}` : ''} at Cornell Tech in New York.\n\nThe full programme is up: ${origin}/agenda\n\n#KGC2027`,
     },
   ];
 
@@ -51,21 +53,27 @@ export default async function SocialMediaPage() {
         ]}
       />
 
-      <Banner kind="info">
-        Copy for the accounts KGC already posts from. Adoption is currently{' '}
-        <strong>{a.adoptionPct}%</strong> — {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not
-        installed the app.
-      </Banner>
+      <StatTiles
+        tiles={[
+          { label: 'App adoption', value: `${a.adoptionPct}%`, sub: `${a.ticketHoldersSignedIn} of ${a.ticketHolders}` },
+          { label: 'Have not installed', value: missing, sub: 'who these posts are for' },
+          { label: 'Ticket holders', value: a.ticketHolders, sub: 'total' },
+        ]}
+      />
 
       <Panel>
         {posts.map((p) => (
-          <div key={p.label} style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: 14, marginBottom: 6, marginTop: 0 }}>{p.label}</h2>
-            <pre className="whova-code">{p.text}</pre>
-            <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-              {p.text.length} characters
-            </p>
-          </div>
+          <Snippet
+            key={p.label}
+            title={p.label}
+            /*
+              The character count is on every block because these go to accounts
+              with different limits and a post that is silently truncated loses
+              the link, which is the only part of it that does any work.
+            */
+            note={`${p.text.length} characters`}
+            text={p.text}
+          />
         ))}
       </Panel>
 
@@ -83,8 +91,9 @@ export default async function SocialMediaPage() {
             post fires whether or not anybody is awake to stop it.
           </li>
           <li>
-            <strong>Generated images.</strong> No asset pipeline exists — see Downloadable
-            Graphics.
+            <strong>Generated images.</strong> There is no server-side image renderer; storage for
+            the output exists. See Downloadable Graphics, whose printable sign is the one graphic
+            that needs no renderer at all.
           </li>
         </ul>
       </GapPanel>

@@ -1,22 +1,31 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel } from '../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Virtual & Hybrid › Attendance Gamification.
  *
- * Points for joining sessions, a leaderboard, prizes. `ROADMAP.md` names this
- * one twice — once inside the Virtual & Hybrid cut, and once in "real features,
- * low value for KGC's format" alongside Passport Contest and Exhibitor Trivia.
+ * Points for joining sessions, a leaderboard, prizes.
  *
- * The objection is not that leaderboards are frivolous. It is that a
- * leaderboard measures the thing the event is not optimising for. KGC's rooms
- * hold a few hundred practitioners choosing between parallel tracks; the
- * desired behaviour is *choosing well and staying*, and a points-per-session
- * score rewards the opposite — walking into four rooms to farm scans.
+ * ── Two objections, and the second is the one that decides it ───────────────
+ *
+ * The score would be computed from session check-ins, and a session check-in is
+ * a badge scan at a door. Points per scan makes the optimal strategy "be
+ * scanned in as many rooms as possible", which is precisely the behaviour a
+ * conference with parallel tracks does not want: a full room of people staying
+ * for the whole talk scores identically to four doorway appearances.
+ *
+ * And a public leaderboard names attendees and their movements. This project
+ * keeps a separate `directory` projection precisely so an attendee who opts out
+ * has no record leaving the server; a leaderboard would need an opt-in of its
+ * own, and an opt-in leaderboard with twelve participants is not a leaderboard.
+ *
+ * Neither of those is a reason to describe the feature on screen. The
+ * attendance data behind it is real and is reported without a score at
+ * Analytics & Exports and Attendee Activity, both linked below.
  */
 export default async function AttendanceGamificationPage() {
   await requireOrganizer();
@@ -24,6 +33,16 @@ export default async function AttendanceGamificationPage() {
     <>
       <PageHeader
         title="Attendance Gamification"
+        info={
+          <>
+            <strong>No scoring rules have been chosen</strong>
+            <p>
+              Attendance is measured (every session check-in is a real badge scan) but nothing
+              scores it. What points are worth, and whether a leaderboard may name people who did
+              not opt in, are decisions nobody has made.
+            </p>
+          </>
+        }
         links={[
           <Link key="a" href={ROUTES.analyticsExports}>
             Analytics &amp; Exports
@@ -31,39 +50,21 @@ export default async function AttendanceGamificationPage() {
           <Link key="c" href={ROUTES.checkIn}>
             Check-in
           </Link>,
+          <Link key="v" href="/virtual-and-hybrid/attendee-activity">
+            Attendee Activity
+          </Link>,
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>Recommended cut, not deferred work.</strong> This is one of the four screens the
-        roadmap argues against building on the merits rather than on cost — trade-show mechanics for
-        a research conference.
-      </Banner>
-
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Awards points for joining sessions, watching for a minimum duration, asking questions and
-          answering polls, then ranks everyone on a public leaderboard with prizes at the top. For a
-          virtual trade show this genuinely works: attention is scarce and the leaderboard is the
-          only lever an organizer has over it.
-        </p>
-
-        <h2 className="section-header">Why it would misfire here</h2>
-        <p className="body-2">
-          The score would be computed from session check-ins, and session check-in is a badge scan
-          at a door. Points per scan makes the optimal strategy &ldquo;be scanned in as many rooms
-          as possible&rdquo;, which is precisely the behaviour a conference with parallel tracks
-          does not want — a full room of people staying for the whole talk is the outcome, and it
-          scores identically to four doorway appearances.
-        </p>
-        <p className="body-2">
-          There is a second problem that is harder to design around: a public leaderboard names
-          attendees and their movements. This project keeps a separate <code>directory</code>{' '}
-          projection precisely so an attendee who opts out of the directory has no record leaving
-          the server. A leaderboard would need an opt-in of its own, and an opt-in leaderboard with
-          twelve participants is not a leaderboard.
-        </p>
+        <NotInputted
+          what="points, prizes or a leaderboard"
+          action={
+            <Link href="/virtual-and-hybrid/attendee-activity" className="whova-btn-main">
+              See attendance without a score
+            </Link>
+          }
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -73,11 +74,6 @@ export default async function AttendanceGamificationPage() {
             <strong>No points, no leaderboard, no prizes.</strong> Nothing in{' '}
             <code>packages/shared/src/models.ts</code> scores an attendee, and nothing should be
             added speculatively.
-          </li>
-          <li>
-            <strong>The counters it would need are unbuilt anyway.</strong> Any score aggregating
-            client writes wants a Cloud Function trigger, and the project is on the Spark plan —
-            the same blocker that freezes <code>replyCount</code> and poll tallies.
           </li>
           <li>
             <strong>Attendance is measured, just not scored.</strong>{' '}

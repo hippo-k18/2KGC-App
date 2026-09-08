@@ -176,7 +176,7 @@ export async function imageCensus(): Promise<ImageCensus> {
         // today there is no way for them to set it either: the app has no image
         // picker, which needs a development build rather than Expo Go.
         editedAt: undefined,
-        editedNote: 'nowhere — the attendee sets it, and cannot',
+        editedNote: 'nowhere. The attendee sets it, and cannot',
       },
       {
         label: 'Exhibitor logos',

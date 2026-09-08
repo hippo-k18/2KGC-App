@@ -1,22 +1,34 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { GapPanel, PageHeader, Panel } from '../../../ui';
+import { ROUTES } from '@/lib/nav';
+import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Virtual & Hybrid › Adv. Stream Integration › Zoom.
  *
- * Worth separating two things Whova sells under one word. The *cheap* Zoom
- * integration is a link: paste a meeting URL onto a session and the app opens
- * it. The *advanced* one is an OAuth app against Zoom's API that creates
- * webinars, syncs registrants both ways, and pulls attendance back — and that
- * second one is a Zoom Marketplace app, a review process, and a webhook
- * endpoint that has to be publicly reachable and verified.
+ * ── Two jobs sold under one word, and the distinction is the useful part ────
  *
- * Neither exists. The distinction matters because the first is genuinely a
- * day's work and the second is not, and quoting the second when someone asks
- * for the first is how a small ask becomes a cut feature.
+ * The *cheap* Zoom integration is a link: a `zoomUrl` field on a session,
+ * rendered as a button in the app. No Zoom account access, no API, no review;
+ * roughly a day, and it delivers most of what a small event needs.
+ *
+ * The *advanced* one — the one this nav node is named after — is a Zoom
+ * Marketplace OAuth app: an app listing, Zoom's security review, a publicly
+ * reachable webhook endpoint with their signature verification, token refresh,
+ * and per-registrant sync. Weeks, plus an approval process outside our control,
+ * plus a standing obligation when Zoom changes their API.
+ *
+ * Neither exists. Quoting the second when somebody asks for the first is how a
+ * small ask becomes a cut feature, which is why that is written down here
+ * rather than on the screen: it is a note for whoever costs the work, not
+ * something an organizer needs to read on the way to a control.
+ *
+ * The attendance argument is worth keeping too. KGC is one venue with parallel
+ * tracks in physical rooms, and the attendance record already exists and is
+ * better than Zoom's: a badge scan writes an idempotent `checkIns` document at
+ * the door.
  */
 export default async function ZoomIntegrationPage() {
   await requireOrganizer();
@@ -24,6 +36,16 @@ export default async function ZoomIntegrationPage() {
     <>
       <PageHeader
         title="Zoom"
+        info={
+          <>
+            <strong>No Zoom account is connected</strong>
+            <p>
+              A connected account would supply the OAuth credentials and a webhook endpoint, and in
+              return give a meeting per session and remote attendance back. Attendance here is a
+              badge scan at a door.
+            </p>
+          </>
+        }
         links={[
           <Link key="t" href="/virtual-and-hybrid/adv-stream-integration/microsoft-teams">
             Microsoft Teams
@@ -35,46 +57,22 @@ export default async function ZoomIntegrationPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Connects a Zoom account, creates a meeting or webinar per session, pushes the attendee
-          list to Zoom as registrants so each person gets their own join link, and pulls
-          attendance back afterwards — who joined, when, for how long. The last part is what
-          organizers actually want it for: it is the only reliable attendance record a virtual
-          session has.
-        </p>
-
-        <h2 className="section-header">The two jobs behind one name</h2>
-        <p className="body-2">
-          <strong>A link on a session</strong> — a <code>zoomUrl</code> field, rendered as a button
-          in the app. No Zoom account access, no API, no review. Roughly a day, and it delivers most
-          of what a small event needs.
-        </p>
-        <p className="body-2">
-          <strong>A real integration</strong> — a Zoom Marketplace OAuth app, which means an app
-          listing, Zoom&rsquo;s security review, a publicly reachable webhook endpoint with their
-          signature verification, token refresh, and per-registrant sync. Weeks, plus an approval
-          process that is outside our control, plus a standing obligation to keep it working when
-          Zoom changes their API.
-        </p>
-
-        <h2 className="section-header">Why neither is queued</h2>
-        <p className="body-2">
-          KGC is one venue with parallel tracks in physical rooms. The attendance record already
-          exists and is better than Zoom&rsquo;s: a badge scan writes an idempotent{' '}
-          <code>checkIns</code> document at the door. Adding Zoom would give remote attendance for
-          an audience the event does not currently serve — see{' '}
-          <Link href="/virtual-and-hybrid/virtual-and-hybrid-setup">Virtual &amp; Hybrid Setup</Link>{' '}
-          for the ticket tier that says otherwise.
-        </p>
+        <NotInputted
+          what="Zoom meetings"
+          action={
+            <Link href={ROUTES.checkIn} className="whova-btn-main">
+              Attendance is at the door
+            </Link>
+          }
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>No Zoom credentials are stored anywhere.</strong> There is no OAuth flow, no
-            token store and no <code>ZOOM_*</code> environment variable in any of the three apps.
+            <strong>No Zoom credentials are stored anywhere.</strong> No OAuth flow, no token store
+            and no <code>ZOOM_*</code> environment variable in any of the three apps.
           </li>
           <li>
             <strong>No meeting link on a session.</strong> Even the cheap version has nowhere to

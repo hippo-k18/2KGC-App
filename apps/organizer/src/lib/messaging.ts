@@ -10,6 +10,7 @@ import {
   type DirectoryDoc,
   type EmailLogDoc,
   type MessageDoc,
+  type ExhibitorDoc,
   type SpeakerDoc,
   type SponsorDoc,
   type ThreadDoc,
@@ -20,8 +21,8 @@ import { listAttendees } from './data';
 import { db } from './firestore';
 
 /**
- * Bulk email to a named audience — Whova's "Message Speakers" / "Message
- * Sponsors" and their siblings.
+ * Bulk email to a named audience — Message Speakers, Message Sponsors, Message
+ * Exhibitors.
  *
  * `gaps.ts` said these needed "an email sender. There is none anywhere in this
  * project yet." That stopped being true in August 2026, and this is what the
@@ -31,13 +32,13 @@ import { db } from './firestore';
  *
  * ── What is deliberately NOT here ───────────────────────────────────────────
  *
- * **Scheduling.** Whova lets you queue a send for later. The same argument that
- * kept it out of Announcements applies with more force to email: a queued blast
+ * **Scheduling.** The same argument that kept it out of Announcements applies
+ * with more force to email: a queued blast
  * fires whether or not anybody is awake to stop it, and the classic failure is
  * 6am in the wrong timezone. A message goes out when a human presses the
  * button, in the room, awake.
  *
- * **Attendee mail.** Whova puts that under `tickets/ticket-marketing/email-campaign`
+ * **Attendee mail.** That lives under `tickets/ticket-marketing/email-campaign`
  * and it is a genuinely different tool — contact lists, link tracking, an
  * unsubscribe register. Forty-five speakers is a different problem from a
  * thousand attendees, and pretending otherwise is how a conference gets its
@@ -48,7 +49,7 @@ import { db } from './firestore';
  * form keeps what you typed across a failed send, which covers the real case.
  */
 
-export type AudienceId = 'speakers' | 'sponsors';
+export type AudienceId = 'speakers' | 'sponsors' | 'exhibitors';
 
 export interface Recipient {
   id: string;
@@ -60,7 +61,7 @@ export interface Recipient {
 
 export interface Audience {
   id: AudienceId;
-  /** Whova's own label for the screen. */
+  /** The screen's own name in the navigation tree. */
   title: string;
   /** Plural noun for prose: "45 speakers". */
   noun: string;
@@ -95,6 +96,31 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
       { id: 'no-booth', label: 'No booth assigned', describe: 'Sponsors with no booth location' },
     ],
   },
+  /**
+   * Exhibitors, whose segments are the three conversations that have to happen
+   * before doors open rather than the three that are easy to compute.
+   *
+   * `cancelled` is excluded from every one of them, including "Everyone".
+   * A company that pulled out is still in the collection (there is no delete),
+   * and mailing them the floor-plan briefing for a hall they are not in is the
+   * one send on this screen that cannot be explained away afterwards.
+   */
+  exhibitors: {
+    id: 'exhibitors',
+    title: 'Message Exhibitors',
+    noun: 'exhibitors',
+    segments: [
+      { id: 'all', label: 'Everyone', describe: 'Every exhibitor still on the floor plan' },
+      { id: 'no-booth', label: 'No booth assigned', describe: 'Exhibitors with no booth number' },
+      {
+        id: 'over-passes',
+        label: 'Over their pass allocation',
+        // The one that earns its keep: an argument about staff passes is
+        // otherwise had at the desk, with somebody holding a box of leaflets.
+        describe: 'Exhibitors who have claimed more staff passes than their package allows',
+      },
+    ],
+  },
 };
 
 /**
@@ -111,6 +137,7 @@ export async function resolveAudience(
   segment: string,
 ): Promise<{ recipients: Recipient[]; withoutEmail: number }> {
   if (audience === 'speakers') return resolveSpeakers(segment);
+  if (audience === 'exhibitors') return resolveExhibitors(segment);
   return resolveSponsors(segment);
 }
 
@@ -183,6 +210,45 @@ async function resolveSponsors(segment: string) {
       name: s.name,
       email,
       detail: s.tier ? `${s.tier} sponsor` : undefined,
+    });
+  }
+
+  recipients.sort((a, b) => a.name.localeCompare(b.name));
+  return { recipients, withoutEmail };
+}
+
+/**
+ * Exhibitors, minus the cancelled ones.
+ *
+ * The exclusion is unconditional rather than a segment, because there is no
+ * segment on this screen for which mailing a withdrawn exhibitor is the right
+ * answer, and `resolveAudience` is the only place that decision can be made
+ * once for every send.
+ */
+async function resolveExhibitors(segment: string) {
+  const snap = await db().collection(COLLECTIONS.exhibitors).where('eventId', '==', EVENT_ID).get();
+
+  let withoutEmail = 0;
+  const recipients: Recipient[] = [];
+
+  for (const d of snap.docs) {
+    const e = d.data() as ExhibitorDoc;
+    if (e.status === 'cancelled') continue;
+
+    if (segment === 'no-booth' && e.boothNumber) continue;
+    if (segment === 'over-passes' && !((e.passesUsed ?? 0) > (e.passesAllocated ?? 0))) continue;
+
+    const email = e.contactEmail;
+    if (!email) {
+      withoutEmail++;
+      continue;
+    }
+
+    recipients.push({
+      id: d.id,
+      name: e.name,
+      email,
+      detail: e.boothNumber ? `booth ${e.boothNumber}` : 'no booth assigned',
     });
   }
 

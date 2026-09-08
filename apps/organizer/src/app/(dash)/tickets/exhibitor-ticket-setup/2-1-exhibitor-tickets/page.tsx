@@ -37,7 +37,7 @@ export default async function ExhibitorTicketsPage() {
           <strong>Booth inventory.</strong> An exhibitor tier in Whova is priced <em>per booth
           size</em>, and buying one takes a booth out of stock. Nothing in{' '}
           <code>ticketTypes</code> models a floor plan, so a tier here could only ever be a flat
-          price — see <Link href="/tickets/exhibitor-ticket-setup/2-3-booth-selection">2.3 Booth
+          price. See <Link href="/tickets/exhibitor-ticket-setup/2-3-booth-selection">2.3 Booth
           Selection</Link>.
         </li>,
         <li key="profile">

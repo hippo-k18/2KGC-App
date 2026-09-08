@@ -27,15 +27,17 @@ export default async function RoundTablePage({
           Speed Networking
         </Link>,
       ]}
-      lead={
+      info={
         <>
-          <strong>This is a plan, not a sign-up sheet.</strong> Attendees cannot see these tables or
-          join one — the app has no surface for it. What this produces is the thing an organizer
-          makes by hand today: the topics, the hosts, the room, and who is sitting where. The
-          community board&rsquo;s{' '}
-          <Link href="/engagement/community/meet-ups">meet-up posts</Link> are the closest thing
-          attendees <em>can</em> use, and they are genuinely different — a post with replies, no
-          joining and no limit.
+          <strong>A plan, not a sign-up sheet</strong>
+          <p>
+            The topics, the hosts, the room and who is sitting where. The sheet the front desk
+            works from and what gets printed on the table cards.
+          </p>
+          <p>
+            Nothing in the app reads it, so placing somebody here does not tell them. Meet-ups on
+            the community board are the nearest thing attendees can use.
+          </p>
         </>
       }
       formCopy={{
@@ -44,7 +46,7 @@ export default async function RoundTablePage({
         titlePlaceholder: 'Ontology governance in regulated industries',
         hostLabel: 'Host',
         capacityHint:
-          'Seats at the table. Eight to ten is the number a conversation survives — past that it becomes a panel with no microphone.',
+          'Seats at the table. Eight to ten is the number a conversation survives. Past that it becomes a panel with no microphone.',
         defaultCapacity: 8,
       }}
       notBuilt={[

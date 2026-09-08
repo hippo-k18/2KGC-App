@@ -42,11 +42,19 @@ import { db } from './firestore';
  *
  * ── The stored counters are ignored on purpose ──────────────────────────────
  *
- * `CommunityPostDoc.replyCount` and `.reactionCount` are trigger-owned, and the
- * triggers do not exist (Spark plan). They hold whatever the seed wrote and
- * never move. `replyCount` here is counted from the replies subcollection at
- * read time, which is correct and costs one extra read per post; reactions have
- * no equivalent recount, so nothing in these screens displays them.
+ * `CommunityPostDoc.replyCount` and `.reactionCount` are trigger-owned. The
+ * triggers in `functions/` are written and tested but undeployed — blocked on
+ * one IAM grant (`OWNER-ACTIONS.md` §3) — so both fields hold whatever last
+ * wrote them and never move.
+ *
+ * Neither is read here. `replyCount` is counted from the replies subcollection,
+ * which the screens need in full anyway for the author names and the last-reply
+ * timestamp. `reactionCount` is counted with a Firestore **`count()`
+ * aggregation**: nothing on these screens needs an individual reaction, and an
+ * aggregation bills for the index entries it scans rather than for a document
+ * read each. That needs no trigger and no plan upgrade, which is why the number
+ * can be shown at all — before this it was simply hidden, because the stored
+ * one was known to be wrong.
  */
 
 export type { CommunityCategory };
@@ -93,6 +101,8 @@ export interface CommunityPostRow {
   status: CommunityPostDoc['status'];
   /** Counted from the subcollection, not read off the frozen stored counter. */
   replyCount: number;
+  /** Counted with a `count()` aggregation, for the same reason. */
+  reactionCount: number;
   hiddenReplyCount: number;
   createdAt: string;
   /** ISO of the newest visible reply, or null. The only liveness signal here. */
@@ -137,7 +147,14 @@ export async function listCommunityPosts(): Promise<CommunityPostRow[]> {
   const rows = await Promise.all(
     postSnap.docs.map(async (d) => {
       const p = d.data() as CommunityPostDoc;
-      const replySnap = await d.ref.collection(SUBCOLLECTIONS.replies).get();
+      const [replySnap, reactionCount] = await Promise.all([
+        d.ref.collection(SUBCOLLECTIONS.replies).get(),
+        d.ref
+          .collection(SUBCOLLECTIONS.reactions)
+          .count()
+          .get()
+          .then((agg) => agg.data().count),
+      ]);
 
       const replies = replySnap.docs
         .map((r) => {
@@ -168,6 +185,7 @@ export async function listCommunityPosts(): Promise<CommunityPostRow[]> {
         authorId: p.authorId,
         status: p.status ?? 'visible',
         replyCount: visible.length,
+        reactionCount,
         hiddenReplyCount: replies.length - visible.length,
         createdAt: iso(p.createdAt),
         lastReplyAt: visible.length > 0 ? visible[visible.length - 1].createdAt : null,

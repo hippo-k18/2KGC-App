@@ -2,20 +2,25 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { imageCensus } from '@/lib/images';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Engagement › Photos › Photo Collection.
  *
- * ── The blocker is not the gallery, it is that nothing uploads ─────────────
+ * ── The blocker is the app, not the gallery and no longer Storage ──────────
  *
- * Whova's photo wall is attendees posting pictures during the event. Building
- * the wall first is not the missing half: **nothing anywhere in this project
- * uploads a file**. Every image it holds is a URL somebody typed or an importer
- * copied, `storage.rules` exists with nothing writing through it, and the app
- * has no image picker.
+ * A photo wall is attendees posting pictures during the event. Building the
+ * wall first is not the missing half: **the app has no image picker**, so there
+ * is nothing for a wall to show.
+ *
+ * ⚠️ Storage stopped being the blocker on 2026-09-01. The bucket exists,
+ * `storage.rules` is published to it, and `lib/uploads.ts` writes through it
+ * from Exhibitor, Sponsor and Speaker Manager. Any comment here or elsewhere
+ * saying nothing in this project uploads a file predates that. What is still
+ * true is that most images this event holds are URLs somebody typed or an
+ * importer copied — which is what the census below measures.
  *
  * So the useful content of this screen is the census — what images actually
  * exist, and where they are served from. That turns "photos are not built"
@@ -39,7 +44,18 @@ export default async function PhotoCollectionPage() {
     <>
       <PageHeader
         title="Photo Collection"
-        tags={<Tag color="grey">No uploads anywhere</Tag>}
+        info={
+          <>
+            <strong>A census, not a gallery</strong>
+            <p>
+              Most images this event holds are URLs somebody typed or an importer copied. Uploads
+              work from Exhibitor, Sponsor and Speaker Manager; the <em>app</em> has no image
+              picker, so attendees still cannot post one.
+            </p>
+            <p>So this counts what exists and who serves it, which is the part worth acting on.</p>
+          </>
+        }
+        tags={<Tag color="grey">not inputted yet</Tag>}
         links={[
           <Link key="m" href={ROUTES.moderateBoard}>
             Moderate the board
@@ -53,18 +69,10 @@ export default async function PhotoCollectionPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>Nothing in this project uploads a file — that is the blocker, not the gallery.</strong>{' '}
-        All {census.totalImages} images it holds are URLs somebody typed or an importer copied;{' '}
-        {census.uploaded} were uploaded here. <code>storage.rules</code> exists and nothing writes
-        through it, and the app has no image picker. A photo wall built on top of that would be an
-        empty grid implying attendees can post.
-      </Banner>
-
       <StatTiles
         tiles={[
           { label: 'Images held', value: census.totalImages, sub: 'across three collections' },
-          { label: 'Uploaded here', value: census.uploaded, sub: 'nothing writes to Storage' },
+          { label: 'Uploaded here', value: census.uploaded, sub: 'the rest are links' },
           { label: 'On other people’s servers', value: census.offsite, sub: 'breaks when they move' },
           { label: 'Attendee photos', value: census.sources[2]?.withImage ?? 0, sub: `of ${census.sources[2]?.total ?? 0} profiles` },
         ]}
@@ -107,50 +115,13 @@ export default async function PhotoCollectionPage() {
               </span>
             ),
           ])}
+          empty={<NotInputted what="images" />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           ⚠️ An image on a domain KGC does not control disappears when that domain does. For a
           speaker grid on a public page, the failure is visible and permanent, and it happens
           months after anybody was looking.
         </p>
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What has to exist first, in order</h2>
-        <Table
-          cols={[
-            { key: 'n', label: '', className: 'cell-xs' },
-            { key: 's', label: 'Step', className: 'cell-md' },
-            { key: 'w', label: '', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              '1',
-              'A write path to Storage',
-              'A signed-upload route or a rule letting an authenticated attendee write one object under their own uid. `storage.rules` exists and has never been deployed, which is a separate and smaller problem.',
-            ],
-            [
-              '2',
-              'A size and type check that runs on the server',
-              'A client-side check is a suggestion. Without a server one, the first person to upload a 40 MB HEIC finds out for everybody.',
-            ],
-            [
-              '3',
-              'A resize pipeline',
-              'A phone photo is four thousand pixels wide. Serving that to a grid is a bill and a slow app. Resizing needs a function, which needs Blaze — this is the step that turns a fortnight into a plan.',
-            ],
-            [
-              '4',
-              'A picker in the app',
-              '`expo-image-picker` is not in the SDK 54 bundle Expo Go ships, so this also needs a development build. Worth knowing before it is promised.',
-            ],
-            [
-              '5',
-              'Then the wall, and only then the queue',
-              'The gallery and the moderation queue are the easy end and are last on purpose — building either first produces a screen that implies the other four exist.',
-            ],
-          ]}
-        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -167,8 +138,9 @@ export default async function PhotoCollectionPage() {
           </li>
           <li>
             <strong>No re-hosting of the images that do exist.</strong> Copying{' '}
-            {census.offsite} hotlinked images into Storage would remove a real fragility and needs
-            step 1 above — it is the cheapest thing on this page that is worth doing.
+            {census.offsite} hotlinked images into Storage would remove a real fragility, and since
+            2026-09-01 nothing blocks it — the write path exists. It is the cheapest thing on this
+            page worth doing and it is not done.
           </li>
         </ul>
       </GapPanel>

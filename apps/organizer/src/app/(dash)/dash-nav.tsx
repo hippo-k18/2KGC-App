@@ -156,8 +156,15 @@ function FirstLevel({ node, prefix, pathname }: { node: SlimNode; prefix: string
  * are reproduced because their absence is the kind of thing that makes a
  * familiar screen feel subtly wrong.
  */
-/** The nine screens backed by real data, for the third rail box. */
-const BUILT: [string, string][] = [
+/**
+ * The third rail box: the screens an organizer opens most.
+ *
+ * This used to be headed "Built here" with a "9 real" pill, which was written
+ * for whoever was building the dashboard rather than for whoever runs the event
+ * — it invited the reader to count what was missing. Same links, same job
+ * (telling an organizer where to start), without the scoreboard.
+ */
+const QUICK_ACCESS: [string, string][] = [
   ['Basics', '/content/basics'],
   ['Session Manager', '/content/agenda-center/session-manager'],
   ['Track Manager', '/content/agenda-center/track-manager'],
@@ -166,6 +173,8 @@ const BUILT: [string, string][] = [
   ['Announcements', '/engagement/announcements'],
   ['Attendees', '/attendees/manage-attendees/attendees'],
   ['Check-in', '/attendees/check-in-and-checkout/check-in'],
+  ['Call for Abstracts', '/content/call-for-speakers-abstracts'],
+  ['Orders', '/tickets/orders-and-transactions/summary'],
   ['Report', '/tools/report'],
 ];
 
@@ -232,17 +241,15 @@ export function Sidebar({ nav, footnote }: { nav: SlimNode[]; footnote: string }
 
       {/*
         Whova's third rail box. Theirs advertises their newest features with a
-        green "6 NEW" pill; ours points at the screens here that carry real data,
-        which is the same job — telling an organizer where the value is — done
-        with the only news we actually have.
+        green "6 NEW" pill; ours is a shortcut list to the screens an organizer
+        opens every day, which is the same job — telling them where to start.
       */}
       <div className="sidebar">
         <div className="sidebar-header">
-          <span>Built here</span>
-          <span className="menu-tag new">{BUILT.length} real</span>
+          <span>Quick access</span>
         </div>
         <ul className="sidebar-menu">
-          {BUILT.map(([label, href]) => (
+          {QUICK_ACCESS.map(([label, href]) => (
             <li
               key={href}
               className={`treeview-menu-item ${pathname === href ? 'active' : ''}`}

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +67,16 @@ export default async function CreateGroupTicketsPage() {
     <>
       <PageHeader
         title="Create Group Tickets"
+        info={
+          <>
+            <strong>An invoice is one order with several items</strong>
+            <p>
+              Both group paths (the invoice form and multi-seat card checkout) write one order
+              with a line per seat, never one order per seat. Group discounts are Stripe promotion
+              codes; there is no bundle product that prices &ldquo;buy five, pay for four&rdquo;.
+            </p>
+          </>
+        }
         tags={<Tag color="green" fill="outline">Invoice and card groups are live</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
@@ -80,6 +90,21 @@ export default async function CreateGroupTicketsPage() {
           </Link>,
         ]}
       />
+
+      {unpaid.length > 0 && (
+        <Banner kind="warning">
+          <strong>
+            {money(
+              unpaid.reduce((n, o) => n + o.totalCents, 0),
+              currency,
+            )}{' '}
+            is invoiced and unpaid.
+          </strong>{' '}
+          Capacity was taken when each invoice was raised, so those{' '}
+          {unpaid.reduce((n, o) => n + o.seatCount, 0)} seats are spoken for whether or not the
+          money arrives. Each row below links to the hosted invoice finance can pay.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -127,33 +152,16 @@ export default async function CreateGroupTicketsPage() {
               ) : null}
             </span>,
           ])}
-          empty="No group registrations yet. They arrive through the invoice form and through multi-seat checkout on the website."
+          empty={<NotInputted what="group orders" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Both forms buyers use are on the marketing site (<code>apps/web</code>, port 3200), not in
           this dashboard: <code>/tickets/invoice</code> for a PO and net terms,{' '}
           <code>/tickets</code> for a card. Seats come from <code>items</code> on the order
-          document, not from a count of orders — six people are one row here and six registrations
+          document, not from a count of orders. Six people are one row here and six registrations
           at the door.
         </p>
       </Panel>
-
-      <Banner kind="info">
-        <strong>Multi-seat card checkout is live.</strong> <code>/tickets</code> asks how many
-        tickets and then asks for a name, an address and a ticket type per seat — the same three
-        fields the invoice form has always posted, read by the same parser. Seats sharing a tier
-        become one Stripe line item with a real quantity, so three colleagues on one card are one
-        payment and one order with three <code>items</code>, and a booth plus two extra passes is
-        one purchase rather than three. Ten seats a card; past that, the invoice form.
-      </Banner>
-
-      <Banner kind="info">
-        <strong>Group discounts are Stripe promotion codes today.</strong> Checkout has{' '}
-        <code>allow_promotion_codes</code> on, so a code created in Stripe applies to a group
-        purchase without any coupon table in this repo. What that cannot do is price a bundle
-        automatically —{' '}
-        <Link href={ROUTES.discountCodes}>Discount Codes</Link> explains the split.
-      </Banner>
 
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>

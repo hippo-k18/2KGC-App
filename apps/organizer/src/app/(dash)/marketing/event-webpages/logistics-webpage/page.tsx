@@ -3,7 +3,7 @@ import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listRooms } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +51,17 @@ export default async function LogisticsWebpagePage() {
     <>
       <PageHeader
         title="Logistics Webpage"
+        info={
+          <>
+            <strong>Prose, not a form</strong>
+            <p>
+              Travel, parking and venue detail are written into <code>/about</code>, so changing
+              them is a pull request. For a correction on the day use{' '}
+              <Link href="/engagement/announcements">Announcements</Link>. It reaches phones, and a
+              page nobody reloads does not.
+            </p>
+          </>
+        }
         tags={<Tag color="orange" fill="outline">prose, not a form</Tag>}
         actions={
           <a href={publicUrl('/about')} target="_blank" rel="noreferrer" className="whova-btn-main">
@@ -67,19 +78,25 @@ export default async function LogisticsWebpagePage() {
         ]}
       />
 
-      <Banner kind="info">
-        The venue is <strong>{EVENT.venue}</strong> and the practical detail is written into{' '}
-        <code>/about</code> as prose. Changing it is a pull request — which is fine in March and
-        wrong on the Tuesday morning. For same-day corrections use{' '}
-        <Link href="/engagement/announcements">Announcements</Link>: it reaches phones, and a page
-        does not.
-      </Banner>
-
       <StatTiles
         tiles={[
+          { label: 'Venue', value: EVENT.venue, sub: 'as the app and the site name it' },
           { label: 'Rooms on file', value: rooms.length, sub: 'named, and used by the agenda' },
-          { label: 'Static pages carrying logistics', value: 3, sub: 'about, tickets, conduct' },
-          { label: 'Editable from here', value: 0, sub: 'no logistics editor exists' },
+          {
+            /*
+              Counted rather than typed. The tile read a hardcoded 3 while the
+              table beside it listed the pages, so the two could disagree the
+              first time a row was added.
+            */
+            label: 'Pages carrying an answer',
+            value: new Set(WHERE.filter((w) => w.at !== '—').map((w) => w.at)).size,
+            sub: 'of the six things a visitor asks',
+          },
+          {
+            label: 'Questions with nowhere to go',
+            value: WHERE.filter((w) => w.at === '—').length,
+            sub: 'an announcement is the channel',
+          },
         ]}
       />
 
@@ -112,7 +129,7 @@ export default async function LogisticsWebpagePage() {
               </Tag>
             ) : (
               <span key="h" className="muted" style={{ fontSize: 12 }}>
-                {w.how} — needs a deploy
+                {w.how}. Needs a deploy
               </span>
             ),
           ])}

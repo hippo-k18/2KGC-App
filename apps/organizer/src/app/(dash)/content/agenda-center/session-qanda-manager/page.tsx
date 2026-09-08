@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listQaSessions, type QaQuestion } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, PageHeader, Panel, StatTiles, Table, Tabs, Tag } from '../../../ui';
+import { NotInputted, PageHeader, Panel, StatTiles, Table, Tabs, Tag } from '../../../ui';
 import { moderateQuestionAction, setQaSettingsAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -10,27 +10,27 @@ export const dynamic = 'force-dynamic';
 /**
  * Content › Agenda Center › Session Q&A Manager.
  *
- * Two halves, as Whova has it: which sessions have Q&A switched on, and the
- * questions themselves.
+ * Two halves: which sessions have Q&A switched on, and the questions
+ * themselves.
  *
  * ── What is deliberately missing, and why ───────────────────────────────────
  *
- * Whova gives a moderator exactly three powers — hide, pin, mark answered. Two
- * are here. **Pinning is not**, because it reorders a board ranked by
- * `upvoteCount`, and that counter is written by a Cloud Function trigger that
- * does not exist on the Spark plan. A pin control fighting a frozen ranking
+ * A moderator has three useful powers — hide, pin, mark answered. Two are here.
+ * **Pinning is not**, because it reorders a board ranked by `upvoteCount`, and
+ * that counter is written by a Cloud Function trigger that has never deployed:
+ * `iam.serviceAccounts.ActAs` on the App Engine default service account is
+ * outstanding (`OWNER-ACTIONS.md` §3). A pin control fighting a frozen ranking
  * would be worse than none.
  *
- * ⚠️ The upvote numbers below are **whatever the seed wrote and do not move.**
- * They are shown because hiding them would misrepresent what the app displays
- * to attendees, and labelled because a moderator sorting by them would be
- * sorting by a fossil. The queue is ordered by time instead.
+ * ⚠️ The upvote numbers below therefore **do not move**. They are shown because
+ * hiding them would misrepresent what the app displays to attendees, and the
+ * queue is ordered by time rather than by them so that no moderator is sorting
+ * by a fossil.
  *
  * ── Per-session moderators are not here either ──────────────────────────────
  *
- * Whova assigns a moderator per session. That needs a role the rules can read
- * and a claim to carry it; today every organizer can moderate every session,
- * which is honest for a team of ten.
+ * That needs a role the rules can read and a claim to carry it; today every
+ * organizer can moderate every session, which is honest for a team of ten.
  */
 
 const STATE_COLOR: Record<QaQuestion['state'], 'grey' | 'green' | 'blue' | 'red'> = {
@@ -65,6 +65,16 @@ export default async function SessionQaManagerPage({
     <>
       <PageHeader
         title="Session Q&amp;A Manager"
+        info={
+          <>
+            <strong>Vote counts do not move</strong>
+            <p>
+              Upvotes and poll tallies are written by a Cloud Function trigger that has never
+              deployed. It needs one IAM grant (<code>OWNER-ACTIONS.md</code> §3). The app shows
+              the same frozen figures, so the queue below is ordered by time instead.
+            </p>
+          </>
+        }
         tags={
           pending > 0 ? (
             <Tag color="orange" fill="solid">
@@ -95,22 +105,18 @@ export default async function SessionQaManagerPage({
           {
             label: 'Polls enabled',
             value: `${sessions.filter((s) => s.pollsEnabled).length} / ${sessions.length}`,
-            sub: 'tallies are inert — see below',
+            sub: 'sessions',
           },
           { label: 'Questions', value: questions.length, sub: `${hidden} hidden` },
           { label: 'Awaiting review', value: pending, sub: 'not yet visible to attendees' },
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>Upvote counts do not move.</strong> They are written by a Cloud Function trigger
-        that needs the Blaze plan, and the project is on Spark — so the numbers below are whatever
-        the seed wrote. The app shows the same frozen figures. Poll tallies have the same problem.
-        This is the single feature that is genuinely worse without a trigger.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Sessions</h2>
+        {sessions.length === 0 ? (
+          <NotInputted what="sessions" />
+        ) : (
         <Table
           cols={[
             { key: 't', label: 'Session', className: 'cell-fill' },
@@ -136,7 +142,7 @@ export default async function SessionQaManagerPage({
             </span>,
             s.questionCount === 0 ? (
               <span key="q" className="muted">
-                —
+                0
               </span>
             ) : (
               <Link key="q" href={`?session=${s.id}`} style={{ fontSize: 13 }}>
@@ -185,8 +191,8 @@ export default async function SessionQaManagerPage({
               </button>
             </form>,
           ])}
-          empty="No sessions yet."
         />
+        )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
@@ -203,12 +209,7 @@ export default async function SessionQaManagerPage({
         />
 
         {filtered.length === 0 ? (
-          <EmptyState icon="◌">
-            <strong>Nothing here.</strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              Questions appear as attendees ask them during a session with Q&amp;A switched on.
-            </p>
-          </EmptyState>
+          <NotInputted what="questions" />
         ) : (
           <Table
             cols={[
@@ -228,7 +229,12 @@ export default async function SessionQaManagerPage({
               <span key="s" className="muted" style={{ fontSize: 12 }}>
                 {q.sessionTitle}
               </span>,
-              <span key="v" className="muted" style={{ fontSize: 12 }} title="Frozen — no trigger">
+              <span
+                key="v"
+                className="muted"
+                style={{ fontSize: 12 }}
+                title="Frozen: the counter's trigger has never deployed"
+              >
                 {q.upvoteCount}
               </span>,
               <Tag key="st" color={STATE_COLOR[q.state]} fill="outline" small>

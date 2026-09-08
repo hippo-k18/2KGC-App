@@ -4,7 +4,7 @@ import { sessionAttendance } from '@/lib/attendance';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -184,6 +184,19 @@ export default async function SessionCapPage({
     <>
       <PageHeader
         title="Session Cap"
+        info={
+          <>
+            <strong>A cap here is a note, not a limit</strong>
+            <p>
+              Nothing enforces <code>SessionDoc.capacity</code>: adding a session to a schedule in
+              the app writes a private bookmark that counts against nothing.
+            </p>
+            <p>
+              &ldquo;Counted in&rdquo; is people scanned at that room&rsquo;s door. A fact about
+              the room afterwards, not seats claimed in advance.
+            </p>
+          </>
+        }
         links={[
           <Link key="sm" href={ROUTES.sessionManager}>
             Session Manager
@@ -195,22 +208,6 @@ export default async function SessionCapPage({
       />
 
       <Panel>
-        <Banner kind="warning">
-          <strong>A cap here is a note, not a limit.</strong> Nothing enforces{' '}
-          <code>SessionDoc.capacity</code>: adding a session to your schedule in the app writes a
-          private bookmark under <code>users/&#123;uid&#125;/savedSessions</code>, which the rules
-          allow without counting anything, and no code anywhere compares that to the cap. So this
-          screen shows what you have written down against what the room holds.
-          <br />
-          <br />
-          <strong>&ldquo;Counted in&rdquo; is not &ldquo;seats taken&rdquo;.</strong> It is people
-          scanned at that session&apos;s door on{' '}
-          <Link href={ROUTES.checkIn}>Check-in</Link> — a fact about a room after the fact, which is
-          why a session can read 42 against a cap of 40 and that is a real over-capacity event
-          rather than a booking error. Nothing in this system reserves a seat in advance, so there
-          is still no number here that means &ldquo;how many have claimed a place&rdquo;.
-        </Banner>
-
         <StatTiles
           tiles={[
             {
@@ -221,7 +218,7 @@ export default async function SessionCapPage({
             {
               label: 'Capped above the room',
               value: over.length,
-              sub: over.length ? 'more tickets than chairs' : 'none — every cap fits its room',
+              sub: over.length ? 'more tickets than chairs' : 'every cap fits its room',
             },
             {
               label: 'Cannot be checked',
@@ -362,7 +359,7 @@ export default async function SessionCapPage({
             <>
               {' '}
               <strong>{uncappedWorkshops.length}</strong> of them are workshops, and a workshop
-              without a cap is more often an omission than a decision — it is the format with
+              without a cap is more often an omission than a decision. It is the format with
               equipment, tables and a facilitator who needs to know the number.
             </>
           ) : (
@@ -374,7 +371,7 @@ export default async function SessionCapPage({
         <p className="body-2">
           The &ldquo;room seats unknown&rdquo; verdict is about <code>RoomDoc.capacity</code> being
           optional and frequently unset. It means this screen could not check, not that the room is
-          large enough — the two read the same on a dashboard and are opposite in a corridor, so
+          large enough. The two read the same on a dashboard and are opposite in a corridor, so
           they are separate verdicts rather than one green tick.
         </p>
       </Panel>

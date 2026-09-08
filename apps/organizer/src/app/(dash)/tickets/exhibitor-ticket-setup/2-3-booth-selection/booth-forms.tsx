@@ -47,7 +47,7 @@ export function AssignBoothForm({
     return (
       <p className="muted" style={{ fontSize: 13 }}>
         {exhibitors.length === 0
-          ? 'No exhibitors exist yet — add one in Exhibitor Manager before allocating space.'
+          ? 'No exhibitors exist yet. Add one in Exhibitor Manager before allocating space.'
           : 'Every booth on the plan is blocked. Unblock one to allocate it.'}
       </p>
     );
@@ -71,7 +71,7 @@ export function AssignBoothForm({
             <option key={b.id} value={b.id}>
               {b.number} · {b.size}
               {b.zone ? ` · ${b.zone}` : ''}
-              {b.exhibitorName ? ` — currently ${b.status} to ${b.exhibitorName}` : ' — free'}
+              {b.exhibitorName ? `. Currently ${b.status} to ${b.exhibitorName}` : '. Free'}
             </option>
           ))}
         </select>
@@ -109,7 +109,7 @@ export function AssignBoothForm({
         <input id="orderId" name="orderId" placeholder="optional" style={{ maxWidth: 320 }} />
         <p className="muted" style={{ fontSize: 12 }}>
           Links the space to the purchase that paid for it. Leave blank for an allocation made by
-          hand — the audit entry still records who made it.
+          hand. The audit entry still records who made it.
         </p>
       </div>
 
@@ -118,7 +118,7 @@ export function AssignBoothForm({
           Hold only
         </label>
         <label style={{ fontSize: 13 }}>
-          <input id="hold" type="checkbox" name="hold" /> Promised, not paid — keeps it off the
+          <input id="hold" type="checkbox" name="hold" /> Promised, not paid: keeps it off the
           available list without counting it as sold
         </label>
       </div>
@@ -172,8 +172,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
         </label>
         <input id="zone" name="zone" placeholder="Main aisle" style={{ maxWidth: 220 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Groups a long list into something walkable. Booths sort by zone, then naturally by number
-          — A2 before A10, which a plain sort gets backwards.
+          Groups a long list into something walkable. Booths sort by zone, then naturally by number. A2 before A10, which a plain sort gets backwards.
         </p>
       </div>
 
@@ -182,7 +181,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
           Sold as
         </label>
         <select id="ticketTypeId" name="ticketTypeId" style={{ maxWidth: 320 }}>
-          <option value="">— not decided yet —</option>
+          <option value="">Not decided yet…</option>
           {packages.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}

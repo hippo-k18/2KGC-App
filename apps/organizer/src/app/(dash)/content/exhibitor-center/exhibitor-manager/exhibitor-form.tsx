@@ -40,7 +40,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         <input id="name" name="name" required defaultValue={existing?.name} maxLength={80} />
         {existing && (
           <p className="muted" style={{ fontSize: 12 }}>
-            Id <code>{existing.id}</code> stays the same — passes and lead scans point at it.
+            Id <code>{existing.id}</code> stays the same. Passes and lead scans point at it.
           </p>
         )}
       </div>
@@ -57,7 +57,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
           Status
         </label>
         <select id="status" name="status" defaultValue={existing?.status ?? 'provisional'} style={{ maxWidth: 200 }}>
-          <option value="provisional">Provisional — not paid yet</option>
+          <option value="provisional">Provisional, not paid yet</option>
           <option value="confirmed">Confirmed</option>
           <option value="cancelled">Cancelled</option>
         </select>
@@ -99,7 +99,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         */}
         <p className="muted" style={{ fontSize: 12 }}>
           What the package includes. {existing ? `${existing.passesUsed} claimed so far. ` : ''}
-          Blank means the contract does not say — which is worth chasing before doors open.
+          Blank means the contract does not say, which is worth chasing before doors open.
         </p>
       </div>
 

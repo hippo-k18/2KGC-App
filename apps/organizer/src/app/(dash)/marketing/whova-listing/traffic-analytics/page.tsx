@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +48,32 @@ export default async function WhovaListingTrafficPage() {
     <>
       <PageHeader
         title="Listing Traffic Analytics"
-        tags={<Tag color="grey" fill="outline">partly not applicable</Tag>}
+        info={
+          <>
+            <strong>We measure the links we made, and nothing else</strong>
+            <p>
+              <code>/r/&#123;code&#125;</code> counts the click and stamps a cookie, and fulfilment
+              writes that code onto the order, so a click can be followed to a purchase. Anyone who
+              arrived any other way is not counted: no page here is instrumented.
+            </p>
+          </>
+        }
+        tags={
+          links.length > 0 ? (
+            <Tag color="green" fill="outline">
+              {links.length} tracked {links.length === 1 ? 'link' : 'links'}
+            </Tag>
+          ) : (
+            <Tag color="grey" fill="outline">
+              nothing tracked yet
+            </Tag>
+          )
+        }
+        actions={
+          <Link href="/tickets/ticket-marketing/campaign-link-tracking" className="whova-btn-main">
+            Create a tracked link
+          </Link>
+        }
         links={[
           <Link key="l" href="/marketing/whova-listing/my-event-listing">
             My event listing
@@ -61,15 +86,6 @@ export default async function WhovaListingTrafficPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>We measure the links we made, and nothing else.</strong> This screen was originally
-        about views of a Whova directory listing, and we are not in a directory. What we do have is
-        the tracked-link path: <code>/r/&#123;code&#125;</code> counts the click and stamps a cookie,
-        and fulfilment writes that code onto the order — so a click can be followed all the way to
-        a purchase. Anyone who arrived any other way is not counted, because no page on
-        knowledgegraph.tech is instrumented.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -95,7 +111,20 @@ export default async function WhovaListingTrafficPage() {
             { key: 'r', label: 'Revenue', className: 'cell-sm' },
             { key: 'w', label: 'Last click', className: 'cell-mdsm' },
           ]}
-          empty="No tracked link has been created yet — make one on Campaign Link Tracking and this fills in."
+          empty={
+            <NotInputted
+              what="tracked links"
+              compact
+              action={
+                <Link
+                  className="btn btn-primary"
+                  href="/tickets/ticket-marketing/campaign-link-tracking"
+                >
+                  Create one
+                </Link>
+              }
+            />
+          }
           rows={links.map((l) => [
             <span key="l">
               <strong>{l.label || l.code}</strong>
@@ -115,26 +144,19 @@ export default async function WhovaListingTrafficPage() {
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The three halves, kept apart</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What these numbers cover</h2>
         <dl className="gap-grid">
-          <dt>Listing traffic</dt>
+          <dt>Counted</dt>
           <dd>
-            Not applicable. Reproducing it means running an event directory, which is a marketplace
-            business rather than a screen. Same answer as{' '}
-            <Link href="/marketing/organizer-co-promo">Organizer Co-Promo</Link>.
+            Every click on a link above, by the redirect itself rather than by a trigger, and every
+            purchase that followed one within the cookie&rsquo;s thirty days. Attribution is
+            last-click, stated so a leaderboard built on it can be argued with.
           </dd>
-          <dt>Tracked-link traffic</dt>
+          <dt>Not counted</dt>
           <dd>
-            Real, and above. Counted by the redirect itself rather than by a trigger, so none of it
-            waits on a Cloud Function — and attributed to orders through{' '}
-            <code>OrderDoc.campaignCode</code>, which fulfilment stamps from the cookie. Attribution
-            is last-click within the cookie&rsquo;s life, stated so it can be argued with.
-          </dd>
-          <dt>Everyone else</dt>
-          <dd>
-            Genuinely unmeasured. Somebody who searched for the conference, read three pages and
-            bought a ticket appears in the order table and nowhere here. Closing that means a page
-            tracker, and what each option costs a visitor is laid out under{' '}
+            Somebody who searched for the conference, read three pages and bought a ticket. They
+            appear in the order table and nowhere here. Closing that means a page tracker, and what
+            each option costs a visitor is laid out under{' '}
             <Link href="/marketing/event-webpages/agenda-webpage/analytics">
               Agenda Webpage &rsaquo; Analytics
             </Link>

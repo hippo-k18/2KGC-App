@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { SettingsReach } from '../../../settings-reach';
-import { Banner, PageHeader, Panel } from '../../../ui';
+import { PageHeader, Panel } from '../../../ui';
 import { CodeAccessForm } from '../access-form';
 
 export const dynamic = 'force-dynamic';
@@ -30,20 +30,22 @@ export default async function CodeAccessControlPage() {
     <>
       <PageHeader
         title="Code Access Control"
+        info={
+          <>
+            <strong>The real gate is not this code</strong>
+            <p>
+              Access is decided by the <code>registered</code> custom claim, minted only for ticket
+              holders and checked by <code>firestore.rules</code> on every request. A shared code is
+              a convenience on a slide, and is not treated as security here.
+            </p>
+          </>
+        }
         links={[
           <Link key="p" href="/tools/admin-control/post-event-access-duration">
             Post Event Access
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>The real gate is not this code.</strong> Access is decided by the{' '}
-        <code>registered</code> custom claim, minted only for ticket holders and checked by{' '}
-        <code>firestore.rules</code> on every request. A shared code is one string a thousand
-        people know — useful as a convenience on a slide, not as security, and it is not treated as
-        security here.
-      </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Event code</h2>
@@ -62,7 +64,7 @@ export default async function CodeAccessControlPage() {
           <li>They buy a ticket, which writes a registration keyed by their email address.</li>
           <li>
             They sign in to the app with that same address and enter the <strong>claim code</strong>{' '}
-            from their confirmation — which is per-person, not shared, and is the thing this screen
+            from their confirmation, which is per-person, not shared, and is the thing this screen
             is often confused with.
           </li>
           <li>
@@ -70,9 +72,22 @@ export default async function CodeAccessControlPage() {
             <code>firestore.rules</code> starts allowing reads.
           </li>
         </ol>
+        {/*
+          Kept on the page rather than moved into the `info` tip, because it is
+          not a caveat about the software — it is a step somebody on the team
+          has to actually perform before an attendee can read anything. An
+          organizer who does not know this waits for a claim that is never
+          minted while the attendee stands there.
+
+          The trigger that would do it automatically is written and tested; it
+          is undeployed pending one IAM grant (`iam.serviceAccounts.ActAs`,
+          OWNER-ACTIONS.md §3). That is neither the Blaze plan nor the old
+          `serviceusage` 403 Both of those are resolved… and this line said
+          "Blaze" until it was corrected.
+        */}
         <p className="muted" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
-          ⚠️ Step 3 is currently a manual run of <code>scripts/set-claims.ts</code>. Automating it
-          needs a Cloud Function, which needs the Blaze plan.
+          ⚠️ Step 3 is a manual run of <code>scripts/set-claims.ts</code> today. Somebody has to do
+          it before a new attendee can read anything in the app.
         </p>
       </Panel>
 

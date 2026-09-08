@@ -41,7 +41,7 @@ export async function createDiscountCodeAction(
   const expiresRaw = String(formData.get('expiresAt') ?? '').trim();
 
   if (!CODE.test(code)) {
-    return { error: 'Use 3–40 letters, digits, hyphens or underscores — no spaces.' };
+    return { error: 'Use 3–40 letters, digits, hyphens or underscores, no spaces.' };
   }
 
   const value = Number(valueRaw);

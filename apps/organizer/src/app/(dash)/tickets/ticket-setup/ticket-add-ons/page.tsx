@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,17 @@ export default async function TicketAddOnsPage() {
     <>
       <PageHeader
         title="Ticket Add-ons"
+        info={
+          <>
+            <strong>An add-on is not a discount code</strong>
+            <p>
+              A discount code changes what a purchase costs and lives in Stripe; an add-on changes
+              what it contains and would live here. Nothing in the data model is purchasable except
+              a ticket type, so the two entitlements below are booleans on a tier rather than
+              products.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">No add-on model</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
@@ -59,34 +70,8 @@ export default async function TicketAddOnsPage() {
             t.includesWorkshops ? <Tag key="w" color="green" small>yes</Tag> : <span key="w" className="muted">—</span>,
             t.includesVideoLibrary ? <Tag key="v" color="green" small>yes</Tag> : <span key="v" className="muted">—</span>,
           ])}
-          empty="No ticket types. Run `npm run seed` — the catalogue has no hard-coded fallback."
+          empty={<NotInputted what="ticket types" compact />}
         />
-      </Panel>
-
-      <Banner kind="info">
-        <strong>An add-on is not a discount code.</strong> Discount codes change what a purchase
-        costs; an add-on changes what it contains. Stripe owns the first (
-        <Link href={ROUTES.discountCodes}>Discount Codes</Link>) and this repo owns the second — so
-        add-ons cannot be borrowed from Stripe the way promotions were.
-      </Banner>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What it would take</h2>
-        <p className="body-2">
-          An <code>addOns</code> collection with a price and an optional capacity, a multi-select on
-          the public form, extra line items on the Checkout session, and — the part that is easy to
-          forget — the entitlement written onto the registration at fulfilment, because that is
-          what the door and the app read. One of those four is now free: the Checkout session
-          already builds several line items with real quantities, because multi-seat checkout
-          needed that anyway. The other three are the work, and the fourth is the one that decides
-          whether it is correct.
-        </p>
-        <p className="body-2">
-          Capacity is the subtle half. A gala dinner with 200 seats needs the same sold-out check
-          the ticket catalogue already does in <code>availability()</code>, and needs it to be
-          correct under concurrent purchase — which the ticket path handles by counting on the
-          server at fulfilment rather than trusting a client.
-        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { DESK_NAME, deskThread } from '@/lib/messaging';
-import { Banner, PageHeader, Panel, Tag } from '../../ui';
+import { NotInputted, PageHeader, Panel, Tag } from '../../ui';
 import { markDeskThreadReadAction } from '../actions';
 import { DeskComposer } from '../desk-composer';
 
@@ -54,21 +54,25 @@ export default async function DeskThreadPage({
           <Link key="i" href="/messaging">
             All conversations
           </Link>,
+          /*
+            The correspondent's job title and company. This was a full-width
+            info banner, which gave a two-word subtitle the same weight as an
+            unsent-changes warning; it belongs on the header's secondary line
+            beside the back link.
+          */
+          ...(thread.correspondentDetail
+            ? [
+                <span key="d" className="muted">
+                  {thread.correspondentDetail}
+                </span>,
+              ]
+            : []),
         ]}
       />
 
-      {thread.correspondentDetail && (
-        <Banner kind="info">{thread.correspondentDetail}</Banner>
-      )}
-
       <Panel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {thread.messages.length === 0 && (
-            <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-              This conversation has a thread document but no messages in it — somebody opened it
-              from the app and never wrote anything.
-            </p>
-          )}
+          {thread.messages.length === 0 && <NotInputted what="messages in this thread" compact />}
           {thread.messages.map((m) => (
             /*
              * Sent-by-us on the right, them on the left, which is the one

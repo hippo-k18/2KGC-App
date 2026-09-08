@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,14 +15,14 @@ export const dynamic = 'force-dynamic';
  * a `Record<uid, number>` map once, and 1,000 voters against Firestore's
  * ~1 write/sec/document limit took sixteen minutes to drain. The fix was
  * uid-keyed subcollections, which is also how reactions and upvotes work — but a
- * *tally* over those subcollections is function-owned, and the aggregate
- * triggers do not exist because the project is on the Spark plan. So a
- * competition would collect votes correctly and be unable to display a
- * leaderboard that moves.
+ * *tally* over those subcollections is written by a Cloud Function trigger, and
+ * those have never deployed (`OWNER-ACTIONS.md` §3). So a competition would
+ * collect votes correctly and be unable to display a leaderboard that moves.
  *
- * Firestore's `count()` aggregation at read time is the Spark-compatible
- * substitute and would work here, because a poster leaderboard is read by an
- * organizer occasionally rather than by a thousand phones continuously.
+ * Firestore's `count()` aggregation at read time is the substitute that needs no
+ * trigger, and it is the right answer here rather than a workaround: a poster
+ * leaderboard is read by an organizer occasionally rather than by a thousand
+ * phones continuously.
  */
 export default async function ArtifactCompetitionPage() {
   await requireOrganizer();
@@ -31,6 +31,16 @@ export default async function ArtifactCompetitionPage() {
     <>
       <PageHeader
         title="Competition"
+        info={
+          <>
+            <strong>Nothing to vote on yet</strong>
+            <p>
+              A contest needs the <code>artifacts</code> collection first. The tally is the second
+              problem: counters here are trigger-written and the triggers have never deployed, so a
+              leaderboard would have to be counted at read time.
+            </p>
+          </>
+        }
         links={[
           <Link key="a" href="/content/artifact-center-poster-pitch-gallery/artifact-manager">
             Artifact Manager
@@ -42,40 +52,7 @@ export default async function ArtifactCompetitionPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Runs a best-poster or best-pitch contest: attendees vote in the app, judges score against
-          criteria the organizer defines, and a leaderboard settles it. Organizers can restrict
-          voting to a segment — judges only, or one vote per attendee.
-        </p>
-
-        <h2 className="section-header">What this would need</h2>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>Artifacts to vote on.</strong> There is no artifact collection —{' '}
-            <strong>6–8 days</strong>, sized on Artifact Manager.
-          </li>
-          <li>
-            <strong>Votes as a uid-keyed subcollection,</strong> never a map. That rule is not
-            stylistic: a map of votes on one document is a single-document write hotspot, and it has
-            already cost this project sixteen minutes of drain time in testing.
-          </li>
-          <li>
-            <strong>A tally an organizer can read.</strong> The aggregate triggers that own counters
-            here need Cloud Functions and therefore the Blaze plan. Firestore{' '}
-            <code>count()</code> at read time avoids that entirely for a leaderboard this small, and
-            is the right answer rather than a workaround.
-          </li>
-          <li>
-            <strong>Judge scoring,</strong> which is a different shape from attendee voting —
-            weighted criteria and named judges, not one anonymous tap.
-          </li>
-        </ul>
-
-        <p className="body-2">
-          <strong>3–4 days</strong> on top of the artifact model, assuming attendee voting only.
-          Judge scoring roughly doubles it.
-        </p>
+        <NotInputted what="entries" />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -85,12 +62,17 @@ export default async function ArtifactCompetitionPage() {
             <strong>Everything.</strong> No artifacts, no votes, no judges, no leaderboard.
           </li>
           <li>
-            <strong>Live tallies generally.</strong> Session Q&amp;A and live polls already render
-            in the app and their counts never move, for the same reason. That is the honest state of
-            every tally in this project.
+            <strong>Votes as a uid-keyed subcollection,</strong> never a map. That rule is not
+            stylistic: a map of votes on one document is a single-document write hotspot, and it
+            has already cost this project sixteen minutes of drain time in testing.
           </li>
           <li>
-            <strong>Prizes.</strong> Somebody still has to buy them.
+            <strong>Judge scoring,</strong> which is a different shape from attendee voting —
+            weighted criteria and named judges, not one anonymous tap.
+          </li>
+          <li>
+            <strong>Live tallies generally.</strong> Session Q&amp;A and live polls already render
+            in the app and their counts never move, for the same reason.
           </li>
         </ul>
       </GapPanel>

@@ -298,7 +298,7 @@ export async function commitTrackImportAction(
       csv,
       error:
         outcome.errors.length > 0 || outcome.failed.length > 0
-          ? 'Nothing was imported — the file still has problems. Fix them, or tick “import the good rows anyway”.'
+          ? 'Nothing was imported. The file still has problems. Fix them, or tick “import the good rows anyway”.'
           : 'Nothing was imported.',
       errors: outcome.errors,
       failed: outcome.failed,

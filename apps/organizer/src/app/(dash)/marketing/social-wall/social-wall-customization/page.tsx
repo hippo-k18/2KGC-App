@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { CATEGORY_LABEL, listCommunityPosts } from '@/lib/engagement';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +48,16 @@ export default async function SocialWallCustomizationPage() {
     <>
       <PageHeader
         title="Social Wall Customization"
+        info={
+          <>
+            <strong>The board is closed on purpose</strong>
+            <p>
+              <code>firestore.rules</code> requires the <code>registered</code> claim to read{' '}
+              <code>communityPosts</code>, and attendees post ride shares and phone numbers there
+              because it is a closed room. A public wall would open it after the fact.
+            </p>
+          </>
+        }
         tags={<Tag color="red" fill="outline">no public wall</Tag>}
         links={[
           <Link key="a" href="/marketing/social-wall/activity-stream-webpage">
@@ -59,13 +69,6 @@ export default async function SocialWallCustomizationPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>The board is closed on purpose.</strong> <code>firestore.rules</code> requires the{' '}
-        <code>registered</code> claim to read <code>communityPosts</code>, and that claim is minted
-        only for ticket holders. Attendees post ride shares and phone numbers there because it is a
-        closed room; a public wall would open it after the fact.
-      </Banner>
-
       <StatTiles
         tiles={[
           { label: 'Posts on the board', value: visible.length, sub: hidden.length > 0 ? `${hidden.length} hidden by a moderator` : 'none hidden' },
@@ -74,7 +77,11 @@ export default async function SocialWallCustomizationPage() {
             value: byCategory.filter((c) => c.projectable).reduce((n, c) => n + c.count, 0),
             sub: 'no contact details by category',
           },
-          { label: 'Theme settings', value: 0, sub: 'nothing to theme' },
+          {
+            label: 'Hidden by a moderator',
+            value: hidden.length,
+            sub: hidden.length === 0 ? 'none so far' : 'already off the board',
+          },
         ]}
       />
 
@@ -99,10 +106,10 @@ export default async function SocialWallCustomizationPage() {
               </span>
             ),
           ])}
-          empty="Nothing on the board yet."
+          empty={<NotInputted what="community posts" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          The categories, not the individual posts — the judgement a wall needs is per category, and
+          The categories, not the individual posts. The judgement a wall needs is per category, and
           two of them fail it every time.
         </p>
       </Panel>

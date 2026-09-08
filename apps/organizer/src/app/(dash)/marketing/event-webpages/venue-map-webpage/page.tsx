@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { listRooms, listSessions } from '@/lib/data';
+import { listRoomRows, listSessions } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,31 +17,49 @@ export const dynamic = 'force-dynamic';
  *
  * `RoomDoc` already carries `mapX` and `mapY` as 0–1 fractions of each axis —
  * the pin coordinates, modelled correctly and resolution-independent. What is
- * missing is the image they are fractions *of*. Nothing in this repo uploads a
- * floorplan, so a coordinate is a fraction of nothing and cannot be drawn.
+ * missing is the image they are fractions *of*, and no public surface draws
+ * one. That ordering is unusual enough to be worth stating: normally the
+ * picture is the easy part.
  *
- * That ordering is worth stating because it is unusual: normally the picture is
- * the easy part. Here the picture needs a Storage upload path and an image
- * pipeline that no screen in this dashboard has, and the maths is already done.
- *
- * So the screen reports the rooms an organizer would be pinning, and how much of
- * the programme depends on each — which is the ordering they would want if they
- * ever did place the pins, since a room with fourteen sessions matters more than
- * a room with one.
+ * So the screen reports the rooms an organizer would be pinning, ordered by how
+ * much of the programme depends on each — a room with fourteen sessions matters
+ * more than a room with one — and says for each whether a pin has actually been
+ * placed. It used to print "nowhere to place it" on every row unconditionally,
+ * which is a claim about the software rather than a reading of the data: the
+ * coordinates are a real field that a room can genuinely have.
  */
 export default async function VenueMapWebpagePage() {
   await requireOrganizer();
-  const [rooms, sessions] = await Promise.all([listRooms(), listSessions()]);
+  const [rooms, sessions] = await Promise.all([listRoomRows(), listSessions()]);
 
   const live = sessions.filter((s) => s.status !== 'cancelled');
-  const countFor = (id: string) => live.filter((s) => s.roomId === id).length;
   const unroomed = live.filter((s) => !s.roomId).length;
+  const pinned = rooms.filter((r) => r.mapX !== undefined).length;
+
+  // Busiest first: the ordering an organizer would place pins in.
+  const ordered = [...rooms].sort(
+    (a, b) => b.sessionCount - a.sessionCount || a.name.localeCompare(b.name),
+  );
 
   return (
     <>
       <PageHeader
         title="Venue Map Webpage"
-        tags={<Tag color="red" fill="outline">no floorplan image</Tag>}
+        info={
+          <>
+            <strong>Pins without a picture</strong>
+            <p>
+              <code>RoomDoc.mapX</code> and <code>mapY</code> hold a position as a fraction of each
+              axis, which survives any image size. Nothing uploads a floorplan for them to be
+              fractions of, so no map is drawn on the site or in the app.
+            </p>
+          </>
+        }
+        tags={
+          <Tag color={pinned === rooms.length && rooms.length > 0 ? 'green' : 'orange'} fill="outline">
+            {pinned} of {rooms.length} pinned
+          </Tag>
+        }
         actions={
           <a href={publicUrl('/about')} target="_blank" rel="noreferrer" className="whova-btn-main">
             Nearest live page: /about ↗
@@ -57,21 +75,19 @@ export default async function VenueMapWebpagePage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>The pins are modelled; the map is not.</strong> <code>RoomDoc.mapX</code> and{' '}
-        <code>mapY</code> hold a position as a fraction of each axis, which is the right shape and
-        survives any image size. Nothing uploads a floorplan for them to be fractions of, so no map
-        is drawn on the site or in the app. The venue is {EVENT.venue}.
-      </Banner>
-
       <StatTiles
         tiles={[
+          { label: 'Venue', value: EVENT.venue, sub: 'one building, one plan' },
           { label: 'Rooms', value: rooms.length, sub: 'each a pin, once there is a map' },
-          { label: 'Sessions in a room', value: live.length - unroomed, sub: `of ${live.length}` },
           {
-            label: 'Floorplan images',
-            value: 0,
-            sub: 'nothing in this repo uploads one',
+            label: 'Pins placed',
+            value: pinned,
+            sub: pinned === 0 ? 'not inputted yet' : `of ${rooms.length} rooms`,
+          },
+          {
+            label: 'Sessions in a room',
+            value: live.length - unroomed,
+            sub: `of ${live.length}`,
           },
         ]}
       />
@@ -81,17 +97,42 @@ export default async function VenueMapWebpagePage() {
         <Table
           cols={[
             { key: 'n', label: 'Room', className: 'cell-fill' },
+            { key: 'b', label: 'Floor', className: 'cell-sm' },
             { key: 's', label: 'Sessions', className: 'cell-sm' },
             { key: 'p', label: 'Pin', className: 'cell-md' },
           ]}
-          rows={rooms.map((r) => [
+          rows={ordered.map((r) => [
             r.name,
-            countFor(r.id),
-            <span key="p" className="muted" style={{ fontSize: 12 }}>
-              nowhere to place it
+            r.floor || <span key="b" className="muted">—</span>,
+            <span key="s">
+              {r.sessionCount}
+              {r.publishedCount !== r.sessionCount ? (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {r.publishedCount} published
+                </div>
+              ) : null}
             </span>,
+            r.mapX !== undefined && r.mapY !== undefined ? (
+              <code key="p" style={{ fontSize: 12 }}>
+                {r.mapX.toFixed(3)}, {r.mapY.toFixed(3)}
+              </code>
+            ) : (
+              <span key="p" className="muted" style={{ fontSize: 12 }}>
+                not inputted yet
+              </span>
+            ),
           ])}
-          empty="No rooms yet. Session Manager creates them as sessions are scheduled."
+          empty={
+            <NotInputted
+              what="rooms"
+              compact
+              action={
+                <Link className="btn btn-primary" href={ROUTES.sessionManager}>
+                  Schedule a session
+                </Link>
+              }
+            />
+          }
         />
         {unroomed > 0 ? (
           // Worth surfacing here and not only on the agenda screen: a session
@@ -109,13 +150,15 @@ export default async function VenueMapWebpagePage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Uploading a floorplan.</strong> No screen in this dashboard writes to Storage or
-            resizes an image. This is the same blocker as app branding and sponsor banners, and
-            fixing it once unblocks all three.
+            <strong>The floorplan image.</strong> <code>lib/uploads.ts</code> and the Storage bucket
+            both exist now, so uploading one is no longer the blocker — the blocker is that no
+            surface draws it. A saved image nothing renders is a setting nothing reads, which is
+            the pattern this dashboard has been removing rather than adding.
           </li>
           <li>
             <strong>Placing pins.</strong> Dragging a marker onto an image is a client component
-            with pointer maths. It cannot be built before there is an image to drag onto.
+            with pointer maths. The coordinates it would write are already modelled and readable —
+            see the Pin column — so this is the drag surface and nothing else.
           </li>
           <li>
             <strong>Multiple floors.</strong> <code>RoomDoc</code> has a <code>floor</code> string

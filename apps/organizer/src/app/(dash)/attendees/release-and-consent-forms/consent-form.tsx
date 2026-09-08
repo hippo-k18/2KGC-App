@@ -81,7 +81,7 @@ export function ConsentForm({ existing }: { existing?: ConsentFormRow }) {
             ⚠️ {signed} {signed === 1 ? 'person has' : 'people have'} already signed this. Changing
             a single character of the text below publishes version {(existing?.version ?? 1) + 1}{' '}
             and makes every one of those signatures outstanding against the new wording. Their
-            agreement is not erased — it stays exactly as given, to the text they actually read —
+            agreement is not erased (it stays exactly as given, to the text they actually read)
             but it stops counting for the new version, and they will each be asked again. Fix a
             typo only if it is worth that.
           </p>
@@ -93,7 +93,7 @@ export function ConsentForm({ existing }: { existing?: ConsentFormRow }) {
           required
           defaultValue={existing?.body}
           placeholder={
-            'I agree that the Knowledge Graph Conference may photograph, film and record me at the event, and may publish those recordings.\n\nBlank lines separate paragraphs. Plain text only — this is stored, hashed and shown to people exactly as typed.'
+            'I agree that the Knowledge Graph Conference may photograph, film and record me at the event, and may publish those recordings.\n\nBlank lines separate paragraphs. Plain text only. This is stored, hashed and shown to people exactly as typed.'
           }
           style={{ fontSize: 13, lineHeight: 1.6 }}
         />
@@ -113,12 +113,12 @@ export function ConsentForm({ existing }: { existing?: ConsentFormRow }) {
           defaultValue={existing?.status ?? 'draft'}
           style={{ maxWidth: 320 }}
         >
-          <option value="draft">Draft — nobody can sign it</option>
-          <option value="published">Published — collecting signatures</option>
-          <option value="cancelled">Cancelled — stop collecting</option>
+          <option value="draft">Draft: nobody can sign it</option>
+          <option value="published">Published: collecting signatures</option>
+          <option value="cancelled">Cancelled: stop collecting</option>
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
-          A draft cannot be signed, in the app or through a link — <code>firestore.rules</code> and
+          A draft cannot be signed, in the app or through a link. <code>firestore.rules</code> and
           the website both refuse it, so an early link is harmless.
         </p>
       </div>
@@ -137,7 +137,7 @@ export function ConsentForm({ existing }: { existing?: ConsentFormRow }) {
           Everyone in this audience is expected to sign
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
-          Advisory only. Nothing in this product blocks on an unsigned form — a ticket still scans
+          Advisory only. Nothing in this product blocks on an unsigned form. A ticket still scans
           and a session still runs. It sets what this register counts as outstanding, and marking a
           release required while the door ignores it would be a claim the software does not keep.
         </p>

@@ -1,21 +1,20 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { pageReadiness, publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Content › Branding Center › Web App Speaker Page.
  *
- * Whova has two different speaker pages and they are easy to confuse. The
+ * Two speaker pages exist in the navigation and they are easy to confuse. The
  * *marketing* speaker webpage is a public list you embed on your own site — that
- * one is built here, at Marketing › Event Webpages › Speaker Webpage. This one
- * is the **web app** speaker page: the branded speaker view inside Whova's
- * browser-based version of the event app, which an attendee reaches while signed
- * in.
+ * one is built, at Marketing › Event Webpages › Speaker Webpage. This one is the
+ * **web app** speaker page: the signed-in speaker view inside a browser version
+ * of the event app.
  *
- * We have no web app. The attendee experience is an Expo build for iOS and
+ * There is no web app. The attendee experience is an Expo build for iOS and
  * Android, and `apps/web` is a marketing and ticketing site with no signed-in
  * event surface at all. So the customisation this screen would offer has nothing
  * to customise — but the *content* it would show is real, so the readiness
@@ -30,6 +29,16 @@ export default async function WebAppSpeakerPagePage() {
     <>
       <PageHeader
         title="Web App Speaker Page"
+        info={
+          <>
+            <strong>There is no web app to brand</strong>
+            <p>
+              Attendees get a native iOS and Android build; <code>apps/web</code> sells tickets and
+              has no signed-in event surface. The same speaker records do render on the public
+              speakers page and in the app&rsquo;s People tab, and the figures below are theirs.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">no web app</Tag>}
         links={[
           <Link key="m" href="/marketing/event-webpages/speaker-webpage">
@@ -40,13 +49,6 @@ export default async function WebAppSpeakerPagePage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="warning">
-        <strong>There is no web app to brand.</strong> Attendees get a native iOS and Android build;{' '}
-        <code>apps/web</code> sells tickets and has no signed-in event surface. Whova&rsquo;s
-        browser version of the app is a second full client, and this screen customises a page inside
-        it.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -79,6 +81,8 @@ export default async function WebAppSpeakerPagePage() {
               </li>
             ))}
           </ul>
+        ) : speakers.total === 0 ? (
+          <NotInputted what="speakers" compact />
         ) : (
           <p className="body-2">Nothing on the speaker records is currently missing.</p>
         )}
@@ -94,9 +98,9 @@ export default async function WebAppSpeakerPagePage() {
             decision rather than a screen.
           </li>
           <li>
-            <strong>Layout choices.</strong> Whova offers grid or list, with or without company
-            names, alphabetical or by session order. The mobile People tab hard-codes one layout and
-            takes no configuration.
+            <strong>Layout choices.</strong> Grid or list, with or without company names,
+            alphabetical or by session order. The mobile People tab hard-codes one layout and takes
+            no configuration.
           </li>
           <li>
             <strong>Featured speakers.</strong> <code>SpeakerDoc</code> has no ordering or
@@ -104,8 +108,8 @@ export default async function WebAppSpeakerPagePage() {
             one is cheap — a field, a form control and a sort — if it is ever wanted.
           </li>
           <li>
-            <strong>Branding.</strong> Same wall as App Branding: colours are compiled in, and no
-            screen in this project uploads an image.
+            <strong>Branding.</strong> Same wall as App Branding: the palette and the logo are
+            compiled into the app bundle, so nothing stored here would reach a phone.
           </li>
         </ul>
       </GapPanel>

@@ -13,16 +13,16 @@ export default async function Page() {
       whatItIs="An email marketing platform in the same category as Mailchimp, and common among associations."
       whovaDoes="The same audience sync."
       ourAnswer={<>Nothing. Their importer takes the attendee CSV directly.</>}
-      effort="2–4 days."
+      effort="The same audience sync as Mailchimp, against a second API. Nothing here is novel once one of them exists."
       steps={[
         <>
           Export the list you need from{' '}
-          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link> —
-          the attendee, order or speaker CSV.
+          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>.
+          The attendee, order or speaker CSV.
         </>,
         <>Import it into Constant Contact with their own import tool. Every one of these products has one.</>,
         <>
-          Repeat before the event and after it. Twice is usually enough — Whova&rsquo;s sync runs
+          Repeat before the event and after it. Twice is usually enough. Whova&rsquo;s sync runs
           every 24 hours, which is not meaningfully fresher for an event that happens once a year.
         </>,
       ]}

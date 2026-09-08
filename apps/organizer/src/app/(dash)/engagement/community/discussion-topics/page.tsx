@@ -9,7 +9,15 @@ export default async function DiscussionTopicsPage() {
     <CategoryScreen
       title="Discussion Topics"
       categories={DISCUSSION_CATEGORIES}
-      intro="Questions and ice-breakers from the community board. Whova seeds discussion topics before an event to get the board moving; ours are whatever attendees have asked, because nothing lets an organizer post."
+      info={
+        <>
+          <strong>Attendee-authored</strong>
+          <p>
+            Questions and ice-breakers from the community board. Nothing here lets an organizer
+            post or seed a topic, so the board on day one is whatever attendees have asked.
+          </p>
+        </>
+      }
       notBuilt={[
         'Seeded topics. Whova ships prompts an organizer can publish before doors open, which is what stops a board being empty on day one. That needs organizer posting, which does not exist.',
         'Pinning a topic to the top of the board.',

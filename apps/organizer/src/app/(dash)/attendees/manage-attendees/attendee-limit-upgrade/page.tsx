@@ -3,7 +3,7 @@ import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +33,16 @@ export default async function AttendeeLimitUpgradePage() {
     <>
       <PageHeader
         title="Attendee Limit Upgrade"
+        info={
+          <>
+            <strong>No cap, and nothing to buy</strong>
+            <p>
+              Whova meters the attendee list and sells more of it. This dashboard bills nobody and
+              has no tiers. The limits that do exist are infrastructural, and they are listed
+              below.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">nothing to buy</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
@@ -43,13 +53,6 @@ export default async function AttendeeLimitUpgradePage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>There is no attendee cap and no package to upgrade.</strong> Whova meters the
-        attendee list and sells more of it. This dashboard is not a product with tiers — nothing
-        here bills anybody, and no screen in it will ever ask for a card. The limits that do exist
-        are infrastructural, and they are below.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -66,7 +69,7 @@ export default async function AttendeeLimitUpgradePage() {
             <strong>Firestore&rsquo;s free tier, not an attendee count.</strong> The project is on
             the Spark plan: 50,000 document reads and 20,000 writes a day. A conference of a
             thousand attendees is comfortably inside that, and the thing that would breach it is a
-            badly shaped query rather than a big list — which is why every read in this dashboard is
+            badly shaped query rather than a big list, which is why every read in this dashboard is
             a single equality filter with the sorting done in memory.
           </li>
           <li>

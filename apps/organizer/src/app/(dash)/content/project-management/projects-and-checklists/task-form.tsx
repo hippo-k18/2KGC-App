@@ -105,7 +105,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           style={{ maxWidth: 200 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          A calendar day, stored as one — not a timestamp, so it does not shift for whoever opens
+          A calendar day, stored as one, not a timestamp, so it does not shift for whoever opens
           the screen. Blank for no deadline.
         </p>
       </div>
@@ -121,7 +121,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           <option value="blocked">Blocked</option>
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
-          <strong>Blocked</strong> is not a slower <em>to do</em> — it means somebody outside this
+          <strong>Blocked</strong> is not a slower <em>to do</em>. It means somebody outside this
           list has to act first, and it is counted separately per project so those rows do not sit
           in the queue looking like work nobody started.
         </p>

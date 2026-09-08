@@ -273,7 +273,7 @@ export default async function CheckInPage({
             >
               <strong>Check-in for the session</strong>
               <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-                Counts people into one room. Same scanner, same badge — a different list.
+                Counts people into one room. Same scanner, same badge. A different list.
               </div>
               <SessionScopeForm options={sessionOptions} defaultValue={suggested?.id} />
             </div>
@@ -282,7 +282,7 @@ export default async function CheckInPage({
 
         {/*
           Every scope an organizer has opened, as chips. Session lists accumulate
-          — one per room-hour — so they are collapsed behind a dropdown rather
+          One per room-hour… so they are collapsed behind a dropdown rather
           than wrapped across four lines of the screen somebody is reading at the
           door. The event lists stay visible because those are the ones the desk
           switches between all day.
@@ -319,7 +319,7 @@ export default async function CheckInPage({
             {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. A badge scanned here is
             counted into this room and <em>not</em> into the event door list; the same person can be
             scanned at both, which is the point. Switch back with the{' '}
-            <em>KGC 2027 — Main Door</em> chip above.
+            <em>KGC 2027: Main Door</em> chip above.
           </Banner>
         ) : rows.length - active > 0 ? (
           <Banner kind="warning">
@@ -334,7 +334,7 @@ export default async function CheckInPage({
       <Panel>
         <h2 className="section-header">Check in by name</h2>
         <p className="body-2">
-          The scanner needs a code off the attendee&apos;s phone. This does not — find the person
+          The scanner needs a code off the attendee&apos;s phone. This does not. Find the person
           and press the button. A queue of a thousand reliably contains a flat battery, and this is
           the row Whova puts an inline <strong>Check in</strong> button on for that reason. Same
           idempotent write as a scan, so a double click cannot double count.
@@ -376,7 +376,7 @@ export default async function CheckInPage({
         <h2 className="section-header">Scan log ({scans.length})</h2>
         <p className="body-2">
           Every scan, including the rejected ones. A duplicate is not an error state to recover
-          from — the write is a <code>create</code> keyed by registration, so the second one fails
+          from. The write is a <code>create</code> keyed by registration, so the second one fails
           with <code>already-exists</code> and <em>that failure is the mechanism</em>. The row below
           telling you someone was already checked in at 09:12 at Front desk 1 is also the only way
           a photographed badge gets noticed.
@@ -429,10 +429,13 @@ export default async function CheckInPage({
             the wrong default while one machine may be running two doors.
           </li>
           <li>
-            <strong>Self check-in and the kiosk.</strong> Self check-in is a deliberate omission:{' '}
+            <strong>Self check-in, as Whova means it.</strong> Still a deliberate omission:{' '}
             <code>firestore.rules</code> denies every client write under <code>checkInLists</code>{' '}
             precisely so that attendees cannot check themselves in, and opening that is a decision
-            rather than a feature.
+            rather than a feature. What now exists is the unattended half that does not need it —{' '}
+            <Link href="/attendees/check-in-and-checkout/kiosk-check-in">Kiosk Check-in</Link> runs
+            this same scanner with the operator&apos;s half removed, on the organizer&apos;s own
+            credential.
           </li>
           <li>
             <strong>Badge printing on scan.</strong> <code>badgeTemplates</code> and{' '}

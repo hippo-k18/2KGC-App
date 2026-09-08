@@ -83,7 +83,7 @@ export default async function AnalyticsAndExportsPage() {
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not opened the app yet.
           This is the
-          number worth moving before doors open — an attendee without the app has no agenda, no
+          number worth moving before doors open. An attendee without the app has no agenda, no
           badge QR, and has to be checked in by hand at the desk.
         </p>
 
@@ -132,7 +132,7 @@ export default async function AnalyticsAndExportsPage() {
           {attendance.tracked === 0 ? (
             <>
               None yet. Open one from{' '}
-              <Link href={ROUTES.checkIn}>Check-in</Link> — the Session card&apos;s Start button
+              <Link href={ROUTES.checkIn}>Check-in</Link>. The Session card&apos;s Start button
               creates the list and points the scanner at it.
             </>
           ) : (
@@ -180,7 +180,7 @@ export default async function AnalyticsAndExportsPage() {
 
         <Banner kind="warning">
           <strong>These files contain personal data and leave the building.</strong> Each one names
-          what it contains below — send the narrowest that answers the question. Badge secrets and
+          what it contains below. Send the narrowest that answers the question. Badge secrets and
           claim codes are in <em>no</em> export: either one is a working credential, and a
           spreadsheet forwarded to a supplier would become a set of usable tickets.
         </Banner>
@@ -212,7 +212,7 @@ export default async function AnalyticsAndExportsPage() {
         />
 
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          Every field is escaped against spreadsheet formula injection — a cell beginning{' '}
+          Every field is escaped against spreadsheet formula injection. A cell beginning{' '}
           <code>=</code> is neutralised, because an attendee can type one into a registration form
           and Excel would otherwise run it. Files are UTF-8 with a byte-order mark so accented
           names survive Excel on Windows.

@@ -19,6 +19,24 @@ import { submitScanAction, type ScanResult } from './actions';
  * desk, at arm's length, by someone who is also talking to the next person in
  * the queue, and the difference between "checked in" and "already checked in"
  * has to be legible without stepping closer.
+ *
+ * ── Kiosk mode is subtraction, and that is the whole of it ──────────────────
+ *
+ * `kiosk` renders the same component with the operator's half removed: no
+ * device explanation, no station box, no document paths, no email address, and
+ * a verdict that clears itself after a few seconds. Nothing about the *write*
+ * changes — it is the same idempotent `create()` through the same server
+ * action, still made by an organizer's authenticated session.
+ *
+ * ⚠️ That last point is the one worth being precise about, because the screen
+ * looks like self-service and is not. `firestore.rules` denies every client
+ * write under `checkInLists`, `scanEvents` and `checkInStations`, deliberately,
+ * so that attendance cannot be self-asserted. A kiosk here is a *station the
+ * organizer operates and walks away from*, not an attendee-authenticated write:
+ * the credential in front of it is the dashboard session, and leaving the tab
+ * open is the organizer vouching for whatever it records. What kiosk mode
+ * removes is the attendee list, the addresses and the identifiers — the things
+ * that must never face a queue — and nothing else.
  */
 
 interface DetectedBarcode {
@@ -42,8 +60,17 @@ const STATION_KEY = 'kgc.console.checkin.stationLabel';
 /** The camera fires ~4× a second at a badge that is still being held up. */
 const SAME_CODE_COOLDOWN_MS = 4000;
 
+/**
+ * How long a kiosk holds a verdict before returning to READY.
+ *
+ * Long enough to read at walking pace, short enough that the next person does
+ * not walk up to somebody else's name still on the screen. It is the only
+ * privacy control an unattended screen has, so it is deliberately short.
+ */
+const KIOSK_RESET_MS = 7000;
+
 const VERDICT: Record<ScanResult['outcome'], string> = {
-  ok: 'OK — CHECKED IN',
+  ok: 'OK: CHECKED IN',
   duplicate: 'ALREADY CHECKED IN',
   unknown: 'NOT FOUND',
   cancelled: 'CANCELLED',
@@ -58,7 +85,23 @@ function timeOf(iso: string | undefined): string {
   });
 }
 
-export function Scanner({ listId, listName }: { listId: string; listName: string }) {
+export function Scanner({
+  listId,
+  listName,
+  kiosk,
+  stationOverride,
+}: {
+  listId: string;
+  listName: string;
+  /** Unattended layout: no operator controls, no identifiers, self-clearing. */
+  kiosk?: boolean;
+  /**
+   * The station name to scan under, when the page decides it rather than the
+   * browser. A kiosk is named by whoever set it up and then left alone, so it
+   * cannot be a box on the screen the queue is looking at.
+   */
+  stationOverride?: string;
+}) {
   const router = useRouter();
 
   const [deviceId, setDeviceId] = useState('');
@@ -92,10 +135,13 @@ export function Scanner({ listId, listName }: { listId: string; listName: string
       window.localStorage.setItem(DEVICE_KEY, id);
     }
     setDeviceId(id);
-    setStationLabel(window.localStorage.getItem(STATION_KEY) ?? 'Console desk 1');
+    // A page-supplied name wins and is not written back to `localStorage`: a
+    // kiosk opened for one afternoon must not rename the desk station this
+    // browser uses the rest of the time.
+    setStationLabel(stationOverride || window.localStorage.getItem(STATION_KEY) || 'Console desk 1');
     setDetectorAvailable(barcodeDetector() !== null);
     inputRef.current?.focus();
-  }, []);
+  }, [stationOverride]);
 
   const saveStation = useCallback((label: string) => {
     setStationLabel(label);
@@ -170,6 +216,19 @@ export function Scanner({ listId, listName }: { listId: string; listName: string
   // navigates away is the kind of thing that gets a tool banned from a venue.
   useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
 
+  /*
+    A kiosk forgets. The verdict names a person, and an unattended screen that
+    keeps the last one showing is a screen the next person in the queue reads —
+    so it clears itself rather than waiting for another scan. The staffed desk
+    does the opposite on purpose: the operator needs the last result to stay
+    while they talk to whoever it was about.
+  */
+  useEffect(() => {
+    if (!kiosk || !result) return;
+    const t = window.setTimeout(() => setResult(null), KIOSK_RESET_MS);
+    return () => window.clearTimeout(t);
+  }, [kiosk, result]);
+
   useEffect(() => {
     if (camera !== 'on') return;
     const Ctor = barcodeDetector();
@@ -206,7 +265,7 @@ export function Scanner({ listId, listName }: { listId: string; listName: string
             void submit(code, 'typed');
           }}
         >
-          <label htmlFor="code">Badge code — QR secret or six-character claim code</label>
+          <label htmlFor="code">Badge code: QR secret or six-character claim code</label>
           <input
             id="code"
             name="code"
@@ -235,7 +294,7 @@ export function Scanner({ listId, listName }: { listId: string; listName: string
           <p className="muted">
             This browser has no <code>BarcodeDetector</code>, so the camera cannot decode a QR
             here. Safari and Firefox both lack it; Chrome and Edge on desktop and Android have it.
-            Type the code instead — it is the same write either way, and it is why the box above is
+            Type the code instead. It is the same write either way, and it is why the box above is
             focused on load.
           </p>
         ) : null}
@@ -249,38 +308,56 @@ export function Scanner({ listId, listName }: { listId: string; listName: string
           hidden={camera !== 'on'}
         />
 
-        <label htmlFor="station">This station&apos;s name</label>
-        <input
-          id="station"
-          value={stationLabel}
-          onChange={(e) => saveStation(e.target.value)}
-          autoComplete="off"
-        />
-        <p className="muted">
-          Device <code>{deviceId || '…'}</code>, kept in this browser&apos;s{' '}
-          <code>localStorage</code>. It is the <code>checkInStations</code> document id and the
-          first half of every <code>scanEvents</code> id, so it must survive a reload. Scanning{' '}
-          <strong>{listName}</strong>.
-        </p>
+        {kiosk ? (
+          /*
+            A kiosk states what it is counting and nothing else. The device id
+            and the station box are operator controls: one is an identifier and
+            the other is an editable field, and neither belongs on a screen
+            facing a queue.
+          */
+          <p className="muted">
+            Checking in to <strong>{listName}</strong> at {stationLabel}.
+          </p>
+        ) : (
+          <>
+            <label htmlFor="station">This station&apos;s name</label>
+            <input
+              id="station"
+              value={stationLabel}
+              onChange={(e) => saveStation(e.target.value)}
+              autoComplete="off"
+            />
+            <p className="muted">
+              Device <code>{deviceId || '…'}</code>, kept in this browser&apos;s{' '}
+              <code>localStorage</code>. It is the <code>checkInStations</code> document id and the
+              first half of every <code>scanEvents</code> id, so it must survive a reload. Scanning{' '}
+              <strong>{listName}</strong>.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="scan-right">
-        {result ? <ScanVerdict result={result} /> : <IdleVerdict />}
+        {result ? <ScanVerdict result={result} kiosk={kiosk} /> : <IdleVerdict kiosk={kiosk} />}
       </div>
     </div>
   );
 }
 
-function IdleVerdict() {
+function IdleVerdict({ kiosk }: { kiosk?: boolean }) {
   return (
     <div className="scan-result scan-idle">
       <div className="scan-verdict">READY</div>
-      <p className="muted">Scan a badge or type a code. The result appears here.</p>
+      <p className="muted">
+        {kiosk
+          ? 'Hold your badge up to the camera, or type the six-character code under it.'
+          : 'Scan a badge or type a code. The result appears here.'}
+      </p>
     </div>
   );
 }
 
-function ScanVerdict({ result }: { result: ScanResult }) {
+function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean }) {
   if (result.error) {
     return (
       <div className="scan-result scan-unknown">
@@ -299,48 +376,90 @@ function ScanVerdict({ result }: { result: ScanResult }) {
         <>
           <div className="scan-name">No registration matches that code</div>
           <div className="scan-meta">
-            Checked against every <code>qrSecret</code> and every <code>claimCode</code> for this
-            event. Nothing was written to <code>checkIns</code>. Logged as{' '}
-            <code>{result.scanEventId}</code>.
+            {kiosk ? (
+              'Nothing was recorded. Please see a member of staff at the registration desk.'
+            ) : (
+              <>
+                Checked against every <code>qrSecret</code> and every <code>claimCode</code> for
+                this event. Nothing was written to <code>checkIns</code>. Logged as{' '}
+                <code>{result.scanEventId}</code>.
+              </>
+            )}
           </div>
         </>
       ) : (
         <>
           <div className="scan-name">{result.name}</div>
           <div className="scan-sub">
-            {result.ticketType ?? 'no ticket type'} · {result.email}
+            {result.ticketType ?? 'no ticket type'}
+            {/*
+              The address is for the operator, not for the room. On a kiosk it
+              is the one field on this panel that turns a check-in screen into a
+              harvestable directory, so it is not rendered at all rather than
+              hidden with CSS.
+            */}
+            {kiosk ? null : <> · {result.email}</>}
           </div>
         </>
       )}
 
       {result.outcome === 'ok' ? (
         <div className="scan-meta">
-          Checked in at {timeOf(result.checkedInAt)}. Wrote{' '}
-          <code>{result.checkInPath}</code>.
+          {kiosk ? (
+            <>Checked in at {timeOf(result.checkedInAt)}. You are all set. Enjoy the conference.</>
+          ) : (
+            <>
+              Checked in at {timeOf(result.checkedInAt)}. Wrote <code>{result.checkInPath}</code>.
+            </>
+          )}
         </div>
       ) : null}
 
       {result.outcome === 'duplicate' ? (
         <div className="scan-meta">
-          Already checked in at <strong>{timeOf(result.checkedInAt)}</strong> at{' '}
-          <strong>{result.stationLabel}</strong>. Nothing was written this time — the second{' '}
-          <code>create</code> failed with <code>already-exists</code>, which is the duplicate
-          check. Wave them through.
+          {kiosk ? (
+            <>
+              Already checked in at <strong>{timeOf(result.checkedInAt)}</strong>. Nothing more to
+              do. You are on the list. If that was not you, please tell a member of staff.
+            </>
+          ) : (
+            <>
+              Already checked in at <strong>{timeOf(result.checkedInAt)}</strong> at{' '}
+              <strong>{result.stationLabel}</strong>. Nothing was written this time. The second{' '}
+              <code>create</code> failed with <code>already-exists</code>, which is the duplicate
+              check. Wave them through.
+            </>
+          )}
         </div>
       ) : null}
 
       {result.outcome === 'cancelled' ? (
         <div className="scan-meta">
-          This registration is <strong>{result.registrationStatus}</strong>, not active. Not
-          checked in. Send them to the registration desk.
+          {kiosk ? (
+            <>
+              This ticket is not active. Nothing was recorded. Please see the registration desk.
+            </>
+          ) : (
+            <>
+              This registration is <strong>{result.registrationStatus}</strong>, not active. Not
+              checked in. Send them to the registration desk.
+            </>
+          )}
         </div>
       ) : null}
 
-      <div className="scan-foot muted">
-        {result.matchedOn ? `matched on ${result.matchedOn} · ` : null}
-        {result.source} · <code>scanEvents/{result.scanEventId}</code>
-        {result.scanEventReplayed ? ' · replay, original entry kept' : null}
-      </div>
+      {/*
+        The provenance line is diagnostics for whoever is running the desk — a
+        scan id is pasteable into the Firebase console, which is exactly why it
+        does not belong on an unattended screen.
+      */}
+      {kiosk ? null : (
+        <div className="scan-foot muted">
+          {result.matchedOn ? `matched on ${result.matchedOn} · ` : null}
+          {result.source} · <code>scanEvents/{result.scanEventId}</code>
+          {result.scanEventReplayed ? ' · replay, original entry kept' : null}
+        </div>
+      )}
     </div>
   );
 }

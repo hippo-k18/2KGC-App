@@ -65,7 +65,7 @@ export function SurveyForm({
           defaultValue={existing?.sessionId ?? ''}
           style={{ maxWidth: 520 }}
         >
-          <option value="">{fixedSession ? '— choose a session —' : 'Not a session — an event survey'}</option>
+          <option value="">{fixedSession ? 'Choose a session…' : 'Not a session: an event survey'}</option>
           {sessions.map((s) => (
             <option key={s.id} value={s.id}>
               {s.label}
@@ -96,7 +96,7 @@ export function SurveyForm({
         />
         <p className="muted" style={{ fontSize: 12 }}>
           One per line. Prefix with <code>rating:</code>, <code>single:</code>, <code>multi:</code>{' '}
-          or <code>text:</code> — no prefix means a rating. Choices take options after a{' '}
+          or <code>text:</code>, no prefix means a rating. Choices take options after a{' '}
           <code>|</code>:
         </p>
         <pre className="whova-code" style={{ fontSize: 12 }}>{`rating: How useful was this session?
@@ -122,8 +122,8 @@ text: Anything else?`}</pre>
           Status
         </label>
         <select id="status" name="status" defaultValue={existing?.status ?? 'draft'} style={{ maxWidth: 220 }}>
-          <option value="draft">Draft — not visible to attendees</option>
-          <option value="published">Published — collecting responses</option>
+          <option value="draft">Draft, not visible to attendees</option>
+          <option value="published">Published: collecting responses</option>
           <option value="cancelled">Closed</option>
         </select>
       </div>

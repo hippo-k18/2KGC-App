@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { getTask, listProjects, nextStatus, projectNames, type TaskRow } from '@/lib/planning';
 import { ROUTES } from '@/lib/nav';
-import { EmptyState, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Tag } from '../../../ui';
 import { advanceTaskAction } from './actions';
 import { TaskForm } from './task-form';
 
@@ -103,7 +103,7 @@ function TaskLine({ task }: { task: TaskRow }) {
             <span className="muted">due {task.dueOn}</span>
           )
         ) : (
-          <span className="muted">—</span>
+          <span className="muted">no date</span>
         )}
       </div>
 
@@ -139,6 +139,16 @@ export default async function ProjectsAndChecklistsPage({
     <>
       <PageHeader
         title="Projects &amp; Checklists"
+        info={
+          <>
+            <strong>The team&rsquo;s own list</strong>
+            <p>
+              Nothing here reaches an attendee. Assignees are free text rather than accounts,
+              because half the people on a conference checklist are volunteers and suppliers who
+              will never hold one, so nobody is notified that they were assigned anything.
+            </p>
+          </>
+        }
         tags={
           overdue > 0 ? (
             <Tag color="red" fill="solid">
@@ -193,20 +203,14 @@ export default async function ProjectsAndChecklistsPage({
         </Panel>
       ) : projects.length === 0 ? (
         <Panel>
-          <EmptyState
-            icon="☑"
+          <NotInputted
+            what="tasks"
             action={
               <Link href="?new=1" className="whova-btn-main">
-                Add the first task
+                Add the first one
               </Link>
             }
-          >
-            <strong>No checklist yet.</strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              This is the organizing team&rsquo;s own list — venue, AV, catering, signage,
-              volunteers. Nothing here is visible to attendees.
-            </p>
-          </EmptyState>
+          />
         </Panel>
       ) : (
         projects.map((p) => (
@@ -236,9 +240,8 @@ export default async function ProjectsAndChecklistsPage({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Templates.</strong> Whova ships a starter checklist for a first-time organizer,
-            which is genuinely the most valuable part of their version — and it is content, not
-            code. Worth writing once KGC&rsquo;s own list has settled.
+            <strong>Templates.</strong> A starter checklist for a first-time organizer is content
+            rather than code, and worth writing once KGC&rsquo;s own list has settled.
           </li>
           <li>
             <strong>Reminders.</strong> An overdue task shows here and nowhere else. Emailing an

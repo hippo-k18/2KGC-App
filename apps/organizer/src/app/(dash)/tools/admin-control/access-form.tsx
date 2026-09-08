@@ -43,7 +43,7 @@ export function PostEventForm({
           style={{ maxWidth: 140 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          0 means access ends when the event does. Whova&rsquo;s default is 30.
+          0 means access ends when the event does.
         </p>
       </div>
 
@@ -51,7 +51,7 @@ export function PostEventForm({
         <label className="whova-form-label">Options</label>
         <label style={{ display: 'block' }}>
           <input type="checkbox" name="postEventReadOnly" defaultChecked={postEventReadOnly} />{' '}
-          Read-only afterwards — no new posts, messages or questions
+          Read-only afterwards, no new posts, messages or questions
         </label>
       </div>
 

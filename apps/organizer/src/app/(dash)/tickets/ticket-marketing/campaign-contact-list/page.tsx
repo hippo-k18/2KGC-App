@@ -2,7 +2,17 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listContacts, summariseContacts } from '@/lib/campaigns';
 import { GapPanel, PER_PAGE, listParams, paginate } from '../../../ui';
-import { Banner, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag } from '../../../ui';
+import {
+  Banner,
+  NotInputted,
+  PageHeader,
+  Pagination,
+  Panel,
+  SearchInput,
+  StatTiles,
+  Table,
+  Tag,
+} from '../../../ui';
 import { toggleSubscribedAction } from './actions';
 import { ContactImportForm } from './import-form';
 
@@ -69,6 +79,17 @@ export default async function CampaignContactListPage({
     <>
       <PageHeader
         title="Campaign Contact List"
+        info={
+          <>
+            <strong>These are people to email, not ticket holders</strong>
+            <p>
+              Importing somebody here creates no registration. An import can never clear a
+              suppression: an address that unsubscribed or bounced stays excluded from every send,
+              because mailing people who asked you to stop takes the ticket receipts down with the
+              newsletter.
+            </p>
+          </>
+        }
         tags={
           <Tag color={summary.mailable > 0 ? 'blue' : 'grey'}>
             {summary.mailable} mailable
@@ -87,21 +108,13 @@ export default async function CampaignContactListPage({
         ]}
       />
 
-      {summary.total === 0 ? (
-        <Banner kind="info">
-          <strong>No contacts yet.</strong> Import last year&rsquo;s delegate list, a partner
-          export, or anyone who asked to be told when tickets open. These are people to email — none
-          of them holds a ticket, and importing one here does not create a registration.
-        </Banner>
-      ) : (
-        <Banner kind={summary.unsubscribed + summary.bounced > 0 ? 'warning' : 'info'}>
+      {summary.unsubscribed + summary.bounced > 0 && (
+        <Banner kind="warning">
           <strong>
             {summary.mailable} of {summary.total} may be emailed.
           </strong>{' '}
-          {summary.unsubscribed} unsubscribed and {summary.bounced} bounced, and both are excluded
-          from every send. ⚠️ An import can never clear a suppression — mailing people who asked you
-          to stop is how a sending domain gets blocked, and it takes the ticket receipts down with
-          it.
+          {summary.unsubscribed} unsubscribed and {summary.bounced} bounced. Both are excluded from
+          every send and cannot be brought back by re-importing them.
         </Banner>
       )}
 
@@ -231,9 +244,7 @@ export default async function CampaignContactListPage({
             ),
           ])}
           empty={
-            all.length === 0
-              ? 'Nothing imported yet — use the form below.'
-              : 'Nothing matches that search.'
+            all.length === 0 ? <NotInputted what="contacts" compact /> : 'Nothing matches that search.'
           }
         />
 

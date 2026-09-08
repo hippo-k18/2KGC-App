@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listSessions, listTracks } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +62,17 @@ export default async function SpecialPurposeAgendaPage() {
     <>
       <PageHeader
         title="Special-Purpose Agenda"
+        info={
+          <>
+            <strong>A query string, not a second page</strong>
+            <p>
+              <code>/agenda</code> reads <code>?day=</code> and <code>?track=</code> on the server,
+              so every URL below is already live. Open one and the public agenda renders that
+              slice with the filter shown as selected. There is nothing to publish and no snippet to
+              copy.
+            </p>
+          </>
+        }
         tags={<Tag color="green" fill="outline">a filter, not a page</Tag>}
         actions={
           <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main">
@@ -77,14 +88,6 @@ export default async function SpecialPurposeAgendaPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        Whova needs a second hosted page for a filtered agenda because their pages take no
-        parameters. <strong>Ours is a query string on the one page we already have.</strong> The
-        slices below are the ones the current programme supports, and every URL is live — open one
-        and the public agenda renders that slice, with the filter shown as selected so a visitor
-        can widen it.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -121,7 +124,17 @@ export default async function SpecialPurposeAgendaPage() {
             // whose sessions are all still draft, not a track nobody wanted.
             s.count === 0 ? <span key="n" className="muted">none published</span> : s.count,
           ])}
-          empty="No published sessions yet, so there is nothing to slice."
+          empty={
+            <NotInputted
+              what="published sessions"
+              compact
+              action={
+                <Link className="btn btn-primary" href={ROUTES.sessionManager}>
+                  Publish one in Session Manager
+                </Link>
+              }
+            />
+          }
         />
       </Panel>
 

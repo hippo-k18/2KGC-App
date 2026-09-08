@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +37,16 @@ export default async function ConfirmationEmailsPage() {
     <>
       <PageHeader
         title="1.3 Confirmation Emails"
+        info={
+          <>
+            <strong>The wording is code, not a record</strong>
+            <p>
+              The three templates are TypeScript in <code>scripts/src/lib/email.ts</code>, shared by
+              the website and this dashboard. They are code because the confirmation carries the
+              claim code that turns a purchase into an account, so changing the copy is a deploy.
+            </p>
+          </>
+        }
         tags={
           failed.length > 0 ? (
             <Tag color="red" fill="solid">
@@ -55,6 +65,18 @@ export default async function ConfirmationEmailsPage() {
           </Link>,
         ]}
       />
+
+      {failed.length > 0 && (
+        <Banner kind="danger">
+          <strong>
+            {failed.length} {failed.length === 1 ? 'confirmation' : 'confirmations'} did not reach
+            the buyer.
+          </strong>{' '}
+          Each failed row below names the provider&rsquo;s reason. Somebody has paid and has no
+          claim code, so they cannot create their account until the address is corrected and the
+          send is re-run.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -81,7 +103,7 @@ export default async function ConfirmationEmailsPage() {
             [
               <code key="t">invoice-raised</code>,
               'Group invoice is finalised',
-              'Company, seat count, total, due date and the hosted Stripe invoice link finance can pay and download. Not a ticket — fulfilment waits for payment.',
+              'Company, seat count, total, due date and the hosted Stripe invoice link finance can pay and download. Not a ticket. Fulfilment waits for payment.',
             ],
             [
               <code key="t">refund-confirmation</code>,
@@ -115,20 +137,13 @@ export default async function ConfirmationEmailsPage() {
               {e.reason ? <div className="muted" style={{ fontSize: 12 }}>{e.reason}</div> : null}
             </span>,
           ])}
-          empty="Nothing sent yet. Every send writes one row per recipient, so this fills as soon as a ticket is bought."
+          empty={<NotInputted what="confirmation emails" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           The full log, including bulk messages, is on{' '}
           <Link href={ROUTES.transactionHistory}>Transaction History</Link>.
         </p>
       </Panel>
-
-      <Banner kind="warning">
-        <strong>Changing the wording is a code change and a deploy.</strong> The templates live in{' '}
-        <code>scripts/src/lib/email.ts</code> — one shared copy, because a second copy would own the
-        claim code and drift. There is no editor here and adding one would mean moving a message
-        that contains a credential into a database somebody can edit at 2am.
-      </Banner>
 
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>

@@ -109,7 +109,7 @@ export function SessionForm({
             Open “{values.title || 'the new session'}” →
           </Link>{' '}
           <span className="muted">
-            Anything else it needs — Q&amp;A and polls, a longer description — is on that page.
+            Anything else it needs. Q&amp;A and polls, a longer description. Is on that page.
           </span>
         </p>
       ) : null}
@@ -162,13 +162,13 @@ export function SessionForm({
         name="roomId"
         label="Location"
         defaultValue={values.roomId}
-        placeholder="— no room —"
+        placeholder="No room…"
         width="lg"
         options={rooms.map((r) => ({ value: r.id, label: r.name }))}
         hint={
           <>
-            ⚠️ The attendee app cannot read the <code>rooms</code> collection — there is no rules
-            block for it — so the room <em>name</em> copied onto this session is the only thing
+            ⚠️ The attendee app cannot read the <code>rooms</code> collection (there is no rules
+            block for it) so the room <em>name</em> copied onto this session is the only thing
             telling somebody which door to walk to. Leaving this blank leaves them with nothing.
           </>
         }
@@ -186,7 +186,7 @@ export function SessionForm({
         hint={
           <>
             A talk can be cross-listed, but only the <strong>first</strong> track is shown on the
-            agenda card — its name and colour are copied onto this session when you save.
+            agenda card. Its name and colour are copied onto this session when you save.
           </>
         }
       />
@@ -197,12 +197,12 @@ export function SessionForm({
         legend="Speakers"
         options={speakers.map((s) => ({
           value: s.id,
-          label: s.company ? `${s.name} — ${s.company}` : s.name,
+          label: s.company ? `${s.name} · ${s.company}` : s.name,
         }))}
         defaultValue={values.speakerIds}
         addLabel="Add a speaker"
         emptyNote="Nobody assigned yet."
-        hint="In billing order — first author first. The order you set here is the order printed on the agenda and read out on the phone, so it is not sorted for you."
+        hint="In billing order, first author first. Not sorted for you."
       />
 
       <FormGrid>
@@ -223,7 +223,7 @@ export function SessionForm({
           label="Level"
           defaultValue={values.skillLevel}
           error={errors.skillLevel}
-          placeholder="— not stated —"
+          placeholder="Not stated…"
           width="sm"
           options={SKILL_LEVELS.map((s) => ({ value: s, label: s }))}
           hint="A tag on the public agenda."
@@ -241,7 +241,7 @@ export function SessionForm({
           hint={
             <>
               ⚠️ A <strong>stated intent, not a limit</strong>. Nothing counts attendees into a
-              session and nothing turns anyone away — saving one to your schedule is a private
+              session and nothing turns anyone away. Saving one to your schedule is a private
               bookmark. It feeds the over-capacity warning on Conflict Check and the comparison on
               Attendees › Session Cap, and that is all it does.
             </>
@@ -261,12 +261,12 @@ export function SessionForm({
           value: s,
           label:
             s === 'draft'
-              ? 'draft — hidden from attendees'
+              ? 'draft. Hidden from attendees'
               : s === 'cancelled'
-                ? 'cancelled — still visible, marked cancelled'
+                ? 'cancelled, still visible, marked cancelled'
                 : 'published',
         }))}
-        hint="There is no delete. Attendees have this saved and Firestore has no cascade, so removing a session from the programme is a status change."
+        hint="There is no delete. Removing a session from the programme is a status change."
       />
 
       <Textarea

@@ -3,7 +3,7 @@ import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { listOrders, money } from '@/lib/commerce';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
 
@@ -56,6 +56,17 @@ export default async function CampaignLinkTrackingPage() {
     <>
       <PageHeader
         title="Campaign Link Tracking"
+        info={
+          <>
+            <strong>Attribution is last-click over thirty days</strong>
+            <p>
+              Clicks are raw hits, not unique visitors, and unattributed means{' '}
+              <em>unattributed</em> rather than organic. A cleared cookie or a link forwarded as
+              plain text lands there too. Both are conventions, stated so a leaderboard built on
+              them can be argued with.
+            </p>
+          </>
+        }
         links={[
           <Link key="c" href="/tickets/ticket-marketing/campaign-contact-list">
             Contact List
@@ -68,24 +79,6 @@ export default async function CampaignLinkTrackingPage() {
           </Link>,
         ]}
       />
-
-      {links.length === 0 ? (
-        <Banner kind="info">
-          <strong>No tracked links yet.</strong> Create one below and use <code>/r/your-code</code>{' '}
-          wherever you would have used the plain URL — in an email, a post, a partner&rsquo;s
-          newsletter. Clicks are counted by the redirect itself, and a purchase that follows within
-          thirty days is credited back to it.
-        </Banner>
-      ) : (
-        <Banner kind="info">
-          <strong>
-            {attributed} of {real.length} purchases are attributed to a link.
-          </strong>{' '}
-          The rest arrived directly — and unattributed means <em>unattributed</em>, not organic: a
-          cleared cookie, a link shared onward as plain text, or a visitor who first heard about KGC
-          somewhere with no link in it all land there too.
-        </Banner>
-      )}
 
       <StatTiles
         tiles={[
@@ -101,7 +94,7 @@ export default async function CampaignLinkTrackingPage() {
         <LinkTable
           links={links}
           publicOrigin={publicOrigin}
-          emptyMessage="Nothing yet. The first link is the one worth making — a campaign you cannot measure is one you cannot repeat."
+          emptyMessage={<NotInputted what="tracked links" compact />}
         />
       </Panel>
 

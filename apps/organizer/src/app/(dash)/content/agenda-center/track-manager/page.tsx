@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { getTrack, listTracks } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, PER_PAGE, PageHeader, Pagination, Panel, Table, listParams, paginate, sortRows } from '../../../ui';
+import { Banner, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, Table, listParams, paginate, sortRows } from '../../../ui';
 import { CsvImportPanel } from '../../csv-import-panel';
 import { commitTrackImportAction, previewTrackImportAction } from './actions';
 import { CacheTools } from './cache-tools';
@@ -111,7 +111,7 @@ export default async function TrackManagerPage({
         <Panel>
           <p className="body-2" style={{ marginTop: 0 }}>
             {all.length} tracks. Sessions can be cross-listed into several, so the counts below
-            add up to more than the number of sessions — and only the primary track, the first one
+            add up to more than the number of sessions, and only the primary track, the first one
             on the session, is the one an attendee sees on the agenda card.
           </p>
 
@@ -125,13 +125,23 @@ export default async function TrackManagerPage({
 
           {colourless.length > 0 ? (
             <Banner kind="info">
-              {colourless.length} track{colourless.length === 1 ? '' : 's'} have no colour, so their
-              agenda cards fall back to the app&rsquo;s default stripe and stop being
-              distinguishable at a glance. The Whova importer does not write colours; this screen
-              does.
+              {colourless.length} track{colourless.length === 1 ? ' has' : 's have'} no colour, so
+              their agenda cards fall back to the app&rsquo;s default stripe and stop being
+              distinguishable at a glance. Set one below.
             </Banner>
           ) : null}
 
+          {all.length === 0 ? (
+            <NotInputted
+              what="tracks"
+              action={
+                <Link className="whova-btn-main" href="?new=1">
+                  Add the first one
+                </Link>
+              }
+            />
+          ) : (
+            <>
           <Table
             cols={[
               { key: 'c', label: '', className: 'cell-xs' },
@@ -143,7 +153,6 @@ export default async function TrackManagerPage({
               { key: 'a', label: '', className: 'cell-xs cell-end-align' },
             ]}
             sort={sort}
-            empty="No tracks"
             rows={pageRows.map((t) => [
               <span
                 key="c"
@@ -176,10 +185,12 @@ export default async function TrackManagerPage({
             ])}
           />
           <Pagination total={tracks.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
+            </>
+          )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
             <strong>There is no delete.</strong> Sessions carry track ids, and Firestore has no
-            cascade — a deleted track leaves them pointing at nothing, with the name needed to
+            cascade. A deleted track leaves them pointing at nothing, with the name needed to
             repair them gone too. A track that is finished with is taken off its sessions in{' '}
             <Link href={ROUTES.sessionManager}>Session Manager</Link>; it then appears in the
             warning above, which is the honest place for it.
@@ -235,7 +246,7 @@ export default async function TrackManagerPage({
           reported that some sessions failed.
         </p>
         <p className="muted" style={{ fontSize: 12 }}>
-          On healthy data it writes nothing at all — it reproduces exactly what the importer and
+          On healthy data it writes nothing at all. It reproduces exactly what the importer and
           the seed produce. Check first; repair only if the check finds drift.
         </p>
         <CacheTools />

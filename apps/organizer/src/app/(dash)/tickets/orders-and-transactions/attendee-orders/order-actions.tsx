@@ -79,7 +79,7 @@ export function RefundButton({
           */}
           Refunding <strong>{amountLabel}</strong> to <strong>{email}</strong> will cancel their
           registration, so their badge stops scanning at the door. They&rsquo;ll be emailed
-          automatically. <strong>This cannot be undone from here</strong> — reversing it means
+          automatically. <strong>This cannot be undone from here</strong>. Reversing it means
           asking them to buy again at today&rsquo;s price.
         </p>
 
@@ -216,7 +216,7 @@ export function MarkPaidButton({
         )}
 
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
-          Why — PO number, or who authorised it
+          Why: PO number, or who authorised it
         </label>
         <input
           name="note"

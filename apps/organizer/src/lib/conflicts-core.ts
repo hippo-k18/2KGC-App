@@ -124,7 +124,7 @@ export function detectConflicts(
         conflicts.push({
           kind: 'speaker-double-booked',
           severity: 'error',
-          summary: `${who} is on two sessions at once — ${timeRange(list[i])} and ${timeRange(list[j])}.`,
+          summary: `${who} is on two sessions at once: ${timeRange(list[i])} and ${timeRange(list[j])}.`,
           day: list[i].doc.day,
           sessions: [ref(list[i]), ref(list[j])],
           subject: who,
@@ -151,7 +151,7 @@ export function detectConflicts(
         conflicts.push({
           kind: 'room-double-booked',
           severity: 'error',
-          summary: `${where} is booked twice — ${timeRange(list[i])} and ${timeRange(list[j])}.`,
+          summary: `${where} is booked twice: ${timeRange(list[i])} and ${timeRange(list[j])}.`,
           day: list[i].doc.day,
           sessions: [ref(list[i]), ref(list[j])],
           subject: where,

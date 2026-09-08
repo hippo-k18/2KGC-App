@@ -47,7 +47,7 @@ export interface ConsentSubject {
   /** Other `signatory` values that are also this person — usually their uid. */
   aliases?: string[];
   /** Which list they came from, so the register can be read by audience. */
-  kind: 'attendee' | 'speaker';
+  kind: 'attendee' | 'speaker' | 'volunteer';
   /** True for a ticket holder who has never opened the app. Display only. */
   note?: string;
 }
@@ -172,14 +172,20 @@ export function totalsFor(rows: RegisterRow[]): RegisterTotals {
 /**
  * Which audiences a form's register should be built from.
  *
- * `volunteer` returns an empty list on purpose. There is no `volunteers`
- * collection and no volunteer role in this project, so a volunteer waiver can
- * be published and cannot yet be put to anybody — and the screen says exactly
- * that rather than showing a register of nobody as though it were a register of
- * zero outstanding signatures. The two look identical and mean opposite things.
+ * ⚠️ An audience with no source list must return an empty array rather than a
+ * plausible-looking substitute, and this function existed for a while returning
+ * one for `volunteer` because there was no roster to build it from. That is no
+ * longer true — `volunteers` is a real collection — but the reason the empty
+ * array mattered has not changed and applies to the next audience somebody
+ * adds: a register of nobody and a register with nobody outstanding render
+ * identically and mean opposite things, so the screen has to be able to tell
+ * that the *source* is missing rather than the people.
  */
-export function audienceSources(audience: ConsentAudience): ('attendee' | 'speaker')[] {
+export function audienceSources(
+  audience: ConsentAudience,
+): ('attendee' | 'speaker' | 'volunteer')[] {
   if (audience === 'attendee') return ['attendee'];
   if (audience === 'speaker') return ['speaker'];
+  if (audience === 'volunteer') return ['volunteer'];
   return [];
 }

@@ -36,10 +36,9 @@ export default async function QuestionFormsPage({
       intro={
         <p className="body-2" style={{ marginTop: 0 }}>
           Dietary requirements and accessibility needs are the two worth asking, and both are
-          <strong> catering and venue decisions with a deadline</strong> — asking on the
-          confirmation page instead would be easier and would lose roughly half the answers, because
-          that is the share of buyers who close the tab the moment they read
-          &ldquo;you&rsquo;re registered&rdquo;.
+          <strong> catering and venue decisions with a deadline</strong>. Ask them here, before the
+          payment, rather than on the confirmation page. A buyer who has already been told
+          &ldquo;you&rsquo;re registered&rdquo; has no reason left to answer anything.
         </p>
       }
     />

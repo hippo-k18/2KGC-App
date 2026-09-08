@@ -1,20 +1,28 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { GapPanel, PageHeader, Panel } from '../../../ui';
+import { ROUTES } from '@/lib/nav';
+import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Virtual & Hybrid › Adv. Stream Integration › Microsoft Teams.
  *
- * The same shape as the Zoom screen with one difference worth writing down:
- * Teams is harder for a reason that has nothing to do with us. Creating a Teams
- * meeting through Graph requires an application permission
- * (`OnlineMeetings.ReadWrite.All`) that a *tenant administrator* has to grant,
- * and the tenant in question belongs to the attendee's employer, not to KGC.
- * That is a procurement conversation with somebody else's IT department per
- * organisation, which is why event platforms that integrate Zoom in a sprint
- * take much longer over Teams.
+ * The same shape as the Zoom screen with one difference worth writing down,
+ * because it changes what "not built" means here.
+ *
+ * Teams meetings are created through Microsoft Graph, and the permission that
+ * lets an application create one on a user's behalf — `OnlineMeetings.ReadWrite.All`
+ * — is admin-consented at the *tenant* level. The tenant belongs to the
+ * attendee's employer, not to KGC. So this is not a matter of us doing the
+ * work: it is a procurement conversation with somebody else's IT department,
+ * per organisation, and it is routinely refused for good reason. The
+ * alternative, delegated consent, means a human signs in interactively for
+ * every meeting, which is not an integration.
+ *
+ * The realistic Teams story for an event this size is therefore the same as the
+ * realistic Zoom one: a link field on the session, pasted in by whoever created
+ * the meeting. That field does not exist either.
  */
 export default async function MicrosoftTeamsIntegrationPage() {
   await requireOrganizer();
@@ -22,6 +30,15 @@ export default async function MicrosoftTeamsIntegrationPage() {
     <>
       <PageHeader
         title="Microsoft Teams"
+        info={
+          <>
+            <strong>No Microsoft tenant is connected</strong>
+            <p>
+              Creating a Teams meeting needs a Graph permission that only an attendee&rsquo;s own IT
+              department can grant, in their tenant. Attendance here is a badge scan at a door.
+            </p>
+          </>
+        }
         links={[
           <Link key="z" href="/virtual-and-hybrid/adv-stream-integration/zoom">
             Zoom
@@ -33,27 +50,14 @@ export default async function MicrosoftTeamsIntegrationPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Creates Teams meetings or live events for sessions, sends join links to registrants, and
-          reports attendance back into the organizer dashboard. In practice most events use it
-          because their own staff already live in Teams, not because attendees prefer it.
-        </p>
-
-        <h2 className="section-header">The part that is not our decision</h2>
-        <p className="body-2">
-          Teams meetings are created through Microsoft Graph, and the permission that allows an
-          application to create one on a user&rsquo;s behalf is admin-consented at the tenant level.
-          KGC would be asking each participating organisation&rsquo;s IT department to grant a
-          third-party app that permission in their tenant — a request that is routinely refused, and
-          reasonably so. The alternative is delegated consent, which means a human signs in
-          interactively for every meeting, which is not an integration.
-        </p>
-        <p className="body-2">
-          So the realistic Teams story for an event our size is the same as the realistic Zoom one:
-          a link field on the session, pasted in by whoever created the meeting. That field does not
-          exist yet either.
-        </p>
+        <NotInputted
+          what="Teams meetings"
+          action={
+            <Link href={ROUTES.checkIn} className="whova-btn-main">
+              Attendance is at the door
+            </Link>
+          }
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { ManualOrderForm } from '../../manual-order-form';
 
 export const dynamic = 'force-dynamic';
@@ -46,6 +46,17 @@ export default async function OfflinePaymentPage() {
     <>
       <PageHeader
         title="2.6 Offline Payment"
+        info={
+          <>
+            <strong>Every order recorded here is marked</strong>
+            <p>
+              It carries <code>channel: manual</code>, your name and your stated reason on the order
+              document itself, so a shortfall against Stripe has an explanation where somebody will
+              look for it. There is no tax line and no refund path. The money moved outside this
+              system.
+            </p>
+          </>
+        }
         tags={<Tag color={manual.length > 0 ? 'orange' : 'grey'}>{manual.length} recorded</Tag>}
         links={[
           <Link key="t" href="/tickets/exhibitor-ticket-setup/2-1-exhibitor-tickets">
@@ -62,10 +73,9 @@ export default async function OfflinePaymentPage() {
 
       <Banner kind="warning">
         <strong>This issues a ticket against money this system cannot see.</strong> Use it when a
-        wire, a cheque or a contract has genuinely been honoured — never to &ldquo;get somebody
-        in&rdquo; while payment is chased. Every order it writes is marked <code>manual</code>,
-        names you, and carries your stated reason, so a Stripe reconciliation that comes up short
-        by {money(manualTotal, currency)} has an explanation on this page.
+        wire, a cheque or a contract has genuinely been honoured, never to &ldquo;get somebody
+        in&rdquo; while payment is chased. A Stripe reconciliation will come up short by{' '}
+        {money(manualTotal, currency)}, which is the total of what has been recorded here.
       </Banner>
 
       <StatTiles
@@ -88,7 +98,7 @@ export default async function OfflinePaymentPage() {
           }))}
           audienceNoun="exhibitor"
           notePlaceholder="Wire ref 88123-A, received 14 Feb"
-          compHint="Zero is allowed and produces a real ticket — use Pre-paid Exhibitors for a comp, so the reason reads correctly."
+          compHint="Zero is allowed and produces a real ticket. Use Pre-paid Exhibitors for a comp, so the reason reads correctly."
         />
       </Panel>
 
@@ -129,7 +139,7 @@ export default async function OfflinePaymentPage() {
               {o.poNumber ? ` · PO ${o.poNumber}` : ''}
             </span>,
           ])}
-          empty="Nothing has been recorded off-platform. Every order in the ledger came through Stripe or the demo path."
+          empty={<NotInputted what="off-platform payments" compact />}
         />
       </Panel>
 

@@ -144,7 +144,7 @@ export async function sendBulkMessageAction(
 
   if (Number(confirmCount) !== recipients.length) {
     return {
-      error: `Type ${recipients.length} to confirm — that is how many ${audience.noun} will receive this.`,
+      error: `Type ${recipients.length} to confirm. That is how many ${audience.noun} will receive this.`,
       keep,
     };
   }
@@ -153,7 +153,7 @@ export async function sendBulkMessageAction(
   if (recent && Date.now() - recent < COOLDOWN_MS) {
     const wait = Math.ceil((COOLDOWN_MS - (Date.now() - recent)) / 1000);
     return {
-      error: `A message went out ${Math.round((Date.now() - recent) / 1000)}s ago. Wait ${wait}s — a duplicate is indistinguishable from a mistake in someone's inbox.`,
+      error: `A message went out ${Math.round((Date.now() - recent) / 1000)}s ago. Wait ${wait}s. A duplicate is indistinguishable from a mistake in someone's inbox.`,
       keep,
     };
   }
@@ -194,7 +194,7 @@ export async function sendBulkMessageAction(
     message:
       `Sent to ${recipients.length} ${audience.noun}.` +
       (withoutEmail > 0
-        ? ` ${withoutEmail} had no email address on file and got nothing — they are listed below.`
+        ? ` ${withoutEmail} had no email address on file and got nothing. They are listed below.`
         : '') +
       ' Delivery outcomes are in the recipient list; anything that bounced shows as failed.',
   };
@@ -276,7 +276,7 @@ export async function sendDeskMessageAction(
   if (!body) return { error: 'The message is empty.', keep: body };
   if (body.length > MAX_BODY) {
     return {
-      error: `That is ${body.length} characters, above the ${MAX_BODY} cap. A direct message is not the right instrument for something this long — use Message Speakers.`,
+      error: `That is ${body.length} characters, above the ${MAX_BODY} cap. A direct message is not the right instrument for something this long. Use Message Speakers.`,
       keep: body,
     };
   }
@@ -303,7 +303,7 @@ export async function sendDeskMessageAction(
   const user = userDoc.data() as UserDoc;
   if (!user.messagingEnabled) {
     return {
-      error: `${user.name || 'That attendee'} has turned off direct messages. Nothing has been sent — their email address is on the Attendees screen.`,
+      error: `${user.name || 'That attendee'} has turned off direct messages. Nothing has been sent. Their email address is on the Attendees screen.`,
       keep: body,
     };
   }
@@ -387,7 +387,7 @@ export async function sendDeskMessageAction(
 
   return {
     ok: true,
-    message: `Sent to ${user.name || 'them'}. It is in their app now — there is no push notification, so they see it when they next open it.`,
+    message: `Sent to ${user.name || 'them'}. It is in their app now. There is no push notification, so they see it when they next open it.`,
   };
 }
 

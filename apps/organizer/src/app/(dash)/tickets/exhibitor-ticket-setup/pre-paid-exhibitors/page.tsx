@@ -3,7 +3,16 @@ import { requireOrganizer } from '@/lib/auth';
 import { listBooths } from '@/lib/booths';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { listExhibitors } from '@/lib/exhibitors';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import {
+  Banner,
+  GapPanel,
+  NotInputted,
+  PageHeader,
+  Panel,
+  StatTiles,
+  Table,
+  Tag,
+} from '../../../ui';
 import { ManualOrderForm } from '../../manual-order-form';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +85,17 @@ export default async function PrePaidExhibitorsPage() {
     <>
       <PageHeader
         title="Pre-paid Exhibitors"
+        info={
+          <>
+            <strong>Three separate records, none of which creates the others</strong>
+            <p>
+              An order, so the ledger and the badge exist. An <code>exhibitors</code> record, so the
+              app lists them. A booth, so they know where to stand. Orders match on the exhibitor
+              contact email, so a package bought by a procurement address reads as
+              &ldquo;no order&rdquo;.
+            </p>
+          </>
+        }
         tags={
           <Tag color={rows.length === withOrder ? 'green' : 'orange'} fill="outline">
             {withOrder}/{rows.length} reconciled
@@ -94,12 +114,18 @@ export default async function PrePaidExhibitorsPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>A pre-paid exhibitor needs three things, and this screen tracks all three.</strong>{' '}
-        An order, so the ledger and the badge exist. An <code>exhibitors</code> record, so the app
-        lists them. A booth, so they know where to stand. None of the three creates the others —
-        the table below is where a missing one shows up rather than being discovered at load-in.
-      </Banner>
+      {rows.length > 0 && rows.length !== withOrder && (
+        <Banner kind="warning">
+          <strong>
+            {rows.length - withOrder} of {rows.length}{' '}
+            {rows.length - withOrder === 1 ? 'exhibitor has' : 'exhibitors have'} nothing in the
+            ledger.
+          </strong>{' '}
+          Either the package was paid for outside this system and has not been recorded, or the
+          order is under a different address from the contact email. Record it below so the badge,
+          the receipt and the reconciliation all exist.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -184,11 +210,21 @@ export default async function PrePaidExhibitorsPage() {
               ),
             ];
           })}
-          empty="No exhibitors yet. Add them in Exhibitor Manager, then record what they paid below."
+          empty={
+            <NotInputted
+              what="exhibitors"
+              compact
+              action={
+                <Link className="btn btn-primary" href="/content/exhibitor-center/exhibitor-manager">
+                  Add one
+                </Link>
+              }
+            />
+          }
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Orders match on <strong>contact email</strong>. A package bought by a procurement address
-          and staffed by a marketing contact will read as &ldquo;no order&rdquo; here — that is a
+          and staffed by a marketing contact will read as &ldquo;no order&rdquo; here. That is a
           missing link in the model rather than an unpaid exhibitor, and it is why this column says
           what it matched on.
         </p>
@@ -198,8 +234,7 @@ export default async function PrePaidExhibitorsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Record a pre-paid or comped package</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
           This writes exactly what a card purchase writes: a registration with a claim code, an
-          order in the ledger, and an incremented sold counter. Enter <strong>0</strong> for a comp
-          — a comped exhibitor gets a real badge, and a second code path to one is a second way for
+          order in the ledger, and an incremented sold counter. Enter <strong>0</strong> for a comp. A comped exhibitor gets a real badge, and a second code path to one is a second way for
           somebody to be turned away at the door.
         </p>
         <ManualOrderForm
@@ -211,7 +246,7 @@ export default async function PrePaidExhibitorsPage() {
           }))}
           audienceNoun="exhibitor"
           notePlaceholder="Contract KGC-27-014, signed Nov 2026"
-          compHint="Enter 0 for a comped or media-partner booth — it produces a real ticket."
+          compHint="Enter 0 for a comped or media-partner booth. It produces a real ticket."
         />
       </Panel>
 

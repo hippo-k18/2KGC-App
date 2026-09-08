@@ -1,30 +1,133 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { attendeeAttendance, formatHours } from '@/lib/attendance';
+import { listAttendees } from '@/lib/data';
+import { listBoardForModeration } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PageHeader, Panel, Table } from '../../ui';
+import {
+  NotInputted,
+  PER_PAGE,
+  PageHeader,
+  Pagination,
+  Panel,
+  StatTiles,
+  Table,
+  Tabs,
+  Tag,
+  listParams,
+  paginate,
+} from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Virtual & Hybrid › Attendee Activity.
  *
- * Whova's per-attendee activity feed: which sessions someone watched, for how
- * long, what they clicked, when they were last in the app. Sponsors want it and
- * organizers use it to spot the delegates who have gone quiet.
+ * Whova's version is built on session-view events emitted by a player: which
+ * stream someone watched, for how long, what they clicked. None of that exists
+ * here and none of it should be invented — an event log would mean a new
+ * high-write collection and a tracker inside an app used by named individuals
+ * holding a badge, which is a privacy decision rather than a feature.
  *
- * The reason this is not a small screen is that it is a *different kind of
- * data* from everything else in this project. Firestore documents record state
- * — a registration, an order, a check-in. An activity feed records events, and
- * nothing here emits events. There is no analytics collection, no client SDK
- * reporting screen views, and deliberately no third-party tracker in an app
- * whose users are named individuals holding a badge.
+ * ── What this screen is instead ─────────────────────────────────────────────
+ *
+ * The same question answered from state somebody wrote on purpose. Three real
+ * reads, joined per attendee:
+ *
+ *   `attendeeAttendance()` — which sessions a badge was scanned into, and the
+ *   scheduled length of them. ⚠️ **Scheduled, not sat through**: it is the
+ *   length of the session someone was counted into at the door, and nobody is
+ *   scanned on the way out. Said in the `info` tip because it changes how the
+ *   hours column should be read.
+ *
+ *   `listBoardForModeration()` — posts and replies, joined on the author's uid.
+ *
+ *   `listAttendees()` — the roll, so somebody who has done *nothing* still has
+ *   a row. That is the whole point of the Quiet tab: an organizer's real
+ *   question a day in is who has gone missing, and a table built only from
+ *   activity cannot answer it.
+ *
+ * ── Why no per-attendee drill-down ──────────────────────────────────────────
+ *
+ * The sessions each person was counted into are already listed on the
+ * certificates and attendance screens, which own that view. A second one here
+ * would be a second place for the same numbers to be read from.
  */
-export default async function AttendeeActivityPage() {
+export default async function AttendeeActivityPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
+  const sp = await searchParams;
+  const { page, baseParams } = listParams(sp);
+  const view = typeof sp.view === 'string' ? sp.view : 'all';
+
+  const [attendees, attendance, posts] = await Promise.all([
+    listAttendees(),
+    attendeeAttendance(),
+    listBoardForModeration(),
+  ]);
+
+  /** registrationId → sessions counted in, and the scheduled minutes of them. */
+  const attended = new Map(attendance.rows.map((r) => [r.registration.id, r]));
+
+  /**
+   * uid → posts and replies written.
+   *
+   * Replies are counted separately from posts rather than summed, because they
+   * are different signals: a reply is somebody answering another attendee,
+   * which is the behaviour a community board exists to produce.
+   */
+  const wrote = new Map<string, { posts: number; replies: number }>();
+  const bump = (uid: string, key: 'posts' | 'replies') => {
+    const entry = wrote.get(uid) ?? { posts: 0, replies: 0 };
+    entry[key] += 1;
+    wrote.set(uid, entry);
+  };
+  for (const p of posts) {
+    bump(p.authorId, 'posts');
+    for (const r of p.replies) bump(r.authorId, 'replies');
+  }
+
+  const rows = attendees.map((a) => {
+    const att = a.registrationId ? attended.get(a.registrationId) : undefined;
+    const w = a.uid ? wrote.get(a.uid) : undefined;
+    return {
+      attendee: a,
+      sessions: att?.sessions.length ?? 0,
+      minutes: att?.minutes ?? 0,
+      posts: w?.posts ?? 0,
+      replies: w?.replies ?? 0,
+      /** Any trace at all: they opened the app, were scanned, or wrote something. */
+      active: Boolean(a.signedIn) || (att?.sessions.length ?? 0) > 0 || Boolean(w),
+    };
+  });
+
+  const active = rows.filter((r) => r.active);
+  const quiet = rows.filter((r) => !r.active);
+
+  const shown = (view === 'quiet' ? quiet : view === 'active' ? active : rows).sort(
+    (a, b) =>
+      b.sessions - a.sessions ||
+      b.posts + b.replies - (a.posts + a.replies) ||
+      a.attendee.name.localeCompare(b.attendee.name),
+  );
+
   return (
     <>
       <PageHeader
         title="Attendee Activity"
+        info={
+          <>
+            <strong>Hours are scheduled, not sat through</strong>
+            <p>
+              A badge is scanned on the way in and never on the way out, so the hours column is the
+              length of the sessions somebody was counted into. There is no screen-view tracking in
+              the app and none is planned.
+            </p>
+          </>
+        }
         links={[
           <Link key="a" href={ROUTES.analyticsExports}>
             Analytics &amp; Exports
@@ -38,61 +141,78 @@ export default async function AttendeeActivityPage() {
         ]}
       />
 
+      <StatTiles
+        tiles={[
+          { label: 'On the roll', value: rows.length, sub: 'tickets and profiles' },
+          { label: 'Any activity', value: active.length, sub: 'app, door or board' },
+          { label: 'Nothing yet', value: quiet.length, sub: 'the follow-up list' },
+          {
+            label: 'Sessions counted',
+            value: attendance.tracked,
+            sub: `of ${attendance.live} on the programme`,
+          },
+        ]}
+      />
+
+      <Tabs
+        tabs={[
+          { label: `Everyone (${rows.length})`, href: '?', active: view === 'all' },
+          { label: `Active (${active.length})`, href: '?view=active', active: view === 'active' },
+          { label: `Nothing yet (${quiet.length})`, href: '?view=quiet', active: view === 'quiet' },
+        ]}
+      />
+
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What can be said about an attendee today</h2>
-        <p className="body-2">
-          Not nothing — but all of it is state somebody wrote on purpose, not behaviour observed in
-          the background. That distinction is the whole gap:
-        </p>
-        <Table
-          cols={[
-            { key: 'k', label: 'Signal', className: 'cell-md' },
-            { key: 'w', label: 'Where it comes from', className: 'cell-fill' },
-          ]}
-          rows={[
-            ['Bought a ticket', <span key="w">An <code>orders</code> document written by the Stripe webhook.</span>],
-            ['Claimed their account', <span key="w">The registration&rsquo;s <code>claimedByUid</code>, set when they sign in.</span>],
-            ['Turned up', <span key="w">A <code>checkIns</code> document written by a badge scan at the desk.</span>],
-            ['Built a schedule', <span key="w"><code>users/{'{uid}'}/savedSessions</code>, written by the attendee themselves.</span>],
-            ['Posted or replied', <span key="w"><code>communityPosts</code> and its <code>replies</code> subcollection.</span>],
-            ['Asked a question', <span key="w"><code>sessions/{'{id}'}/questions</code>, visible in the Q&amp;A manager.</span>],
-          ]}
-        />
-        <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link> already aggregates the
-          first four of those across the whole event.
-        </p>
-
-        <h2 className="section-header">What is missing, and why it stays missing</h2>
-        <p className="body-2">
-          Whova&rsquo;s feed is built on session-view events with durations, which only exist when
-          the app streams the session. Adding a general-purpose event log to get the rest — screens
-          opened, profiles viewed, time in app — would mean a new high-write collection and a
-          tracker inside an app used by identifiable people at a conference. That is a privacy
-          decision, not a feature, and it should be made deliberately rather than arrived at by
-          building the screen.
-        </p>
+        {shown.length === 0 ? (
+          <NotInputted what="attendees" />
+        ) : (
+          <>
+            <Table
+              cols={[
+                { key: 'n', label: 'Attendee', className: 'cell-fill' },
+                { key: 't', label: 'Ticket', className: 'cell-mdsm' },
+                { key: 'a', label: 'App', className: 'cell-sm' },
+                { key: 's', label: 'Sessions', className: 'cell-sm' },
+                { key: 'h', label: 'Hours', className: 'cell-sm' },
+                { key: 'p', label: 'Wrote', className: 'cell-sm' },
+              ]}
+              rows={paginate(shown, page, PER_PAGE).map((r) => [
+                <span key="n">
+                  {r.attendee.name}
+                  {r.attendee.company ? (
+                    <span className="muted"> · {r.attendee.company}</span>
+                  ) : null}
+                </span>,
+                r.attendee.ticketType ?? <span className="muted">—</span>,
+                r.attendee.signedIn ? (
+                  <Tag key="a" color="green" small>
+                    yes
+                  </Tag>
+                ) : (
+                  <span className="muted">no</span>
+                ),
+                r.sessions || <span className="muted">—</span>,
+                r.minutes > 0 ? formatHours(r.minutes) : <span className="muted">—</span>,
+                r.posts + r.replies > 0 ? (
+                  <span key="p">
+                    {r.posts > 0 ? `${r.posts}p` : ''}
+                    {r.posts > 0 && r.replies > 0 ? ' ' : ''}
+                    {r.replies > 0 ? `${r.replies}r` : ''}
+                  </span>
+                ) : (
+                  <span className="muted">—</span>
+                ),
+              ])}
+            />
+            <Pagination
+              total={shown.length}
+              page={page}
+              perPage={PER_PAGE}
+              baseParams={baseParams}
+            />
+          </>
+        )}
       </Panel>
-
-      <GapPanel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
-        <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>No per-attendee timeline.</strong> The signals above live in six collections
-            with no join key an organizer could scan visually, and stitching them per person is a
-            query fan-out per row.
-          </li>
-          <li>
-            <strong>No last-seen, no time-in-app, no screen views.</strong> Nothing writes them and
-            no analytics SDK is installed in the app.
-          </li>
-          <li>
-            <strong>No session dwell time.</strong> It needs either a stream or a scan on the way
-            out, and <code>Checkout</code> — the leaving-the-building half of check-in — is
-            modelled and unbuilt.
-          </li>
-        </ul>
-      </GapPanel>
     </>
   );
 }

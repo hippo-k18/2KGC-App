@@ -50,6 +50,16 @@ export default async function EventWebsitePage() {
     <>
       <PageHeader
         title="Event Website"
+        info={
+          <>
+            <strong>The pages are data; the copy is code</strong>
+            <p>
+              Every page below is a React file in <code>apps/web</code>, so headings and the code of
+              conduct change with a deploy while sessions, speakers, sponsors and prices change the
+              moment they are edited here. Colours, logo and banner are not editable at all.
+            </p>
+          </>
+        }
         tags={
           problems === 0 ? (
             <Tag color="green" fill="outline">
@@ -72,21 +82,13 @@ export default async function EventWebsitePage() {
         ]}
       />
 
-      <Banner kind={problems === 0 ? 'info' : 'warning'}>
-        {problems === 0 ? (
-          <>
-            <strong>Nothing on the public pages looks unfinished.</strong> Every published session
-            has a room, a speaker and a description; every speaker has a photo and a bio; every
-            sponsor has a logo. Send the campaign.
-          </>
-        ) : (
-          <>
-            <strong>{problems} things would look unfinished to a visitor today.</strong> They are
-            listed below, worst first. Driving a campaign at a page in this state spends your best
-            send on your worst impression — these are cheap to fix and expensive to skip.
-          </>
-        )}
-      </Banner>
+      {problems > 0 && (
+        <Banner kind="warning">
+          <strong>{problems} things would look unfinished to a visitor today.</strong> They are
+          listed below, worst first. Driving a campaign at a page in this state spends your best
+          send on your worst impression.
+        </Banner>
+      )}
 
       <StatTiles
         tiles={[
@@ -157,7 +159,7 @@ export default async function EventWebsitePage() {
               <span key="s">Sells {t.listed} {t.listed === 1 ? 'package' : 'packages'} live from the catalogue.</span>
             ) : (
               <span key="s" className="muted">
-                Renders, and has nothing to sell — it tells a visitor this is not open yet. Do not
+                Renders, and has nothing to sell. It tells a visitor this is not open yet. Do not
                 point a campaign at it.
               </span>
             ),

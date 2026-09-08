@@ -42,22 +42,23 @@ export default async function MeetingSchedulerPage({
           Exhibitors
         </Link>,
       ]}
-      lead={
+      info={
         <>
-          <strong>Attendees cannot request meetings, and this does not pretend they can.</strong>{' '}
-          Whova&rsquo;s scheduler is attendee-to-attendee and needs a request flow, a notification
-          to answer it and a mutual availability model — none of which exists here. What this{' '}
-          <em>is</em> is meeting-room inventory: the rooms sponsors and exhibitors ask for, booked
-          by a person, checked against the programme so nothing lands in a room with a keynote in
-          it. <Link href="/engagement/community/attendee-matchmaking">Attendee Matchmaking</Link>{' '}
-          is the built half of the introduction problem — it suggests who should meet, and stops
-          there.
+          <strong>Meeting-room inventory</strong>
+          <p>
+            The rooms sponsors and exhibitors ask for, booked by a person and checked against the
+            programme so nothing lands in a room with a keynote in it.
+          </p>
+          <p>
+            Attendees cannot request a meeting: that needs a request flow in the app and a model of
+            what somebody&rsquo;s availability means, and neither exists.
+          </p>
         </>
       }
       formCopy={{
         noun: 'Slots',
         titleLabel: 'Booked for',
-        titlePlaceholder: 'Graphwise — customer meetings',
+        titlePlaceholder: 'Graphwise: customer meetings',
         hostLabel: 'Booked by',
         capacityHint:
           'How many people fit. Two is a one-to-one; a sponsor bringing a customer team needs more, which is why this is a number rather than a fixed pair.',
@@ -66,8 +67,8 @@ export default async function MeetingSchedulerPage({
       notBuilt={[
         <li key="request">
           <strong>No request-and-accept flow.</strong> The attendee-facing half. It needs a screen
-          in the app, a notification to answer it, and a decision about what availability means —
-          the third is the hard one, and a free-text &ldquo;afternoons are fine&rdquo; is not
+          in the app, a notification to answer it, and a decision about what availability means.
+          The third is the hard one, and a free-text &ldquo;afternoons are fine&rdquo; is not
           schedulable.
         </li>,
         <li key="cal">
@@ -77,7 +78,7 @@ export default async function MeetingSchedulerPage({
         </li>,
         <li key="conflict">
           <strong>No check against the person&rsquo;s own schedule.</strong> Somebody booked into
-          two rooms at once is not caught — only two things in one room are. That needs a placement
+          two rooms at once is not caught, only two things in one room are. That needs a placement
           to be a real attendee rather than a name.
         </li>,
       ]}

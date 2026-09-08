@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { money, salesSummary } from '@/lib/commerce';
 import { payoutSummary } from '@/lib/payouts';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +43,16 @@ export default async function PayoutPage() {
     <>
       <PageHeader
         title="Payout"
+        info={
+          <>
+            <strong>Stripe pays out to KGC&rsquo;s bank on its own schedule</strong>
+            <p>
+              The account is KGC&rsquo;s own, so there is nothing to request and nobody to request
+              it from. Bank details, the schedule and verification stay in Stripe&rsquo;s dashboard
+              behind Stripe&rsquo;s authentication. Nothing on this screen writes.
+            </p>
+          </>
+        }
         tags={
           stripeEnabled() ? (
             <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
@@ -67,26 +77,19 @@ export default async function PayoutPage() {
 
       {payouts.unavailable ? (
         <Banner kind="warning">
-          <strong>No live figures.</strong> {payouts.unavailable} Everything below the fold still
-          works — it comes from our own order records, which is what was <em>sold</em> rather than
-          what has <em>landed</em>.
+          <strong>No live figures: Stripe could not be read.</strong> {payouts.unavailable} The
+          figures below come from our own order records instead, which is what was <em>sold</em>
+          rather than what has <em>landed</em>.
         </Banner>
       ) : failed.length > 0 ? (
-        <Banner kind="warning">
+        <Banner kind="danger">
           <strong>
             {failed.length} {failed.length === 1 ? 'payout has' : 'payouts have'} failed.
           </strong>{' '}
-          Stripe&rsquo;s reason is in the table below and almost always names the fix — usually a
-          bank detail that needs correcting in Stripe, not here.
+          Money that was taken has not reached the bank. Stripe&rsquo;s reason is in the table below
+          and almost always names the fix, usually a bank detail to correct in Stripe, not here.
         </Banner>
-      ) : (
-        <Banner kind="info">
-          <strong>Stripe pays out to KGC&rsquo;s bank on its own schedule.</strong> There is nothing
-          to request here — the account is ours, not a platform&rsquo;s. Figures come live from
-          Stripe rather than from our order records, because fees, disputes and Stripe&rsquo;s
-          rolling hold are the whole difference between the two and only Stripe knows them.
-        </Banner>
-      )}
+      ) : null}
 
       <StatTiles
         tiles={[
@@ -139,9 +142,11 @@ export default async function PayoutPage() {
             </span>,
           ])}
           empty={
-            payouts.unavailable
-              ? 'Nothing to list — Stripe could not be read. The reason is in the banner above.'
-              : 'No payout has been made yet. Stripe holds a new account for several days before the first one, which is normal and not a misconfiguration.'
+            payouts.unavailable ? (
+              'Nothing to list: Stripe could not be read. The reason is in the banner above.'
+            ) : (
+              <NotInputted what="payouts" compact />
+            )
           }
         />
       </Panel>
@@ -184,7 +189,7 @@ export default async function PayoutPage() {
             ],
             [
               'Disputes',
-              'A chargeback withdraws money after the fact and adds a fee. Nothing here sees one — Stripe’s dashboard is the only place they appear.',
+              'A chargeback withdraws money after the fact and adds a fee. Nothing here sees one. Stripe’s dashboard is the only place they appear.',
             ],
           ]}
         />

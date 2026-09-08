@@ -80,6 +80,19 @@ export interface AuditEntry {
      * to have an answer that is not a shrug.
      */
     | 'moderation.setStatus'
+    /**
+     * A community post or reply destroyed, not hidden.
+     *
+     * The one moderation action that is irreversible, and the reason the entry
+     * carries the whole document in `before` rather than a status pair: hiding
+     * keeps the post, so the post is its own evidence, and a delete removes
+     * that. If the text is worth destroying it is worth having a record that it
+     * existed and who decided — a takedown demand, a personal-data erasure, a
+     * doxxing post that must not survive in any readable collection. This log
+     * is that record, and it is why `Delete` is offered at all rather than
+     * leaving an organizer to go into the console with the Admin SDK.
+     */
+    | 'moderation.delete'
     | 'session.qaSettings'
     /** Organizer settings bags — branding, the event website, access rules. */
     | 'settings.update'
@@ -125,6 +138,16 @@ export interface AuditEntry {
     | 'task.update'
     | 'survey.create'
     | 'survey.update'
+    | 'poll.create'
+    | 'poll.update'
+    /**
+     * An organizer counting the votes and writing the result into the fields
+     * the app reads. It is the only entry here that writes a field the trigger
+     * spec calls server-owned, so it is recorded by name rather than folded
+     * into `poll.update`: when `tallyPoll` is deployed, this is the action that
+     * should stop appearing.
+     */
+    | 'poll.publishTally'
     | 'document.create'
     | 'document.update'
     /**
@@ -148,6 +171,22 @@ export interface AuditEntry {
      * is.
      */
     | 'order.manual'
+    /**
+     * Complimentary passes: the number a package includes, and each pass named
+     * against a sponsorship.
+     *
+     * `compPass.issue` is the entry that matters. It mints a full attendee
+     * registration — badge, claim code, admission — against money that was paid
+     * for a sponsorship rather than for that seat, so "who let this person in,
+     * and on whose allocation?" has to have an answer. It is recorded per pass
+     * rather than per sponsorship, because the seats are named weeks apart by
+     * different people. `ticketType.complimentaryPasses` is separate from
+     * `ticketType.update` for the same reason `ticketType.adjustSold` is: it
+     * changes what has already been sold, not what will be.
+     */
+    | 'ticketType.complimentaryPasses'
+    | 'compPass.issue'
+    | 'compPass.rename'
     /**
      * Registration questions. Recorded because the field id is what answers are
      * stored under — an edit that changed it would orphan every answer already
@@ -224,7 +263,72 @@ export interface AuditEntry {
      * that shared secret, and it is the only record of which organizer wrote
      * the words.
      */
-    | 'desk.message.send';
+    | 'desk.message.send'
+    /**
+     * The volunteer roster.
+     *
+     * Audited per row rather than per run, because a roster edit is a decision
+     * about one named person's shift: "who moved Ada off the 07:00 desk" is the
+     * question asked at 07:05, and it is unanswerable from the document alone
+     * once the row has been rewritten.
+     */
+    | 'volunteer.create'
+    | 'volunteer.update'
+    | 'volunteer.delete'
+    /**
+     * Issuing an attendance certificate.
+     *
+     * The certificate document holds the hours it was issued for; this holds
+     * who issued it and against which count. A certificate is the one artefact
+     * here that leaves the event and gets shown to an accrediting body, so
+     * "these hours were issued on the evidence as it stood at 18:40, by this
+     * organizer" has to survive a later recount that changes the number.
+     */
+    | 'certificate.issue'
+    /**
+     * The call for abstracts.
+     *
+     * `call.update` is here for the deadline above everything else: moving a
+     * closing date is the one edit on that screen that changes who is allowed
+     * to submit, and it is enforced only server-side, because `calls` and
+     * `submissions` have no `match` block in `firestore.rules` and there is no
+     * rule underneath to catch what a screen lets through. "Who extended it,
+     * and to when" has to be answerable.
+     *
+     * `call.form` records a change to the questions, carrying the form version
+     * before and after rather than the prompt text — the version is what every
+     * submission is pinned to, and a bumped number with no archived definition
+     * behind it names wording nobody kept.
+     */
+    | 'call.create'
+    | 'call.update'
+    | 'call.form'
+    /**
+     * Accepting or rejecting an abstract, and taking it back.
+     *
+     * The nearest thing this feature has to `order.refund`: a decision a person
+     * made about somebody else's work, mailed out, and an email in an author's
+     * inbox cannot be recalled. `submission.undoDecision` matters separately
+     * because it *deletes* a field — `SubmissionDoc.decision` is absent until it
+     * is made, so there is no second boolean recording that one was reversed and
+     * this entry is the only trace.
+     */
+    | 'submission.decide'
+    | 'submission.undoDecision'
+    /**
+     * An accepted abstract promoted onto the agenda — one session written, and
+     * one speaker created or updated.
+     *
+     * Deliberately not a side effect of acceptance (`CFA-PLAN.md` §4): Whova's
+     * marketing claims it is automatic and its own help centre corrects it,
+     * because scheduling is a decision about rooms and times that acceptance
+     * does not make. This is the entry for that second decision.
+     */
+    | 'submission.promote'
+    /** Reviewers: who was invited, and who was given whose work to read. */
+    | 'reviewer.invite'
+    | 'reviewer.update'
+    | 'reviewer.assign';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

@@ -111,7 +111,7 @@ export async function announcementPush(args: {
   const gate = canSend();
 
   if (!gate.ok) {
-    const detail = `Not sent — ${gate.why}. Would broadcast "${args.title}" to topic ${topic}.`;
+    const detail = `Not sent: ${gate.why}. Would broadcast "${args.title}" to topic ${topic}.`;
     console.info(`[push] ${detail}`);
     return { wired: false, detail };
   }
@@ -239,7 +239,7 @@ export async function roomChangePush(args: {
   return {
     wired: false,
     recipients: tokens.length,
-    detail: `${who}. Sent by the onSessionAgendaChange Cloud Function, not from here — see the note on roomChangePush().`,
+    detail: `${who}. Sent by the onSessionAgendaChange Cloud Function, not from here. See the note on roomChangePush().`,
   };
 }
 

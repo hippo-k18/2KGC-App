@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { publicSiteOrigin } from '@kgc/shared';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,16 @@ export default async function RegistrationWidgetsPage() {
     <>
       <PageHeader
         title="1.5 Registration Widgets"
+        info={
+          <>
+            <strong>There is no embed snippet</strong>
+            <p>
+              The marketing site and the checkout are one deployment, so anywhere a widget would go,
+              a link to <code>/tickets</code> goes instead. A partner site selling KGC tickets is
+              what would need a real embed, and the requirements would come from that partner.
+            </p>
+          </>
+        }
         links={[
           <Link key="p" href="/tickets/ticket-setup/1-4-registration-pages">
             Registration Pages
@@ -35,35 +46,37 @@ export default async function RegistrationWidgetsPage() {
         ]}
       />
 
-      <Banner kind="warning">
-        <strong>There is no embeddable widget and no snippet to copy.</strong> A code block here
-        would be pasted into a real site and render nothing, so there is not one.
-      </Banner>
-
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Why the need is smaller here</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What to put on a partner&rsquo;s site</h2>
         <p className="body-2">
-          Whova&rsquo;s widget bridges two systems: your website, and their ticketing. This project
-          has one — <code>apps/web</code> serves the marketing pages, the blog, the agenda and the
-          checkout from a single deployment reading a single Firestore database. Anywhere a widget
-          would go, a link to <code>/tickets</code> goes instead, and it is faster, accessible, and
-          impossible to break by upgrading a host page&rsquo;s CSS.
+          A link to the ticket page, with a tracked code on it so the partner can be credited for
+          what it brings in.
         </p>
-        <p className="body-2">
-          The case that would genuinely need one is a <em>third-party</em> site selling KGC tickets
-          — a partner association, a sponsor&rsquo;s events page. That is worth building only when
-          such a partner exists, and its requirements come from them.
-        </p>
-
-        <h2 className="section-header">What it would take, if a partner asked</h2>
-        <p className="body-2">
-          A public JSON endpoint for the catalogue (there is none — <code>catalogue.ts</code> is{' '}
-          <code>server-only</code> and reads with the Admin SDK), an iframe route with a permissive
-          frame policy for named origins only, and a decision about where checkout opens. The last
-          is the awkward one: Stripe&rsquo;s hosted Checkout will not run inside a cross-origin
-          iframe, so the buy button has to break out to a top-level navigation, which is exactly the
-          thing an embed was adopted to avoid.
-        </p>
+        <Table
+          cols={[
+            { key: 'w', label: 'What', className: 'cell-md' },
+            { key: 'v', label: 'Use this', className: 'cell-fill' },
+          ]}
+          rows={[
+            [
+              'Plain link',
+              <a key="v" href={`${publicSiteOrigin()}/tickets`} target="_blank" rel="noreferrer">
+                {publicSiteOrigin()}/tickets
+              </a>,
+            ],
+            [
+              'Credited link',
+              <span key="v">
+                Give the partner their own <code>/r/</code> code on{' '}
+                <Link href="/tickets/ticket-marketing/campaign-link-tracking">
+                  Campaign Link Tracking
+                </Link>
+                . Clicks are counted by the redirect and a purchase within thirty days is credited
+                back to it.
+              </span>,
+            ],
+          ]}
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

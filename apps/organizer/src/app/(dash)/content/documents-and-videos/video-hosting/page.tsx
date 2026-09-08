@@ -1,42 +1,77 @@
+import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { PageHeader, Panel } from '../../../ui';
+import { listTicketTypes } from '@/lib/commerce';
+import { NotInputted, PageHeader, Panel, StatTiles } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
-/** Content › Documents & Videos › Video Hosting. */
+/**
+ * Content › Documents & Videos › Video Hosting.
+ *
+ * Video hosting is not a screen; it is a bill and an operational commitment.
+ * Storing and transcoding a five-day conference is tens of gigabytes, and
+ * serving it behind a paywall needs signed URLs that expire — which needs a
+ * trusted server to sign them.
+ *
+ * The realistic answer is a hosting provider (Mux, Cloudflare Stream, or an
+ * unlisted Vimeo) with this screen holding the ids, rather than anything run
+ * here. That is an account and a credential the owner has to open, which is why
+ * this screen counts the entitlement rather than the recordings: the
+ * *entitlement* is real and sold — `TicketTypeDoc.includesVideoLibrary` is set
+ * on the All Access and Main Conference tiers — and nothing serves it.
+ *
+ * Until there is a provider, the honest path is the Documents screen: a titled
+ * link to wherever the recording already lives.
+ */
 export default async function VideoHostingPage() {
   await requireOrganizer();
+  const tickets = await listTicketTypes();
+  const entitled = tickets.filter((t) => t.includes.some((i) => /video library/i.test(i)));
+
   return (
     <>
-      <PageHeader title="Video Hosting" />
+      <PageHeader
+        title="Video Hosting"
+        info={
+          <>
+            <strong>Waiting on a hosting account</strong>
+            <p>
+              Serving recordings behind a ticket needs a video provider and expiring signed URLs.
+              That is an account and a credential rather than a screen. See{' '}
+              <code>OWNER-ACTIONS.md</code>.
+            </p>
+          </>
+        }
+        links={[
+          <Link key="d" href="/content/documents-and-videos/documents">
+            Documents
+          </Link>,
+          <Link key="a" href="/content/documents-and-videos/attendee-video-access">
+            Attendee Video Access
+          </Link>,
+        ]}
+      />
+
+      <StatTiles
+        tiles={[
+          { label: 'Recordings hosted', value: '—', sub: 'not inputted yet' },
+          {
+            label: 'Tiers that include video',
+            value: entitled.length,
+            sub: 'sold on the public price list',
+          },
+        ]}
+      />
+
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Hosts session recordings on their own infrastructure, transcodes them, and serves them
-          inside the app behind the attendee&rsquo;s ticket — so a Virtual ticket holder can watch
-          a talk they paid for and nobody else can.
-        </p>
-
-        <h2 className="section-header">What this would need</h2>
-        <p className="body-2">
-          Video hosting is not a screen; it is a bill and an operational commitment. Storing and
-          transcoding a five-day conference is tens of gigabytes, and serving it behind a paywall
-          needs signed URLs that expire — which in turn needs a trusted server to sign them.
-          Realistically the answer is <strong>a hosting provider</strong> (Mux, Cloudflare Stream,
-          or an unlisted Vimeo) with this screen holding the ids, rather than anything we run.
-        </p>
-        <p className="body-2">
-          Until then the honest path is the Documents screen: paste a link to wherever the
-          recording already lives. That is worse than Whova and it costs nothing, which for an
-          in-person conference whose value is being in the room is close to the right trade.
-        </p>
-
-        <h2 className="section-header">The part that already exists</h2>
-        <p className="body-2">
-          <code>TicketTypeDoc.includesVideoLibrary</code> is on every ticket type, and the All
-          Access and Main Conference tiers set it. So the <em>entitlement</em> is modelled and sold
-          — three months of the KGC Video Library is on the price list. Nothing serves it.
-        </p>
+        <NotInputted
+          what="recordings"
+          action={
+            <Link className="whova-btn-main" href="/content/documents-and-videos/documents?new=1">
+              Link one as a document
+            </Link>
+          }
+        />
       </Panel>
     </>
   );

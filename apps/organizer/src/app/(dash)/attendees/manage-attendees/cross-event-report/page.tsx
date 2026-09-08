@@ -3,7 +3,7 @@ import { EVENT_ID } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +19,25 @@ export const dynamic = 'force-dynamic';
  * Showing this event's numbers under a heading that says "cross-event" would be
  * the clearest possible example of the defect AGENTS.md counts fourteen of.
  *
- * The design note worth recording is that the schema is *ready* for the second
- * event and the aggregation is not. `eventId` on every document and leading
- * every composite index is exactly what a second event needs — and AGENTS.md is
- * explicit that Firestore cannot add a field to an existing index, so that
- * decision is the expensive one and it has already been paid for.
+ * ── What a second event would need, kept here rather than on the screen ────
+ *
+ * The storage half is done: every top-level document carries `eventId` and it
+ * leads every composite index, so a second event coexists in the same
+ * collections without a migration. That was the expensive decision — Firestore
+ * cannot add a field to an existing index, so retrofitting it means a full
+ * rebuild and backfill — and it was made correctly at the start.
+ *
+ * The plumbing half is not. `EVENT_ID` is a compile-time constant shared by the
+ * app, the website and this dashboard; a second event turns it into a runtime
+ * selection — a switcher in the header, an event in the session cookie, and
+ * every query in `lib/` taking it as an argument rather than importing it.
+ *
+ * And the interesting question is identity: "returning attendee" means matching
+ * a person in 2027 to a person in 2026, and `registrationId` is derived from the
+ * email address, which people change. A uid is stabler and covers only people
+ * who signed in. Whichever is chosen, the retention figure inherits its error,
+ * and a retention number with an unstated matching rule is one nobody should
+ * act on.
  */
 export default async function CrossEventReportPage() {
   await requireOrganizer();
@@ -36,6 +50,15 @@ export default async function CrossEventReportPage() {
     <>
       <PageHeader
         title="Cross-Event Report"
+        info={
+          <>
+            <strong>One event in this database</strong>
+            <p>
+              There is nothing on the other side of a comparison, so no returning-attendee figure,
+              retention rate or year-on-year trend is computed, and none is shown.
+            </p>
+          </>
+        }
         tags={<Tag color="grey">one event</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
@@ -46,13 +69,6 @@ export default async function CrossEventReportPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="warning">
-        <strong>There is nothing to compare against.</strong> This database holds one event,{' '}
-        <code>{EVENT_ID}</code>. No returning-attendee figure, retention rate or year-on-year trend
-        can be computed from it, and none is shown below — a single-event number relabelled as a
-        comparison is worse than a blank screen.
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -67,37 +83,10 @@ export default async function CrossEventReportPage() {
           <strong>No prior event to report against.</strong>
           <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
             Single-event analytics live on{' '}
-            <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link> — adoption,
+            <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>. Adoption,
             ticket mix, top organisations and the exports that leave the building.
           </div>
         </EmptyState>
-      </Panel>
-
-      <Panel>
-        <h2 className="section-header">What a second event would need</h2>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>The storage half is done.</strong> Every top-level document carries{' '}
-            <code>eventId</code> and it leads every composite index, so a second event coexists in
-            the same collections without a migration. That was the costly decision — Firestore
-            cannot add a field to an existing index, so retrofitting it later means a full rebuild
-            and backfill — and it was made correctly at the start.
-          </li>
-          <li>
-            <strong>The plumbing half is not.</strong> <code>EVENT_ID</code> is a compile-time
-            constant shared by the app, the website and this dashboard. A second event turns it into
-            a runtime selection: a switcher in the header, an event in the session cookie, and every
-            query in <code>lib/</code> taking it as an argument rather than importing it.
-          </li>
-          <li>
-            <strong>Identity across events is the interesting question.</strong> &ldquo;Returning
-            attendee&rdquo; means matching a person in 2027 to a person in 2026, and{' '}
-            <code>registrationId</code> is derived from the email address — which people change.
-            Matching on a Firebase uid is stabler and only covers people who signed in. Whichever is
-            chosen, the retention number inherits its error, and a retention figure with an unstated
-            matching rule is a number nobody should act on.
-          </li>
-        </ul>
       </Panel>
 
       <GapPanel>

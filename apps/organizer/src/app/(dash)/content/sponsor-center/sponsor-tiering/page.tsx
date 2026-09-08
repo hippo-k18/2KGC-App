@@ -3,7 +3,7 @@ import type { SponsorTier } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listSponsors, TIER_ORDER } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,10 +41,10 @@ export default async function SponsorTieringPage() {
   }));
 
   /**
-   * Whova's public sponsor design payload carries a size weight per tier —
-   * Platinum 3, Gold 2, Silver 1, Bronze 1 — which is how their widget decides
-   * logo sizes. Recorded here because it is the actual placement rule, and it is
-   * the piece that has no surface to apply to yet.
+   * The size weight per tier — Platinum 3, Gold 2, Silver 1, Bronze 1 — which is
+   * how a sponsor widget decides logo sizes. Recorded here because it is the
+   * actual placement rule, and it is the piece that has no surface to apply to
+   * yet.
    */
   const WEIGHT: Record<SponsorTier, number> = { platinum: 3, gold: 2, silver: 1, bronze: 1 };
 
@@ -52,6 +52,16 @@ export default async function SponsorTieringPage() {
     <>
       <PageHeader
         title="Sponsor Tiering"
+        info={
+          <>
+            <strong>Tiers are a type, not a table</strong>
+            <p>
+              <code>SponsorTier</code> is a four-value union in <code>@kgc/shared</code>, so
+              renaming one or adding a fifth is a code change in three consumers rather than an
+              edit here. A sponsor moves between tiers on its own record.
+            </p>
+          </>
+        }
         links={[
           <Link key="s" href={ROUTES.sponsorManager}>
             Sponsor Manager
@@ -74,15 +84,18 @@ export default async function SponsorTieringPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Tiers are a type, not a table.</strong> <code>SponsorTier</code> is a four-value
-        union in <code>@kgc/shared</code>, so renaming one or adding a fifth is a code change and a
-        deploy rather than an edit here. At one event a year that is the cheaper trade — but it is a
-        trade, and the day sales sells a &ldquo;Diamond&rdquo; package is the day it stops paying.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Tiers as they stand</h2>
+        {sponsors.length === 0 ? (
+          <NotInputted
+            what="sponsors"
+            action={
+              <Link className="whova-btn-main" href={`${ROUTES.sponsorManager}?new=1`}>
+                Add the first one
+              </Link>
+            }
+          />
+        ) : null}
         {/*
           Read-only here by design rather than by necessity: a tier is a property
           of a sponsor, not a record of its own, so it is assigned on the sponsor
@@ -106,7 +119,7 @@ export default async function SponsorTieringPage() {
             </span>,
             <span key="l" style={{ fontSize: 12 }}>
               {g.rows.length === 0 ? (
-                <span className="muted">nobody at this tier</span>
+                <span className="muted">nobody at this tier yet</span>
               ) : (
                 g.rows.map((s) => s.name).join(', ')
               )}
@@ -114,36 +127,21 @@ export default async function SponsorTieringPage() {
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Logo weight is Whova&rsquo;s own sizing ratio from the live sponsor widget; the public
-          sponsor page applies it, and nothing in the app does — see below. To move a sponsor
-          between tiers, edit them in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link>.
+          Logo weight is the sizing ratio the public sponsor page applies; nothing in the app does,
+          because the app has no sponsor banner surface. To move a sponsor between tiers, edit them
+          in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link>.
         </p>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a tier should buy, and where</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where a tier decides placement</h2>
         <p className="body-2">
-          A tier is only worth anything if it decides placement, and placement needs a surface. The
-          public sponsor page renders sponsors grouped by tier and is built. The other three
-          surfaces Whova sells against are not:
-        </p>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>Banners in the app.</strong> There is no banner component on any screen, so
-            there is nothing for a placement rule to place. <Tag color="grey" small>unbuilt</Tag>
-          </li>
-          <li>
-            <strong>Sponsored sessions.</strong> <code>SessionDoc</code> has no sponsor field, so a
-            sponsor cannot be attached to a talk. <Tag color="grey" small>unbuilt</Tag>
-          </li>
-          <li>
-            <strong>Push and announcement placement.</strong> Announcements exist and have no
-            sponsor slot. <Tag color="grey" small>unbuilt</Tag>
-          </li>
-        </ul>
-        <p className="body-2">
-          Roughly <strong>2–3 days</strong> once one banner surface exists, and none of it is
-          blocked on tiers being editable.
+          A tier is only worth anything if it decides placement, and placement needs a surface. The{' '}
+          <Link href="/content/sponsor-center/advanced-banners">public sponsor page</Link> renders
+          sponsors grouped by tier and applies the weights above. Three other surfaces have no
+          sponsor slot at all: there is no banner component on any app screen,{' '}
+          <code>SessionDoc</code> has no sponsor field so a talk cannot be attributed to one, and
+          announcements have nowhere to carry a name.
         </p>
       </Panel>
 
@@ -155,8 +153,8 @@ export default async function SponsorTieringPage() {
             <code>packages/shared/src/models.ts</code>.
           </li>
           <li>
-            <strong>Benefits per tier.</strong> Whova records what each tier includes and checks it
-            off. Nothing models a benefit, so nothing can be checked off.
+            <strong>Benefits per tier.</strong> Nothing models what a tier includes, so nothing can
+            be checked off against a contract.
           </li>
           <li>
             <strong>Placement rules.</strong> The weights above are printed, not applied.

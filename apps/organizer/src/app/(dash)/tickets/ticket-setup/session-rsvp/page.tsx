@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, Table } from '../../../ui';
+import { GapPanel, PageHeader, Panel, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +28,16 @@ export default async function SessionRsvpPage() {
     <>
       <PageHeader
         title="Session RSVP"
+        info={
+          <>
+            <strong>Saving a session is not RSVPing to it</strong>
+            <p>
+              The app&rsquo;s schedule feature writes a private bookmark. Nothing counts it, caps it
+              or checks it, and the count would overstate attendance anyway. Attendees save several
+              parallel sessions and go to one.
+            </p>
+          </>
+        }
         links={[
           <Link key="c" href="/attendees/session-cap">
             Session Cap
@@ -40,12 +50,6 @@ export default async function SessionRsvpPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        <strong>Saving a session is not RSVPing to it.</strong> The app&rsquo;s schedule feature
-        writes a private bookmark. Nothing counts it, caps it or checks it, and the count would
-        overstate attendance anyway — attendees save several parallel sessions and go to one.
-      </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>The four parts of an RSVP, and what exists</h2>
@@ -81,29 +85,12 @@ export default async function SessionRsvpPage() {
             [
               'A check at the door',
               <span key="s" className="muted">
-                Missing. Check-in is per event, not per session — one{' '}
+                Missing. Check-in is per event, not per session. One{' '}
                 <code>checkIns</code> document against a list, not against a talk.
               </span>,
             ],
           ]}
         />
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Why the missing half is more than a form</h2>
-        <p className="body-2">
-          A capped RSVP is a concurrency problem before it is a UI problem: two people taking the
-          last workshop seat at the same moment must not both get it. Firestore&rsquo;s answer is a
-          transaction on the session document, which serialises writes to one document — fine for a
-          40-seat workshop, and a well-known contention limit if a keynote-sized session ever used
-          it. The uid-keyed subcollection pattern this project uses for reactions and votes exists
-          for exactly that reason, and it does not give a count without a Cloud Function trigger,
-          which the Spark plan does not allow.
-        </p>
-        <p className="body-2">
-          So the honest sequence is: capacity first (done), waitlist behaviour decided second, and
-          the trigger third — after the Blaze decision, not before it.
-        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

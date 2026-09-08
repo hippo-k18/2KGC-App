@@ -52,7 +52,7 @@ export function RoomForm({ existing }: { existing?: EditableRoom }) {
           Agenda caches: {state.fanOut}
           {state.fanOutOk
             ? null
-            : ' Those sessions still show the old room name to attendees — repair them from the agenda cache check on Track Manager.'}
+            : ' Those sessions still show the old room name to attendees. Repair them from the agenda cache check on Track Manager.'}
         </p>
       )}
 
@@ -67,12 +67,12 @@ export function RoomForm({ existing }: { existing?: EditableRoom }) {
         hint={
           existing ? (
             <>
-              As signposted at the venue — this is the only wayfinding an attendee gets. Renaming
+              As signposted at the venue. This is the only wayfinding an attendee gets. Renaming
               rewrites the room shown on{' '}
               {existing.sessionCount === 0
                 ? 'no sessions; nothing is scheduled here yet'
                 : `${existing.sessionCount} session${existing.sessionCount === 1 ? '' : 's'}`}
-              . Id <code>{existing.id}</code> never changes — sessions point at it.
+              . Id <code>{existing.id}</code> never changes. Sessions point at it.
             </>
           ) : (
             'As signposted at the venue, not as named in the contract. It is the only wayfinding an attendee gets.'

@@ -35,11 +35,27 @@ import { gapNotesVisible } from '@/lib/gap-notes';
 
 export function PageHeader({
   title,
+  info,
   tags,
   actions,
   links,
 }: {
   title: string;
+  /**
+   * The screen's caveats, shown behind a hover "i" beside the feature name.
+   *
+   * This is where a limitation belongs. A caveat that is true but not urgent —
+   * "the switches below are saved and not enforced", "there is no kiosk mode" —
+   * used to be a full-width `Banner`, so an organizer read a paragraph about
+   * what the software does not do before reaching the thing it does, on nearly
+   * every screen. Behind the `i` it costs no vertical space, stays one hover
+   * away, and is still in the DOM for anyone reading with a screen reader.
+   *
+   * A `Banner` is still right for something the organizer must act on *now* —
+   * an export that carries personal data, an unsaved change, a closed call.
+   * The test is whether it changes what they do in the next minute.
+   */
+  info?: ReactNode;
   tags?: ReactNode;
   actions?: ReactNode;
   links?: ReactNode[];
@@ -49,7 +65,10 @@ export function PageHeader({
       <div className="whova-header__blue-bar" />
       <div className="whova-header__container">
         <div className="whova-header__top">
-          <span className="whova-header__feature">{title}</span>
+          <span className="whova-header__feature">
+            {title}
+            {info ? <InfoTip>{info}</InfoTip> : null}
+          </span>
           {tags ? <span className="whova-header__tag-group">{tags}</span> : null}
           {actions ? <span className="whova-header__action-group">{actions}</span> : null}
         </div>
@@ -299,6 +318,73 @@ export function Pagination({
  */
 export function paginate<T>(rows: T[], page: number, perPage: number): T[] {
   return rows.slice((page - 1) * perPage, page * perPage);
+}
+
+/**
+ * A circled "i" that reveals its content on hover or keyboard focus.
+ *
+ * Pure CSS (see `globals.css`), because every screen that uses one is a Server
+ * Component and a `useState` tooltip would pull the whole page across the client
+ * boundary. `tabIndex={0}` plus `:focus-within` gives keyboard users the same
+ * reveal, and the text is in the DOM unconditionally so a screen reader finds it
+ * whether or not anyone hovers.
+ *
+ * `align="right"` flips the bubble to hang from the right edge, for an `i` close
+ * enough to the viewport edge that a centred bubble would be clipped.
+ */
+export function InfoTip({
+  children,
+  label = 'More information',
+  align = 'center',
+}: {
+  children: ReactNode;
+  label?: string;
+  align?: 'center' | 'right';
+}) {
+  return (
+    <span
+      className={`infotip${align === 'right' ? ' right' : ''}`}
+      tabIndex={0}
+      role="note"
+      aria-label={label}
+    >
+      <span className="infotip__icon" aria-hidden="true">
+        i
+      </span>
+      <span className="infotip__bubble">{children}</span>
+    </span>
+  );
+}
+
+/**
+ * The one empty state this dashboard uses when a real collection is real and
+ * empty.
+ *
+ * "No sessions yet", "Nothing here", "0 results" and "—" were all in use and all
+ * meant the same thing, and two of them read as an error. One phrase, used
+ * everywhere, means an organizer learns it once: nothing has been entered, the
+ * screen is working, and the fix is to enter something.
+ *
+ * It never stands in for data that exists — a query that fails renders an error,
+ * not this — and it never stands in for invented rows. There is no seeded
+ * sample data anywhere in this dashboard on purpose.
+ */
+export function NotInputted({
+  what,
+  action,
+  compact,
+}: {
+  /** What is missing, in the organizer's words: "sessions", "a sponsor logo". */
+  what?: string;
+  action?: ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <EmptyState icon="◌" action={action} compact={compact}>
+      <p className="empty-title">Not inputted yet</p>
+      {what ? <p className="empty-sub">No {what} has been entered for this event.</p> : null}
+    </EmptyState>
+  );
 }
 
 export function Banner({

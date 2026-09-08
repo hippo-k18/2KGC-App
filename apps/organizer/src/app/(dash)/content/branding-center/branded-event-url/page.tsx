@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { publicUrl } from '@/lib/webpages';
 import { SettingsReach } from '../../../settings-reach';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
 import { BrandedUrlForm } from '../branding-forms';
 
 export const dynamic = 'force-dynamic';
@@ -11,9 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Content › Branding Center › Branded Event URL.
  *
- * Whova sells a vanity address — `whova.com/portal/kgc_2027` becomes
- * `kgc2027.whova.com` — because the generated one is unprintable. We do not have
- * that problem in the same shape: the conference already owns
+ * A vanity address for the event. The conference already owns
  * `knowledgegraph.tech` and `apps/web` already serves it, so what was missing
  * was never a domain — only a route that resolves a slug to an event.
  *
@@ -40,6 +38,16 @@ export default async function BrandedEventUrlPage() {
     <>
       <PageHeader
         title="Branded Event URL"
+        info={
+          <>
+            <strong>Change the word, break the old address</strong>
+            <p>
+              <code>apps/web</code> reads this document on every request and redirects an exact,
+              case-folded match to the front page. The redirect is a <strong>307</strong> so a
+              browser cannot cache a slug you have since withdrawn.
+            </p>
+          </>
+        }
         links={[
           <Link key="a" href="/content/branding-center/app-branding">
             App Branding
@@ -50,22 +58,12 @@ export default async function BrandedEventUrlPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Reserved, and now served.</strong> Saving a word here writes it to the{' '}
-        <code>branding</code> settings document, and{' '}
-        <code>apps/web/src/app/[slug]/page.tsx</code> reads that document on every request and
-        redirects the matching address to the front page. Change the word and the old address stops
-        working the same minute — the redirect is a <strong>307</strong> rather than a 308 precisely
-        so that a browser cannot cache a slug you have since withdrawn. Anything that is not an
-        exact, case-folded match renders the site&rsquo;s own 404, so this route swallows nothing.
-      </Banner>
-
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>The address</h2>
         <BrandedUrlForm brandedSlug={slug} />
         {slug && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Live at <code>{publicUrl(`/${slug}`)}</code> — it redirects to the front page.
+            Live at <code>{publicUrl(`/${slug}`)}</code>. It redirects to the front page.
           </p>
         )}
         {s.updatedBy && (
@@ -103,10 +101,9 @@ export default async function BrandedEventUrlPage() {
             two events.
           </li>
           <li>
-            <strong>A deep link into the app.</strong> Whova&rsquo;s branded URL opens the mobile
-            app if it is installed. That is an associated-domains file and an{' '}
-            <code>app.json</code> intent filter, neither of which exists, and it needs a development
-            build rather than Expo Go.
+            <strong>A deep link into the app.</strong> Opening the mobile app from this address
+            needs an associated-domains file and an <code>app.json</code> intent filter, neither of
+            which exists, plus a development build rather than Expo Go.
           </li>
         </ul>
       </GapPanel>

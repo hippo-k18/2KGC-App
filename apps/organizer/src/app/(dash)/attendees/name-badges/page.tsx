@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { QR_QUIET_ZONE, badgeQr, listBadgeRows } from '@/lib/badges';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Tag, listParams, paginate } from '../../ui';
+import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Tag, listParams, paginate } from '../../ui';
 import { PrintButton } from './print-button';
 
 export const dynamic = 'force-dynamic';
@@ -134,6 +134,16 @@ export default async function NameBadgesPage({
 
       <PageHeader
         title="Name Badges"
+        info={
+          <>
+            <strong>The QR is the attendee&rsquo;s <code>qrSecret</code>, alone</strong>
+            <p>
+              It is a bearer credential for <em>attendance</em>: photographed, it can be checked in
+              as that person, and the duplicate shows in the scan log. No email, attendee id or
+              sign-in code is printed, or even loaded onto this page.
+            </p>
+          </>
+        }
         tags={<Tag color="blue">{matched.length} to print</Tag>}
         actions={<PrintButton count={pageRows.length} />}
         links={[
@@ -163,16 +173,6 @@ export default async function NameBadgesPage({
       />
 
       <Panel>
-        <Banner kind="info">
-          <strong>The QR is the attendee&rsquo;s <code>qrSecret</code>, alone.</strong> That is what
-          the door scanner matches on, so a badge printed from this sheet works whether or not the
-          attendee ever opens the app — which is the point of printing them. It is a bearer
-          credential for <em>attendance</em>: a photograph of it can be checked in as that person,
-          and the duplicate shows up in the scan log rather than passing silently. No email, no
-          attendee id and no sign-in code is printed anywhere on the badge, and none of them is
-          loaded onto this page to begin with.
-        </Banner>
-
         <form method="get" className="toolbar">
           {ticket ? <input type="hidden" name="ticket" value={ticket} /> : null}
           <SearchInput defaultValue={q} placeholder="Enter name, company or job title" />
@@ -207,7 +207,7 @@ export default async function NameBadgesPage({
         </div>
 
         <p className="body-2">
-          Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet — the size that fits a
+          Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet. The size that fits a
           standard clip holder without folding. Printing takes whichever sheet is on screen, so
           page through and print each one; the pager is a query parameter, so the sheet is also a
           link you can send to whoever is standing at the printer.

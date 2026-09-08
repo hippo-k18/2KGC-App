@@ -54,7 +54,7 @@ export function SessionScopeForm({
         aria-label="Session"
         defaultValue={defaultValue}
         options={options}
-        placeholder="— pick a session —"
+        placeholder="Pick a session…"
         required
         groupStyle={{ marginBottom: 8 }}
       />
@@ -78,7 +78,7 @@ export function DayScopeForm({
   if (options.length === 0) {
     return (
       <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
-        No programme days yet — a day comes from the sessions scheduled on it.
+        No programme days yet. A day comes from the sessions scheduled on it.
       </p>
     );
   }
@@ -90,7 +90,7 @@ export function DayScopeForm({
         aria-label="Day"
         defaultValue={defaultValue}
         options={options}
-        placeholder="— pick a day —"
+        placeholder="Pick a day…"
         required
         groupStyle={{ marginBottom: 8 }}
       />

@@ -64,7 +64,7 @@ export async function sendAnnouncementAction(
         return {
           error: `Last announcement was ${Math.round(since / 1000)}s ago. Wait ${Math.ceil(
             (COOLDOWN_MS - since) / 1000,
-          )}s — a double-send is indistinguishable from spam on the receiving phone.`,
+          )}s. A double-send is indistinguishable from spam on the receiving phone.`,
         };
       }
     }

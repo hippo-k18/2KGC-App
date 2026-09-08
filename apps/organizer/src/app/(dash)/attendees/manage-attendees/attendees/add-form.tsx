@@ -46,9 +46,9 @@ export function AddAttendeeForm({ ticketTypes }: { ticketTypes: string[] }) {
         <Select
           label="Ticket type"
           name="ticketType"
-          placeholder="— added by organizer —"
+          placeholder="Added by organizer…"
           options={ticketTypes.map((t) => ({ value: t, label: t }))}
-          hint="No order is created — this person did not pay through us, and inventing revenue is worse than a blank."
+          hint="No order is created. This person did not pay through us."
         />
       </FormGrid>
 

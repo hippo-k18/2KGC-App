@@ -136,7 +136,7 @@ export async function commitSpeakerImport(input: {
       failed.push({
         line,
         name,
-        message: `Two speakers are already called “${name}”. Edit them on the speaker page — an import cannot tell them apart.`,
+        message: `Two speakers are already called “${name}”. Edit them on the speaker page. An import cannot tell them apart.`,
       });
       continue;
     }

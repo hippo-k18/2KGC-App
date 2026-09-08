@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listDocuments } from '@/lib/planning';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +67,16 @@ export default async function ArtifactWebpagePage() {
     <>
       <PageHeader
         title="Artifact Webpage"
+        info={
+          <>
+            <strong>Half the library is public on purpose</strong>
+            <p>
+              <code>visibleToTicketTypes</code> exists so a deck can be restricted to the people who
+              paid. A restricted document is filtered out server-side and never reaches the browser
+              at all. It is not hidden with a class.
+            </p>
+          </>
+        }
         tags={<Tag color="green" fill="outline">live at /documents</Tag>}
         actions={
           <a href={publicUrl('/documents')} target="_blank" rel="noreferrer" className="whova-btn-main">
@@ -83,14 +93,23 @@ export default async function ArtifactWebpagePage() {
         ]}
       />
 
+      {/*
+        Operational: it states what a stranger can download right now, and that a
+        restriction applied in Documents takes those files off the public page on
+        the next request rather than after a deploy. The reasoning behind the
+        split is a caveat and lives in the header's `info` tip.
+      */}
       <Banner kind="info">
-        Handouts live in <strong>Documents</strong> and the app shows them to attendees.{' '}
-        <code>visibleToTicketTypes</code> is what keeps a gated deck gated, so{' '}
+        <strong>
+          {open.length} of {published.length} published{' '}
+          {published.length === 1 ? 'document is' : 'documents are'} downloadable by anyone
+        </strong>{' '}
+        at{' '}
         <a href={publicUrl('/documents')} target="_blank" rel="noreferrer">
           /documents
-        </a>{' '}
-        carries the ungated ones and only those — {open.length} of the {published.length} published
-        today. Restricting a document here removes it from that page on the next request.
+        </a>
+        . Restricting one in Documents takes it off that page on the next request; these are links
+        to files hosted elsewhere, so anything already fetched cannot be recalled.
       </Banner>
 
       <StatTiles
@@ -146,11 +165,21 @@ export default async function ArtifactWebpagePage() {
               // "anyone" here would be the same lie the counts above told, and
               // saying "restricted" would send the organizer to the wrong field.
               <span key="v" className="muted" style={{ fontSize: 12 }}>
-                incomplete — not on the page
+                incomplete, not on the page
               </span>
             ),
           ])}
-          empty="Nothing published yet. Documents is where these are added."
+          empty={
+            <NotInputted
+              what="published documents"
+              compact
+              action={
+                <Link className="btn btn-primary" href="/content/documents-and-videos/documents">
+                  Add one in Documents
+                </Link>
+              }
+            />
+          }
         />
       </Panel>
 

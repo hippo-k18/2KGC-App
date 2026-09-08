@@ -78,7 +78,7 @@ export function parseOffers(raw: string): { offers: string[]; error?: string } {
     return {
       offers,
       error:
-        `That is ${offers.length} offers. Keep it to ${MAX_OFFERS} — the app shows the first ` +
+        `That is ${offers.length} offers. Keep it to ${MAX_OFFERS}. The app shows the first ` +
         'two on the directory row and the rest on one screen.',
     };
   }

@@ -3,8 +3,14 @@ import { COMMUNITY_CATEGORY_LABEL as CATEGORY_LABEL } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listBoardForModeration, type ModeratedPost } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
-import { moderatePostAction, moderateReplyAction } from './actions';
+import { ConfirmButton } from '../../../form';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
+import {
+  deletePostAction,
+  deleteReplyAction,
+  moderatePostAction,
+  moderateReplyAction,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +98,28 @@ function PostCard({ post }: { post: ModeratedPost }) {
             {hidden ? 'Restore' : 'Hide'}
           </button>
         </form>
+
+        {/*
+          Delete is offered only on an already-hidden post. Hiding first is one
+          click and it takes the post out of the app immediately, so the
+          irreversible action never has to be the fast one — and by the time
+          somebody reaches for it they have already looked at the thread twice.
+        */}
+        {hidden && (
+          <ConfirmButton
+            action={deletePostAction}
+            hidden={{ id: post.id }}
+            label="Delete"
+            confirmLabel="Delete permanently"
+            confirmPhrase="delete"
+          >
+            Destroys this post and its {post.replies.length}{' '}
+            {post.replies.length === 1 ? 'reply' : 'replies'}. This cannot be undone from anywhere in
+            this product. The text and the author are kept in the audit log, so the record of what
+            was said survives. Use this for content that must not remain readable, not for content
+            that is merely unwelcome.
+          </ConfirmButton>
+        )}
       </div>
 
       <div style={{ fontSize: 13, lineHeight: 1.6, padding: '12px 14px', whiteSpace: 'pre-wrap' }}>
@@ -135,24 +163,39 @@ function PostCard({ post }: { post: ModeratedPost }) {
                   post with one abusive reply under it, and hiding the whole
                   thread to deal with that punishes everyone else on it.
                 */}
-                <form action={moderateReplyAction}>
-                  <input type="hidden" name="postId" value={r.postId} />
-                  <input type="hidden" name="id" value={r.id} />
-                  <input type="hidden" name="status" value={rHidden ? 'visible' : 'hidden'} />
-                  <button
-                    type="submit"
-                    style={{
-                      background: 'none',
-                      border: 0,
-                      color: rHidden ? 'var(--link)' : 'var(--danger, #b3352c)',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      padding: 0,
-                    }}
-                  >
-                    {rHidden ? 'Restore' : 'Hide'}
-                  </button>
-                </form>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <form action={moderateReplyAction}>
+                    <input type="hidden" name="postId" value={r.postId} />
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="status" value={rHidden ? 'visible' : 'hidden'} />
+                    <button
+                      type="submit"
+                      style={{
+                        background: 'none',
+                        border: 0,
+                        color: rHidden ? 'var(--link)' : 'var(--danger, #b3352c)',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        padding: 0,
+                      }}
+                    >
+                      {rHidden ? 'Restore' : 'Hide'}
+                    </button>
+                  </form>
+                  {rHidden && (
+                    <ConfirmButton
+                      action={deleteReplyAction}
+                      hidden={{ postId: r.postId, id: r.id }}
+                      label="Delete"
+                      confirmLabel="Delete permanently"
+                      confirmPhrase="delete"
+                      width={280}
+                    >
+                      Destroys this reply. It cannot be undone; the text and the author stay in the
+                      audit log.
+                    </ConfirmButton>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -216,10 +259,16 @@ export default async function ModerateCommunityBoardPage({
         ]}
       />
 
+      {/*
+        This one stays a Banner. It is not a caveat about the software — it
+        tells a moderator what the button in front of them is about to do, at
+        the moment they are deciding whether to press it, and the difference
+        between hide and delete is the whole decision.
+      */}
       <Banner kind="info">
-        Hiding removes a post from the app immediately but <strong>does not delete it</strong>.
-        Restore is one click, the replies and counters survive, and if it was hidden for being
-        abusive the post is the evidence a code-of-conduct process needs.
+        <strong>Hide takes a post out of the app immediately and keeps it.</strong> Restore is one
+        click and the replies survive. <strong>Delete</strong> appears once a post is hidden and is
+        irreversible. The text stays only in the audit log.
       </Banner>
 
       <Tabs
@@ -231,14 +280,7 @@ export default async function ModerateCommunityBoardPage({
 
       <Panel>
         {shown.length === 0 ? (
-          <EmptyState icon="✓">
-            <strong>{view === 'hidden' ? 'Nothing is hidden.' : 'The board is empty.'}</strong>
-            <p className="muted" style={{ marginTop: 6 }}>
-              {view === 'hidden'
-                ? 'Every post and reply is visible to attendees.'
-                : 'Posts appear here as soon as attendees start using the Community tab.'}
-            </p>
-          </EmptyState>
+          <NotInputted what={view === 'hidden' ? 'hidden posts' : 'community posts'} />
         ) : (
           shown.map((p) => <PostCard key={p.id} post={p} />)
         )}
@@ -247,10 +289,6 @@ export default async function ModerateCommunityBoardPage({
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>Photos and session chats.</strong> Whova moderates both from the same place.
-            Neither feature exists in the app yet, so there is nothing to queue.
-          </li>
           <li>
             <strong>Attendee reporting.</strong> Whova lets attendees flag a post, which is what
             fills a moderation queue in practice — an organizer refreshing this page is not a

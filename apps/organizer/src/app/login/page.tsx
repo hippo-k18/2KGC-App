@@ -38,7 +38,7 @@ export default async function LoginPage() {
                 <code>CONSOLE_PASSPHRASE</code>, and an HMAC-signed 8-hour session. The allowlist is
                 re-checked on every request, so removing an address ends that person&rsquo;s live
                 session at the next deploy. What a shared secret cannot give you is an audit
-                identity stronger than the address typed beside it — so keep the list short, rotate
+                identity stronger than the address typed beside it, so keep the list short, rotate
                 the passphrase after the event, and treat the dashboard URL as a secret. The Admin
                 SDK behind this bypasses every security rule.
               </div>

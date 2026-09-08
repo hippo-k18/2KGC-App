@@ -68,7 +68,7 @@ export async function addAttendeeAction(
   if (!email || !LOOKS_LIKE_EMAIL.test(email)) {
     return { error: 'That does not look like an email address.' };
   }
-  if (!name) return { error: 'A name — it is what goes on the badge.' };
+  if (!name) return { error: 'Enter a name. It goes on the badge.' };
 
   try {
     const result = await ensureRegistration(db(), {
@@ -96,7 +96,7 @@ export async function addAttendeeAction(
       ok: true,
       message: result.created
         ? `Added ${name}. They can be checked in at the door now; their claim code reaches them when you send it.`
-        : `${email} was already on the list — the name and ticket type were updated rather than duplicated.`,
+        : `${email} was already on the list. The name and ticket type were updated rather than duplicated.`,
     };
   } catch (err) {
     recordError('attendee.add', err);

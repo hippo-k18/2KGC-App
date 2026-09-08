@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { pageReadiness, publicUrl, type PageReadiness } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 
 /**
  * One screen, rendered for each public page: Agenda, Speakers, Sponsors.
@@ -37,6 +37,9 @@ export async function WebpageScreen({
 
   const url = publicUrl(p.path);
 
+  // What the empty state calls the missing records, in the organizer's words.
+  const emptyNoun = which === 'agenda' ? 'sessions' : which;
+
   /*
    * A page carrying a note is not rendered from these records at all, and every
    * number below is about these records. So it is neither clean nor dirty — it
@@ -50,7 +53,13 @@ export async function WebpageScreen({
    * records.
    */
   const notThisCollection = Boolean(p.note);
-  const clean = !notThisCollection && p.problems.length === 0;
+  /*
+   * Empty is its own state, and it used to be reported as the good one: with no
+   * records at all `problems` is empty, so the screen printed a green "ready"
+   * tag and "nothing missing" over a page a visitor would find blank.
+   */
+  const empty = !notThisCollection && p.total === 0;
+  const clean = !notThisCollection && !empty && p.problems.length === 0;
 
   /*
    * Null rather than zero when there is nothing to divide. `published` is
@@ -64,12 +73,26 @@ export async function WebpageScreen({
     <>
       <PageHeader
         title={title}
+        info={
+          <>
+            <strong>Already live: nothing to publish</strong>
+            <p>
+              This page is rendered from the same records you edit in {editorLabel}, so a change
+              there appears on <code>{url}</code> on the next page load. There is no cache to clear
+              and no embed snippet to copy: this site <em>is</em> the site.
+            </p>
+          </>
+        }
         tags={
           // A page carrying a note is not "ready" — it is not rendering these
           // records at all, and a green tag would say the opposite.
           p.note ? (
             <Tag color="grey" fill="outline">
               not this collection
+            </Tag>
+          ) : empty ? (
+            <Tag color="grey" fill="outline">
+              not inputted yet
             </Tag>
           ) : clean ? (
             <Tag color="green" fill="outline">
@@ -93,25 +116,22 @@ export async function WebpageScreen({
         ]}
       />
 
+      {/*
+        Operational, and only in this branch: an organizer about to spend an
+        afternoon in the editor has to know first that the public page is not
+        reading what they are about to edit. The other branch — "live, nothing to
+        publish" — is a caveat about how this product is put together rather than
+        something to act on, so it sits in the header's `info` tip instead.
+      */}
       {p.note ? (
         <Banner kind="warning">
-          This page is <strong>already live</strong> at{' '}
+          <strong>Editing these records changes nothing a visitor sees.</strong>{' '}
           <a href={url} target="_blank" rel="noreferrer">
             {url}
-          </a>
-          , but it is <strong>not</strong> rendered from the records you edit in {editorLabel}.{' '}
-          {p.note} Editing them changes nothing a visitor sees until that source is switched over.
+          </a>{' '}
+          is live, but it is not rendered from the collection {editorLabel} writes. {p.note}
         </Banner>
-      ) : (
-        <Banner kind="info">
-          This page is <strong>already live</strong> at{' '}
-          <a href={url} target="_blank" rel="noreferrer">
-            {url}
-          </a>
-          , rendered from the same records you edit in {editorLabel}. There is nothing to publish and
-          no cache to clear — a change there appears here on the next page load.
-        </Banner>
-      )}
+      ) : null}
 
       <StatTiles
         tiles={[
@@ -126,8 +146,14 @@ export async function WebpageScreen({
           },
           {
             label: 'Ready',
-            value: notThisCollection ? '—' : clean ? 'yes' : 'not yet',
-            sub: notThisCollection ? 'not this collection' : clean ? 'nothing missing' : 'see below',
+            value: notThisCollection || empty ? '—' : clean ? 'yes' : 'not yet',
+            sub: notThisCollection
+              ? 'not this collection'
+              : empty
+                ? 'not inputted yet'
+                : clean
+                  ? 'nothing missing'
+                  : 'see below',
           },
           {
             label: 'Completeness',
@@ -144,6 +170,15 @@ export async function WebpageScreen({
             Not from here. {p.note} Nothing on this screen measures the page a visitor loads until
             that source is switched over.
           </p>
+        ) : empty ? (
+          <NotInputted
+            what={emptyNoun}
+            action={
+              <Link className="btn btn-primary" href={editorHref}>
+                Add {emptyNoun} in {editorLabel}
+              </Link>
+            }
+          />
         ) : clean ? (
           <p className="muted" style={{ marginBottom: 0 }}>
             No. Every record behind this page has what the page renders.

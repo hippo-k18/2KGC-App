@@ -131,7 +131,7 @@ export async function commitContactsAction(
     message:
       `${outcome.created} added, ${outcome.updated} updated on "${list}".` +
       (outcome.suppressedKept > 0
-        ? ` ${outcome.suppressedKept} of them had previously unsubscribed — that was left in place and they will not be emailed.`
+        ? ` ${outcome.suppressedKept} of them had previously unsubscribed. That was left in place and they will not be emailed.`
         : ''),
   };
 }

@@ -13,21 +13,21 @@ export default async function Page() {
       whatItIs="Middleware that lets one product trigger an action in another with no code on either side."
       whovaDoes="Provides a Zapier trigger on new registrations, which an organizer wires to whatever CRM they use."
       ourAnswer={<>
-          Nothing yet — but this is the highest-leverage integration on the list. One outbound
+          Nothing yet, but this is the highest-leverage integration on the list. One outbound
           webhook on fulfilment answers this guide and most of the others at once, and the
           fulfilment path already has the exact hook point: the Stripe webhook, where the
           registration is written.
         </>}
-      effort="1–2 days, and it subsumes most of the other nine guides."
+      effort="One outbound webhook on fulfilment, at the point the registration is written, and it subsumes most of the other nine guides."
       steps={[
         <>
           Export the list you need from{' '}
-          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link> —
-          the attendee, order or speaker CSV.
+          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>.
+          The attendee, order or speaker CSV.
         </>,
         <>Import it into Zapier with their own import tool. Every one of these products has one.</>,
         <>
-          Repeat before the event and after it. Twice is usually enough — Whova&rsquo;s sync runs
+          Repeat before the event and after it. Twice is usually enough. Whova&rsquo;s sync runs
           every 24 hours, which is not meaningfully fresher for an event that happens once a year.
         </>,
       ]}

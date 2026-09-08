@@ -9,7 +9,16 @@ export default async function SocialGroupsPage() {
     <CategoryScreen
       title="Social Groups"
       categories={SOCIAL_CATEGORIES}
-      intro="Ride shares, jobs and lost-and-found — the practical corners of the board. Whova models these as joinable groups with their own membership; ours are categories on shared posts, so there is nothing to join and no member list."
+      info={
+        <>
+          <strong>Categories, not groups</strong>
+          <p>
+            Ride shares, jobs and lost-and-found. The practical corners of the board. These are
+            categories on shared posts rather than objects with members, so there is nothing to
+            join and no member list, and every post is readable by every ticket holder.
+          </p>
+        </>
+      }
       notBuilt={[
         'Group membership. A social group here is a category, not an object with members, so nobody can join one and nothing can message its members.',
         'Private groups. Every post on this board is readable by every ticket holder.',

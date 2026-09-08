@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel } from '../../../ui';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +24,17 @@ export default async function SponsorDiscountCodesPage() {
     <>
       <PageHeader
         title="Discount Codes"
+        info={
+          <>
+            <strong>Discount codes are not scoped per audience</strong>
+            <p>
+              They are Stripe promotion codes, and a Stripe promotion code belongs to the Stripe
+              account rather than to a catalogue. There is one list, on{' '}
+              <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, and it applies
+              wherever Checkout accepts a code.
+            </p>
+          </>
+        }
         links={[
           <Link key="d" href={ROUTES.discountCodes}>
             Discount Codes (all audiences)
@@ -34,36 +45,14 @@ export default async function SponsorDiscountCodesPage() {
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Discount codes are not scoped per audience here.</strong> They are Stripe promotion
-        codes, and a Stripe promotion code belongs to the Stripe account, not to a catalogue. There
-        is one list, managed on{' '}
-        <Link href={ROUTES.discountCodes}>Tickets › Ticket Setup › Discount Codes</Link>, and it
-        applies wherever Checkout accepts a code.
-      </Banner>
-
       <Panel>
-        <h2 className="section-header">What Whova does here</h2>
-        <dl className="gap-grid">
-          <dt>Whova does</dt>
-          <dd>
-            A sponsor-only code list, each code restricted to chosen sponsor tiers, with a
-            redemption cap and a date window — typically used for a returning-sponsor rate or an
-            early-commitment discount.
-          </dd>
-          <dt>We would need</dt>
-          <dd>
-            Either per-tier Stripe coupons (which needs durable Stripe Prices per tier, a change to
-            the money path), or — far more likely to be what KGC actually wants — a negotiated
-            amount on a Stripe invoice, which needs no codes at all. Recording the agreed figure
-            beats making the sponsor type a coupon.
-          </dd>
-          <dt>Read</dt>
-          <dd>
-            <code>apps/organizer/src/lib/discount-codes.ts</code>, and <code>PAYMENTS.md</code> for
-            why invoicing exists alongside Checkout.
-          </dd>
-        </dl>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where a sponsor code is created</h2>
+        <p className="body-2" style={{ marginTop: 0 }}>
+          On <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, with the one
+          list every checkout reads. A returning-sponsor rate is usually better expressed as a
+          negotiated figure on an invoice than as a coupon: the amount is agreed in a conversation,
+          and an account-wide code cannot be restricted to the sponsor it was agreed with.
+        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

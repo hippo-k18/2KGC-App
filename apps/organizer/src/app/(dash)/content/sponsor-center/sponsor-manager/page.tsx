@@ -5,7 +5,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { getSponsor, listSponsors, TIER_ORDER, type SponsorRow } from '@/lib/data';
 import { isUploadedImageUrl } from '@/lib/uploads';
 import { ROUTES } from '@/lib/nav';
-import { Banner, EmptyState, GapPanel, PageHeader, Panel, Tabs, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, Tabs, Tag } from '../../../ui';
 import { SponsorForm } from './sponsor-form';
 import { SponsorImportForm } from './import-form';
 
@@ -14,13 +14,12 @@ export const dynamic = 'force-dynamic';
 /**
  * Content > Sponsor Center > Sponsor Manager.
  *
- * Whova does not render sponsors as a table. It renders tier group bars — a
- * grey band with the tier name — with ~80px sponsor rows beneath: a 72×72 logo,
- * then captioned fields ("Sponsor", "Main Contact") whose labels sit inside the
- * row rather than in a header. That is copied here, because the grouping *is*
- * the information: tier order drives three surfaces at once — this screen, the
- * public sponsor page and the app's People tab — and a flat sortable table hides
- * the thing you came to check.
+ * Not a table: tier group bars A grey band with the tier name… with ~80px
+ * sponsor rows beneath, a 72×72 logo, then captioned fields whose labels sit
+ * inside the row rather than in a header. The grouping *is* the information:
+ * tier order drives three surfaces at once — this screen, the public sponsor
+ * page and the app's People tab — and a flat sortable table hides the thing you
+ * came to check.
  *
  * `<img>` rather than `next/image` on purpose: sponsor logos are remote files on
  * hosts we do not control and cannot enumerate in `next.config.ts`, and the
@@ -69,12 +68,12 @@ function TierGroup({
         <Tag color="blue">{rows.length}</Tag>
         <span style={{ flex: 1 }} />
         {/*
-          Whova puts Edit / Delete tier links on this bar. There are none here
-          and there is no greyed-out pair either: `SponsorTier` is a four-value
-          union in `@kgc/shared`, so a fifth tier is a code change in three
-          consumers rather than a row somebody types. A disabled button would
-          imply the opposite. Moving a sponsor *between* tiers is the edit people
-          actually want, and that is the select on the form.
+          No Edit / Delete tier links on this bar, and no greyed-out pair either:
+          `SponsorTier` is a four-value union in `@kgc/shared`, so a fifth tier
+          is a code change in three consumers rather than a row somebody types. A
+          disabled button would imply the opposite. Moving a sponsor *between*
+          tiers is the edit people actually want, and that is the select on the
+          form.
         */}
         <span className="muted" style={{ fontSize: 11 }}>
           set on each sponsor
@@ -135,7 +134,7 @@ function TierGroup({
             {/*
               Where the logo comes from, said on the row.
 
-              Eighteen of these are still hotlinked to Whova's own CDN, which
+              A number of these are still hotlinked to a third-party CDN, which
               this project neither controls nor pays for. The distinction is
               invisible in the thumbnail and is the single most useful thing
               this screen can tell an organizer, because the remedy — replace
@@ -162,7 +161,7 @@ function TierGroup({
                 </>
               ) : (
                 <Tag color="orange" fill="outline" small>
-                  none — cannot be messaged
+                  none. Cannot be messaged
                 </Tag>
               )}
             </div>
@@ -172,7 +171,9 @@ function TierGroup({
             <div className="muted" style={{ fontSize: 11 }}>
               Booth
             </div>
-            <div style={{ fontSize: 14 }}>{s.boothLocation ?? '—'}</div>
+            <div style={{ fontSize: 14 }}>
+              {s.boothLocation ?? <span className="muted" style={{ fontSize: 12 }}>not set</span>}
+            </div>
           </div>
 
           <div style={{ width: 80 }}>
@@ -241,6 +242,7 @@ export default async function SponsorManagerPage({
   const missingLogo = sponsors.filter((s) => !s.hasLogo).length;
   const hotlinked = sponsors.filter((s) => s.logoURL && !isSelfHosted(s.logoURL)).length;
   const unreachable = sponsors.filter((s) => !s.contactEmail).length;
+  const missingBooth = sponsors.filter((s) => !s.boothLocation).length;
 
   return (
     <>
@@ -282,9 +284,30 @@ export default async function SponsorManagerPage({
         />
 
         {sp.tab === 'reminder' ? (
-          <EmptyState icon="✉">
-            Sponsor profile reminders need an email sender
-          </EmptyState>
+          /*
+            The reminder *is* a send, and the send exists: Message Sponsors
+            resolves the two segments this tab would chase — a missing logo and
+            an unassigned booth — over the same sender and the same per-recipient
+            `emailLog`. A second compose box here would be a second place to fix
+            the day the send guards change, so this tab routes to the one that
+            works rather than reimplementing it.
+          */
+          <div style={{ marginTop: 12 }}>
+            <h2 style={{ fontSize: 15, marginTop: 0 }}>Chase a sponsor profile</h2>
+            <p className="body-2">
+              A reminder is an email to the sponsors missing something. Both segments are on{' '}
+              <Link href={ROUTES.messageSponsors}>Message Sponsors</Link>, which shows every address
+              before it sends and records each one individually.
+            </p>
+            <div className="toolbar">
+              <Link className="btn btn-primary" href={`${ROUTES.messageSponsors}?segment=no-logo`}>
+                Chase a missing logo ({missingLogo})
+              </Link>
+              <Link className="btn btn-default" href={`${ROUTES.messageSponsors}?segment=no-booth`}>
+                Chase an unassigned booth ({missingBooth})
+              </Link>
+            </div>
+          </div>
         ) : importing ? (
           <SponsorImportForm />
         ) : showForm ? (
@@ -298,10 +321,9 @@ export default async function SponsorManagerPage({
           <>
             <p className="body-2" style={{ marginTop: 0 }}>
               {sponsors.length} sponsors across {byTier.length}{' '}
-              {byTier.length === 1 ? 'tier' : 'tiers'}. Whova&apos;s own distinction: sponsors buy
-              brand visibility, exhibitors buy direct engagement and booth staff —{' '}
-              <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link> is
-              the other one.
+              {byTier.length === 1 ? 'tier' : 'tiers'}. Sponsors buy brand visibility; exhibitors
+              buy direct engagement and booth staff, and they live in{' '}
+              <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link>.
             </p>
 
             <div className="toolbar">
@@ -339,7 +361,7 @@ export default async function SponsorManagerPage({
                   {missingLogo} of {sponsors.length} sponsors have no logo.
                 </strong>{' '}
                 The app&rsquo;s People tab renders a name where a logo should be, and the public
-                sponsor page does the same — which is the one thing a sponsor notices. Open one and
+                sponsor page does the same, which is the one thing a sponsor notices. Open one and
                 upload it.
               </Banner>
             ) : null}
@@ -347,28 +369,21 @@ export default async function SponsorManagerPage({
             {hotlinked > 0 ? (
               <Banner kind="warning">
                 <strong>{hotlinked} logos are hotlinked to a third-party CDN</strong> rather than
-                stored here. They came in with the seed data and are served from Whova&rsquo;s own
-                asset host; if that host rotates its keys they vanish from the app and from this
-                screen at once. Uploading a replacement on the sponsor&rsquo;s own form fixes one
-                permanently.
+                stored here. If that host moves or blocks them they vanish from the app and from
+                this screen at once. Uploading a replacement on the sponsor&rsquo;s own form fixes
+                one permanently.
               </Banner>
             ) : null}
 
             {byTier.length === 0 ? (
-              <EmptyState
-                icon="🏛"
+              <NotInputted
+                what="sponsors"
                 action={
                   <Link href="?new=1" className="whova-btn-main">
-                    Add the first sponsor
+                    Add the first one
                   </Link>
                 }
-              >
-                <strong>Your event has no sponsors.</strong>
-                <p className="muted" style={{ marginTop: 6 }}>
-                  Whatever you add here appears on the public sponsor page and in the app&rsquo;s
-                  People tab immediately — both read Firestore live.
-                </p>
-              </EmptyState>
+              />
             ) : (
               byTier.map(({ tier, rows }) => (
                 <TierGroup key={tier} tier={tier} rows={rows} editing={editId} />
@@ -429,13 +444,13 @@ export default async function SponsorManagerPage({
             event a year and the wrong one at ten.
           </li>
           <li>
-            <strong>The sponsor self-service portal.</strong> Whova hands each sponsor a personal
-            link to fill in their own logo, description, offers and documents. Same pattern as
-            speakers, same blocker: an email sender.
+            <strong>The sponsor self-service portal.</strong> A personal link letting each sponsor
+            fill in their own logo, description, offers and documents. Same capability-link pattern
+            as the consent register, and nothing mints one for a sponsor.
           </li>
           <li>
-            <strong>Banners and sponsored sessions.</strong> Tiering decides placement in Whova and
-            there are no banner surfaces in the app to place anything on yet.
+            <strong>Banners and sponsored sessions.</strong> Tiering decides placement, and there
+            are no banner surfaces in the app to place anything on yet.
           </li>
         </ul>
       </GapPanel>

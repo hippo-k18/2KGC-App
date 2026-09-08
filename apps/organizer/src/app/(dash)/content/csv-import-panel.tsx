@@ -161,7 +161,7 @@ export function CsvImportPanel({
                             key={j}
                             style={{ borderBottom: '1px solid var(--hairline)', padding: 6 }}
                           >
-                            {v || <span className="muted">—</span>}
+                            {v || <span className="muted">blank in the file</span>}
                           </td>
                         ))}
                       </tr>

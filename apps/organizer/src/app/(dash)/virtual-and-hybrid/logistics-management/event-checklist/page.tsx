@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listProjects } from '@/lib/planning';
-import { EmptyState, GapPanel, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +31,16 @@ export default async function EventChecklistPage() {
     <>
       <PageHeader
         title="Event Checklist"
+        info={
+          <>
+            <strong>A report, not a second editor</strong>
+            <p>
+              Every add, tick and reassignment happens in Projects &amp; Checklists over the same{' '}
+              <code>tasks</code> collection. Two editors would be two places for the same job to be
+              half-finished.
+            </p>
+          </>
+        }
         tags={overdue > 0 ? <Tag color="red" fill="solid">{overdue} overdue</Tag> : undefined}
         actions={
           <Link href="/content/project-management/projects-and-checklists" className="whova-btn-main">
@@ -56,16 +66,14 @@ export default async function EventChecklistPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Progress by project</h2>
         {projects.length === 0 ? (
-          <EmptyState
+          <NotInputted
+            what="tasks"
             action={
               <Link href="/content/project-management/projects-and-checklists" className="whova-btn-main">
                 Add the first task
               </Link>
             }
-          >
-            No tasks yet. The checklist lives in Projects &amp; Checklists — this screen only
-            reports on it.
-          </EmptyState>
+          />
         ) : (
           <Table
             cols={[
@@ -95,19 +103,6 @@ export default async function EventChecklistPage() {
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>Editing, deliberately.</strong> Every add, tick and reassignment happens in{' '}
-            <Link href="/content/project-management/projects-and-checklists">
-              Projects &amp; Checklists
-            </Link>
-            . A second editor over the same <code>tasks</code> collection would be a second place
-            for the same job to be half-finished.
-          </li>
-          <li>
-            <strong>Whova&rsquo;s starter checklist.</strong> Their version seeds forty generic
-            tasks (&ldquo;upload your logo&rdquo;, &ldquo;invite speakers&rdquo;) on event creation.
-            Ours starts empty because a list of tasks nobody chose is a list nobody reads.
-          </li>
           <li>
             <strong>Reminders.</strong> Overdue is computed and shown; nothing emails the assignee
             about it. The sender exists, so this is a scheduled job — which needs somewhere to run

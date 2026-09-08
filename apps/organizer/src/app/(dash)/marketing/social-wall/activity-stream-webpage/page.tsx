@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listCommunityPosts } from '@/lib/engagement';
 import { listAnnouncements } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +41,17 @@ export default async function SocialActivityStreamPage() {
     <>
       <PageHeader
         title="Activity Stream Webpage"
+        info={
+          <>
+            <strong>Only one of the two streams is public</strong>
+            <p>
+              Attendee posts are gated by <code>firestore.rules</code> behind the{' '}
+              <code>registered</code> claim and stay there. Announcements are written for broadcast
+              and are published at <code>/announcements</code>. There is no embed snippet: this site
+              is the site.
+            </p>
+          </>
+        }
         tags={<Tag color="orange" fill="outline">half of it is public</Tag>}
         links={[
           <Link key="c" href="/marketing/social-wall/social-wall-customization">
@@ -51,17 +62,6 @@ export default async function SocialActivityStreamPage() {
           </Link>,
         ]}
       />
-
-      <Banner kind="info">
-        Two streams exist and they are not equivalent. <strong>Attendee posts</strong> are written
-        in a closed room and gated by <code>firestore.rules</code>, and stay there.{' '}
-        <strong>Announcements</strong> are written by organizers for broadcast, and are the one of
-        the two that is published — at{' '}
-        <a href={publicUrl('/announcements')} target="_blank" rel="noreferrer">
-          /announcements
-        </a>
-        .
-      </Banner>
 
       <StatTiles
         tiles={[
@@ -97,8 +97,7 @@ export default async function SocialActivityStreamPage() {
               <span key="p">
                 <a href={publicUrl('/announcements')} target="_blank" rel="noreferrer">
                   /announcements
-                </a>{' '}
-                — already a broadcast to everyone, and the public page reaches the people who never
+                </a>{' '}, already a broadcast to everyone, and the public page reaches the people who never
                 installed the app.
               </span>,
             ],

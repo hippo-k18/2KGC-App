@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSponsors } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +15,17 @@ export const dynamic = 'force-dynamic';
  * database at all.
  *
  * That is the whole feature, and it is why this one cannot simply be copied from
- * the messaging screens. Whova's version is valuable because Whova has thousands
- * of events' worth of past sponsors and exhibitors to suggest from; the tool is a
- * thin wrapper over a marketplace we do not have and cannot build. Running a
- * campaign against a list we type in ourselves is a mailing list, not a
- * marketplace — and mailing a list of strangers from the conference's sending
- * domain is how that domain's reputation gets spent.
+ * the messaging screens. `SponsorDoc` describes a signed sponsor — tier, logo,
+ * booth — and there is no shape for a company that has not said yes, no pipeline
+ * status, no owner, no next-contact date.
+ *
+ * Nor is the missing shape the expensive part. Running a campaign against a list
+ * somebody typed in is bulk cold mail from `knowledgegraph.tech`, and that is the
+ * same sending domain the ticket receipts and Message Speakers depend on. A
+ * suppression list is mandatory rather than optional for that, and open and click
+ * tracking needs a redirect domain and a pixel, which is a privacy decision as
+ * well as a build. Sponsorship sales at this scale is a person with a spreadsheet
+ * and their own mailbox.
  */
 export default async function SponsorOutreachPage() {
   await requireOrganizer();
@@ -31,6 +36,16 @@ export default async function SponsorOutreachPage() {
     <>
       <PageHeader
         title="Outreach Campaigns"
+        info={
+          <>
+            <strong>Prospects are not modelled</strong>
+            <p>
+              <code>SponsorDoc</code> describes a company that has already signed. Mailing the ones
+              that have not is cold mail from the domain that carries the ticket receipts, which
+              needs a suppression list before it needs a screen.
+            </p>
+          </>
+        }
         links={[
           <Link key="m" href={ROUTES.messageSponsors}>
             Message Sponsors
@@ -43,47 +58,24 @@ export default async function SponsorOutreachPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Signed sponsors', value: sponsors.length, sub: 'reachable via Message Sponsors' },
-          { label: 'Prospects', value: '—', sub: 'no prospect record exists' },
+          {
+            label: 'Signed sponsors',
+            value: sponsors.length,
+            sub: 'reachable via Message Sponsors',
+          },
+          { label: 'Prospects', value: '—', sub: 'not inputted yet' },
         ]}
       />
 
-      <Banner kind="info">
-        <strong>Message Sponsors is the built one.</strong> It emails the sponsors you already have,
-        with segments for the two things worth chasing — a missing logo and an unassigned booth.
-        This screen is about the ones you do not have yet.
-      </Banner>
-
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What Whova does</h2>
-        <p className="body-2">
-          Suggests prospective sponsors and exhibitors drawn from other events on their platform,
-          lets an organizer select from that list, and sends a templated pitch with open and click
-          tracking and an automatic follow-up to non-openers.
-        </p>
-
-        <h2 className="section-header">Why this is not a screen we can build</h2>
-        <p className="body-2">
-          The suggestions are the product. They come from Whova&rsquo;s cross-event database, which
-          exists because thousands of conferences run on it — one conference has no such list and no
-          way to acquire one. Strip that out and what remains is bulk email to addresses somebody
-          pasted in, which is a different and much worse thing: cold mail from{' '}
-          <code>knowledgegraph.tech</code> risks the sending reputation that the ticket receipts and
-          Message Speakers depend on.
-        </p>
-        <p className="body-2">
-          The honest position is that sponsorship sales at this scale is a person with a
-          spreadsheet and their own mailbox, and that this is one of the screens where Whova is
-          selling network effects rather than software.
-        </p>
-
-        <h2 className="section-header">If it were built anyway</h2>
-        <p className="body-2">
-          A prospects collection with a pipeline status, a templated send reusing the existing
-          sender, and a suppression list — <strong>4–5 days</strong>, and the suppression list is
-          not the optional part. Open and click tracking needs a redirect domain and a pixel, which
-          is a further two days and a privacy decision.
-        </p>
+        <NotInputted
+          what="prospects"
+          action={
+            <Link className="whova-btn-main" href={ROUTES.messageSponsors}>
+              Message the sponsors you have
+            </Link>
+          }
+        />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -517,7 +517,7 @@ export async function saveLink(input: {
     };
   }
   if (input.label.trim().length < 3) {
-    return { ok: false, error: 'Give the link a label — in six months nobody remembers what "q2b" was.' };
+    return { ok: false, error: 'Give the link a label, in six months nobody remembers what "q2b" was.' };
   }
 
   const destination = input.destination.trim() || '/tickets';
