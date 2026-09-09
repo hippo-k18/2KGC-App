@@ -179,6 +179,23 @@ the order and not the price.
   lowered from 12 to 7 so the live passphrase could be `kgc2027`, at the owner's
   request. The live dashboard is therefore a seven-character shared secret in
   front of the Admin SDK; rotate it before the event runs on real attendees.
+  ⚠️ **The app has a hand-made account as of 2026-09-09**:
+  `demo@knowledgegraph.tech` / `kgc2027` — a real Firebase Auth user provisioned
+  by `scripts/ops/create-demo-account.ts` because the six-digit code only
+  reaches `hartigandeely@gmail.com` until the Resend domain is verified, so a
+  rehearsal on any other machine could not sign in at all. It is a plain
+  attendee (`roles: ['attendee']`, no organizer claim) with
+  `mustChangePassword: false` so it lands on Home rather than
+  `/change-password`. **`login.tsx` is unchanged** — no mapping layer, no demo
+  branch in the sign-in box; the account is the only thing that is special, and
+  `--delete --email demo@knowledgegraph.tech` removes it. Do not re-add a
+  client-side shortcut in its place: the one that turned `demo` / `123` into a
+  live credential was removed for a reason. It deliberately reuses the **same
+  address as the dashboard**, because that is the one already in muscle memory —
+  a `.com` variant existed for a few hours on 2026-09-09 and was deleted for
+  exactly that reason. The two remain unrelated credentials on unrelated surfaces: the
+  dashboard checks an allowlist and a passphrase, the app checks Firebase Auth,
+  and revoking one leaves the other standing.
 - **The dashboard's gap notes are behind `SHOW_GAP_NOTES`.** 126 "Not built
   here" panels, 8 gap cards, 8 grey tags and the sign-in banner render only when
   it is `1`. Use `GapPanel` / `GapTag` from `(dash)/ui.tsx` for any new one —

@@ -27,7 +27,10 @@ import { stripe, stripeEnabled } from '@/lib/stripe';
  */
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('session_id');
-  const back = new URL('/tickets#buy', req.nextUrl.origin);
+  // The checkout page, not `/tickets#buy` — that anchor went away when buying
+  // moved to its own route, and a redirect to a missing fragment silently lands
+  // the buyer at the top of a price list with no form and no explanation.
+  const back = new URL('/tickets/checkout', req.nextUrl.origin);
 
   if (!sessionId || !stripeEnabled()) return NextResponse.redirect(back);
 
@@ -38,7 +41,7 @@ export async function GET(req: NextRequest) {
   // yet, and the buyer goes back to the tickets page rather than to a
   // confirmation that would be a lie.
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
-    return NextResponse.redirect(new URL('/tickets?cancelled=1#buy', req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/tickets/checkout?cancelled=1', req.nextUrl.origin));
   }
 
   const email = session.customer_details?.email ?? session.customer_email;

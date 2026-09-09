@@ -2,12 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
-import type { TicketId } from '@/lib/tickets';
-import { demoCheckoutAllowed } from '@/lib/demo-checkout';
-import { stripeEnabled } from '@/lib/stripe';
-import { activeForm } from '@/lib/question-forms';
-import { CheckoutForm } from './checkout-form';
-import { TierCard } from './tier-card';
+import { formatPrice, type Tier } from '@/lib/tickets';
+import s from './tickets.module.css';
 
 export const metadata: Metadata = {
   title: 'Tickets',
@@ -15,181 +11,244 @@ export const metadata: Metadata = {
     'All Access, Main Conference, Workshops and Virtual tickets for the Knowledge Graph Conference 2027.',
 };
 
-/**
- * `stripeEnabled()` reads an environment variable, so this page cannot be
- * statically prerendered — a build-time snapshot would bake in whichever mode
- * the build machine happened to be in.
- */
 export const dynamic = 'force-dynamic';
+
+/**
+ * The tickets page — choosing, and only choosing.
+ *
+ * ── Buying moved to its own page ───────────────────────────────────────────
+ *
+ * This page used to end in a `#buy` band carrying the whole checkout form:
+ * every seat's name and email, the questionnaire, the tier selector and the pay
+ * button. So a visitor who came to find out what a ticket costs was scrolled
+ * past a form asking for somebody's dietary requirements, and "Choose" was a
+ * link to an anchor a few hundred pixels down the page they were already on —
+ * which reads as nothing happening.
+ *
+ * `Choose` now navigates to `/tickets/checkout?tier=…`, which is a page with
+ * one job. Two things follow that are worth stating rather than discovering:
+ * the tier travels in the URL, so a chosen ticket survives a reload and can be
+ * linked to directly; and Stripe's `cancel_url` had to move with it
+ * (`actions.ts`), because coming back from a cancelled payment to a page with
+ * no form on it is a dead end.
+ *
+ * ── The shape ─────────────────────────────────────────────────────────────
+ *
+ * Two panels on one line at 2/3 and 1/3 — the flagship and Main Conference —
+ * then the rest as rows. Adapted from `options/v8`; `tickets.module.css` header
+ * carries the reasoning and the reductions.
+ *
+ * ⚠️ **The two rows below are meant to be partly cut off at the fold.** That is
+ * the point of the sizing, not a layout that ran out of room: a page ending
+ * cleanly under the top line reads as a page with two tickets on it, and
+ * Workshops and Virtual are then never found. If you add vertical space here,
+ * check what the fold does at 900px before you keep it.
+ */
+
+/**
+ * The flagship: name, price and button on one line, contents in columns below.
+ *
+ * The button says "Choose", not "Choose All Access (VIP)". With the tier name
+ * in it the button came to 301px, the three items on the strip totalled 683px
+ * inside 670px, and the whole block wrapped to three lines — 115px instead of
+ * 59px, which is most of the height the rows below need to reach the fold. The
+ * name it would have repeated is six inches to its left. `aria-label` carries
+ * the full phrase, so nothing is lost to a screen reader reading the button out
+ * of context.
+ */
+function LeadPanel({ tier }: { tier: Tier }) {
+  /*
+   * The grouped shape is the panel's structure. A group with items becomes a
+   * column; a group that is only a heading — "KGC Video Library Subscription
+   * (3 months)" — becomes the line under them, because an empty column with a
+   * rule over it reads as something that failed to load.
+   */
+  const groups = tier.groups?.length ? tier.groups : [{ heading: '', items: [...tier.includes] }];
+  const columns = groups.filter((g) => g.items && g.items.length > 0);
+  const extras = groups.filter((g) => !g.items || g.items.length === 0).map((g) => g.heading);
+
+  return (
+    <article className={s.lead} aria-labelledby="lead-name">
+      <div className={s.leadHead}>
+        <h2 id="lead-name" className={s.leadName}>
+          {tier.name}
+        </h2>
+        <p className={s.leadPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+
+        {tier.onSale ? (
+          <Link
+            className={s.leadCta}
+            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+            aria-label={`Choose ${tier.name}`}
+          >
+            Choose
+          </Link>
+        ) : (
+          <p className={s.leadClosed}>{tier.unavailableReason ?? 'Not available'}</p>
+        )}
+      </div>
+
+      <div className={s.leadBody}>
+        {columns.map((g, i) => (
+          <div className={s.group} key={g.heading || i}>
+            {g.heading ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
+            <ul className={s.groupItems}>
+              {(g.items ?? []).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {extras.length > 0 && (
+          <p className={s.extras}>
+            <span className={s.extrasLabel}>Also included</span>
+            {extras.map((heading) => (
+              <span className={s.extrasItem} key={heading}>
+                {heading}
+              </span>
+            ))}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Main Conference, in the third beside the flagship.
+ *
+ * `includes` flat rather than `groups`: there is one column of room here, and
+ * group headings in a single narrow column are rules with one item under each.
+ */
+function SecondPanel({ tier }: { tier: Tier }) {
+  return (
+    <article className={s.second} aria-labelledby="second-name">
+      <h2 id="second-name" className={s.secondName}>
+        {tier.name}
+      </h2>
+      <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+
+      <ul className={s.secondItems}>
+        {tier.includes.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+
+      {tier.onSale ? (
+        <p className={s.secondCta}>
+          <Link
+            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+            aria-label={`Choose ${tier.name}`}
+          >
+            Choose
+          </Link>
+        </p>
+      ) : (
+        <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
+      )}
+    </article>
+  );
+}
+
+/** One row: identity and price, everything it includes, and the way in. */
+function AlternativeRow({ tier }: { tier: Tier }) {
+  return (
+    <li className={s.alt}>
+      <div className={s.altIdent}>
+        <h3 className={s.altName}>{tier.name}</h3>
+        <p className={s.altPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+      </div>
+
+      <ul className={s.altItems}>
+        {tier.includes.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+
+      <div className={s.altAction}>
+        {tier.onSale ? (
+          <Link
+            className={s.altCta}
+            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+            aria-label={`Choose ${tier.name}`}
+          >
+            Choose
+          </Link>
+        ) : (
+          <p className={s.altClosed}>{tier.unavailableReason ?? 'Not available'}</p>
+        )}
+      </div>
+    </li>
+  );
+}
 
 export default async function TicketsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; cancelled?: string }>;
+  searchParams: Promise<{ cancelled?: string }>;
 }) {
   const params = await searchParams;
 
   /**
-   * The catalogue is read once here and threaded down, rather than looked up
-   * per panel. It now comes from Firestore, so each `tierById` call would be a
-   * network round trip — and the checkout form is a client component that
-   * cannot read Firestore at all, so it needs the tiers as props regardless.
-   */
-  const [catalogue, form] = await Promise.all([tiersOrNull(), activeForm('attendee')]);
-
-  /**
    * `null` means the catalogue could not be read at all — no credentials, or
    * the database is unreachable. That is not the same as having no tickets, and
-   * it must never be rendered as a price. The page keeps its heading and its FAQ,
-   * and says plainly that sales are not open rather than returning a 500.
+   * it must never be rendered as a price.
    */
-  const tiers = catalogue ?? [];
-  const byId = new Map(tiers.map((t) => [t.id, t]));
+  const tiers = (await tiersOrNull()) ?? [];
 
-  const preselected = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
+  /*
+   * The two panels are the two dearest tiers, by price, rather than by id or by
+   * the `featured` flag. Four tiers carry `featured`, and an id written into a
+   * layout is an id that is wrong the first time somebody edits the catalogue.
+   */
+  const ranked = [...tiers].sort((a, b) => b.priceCents - a.priceCents);
+  const [lead, second, ...rest] = ranked;
 
   return (
     <>
-      {/*
-        No hero.
-
-        This page used to open on a full-bleed navy band: an orange kicker, the
-        conference name set at display size, the dates, two calls to action, a
-        line of starred copy and a photograph of three attendees — a little over
-        a screen's worth of height in front of somebody who has already told us
-        what they came for by clicking "Tickets". Both of its buttons pointed
-        further down this same page.
-
-        What replaces it is a heading and one line of orientation, on the page's
-        own ground rather than in a coloured band, so the first ticket price is
-        visible without scrolling.
-      */}
-      <section className="band tickets-head">
-        <div className="wrap">
-          <h1>Tickets</h1>
-          <p>
+      <div className={s.page}>
+        <header className={s.head}>
+          <h1 className={s.h1}>Tickets</h1>
+          <p className={s.orient}>
             {SITE.datesLong} at {SITE.venueShort}.
           </p>
 
           {params.cancelled && (
-            <p className="notice warn">Checkout was cancelled. Nothing was charged.</p>
+            <p className={s.cancelled}>
+              Checkout was cancelled and nothing was charged. Choose a ticket to try again.
+            </p>
           )}
-        </div>
-      </section>
+        </header>
 
-      {/*
-        Every tier in one grid.
-
-        There were two bands here: the tiers marked `featured` as wide panels
-        under "Main Ticket Types", then everything else as narrow cards on a
-        navy band under "Smaller tickets, big impact." That second band is where
-        the pinched columns came from — centred text in a 240px track — and
-        between them the two headings, two ledes and two footnotes said little
-        that the cards do not.
-
-        `featured` still decides something, and it is now the only thing that
-        distinguishes a tier visually: a featured card gets the filled button
-        and a slightly stronger edge, the rest get outlined buttons. Hierarchy
-        by weight rather than by a badge.
-      */}
-      {/*
-        Skipped entirely rather than rendered empty. An unreadable catalogue is
-        a real state — no credentials, or Firestore unreachable — and a band
-        with 92px of padding and nothing in it reads as a layout that broke,
-        which is a worse answer than the checkout's own "Registration is not
-        open yet" further down.
-      */}
-      {tiers.length > 0 && (
-        <section className="band tickets-band">
-          <div className="wrap">
-            <div className="tier-grid">
-              {tiers.map((t) => (
-                <TierCard key={t.id} tier={t} href={`/tickets?tier=${t.id}#buy`} />
-              ))}
+        {lead ? (
+          <>
+            <div className={s.top}>
+              <LeadPanel tier={lead} />
+              {second && <SecondPanel tier={second} />}
             </div>
-          </div>
-        </section>
-      )}
+
+            {rest.length > 0 && (
+              <ul className={s.altRows}>
+                {rest.map((t) => (
+                  <AlternativeRow key={t.id} tier={t} />
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <p className={s.empty}>
+            Ticket sales for {SITE.name} have not opened yet. Write to{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will tell you
+            the moment they do.
+          </p>
+        )}
+      </div>
 
       {/*
-        Ours, and not on the live site, which hands checkout to a third party.
-        It stays because it is the only place on this site where a ticket is
-        actually bought.
-
-        The `id` lives here and nowhere else. It used to be on this section *and*
-        on the `<form>` inside it — two elements with `id="buy"` in one document,
-        so every `#buy` link on the page was resolving to whichever the browser
-        found first and `getElementById` was a coin toss.
-      */}
-      <section className="band buy-band" id="buy">
-        <div className="wrap">
-          {catalogue && catalogue.length > 0 ? (
-            <CheckoutForm
-              tiers={tiers}
-              initialTier={preselected}
-              stripeReady={stripeEnabled()}
-              demoReady={await demoCheckoutAllowed()}
-              questions={form.fields}
-            />
-          ) : (
-            <div className="checkout checkout-closed">
-              <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
-              <p className="notice warn">
-                Ticket sales for {SITE.name} have not opened. Everything else on this page is
-                current.
-              </p>
-              <p>
-                Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we
-                will tell you the moment they do.
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/*
-        The route from paying to standing in the room, as a strip rather than an
-        essay, and it sits below the purchase rather than in front of it.
-
-        This content used to be four numbered paragraphs stacked beside the
-        checkout form, which put several hundred words of explanation in direct
-        competition with the one control on the page that takes money. It is a
-        genuine sequence — each step is only true once the one before it has
-        happened — so it keeps its numbers, but it earns them in one line each
-        and it sits above the form rather than next to it.
-      */}
-      <section className="band band-wash flow-band">
-        <div className="wrap">
-          <h2 className="flow-title">From paying to standing in the room</h2>
-          <ol className="flow-strip">
-            <li>
-              <strong>Register</strong>
-              Pick a ticket, and give us the attendee’s name and email address.
-            </li>
-            <li>
-              <strong>Keep the claim code</strong>
-              Six characters, shown the moment you pay. Use it if you cannot sign in.
-            </li>
-            <li>
-              <strong>Open the KGC app</strong>
-              Sign in with the same address. The schedule, messages and contacts are already there.
-            </li>
-            <li>
-              <strong>Scan in at the door</strong>
-              Your badge QR carries a random secret, not your name.
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      {/*
-        The questions, below the purchase rather than beside it.
-
-        Every one of these was a bold-lead paragraph in a column running down the
-        side of the checkout form, where a buyer had to read past all five to
-        reach the thing they came for. As collapsed rows they take a tenth of the
-        height, they are scannable by question, and the one a particular person
-        needs is one click away instead of four paragraphs down.
+        The questions, collapsed. Kept where the "From paying to standing in the
+        room" strip was cut: five rows a click away cost almost no height, and
+        each one is a real question somebody writes in about — transfers, the
+        student rate, invoicing.
       */}
       <section className="band-wash">
         <div className="kgc-faq">

@@ -454,7 +454,10 @@ export async function startCheckout(
         ...(answersRef ? { answersRef } : {}),
       },
       success_url: `${origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/tickets?cancelled=1#buy`,
+      // Back to the checkout page with the tier intact, not to `/tickets`,
+      // which no longer has a form on it — returning there would throw away
+      // everything the buyer typed and show them a price list instead.
+      cancel_url: `${origin}/tickets/checkout?tier=${encodeURIComponent(primary.id)}&cancelled=1`,
     });
     sessionId = session.id;
     url = session.url;

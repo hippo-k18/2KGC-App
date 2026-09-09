@@ -68,11 +68,51 @@ Nothing prints these on screen any more. ⚠️ It is a seven-character shared
 secret in front of the Admin SDK — rotate it before the event runs on real
 attendees.
 
-### 4. Pick the buyer's email address
+### 3b. The app account, for when the code cannot reach you
 
-Act 2 signs into the app as the person who bought in Act 1, so **use an address
-you can act on**. Two ways in, and you should know which you are using before
-you start — see *Getting the sign-in code* below.
+| | |
+| --- | --- |
+| Where | the app, **Sign in** (not Create account) |
+| Email | `demo@knowledgegraph.tech` |
+| Password | `kgc2027` (no space) |
+
+The same address as the dashboard, on purpose: it is the one already in muscle
+memory. ⚠️ They are still **two unrelated credentials** — the dashboard checks an
+allowlist and a passphrase, the app checks Firebase Auth — so revoking one leaves
+the other standing.
+
+A real Firebase Auth account with the `registered` claim, a registration behind
+it so the Badge tab has a QR, and a directory entry so it shows under People.
+It is a plain attendee — no organizer claim — so it opens one delegate's view of
+the event and nothing else.
+
+Use it when the six-digit code cannot get to you: a rehearsal on a machine that
+is not signed into `hartigandeely@gmail.com`, a room with no inbox to show, or a
+demo where waiting on email would cost more than it proves. Act 2 is still
+better told with the code — that flow is the real front door, and this is not.
+
+⚠️ A shared password on the live project. Delete it before the event runs on
+real attendees:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS="$PWD/.secrets/service-account.json" \
+  npx tsx scripts/ops/create-demo-account.ts --delete --confirm-live \
+  --email demo@knowledgegraph.tech
+```
+
+Re-create it (or reset the password after somebody changes it in the app) by
+running the same command without `--delete`. It is idempotent, and it leaves the
+badge's `qrSecret` alone so a screenshot taken earlier still scans.
+
+### 4. Buy under `hartigandeely@gmail.com`
+
+Act 2 signs into the app as the person who bought in Act 1, and the sign-in code
+goes to that address. **Email only reaches `hartigandeely@gmail.com`** — see
+*Getting the sign-in code* below for why. Use any other address and you must
+read the code out of the browser instead, which works fine but is less
+convincing.
+
+Have that inbox open in a tab before you start.
 
 ### 5. Tabs, in this order
 
@@ -91,13 +131,18 @@ you start — see *Getting the sign-in code* below.
 
 1. **Tab 1, the homepage.** Scroll. Agenda, speakers, sponsors — all reading the
    same Firestore the app reads, not a copy.
-2. **Tab 2, `/tickets`.** The tiers, their prices and what each includes. Prices
-   come from `ticketTypes` in Firestore and there is no hard-coded fallback:
-   an empty collection throws rather than charging a stale price.
-3. **Expand a tier and fill the checkout form.** Use the address you chose in
-   step 4. Multiple seats are one purchase with real quantities, not three
-   separate sales — worth showing if you have time.
-4. **Press "Skip payment and register (demo)".**
+2. **Tab 2, `/tickets`.** All Access and Main Conference share the top line;
+   Workshops and Virtual are the rows below, deliberately half-cut by the fold
+   so it is obvious there are more. Prices come from `ticketTypes` in Firestore
+   and there is no hard-coded fallback: an empty collection throws rather than
+   charging a stale price.
+3. **Press Choose on a tier.** It goes to `/tickets/checkout?tier=…` — its own
+   page, with the order summary on the left and the form on the right. The tier
+   is in the URL, so the choice survives a reload.
+4. **Fill in the name and email.** Use the address from step 4 of the setup.
+   Multiple seats are one purchase with real quantities, not three separate
+   sales — worth showing if you have time.
+5. **Press "Skip payment and register (demo)".**
 
    **Say:** this is the localhost rehearsal button. It writes a real
    registration, a real order, an app account, entitlements, the sold count and
@@ -105,7 +150,7 @@ you start — see *Getting the sign-in code* below.
    order is stamped `demo` so it can never be mistaken for money that arrived.
    The real button beside it hands you to Stripe's hosted Checkout.
 
-5. **The confirmation page.** The claim code and the QR. Read the claim code out
+6. **The confirmation page.** The claim code and the QR. Read the claim code out
    — it appears again on the phone in Act 2, because there is one
    `registrations` document and both surfaces are reading it.
 
@@ -139,7 +184,17 @@ you start — see *Getting the sign-in code* below.
 
 Two routes. Know which you are using **before** you are standing up.
 
-- **Read it from the browser** — reliable, no email involved:
+- **A real inbox** — the one that reads properly to an audience. Verified
+  2026-09-07: a send returns `sent` with a Resend id, and the mail arrives.
+
+  ⚠️ **It only reaches `hartigandeely@gmail.com`.** Mail goes out as
+  `onboarding@resend.dev`, which is Resend's own sender and needs no domain
+  verification, and its rule is that it delivers **only to the address that owns
+  the Resend account**. Any other recipient comes back 403 and is logged as
+  `failed`, with nothing on screen to say so.
+
+- **Read it from the browser** — the fallback, and the one to use if you bought
+  under any other address:
 
   ```
   http://localhost:3200/api/auth/dev-code?email=THE-BUYERS-ADDRESS
@@ -148,17 +203,12 @@ Two routes. Know which you are using **before** you are standing up.
   Localhost only. The endpoint 404s on any deployed build, by compile-time
   constant rather than by configuration.
 
-- **From a real inbox** — only works for the address that owns the Resend
-  account, because mail now goes out as `onboarding@resend.dev`.
-
-  ⚠️ **Sending from `knowledgegraph.tech` does not work at all.** Resend answers
-  `403 The knowledgegraph.tech domain is not verified` and every receipt and
-  sign-in code is logged as `failed`. Verifying the domain at
-  <https://resend.com/domains> is the real fix, and it is an owner action.
-
-**Recommendation: use the browser route on stage.** Waiting on an inbox in front
-of an audience is the one beat here that can stall, and it buys nothing a viewer
-can see.
+⚠️ **Sending from `knowledgegraph.tech` does not work at all** — Resend answers
+`403 The knowledgegraph.tech domain is not verified`. That is why the sender is
+`onboarding@resend.dev`. The mail still shows as **KGC 2027** in the inbox,
+because the display name is kept; only the address behind it changed. Verifying
+the domain at <https://resend.com/domains> is the real fix, removes the
+one-recipient limit, and is an owner action.
 
 ---
 
@@ -246,7 +296,7 @@ missing feature.
 
 | | |
 | --- | --- |
-| **Email does not arrive** | Resend refuses to send from an unverified domain. The templates, the logging and the failure record all work; the domain needs verifying. |
+| **Email only reaches one address** | Mail sends for real, but from `onboarding@resend.dev`, which delivers only to the Resend account owner. Sending as `knowledgegraph.tech` is refused until that domain is verified. |
 | **Poll tallies and Q&A counts** | Server-side counters need the `functions/` deploy, which is blocked on one IAM grant only the project owner can give. The app counts client-side as a fallback, so the screens are not empty. |
 | **Push notifications** | The dashboard can send. The app cannot receive: that needs a development build rather than Expo Go. |
 | **Real card payments** | A Stripe **test** key is configured, so hosted Checkout works. `STRIPE_WEBHOOK_SECRET` is missing, so a real Checkout does not finish fulfilment — which is why the demo uses the rehearsal button. |

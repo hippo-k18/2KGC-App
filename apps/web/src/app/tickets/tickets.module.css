@@ -1,0 +1,536 @@
+/*
+ * The tickets page — two panels on one line, then two rows.
+ *
+ * Adapted from `options/v8`, which is where the shape was argued out: panels
+ * that lay their contents out in real columns rather than squeezing bullets
+ * into a 240px card track, and rows underneath rather than a fourth column.
+ *
+ * ── The top line is 2/3 + 1/3, and the split is the hierarchy ──────────────
+ *
+ * All Access takes two thirds and the navy ground; Main Conference takes one
+ * third beside it on white. That is the only thing saying which is the flagship
+ * — no badge, no ribbon, no "most popular". The 2:1 is also what makes the two
+ * legible as *different* offers rather than as a comparison table: equal
+ * columns invite a feature-by-feature read, and these two tickets are not
+ * bought by the same person.
+ *
+ * Consequence worth knowing: at one third of the measure the second panel has
+ * room for one column of contents, not three. Its `includes` list is rendered
+ * flat for that reason, and a tier with fifteen bullets would make the top line
+ * taller than the flagship. If that happens, cap the list rather than widening
+ * the column.
+ *
+ * ── What changed on the way out of the option ──────────────────────────────
+ *
+ * **Everything is smaller.** The option was drawn to be looked at on its own;
+ * this one has a job, which is that a buyer arriving at the top of the page can
+ * see the panel, read the first alternative in full, and *see that there are
+ * more* without scrolling first. The two rows below the fold poking into view
+ * are the whole reason for the reductions — a page that ends cleanly at the
+ * fold reads as a page with one product on it.
+ *
+ * Concretely: the price drops from 3.6rem to 2.4rem, panel padding from 3rem to
+ * 1.75rem, and the row padding roughly halves.
+ *
+ * **The prose is gone.** The tagline, the "one ticket that covers both halves
+ * of the week" claim, the two-line savings table and its note, and the
+ * "If you only need part of the week" heading and lede. They were the
+ * option's argument for itself; the tier contents already say what each ticket
+ * is, and the prices already say which is dearer.
+ *
+ * ⚠️ Kept as a CSS module rather than folded into `globals.css`, which is the
+ * convention for every other page here. Two reasons: this layout is bespoke to
+ * one route and nothing else should be able to reach these names, and
+ * `globals.css` is past six thousand lines. `options/` already establishes the
+ * module pattern in this app.
+ */
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1rem var(--edge-padding) clamp(2rem, 5vw, 3rem);
+}
+
+/* ---------------------------------------------------------------- heading -- */
+
+.head {
+  margin-bottom: 0.85rem;
+}
+
+.h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3.4vw, 1.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.orient {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.cancelled {
+  margin: 0.85rem 0 0;
+  max-width: 62ch;
+  padding: 0.65rem 0.9rem;
+  border-left: 4px solid var(--orange);
+  border-radius: 0 8px 8px 0;
+  background: #fdf3e7;
+  color: var(--body);
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+
+.empty {
+  margin: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--wash);
+  color: var(--body);
+}
+
+/* -------------------------------------------------------------- top line -- */
+
+/*
+ * Stacked below 62rem, because 1/3 of a phone is not a panel. The order is
+ * source order, so the flagship stays first when it stacks.
+ */
+.top {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 62rem) {
+  .top {
+    grid-template-columns: 2fr 1fr;
+    align-items: stretch;
+  }
+}
+
+/* ------------------------------------------------------------ lead panel -- */
+
+.lead {
+  position: relative;
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 1.6rem);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border-radius: var(--radius);
+  background: var(--navy);
+  color: #dfe8f4;
+  overflow: hidden;
+}
+
+/* The one piece of brand colour on the panel, and it is a rule, not a ribbon. */
+.lead::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--orange);
+}
+
+@media (min-width: 62rem) {
+  .lead {
+    /*
+     * Identity above the contents, and the contents across the full panel.
+     *
+     * Both arrangements were measured. Beside — v8's, an identity column and
+     * the contents in what is left — left the contents 357px wide inside two
+     * thirds of the measure, every bullet wrapped to three lines, and the panel
+     * came to 612px. Above, the contents get the whole 700px and run in three
+     * real columns instead of two cramped ones, which is shorter despite
+     * spending a row on the name and price.
+     *
+     * The lesson is worth keeping: at this width the binding constraint is
+     * wrapping, not the number of blocks stacked.
+     */
+    grid-template-rows: auto 1fr;
+    gap: 0.85rem;
+    padding: 1rem clamp(1.15rem, 2vw, 1.5rem);
+  }
+}
+
+/*
+ * Name, price and button on one line.
+ *
+ * Stacked, this block was 110px of a panel that has to fit above the fold with
+ * two rows still showing under it — and the three things in it are all short.
+ * Side by side they cost one line, and the button lands beside the price where
+ * a price and its call to action belong.
+ */
+.leadHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+}
+
+.leadName {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.35rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  color: #fff;
+}
+
+.leadPrice {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 2.05rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: #fff;
+}
+
+.leadCta {
+  display: inline-block;
+  /* `auto` left margin pushes it to the far end of the strip. */
+  margin-left: auto;
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  background: var(--orange);
+  color: #10243a;
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.leadCta:hover {
+  background: #ffa348;
+}
+
+.leadCta:focus-visible {
+  outline: 3px solid var(--palette-4);
+  outline-offset: 3px;
+}
+
+.leadClosed {
+  margin: 0 0 0 auto;
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 999px;
+  font-weight: 600;
+  color: #e7eefa;
+}
+
+/* The grouped contents, laid out rather than stacked. */
+
+.leadBody {
+  display: grid;
+  gap: 0.65rem 1.75rem;
+  align-content: start;
+}
+
+@media (min-width: 48rem) {
+  .leadBody {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  }
+}
+
+.group {
+  min-width: 0;
+}
+
+.groupHead {
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgb(141 204 238 / 35%);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--palette-4);
+}
+
+.groupItems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.groupItems li {
+  position: relative;
+  padding-left: 1rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: #e3ebf7;
+}
+
+.groupItems li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 0.6rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--orange);
+}
+
+.extras {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgb(255 255 255 / 15%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.extrasLabel {
+  color: #b8c7dd;
+}
+
+.extrasItem {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ----------------------------------------------------------- second panel -- */
+
+/*
+ * Main Conference, at one third, on white.
+ *
+ * Bordered rather than filled: two navy panels side by side would read as one
+ * band split by a gap, and the whole point of the 2:1 is that these are two
+ * offers of different weight. The border and the outlined button are the same
+ * vocabulary the rows below use, so the eye reads flagship / everything-else
+ * rather than three unrelated treatments.
+ */
+.second {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(0.9rem, 2vw, 1.1rem);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--navy);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+
+.secondName {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.secondPrice {
+  margin: 0.15rem 0 0;
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.secondItems {
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.secondItems li {
+  position: relative;
+  padding-left: 0.95rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--body);
+}
+
+.secondItems li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 0.5rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+/* `auto` top margin pins the button to the bottom, so the two panels' calls to
+   action line up however unevenly their contents fall. */
+.secondCta {
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: auto;
+  padding-top: 0.7rem;
+}
+
+.secondCta > a {
+  display: inline-block;
+  padding: 0.55rem 1.3rem;
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.secondCta > a:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.secondCta > a:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.secondClosed {
+  margin: auto 0 0;
+  padding-top: 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------- alternatives -- */
+
+/*
+ * No heading over these, and no lede. The rule is the join: it says "the panel
+ * has ended and a list has started" in 2px, where the option spent a heading, a
+ * sentence and about 90px of height saying the same thing less certainly.
+ */
+.altRows {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--navy);
+}
+
+.alt {
+  display: grid;
+  gap: 0.3rem 1.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+@media (min-width: 56rem) {
+  .alt {
+    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+.altIdent {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.altName {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.altPrice {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Inline and wrapping, not a bulleted grid.
+ *
+ * As a two-column list these rows ran to 188px and 216px, which put Workshops
+ * below the fold and Virtual off the page entirely — the two tickets a
+ * budget-conscious buyer is most likely to want were the two they could not
+ * see. Flowing them as separated phrases costs about a third of that and still
+ * lists every item.
+ */
+.altItems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+}
+
+.altItems li {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* A separator between items, never after the last one. */
+.altItems li:not(:last-child)::after {
+  content: '·';
+  margin-left: 0.5rem;
+  color: var(--line);
+}
+
+.altAction {
+  display: flex;
+  align-items: center;
+}
+
+.altCta {
+  display: inline-block;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.92rem;
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.altCta:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.altCta:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.altClosed {
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  border: 1px dashed var(--muted);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .leadCta,
+  .secondCta > a,
+  .altCta {
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+}

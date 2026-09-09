@@ -1,0 +1,438 @@
+/*
+ * `/tickets1` — the live site's tickets layout.
+ *
+ * Measured off `screenshot-to-code/kgc-inputs/tickets-1440-full.png`, the
+ * 1440px capture of the live page, and the markup beside it in
+ * `kgc-inputs/site/tickets.html`. Where a number here looks arbitrary it is
+ * almost certainly a measurement; the live page's own values are noted beside
+ * the ones that matter.
+ *
+ * ⚠️ **Every size in this file is in px, not rem.** `globals.css` sets the root
+ * to 22px to match the live site's type scale, so `1rem` here is 22px and a
+ * value copied from a Tailwind class name (`text-4xl` → 36px) would silently
+ * come out half again too large. Measured values must not float with the root.
+ *
+ * ── The pair is one block with a hairline through it ──────────────────────
+ *
+ * The live page runs the two headline panels together with no gap at all, into
+ * one 950px block split down the middle, navy on the left. That seam is what
+ * makes them read as two halves of one decision rather than two cards in a row
+ * of cards, and it is the reason the panels are equal width here while
+ * `/tickets` next door splits 2:1.
+ *
+ * ⚠️ **The gap below is 14px on purpose, and it is the one deliberate
+ * departure from the live layout.** Butted edge to edge, the navy panel's right
+ * border and the pale panel's left border are the same line, so the eye reads
+ * the pair as a single object that changed colour halfway across. 14px is
+ * enough to say "two things" and too little to say "two cards" — under a third
+ * of the 48px the smaller tickets use below, which is what a real gutter looks
+ * like on this page. Keep it under about 20px or the block stops being a block.
+ * No radius on the inner edges either: rounding them would finish the job the
+ * gap is deliberately leaving undone.
+ */
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--edge-padding);
+}
+
+/* ------------------------------------------------------- main ticket types - */
+
+.mainTypes {
+  background: var(--white);
+  padding: 64px 0 0;
+}
+
+/*
+ * "Main Ticket Types" is the page's h1 because the live hero — which carries
+ * its own h1 — is not reproduced here. 32px/900 in `#2B2E40` is the live
+ * heading exactly, so it still looks like the section heading it was.
+ */
+.h1 {
+  margin: 0 0 48px;
+  text-align: center;
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #2b2e40;
+}
+
+.cancelled {
+  max-width: 62ch;
+  margin: -24px auto 40px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--orange);
+  background: var(--palette-7);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.empty {
+  max-width: 60ch;
+  margin: 0 auto 64px;
+  text-align: center;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.pair {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 14px;
+  max-width: 950px;
+  margin: 0 auto;
+}
+
+/* -------------------------------------------------------- headline panels - */
+
+.panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 40px 44px;
+}
+
+.panelDark {
+  background: var(--navy);
+  color: var(--palette-3);
+}
+
+.panelLight {
+  background: var(--palette-3);
+  color: #2c394f;
+}
+
+/*
+ * 40px, and it wraps rather than shrinking. "Main Conference" sets on two lines
+ * in a 475px half at the live site's size and that is what the capture shows —
+ * a name scaled down to fit on one line would be the only type on the page not
+ * at its measured size.
+ */
+.panelName {
+  margin: 0 0 16px;
+  font-size: 40px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
+.panelDark .panelName {
+  color: var(--white);
+}
+
+/* 44px at weight 400: the price is the largest thing in the panel and the least
+   emphatic, which is the live page's own bit of restraint. */
+.panelPrice {
+  margin: 0 0 12px;
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 400;
+  color: inherit;
+}
+
+.panelTagline {
+  margin: 0 0 28px;
+  max-width: 34ch;
+  font-size: 17px;
+  line-height: 1.5;
+  color: inherit;
+  opacity: 0.88;
+}
+
+.group {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.groupHead {
+  margin: 0 0 12px;
+  font-size: 19px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: inherit;
+}
+
+.panelDark .groupHead {
+  color: var(--white);
+}
+
+.panelLight .groupHead {
+  color: #1f2a40;
+}
+
+/* Underline on the name only. The parenthetical beside it is a duration, not
+   part of the product name, so it is not underlined and not bold. */
+.groupHeadText {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.groupHeadAside {
+  font-size: 15px;
+  font-weight: 400;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.groupItems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.groupItems li + li {
+  margin-top: 12px;
+}
+
+/* The live page types its bullets into the copy. Here the marker is generated,
+   so the text of an item stays the text of an item — it is what a screen
+   reader reads and what a copy-paste picks up. */
+.groupItems li::before {
+  content: '• ';
+}
+
+/* Pins the button to the foot of the panel, so the two buttons sit on one line
+   whatever the two lists do above them. */
+.action {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.cta {
+  display: inline-block;
+  padding: 12px 32px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgb(16 36 58 / 18%);
+  transition: background-color 0.15s ease;
+}
+
+.ctaOrange {
+  background: var(--orange);
+  color: #101010;
+}
+
+.ctaOrange:hover {
+  background: #d67a1f;
+}
+
+.ctaNavy {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.ctaNavy:hover {
+  background: var(--blue-dark);
+}
+
+/* A sold-out or not-yet-open tier keeps the button's footprint, so the panels
+   stay the same shape whether or not anything is on sale. */
+.closed {
+  display: inline-block;
+  margin: 0;
+  padding: 12px 32px;
+  border-radius: 4px;
+  background: rgb(127 127 127 / 22%);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+/* ------------------------------------------------------------- footnote --- */
+
+.footnote {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 64px 0;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #555;
+}
+
+.footnote p {
+  margin: 0 0 12px;
+}
+
+.footnote p:last-child {
+  margin-bottom: 0;
+}
+
+.footnote strong {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------- smaller tickets -- */
+
+.smallerBand {
+  background: var(--navy);
+  padding: 96px 0;
+}
+
+.smallerHead {
+  margin-bottom: 64px;
+  text-align: center;
+}
+
+.smallerHead h2 {
+  margin: 0 0 20px;
+  font-size: 36px;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: var(--white);
+}
+
+.smallerHead p {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--palette-3);
+}
+
+.smallRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 48px;
+}
+
+.small {
+  flex: 0 1 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 32px 36px;
+  background: #e9ecef;
+  color: #2a3654;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 18%);
+}
+
+.smallName {
+  margin: 0 0 16px;
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 900;
+  color: #20293d;
+}
+
+.smallPrice {
+  margin: 0 0 16px;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #2a3654;
+}
+
+.smallTagline {
+  margin: 0 0 20px;
+  font-size: 19px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #2a3654;
+}
+
+.smallItems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #2a3654;
+}
+
+.smallItems li + li {
+  margin-top: 10px;
+}
+
+.smallAction {
+  margin-top: auto;
+  padding-top: 28px;
+  width: 100%;
+}
+
+/* Full-bleed inside the card, as on the live page. */
+.small .cta,
+.small .closed {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+}
+
+.onDemand {
+  margin: 40px auto 0;
+  max-width: 46ch;
+  text-align: center;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--orange);
+}
+
+/* ---------------------------------------------------------------- narrow -- */
+
+/*
+ * Two 468px panels become one column at 900px, and stacked they are cards
+ * rather than halves of a block — so the 14px hairline opens to 24px. At the
+ * narrow value a stacked pair reads as one 1,400px slab of navy and grey with a
+ * scratch across it.
+ */
+@media (max-width: 900px) {
+  .pair {
+    flex-direction: column;
+    gap: 24px;
+    max-width: 520px;
+  }
+
+  .panel {
+    padding: 40px 28px 36px;
+  }
+
+  .panelName {
+    font-size: 34px;
+  }
+
+  .panelPrice {
+    font-size: 38px;
+  }
+
+  .h1 {
+    margin-bottom: 32px;
+    font-size: 28px;
+  }
+
+  .footnote {
+    padding: 48px 0;
+  }
+
+  .smallerBand {
+    padding: 64px 0;
+  }
+
+  .smallerHead {
+    margin-bottom: 40px;
+  }
+
+  .smallerHead h2 {
+    font-size: 28px;
+  }
+}

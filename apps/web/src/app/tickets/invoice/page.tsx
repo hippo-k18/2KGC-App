@@ -90,7 +90,7 @@ export default async function InvoicePage() {
 
               <h3 style={{ fontSize: '1.05rem', marginTop: 26 }}>Prefer to pay by card?</h3>
               <p>
-                For one or two people, <Link href="/tickets#buy">the normal checkout</Link> is
+                For one or two people, <Link href="/tickets/checkout">the normal checkout</Link> is
                 faster.
               </p>
 
