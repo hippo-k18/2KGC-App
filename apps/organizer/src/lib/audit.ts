@@ -66,6 +66,19 @@ export interface AuditEntry {
      */
     | 'ticketType.adjustSold'
     /**
+     * A tier destroyed rather than hidden.
+     *
+     * There is no button for this and there should not be one — orders
+     * reference a tier by id, so hiding is the safe act and deleting is not.
+     * The verb exists because the unsafe act still happens by hand, through the
+     * Admin SDK, for a tier created by mistake: `ticketTypes/12134` on
+     * 2026-09-09, priced at $14,134 with nothing sold against it. When that is
+     * done, `before` carries the whole tier, for the same reason
+     * `moderation.delete` does — a hidden tier is its own evidence and a
+     * deleted one is not.
+     */
+    | 'ticketType.delete'
+    /**
      * A bulk email. Recorded because it is the one action here that cannot be
      * undone *at all* — a refund can at least be explained, an email in a
      * thousand inboxes cannot be recalled.
