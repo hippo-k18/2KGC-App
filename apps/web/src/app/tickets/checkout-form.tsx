@@ -648,7 +648,16 @@ function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: str
       // render rather than as an unconfigured deployment.
       disabled={pending || !stripeReady}
     >
-      {pending ? 'Redirecting…' : stripeReady ? `Pay ${price} with Stripe` : 'Payments unavailable'}
+      {/*
+        "Payments open soon" rather than "Payments unavailable".
+
+        The two say the same thing to the code and opposite things to a buyer:
+        unavailable reads as broken and sends them away, open soon reads as a
+        date they have not been told yet and keeps the page worth returning to.
+        The key was removed deliberately on 2026-09-09, so this is the state the
+        deployed site is in — not a fault to be reported.
+      */}
+      {pending ? 'Redirecting…' : stripeReady ? `Pay ${price} with Stripe` : 'Payments open soon'}
     </button>
   );
 }
