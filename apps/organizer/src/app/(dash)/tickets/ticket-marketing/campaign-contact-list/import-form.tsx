@@ -117,7 +117,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
         <>
           <p style={{ fontSize: 13 }}>
             <strong>{state.validCount}</strong> of {state.totalRows} rows have a usable address
-            {state.errors && state.errors.length > 0 ? <> — {state.errors.length} do not</> : null}.
+            {state.errors && state.errors.length > 0 ? <>, {state.errors.length} do not</> : null}.
             They will go on <strong>{state.list}</strong>.
           </p>
 

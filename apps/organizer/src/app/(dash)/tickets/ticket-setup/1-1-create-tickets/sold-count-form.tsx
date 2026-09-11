@@ -75,7 +75,7 @@ export function SoldCountForm({
             <>The orders ledger agrees, so there is probably nothing to correct here.</>
           ) : (
             <>
-              Counting paid and partially-refunded orders gives <strong>{ledger}</strong> —{' '}
+              Counting paid and partially-refunded orders gives <strong>{ledger}</strong>.{' '}
               {drift < 0 ? (
                 <>
                   {-drift} {-drift === 1 ? 'seat is' : 'seats are'} held by refunds that were never

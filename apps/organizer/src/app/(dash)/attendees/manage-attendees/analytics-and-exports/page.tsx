@@ -127,7 +127,7 @@ export default async function AnalyticsAndExportsPage() {
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Session attendance</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          Counted at the door of each session — {attendance.tracked} of {attendance.live} sessions
+          Counted at the door of each session. {attendance.tracked} of {attendance.live} sessions
           in the programme have had a door opened for them.{' '}
           {attendance.tracked === 0 ? (
             <>

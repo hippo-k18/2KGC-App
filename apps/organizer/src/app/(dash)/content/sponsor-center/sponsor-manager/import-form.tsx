@@ -95,7 +95,7 @@ export function SponsorImportForm() {
         <>
           <p style={{ fontSize: 13 }}>
             <strong>{state.validCount}</strong> of {state.totalRows} rows look importable
-            {state.errors && state.errors.length > 0 ? <> — {state.errors.length} have problems</> : null}.
+            {state.errors && state.errors.length > 0 ? <>, {state.errors.length} have problems</> : null}.
           </p>
 
           {state.sample && state.sample.length > 0 && (

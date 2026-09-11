@@ -167,7 +167,7 @@ export default async function WebsiteCopyPage() {
 
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>
-          Startup Pitch — <PageLink path="/startup-pitch" />
+          Startup Pitch · <PageLink path="/startup-pitch" />
         </h2>
         <p className="body-2">
           The same page with different words, and the same two fields that go stale.{' '}

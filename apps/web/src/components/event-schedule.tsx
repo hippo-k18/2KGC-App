@@ -199,7 +199,7 @@ export function EventSchedule({
       {hidden > 0 && moreHref && (
         <p className="schedule-more">
           <a href={moreHref}>
-            {hidden} more session{hidden === 1 ? '' : 's'} on this day — see the full agenda →
+            {hidden} more session{hidden === 1 ? '' : 's'} on this day. See the full agenda →
           </a>
         </p>
       )}

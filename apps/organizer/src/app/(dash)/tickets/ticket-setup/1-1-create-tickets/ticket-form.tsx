@@ -236,7 +236,7 @@ export function TicketForm({
         ]}
         hint={
           <>
-            ⚠️ Only <strong>attendee</strong> tiers appear on the public website —{' '}
+            ⚠️ Only <strong>attendee</strong> tiers appear on the public website.{' '}
             <code>catalogue.ts</code> filters to them. An exhibitor or sponsor tier is recorded here
             and has nothing selling it yet.
           </>

@@ -196,7 +196,7 @@ export default async function RehearsalSessionsPage() {
           <p className="body-2">
             Another session is still running in the room when the {AV_WINDOW_MINUTES}-minute window
             opens, so these speakers cannot check their slides beforehand on the day. The usual fix
-            is the evening before, or the first free slot in the same room —{' '}
+            is the evening before, or the first free slot in the same room.{' '}
             <Link href={ROUTES.conflictCheck}>Conflict Check</Link> shows what else is in it.
           </p>
           <Table

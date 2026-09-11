@@ -204,7 +204,7 @@ export function ReferenceOverlay() {
               onChange={(e) => setS((p) => ({ ...p, difference: e.target.checked }))}
             />
             <span>
-              Difference blend <span style={{ opacity: 0.65 }}>— black means identical</span>
+              Difference blend <span style={{ opacity: 0.65 }}>(black means identical)</span>
             </span>
           </label>
 

@@ -322,7 +322,7 @@ export function ViewAllSpeakers({
             onClick={() => setOpen(true)}
           >
             View All Speakers
-            <span className="sr-only"> — {speakers.length} more</span>
+            <span className="sr-only">, {speakers.length} more</span>
           </button>
         </div>
       )}

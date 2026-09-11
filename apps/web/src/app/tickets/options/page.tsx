@@ -19,7 +19,7 @@ const OPTIONS = [
   {
     n: 1,
     name: 'The week strip',
-    note: 'The conference calendar is the chooser — each ticket is a span of days across Monday to Friday, so the question is “which days am I coming?” rather than “how important am I?”',
+    note: 'The conference calendar is the chooser. Each ticket is a span of days across Monday to Friday, so the question is “which days am I coming?” rather than “how important am I?”',
   },
   {
     n: 2,
@@ -34,7 +34,7 @@ const OPTIONS = [
   {
     n: 4,
     name: 'Honest disclosure cards',
-    note: 'Compact cards whose closed state already tells you the days, the difference and the count — the current page’s shape, fixed where it fails.',
+    note: 'Compact cards whose closed state already tells you the days, the difference and the count. The current page’s shape, fixed where it fails.',
   },
   {
     n: 5,
@@ -49,7 +49,7 @@ const OPTIONS = [
   {
     n: 7,
     name: 'Grouped by what you’re buying',
-    note: 'Sections headed by their dates — the whole week, the conference, the workshops, from anywhere — so the heading does the explaining.',
+    note: 'Sections headed by their dates (the whole week, the conference, the workshops, from anywhere), so the heading does the explaining.',
   },
   {
     n: 8,
@@ -64,7 +64,7 @@ const OPTIONS = [
   {
     n: 10,
     name: 'The ledger',
-    note: 'No cards at all. A typographic price list where the arithmetic — $699 plus $799 against $1,199 — makes the argument by itself.',
+    note: 'No cards at all. A typographic price list where the arithmetic ($699 plus $799 against $1,199) makes the argument by itself.',
   },
 ];
 

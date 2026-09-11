@@ -99,7 +99,7 @@ export async function MessageScreen({
 
       <Panel>
         <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          {active.describe} — <strong>{recipients.length}</strong>{' '}
+          {active.describe} · <strong>{recipients.length}</strong>{' '}
           {recipients.length === 1 ? 'person' : 'people'}
           {withoutEmail > 0 && `, plus ${withoutEmail} with no email address on file`}.
         </p>

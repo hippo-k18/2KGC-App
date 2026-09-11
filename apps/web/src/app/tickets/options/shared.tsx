@@ -140,7 +140,7 @@ export function AfterBands() {
             <summary>Do virtual tickets include the recordings?</summary>
             <div className="answer">
               <p>
-                Yes — every session, on demand, for at least a month after the conference closes.
+                Yes. Every session, on demand, for at least a month after the conference closes.
               </p>
             </div>
           </details>

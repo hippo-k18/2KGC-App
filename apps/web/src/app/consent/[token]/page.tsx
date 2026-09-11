@@ -86,7 +86,7 @@ export default async function ConsentPage({
 
         {failed && (
           <p className="notice bad" role="alert">
-            <strong>That did not save.</strong> Nothing has been recorded — this page is not
+            <strong>That did not save.</strong> Nothing has been recorded. This page is not
             telling you it worked when it did not. Try again, and if it keeps failing email{' '}
             <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and a human will record
             it by hand.
@@ -101,7 +101,7 @@ export default async function ConsentPage({
 
         {justSigned && (
           <p className="notice" role="status">
-            <strong>Recorded.</strong> Thank you — your agreement to version {ctx.version} of the
+            <strong>Recorded.</strong> Your agreement to version {ctx.version} of the
             wording below was saved just now.
           </p>
         )}
@@ -130,7 +130,7 @@ export default async function ConsentPage({
           <p className="notice warn">
             <strong>The wording has changed since you last signed.</strong> You agreed to version{' '}
             {ctx.supersededVersion}; this is version {ctx.version}. Your earlier agreement stands
-            for what it said, and it does not cover the text below — so if you still agree, please
+            for what it said, and it does not cover the text below. If you still agree, please
             sign again.
           </p>
         )}

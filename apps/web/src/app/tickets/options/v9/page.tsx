@@ -144,7 +144,7 @@ export default async function Page({
   if (separateText && savingText && workshopsOnly && conferenceOnly) {
     pitchLines.push(
       '',
-      `Bought as two separate tickets — ${workshopsOnly.name} at ${formatPrice(workshopsOnly.priceCents, workshopsOnly.currency)} and ${conferenceOnly.name} at ${formatPrice(conferenceOnly.priceCents, conferenceOnly.currency)} — the same five days come to ${separateText}, so the single ticket is ${savingText} less.`,
+      `Bought as two separate tickets, ${workshopsOnly.name} at ${formatPrice(workshopsOnly.priceCents, workshopsOnly.currency)} and ${conferenceOnly.name} at ${formatPrice(conferenceOnly.priceCents, conferenceOnly.currency)}, the same five days come to ${separateText}, so the single ticket is ${savingText} less.`,
     );
   }
   if (takeaways.length > 0) {
@@ -211,7 +211,7 @@ export default async function Page({
 
                 {separateText && savingText && workshopsOnly && conferenceOnly ? (
                   <p className={s.arithmetic}>
-                    The two halves sold separately —{' '}
+                    The two halves sold separately,{' '}
                     <b>
                       {workshopsOnly.name}{' '}
                       {formatPrice(workshopsOnly.priceCents, workshopsOnly.currency)}
@@ -221,7 +221,7 @@ export default async function Page({
                       {conferenceOnly.name}{' '}
                       {formatPrice(conferenceOnly.priceCents, conferenceOnly.currency)}
                     </b>{' '}
-                    — come to <b>{separateText}</b> for the same five days. This one is {savingText}{' '}
+                    come to <b>{separateText}</b> for the same five days. This one is {savingText}{' '}
                     less.
                   </p>
                 ) : null}
@@ -269,7 +269,7 @@ export default async function Page({
           <h2 className={s.h2}>What to tell whoever is paying</h2>
           <p className={s.sectionLede}>
             Most of the people reading this page will have to ask someone else for the money. Here
-            is the note, written out of what is actually in the ticket — no adjectives, and every
+            is the note, written out of what is actually in the ticket. No adjectives, and every
             figure on it is a price from this page.
           </p>
 
@@ -301,7 +301,7 @@ export default async function Page({
                   <dd>
                     The cheaper in-person tickets are each half of the week. Bought together they
                     are {separateText}; the week ticket is {heroPrice}. If only one half is needed,
-                    say so — the half tickets are real tickets and they are listed below.
+                    say so. The half tickets are real tickets and they are listed below.
                   </dd>
                 </div>
               ) : null}
@@ -335,7 +335,7 @@ export default async function Page({
               {others.length === 1 ? 'The other ticket' : `The other ${others.length} tickets`}
             </h2>
             <p className={s.sectionLede}>
-              Each of these is for a particular situation, and each is complete — the full contents
+              Each of these is for a particular situation, and each is complete. The full contents
               are here, not behind a link. If one of them describes you, buy it; nothing on this
               page is trying to talk you out of it.
             </p>

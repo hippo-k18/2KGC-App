@@ -168,7 +168,7 @@ function TicketRow({
           <p className={s.sepNote}>
             Bought as separate tickets, the same days cost{' '}
             <strong>{formatPrice(separately.totalCents, tier.currency)}</strong>. This one is{' '}
-            <strong>{formatPrice(tier.priceCents, tier.currency)}</strong> —{' '}
+            <strong>{formatPrice(tier.priceCents, tier.currency)}</strong>,{' '}
             <span className={s.saving}>
               {formatPrice(separately.savingCents, tier.currency)} less
             </span>

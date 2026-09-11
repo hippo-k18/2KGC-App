@@ -35,7 +35,7 @@ export default async function SponsorTicketsPage({
         lede: (
           <>
             {SITE.datesLong} at {SITE.venue}. KGC is the room where the knowledge-graph field talks
-            to itself — a few hundred people who build this for a living, rather than a few thousand
+            to itself: a few hundred people who build this for a living, rather than a few thousand
             collecting tote bags.
           </>
         ),

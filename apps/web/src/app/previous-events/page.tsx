@@ -55,7 +55,7 @@ export default function PreviousEventsPage() {
               <a href={e.href} target="_blank" rel="noreferrer noopener">
                 <strong>KGC {e.year}</strong>
               </a>{' '}
-              <span className="muted">— {e.where}</span>
+              <span className="muted">· {e.where}</span>
             </li>
           ))}
         </ul>

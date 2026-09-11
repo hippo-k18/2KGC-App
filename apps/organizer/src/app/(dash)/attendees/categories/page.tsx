@@ -204,7 +204,7 @@ export default async function CategoriesPage({
             c.key === '(none)' ? (
               <span key="m">
                 No <code>users</code> document, or one with an empty <code>roles</code>. Mostly
-                ticket holders who have not opened the app — {c.ticketHolders} of these {c.size}{' '}
+                ticket holders who have not opened the app. {c.ticketHolders} of these {c.size}{' '}
                 hold a ticket.
               </span>
             ) : (
@@ -292,7 +292,7 @@ export default async function CategoriesPage({
         <p className="body-2">
           The category shown against a person is <code>users/&#123;uid&#125;.roles</code>, and that
           document decides nothing. <code>firestore.rules</code> gates on the <code>roles</code>{' '}
-          <strong>custom claim</strong> carried in the ID token —{' '}
+          <strong>custom claim</strong> carried in the ID token,{' '}
           <code>request.auth.token.roles</code>, and never reads the profile to work out who you
           are, deliberately: an earlier version did, which cost a document read per rule evaluation
           and counted against the hard cap of ten access calls per request.

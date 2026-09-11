@@ -41,6 +41,11 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
       <PageHeader
         title="Edit Session"
         tags={<StatusTag status={session.status} />}
+        actions={
+          <Link href={ROUTES.sessionManager} className="whova-btn-main secondary">
+            Back to list
+          </Link>
+        }
         links={[
           <Link key="sm" href={ROUTES.sessionManager}>
             Session Manager

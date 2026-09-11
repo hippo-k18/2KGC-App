@@ -191,7 +191,7 @@ export default async function FromAcceptedSubmissionsPage({
                   <li key={row.id} style={{ padding: '6px 0' }}>
                     <Link href={`${ROUTES.sessionManager}/${row.sessionId}`}>{row.title}</Link>{' '}
                     <span className="muted" style={{ fontSize: 12 }}>
-                      — {row.author?.name ?? 'no author on file'}
+                      · {row.author?.name ?? 'no author on file'}
                     </span>
                   </li>
                 ))}

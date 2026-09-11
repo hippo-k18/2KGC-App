@@ -230,7 +230,7 @@ export default async function CheckInPage({
                       <div style={{ fontSize: 13, marginTop: 4 }}>
                         {checkedIn} of {scopeCapacity} capped seats
                         {checkedIn > scopeCapacity ? (
-                          <strong> — {checkedIn - scopeCapacity} over the cap</strong>
+                          <strong>, {checkedIn - scopeCapacity} over the cap</strong>
                         ) : null}
                       </div>
                     </>
@@ -314,7 +314,7 @@ export default async function CheckInPage({
         {scopeSession ? (
           <Banner kind="info">
             <strong>You are scanning into {scopeSession.title}</strong>, not the
-            main door — {scopeSession.day} {scopeSession.startsAtLocal.slice(11, 16)}–
+            main door, {scopeSession.day} {scopeSession.startsAtLocal.slice(11, 16)}–
             {scopeSession.endsAtLocal.slice(11, 16)}
             {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. A badge scanned here is
             counted into this room and <em>not</em> into the event door list; the same person can be

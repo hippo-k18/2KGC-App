@@ -192,7 +192,7 @@ export default async function EventListingPage() {
                 <a href={publicUrl('/tickets')} target="_blank" rel="noreferrer">
                   {publicUrl('/tickets')}
                 </a>{' '}
-                — {onSale} {onSale === 1 ? 'tier' : 'tiers'} on sale
+                · {onSale} {onSale === 1 ? 'tier' : 'tiers'} on sale
               </span>,
             ],
             [

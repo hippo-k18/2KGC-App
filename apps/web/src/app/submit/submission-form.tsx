@@ -211,7 +211,7 @@ export function SubmissionForm({
       <p className="hint" style={{ marginTop: 14 }}>
         A draft is not submitted and is not read by anybody. You can come back to it from the link we
         email you, until the call closes on {call.closesAtLocal.replace('T', ' ')}. After that the
-        server refuses any change — the deadline is real, not a hidden button.
+        server refuses any change. The deadline is real, not a hidden button.
       </p>
     </form>
   );

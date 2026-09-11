@@ -226,7 +226,7 @@ export default async function SpeedNetworkingPage({
                   {round.resting ? (
                     <span className="muted" style={{ fontWeight: 400 }}>
                       {' '}
-                      — {round.resting} sits this one out
+                      · {round.resting} sits this one out
                     </span>
                   ) : null}
                 </h3>

@@ -101,7 +101,7 @@ export function Chooser({ model, basePath }: { model: ChooserModel; basePath: st
           {bundle && (
             <p className={s.bundle}>
               {bundle.names} bought separately come to <strong>{bundle.separately}</strong>.{' '}
-              {topName} is <strong>{bundle.together}</strong> — {bundle.difference} less.
+              {topName} is <strong>{bundle.together}</strong>, {bundle.difference} less.
             </p>
           )}
 
@@ -111,7 +111,7 @@ export function Chooser({ model, basePath }: { model: ChooserModel; basePath: st
             </a>
           ) : (
             <p className={s.ctaClosed}>
-              {selected.unavailableReason ?? 'Not available'} — pick another ticket to carry on.
+              {selected.unavailableReason ?? 'Not available'}. Pick another ticket to carry on.
             </p>
           )}
 

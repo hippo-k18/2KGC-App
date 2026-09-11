@@ -86,7 +86,7 @@ export function ManualOrderForm({
         >
           {packages.map((p) => (
             <option key={p.id} value={p.id} data-cents={p.priceCents}>
-              {p.name} — {(p.priceCents / 100).toLocaleString('en-US', {
+              {p.name} · {(p.priceCents / 100).toLocaleString('en-US', {
                 style: 'currency',
                 currency: p.currency.toUpperCase(),
                 maximumFractionDigits: 0,

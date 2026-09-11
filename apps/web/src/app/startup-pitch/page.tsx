@@ -150,8 +150,8 @@ export default async function StartupPitchPage() {
           {dates.length === 0 ? (
             <p className="muted">
               The {SITE.year} calendar is not confirmed yet, so this page states no dates. The
-              application deadline and the date of the pitch event appear here once they are set —
-              write to{' '}
+              application deadline and the date of the pitch event appear here once they are set.
+              Write to{' '}
               <a href="mailto:startup-pitch@knowledgegraph.tech">
                 startup-pitch@knowledgegraph.tech
               </a>{' '}
@@ -160,12 +160,12 @@ export default async function StartupPitchPage() {
           ) : (
             <>
               {call.datesConfirmed ? null : (
-                <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+                <p className="muted">Provisional. The {SITE.year} calendar is not final.</p>
               )}
               <ul>
                 {dates.map((d) => (
                   <li key={d.when} style={{ padding: '4px 0' }}>
-                    <strong>{d.when}</strong> — {d.what}
+                    <strong>{d.when}</strong>: {d.what}
                   </li>
                 ))}
               </ul>

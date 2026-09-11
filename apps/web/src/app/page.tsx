@@ -380,10 +380,9 @@ export default async function HomePage() {
       <section className="tint">
         <div className="wrap">
           <p className="eyebrow">Tickets</p>
-          <h2>Four ways to come</h2>
+          <h2>Our tickets</h2>
           <p className="lede" style={{ marginBottom: 30 }}>
-            Prices are per person, in US dollars. Every in-person ticket includes the community happy
-            hour and the evening networking events.
+            Prices are per person in US dollars.
           </p>
 
           <div className="grid g4">

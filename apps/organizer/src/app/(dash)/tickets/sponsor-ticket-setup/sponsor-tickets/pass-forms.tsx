@@ -48,7 +48,7 @@ export function PassCountForm({ tiers }: { tiers: PassGrantingTier[] }) {
           onChange={(e) => setSelected(e.target.value)}
           options={tiers.map((t) => ({
             value: t.id,
-            label: `${t.name} — ${t.complimentaryPasses || 'no'} ${
+            label: `${t.name} · ${t.complimentaryPasses || 'no'} ${
               t.complimentaryPasses === 1 ? 'pass' : 'passes'
             }`,
           }))}

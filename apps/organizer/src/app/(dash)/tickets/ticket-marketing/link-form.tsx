@@ -89,7 +89,7 @@ export function LinkForm({
         <select id="destination" name="destination" style={{ maxWidth: 340 }}>
           {destinations.map((d) => (
             <option key={d.path} value={d.path}>
-              {d.label} — {d.path}
+              {d.label} · {d.path}
             </option>
           ))}
         </select>

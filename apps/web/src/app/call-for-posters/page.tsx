@@ -163,7 +163,7 @@ export default async function CallForPostersPage() {
             The goal is to bridge research and practice, by highlighting work in knowledge graphs,
             ontologies, rules and hybrid AI systems that can be readily adopted, extended or
             evaluated in real-world settings. We especially encourage submissions showing how
-            knowledge graphs, ontologies or rules complement modern AI systems — in accuracy,
+            knowledge graphs, ontologies or rules complement modern AI systems in accuracy,
             reasoning, governance and interoperability.
           </p>
           <p>
@@ -246,19 +246,19 @@ export default async function CallForPostersPage() {
           {dates.length === 0 ? (
             <p className="muted">
               The {SITE.year} calendar is not confirmed yet, so this page states no deadline. The
-              submission dates appear here as soon as the committee sets them — write to{' '}
+              submission dates appear here as soon as the committee sets them. Write to{' '}
               <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> if you need to know
               before then.
             </p>
           ) : (
             <>
               {call.datesConfirmed ? null : (
-                <p className="muted">Provisional — the {SITE.year} calendar is not final.</p>
+                <p className="muted">Provisional. The {SITE.year} calendar is not final.</p>
               )}
               <ul>
                 {dates.map((d) => (
                   <li key={d.when} style={{ padding: '4px 0' }}>
-                    <strong>{d.when}</strong> — {d.what}
+                    <strong>{d.when}</strong>: {d.what}
                   </li>
                 ))}
               </ul>

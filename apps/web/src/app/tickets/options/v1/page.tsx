@@ -37,7 +37,7 @@ export default async function Page({
     <OptionChrome
       n={1}
       name="The week strip"
-      note="the conference calendar is the chooser — a ticket is a span of days, not a rank"
+      note="the conference calendar is the chooser: a ticket is a span of days, not a rank"
     >
       <section className={s.page}>
         <div className={s.inner}>

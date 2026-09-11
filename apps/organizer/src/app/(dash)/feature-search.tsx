@@ -212,7 +212,7 @@ export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
       {open && searched && hits.length === 0 ? (
         <div className="whova-menu align-end" style={{ minWidth: 300 }}>
           <div className="feature-search-note">
-            No feature matches “{q.trim()}”. Try the words on the tab you want —
+            No feature matches “{q.trim()}”. Try the words on the tab you want:
             “tickets”, “attendees”, “agenda”.
           </div>
         </div>

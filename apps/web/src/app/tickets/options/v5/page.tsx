@@ -28,7 +28,7 @@ export default async function Page({
           <h1 className={s.h1}>Pick a ticket, and see what the other one would cost you</h1>
           <p className={s.lede}>
             {SITE.name}, {SITE.datesLong}, {SITE.venueShort}. Choose a row; the panel keeps a
-            running summary of what you have chosen — and of what moving up would add, and what
+            running summary of what you have chosen, and of what moving up would add, and what
             it would cost.
           </p>
           {data.cancelled && (

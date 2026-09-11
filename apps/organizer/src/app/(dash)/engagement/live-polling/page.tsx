@@ -174,7 +174,7 @@ export default async function LivePollingPage({
               </Link>
             </div>
             <div className="muted" style={{ fontSize: 11, marginBottom: 10 }}>
-              {p.sessionDay} {p.startsAtLocal.slice(11, 16)} — {p.sessionTitle}
+              {p.sessionDay} {p.startsAtLocal.slice(11, 16)} · {p.sessionTitle}
             </div>
 
             <Table

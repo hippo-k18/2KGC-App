@@ -175,7 +175,7 @@ function Ledger({ reckoning }: { reckoning: Reckoning }) {
             <li key={step.from.id}>
               <span className={s.stepFrom}>From {step.from.name}</span>
               <span className={s.stepBody}>
-                {formatPrice(step.extraCents, currency)} more buys {combined.name} — which adds{' '}
+                {formatPrice(step.extraCents, currency)} more buys {combined.name}, which adds{' '}
                 {step.adds.name}, {formatPrice(step.adds.priceCents, step.adds.currency)} on its
                 own.
               </span>

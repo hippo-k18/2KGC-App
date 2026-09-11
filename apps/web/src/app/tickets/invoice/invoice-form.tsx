@@ -146,7 +146,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
             >
               {tiers.map((t) => (
                 <option key={t.id} value={t.id} disabled={!t.onSale}>
-                  {t.name} — {formatPrice(t.priceCents, t.currency)}
+                  {t.name} · {formatPrice(t.priceCents, t.currency)}
                   {t.onSale ? '' : ` (${t.unavailableReason ?? 'unavailable'})`}
                 </option>
               ))}

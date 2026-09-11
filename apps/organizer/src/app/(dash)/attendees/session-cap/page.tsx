@@ -352,7 +352,7 @@ export default async function SessionCapPage({
         <h2 className="section-header">What is uncapped, and whether that is deliberate</h2>
         <p className="body-2">
           {uncapped.length} of the {live.length} live sessions have no capacity set. An absent{' '}
-          <code>capacity</code> means uncapped, which is the honest default —{' '}
+          <code>capacity</code> means uncapped, which is the honest default.{' '}
           <code>models.ts</code> is explicit that a conference which has not decided its cap should
           not have the model invent one. For a keynote in the main hall that is correct.
           {uncappedWorkshops.length > 0 ? (

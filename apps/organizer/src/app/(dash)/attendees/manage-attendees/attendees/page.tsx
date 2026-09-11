@@ -130,7 +130,7 @@ export default async function AttendeesPage({
               {all.length > 0 && (
                 <span className="muted">
                   {' '}
-                  ({Math.round((signedIn / all.length) * 100)}%) — {all.length - signedIn} have not
+                  ({Math.round((signedIn / all.length) * 100)}%). {all.length - signedIn} have not
                 </span>
               )}
             </div>

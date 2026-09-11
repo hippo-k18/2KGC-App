@@ -26,7 +26,7 @@ export default async function ExhibitorTicketsPage({
         lede: (
           <>
             {SITE.datesLong} at {SITE.venue}. The people walking your booth are the ones deciding
-            what their organisation&rsquo;s graph runs on next year — practitioners and the
+            what their organisation&rsquo;s graph runs on next year: practitioners and the
             architects who sign for them, not a general technology audience.
           </>
         ),

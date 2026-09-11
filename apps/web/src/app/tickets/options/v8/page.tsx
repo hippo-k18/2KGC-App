@@ -68,7 +68,7 @@ function LeadPanel({ tier, pair }: { tier: Tier; pair: [Tier, Tier] | null }) {
 
         {pair && (
           <p className={s.leadClaim}>
-            The one ticket that covers both halves of the week — the workshop days,{' '}
+            The one ticket that covers both halves of the week: the workshop days,{' '}
             {SITE.workshopDays}, and the conference days, {SITE.conferenceDays}.
           </p>
         )}

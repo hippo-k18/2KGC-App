@@ -65,6 +65,11 @@ export default async function NewSessionPage({
     <>
       <PageHeader
         title="Add Session"
+        actions={
+          <Link href={ROUTES.sessionManager} className="whova-btn-main secondary">
+            Back to list
+          </Link>
+        }
         links={[
           <Link key="sm" href={ROUTES.sessionManager}>
             Session Manager

@@ -147,7 +147,7 @@ export default async function CodeOfConductPage() {
           enjoyable and fulfilling experience.
         </p>
         <p>
-          Everyone taking part in KGC activities — whether in person or online — is expected to show
+          Everyone taking part in KGC activities, whether in person or online, is expected to show
           respect and courtesy to others throughout their participation. In addition, we ask all
           attendees to adhere to the following standards of conduct:
         </p>
@@ -172,7 +172,7 @@ export default async function CodeOfConductPage() {
         <p>
           If someone makes you or anyone else feel unsafe or unwelcome, or otherwise violates the
           Code of Conduct, please report this as soon as possible to one of the KGC organizers. At
-          any time, you can reach the organizers via email — see the contact details below. You can
+          any time, you can reach the organizers via email. The contact details are below. You can
           make a report either personally or anonymously. The organizers are committed to address
           and resolve the issue in question to the best of their abilities, and to reviewing this
           Code of Conduct regularly and learning from other organizations.

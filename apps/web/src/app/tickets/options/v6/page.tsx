@@ -203,7 +203,7 @@ function Verdict({
             </p>
             <p>
               {maths.whole.name} covers both for{' '}
-              {formatPrice(maths.whole.priceCents, maths.whole.currency)} — {maths.saving} less.{' '}
+              {formatPrice(maths.whole.priceCents, maths.whole.currency)}, {maths.saving} less.{' '}
               <a href={href({ where, part: 'all' })}>Change my answer to all of it</a>
             </p>
           </div>
@@ -212,10 +212,10 @@ function Verdict({
         {maths && covers === 'all' && tier.id === maths.whole.id ? (
           <div className={s.aside}>
             <p>
-              The same week as two tickets — {maths.workshops.name} at{' '}
+              The same week as two tickets: {maths.workshops.name} at{' '}
               {formatPrice(maths.workshops.priceCents, maths.workshops.currency)} and{' '}
               {maths.conference.name} at{' '}
-              {formatPrice(maths.conference.priceCents, maths.conference.currency)} — is{' '}
+              {formatPrice(maths.conference.priceCents, maths.conference.currency)}, is{' '}
               {maths.separate}. This is {maths.saving} less, for the same five days.
             </p>
           </div>
@@ -233,7 +233,7 @@ function AllTickets({ tiers, where, part }: { tiers: Tier[]; where?: Where; part
       <h2 className={s.allTitle}>All {tiers.length} tickets</h2>
       <p className={s.hint}>
         No questions, nothing folded away.{' '}
-        <a href={href({ where, part })}>Back to the two questions</a> — your answers are still
+        <a href={href({ where, part })}>Back to the two questions</a>. Your answers are still
         there.
       </p>
 
@@ -358,7 +358,7 @@ export default async function Page({
 
           {tiers.length === 0 ? (
             <p className={s.hint}>
-              There is nothing to choose between yet — ticket sales for {SITE.name} have not opened.
+              There is nothing to choose between yet. Ticket sales for {SITE.name} have not opened.
             </p>
           ) : view === 'all' ? (
             <AllTickets tiers={tiers} where={where} part={answeredPart} />
@@ -493,7 +493,7 @@ export default async function Page({
                 <a href={href({ where, part: answeredPart, view: 'all' })}>
                   Show me all {tiers.length} tickets
                 </a>{' '}
-                — the answers you have given are kept.
+                The answers you have given are kept.
               </p>
             </>
           )}

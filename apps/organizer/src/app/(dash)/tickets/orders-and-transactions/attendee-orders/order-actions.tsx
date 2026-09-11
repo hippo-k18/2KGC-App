@@ -186,7 +186,7 @@ export function MarkPaidButton({
 
         <p style={{ fontSize: 12, lineHeight: 1.5, marginTop: 0 }}>
           This issues <strong>{seatCount} {seatCount === 1 ? 'ticket' : 'tickets'}</strong> to{' '}
-          <strong>{companyName}</strong> and emails every attendee their claim code —{' '}
+          <strong>{companyName}</strong> and emails every attendee their claim code,{' '}
           <strong>before the {amountLabel} has arrived</strong>. Use it when a purchase order is
           good enough and finance will pay after the event.
         </p>

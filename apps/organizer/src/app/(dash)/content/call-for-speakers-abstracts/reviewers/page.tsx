@@ -238,7 +238,7 @@ export default async function ReviewersPage({
       {call && active.length > 0 && (
         <Panel style={{ marginTop: 16 }}>
           <h2 className="section-header" style={{ marginTop: 0 }}>
-            Assignment — {call.title}
+            Assignment · {call.title}
           </h2>
           {assignable.length === 0 ? (
             <NotInputted what="submissions to assign" compact />

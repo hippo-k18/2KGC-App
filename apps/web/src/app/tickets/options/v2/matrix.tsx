@@ -450,7 +450,7 @@ export function Matrix({ tiers, basePath }: { tiers: Tier[]; basePath: string })
               <strong>{t.name}</strong> at {formatPrice(t.priceCents, t.currency)}
             </span>
           ))}
-          , which is {formatPrice(arithmetic.sum, arithmetic.pair[0].currency)} —{' '}
+          , which is {formatPrice(arithmetic.sum, arithmetic.pair[0].currency)},{' '}
           {formatPrice(arithmetic.difference, lead.currency)} more than {lead.name}
           {arithmetic.missing.length > 0 && (
             <>

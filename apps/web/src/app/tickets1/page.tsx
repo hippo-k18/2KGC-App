@@ -212,12 +212,12 @@ export default async function Tickets1Page({
               {footnoteApplies && (
                 <div className={s.footnote}>
                   <p>
-                    <strong>* {lead.name} Ticket</strong> — Grants entry to <em>all</em> in-person
+                    <strong>* {lead.name} Ticket</strong>: grants entry to <em>all</em> in-person
                     sessions, including limited-availability <strong>workshops</strong>, plus
                     virtual streaming and recordings.
                   </p>
                   <p>
-                    <strong>* {second?.name} Ticket</strong> — Covers all main conference sessions,
+                    <strong>* {second?.name} Ticket</strong>: covers all main conference sessions,
                     but <strong>does not include workshops</strong> (space is limited).
                   </p>
                 </div>

@@ -106,7 +106,7 @@ export async function SurveyScreen({
       {summary ? (
         <Panel>
           <h2 style={{ fontSize: 15, marginTop: 0 }}>
-            {summary.survey.title} — {summary.responses}{' '}
+            {summary.survey.title} · {summary.responses}{' '}
             {summary.responses === 1 ? 'response' : 'responses'}
           </h2>
           {summary.responses === 0 ? (

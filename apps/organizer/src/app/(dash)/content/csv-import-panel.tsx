@@ -124,7 +124,7 @@ export function CsvImportPanel({
           <p style={{ fontSize: 13 }}>
             <strong>{state.validCount}</strong> of {state.totalRows} rows look importable
             {state.errors && state.errors.length > 0 ? (
-              <> — {state.errors.length} have problems</>
+              <>, {state.errors.length} have problems</>
             ) : null}
             .
           </p>

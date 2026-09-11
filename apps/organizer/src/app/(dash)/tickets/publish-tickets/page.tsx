@@ -76,8 +76,8 @@ export default async function PublishTicketsPage() {
           </>
         ) : (
           <>
-            Nothing is buyable right now. Every tier is hidden, outside its window, or at capacity —{' '}
-            <Link href="/tickets/ticket-setup/1-1-create-tickets">check the catalogue</Link>.
+            Nothing is buyable right now. Every tier is hidden, outside its window, or at capacity.{' '}
+            <Link href="/tickets/ticket-setup/1-1-create-tickets">Check the catalogue</Link>.
           </>
         ),
     },
@@ -141,8 +141,8 @@ export default async function PublishTicketsPage() {
         form.fields.length === 0 ? (
           <>
             No questions are asked. Dietary requirements and accessibility needs are catering and
-            venue decisions with a deadline —{' '}
-            <Link href="/tickets/ticket-setup/1-2-question-forms">worth asking before you sell</Link>
+            venue decisions with a deadline.{' '}
+            <Link href="/tickets/ticket-setup/1-2-question-forms">Worth asking before you sell</Link>
             , because collecting them afterwards means chasing everybody.
           </>
         ) : form.active ? (

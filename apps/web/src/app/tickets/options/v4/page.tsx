@@ -254,7 +254,7 @@ function Ledger({
         {bundle.extras.length > 0 ? (
           <>
             {' '}
-            — and it still lists {spell(bundle.extras.length)}{' '}
+            and it still lists {spell(bundle.extras.length)}{' '}
             {bundle.extras.length === 1 ? 'thing' : 'things'} neither of them does:
           </>
         ) : (

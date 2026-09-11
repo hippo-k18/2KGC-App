@@ -33,7 +33,7 @@ export function CopyPitch({ text, className }: { text: string; className?: strin
         {status === 'copied'
           ? 'Copied to the clipboard'
           : status === 'failed'
-            ? 'Could not copy — select the text above'
+            ? 'Could not copy. Select the text above'
             : 'Copy this note'}
       </span>
     </button>
