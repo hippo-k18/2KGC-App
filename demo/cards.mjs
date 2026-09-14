@@ -41,6 +41,16 @@ const CARDS = [
   ['05-credit', 'Produced by Claude',
     'Recorded, edited and scored end to end by Claude',
     'Anthropic · for the Knowledge Graph Conference'],
+
+  // The two below belong to kgc-session-and-speaker-detail.mp4 (act4), not to
+  // kgc-one-backend.mp4. They live here because there is one card renderer and
+  // a second copy of this file would be a second palette to keep in step.
+  ['07-detail-open', 'Session and speaker detail',
+    'A detail view for every agenda item, and for the speaker behind it',
+    'Recorded on the deployed organizer dashboard, against the live conference database'],
+  ['08-detail-end', 'Both modals, on production',
+    'Nothing staged, nothing rebuilt for the recording',
+    'Every screen change in this video was caused by a click you can see'],
 ];
 
 /** The closing caveat card, which has its own layout rather than a foot line. */

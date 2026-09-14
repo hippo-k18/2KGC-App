@@ -79,17 +79,50 @@ export async function installCursor(page) {
             fill="#23282f" stroke="#ffffff" stroke-width="1.1" stroke-linejoin="round"/></svg>`;
     document.body.appendChild(c);
 
+    /*
+     * Where the injected overlays have to live to be seen.
+     *
+     * An open `<dialog>` is promoted to the browser's top layer, which paints
+     * above every ordinary element no matter what its z-index says — so the
+     * cursor, the press rings and the caption all disappear the moment a modal
+     * opens, and the recording silently becomes the "pages change by magic"
+     * thing this whole file exists to avoid. A fixed-position child of the
+     * dialog paints in the top layer with it and is still positioned against
+     * the viewport, so the fix is to re-home the overlays rather than to fight
+     * the stacking context, which cannot be won from CSS.
+     */
+    window.__demoHost = () => document.querySelector('dialog[open]') ?? document.body;
+
+    /*
+     * Runs on every frame rather than on every cursor move, because the host
+     * changes at both ends: a dialog opening steals the top layer, and a dialog
+     * *closing* leaves the overlays inside an element the UA has just set to
+     * `display: none`. Waiting for the next `__demoMove` to notice would hide
+     * the cursor for the whole settle after the close is clicked. Re-homing is
+     * conditional, so the common case is three parent comparisons a frame.
+     */
+    const rehome = () => {
+      const host = window.__demoHost();
+      for (const id of ['__demo_cursor', '__demo_cap', '__demo_caveat']) {
+        const n = document.getElementById(id);
+        if (n && n.parentElement !== host) host.appendChild(n);
+      }
+      requestAnimationFrame(rehome);
+    };
+    requestAnimationFrame(rehome);
+
     window.__demoMove = (x, y) => {
       const el = document.getElementById('__demo_cursor');
       if (el) el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     };
     window.__demoPress = (x, y) => {
+      const host = window.__demoHost();
       for (const cls of ['__demo_dot', '__demo_ring', '__demo_ring b']) {
         const r = document.createElement('div');
         r.className = cls;
         r.style.left = x + 'px';
         r.style.top = y + 'px';
-        document.body.appendChild(r);
+        host.appendChild(r);
         setTimeout(() => r.remove(), 800);
       }
       // A small recoil on the arrow itself, so the press reads as a press.
@@ -301,14 +334,22 @@ export async function caption(page, text, sub = '', ms = 2200, { phone = false }
     w.innerHTML =
       `<div style="font-size:${size}px;font-weight:650;letter-spacing:-.012em;line-height:1.2">${t}</div>` +
       (s ? `<div style="font-size:${subSize}px;color:#c6cedb;margin-top:${small ? 4 : 8}px;line-height:1.35">${s}</div>` : '');
-    document.body.appendChild(w);
+    (window.__demoHost?.() ?? document.body).appendChild(w);
     requestAnimationFrame(() => { w.style.opacity = '1'; w.style.transform = 'translateY(0)'; });
 
-    // Retires itself. The caller does not await it, so the card plays over the
-    // scroll that follows instead of stopping everything to be read.
+    /*
+     * Retires itself. The caller does not await it, so the card plays over the
+     * scroll that follows instead of stopping everything to be read.
+     *
+     * ⚠️ The timer holds the node, not the id. Looking `__demo_cap` up again
+     * here retires whatever is wearing that id when the timer fires, which is
+     * the *next* caption whenever two are closer together than the first one's
+     * hold — so a caption authored for nine seconds could be cut to four by its
+     * predecessor, and it did exactly that to five of the cards in act4.
+     */
     setTimeout(() => {
       const c = document.getElementById('__demo_cap');
-      if (!c) return;
+      if (c !== w) return;
       c.style.opacity = '0';
       c.style.transform = 'translateY(10px)';
       setTimeout(() => c.remove(), 340);
@@ -363,7 +404,7 @@ export async function caveat(page, lines) {
       rows.map((r) =>
         `<div style="font-size:15px;color:#f3ece4;line-height:1.42;margin-top:5px">
            <strong style="color:#fff">${r[0]}</strong> — ${r[1]}</div>`).join('');
-    document.body.appendChild(w);
+    (window.__demoHost?.() ?? document.body).appendChild(w);
   }, lines).catch(() => {});
 }
 

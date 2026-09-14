@@ -1,4 +1,74 @@
-# kgc-one-backend.mp4
+# Demo recordings
+
+Two finished videos live in `out/`. `kgc-session-and-speaker-detail.mp4` is the
+current one and its harness runs; `kgc-one-backend.mp4` is the August cut and
+two of its three acts no longer do — see the banner below.
+
+---
+
+## kgc-session-and-speaker-detail.mp4
+
+1m24s, 1920×1080, 30fps, 14 MB, with sound. Recorded 14 September 2026, against
+the deployed dashboard at `kgc27-dashboard.netlify.app` and live Firestore.
+
+```bash
+cd demo
+ORGANIZER_EMAIL=… ORGANIZER_PASSPHRASE=… node act4-session-detail.mjs
+node cards.mjs            # only needed if cards/07- and 08- are missing
+./build-session-detail.sh # → out/kgc-session-and-speaker-detail.mp4
+```
+
+It answers one comment from the client — *"there's no detail popup/modal for each
+agenda item, and speaker picture/bio as well"* — by opening both modals: a
+session's whole record with its speakers' portraits, then a speaker's record with
+the sessions they present.
+
+| From | To | |
+|---|---|---|
+| 0:00 | 0:03 | Title card |
+| 0:03 | 0:06 | Sign-in, credentials typed, **Sign in** clicked |
+| 0:06 | 0:11 | Content › Basics, where sign-in lands |
+| 0:11 | 0:15 | **Content** clicked in the top tab bar |
+| 0:15 | 0:19 | **Agenda Center** clicked in the rail |
+| 0:19 | 0:26 | **Session Manager** clicked in the rail; Mon May 3, scrolled to the 11:00 bucket |
+| 0:26 | 0:39 | The session title clicked — time, room, track chips, format, skill level, status, abstract, and two speakers with portraits |
+| 0:39 | 0:44 | Closed with the modal's own **×** |
+| 0:44 | 0:48 | **Speaker Center** clicked in the rail |
+| 0:48 | 1:00 | **Speaker Manager**; `Berners` typed and **Search** clicked |
+| 1:00 | 1:12 | The speaker row clicked — portrait, job title, affiliation, contact, links, the empty bio, and the session from the first modal |
+| 1:12 | 1:20 | Closed with the modal's own **×** |
+| 1:20 | 1:24 | Closing card |
+
+**Every screen change is a click you can watch land.** There is exactly one
+`page.goto` in `act4-session-detail.mjs` and it is the arrival at the sign-in
+page; the tab, the two rail links, the two rows, the search button and both
+close controls are all driven through `clickIt`, with the cursor travelling to
+each one. That was the brief, and it is why the act reinstalls the cursor after
+every navigation.
+
+**Nobody has a bio, and the video says so.** All 137 speakers came from the 2026
+Whova export, which carries no bio field, so the modal reads "No bio on file"
+and the caption at 1:04 states it plainly rather than hurrying past the one
+empty field on an otherwise full record.
+
+Three things in `lib.mjs` were fixed for this cut and apply to every act:
+
+- **An open `<dialog>` is in the browser's top layer**, which paints above any
+  z-index, so the injected cursor, its press rings and the captions all vanished
+  the moment a modal opened. They are now re-homed into the open dialog on every
+  frame — and back out when it closes, because a closed `<dialog>` is
+  `display: none` and would take them with it.
+- **A caption's retirement timer looked itself up by id**, so it retired
+  whichever card was wearing that id when it fired — the *next* one, whenever
+  two captions were closer together than the first one's hold. Five cards in
+  this act were being cut to about half their authored time.
+- **Netlify's badge** is hidden from document start via `addInitScript` rather
+  than when the cursor is injected, so it never appears in the second or two
+  between a route change painting and `reinstall` running.
+
+---
+
+## kgc-one-backend.mp4
 
 > ## ⚠️ This harness no longer reproduces the video, and cannot be re-run as it stands
 >
