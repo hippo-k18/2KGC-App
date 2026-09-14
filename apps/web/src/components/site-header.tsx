@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 
 /**
@@ -24,6 +24,45 @@ import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 export function SiteHeader() {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+
+  /*
+   * While the menu is open the page behind it must not scroll.
+   *
+   * The panel is its own scroll container now (`.site-header nav.open`), but a
+   * drag that reaches either end of it still propagates to the document unless
+   * the document is frozen — which is precisely what the client saw: the menu
+   * stayed put and the page moved underneath it.
+   *
+   * Three things have to undo the lock, not one. Closing it, unmounting (a route
+   * change while the menu is open would otherwise leave the whole site
+   * unscrollable), and crossing back above the breakpoint, because on a tablet
+   * rotated to landscape the panel stops being displayed while `open` stays true
+   * and the body stays locked with nothing on screen to explain it. The query is
+   * written as the exact complement of the CSS breakpoint so the two cannot
+   * drift apart.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    document.body.classList.add('nav-open');
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const desktop = window.matchMedia('(width > 900px)');
+    const onBreakpoint = () => {
+      if (desktop.matches) setOpen(false);
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    desktop.addEventListener('change', onBreakpoint);
+
+    return () => {
+      document.body.classList.remove('nav-open');
+      document.removeEventListener('keydown', onKeyDown);
+      desktop.removeEventListener('change', onBreakpoint);
+    };
+  }, [open]);
 
   return (
     <>
@@ -61,17 +100,6 @@ export function SiteHeader() {
               priority
             />
           </Link>
-
-          <button
-            type="button"
-            className="menu-toggle"
-            aria-expanded={open}
-            aria-controls="main-nav"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            onClick={() => setOpen((v) => !v)}
-          >
-            <MenuIcon open={open} />
-          </button>
 
           <nav id="main-nav" aria-label="Main" className={open ? 'open' : undefined}>
             {NAV.map((item) => (
@@ -138,13 +166,36 @@ export function SiteHeader() {
           </nav>
 
           {/*
+            The two icon controls travel together, in the live site's order:
+            the orange magnifier, then the hamburger.
+
+            They used to sit on either side of `<nav>`, and `<nav>` is the
+            element that carries `margin-left: auto`. Below 900px it is
+            `display: none`, so nothing was pushing the icons anywhere and both
+            landed against the wordmark with the rest of the bar empty beside
+            them. Grouping them is also what lets the hamburger keep its place at
+            the very end of the row on a phone while staying hidden on desktop.
+
             Search is present and orange on the live site. It routes to a real
             page rather than opening a box that does nothing: a search field that
             swallows a query is worse than an honest link.
           */}
-          <Link href="/agenda" className="search" aria-label="Search the agenda">
-            <SearchIcon />
-          </Link>
+          <div className="header-actions">
+            <Link href="/agenda" className="search" aria-label="Search the agenda">
+              <SearchIcon />
+            </Link>
+
+            <button
+              type="button"
+              className="menu-toggle"
+              aria-expanded={open}
+              aria-controls="main-nav"
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              onClick={() => setOpen((v) => !v)}
+            >
+              <MenuIcon open={open} />
+            </button>
+          </div>
         </div>
       </header>
 

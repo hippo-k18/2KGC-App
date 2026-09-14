@@ -139,6 +139,32 @@
   --max: 2000px;
   --narrow: 842px;
   --edge-padding: 1.5rem;
+
+  /*
+   * The rendered height of `.site-header .bar`, and the anchor for everything
+   * that has to clear it: the open mobile menu's top edge, and every
+   * `scroll-margin-top` on a link target. Those were four separate literals —
+   * one 96 and three 104s — disagreeing with the bar's actual 100px by exactly
+   * the amount that leaves a seam under the menu panel.
+   *
+   * It drops to 60px at 620px and below, where the bar itself does, so the rules
+   * that consume it need no breakpoint of their own.
+   *
+   * ⚠️ Not the same thing as `--header-height` above, which is the hero's
+   * fold arithmetic and is four pixels short of the real bar. Merging them would
+   * move the hero on every desktop page, which is a bigger change than the seam
+   * it would fix.
+   */
+  --header-h: 100px;
+
+  /*
+   * `.wrap`'s own gutter, named so that a full-bleed row inside it can cancel it
+   * exactly. It is deliberately *not* `--edge-padding`: that is 1.5rem, which
+   * against this file's 22px root computes to 33px, and a row that bleeds by 33
+   * out of a 24px gutter hangs nine pixels off both sides of the viewport — the
+   * horizontal scrollbar the bleed was supposed to avoid.
+   */
+  --wrap-padding: 24px;
 }
 
 /*
@@ -324,7 +350,7 @@ img {
 .wrap {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 var(--wrap-padding);
 }
 
 .narrow {
@@ -407,8 +433,10 @@ section.tint {
   align-items: center;
   gap: 8px;
   /* 100px — the live header's measured height, identical on all seven pages
-     checked. `96px` rendered as 95 and made the whole page sit 5px high. */
-  min-height: 100px;
+     checked. `96px` rendered as 95 and made the whole page sit 5px high.
+     Held in `--header-h` because three other rules have to clear this bar and
+     were each carrying their own guess at how tall it is. */
+  min-height: var(--header-h);
 }
 
 .site-header .logo img {
@@ -508,6 +536,25 @@ section.tint {
   color: var(--palette-4);
 }
 
+/*
+ * The search link and the hamburger, as one group at the end of the bar.
+ *
+ * They used to sit on either side of `<nav>`, which is `display: none` below
+ * 900px — so on a phone nothing was pushing them anywhere and both icons sat
+ * hard against the wordmark with the rest of the bar empty to their right.
+ *
+ * `margin-left: auto` belongs in the narrow breakpoint only. Flexbox splits free
+ * space *equally* between every auto margin in a row, so declaring it here as
+ * well as on `nav` would tear the desktop header in half and leave the nav
+ * floating mid-bar. Above 900px `nav` already carries the group to the right
+ * edge and this element just follows it, exactly as the bare search link did.
+ */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* The search affordance is orange — the only orange in the header. */
 .site-header .search {
   display: inline-flex;
@@ -543,15 +590,55 @@ section.tint {
     display: none;
   }
 
+  /*
+   * The open panel is pinned to the viewport and scrolls itself.
+   *
+   * It was `position: absolute` with `height: auto` inside a `position: sticky`
+   * header, which is why the reported bug happened: the panel is taller than a
+   * phone screen, it had no scroll container of its own, so a drag on it went
+   * straight through to the document and the *page* moved underneath a menu that
+   * did not. `position: fixed` plus `bottom: 0` gives it a real box to scroll
+   * inside, `overscroll-behavior: contain` stops the drag reaching the document
+   * once it hits either end, and `body.nav-open` freezes the page behind it.
+   *
+   * The top offset was a literal 96px against a 100px bar — a four-pixel strip
+   * of page showing through between the two.
+   */
   .site-header nav.open {
     display: flex;
-    position: absolute;
-    inset: 96px 0 auto;
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     flex-direction: column;
+    /*
+     * ⚠️ `nowrap` is load-bearing, and it is the reason pinning the panel to the
+     * viewport was not on its own enough to make it scroll.
+     *
+     * `.site-header nav` sets `flex-wrap: wrap` for the desktop row, and this
+     * rule inherits it. A *column* flex container that is allowed to wrap does
+     * not overflow when it runs out of height — it starts a second column, then
+     * a third. While the panel was `height: auto` there was never any height to
+     * run out of, so the declaration sat there harmlessly; the moment the box
+     * became viewport-bounded it turned the menu into a three-column grid of
+     * links running off the right of the screen, and `scrollHeight` stayed equal
+     * to `clientHeight`, so nothing scrolled and nothing looked like it should.
+     *
+     * The fix for the reported bug is therefore two declarations, not one: a
+     * bounded box, and a refusal to wrap inside it.
+     */
+    flex-wrap: nowrap;
     align-items: stretch;
     gap: 0;
     background: var(--navy);
-    padding: 8px var(--edge-padding) 20px;
+    /* `--wrap-padding`, so the first menu item lines up with the wordmark above
+       it rather than sitting nine pixels further in. The extra bottom padding
+       keeps the last item clear of an iPhone's home indicator. */
+    padding: 8px var(--wrap-padding) calc(20px + env(safe-area-inset-bottom));
     border-top: 1px solid rgb(255 255 255 / 12%);
   }
 
@@ -564,9 +651,27 @@ section.tint {
     display: inline-flex;
   }
 
+  /* Nothing else is left in the row to push these right — see `.header-actions`. */
+  .header-actions {
+    margin-left: auto;
+  }
+
   .site-header .logo img {
     height: 44px;
   }
+}
+
+/*
+ * The page behind the open menu.
+ *
+ * `html` leaves its overflow visible, so the viewport takes its scrolling
+ * behaviour from `body` — hiding it here is what stops the background moving
+ * while the panel is open. `site-header.tsx` adds and removes the class, and
+ * removes it on unmount, because a body left locked by a route change is a site
+ * that cannot be scrolled at all.
+ */
+body.nav-open {
+  overflow: hidden;
 }
 
 /* ---------------------------------------------------------------- buttons - */
@@ -1105,9 +1210,10 @@ section.tint {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  /* 96px is the measured height of `.site-header .bar`, not the 90 this guessed:
-     an anchored jump left the target's top border behind the header. */
-  scroll-margin-top: 104px;
+  /* Clear the sticky header plus 4px, or an anchored jump leaves the target's
+     top border behind it. Derived rather than measured, so it follows the bar
+     down to 60px on a phone instead of overshooting by 44. */
+  scroll-margin-top: calc(var(--header-h) + 4px);
 }
 
 .day-head h2 {
@@ -1125,6 +1231,72 @@ section.tint {
   gap: 18px;
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
+}
+
+/*
+ * The same row as a control, for the slots that open a detail modal.
+ *
+ * A `<button>` arrives carrying a UA border, background, centred text and its
+ * own font, none of which `.slot` overrides — so this strips the chrome back to
+ * exactly what the `<article>` renders and adds only the two things that say the
+ * row is pressable. `width: 100%` is explicit rather than left to `display:
+ * grid`, because a button's shrink-to-fit sizing is not something to rely on
+ * across engines.
+ */
+button.slot {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* Room for the chevron, which is positioned rather than laid out — see below. */
+  position: relative;
+  padding-right: 26px;
+}
+
+button.slot:hover {
+  background: var(--wash);
+}
+
+button.slot:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
+/*
+ * Decorative, and positioned rather than placed in the grid.
+ *
+ * It has to sit at the right edge of the row whether the markup nests it in the
+ * content column or hangs it off the slot itself, and a third grid track would
+ * change the row's proportions on every slot including the ones that are still
+ * plain articles. `padding-right` on `button.slot` is what reserves its space.
+ */
+.slot-chevron {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  transition: transform 0.14s ease, color 0.14s ease;
+}
+
+button.slot:hover .slot-chevron {
+  color: var(--blue);
+  transform: translateY(-50%) translateX(3px);
+}
+
+/* The colour change carries the hover on its own; the nudge is the decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .slot-chevron {
+    transition: none;
+  }
+
+  button.slot:hover .slot-chevron {
+    transform: translateY(-50%);
+  }
 }
 
 .slot .when {
@@ -1188,6 +1360,74 @@ section.tint {
    * track, so the chips still read as a colour-coded set.
    */
   color: color-mix(in srgb, var(--track, var(--blue)) 62%, black);
+}
+
+/* ---- the agenda on a phone ---- */
+
+/*
+ * The client's "the agenda is not adjusted for mobile at all".
+ *
+ * There was one rule for this, in the misc `@media (width <= 620px)` block far
+ * below: `.slot` dropped to a single column with a 4px gap. It collapsed the
+ * grid and stopped there, so a 390px screen still got a 108px-wide time block
+ * printed as two stacked lines above a title — a column of stray numerals with
+ * nothing beside them, which is the layout reading as unadjusted even though a
+ * breakpoint had technically fired. The rules live here, beside the ones they
+ * override, rather than in a general-purpose block on the other side of the file.
+ */
+@media (width <= 620px) {
+  .slot {
+    grid-template-columns: 1fr;
+    /* 4px read as a typo between the time and the title once the time became a
+       line of prose rather than a column heading. */
+    gap: 6px;
+  }
+
+  /*
+   * "09:00 to 09:45" on one line. Stacked, the two halves of a single fact took
+   * two lines at the top of every slot and pushed the title — the only part
+   * anyone scans for — a line further down on every one of them.
+   *
+   * Flex rather than `display: inline` on the span: the start time is a bare
+   * text node with no whitespace before the span (JSX drops the newline), so the
+   * gap has to come from the container.
+   */
+  .slot .when {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .slot .when span {
+    display: inline;
+  }
+
+  /*
+   * Both scrolling rows bleed to the screen edges.
+   *
+   * Held inside `.wrap`'s gutter, a row that overflows simply stops at a margin
+   * with clear space beyond it, which reads as a row that has been cut off
+   * rather than one that scrolls. Cancelling the gutter and re-applying it as
+   * padding keeps the first chip aligned with the copy above while letting the
+   * last one visibly run off the edge — the only cue a touch device gets.
+   */
+  .day-nav,
+  .filter-options {
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    margin-inline: calc(var(--wrap-padding) * -1);
+    padding-inline: var(--wrap-padding);
+    /* Deep enough that a chip's 2px focus ring and its 2px offset are inside the
+       scroll box instead of clipped off by `overflow-x`. */
+    padding-bottom: 8px;
+  }
+
+  /* 28px over "Wednesday 5 May" plus a session count needs two lines at 360px,
+     and the count belonging to the heading is clearer on the same one. */
+  .day-head h2 {
+    font-size: 22px;
+  }
 }
 
 /* ---------------------------------------------------------------- tickets - */
@@ -1405,9 +1645,9 @@ section.tint {
   padding: 26px;
   background: var(--white);
   box-shadow: var(--shadow);
-  /* 96px is the measured height of `.site-header .bar`, not the 90 this guessed:
-     an anchored jump left the target's top border behind the header. */
-  scroll-margin-top: 104px;
+  /* Clear the sticky header plus 4px — see `.day-head`, which anchors the same
+     way off the same custom property. */
+  scroll-margin-top: calc(var(--header-h) + 4px);
 }
 
 .summary {
@@ -1972,13 +2212,15 @@ a.logo-card:hover {
     padding: 44px 0;
   }
 
-  .slot {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .site-header .bar {
-    min-height: 60px;
+  /*
+   * The header is shorter on a phone, and saying so here rather than in
+   * `.site-header .bar` is what keeps the open menu's top edge and every
+   * `scroll-margin-top` in step with it. This rule used to set `min-height: 60px`
+   * on the bar directly, so the menu panel still started 100px down and every
+   * anchored heading still stopped 44px short of where the header actually ends.
+   */
+  :root {
+    --header-h: 60px;
   }
 
   .site-header nav {
@@ -5240,10 +5482,10 @@ section.tint {
 
 .buy-band {
   padding: 64px 0 80px;
-  /* 96px is the measured height of `.site-header .bar`. The anchor is on the
-     section now and nowhere else — it used to be on the section *and* on the
-     form inside it, so `#buy` resolved to whichever the browser found first. */
-  scroll-margin-top: 104px;
+  /* The anchor is on the section now and nowhere else — it used to be on the
+     section *and* on the form inside it, so `#buy` resolved to whichever the
+     browser found first. Offset off `--header-h`, as `.day-head` does. */
+  scroll-margin-top: calc(var(--header-h) + 4px);
 }
 
 /*
@@ -5953,6 +6195,16 @@ section.tint {
   display: flex;
   align-items: baseline;
   gap: 12px;
+  /*
+   * The same automatic-minimum-size trap as `.filter-options` below, one level
+   * up: this is a grid item of `.agenda-filters`, and a grid item's initial
+   * `min-width` is `auto`, so it too refused to be narrower than its content.
+   *
+   * Both are needed. Fixing only the inner one leaves this row 3,318px wide and
+   * the scroll container, now correctly willing to shrink, with a parent that
+   * never asks it to. That is exactly how the first attempt at this failed.
+   */
+  min-width: 0;
 }
 
 .filter-label {
@@ -5978,6 +6230,24 @@ section.tint {
   overflow-x: auto;
   scrollbar-width: thin;
   padding-bottom: 4px;
+  /*
+   * ⚠️ `min-width: 0` is what makes the `overflow-x` above do anything at all,
+   * and without it this rule was decorative.
+   *
+   * This is a flex item of `.filter-row`, and a flex item's initial `min-width`
+   * is `auto`, meaning "never shrink below the content's own max-content
+   * width". Eight track chips on one unwrapped line are about 2,800px wide, so
+   * the row grew to 2,800px, `.filter-row` grew with it, and the scroll
+   * container never had anything to scroll because it was never narrower than
+   * its contents. Measured on a 500px viewport before the fix: the document was
+   * 3,366px wide and every page on the site scrolled sideways.
+   *
+   * The symptom is the whole page scrolling horizontally rather than this row
+   * doing it, which reads as a broken page rather than as a missing declaration
+   * on one element. It predates the mobile work and was not visible at desktop
+   * widths, where the chips happen to fit.
+   */
+  min-width: 0;
 }
 
 .filter-chip {
@@ -6045,6 +6315,10 @@ section.tint {
     display: block;
     margin-bottom: 6px;
   }
+
+  /* `.filter-options` gets its edge bleed in the agenda block above, alongside
+     `.day-nav`, because the two rows have to agree and reading them apart is how
+     they stopped agreeing. */
 }
 
 /* ------------------------------------------------------------ documents -- */
@@ -6271,4 +6545,250 @@ section.tint {
   color: var(--white);
   font-size: clamp(1.4rem, 3vw, 3rem);
   margin: 0;
+}
+
+/* ----------------------------------------------- agenda session detail ---- */
+
+/*
+ * The dialog `/agenda` opens when a session row is pressed.
+ *
+ * It is a real `<dialog>` promoted with `showModal()`, which is why there is no
+ * backdrop element, no `z-index` and no `position: fixed` here: the top layer
+ * puts it above every stacking context on the page including the sticky header,
+ * and `::backdrop` is the browser's own. A hand-rolled `role="dialog"` would
+ * have needed all three plus a focus trap.
+ *
+ * The sizing is the one thing worth reading twice. On a phone it is a sheet
+ * pinned to the bottom of the viewport rather than a centred box, because a
+ * centred box tall enough to hold a description puts its close button under the
+ * notch and its calendar buttons under the home indicator. `dvh` rather than
+ * `vh` so the sheet does not sit behind the collapsing URL bar on iOS.
+ */
+.session-dialog {
+  /* `margin: auto` is what centres a top-layer dialog; `inset: 0` gives it
+     something to centre within. Both are needed, and neither is the default. */
+  inset: 0;
+  margin: auto;
+  width: min(760px, calc(100vw - 2 * var(--wrap-padding)));
+  max-height: min(84dvh, 900px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--body);
+  overflow: hidden;
+}
+
+.session-dialog::backdrop {
+  background: rgb(16 36 58 / 62%);
+}
+
+/*
+ * The scroll container is the inner element, not the dialog.
+ *
+ * Scrolling the dialog itself would carry the close button off the top of a
+ * long description, and the close button is the only affordance a touch reader
+ * has once the backdrop is behind a full-bleed sheet.
+ */
+.session-dialog-inner {
+  max-height: inherit;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 28px var(--wrap-padding) 32px;
+}
+
+.session-dialog-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wash);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.session-dialog-close:hover {
+  background: var(--line);
+}
+
+.session-dialog-close:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
+.session-dialog-when {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-dialog-head h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  /* The close button floats; without this the heading wraps under it and the
+     first line is 44px shorter than the rest for no visible reason. */
+  padding-right: 8px;
+}
+
+.session-dialog-where {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.session-dialog-head .tags {
+  margin-top: 12px;
+}
+
+.session-dialog-body {
+  margin-top: 20px;
+  /* 68ch is the site's prose cap. A description read in a 760px dialog is the
+     same reading distance as one read on the page. */
+  max-width: 68ch;
+}
+
+.session-dialog-body p {
+  margin: 0 0 12px;
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.session-dialog-speakers,
+.session-dialog-cal {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.session-dialog-speakers h3,
+.session-dialog-cal h3 {
+  margin: 0 0 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.session-speaker-names {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.session-speaker {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 10px 0;
+}
+
+.session-speaker-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgb(16 36 58 / 8%);
+}
+
+/* The same initials circle `.speaker-portrait.is-fallback` uses, at the size
+   this row needs. 13 of the 137 published speakers have no portrait, so this is
+   a normal state rather than a defensive one. */
+.session-speaker-photo.is-fallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--highlight) 100%);
+  color: var(--white);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+/*
+ * Each line sets its own margin rather than a blanket `p { margin: 0 }` with
+ * overrides on top. `.session-speaker-text p` would be specificity 0-1-1 and
+ * every class below it 0-1-0, so the reset would win and the overrides would
+ * need `!important` to do anything — which is how a stylesheet starts growing
+ * them.
+ */
+.session-speaker-text .session-speaker-name {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.session-speaker-text .session-speaker-role,
+.session-speaker-text .session-speaker-org {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.session-speaker-text .session-speaker-bio {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 60ch;
+}
+
+.cal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cal-note {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+@media (width <= 620px) {
+  /*
+   * A bottom sheet rather than a centred card. `max-height` leaves the top of
+   * the page visible, which is what tells a reader the agenda is still behind
+   * this and that dismissing it returns them to their place in it.
+   */
+  .session-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 88dvh;
+    margin: auto auto 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .session-dialog-inner {
+    padding: 20px var(--wrap-padding) calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .session-dialog-head h2 {
+    font-size: 1.25rem;
+  }
+
+  .session-speaker {
+    grid-template-columns: 48px 1fr;
+    gap: 12px;
+  }
+
+  .session-speaker-photo {
+    width: 48px;
+    height: 48px;
+  }
+
+  /* Full-width calendar buttons: three uppercase labels side by side wrap into
+     an unreadable stack of fragments at 360px. */
+  .cal-links .btn {
+    width: 100%;
+    text-align: center;
+  }
 }

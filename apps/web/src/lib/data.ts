@@ -346,6 +346,21 @@ export interface AgendaSession {
   trackIds: string[];
   format: SessionDoc['format'];
   skillLevel?: SessionDoc['skillLevel'];
+  /**
+   * The speaker documents this session points at.
+   *
+   * This is the link; `speakerNames` below is the cache. Anything that needs a
+   * portrait, a job title or a bio resolves these against `agendaSpeakers()`,
+   * because a name is not a key and two speakers on the 2026 roster share one.
+   */
+  speakerIds: string[];
+  /**
+   * The same people as `speakerIds`, pre-rendered.
+   *
+   * ⚠️ Display-only, and kept here so the agenda *list* still renders from one
+   * query — see the known-gaps note in AGENTS.md about `SessionDoc`'s
+   * denormalised caches. Never decide anything from it, and never join on it.
+   */
   speakerNames: string[];
 }
 
@@ -385,6 +400,7 @@ export async function listAgenda(): Promise<AgendaDay[]> {
         trackIds: s.trackIds ?? [],
         format: s.format,
         skillLevel: s.skillLevel,
+        speakerIds: s.speakerIds ?? [],
         speakerNames: s.speakerNames ?? [],
       }),
     );
@@ -408,6 +424,64 @@ export async function listAgenda(): Promise<AgendaDay[]> {
     .sort((a, b) => a.day.localeCompare(b.day));
   }, []);
 }
+
+/**
+ * Every speaker, keyed by the id a session's `speakerIds` holds.
+ *
+ * The agenda's session detail resolves each `AgendaSession.speakerIds` entry
+ * through this map, so the whole programme's speakers cost one read rather than
+ * one per session.
+ *
+ * ── A missing key means no speaker document, and that is the point ──────────
+ *
+ * **An id with no entry is absent from this object, not present and empty.**
+ * Nothing is invented to stand in for it. That distinction is load-bearing: a
+ * speaker can be deleted while the sessions that name them stay behind —
+ * Firestore has no cascade and this project has no referential integrity — and
+ * "we hold no record of this person" has to stay distinguishable from "this
+ * person's bio is blank", which is the common case (see below). So
+ * `speakers[id]` is `undefined` for the former and a `SpeakerCard` with no
+ * `bio` for the latter, and a caller that renders them the same way is making a
+ * choice rather than being handed one.
+ *
+ * ── What the speaker data actually contains, measured 2026-09-13 ───────────
+ *
+ * Against the live project, `kgc-2027`: 137 speakers, of which **none has a
+ * `bio` at all** — the 2026 roster the importer read has no bio field and
+ * nobody has typed one into Speaker Manager since. 124 have a `photoURL` and
+ * 13 do not; 124 have a `title`, 126 a `company`. So a detail view built on
+ * this renders a name, usually a portrait, usually a job title, and — until
+ * someone writes them — no bios. Do not build a layout that only works when the
+ * bio is there, and do not tell anyone this page shows bios; it shows the ones
+ * that exist, which is currently zero.
+ *
+ * On the session side: 83 of 85 published sessions carry `speakerIds`, the two
+ * without are both receptions, all 136 references resolve today, and no session
+ * has `speakerNames` without the matching ids.
+ *
+ * ── One read, shared ────────────────────────────────────────────────────────
+ *
+ * This is `listSpeakers()` reshaped, not a second query. `/agenda` already
+ * fetches four collections in one `Promise.all` on a `force-dynamic` page;
+ * adding a fifth full-collection read to answer a question an existing one
+ * already answers is the wrong trade. It inherits that function's sort, which
+ * is irrelevant to a lookup and harmless.
+ *
+ * ⚠️ `listSpeakers()` is **not** memoised — `brandingSettings` is the only
+ * `cache()`d read in this file — so a page that called both would read the
+ * `speakers` collection twice. No page does today. `cache()` here rather than
+ * on `listSpeakers()` deliberately: it makes repeat calls within one render
+ * free without changing what `/speakers` or the dashboard exports do.
+ */
+export const agendaSpeakers = cache(async function agendaSpeakers(): Promise<
+  Record<string, SpeakerCard>
+> {
+  return safely(
+    'agendaSpeakers',
+    async () => Object.fromEntries((await listSpeakers()).map((s) => [s.id, s])),
+    {},
+  );
+});
 
 export interface TrackCard {
   /** The document id. This is what `/agenda?track=` carries. */

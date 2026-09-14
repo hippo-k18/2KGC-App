@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { brandingSettings, listAgenda, listTracks, type AgendaDay } from '@/lib/data';
+import { agendaSpeakers, brandingSettings, listAgenda, listTracks, type AgendaDay } from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
-import { formatDayHeading, localTime, SITE } from '@/lib/site';
+import { formatDayHeading, SITE } from '@/lib/site';
+import { AgendaList } from './agenda-list';
 
 export const metadata: Metadata = {
   title: 'Agenda',
@@ -68,11 +69,18 @@ export default async function AgendaPage({
   const dayParam = firstValue(params.day);
   const trackParam = firstValue(params.track);
 
-  const [allDays, tracks, tiers, branding] = await Promise.all([
+  const [allDays, tracks, tiers, branding, speakers] = await Promise.all([
     listAgenda(),
     listTracks(),
     tiersOrNull(),
     brandingSettings(),
+    /*
+     * The speaker records behind each session's `speakerIds`, so the detail
+     * dialog can show a portrait and an affiliation rather than the
+     * denormalised name string the list renders. One collection read, shared
+     * with nothing else on this page.
+     */
+    agendaSpeakers(),
   ]);
 
   const total = allDays.reduce((n, d) => n + d.sessions.length, 0);
@@ -241,48 +249,23 @@ export default async function AgendaPage({
                   </nav>
                 )}
 
-                {days.map((d) => (
-                  <div key={d.day}>
-                    <div className="day-head" id={d.day}>
-                      <h2>{formatDayHeading(d.day)}</h2>
-                      <span className="count">
-                        {d.sessions.length} session{d.sessions.length === 1 ? '' : 's'}
-                      </span>
-                    </div>
-
-                    {d.sessions.map((s) => (
-                      <article className="slot" key={s.id}>
-                        <div className="when">
-                          {localTime(s.startsAtLocal)}
-                          <span>to {localTime(s.endsAtLocal)}</span>
-                        </div>
-                        <div>
-                          <h3>{s.title}</h3>
-                          {s.speakerNames.length > 0 && (
-                            <div className="who">{s.speakerNames.join(' · ')}</div>
-                          )}
-                          {s.roomName && <div className="where">{s.roomName}</div>}
-                          <div className="tags">
-                            {s.trackName && (
-                              <span
-                                className="tag track"
-                                style={
-                                  s.trackColor
-                                    ? ({ '--track': s.trackColor } as React.CSSProperties)
-                                    : undefined
-                                }
-                              >
-                                {s.trackName}
-                              </span>
-                            )}
-                            <span className="tag">{s.format}</span>
-                            {s.skillLevel && <span className="tag">{s.skillLevel}</span>}
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ))}
+                {/*
+                  The rows and the detail dialog they open. The day heading is
+                  formatted here and handed down rather than re-derived in the
+                  client component, so `formatDayHeading` and the locale data
+                  behind it stay on the server, and the dialog's own "Tuesday 4
+                  May, 09:00 to 09:45" line reads from the same string as the
+                  heading it was opened under.
+                */}
+                <AgendaList
+                  days={days.map((d) => ({
+                    day: d.day,
+                    heading: formatDayHeading(d.day),
+                    sessions: d.sessions,
+                  }))}
+                  speakers={speakers}
+                  origin={canonicalOrigin()}
+                />
               </>
             )}
           </>
