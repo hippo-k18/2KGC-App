@@ -32,7 +32,16 @@
   # the same value (DEPLOY-NETLIFY.md lists it). `publicSiteOrigin()` in
   # `@kgc/shared` defaults to production if both are missing, which is the
   # recoverable failure; localhost was not.
-  WEB_PUBLIC_ORIGIN = "https://kgc-2027-website.netlify.app"
+  #
+  # ⚠️ This said `kgc-2027-website.netlify.app` until 2026-09-14, which is a
+  # *different site on a different Netlify account*. The live set is `kgc27-*`
+  # on team `mattodoos`; the `kgc-2027-*` set is an abandoned earlier deploy on
+  # team `hartigandeely456` that still answers 200, which is exactly why the
+  # wrong value survived — nothing 404s, the pages just name a host that is not
+  # this one. The runtime value in the Netlify UI was corrected on 2026-09-11
+  # and this build-time one, which beats it during a build, was missed. Check
+  # both when either changes.
+  WEB_PUBLIC_ORIGIN = "https://kgc27-website.netlify.app"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

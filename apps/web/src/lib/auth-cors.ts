@@ -7,7 +7,7 @@ import 'server-only';
  *
  * Every other route on this site is called by its own pages, same origin. These
  * two are called by the **attendee app**, which is a different origin in all
- * three of the places it runs: `kgc-2027-app.netlify.app` on the web,
+ * three of the places it runs: `kgc27-app.netlify.app` on the web,
  * `http://localhost:8081` under Expo's web target, and — on a phone — no origin
  * at all, because React Native's fetch is not a browser and sends no `Origin`
  * header. A missing `Origin` is therefore the *normal* case for the app this
@@ -30,8 +30,20 @@ import 'server-only';
  * value that stops working the moment either endpoint ever needs a credential,
  * and the failure at that point is silent in production and invisible locally.
  */
+/*
+ * ⚠️ This listed `kgc-2027-app.netlify.app` until 2026-09-14, which is not this
+ * project's app. It is an abandoned earlier deploy on a different Netlify
+ * account that still answers 200; the live app is `kgc27-app.netlify.app` on
+ * team `mattodoos`. Both halves of that were wrong at once: the app people
+ * actually use was **not** allowlisted, and a site nobody maintains **was** —
+ * so a sign-in from the real app got no CORS header and the browser refused
+ * the response, while a dead build kept the right to spend an attendee's code
+ * allowance. The old entry is removed rather than kept alongside: an
+ * allowlisted origin is a standing permission, and the argument for granting it
+ * to that host no longer exists.
+ */
 const ALLOWED_ORIGINS = [
-  'https://kgc-2027-app.netlify.app',
+  'https://kgc27-app.netlify.app',
   // Expo's web target, and the Metro dev server it is served from.
   'http://localhost:8081',
   'http://localhost:19006',

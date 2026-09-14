@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-/** `https://kgc-2027-app.netlify.app` → `kgc-2027-app.netlify.app`. */
+/** `https://kgc27-app.netlify.app` → `kgc27-app.netlify.app`. */
 const appHost = APP_URL.replace(/^https?:\/\//, '');
 
 /**

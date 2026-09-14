@@ -40,7 +40,13 @@
   # ⚠️ Build variable only — see the note in `apps/web/netlify.toml`. The
   # dashboard's pages are all `force-dynamic`, so in practice the runtime value
   # is the one that matters: set `WEB_PUBLIC_ORIGIN` in the Netlify UI too.
-  WEB_PUBLIC_ORIGIN = "https://kgc-2027-website.netlify.app"
+  #
+  # ⚠️ Corrected from `kgc-2027-website.netlify.app` on 2026-09-14 — see the
+  # longer note in `apps/web/netlify.toml`. That is an abandoned site on another
+  # Netlify account, not this project's public site, and it still answers 200,
+  # so a link built on it looks fine and goes to the wrong build. It matters
+  # more here than there: these are the origins an organizer *publishes*.
+  WEB_PUBLIC_ORIGIN = "https://kgc27-website.netlify.app"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

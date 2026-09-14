@@ -182,7 +182,7 @@ export const APP_DISTRIBUTION =
  * shipping distribution — that is the app stores — but it is the only one that
  * needs nothing installed and no shared Wi-Fi, which is what a demo needs.
  */
-export const APP_URL = process.env.APP_PUBLIC_URL ?? 'https://kgc-2027-app.netlify.app';
+export const APP_URL = process.env.APP_PUBLIC_URL ?? 'https://kgc27-app.netlify.app';
 
 /**
  * The header navigation.
