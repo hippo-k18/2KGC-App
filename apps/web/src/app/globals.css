@@ -6186,6 +6186,9 @@ section.tint {
  */
 
 .agenda-filters {
+  /* Was an inline `style={{ marginTop: 28 }}` on the element, which no
+     stylesheet rule could override without `!important`. */
+  margin-top: 28px;
   display: grid;
   gap: 12px;
   margin-bottom: 28px;
@@ -6790,5 +6793,147 @@ section.tint {
   .cal-links .btn {
     width: 100%;
     text-align: center;
+  }
+}
+
+/* ------------------------------------------------- the phone type scale --- */
+
+/*
+ * `html { font-size: 22px }` near the top of this file is a *desktop*
+ * measurement, taken off the live site at 1512px, and until now it was the only
+ * one. Nearly everything here is sized in `rem`, so a phone was being served a
+ * layout scaled for a monitor: on the agenda at 390px the standfirst ran to
+ * seven lines at 25px and the first session sat **1.14 screens** below the top
+ * of the page. You scrolled past a screenful of prose to reach the thing the
+ * page is for.
+ *
+ * Reducing the root is the whole fix for the body of the site, because the
+ * `rem` values then carry it everywhere at once. Two steps rather than a
+ * `clamp()` so the values stay legible as the measurements they are, and so
+ * this reads like the rest of the file.
+ *
+ * ⚠️ The headings are in **px** (`h1: 32px` and friends, deliberately, for the
+ * reason given up there) and therefore do *not* follow the root. They need
+ * their own step or they end up larger than the copy they head, in proportion,
+ * on exactly the screens where that reads worst.
+ *
+ * The header nav (15px), the buttons (17px) and the tags are px for the same
+ * documented reason and are left alone: they are already small, already
+ * measured, and already have a 44px tap target underneath them.
+ */
+@media (width <= 900px) {
+  html {
+    font-size: 19px;
+  }
+}
+
+@media (width <= 620px) {
+  html {
+    font-size: 17px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  h2 {
+    font-size: 23px;
+  }
+
+  h3 {
+    font-size: 20px;
+  }
+
+  h4 {
+    font-size: 18px;
+  }
+
+  /*
+   * The standfirst is the single biggest block between a phone and the agenda.
+   * It stays — it carries the session count, the venue and the timezone, which
+   * is genuinely the first thing somebody needs — but at reading size rather
+   * than at display size, and closer to the heading above it.
+   */
+  .lede {
+    font-size: 1rem;
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+
+  .eyebrow {
+    margin-bottom: 6px;
+  }
+
+  /*
+   * Tighten the run-in to the programme itself. Each of these was tuned at a
+   * width where a 44px gap is a small proportion of the page; at 390px the same
+   * gap is a tenth of the screen, and there are four of them stacked before the
+   * first session.
+   */
+  .agenda-filters {
+    margin-top: 18px;
+  }
+
+  .filter-row + .filter-row {
+    margin-top: 10px;
+  }
+
+  .day-nav {
+    margin-bottom: 18px;
+  }
+
+  .day-head {
+    margin: 26px 0 12px;
+  }
+}
+
+/*
+ * The run-in to the programme, measured rather than guessed.
+ *
+ * After the type scale above, a 500px viewport still put the first session
+ * 683px down. The breakdown: standfirst 128, **filters 180**, day nav 56, day
+ * heading 43. The filter block was the largest single thing between a phone and
+ * the agenda — larger than the prose everybody blames — because it is two rows
+ * of 44px pills each with its own label stacked above it.
+ */
+@media (width <= 620px) {
+  /*
+   * The pills keep a 40px tap target rather than the 44px they have at desktop.
+   * 44 is the floor for an isolated control; these are a dense scrolling row of
+   * them where the finger is already travelling horizontally, and the row is the
+   * target as much as any single chip. Two rows of them was 88px of chrome above
+   * a list nobody had reached yet.
+   */
+  .filter-chip,
+  .day-nav a {
+    padding: 9px 14px;
+    font-size: 0.85rem;
+  }
+
+  .filter-label {
+    font-size: 0.68rem;
+    margin-bottom: 2px;
+    display: block;
+  }
+
+  /*
+   * The jump-to-day nav is hidden here, and only here.
+   *
+   * It is a row of anchors that scroll to each day heading. Directly above it
+   * sits the Day filter — the same five dates, as the same shaped pills, doing
+   * something subtly different (it reloads with `?day=`, it does not scroll).
+   * On a wide screen the two read as a filter and a shortcut. On a phone they
+   * are two visually identical rows of date pills a few pixels apart, which is
+   * worse than either alone: it costs 82px of the first screen and it makes a
+   * reader work out why tapping "Monday 3 May" in one place does something
+   * different from tapping it in the other.
+   *
+   * The filter wins because it is the one that still works when a day is
+   * already filtered, and because `?day=` is an address a partner can be sent.
+   * Nothing is lost — every day heading keeps its `id`, so the anchors still
+   * resolve for anyone arriving on one.
+   */
+  .day-nav {
+    display: none;
   }
 }

@@ -159,7 +159,10 @@ export default async function AgendaPage({
               parameter's value. Rendered even when nothing is filtered, because
               a control that only appears once you have used it cannot be found.
             */}
-            <div className="agenda-filters" style={{ marginTop: 28 }}>
+            {/* Spacing lives in `.agenda-filters`, not here. An inline style
+                beats any stylesheet rule, so a `marginTop: 28` on this element
+                could only be overridden at a phone width with `!important`. */}
+            <div className="agenda-filters">
               <div className="filter-row">
                 <span className="filter-label" id="filter-day">
                   Day
