@@ -51,11 +51,97 @@ export interface AgendaListDay {
 /** Initials for the fallback portrait, the same two-letter rule `speaker-grid` uses. */
 function initials(name: string): string {
   return name
+    .replace(/[^\p{L}\s]/gu, '')
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
+}
+
+interface Band {
+  startsAtLocal: string;
+  endsAtLocal: string;
+  sessions: AgendaSession[];
+}
+
+/**
+ * Consecutive sessions sharing a start time, as one band.
+ *
+ * `listAgenda()` already sorts by `startsAtLocal`, so a single pass comparing
+ * against the previous entry is enough and nothing needs re-sorting here. The
+ * band's end time is the *latest* end among its sessions rather than the first
+ * one's: four talks starting at 09:00 do not all run to the same minute, and
+ * printing the first one's end as though it covered the others would state
+ * something false about the three beside it.
+ */
+function bandsOf(sessions: AgendaSession[]): Band[] {
+  const bands: Band[] = [];
+  for (const s of sessions) {
+    const last = bands[bands.length - 1];
+    if (last && last.startsAtLocal === s.startsAtLocal) {
+      last.sessions.push(s);
+      if (s.endsAtLocal > last.endsAtLocal) last.endsAtLocal = s.endsAtLocal;
+    } else {
+      bands.push({ startsAtLocal: s.startsAtLocal, endsAtLocal: s.endsAtLocal, sessions: [s] });
+    }
+  }
+  return bands;
+}
+
+/**
+ * The speakers on a row: a portrait each, then the names.
+ *
+ * ⚠️ This renders from `speakerIds` resolved against the speaker documents, and
+ * falls back to the denormalised `speakerNames` only when none of the ids
+ * resolve. The two can disagree — the cache is written by the importer and
+ * nothing repairs it — and when they do, the records are the truthful half.
+ *
+ * 124 of the 137 published speakers have a portrait, so the initials circle is
+ * an ordinary case here rather than a defensive one, and it is the same
+ * treatment `/speakers` already gives them.
+ */
+function SessionPeople({
+  session,
+  speakers,
+}: {
+  session: AgendaSession;
+  speakers: Record<string, SpeakerCard>;
+}) {
+  const found = session.speakerIds.map((id) => speakers[id]).filter(Boolean) as SpeakerCard[];
+
+  if (found.length === 0) {
+    if (session.speakerNames.length === 0) return null;
+    return <span className="session-people plain">{session.speakerNames.join(' · ')}</span>;
+  }
+
+  return (
+    <span className="session-people">
+      <span className="session-faces">
+        {found.map((s) =>
+          s.photoURL ? (
+            /* A plain <img> for the reason `speaker-grid.tsx` gives: these come
+               from arbitrary upstream hosts and `next/image` would 400 on any
+               host missing from `images.remotePatterns`. */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={s.id} src={s.photoURL} alt="" width={26} height={26} loading="lazy" />
+          ) : (
+            <span key={s.id} className="is-fallback" aria-hidden="true">
+              {initials(s.name)}
+            </span>
+          ),
+        )}
+      </span>
+      <span className="session-names">
+        {found.map((s) => (
+          <span key={s.id} className="session-name">
+            <b>{s.name}</b>
+            {s.company && <i>{s.company}</i>}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
 }
 
 export function AgendaList({
@@ -106,53 +192,59 @@ export function AgendaList({
     <>
       {days.map((d) => (
         <div key={d.day}>
+          {/*
+            The session count that used to sit beside the day heading is gone,
+            at the owner's request while reviewing the mockup. The number is
+            still in the standfirst at the top of the page, once, for the whole
+            programme.
+          */}
           <div className="day-head" id={d.day}>
             <h2>{d.heading}</h2>
-            <span className="count">
-              {d.sessions.length} session{d.sessions.length === 1 ? '' : 's'}
-            </span>
           </div>
 
-          {d.sessions.map((s) => (
-            <button
-              type="button"
-              className="slot"
-              key={s.id}
-              onClick={() => setOpen({ session: s, heading: d.heading })}
-            >
-              <div className="when">
-                {localTime(s.startsAtLocal)}
-                <span>to {localTime(s.endsAtLocal)}</span>
+          {bandsOf(d.sessions).map((band) => (
+            <section className="timeband" key={band.startsAtLocal}>
+              {/*
+                One time label for every session that starts at that minute.
+                Tuesday runs four sessions at once in each of five slots, so the
+                old row-per-session layout printed the same time four times over
+                and spent a line doing it. Grouping says the true thing instead:
+                these four overlap, so you are choosing between them.
+              */}
+              <div className="timeband-head">
+                <b>{localTime(band.startsAtLocal)}</b>
+                <em>to {localTime(band.endsAtLocal)}</em>
+                <span className="timeband-rule" />
+                <span className="timeband-count">
+                  {band.sessions.length} session{band.sessions.length === 1 ? '' : 's'}
+                </span>
               </div>
-              <div>
-                <h3>{s.title}</h3>
-                {s.speakerNames.length > 0 && <div className="who">{s.speakerNames.join(' · ')}</div>}
-                {s.roomName && <div className="where">{s.roomName}</div>}
-                <div className="tags">
-                  {s.trackName && (
-                    <span
-                      className="tag track"
-                      style={s.trackColor ? ({ '--track': s.trackColor } as React.CSSProperties) : undefined}
-                    >
-                      {s.trackName}
+
+              <div className="timeband-grid">
+                {band.sessions.map((s) => (
+                  <button
+                    type="button"
+                    className="session"
+                    key={s.id}
+                    style={s.trackColor ? ({ '--track': s.trackColor } as React.CSSProperties) : undefined}
+                    onClick={() => setOpen({ session: s, heading: d.heading })}
+                  >
+                    {/* The track, as a rule down the edge rather than a chip. */}
+                    <span className="session-edge" aria-hidden="true" />
+                    <span className="session-main">
+                      <span className="session-title">{s.title}</span>
+                      <span className="session-meta">
+                        {s.trackName && <span className="session-track">{s.trackName}</span>}
+                        {s.roomName && <span>{s.roomName}</span>}
+                        <span>{s.format}</span>
+                        {s.skillLevel && <span>{s.skillLevel}</span>}
+                      </span>
+                      <SessionPeople session={s} speakers={speakers} />
                     </span>
-                  )}
-                  <span className="tag">{s.format}</span>
-                  {s.skillLevel && <span className="tag">{s.skillLevel}</span>}
-                </div>
+                  </button>
+                ))}
               </div>
-              <span className="slot-chevron" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="m9 6 6 6-6 6"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-            </button>
+            </section>
           ))}
         </div>
       ))}

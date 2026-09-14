@@ -1225,26 +1225,106 @@ body.nav-open {
   font-size: 0.9rem;
 }
 
-.slot {
+/* ---- the agenda, grouped by the minute a session starts ---- */
+
+/*
+ * Tuesday runs four sessions at once in each of five slots. The old layout was
+ * one row per session with a fixed 108px time column, so it printed the same
+ * time four times over and spent a line of every row doing it. Grouping them
+ * under one time label removes the repetition, frees the column, and says the
+ * true thing instead: these four overlap, so you are choosing between them.
+ *
+ * The freed width is what pays for the speaker portraits below, and for a
+ * second column on a desktop.
+ */
+.timeband {
+  margin-top: 22px;
+  /*
+   * ⚠️ This is a `<section>`, and `section` padding near the top of
+   * this file is the page's vertical rhythm for *page-level* sections. Inherited
+   * here it put 128px of dead space inside every time band, which read as the
+   * programme having gaps in it. The element stays a `<section>` because it is
+   * one; the rhythm is what does not apply.
+   */
+  padding: 0;
+}
+
+.timeband-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Sticks under the header so the slot you are reading is always named. The
+     offset is the header's own height plus the 1px rule beneath it. */
+  position: sticky;
+  top: var(--header-h);
+  z-index: 1;
+  /* The page's own ground (`--palette-8`), so rows scroll *under* the label
+     rather than showing through it. */
+  background: var(--palette-8);
+  padding: 8px 0 7px;
+}
+
+.timeband-head b {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.timeband-head em {
+  font-style: normal;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.timeband-rule {
+  height: 1px;
+  background: var(--line);
+  flex: 1 1 auto;
+}
+
+.timeband-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.timeband-grid {
   display: grid;
-  grid-template-columns: 108px 1fr;
-  gap: 18px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
 }
 
 /*
- * The same row as a control, for the slots that open a detail modal.
- *
- * A `<button>` arrives carrying a UA border, background, centred text and its
- * own font, none of which `.slot` overrides — so this strips the chrome back to
- * exactly what the `<article>` renders and adds only the two things that say the
- * row is pressable. `width: 100%` is explicit rather than left to `display:
- * grid`, because a button's shrink-to-fit sizing is not something to rely on
- * across engines.
+ * Two abreast once there is room. Borders sit on the rows rather than coming
+ * from a grid gap over a coloured background, because a band with an odd number
+ * of sessions would otherwise paint the empty half of its last row as a
+ * phantom cell.
  */
-button.slot {
+@media (width >= 760px) {
+  .timeband-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .timeband-grid .session:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+}
+
+.session {
+  display: grid;
+  grid-template-columns: 3px 1fr;
+  gap: 12px;
+  align-items: start;
   width: 100%;
+  padding: 12px 14px 12px 0;
+  /* A button arrives with a UA border, background, centred text and its own
+     font, none of which the grid above overrides. */
   border: 0;
   border-bottom: 1px solid var(--line);
   background: none;
@@ -1252,81 +1332,133 @@ button.slot {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  /* Room for the chevron, which is positioned rather than laid out — see below. */
-  position: relative;
-  padding-right: 26px;
 }
 
-button.slot:hover {
+.session:hover {
   background: var(--wash);
 }
 
-button.slot:focus-visible {
+.session:focus-visible {
   outline: 2px solid var(--highlight);
-  outline-offset: 2px;
+  outline-offset: -2px;
+}
+
+/* The track, as a rule down the edge rather than a chip on its own line. */
+.session-edge {
+  align-self: stretch;
+  border-radius: 0 2px 2px 0;
+  background: var(--track, var(--line));
+}
+
+.session-main {
+  min-width: 0;
+}
+
+.session-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.32;
+  color: var(--ink);
+}
+
+/* Room, track, format and level on one line, separated by dots. */
+.session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 /*
- * Decorative, and positioned rather than placed in the grid.
- *
- * It has to sit at the right edge of the row whether the markup nests it in the
- * content column or hangs it off the slot itself, and a third grid track would
- * change the row's proportions on every slot including the ones that are still
- * plain articles. `padding-right` on `button.slot` is what reserves its space.
+ * The separator trails its item rather than leading the next one. Leading, a
+ * wrap puts the dot alone at the start of the new line ("· workshop"), which
+ * reads as a bullet list that lost its list. Trailing, it stays at the end of
+ * the line it belongs to, where a dropped separator looks intentional.
  */
-.slot-chevron {
-  position: absolute;
-  right: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted);
-  transition: transform 0.14s ease, color 0.14s ease;
+.session-meta > *:not(:last-child)::after {
+  content: "·";
+  margin-left: 6px;
+  opacity: 0.5;
 }
 
-button.slot:hover .slot-chevron {
-  color: var(--blue);
-  transform: translateY(-50%) translateX(3px);
-}
-
-/* The colour change carries the hover on its own; the nudge is the decoration. */
-@media (prefers-reduced-motion: reduce) {
-  .slot-chevron {
-    transition: none;
-  }
-
-  button.slot:hover .slot-chevron {
-    transform: translateY(-50%);
-  }
-}
-
-.slot .when {
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
+.session-track {
+  color: var(--track, var(--blue));
   font-weight: 700;
-  font-size: 0.95rem;
 }
 
-.slot .when span {
+/* ---- the speakers on a row ---- */
+
+.session-people {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.session-people.plain {
   display: block;
-  font-weight: 400;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.slot h3 {
-  margin: 0 0 4px;
-  font-size: 1.05rem;
-}
-
-.slot .who {
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   color: var(--body);
 }
 
-.slot .where {
-  font-size: 0.86rem;
+.session-faces {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.session-faces img,
+.session-faces .is-fallback {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  /* Overlapped, with the page colour as the ring, so a pair reads as one group
+     rather than as two unrelated marks. */
+  margin-right: -8px;
+  border: 2px solid var(--white);
+  background: var(--navy);
+}
+
+.session-faces > *:last-child {
+  margin-right: 0;
+}
+
+.session-faces .is-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--white);
+  font-size: 0.52rem;
+  font-weight: 800;
+}
+
+.session-names {
+  min-width: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--body);
+}
+
+.session-name {
+  display: block;
+}
+
+.session-name b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.session-name i {
+  font-style: normal;
   color: var(--muted);
-  margin-top: 4px;
+}
+
+.session-name i::before {
+  content: " · ";
+  opacity: 0.5;
 }
 
 .tags {
@@ -1376,31 +1508,24 @@ button.slot:hover .slot-chevron {
  * override, rather than in a general-purpose block on the other side of the file.
  */
 @media (width <= 620px) {
-  .slot {
-    grid-template-columns: 1fr;
-    /* 4px read as a typo between the time and the title once the time became a
-       line of prose rather than a column heading. */
-    gap: 6px;
-  }
-
   /*
-   * "09:00 to 09:45" on one line. Stacked, the two halves of a single fact took
-   * two lines at the top of every slot and pushed the title — the only part
-   * anyone scans for — a line further down on every one of them.
-   *
-   * Flex rather than `display: inline` on the span: the start time is a bare
-   * text node with no whitespace before the span (JSX drops the newline), so the
-   * gap has to come from the container.
+   * The rows are already one column below 760px, so nothing here restores a
+   * grid. What a phone needs is less padding and a smaller portrait, since the
+   * row now carries a photograph it did not before.
    */
-  .slot .when {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px;
+  .session {
+    padding: 11px 10px 11px 0;
   }
 
-  .slot .when span {
-    display: inline;
+  .session-faces img,
+  .session-faces .is-fallback {
+    width: 22px;
+    height: 22px;
+    margin-right: -7px;
+  }
+
+  .timeband {
+    margin-top: 16px;
   }
 
   /*
