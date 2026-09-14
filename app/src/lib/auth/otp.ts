@@ -1,5 +1,6 @@
 import { signInWithCustomToken } from 'firebase/auth';
 
+import { SITE_ORIGIN } from '@/config/event';
 import { getFirebaseAuth } from '@/lib/firebase/client';
 
 /**
@@ -97,22 +98,11 @@ export type OtpResult = { ok: true } | { ok: false; message: string };
  * so the error tags below are the same ones the callable returned. Nothing
  * about the contract changed except the URL.
  *
- * The default is the deployed site, because a build with no `.env.local` is far
- * more likely to be a phone in a conference hall than a laptop running Next on
- * :3200 — and the failure of getting that backwards is silent in exactly the
- * situation where nobody can fix it.
+ * `SITE_ORIGIN` itself moved to `@/config/event` when the session screen's
+ * "Add to My Calendar" became the second thing in the app that has to name this
+ * deployment. Its docblock there carries the argument for the default, and for
+ * why `publicSiteOrigin()` from `@kgc/shared` is the wrong function on a phone.
  */
-/*
- * ⚠️ Corrected from `kgc-2027-website.netlify.app` on 2026-09-14. That is an
- * abandoned deploy on a different Netlify account, and because this is the
- * fallback for a build with no `.env.local` — the phone-in-a-hall case the
- * comment above is about — the wrong value would have sent every sign-in
- * request to a site that has no current code, silently, at the one moment
- * nobody can fix it.
- */
-const SITE_ORIGIN = (
-  process.env.EXPO_PUBLIC_SITE_ORIGIN ?? 'https://kgc27-website.netlify.app'
-).replace(/\/+$/, '');
 
 /**
  * One POST, and a discriminated answer.

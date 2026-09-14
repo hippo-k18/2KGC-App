@@ -351,7 +351,7 @@ function TrackSheet({
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close track filter"
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#00000066' }}>
+        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim }}>
         <Pressable
           // Swallows the backdrop's press without becoming a control itself.
           onPress={() => {}}

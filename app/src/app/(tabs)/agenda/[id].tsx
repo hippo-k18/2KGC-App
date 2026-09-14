@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Linking, Modal, Pressable, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import {
   doc,
@@ -9,17 +9,27 @@ import {
   type DocumentSnapshot,
 } from 'firebase/firestore';
 
-import { COLLECTIONS, type SessionDoc, type SpeakerDoc, type WithId } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  googleCalendarUrl,
+  outlookCalendarUrl,
+  sessionCalendarPath,
+  type SessionDoc,
+  type SpeakerDoc,
+  type WithId,
+} from '@kgc/shared';
 
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
-import { Icon } from '@/components/icon';
+import { Chevron, Icon } from '@/components/icon';
+import { ListRow } from '@/components/list-row';
 import { PushedHeader } from '@/components/pushed-header';
 import { SessionPoll } from '@/components/session-poll';
 import { SessionQA } from '@/components/session-qa';
 import { Screen } from '@/components/screen';
 import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
+import { SITE_ORIGIN } from '@/config/event';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDayTab, formatTime } from '@/lib/data/sessions';
@@ -68,6 +78,196 @@ function toSpeakers(docs: (DocumentSnapshot | null)[]): Speaker[] {
     .map((d) => ({ id: d.id, ...d.data() }) as Speaker);
 }
 
+interface CalendarLinks {
+  google: string;
+  outlook: string;
+  /** The website's `.ics` route, absolute — the app never generates the file. */
+  ics: string;
+}
+
+/**
+ * The three destinations "Add to My Calendar" can send a session to, or `null`
+ * when this session cannot honestly be offered.
+ *
+ * ── Why nothing here is a native calendar write ─────────────────────────────
+ *
+ * Writing straight into the phone's calendar wants `expo-calendar`, and
+ * `AGENTS.md` gotcha 1 pins this project to the fixed set of native modules
+ * Expo Go ships so the app stays openable without a development build. It would
+ * also do nothing at all on the web target, and the app *is* deployed to the web
+ * at `kgc27-app.netlify.app`. Three URLs opened with `Linking` behave the same
+ * in Expo Go, in a real build and in a browser.
+ *
+ * ── Why the builders come from `@kgc/shared` ────────────────────────────────
+ *
+ * They are the same functions the website's `/agenda` dialog calls, moved out of
+ * `apps/web` the day this screen needed them. A second copy of the wall clock to
+ * UTC conversion would be a second answer to "when is the keynote", and the two
+ * would disagree silently — nothing renders wrong, the attendee just arrives an
+ * hour late. `AGENTS.md` makes the identical argument about `ensureRegistration`.
+ *
+ * ── Two reasons this returns `null` ─────────────────────────────────────────
+ *
+ * The `.ics` route serves `status === 'published' && !deletedAt` only, so for a
+ * draft or cancelled session two of the three destinations would work and the
+ * third would 404. And the builders throw on a session whose stored wall clocks
+ * are malformed or inverted — deliberately, because an entry at a guessed hour
+ * is worse than no entry. Either way the control is not drawn, rather than drawn
+ * and then failing under the attendee's thumb.
+ */
+function calendarLinks(session: Session): CalendarLinks | null {
+  if (session.status !== 'published') return null;
+
+  try {
+    // Stated once and passed to all three, so the two compose links and the
+    // download cannot end up naming different hosts. `SITE_ORIGIN` and not the
+    // builders' own `publicSiteOrigin()` default: that one reads a server
+    // variable the phone does not have and falls back to the conference's front
+    // door rather than to this Next deployment — see its docblock.
+    const origin = SITE_ORIGIN;
+    const entry = {
+      id: session.id,
+      title: session.title,
+      description: session.description,
+      startsAtLocal: session.startsAtLocal,
+      endsAtLocal: session.endsAtLocal,
+      roomName: session.roomName,
+      trackName: session.primaryTrackName,
+      speakerNames: session.speakerNames,
+    };
+
+    return {
+      google: googleCalendarUrl(entry, { origin }),
+      outlook: outlookCalendarUrl(entry, { origin }),
+      ics: `${origin}${sessionCalendarPath(session.id)}`,
+    };
+  } catch (e) {
+    console.warn('[agenda] session cannot become a calendar entry:', session.id, e);
+    return null;
+  }
+}
+
+/**
+ * Which calendar, asked once.
+ *
+ * ⚠️ This is **not** "Add to My Agenda". That control is above it, it writes
+ * `users/{uid}/savedSessions`, and it is the app's own schedule. Whova ships
+ * both features under names one word apart and the comment on the button above
+ * records that the two labels for *that* action were already confused once; this
+ * one keeps a different verb phrase, a different glyph (`calendar`, not
+ * `calendar.badge.plus`) and a secondary weight, so nothing about it reads as a
+ * second way to do the same thing.
+ *
+ * One button opening a chooser rather than three buttons in a row, which is the
+ * shape Whova's own web client uses. The website puts three links side by side
+ * instead, and says why: its dialog is already open, so a chooser there would be
+ * a dialog inside a dialog. Here there is no dialog, the screen's vertical
+ * budget is already spent on the primary action, the description, polls, Q&A and
+ * the speaker cards, and three full-width buttons stacked under the one that
+ * matters would bury it.
+ *
+ * A `Modal` rather than a bottom-sheet library, for the reason `TrackSheet`
+ * gives on the agenda list: the app has two already, this needs no gesture, and
+ * three rows fit.
+ */
+function CalendarSheet({
+  visible,
+  links,
+  title,
+  onClose,
+}: {
+  visible: boolean;
+  links: CalendarLinks;
+  /** The session's own title, so the rows can say what they are adding. */
+  title: string;
+  onClose: () => void;
+}) {
+  const colors = useTheme();
+
+  // `openURL` rejects on an address the platform cannot handle — a phone with no
+  // browser, an OS that refuses the scheme. Out of a press handler that would be
+  // an unhandled rejection, which is a red box in development and silence here.
+  const open = (url: string) => {
+    onClose();
+    Linking.openURL(url).catch((e: unknown) => {
+      console.warn('[agenda] could not open calendar link', e);
+    });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close calendar options"
+        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim }}>
+        <Pressable
+          // Swallows the backdrop's press without becoming a control itself.
+          onPress={() => {}}
+          accessible={false}
+          style={{
+            backgroundColor: colors.background,
+            borderTopLeftRadius: Radius.lg,
+            borderTopRightRadius: Radius.lg,
+            paddingBottom: Spacing.xl,
+            gap: Spacing.md,
+          }}>
+          <Text
+            variant="label"
+            tone="secondary"
+            accessibilityRole="header"
+            style={{
+              paddingHorizontal: Spacing.md,
+              paddingTop: Spacing.md,
+            }}>
+            ADD TO MY CALENDAR
+          </Text>
+
+          <View
+            style={{
+              marginHorizontal: Spacing.md,
+              borderRadius: Radius.lg,
+              overflow: 'hidden',
+            }}>
+            <ListRow
+              title="Google Calendar"
+              subtitle="Opens a pre-filled event in your browser."
+              trailing={<Chevron />}
+              first
+              onPress={() => open(links.google)}
+            />
+            <ListRow
+              title="Outlook.com"
+              subtitle="Opens a pre-filled event in your browser."
+              trailing={<Chevron />}
+              onPress={() => open(links.outlook)}
+            />
+            <ListRow
+              // Apple Calendar is the one most attendees on this screen are
+              // holding, so it leads the label — but the file is a plain `.ics`
+              // and opens in anything, which the subtitle says rather than
+              // leaving Android readers to guess the row is not for them.
+              title="Apple Calendar or other"
+              subtitle={`Downloads an .ics file for ${title}.`}
+              trailing={<Chevron />}
+              last
+              onPress={() => open(links.ics)}
+            />
+          </View>
+
+          {/* The same sentence the website prints under its three links. The
+              entries carry UTC instants, so every calendar app shows them in the
+              reader's own zone — correct, and the moment somebody joining from
+              London wonders whether the agenda lied to them. */}
+          <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: Spacing.md }}>
+            Times are local to the venue. Your calendar converts them to whatever zone you are in.
+          </Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 /**
  * Session detail — the hub. Everything session-scoped hangs off this screen:
  * materials, Q&A, polls and feedback all land here later.
@@ -87,6 +287,7 @@ export default function SessionDetailScreen() {
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [choosingCalendar, setChoosingCalendar] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -167,6 +368,12 @@ export default function SessionDetailScreen() {
       live = false;
     };
   }, [speakerIds]);
+
+  // Above the early returns for the same reason the header is: hooks cannot sit
+  // behind a conditional. Recomputed on every snapshot, which is what makes a
+  // room change made in the console reach the calendar entry as well as the
+  // screen — the two compose URLs carry the room in their body.
+  const calendar = useMemo(() => (session ? calendarLinks(session) : null), [session]);
 
   // The header goes above the early returns, not inside the success branch.
   // A link opened cold spends a second or two in `!session` and a removed
@@ -296,6 +503,38 @@ export default function SessionDetailScreen() {
           </View>
         </Pressable>
 
+        {/*
+          A *different* feature from the button above, and drawn so it reads that
+          way: no fill, so it never competes with the primary action, and a plain
+          `calendar` glyph rather than the calendar-plus one the agenda uses for
+          "Add to Agenda". The agenda is this app's own schedule; this exports
+          the session to Google, Outlook or the phone's own calendar, which is
+          the thing the app had no answer for at all.
+        */}
+        {calendar ? (
+          <Pressable
+            onPress={() => setChoosingCalendar(true)}
+            accessibilityRole="button"
+            accessibilityHint="Choose Google, Outlook or a downloadable calendar file"
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? colors.surfacePressed : colors.surface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: Radius.md,
+              paddingVertical: Spacing.md,
+              alignItems: 'center',
+              minHeight: HIT_TARGET,
+              justifyContent: 'center',
+            })}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+              <Icon name="calendar" size={20} color={colors.tint} />
+              <Text variant="heading" tone="tint">
+                Add to My Calendar
+              </Text>
+            </View>
+          </Pressable>
+        ) : null}
+
         {session.description ? (
           <View style={{ gap: Spacing.sm }}>
             <Text variant="heading">About</Text>
@@ -338,6 +577,15 @@ export default function SessionDetailScreen() {
           </View>
         ) : null}
       </Screen>
+
+      {calendar ? (
+        <CalendarSheet
+          visible={choosingCalendar}
+          links={calendar}
+          title={session.title}
+          onClose={() => setChoosingCalendar(false)}
+        />
+      ) : null}
     </>
   );
 }

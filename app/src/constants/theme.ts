@@ -90,6 +90,14 @@ export const Colors = {
     logoPlate: '#FFFFFF',
     border: '#D1D1D6',
     separator: '#E5E5EA',
+    /**
+     * The wash behind a modal sheet, and the second colour that is identical in
+     * both schemes. A scrim is not a surface — it is the page being pushed away
+     * — so it darkens in dark mode exactly as it does in light, and lightening
+     * it there would make the sheet float on nothing. It was written as a bare
+     * `#00000066` in the two screens that already open one.
+     */
+    scrim: '#00000066',
     /** Brand as *foreground*: links, tinted text. 5.51:1 on surface. */
     tint: Brand.blue,
     /** Brand as a *solid fill* under `onAccent`. */
@@ -130,6 +138,8 @@ export const Colors = {
     logoPlate: '#FFFFFF',
     border: '#38383A',
     separator: '#2C2C2E',
+    /** Deliberately the same as light — see the note there. */
+    scrim: '#00000066',
     /**
      * Brand as *foreground*, lifted for a dark surface — #2069BC fails AA there.
      * 5.95:1 on surface.

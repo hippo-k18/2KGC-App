@@ -1,4 +1,4 @@
-import { icsFilename, sessionIcs } from '@/lib/calendar';
+import { icsFilename, sessionIcs } from '@kgc/shared';
 import { listAgenda } from '@/lib/data';
 import { recordError } from '@/lib/errors';
 

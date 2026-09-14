@@ -1,4 +1,4 @@
-import { EVENT, publicSiteOrigin } from '@kgc/shared';
+import { EVENT, localWallClockToIso, publicSiteOrigin } from '@kgc/shared';
 import type { AgendaDay } from './data';
 import type { Tier } from './tickets';
 
@@ -35,76 +35,18 @@ import type { Tier } from './tickets';
  * ── The builder is pure, and that is the convention it is following ────────
  *
  * `eventJsonLd()` has no `server-only`, no `db()` and no environment read: it
- * takes the data as arguments and returns a plain object, so the arithmetic
- * (the timezone offsets in particular) can be reasoned about and, if it ever
- * earns it, tested — `AGENTS.md`'s `conflicts-core.ts` / `conflicts.ts` split.
- * The single impure thing this file needs, the site's own address, is
- * `canonicalOrigin()` at the bottom, kept apart for exactly that reason.
+ * takes the data as arguments and returns a plain object, so it can be reasoned
+ * about and, if it ever earns it, tested — `AGENTS.md`'s `conflicts-core.ts` /
+ * `conflicts.ts` split. The single impure thing this file needs, the site's own
+ * address, is `canonicalOrigin()` at the bottom, kept apart for that reason.
+ *
+ * ⚠️ The timezone arithmetic used to be here, as `localWallClockToIso()` and a
+ * private `zoneOffsetMinutes()`. It is now in `@kgc/shared`, beside the calendar
+ * builders that are its other consumer, because the attendee app needs the same
+ * conversion and cannot import this package. Do not reinstate a local copy: the
+ * "when is the keynote" answer on the agenda page, in the `.ics` an attendee
+ * downloads and in the entry the app writes has to come from one place.
  */
-
-/**
- * The offset, in minutes east of UTC, that `timeZone` was at `instant`.
- *
- * `longOffset` yields `GMT-04:00`, or a bare `GMT` at zero. Parsed rather than
- * computed because the alternative is shipping a copy of the tzdata rules, and
- * `Intl` already has them and keeps them current.
- */
-function zoneOffsetMinutes(instant: Date, timeZone: string): number {
-  const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
-    .formatToParts(instant)
-    .find((p) => p.type === 'timeZoneName')?.value;
-
-  const m = /^GMT([+-])(\d{2}):(\d{2})$/.exec(name ?? '');
-  if (!m) return 0; // A bare `GMT`, or a format we do not recognise: treat as UTC.
-  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
-}
-
-/**
- * `2027-05-05T09:00` in `America/New_York` → `2027-05-05T09:00:00-04:00`.
- *
- * ── Why the offset has to be resolved at all ────────────────────────────────
- *
- * `SessionDoc.startsAtLocal` is a wall clock with no offset on it, which is the
- * right way round for authoring (`AGENTS.md`: an organizer says "Tuesday at
- * 09:00 in New York") and useless to a consumer. schema.org takes ISO 8601, and
- * a bare `2027-05-05T09:00` is read as the *reader's* local time — so a crawler
- * in Dublin records a 09:00 keynote as happening at 04:00 New York time. That is
- * the same class of bug the agenda page's own docblock refuses to introduce by
- * rendering in the visitor's zone, one layer down.
- *
- * ── Two passes, and the hour they are for ───────────────────────────────────
- *
- * Finding the offset needs an instant, and the instant is what the offset is
- * needed to compute. The first pass reads the wall clock as if it were UTC,
- * which lands within a day of the truth — close enough to pick the right side
- * of a DST transition for every hour except the ones adjacent to it. The second
- * pass re-reads the offset at the corrected instant, which fixes those. On the
- * one nonexistent hour each spring the answer is the offset on the far side of
- * the gap, which is what every other implementation does with a wall clock that
- * never happened.
- */
-export function localWallClockToIso(wallClock: string, timeZone: string): string {
-  /*
-   * ⚠️ The shape is checked before `Date.parse` sees it, and a `Number.isNaN`
-   * guard is not a substitute. `Date.parse` is specified to accept
-   * implementation-defined formats and V8 takes that seriously: measured,
-   * `Date.parse('not-a-date:00Z')` returns **946684800000** — midnight on
-   * 1 January 2000 — rather than `NaN`. Trusting it would emit a startDate for
-   * a session whose wall clock is malformed, and structured data is exactly the
-   * place a wrong date is never noticed, because no human reads it.
-   */
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(wallClock)) return '';
-
-  const asIfUtc = Date.parse(`${wallClock}:00Z`);
-  if (Number.isNaN(asIfUtc)) return '';
-
-  const first = zoneOffsetMinutes(new Date(asIfUtc), timeZone);
-  const offset = zoneOffsetMinutes(new Date(asIfUtc - first * 60_000), timeZone);
-
-  const pad = (n: number) => String(Math.floor(n)).padStart(2, '0');
-  const abs = Math.abs(offset);
-  return `${wallClock}:00${offset < 0 ? '-' : '+'}${pad(abs / 60)}:${pad(abs % 60)}`;
-}
 
 /** A JSON-LD node. Loose on purpose — this is serialised, never navigated. */
 type JsonLd = Record<string, unknown>;

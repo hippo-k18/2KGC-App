@@ -1,11 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  googleCalendarUrl,
-  outlookCalendarUrl,
-  sessionCalendarPath,
-} from '@/lib/calendar';
+import { googleCalendarUrl, outlookCalendarUrl, sessionCalendarPath } from '@kgc/shared';
 import type { AgendaSession, SpeakerCard } from '@/lib/data';
 import { localTime } from '@/lib/site';
 
@@ -77,7 +73,7 @@ export function AgendaList({
   /**
    * The canonical site origin, passed down rather than read here.
    *
-   * `lib/calendar` defaults it to `publicSiteOrigin()`, which reads an
+   * `@kgc/shared`'s calendar builders default it to `publicSiteOrigin()`, which reads an
    * environment variable that carries no `NEXT_PUBLIC_` prefix and is therefore
    * absent in the browser: called from this component it would silently fall
    * back to the production default. That default happens to be the value a
@@ -345,8 +341,10 @@ function CalendarActions({ session, origin }: { session: AgendaSession; origin: 
    * Both URLs are built here, for the one session that is open, rather than
    * server-side for all 85.
    *
-   * `lib/calendar` is deliberately pure — no `server-only`, no `db()`, no React
-   * — so it runs in either place. Building them on the server would mean the
+   * `@kgc/shared`'s calendar module is deliberately pure — no `server-only`, no
+   * `db()`, no React — so it runs in either place, and in the attendee app,
+   * which offers the same three destinations on its session screen. Building
+   * them on the server would mean the
    * page's payload carried two long pre-filled compose URLs per session, each
    * embedding that session's whole description, to render at most one pair. The
    * `.ics` is the opposite case: it is a route, so its href is just a path.
