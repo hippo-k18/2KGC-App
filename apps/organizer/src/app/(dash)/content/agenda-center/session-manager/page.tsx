@@ -1,9 +1,26 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listSessions, type SessionRow } from '@/lib/data';
+import {
+  listSessions,
+  listSpeakerCards,
+  listTrackOptions,
+  type SessionRow,
+  type SpeakerCard,
+} from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, todayInEventZone } from '@/lib/time';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
+import {
+  Banner,
+  DetailList,
+  GapPanel,
+  NotInputted,
+  PageHeader,
+  Panel,
+  Portrait,
+  StatusTag,
+  Tag,
+} from '../../../ui';
+import { DetailDisclosure } from '../../../form';
 import { CsvImportPanel } from '../../csv-import-panel';
 import { commitSessionImportAction, previewSessionImportAction } from './actions';
 
@@ -39,6 +56,13 @@ export const dynamic = 'force-dynamic';
  * *reader* either (`tags`, `slidesUrl`, `seriesId`); the fourth is `deletedAt`,
  * which is deliberate — retiring a session is `status: 'cancelled'`.
  *
+ * Clicking a session title opens the detail modal rather than the editor, which
+ * is Whova's behaviour and was the one thing missing: the title and the `Edit`
+ * link beside it both went to the same form, so there was no way to *read* a
+ * session — abstract, speakers, faces and all — without entering a screen whose
+ * every control writes. Whova's ordering is title, time, room, tracks,
+ * description, speakers, and it is followed below.
+ *
  * Not built here, and it is the expensive half: the multi-sheet Excel
  * round-trip *in*, bulk edit, block move and swap, and the drag-drop calendar.
  * A programme is authored in a spreadsheet by a committee anyway, which is why
@@ -67,9 +91,165 @@ function twelveHour(wall: string): string {
   return `${twelve}:${String(mm).padStart(2, '0')} ${ampm}`;
 }
 
+/** `2027-05-04` → `Tuesday, May 4, 2027`, in the event's zone and not the server's. */
+function prettyDay(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!y || !m || !d) return day;
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
 const CHARCOAL = '#3f3f3f';
 
-function SessionCard({ s }: { s: SessionRow }) {
+/**
+ * One speaker inside the session detail: face, name, job title, affiliation.
+ *
+ * ── There is no bio line, and that is measured rather than forgotten ────────
+ *
+ * `SpeakerCard.bio` is rendered only when there is one, and on the live project
+ * there never is: those 137 speakers were imported from the 2026 Whova export
+ * by `scripts/src/import-speakers-2026.ts`, and `speakers-2026.ts` has no bio
+ * field to import. ⚠️ The seeded emulator disagrees — `fixtures.ts` writes a
+ * bio for every speaker — so this block renders locally and is empty in front
+ * of the client, which is the direction that matters.
+ *
+ * A "Bio coming soon" placeholder is therefore out: it would be the dashboard
+ * claiming something that exists nowhere, the defect class AGENTS.md counts
+ * fourteen instances of. A "no bio on file" line under every speaker would be
+ * noise on a screen about a session. The absence is worth surfacing where it
+ * can be acted on, so Speaker Manager states it per speaker and keeps its "No
+ * bio" filter; here the block is simply not drawn.
+ */
+function SpeakerLine({ p }: { p: SpeakerCard }) {
+  const affiliation = [p.title, p.company].filter(Boolean).join(', ');
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '10px 0' }}>
+      <Portrait src={p.photoURL} name={p.name} size={48} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 600 }}>{p.name}</div>
+        {affiliation ? (
+          <div className="muted" style={{ fontSize: 12 }}>
+            {affiliation}
+          </div>
+        ) : null}
+        {p.bio ? <p style={{ margin: '6px 0 0', lineHeight: 1.5 }}>{p.bio}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The whole session record, read-only.
+ *
+ * Rendered on the server and handed to `DetailDisclosure` as `children`, which
+ * is what lets it use `Tag`, `StatusTag`, `DetailList` and `Portrait` — see
+ * that component's header for why a client component may not import them.
+ */
+function SessionDetail({
+  s,
+  trackNames,
+  speakers,
+}: {
+  s: SessionRow;
+  trackNames: string[];
+  speakers: SpeakerCard[];
+}) {
+  return (
+    <>
+      <DetailList
+        items={[
+          {
+            label: 'Time',
+            value: (
+              <>
+                {prettyDay(s.day)}
+                <br />
+                {twelveHour(s.startsAtLocal)} – {twelveHour(s.endsAtLocal)}{' '}
+                <span className="muted">{s.timeZone}</span>
+              </>
+            ),
+          },
+          {
+            label: 'Room',
+            value: s.roomName ?? <span className="muted">Not inputted yet</span>,
+          },
+          {
+            label: 'Track',
+            value: trackNames.length ? (
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
+                {trackNames.map((t) => (
+                  <Tag key={t} color={t === s.primaryTrackName ? 'blue' : 'grey'}>
+                    {t}
+                  </Tag>
+                ))}
+              </span>
+            ) : (
+              <span className="muted">Not inputted yet</span>
+            ),
+          },
+          { label: 'Format', value: <span style={{ textTransform: 'capitalize' }}>{s.format}</span> },
+          {
+            label: 'Skill level',
+            value: s.skillLevel ? (
+              <span style={{ textTransform: 'capitalize' }}>{s.skillLevel}</span>
+            ) : (
+              <span className="muted">Not inputted yet</span>
+            ),
+          },
+          { label: 'Status', value: <StatusTag status={s.status} /> },
+        ]}
+      />
+
+      <h3 className="section-header">Description</h3>
+      {s.description ? (
+        <p style={{ lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{s.description}</p>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          Not inputted yet. Attendees see the title and the time and nothing else.
+        </p>
+      )}
+
+      <h3 className="section-header">
+        Speakers {speakers.length ? <span className="muted">({speakers.length})</span> : null}
+      </h3>
+      {speakers.length ? (
+        speakers.map((p) => <SpeakerLine key={p.id} p={p} />)
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          Nobody is assigned to this session.
+        </p>
+      )}
+
+      {/*
+        `speakerNames` is a denormalised cache of the same list, and the agenda
+        card above renders *that* rather than the speakers resolved here. When
+        the two disagree the cache is the stale one, and saying so is the point:
+        the agenda in every attendee's phone shows the cache.
+      */}
+      {speakers.length !== s.speakerIds.length ? (
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+          {s.speakerIds.length - speakers.length} of the {s.speakerIds.length} speaker ids on this
+          session resolve to no speaker record.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function SessionCard({
+  s,
+  trackNames,
+  speakers,
+}: {
+  s: SessionRow;
+  trackNames: string[];
+  speakers: SpeakerCard[];
+}) {
   return (
     <div style={{ border: '1px solid var(--hairline)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
       <div
@@ -86,12 +266,29 @@ function SessionCard({ s }: { s: SessionRow }) {
         <span aria-hidden="true" style={{ opacity: 0.7 }}>
           ✥
         </span>
-        <Link
-          href={`${ROUTES.sessionManager}/${s.id}`}
-          style={{ color: '#fff', textDecoration: 'underline', fontSize: 14 }}
+        <DetailDisclosure
+          trigger={s.title}
+          triggerLabel={`Session details: ${s.title}`}
+          triggerStyle={{
+            background: 'none',
+            border: 0,
+            color: '#fff',
+            cursor: 'pointer',
+            font: 'inherit',
+            fontSize: 14,
+            padding: 0,
+            textAlign: 'left',
+            textDecoration: 'underline',
+          }}
+          title={s.title}
+          footer={
+            <Link className="whova-btn-main small secondary" href={`${ROUTES.sessionManager}/${s.id}`}>
+              Edit session
+            </Link>
+          }
         >
-          {s.title}
-        </Link>
+          <SessionDetail s={s} trackNames={trackNames} speakers={speakers} />
+        </DetailDisclosure>
         {s.format ? (
           <span
             style={{
@@ -148,7 +345,25 @@ export default async function SessionManagerPage({
   await requireOrganizer();
 
   const { day, q } = await searchParams;
-  const all = await listSessions();
+  /*
+   * Tracks and speakers are read for the detail modals, which are rendered with
+   * the page rather than fetched on click — there is no Firebase client in this
+   * app to fetch one with. Both are single-equality reads of small collections
+   * (11 tracks, 137 speakers) and they run alongside the session read rather
+   * than after it.
+   */
+  const [all, trackOptions, speakerCards] = await Promise.all([
+    listSessions(),
+    listTrackOptions(),
+    listSpeakerCards(),
+  ]);
+  const trackNameById = new Map(trackOptions.map((t) => [t.id, t.name]));
+  const speakerById = new Map(speakerCards.map((p) => [p.id, p]));
+  const detailOf = (s: SessionRow) => ({
+    trackNames: s.trackIds.map((id) => trackNameById.get(id)).filter((n): n is string => Boolean(n)),
+    speakers: s.speakerIds.map((id) => speakerById.get(id)).filter((p): p is SpeakerCard => Boolean(p)),
+  });
+
   const days = [...new Set(all.map((s) => s.day))].sort();
   const activeDay = day && days.includes(day) ? day : (days[0] ?? '');
 
@@ -309,7 +524,7 @@ export default async function SessionManagerPage({
             <div style={{ background: '#fff', border: '1px solid var(--hairline)', borderRadius: 4, marginBottom: 10, padding: 10 }}>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>12:00 AM – 7:00 AM</div>
               {byHour.get(-1)!.map((s) => (
-                <SessionCard key={s.id} s={s} />
+                <SessionCard key={s.id} s={s} {...detailOf(s)} />
               ))}
             </div>
           ) : null}
@@ -336,7 +551,7 @@ export default async function SessionManagerPage({
                 </Link>
               </div>
               {(byHour.get(h) ?? []).map((s) => (
-                <SessionCard key={s.id} s={s} />
+                <SessionCard key={s.id} s={s} {...detailOf(s)} />
               ))}
               {(byHour.get(h) ?? []).length === 0 ? (
                 <div className="muted" style={{ fontSize: 12, paddingLeft: 2 }}>

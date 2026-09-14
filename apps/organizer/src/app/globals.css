@@ -2314,6 +2314,84 @@ html:has(dialog[open]) {
   padding: 12px 20px;
 }
 
+/* ─────────────────────────── detail views ──────────────────────────────── */
+
+/*
+ * A portrait, and the initials underneath it.
+ *
+ * The image is absolutely positioned over the initials rather than replacing
+ * them, so a missing or unreachable file leaves a legible tile instead of a
+ * broken-image glyph. `overflow: hidden` on the round container is what crops a
+ * rectangular headshot to the circle; `object-fit: cover` is what stops it
+ * being squashed to get there.
+ */
+.portrait {
+  align-items: center;
+  background: var(--surface-alt);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  color: var(--muted);
+  display: inline-flex;
+  flex: none;
+  font-weight: 600;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  position: relative;
+  user-select: none;
+}
+
+.portrait__img {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  width: 100%;
+}
+
+/*
+ * The label/value grid at the head of a detail view. Two columns that collapse
+ * to one under 420px — the modal is `max-width: calc(100vw - 32px)`, so on a
+ * phone-width window a 132px label column leaves nothing for the value.
+ */
+.detail-list {
+  margin: 0;
+}
+
+.detail-list__row {
+  display: grid;
+  gap: 2px 16px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  padding: 5px 0;
+}
+
+.detail-list__row + .detail-list__row {
+  border-top: 1px solid var(--hairline);
+}
+
+.detail-list dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  line-height: 20px;
+  text-transform: uppercase;
+}
+
+.detail-list dd {
+  color: var(--body);
+  line-height: 20px;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .detail-list__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ─────────────────────────── toasts ────────────────────────────────────── */
 
 .whova-toasts-container {

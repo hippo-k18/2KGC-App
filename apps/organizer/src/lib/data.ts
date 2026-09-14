@@ -13,6 +13,7 @@ import {
   type TrackDoc,
   type UserDoc,
   type WithId,
+  publicSiteOrigin,
 } from '@kgc/shared';
 import { db } from './firestore';
 
@@ -25,6 +26,31 @@ import { db } from './firestore';
  * (DECISIONS.md D5); it leads every query for the same reason it leads every
  * composite index.
  */
+
+/**
+ * A stored image path, as a URL this dashboard can actually load.
+ *
+ * ⚠️ `photoURL` is not always absolute. `scripts/src/import-speakers-2026.ts`
+ * writes it as a **site-relative** path — `/kgc/speakers/jans-aasman.jpg` —
+ * because the 124 headshots it imports are files checked into
+ * `apps/web/public`. The website serves them from its own origin; the dashboard
+ * is a different origin on a different port, so the browser resolves that same
+ * path against :3100 and gets the dashboard's 404. Rendering the field verbatim
+ * therefore shows a broken image for every imported speaker while the identical
+ * value works on the public site, which is why nothing here noticed.
+ *
+ * `publicSiteOrigin()` is the resolver the order, unsubscribe and consent links
+ * already go through, so there is one answer to "where is the website" rather
+ * than a second one invented here. An already-absolute URL — a portrait
+ * uploaded to Firebase Storage, a sponsor logo on Whova's CDN — is returned
+ * untouched.
+ */
+export function imageSrc(stored?: string): string | undefined {
+  const raw = stored?.trim();
+  if (!raw) return undefined;
+  if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+  return `${publicSiteOrigin()}${raw.startsWith('/') ? '' : '/'}${raw}`;
+}
 
 /** A plain object safe to hand to a client component — no Timestamps, no class instances. */
 export interface SessionRow {
@@ -39,6 +65,18 @@ export interface SessionRow {
   speakerNames: string[];
   status: SessionDoc['status'];
   format: SessionDoc['format'];
+  /**
+   * The five fields below are read by the session detail modal and by nothing
+   * else on a list screen. They are on the row rather than behind a second
+   * `getSession()` per session because the modal's content is rendered with the
+   * page — a detail that arrived on click would need a client-side fetch, and
+   * this app has no Firebase client at all.
+   */
+  description?: string;
+  trackIds: string[];
+  skillLevel?: SessionDoc['skillLevel'];
+  speakerIds: string[];
+  timeZone: string;
 }
 
 function toRow(id: string, s: SessionDoc): SessionRow {
@@ -54,6 +92,11 @@ function toRow(id: string, s: SessionDoc): SessionRow {
     speakerNames: s.speakerNames ?? [],
     status: s.status,
     format: s.format,
+    description: s.description,
+    trackIds: s.trackIds ?? [],
+    skillLevel: s.skillLevel,
+    speakerIds: s.speakerIds ?? [],
+    timeZone: s.timeZone,
   };
 }
 
@@ -143,6 +186,44 @@ export async function listSpeakerOptions(): Promise<SpeakerOption[]> {
     .map((d) => {
       const s = d.data() as SpeakerDoc;
       return { id: d.id, name: s.name, company: s.company, sessionIds: s.sessionIds ?? [] };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The speaker as the session detail modal shows them: a face, a name, who they
+ * work for, and their bio if there is one.
+ *
+ * Deliberately not `listSpeakers()`, which answers the *management* question
+ * and reads the whole `sessions` collection a second time to count what each
+ * speaker is on. Session Manager has already read every session, so paying for
+ * that twice to fill a modal would be the same waste `listSpeakerOptions()`
+ * exists to avoid — and deliberately not `SpeakerOption` either, because a
+ * picker needs no portrait.
+ */
+export interface SpeakerCard {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  bio?: string;
+  /** Already resolved by `imageSrc`, so a caller cannot forget to. */
+  photoURL?: string;
+}
+
+export async function listSpeakerCards(): Promise<SpeakerCard[]> {
+  const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
+  return snap.docs
+    .map((d) => {
+      const s = d.data() as SpeakerDoc;
+      return {
+        id: d.id,
+        name: s.name,
+        title: s.title,
+        company: s.company,
+        bio: s.bio,
+        photoURL: imageSrc(s.photoURL),
+      };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -310,9 +391,26 @@ export interface SpeakerRow {
   company?: string;
   hasBio: boolean;
   hasPhoto: boolean;
+  /**
+   * The portrait itself, resolved by `imageSrc`, and the bio text — not just
+   * whether each exists.
+   *
+   * `hasPhoto` alone was enough while this screen only ever drew a red or green
+   * tag. The detail modal shows the likeness, which is the thing an organizer
+   * opens a speaker to check: whether the face on the badge and the agenda is
+   * the right person and the right way up.
+   */
+  photoURL?: string;
+  bio?: string;
+  social?: SpeakerDoc['social'];
   sessionCount: number;
-  /** Titles of the sessions this speaker is on, for the list. */
-  sessionTitles: string[];
+  /**
+   * The sessions this speaker presents, earliest first — the other half of the
+   * link `SessionDoc.speakerIds` makes, which the detail modal reads back.
+   * Titles alone would name the talks and not say when they are, and "are these
+   * two of mine an hour apart" is the question that gets asked here.
+   */
+  sessions: { id: string; title: string; day: string; startsAtLocal: string }[];
   /** Set when the speaker also holds a ticket, so the two identities join up. */
   userId?: string;
   /**
@@ -329,7 +427,12 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
     db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get(),
   ]);
 
-  const titleById = new Map(sessions.docs.map((d) => [d.id, (d.data() as SessionDoc).title]));
+  const sessionById = new Map(
+    sessions.docs.map((d) => {
+      const s = d.data() as SessionDoc;
+      return [d.id, { id: d.id, title: s.title, day: s.day, startsAtLocal: s.startsAtLocal }];
+    }),
+  );
 
   return snap.docs
     .map((d) => {
@@ -342,8 +445,19 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
         company: s.company,
         hasBio: Boolean(s.bio && s.bio.trim()),
         hasPhoto: Boolean(s.photoURL),
+        photoURL: imageSrc(s.photoURL),
+        bio: s.bio,
+        social: s.social,
         sessionCount: ids.length,
-        sessionTitles: ids.map((id) => titleById.get(id) ?? id),
+        /*
+         * A `sessionIds` entry with no session behind it is a dangling pointer
+         * — the inverse index went out of step with the sessions themselves.
+         * Dropping it would hide that; it is kept as a row carrying the id as
+         * its title, which is what the old `sessionTitles` fallback did.
+         */
+        sessions: ids
+          .map((id) => sessionById.get(id) ?? { id, title: id, day: '', startsAtLocal: '' })
+          .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal)),
         userId: s.userId,
         contactEmail: s.contactEmail,
       };

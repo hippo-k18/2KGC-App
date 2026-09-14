@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { getSpeaker, listSpeakers } from '@/lib/data';
+import { getSpeaker, imageSrc, listSpeakers, type SpeakerRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { DetailList, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, Portrait, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { DetailDisclosure } from '../../../form';
 import { Dropdown, RowActions } from '../../../menu';
 import { CsvImportPanel } from '../../csv-import-panel';
 import { commitSpeakerImportAction, previewSpeakerImportAction } from './actions';
@@ -35,7 +36,156 @@ export const dynamic = 'force-dynamic';
  * and `firestore.rules:388` refuses a session delete outright — and a speaker
  * is retired by taking them off their sessions in Session Manager, which leaves
  * the record findable. The panel below says so on screen.
+ *
+ * ── The portrait had never been rendered on this screen ─────────────────────
+ *
+ * The Profile column showed a green or red `photo` tag and the list showed no
+ * faces at all, so "is that the right person, and the right way up" — the
+ * question a headshot column exists to answer — could only be asked by opening
+ * the editor one speaker at a time. Clicking a name now opens the full record.
+ * `imageSrc` is what makes the image load here at all; see its docblock.
  */
+
+/**
+ * One speaker, whole: portrait, affiliation, bio, links, and the sessions they
+ * present.
+ *
+ * Rendered on the server and passed to `DetailDisclosure` as `children`, which
+ * is what lets it use `Portrait`, `Tag` and `DetailList` — a client component
+ * may not import `ui.tsx`, and that component's header says why.
+ *
+ * ── The bio empty state is deliberate, and it is not a placeholder ──────────
+ *
+ * On the live project not one of the 137 speakers has a bio: the roster came
+ * out of the 2026 Whova export via `scripts/src/import-speakers-2026.ts`, and
+ * `speakers-2026.ts` carries no bio field to import — so `hasBio` is false for
+ * every row and the "No bio" chip above selects all of them. ⚠️ The seeded
+ * emulator is not that shape (`fixtures.ts` gives every speaker a bio), so the
+ * empty state is the case you will *not* see locally.
+ *
+ * Two things follow. A "Bio coming soon" placeholder is out — it would be the
+ * dashboard asserting something that is true nowhere, the defect class
+ * AGENTS.md counts fourteen instances of. But saying nothing is wrong too: this
+ * is the screen where a bio gets written, the modal already carries the Edit
+ * speaker button that starts it, and an organizer who cannot tell "no bio" from
+ * "bio not shown here" cannot plan the chase. So the section is always drawn
+ * and says which of the two it is, and the sentence is a statement about the
+ * record rather than a promise about the future.
+ */
+function SpeakerDetail({ s }: { s: SpeakerRow }) {
+  const links = [
+    ['LinkedIn', s.social?.linkedin],
+    ['X', s.social?.x],
+    ['Website', s.social?.website],
+  ].filter((l): l is [string, string] => Boolean(l[1]));
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+        <Portrait src={s.photoURL} name={s.name} size={96} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>{s.name}</div>
+          {s.title ? <div style={{ fontSize: 14 }}>{s.title}</div> : null}
+          {s.company ? (
+            <div className="muted" style={{ fontSize: 14 }}>
+              {s.company}
+            </div>
+          ) : null}
+          {!s.hasPhoto ? (
+            <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+              No headshot on file. The initials above are what the badge, the agenda and the
+              speakers page all fall back to.
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <DetailList
+        items={[
+          {
+            label: 'Job title',
+            value: s.title ?? <span className="muted">Not inputted yet</span>,
+          },
+          {
+            label: 'Affiliation',
+            value: s.company ?? <span className="muted">Not inputted yet</span>,
+          },
+          {
+            label: 'Contact',
+            value: s.contactEmail ? (
+              <a href={`mailto:${s.contactEmail}`}>{s.contactEmail}</a>
+            ) : (
+              /*
+               * Worth saying on the detail rather than leaving blank: an address
+               * is what the bio chase is sent to, so a speaker without one is
+               * the reason a reminder never lands. The stat tile above counts
+               * them for the same reason.
+               */
+              <span className="muted">No address. Cannot be sent a reminder.</span>
+            ),
+          },
+          {
+            label: 'Links',
+            value: links.length ? (
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 12 }}>
+                {links.map(([label, url]) => (
+                  <a key={label} href={url} target="_blank" rel="noreferrer">
+                    {label}
+                  </a>
+                ))}
+              </span>
+            ) : (
+              <span className="muted">Not inputted yet</span>
+            ),
+          },
+        ]}
+      />
+
+      <h3 className="section-header">Bio</h3>
+      {s.bio ? (
+        <p style={{ lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{s.bio}</p>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          No bio on file. The app and the website show this speaker&rsquo;s name, affiliation and
+          sessions without one.
+        </p>
+      )}
+
+      <h3 className="section-header">
+        Sessions {s.sessionCount ? <span className="muted">({s.sessionCount})</span> : null}
+      </h3>
+      {s.sessions.length ? (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {s.sessions.map((x) => (
+            <li key={x.id} style={{ borderTop: '1px solid var(--hairline)', padding: '8px 0' }}>
+              <Link href={`${ROUTES.sessionManager}/${x.id}`}>{x.title}</Link>
+              {x.startsAtLocal ? (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {x.day} · {x.startsAtLocal.slice(11, 16)}
+                </div>
+              ) : (
+                /*
+                 * `sessionIds` named a session that is not there. Shown rather
+                 * than dropped: the inverse index is written by the session
+                 * editor and a stale entry here is the first visible sign it
+                 * went out of step.
+                 */
+                <div className="muted" style={{ fontSize: 12 }}>
+                  No session record for this id.
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          Not on the programme. A speaker is put on a session in Session Manager.
+        </p>
+      )}
+    </>
+  );
+}
+
 export default async function SpeakerManagerPage({
   searchParams,
 }: {
@@ -65,7 +215,14 @@ export default async function SpeakerManagerPage({
         company: doc.company,
         bio: doc.bio,
         contactEmail: doc.contactEmail,
-        photoURL: doc.photoURL,
+        /*
+         * Resolved, not raw. The form's headshot preview showed a broken image
+         * for every imported speaker because `photoURL` is a path on the
+         * *website's* origin — `imageSrc` is where that is explained. The
+         * preview is display-only and is never posted back, so the absolute URL
+         * reaches nothing that writes.
+         */
+        photoURL: imageSrc(doc.photoURL),
         linkedin: doc.social?.linkedin,
         x: doc.social?.x,
         website: doc.social?.website,
@@ -252,14 +409,43 @@ export default async function SpeakerManagerPage({
             sort={sort}
             empty="Not inputted yet"
             rows={pageRows.map((s) => [
-              <span key="s">
-                <strong>{s.name}</strong>
-                {s.title ? (
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    {s.title}
-                  </div>
-                ) : null}
-              </span>,
+              <DetailDisclosure
+                key="s"
+                trigger={
+                  <span style={{ alignItems: 'center', display: 'flex', gap: 10, minWidth: 0 }}>
+                    <Portrait src={s.photoURL} name={s.name} size={32} />
+                    <span style={{ minWidth: 0 }}>
+                      <strong>{s.name}</strong>
+                      {s.title ? (
+                        <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                          {s.title}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                }
+                triggerLabel={`Speaker details: ${s.name}`}
+                triggerStyle={{
+                  background: 'none',
+                  border: 0,
+                  cursor: 'pointer',
+                  font: 'inherit',
+                  padding: 0,
+                  textAlign: 'left',
+                  width: '100%',
+                }}
+                title={s.name}
+                footer={
+                  <Link
+                    className="whova-btn-main small secondary"
+                    href={`?edit=${encodeURIComponent(s.id)}`}
+                  >
+                    Edit speaker
+                  </Link>
+                }
+              >
+                <SpeakerDetail s={s} />
+              </DetailDisclosure>,
               s.company ?? <span className="muted">not set</span>,
               <span key="p" style={{ display: 'flex', gap: 4 }}>
                 <Tag color={s.hasBio ? 'green' : 'red'} small>
@@ -274,7 +460,7 @@ export default async function SpeakerManagerPage({
                   no session
                 </Tag>
               ) : (
-                <span style={{ fontSize: 13 }}>{s.sessionTitles.join(' · ')}</span>
+                <span style={{ fontSize: 13 }}>{s.sessions.map((x) => x.title).join(' · ')}</span>
               ),
               <RowActions
                 key="act"

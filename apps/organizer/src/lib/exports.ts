@@ -158,7 +158,7 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Name', value: (s) => s.name },
       { header: 'Title', value: (s) => s.title ?? '' },
       { header: 'Company', value: (s) => s.company ?? '' },
-      { header: 'Sessions', value: (s) => s.sessionTitles.join('; ') },
+      { header: 'Sessions', value: (s) => s.sessions.map((x) => x.title).join('; ') },
       { header: 'Session count', value: (s) => s.sessionCount },
       { header: 'Has bio', value: (s) => yesNo(s.hasBio) },
       { header: 'Has photo', value: (s) => yesNo(s.hasPhoto) },

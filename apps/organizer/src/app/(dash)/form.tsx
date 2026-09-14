@@ -828,6 +828,71 @@ export function Modal({
 }
 
 /**
+ * `Modal`'s opener: a trigger that shows a read-only detail view.
+ *
+ * ── Why the content is a prop rather than built here ────────────────────────
+ *
+ * `Modal` needs `useState`, so anything rendering one is a client component,
+ * and a client component must not import `ui.tsx` — the note at the top of this
+ * file explains what that does to the gap notes. A session detail wants `Tag`,
+ * `StatusTag`, `DetailList` and `Portrait`, all of which live there.
+ *
+ * So the split is: the *page* stays a Server Component and renders the whole
+ * detail — chips, portraits and all — then hands it here as `children`. This
+ * component owns one boolean and nothing else. That keeps `ui.tsx` entirely
+ * server-side, and it means the modal's content is already in the RSC payload
+ * when the organizer clicks, which matters because this app has no Firebase
+ * client and therefore nothing to fetch a detail with on demand.
+ *
+ * `trigger` is rendered inside a `<button>`, so the call site styles it to look
+ * like whatever it is replacing — an underlined title on a session card, a name
+ * in a table cell. A `<button>` rather than an anchor because it goes nowhere:
+ * an `<a href="#">` here would put a junk entry in the browser's history for
+ * every row anybody glanced at.
+ */
+export function DetailDisclosure({
+  trigger,
+  triggerClassName,
+  triggerStyle,
+  triggerLabel,
+  title,
+  children,
+  footer,
+  width = 620,
+}: {
+  trigger: ReactNode;
+  triggerClassName?: string;
+  triggerStyle?: CSSProperties;
+  /** Read instead of `trigger` when the visible text is not the whole story. */
+  triggerLabel?: string;
+  title: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+  width?: number;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        className={triggerClassName}
+        style={triggerStyle}
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={triggerLabel}
+      >
+        {trigger}
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title={title} footer={footer} width={width}>
+        {children}
+      </Modal>
+    </>
+  );
+}
+
+/**
  * A destructive action, and the sentence that has to be read before it runs.
  *
  * A `<details>` rather than a modal, and that is the considered choice rather

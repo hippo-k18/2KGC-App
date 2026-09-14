@@ -529,6 +529,94 @@ export function StatusTag({ status }: { status: string }) {
 }
 
 /**
+ * Someone's face, or their initials when there is no face on file.
+ *
+ * ── The fallback is the whole component ─────────────────────────────────────
+ *
+ * Two different things make a portrait absent here and both are real: 13 of the
+ * imported speakers have no `photoURL` at all, and any stored URL can stop
+ * resolving — the roster's headshots are files on the *website's* origin, and a
+ * hotlinked one is a file on somebody else's blog. An `<img>` alone turns both
+ * into a broken-image glyph beside a name, which reads as a bug in the
+ * dashboard rather than as a gap in the data.
+ *
+ * So the initials are painted on the container and the image sits on top of
+ * them. When it loads it covers them; when there is no `src`, or the fetch
+ * fails, they are simply what is there. That is a fallback with no JavaScript
+ * in it — worth having, because every screen that renders one of these is a
+ * Server Component and an `onError` handler would pull the page across the
+ * client boundary to handle a missing file.
+ *
+ * `alt=""` for the same reason: the name is always rendered beside the
+ * portrait, so announcing it twice is noise, and an empty alt is also what
+ * stops a failed image drawing its glyph over the initials.
+ */
+export function Portrait({
+  src,
+  name,
+  size = 48,
+}: {
+  src?: string;
+  name: string;
+  size?: number;
+}) {
+  return (
+    <span
+      className="portrait"
+      style={{ fontSize: Math.round(size * 0.36), height: size, width: size }}
+    >
+      <span aria-hidden="true">{initials(name)}</span>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- remote hosts we cannot enumerate in next.config.ts; see sponsor-manager for the same call.
+        <img className="portrait__img" src={src} alt="" />
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Up to two letters from a name.
+ *
+ * Punctuation is stripped before the split because the roster is not tidy:
+ * `(Phil) (Meredith)` is a real row in the imported 2026 list, and initialling
+ * the brackets would put `((` on the tile.
+ */
+function initials(name: string): string {
+  const words = name
+    .replace(/[^\p{L}\s]+/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+}
+
+/**
+ * Label/value pairs — a real `<dl>`, for the head of a detail view.
+ *
+ * A detail modal is mostly this: six or seven facts about one record, where the
+ * label matters as much as the value. `StatTiles` is the wrong shape (it is for
+ * three numbers) and a table is worse (one row is not a list). Rows whose value
+ * is `undefined` are dropped by the caller, not here, because "no room" and
+ * "room not set" are sometimes worth saying out loud and sometimes not.
+ */
+export function DetailList({
+  items,
+}: {
+  items: { label: ReactNode; value: ReactNode }[];
+}) {
+  return (
+    <dl className="detail-list">
+      {items.map((it, i) => (
+        <div key={i} className="detail-list__row">
+          <dt>{it.label}</dt>
+          <dd>{it.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
  * In-page tabs. Whova has two styles and uses both: `underline` for switching
  * views of one thing (Sponsors List / Sponsor Profile Reminder), `solid` for a
  * segmented control.
