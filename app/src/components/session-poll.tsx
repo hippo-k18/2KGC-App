@@ -175,8 +175,7 @@ function Poll({
           poll where nothing will ever count the ballots. */}
       {voted && counted === 'never-counted' ? (
         <Text variant="caption" tone="tertiary">
-          Your vote is recorded. The ballots for this poll have not been counted,
-          so there is no result to show.
+          Your vote is recorded. Results are not available for this poll.
         </Text>
       ) : voted && !tallied ? (
         <Text variant="caption" tone="tertiary">

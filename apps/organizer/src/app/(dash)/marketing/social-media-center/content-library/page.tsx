@@ -113,7 +113,7 @@ export default async function ContentLibraryPage() {
         }
         tags={<Tag color="blue" fill="outline">{ASSETS.filter((a) => a.ready).length} of {ASSETS.length} complete</Tag>}
         actions={
-          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             Open the site ↗
           </a>
         }

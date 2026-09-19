@@ -35,6 +35,16 @@ export const dynamic = 'force-dynamic';
  * decision nobody made when they typed it into the dashboard. Not
  * `passesAllocated` / `passesUsed` either, which are commercial terms.
  */
+/** Up to two initials, for the tile of an exhibitor with no logo. */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+}
+
 export default async function ExhibitorsPage() {
   const zones = await listExhibitorsByZone();
   const total = zones.reduce((n, z) => n + z.exhibitors.length, 0);
@@ -108,8 +118,12 @@ export default async function ExhibitorsPage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={e.logoURL} alt={e.name} loading="lazy" />
                           ) : (
-                            /* The name is the fallback, never an empty box. */
-                            <span className="logo-fallback">{e.name}</span>
+                            /* Initials, never an empty box. The full name
+                               was cut off at the tile's edge ("Graphwis"), and
+                               it is printed in full beside the tile anyway. */
+                            <span className="logo-fallback" aria-hidden="true">
+                              {initials(e.name)}
+                            </span>
                           )}
                         </div>
 

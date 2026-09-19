@@ -68,13 +68,10 @@ export default async function LivePollingPage({
           <>
             <strong>Counted here, published on demand</strong>
             <p>
-              This screen counts the vote documents on every load, so its numbers are always right.
-              Attendees see a stored figure that only moves when you press <em>Publish the count</em>.
+              The counts on this screen are always current. Attendees see the result from the last
+              time you pressed <em>Publish the count</em>.
             </p>
-            <p>
-              A genuinely live tally in the app needs the <code>tallyPoll</code> trigger, which is
-              written and waiting on one IAM grant from the project owner.
-            </p>
+            <p>A result that updates by itself in the app is not available yet.</p>
           </>
         }
         actions={
@@ -83,7 +80,7 @@ export default async function LivePollingPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New poll
             </Link>
           )
@@ -132,7 +129,7 @@ export default async function LivePollingPage({
             value: enabledSessions,
             sub: `of ${liveSessions} live sessions`,
           },
-          { label: 'Votes cast', value: votesCast, sub: 'counted, not read off a tally' },
+          { label: 'Votes cast', value: votesCast },
         ]}
       />
 
@@ -148,7 +145,7 @@ export default async function LivePollingPage({
           <NotInputted
             what="polls"
             action={
-              <Link href="?new=1" className="whova-btn-main">
+              <Link href="?new=1" className="whova-btn-main primary">
                 Create the first one
               </Link>
             }
@@ -219,7 +216,7 @@ export default async function LivePollingPage({
                 <input type="hidden" name="id" value={p.id} />
                 <button
                   type="submit"
-                  className={`whova-btn-main small${p.stale ? '' : ' secondary'}`}
+                  className={`whova-btn-main small ${p.stale ? 'primary' : 'secondary'}`}
                 >
                   Publish the count
                 </button>

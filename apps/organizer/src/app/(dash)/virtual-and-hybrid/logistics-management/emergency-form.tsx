@@ -72,7 +72,6 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
       <Field
         name="emergencyNumber"
         label="Emergency services"
-        help="The number anyone on the team should call first. New York City is 911."
         defaultValue={plan.emergencyNumber}
         placeholder="911"
         width={200}
@@ -80,28 +79,24 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
       <Field
         name="venueSecurity"
         label="Venue security"
-        help="Cornell Tech campus security. The people who can unlock a door or meet an ambulance at the right entrance."
         defaultValue={plan.venueSecurity}
-        placeholder="Cornell Tech security, (607) 000-0000"
+        placeholder="Name and phone"
       />
       <Field
         name="medicalPoint"
         label="First aid point"
-        help="Where the kit is and who is trained. Written as a place a stranger could find."
         defaultValue={plan.medicalPoint}
-        placeholder="Registration desk, Bloomberg Center ground floor"
+        placeholder="Where the kit is"
       />
       <Field
         name="assemblyPoint"
         label="Evacuation assembly point"
-        help="Where everyone goes if the building is evacuated. This is the single most useful line on the card."
         defaultValue={plan.assemblyPoint}
-        placeholder="The lawn outside the Tata Innovation Center"
+        placeholder="Where to gather outside"
       />
       <Field
         name="onSiteLead"
         label="On-site lead"
-        help="One named person who decides. Not a team address."
         defaultValue={plan.onSiteLead}
         placeholder="Name, role"
       />
@@ -109,7 +104,7 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
         name="onSiteLeadPhone"
         label="On-site lead: phone"
         defaultValue={plan.onSiteLeadPhone}
-        placeholder="Mobile, reachable during sessions"
+        placeholder="Mobile"
         width={260}
       />
 
@@ -118,8 +113,7 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
           What to do
         </label>
         <p className="whova-form-helper-text">
-          The short version somebody reads while something is happening: who to tell, what not to
-          say to press, where the code of conduct escalation goes.
+          Short steps to read during an incident: who to tell and who speaks to press.
         </p>
         <textarea
           id="incidentProcedure"

@@ -83,7 +83,7 @@ export default async function AgendaAnalyticsPage() {
           )
         }
         actions={
-          <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live agenda ↗
           </a>
         }

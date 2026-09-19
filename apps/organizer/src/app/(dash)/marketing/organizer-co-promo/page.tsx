@@ -60,7 +60,7 @@ export default async function OrganizerCoPromoPage() {
       channel: 'Speakers and their networks',
       reach: speakers.length,
       unit: speakers.length === 1 ? 'speaker' : 'speakers',
-      how: 'A referral link each, credited by name, so the leaderboard is real.',
+      how: 'A referral link each, credited by name.',
       href: '/tickets/ticket-marketing/referral-contest',
       label: 'Referral Contest',
     },
@@ -68,7 +68,7 @@ export default async function OrganizerCoPromoPage() {
       channel: 'Sponsors and exhibitors',
       reach: sponsors.length,
       unit: sponsors.length === 1 ? 'sponsor' : 'sponsors',
-      how: 'Partner links they can put in their own newsletter, tracked separately.',
+      how: 'A partner link each for their own newsletter.',
       href: '/tickets/ticket-marketing/campaign-link-tracking',
       label: 'Campaign Links',
     },
@@ -84,7 +84,7 @@ export default async function OrganizerCoPromoPage() {
       channel: 'Social posts',
       reach: links.filter((l) => l.channel && l.channel !== 'partner').length,
       unit: 'tracked social links',
-      how: 'Post copy is written for you; the link in it is counted by the redirect.',
+      how: 'Ready-made post text with a tracked link.',
       href: '/tickets/ticket-marketing/social-sharing',
       label: 'Social Sharing',
     },
@@ -96,11 +96,10 @@ export default async function OrganizerCoPromoPage() {
         title="Organizer Co-Promo"
         info={
           <>
-            <strong>No marketplace to trade slots in</strong>
+            <strong>Promotion through partners</strong>
             <p>
-              Whova&rsquo;s version swaps promotional slots between events on its own platform. KGC
-              reaches a new audience through somebody else&rsquo;s (a partner or a speaker posting
-              a tracked link) so that is what this measures.
+              Swapping promotion with other events is not available. This screen shows what
+              partner and speaker links have brought in.
             </p>
           </>
         }
@@ -116,7 +115,7 @@ export default async function OrganizerCoPromoPage() {
           )
         }
         actions={
-          <Link href="/tickets/ticket-marketing/campaign-link-tracking" className="whova-btn-main">
+          <Link href="/tickets/ticket-marketing/campaign-link-tracking" className="whova-btn-main secondary">
             Create a tracked link
           </Link>
         }
@@ -140,7 +139,7 @@ export default async function OrganizerCoPromoPage() {
             value: partnerLinks.length,
             sub: partnerLinks.length === 0 ? 'not inputted yet' : `of ${links.length} tracked links`,
           },
-          { label: 'Clicks', value: partnerClicks, sub: 'counted by the redirect' },
+          { label: 'Clicks', value: partnerClicks, sub: 'on these links' },
           {
             label: 'Orders credited',
             value: partnerOrders,
@@ -158,7 +157,7 @@ export default async function OrganizerCoPromoPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Links somebody else is posting</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Partner and referral links</h2>
         <Table
           cols={[
             { key: 'l', label: 'Link', className: 'cell-fill' },
@@ -207,7 +206,7 @@ export default async function OrganizerCoPromoPage() {
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The audiences KGC can reach through</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Channels</h2>
         <Table
           cols={[
             { key: 'c', label: 'Channel', className: 'cell-md' },
@@ -232,12 +231,11 @@ export default async function OrganizerCoPromoPage() {
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          Every one of these ends at{' '}
+          Every link goes to{' '}
           <a href={publicUrl('/tickets')} target="_blank" rel="noreferrer">
             /tickets
           </a>
-          , and a purchase within thirty days of the click is credited back to the link that made
-          it.
+          . A purchase within thirty days of a click is credited to that link.
         </p>
       </Panel>
 

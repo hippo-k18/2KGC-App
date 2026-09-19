@@ -22,13 +22,10 @@ export default async function SessionFeedbackPage({
         <>
           <strong>Feedback on one session</strong>
           <p>
-            Three questions is the right length. A rating, a match-to-description, and one free-text
-            box, which is where everything useful comes from.
+            Keep it to about three questions: a rating, whether the session matched its
+            description, and one free-text box.
           </p>
-          <p>
-            Answers are never attributed, and the app has no screen that renders a survey yet, so a
-            published one is not yet answerable from a phone.
-          </p>
+          <p>Answers are anonymous.</p>
         </>
       }
       searchParams={searchParams}

@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listQaSessions } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, todayInEventZone } from '@/lib/time';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,12 +53,8 @@ export default async function ModerateSessionQandAPage() {
         title="Moderate Session Q&A"
         info={
           <>
-            <strong>One queue, reached from two places</strong>
-            <p>
-              Every hide and mark-answered lives in the Session Q&amp;A Manager. A second set of
-              buttons over the same questions would let two moderators disagree about the same row,
-              so this screen only says where the work is.
-            </p>
+            <strong>Moderate in the Session Q&amp;A Manager</strong>
+            <p>This screen shows which sessions have questions waiting. Hide and mark answered there.</p>
           </>
         }
         tags={
@@ -73,7 +69,7 @@ export default async function ModerateSessionQandAPage() {
           )
         }
         actions={
-          <Link href={ROUTES.qaManager} className="whova-btn-main">
+          <Link href={ROUTES.qaManager} className="whova-btn-main secondary">
             Open Session Q&amp;A Manager
           </Link>
         }
@@ -103,7 +99,9 @@ export default async function ModerateSessionQandAPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the backlog is</h2>
         {backlog.length === 0 ? (
-          <NotInputted what="questions waiting for a moderator" />
+          <EmptyState compact>
+            <p className="empty-title">No questions waiting</p>
+          </EmptyState>
         ) : (
           <Table
             cols={[

@@ -149,7 +149,7 @@ export default function EditProfileScreen() {
           <View style={{ alignItems: 'center', gap: Spacing.sm }}>
             <Avatar name={name || 'You'} photoURL={profile?.photoURL} size={88} />
             <Text variant="caption" tone="tertiary">
-              Photo upload needs Storage, which is not provisioned yet
+              Photo upload is not available yet.
             </Text>
           </View>
 

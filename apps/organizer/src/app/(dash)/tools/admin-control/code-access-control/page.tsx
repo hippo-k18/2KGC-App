@@ -32,11 +32,10 @@ export default async function CodeAccessControlPage() {
         title="Code Access Control"
         info={
           <>
-            <strong>The real gate is not this code</strong>
+            <strong>The event code is not what lets people in</strong>
             <p>
-              Access is decided by the <code>registered</code> custom claim, minted only for ticket
-              holders and checked by <code>firestore.rules</code> on every request. A shared code is
-              a convenience on a slide, and is not treated as security here.
+              Only ticket holders can open the app. A shared code is a convenience on a slide and
+              is not treated as security.
             </p>
           </>
         }
@@ -59,18 +58,14 @@ export default async function CodeAccessControlPage() {
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>How somebody actually gets in</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>How an attendee gets in</h2>
         <ol className="muted" style={{ fontSize: 13, lineHeight: 1.8, paddingLeft: 18, marginBottom: 0 }}>
-          <li>They buy a ticket, which writes a registration keyed by their email address.</li>
+          <li>They buy a ticket with their email address.</li>
           <li>
             They sign in to the app with that same address and enter the <strong>claim code</strong>{' '}
-            from their confirmation, which is per-person, not shared, and is the thing this screen
-            is often confused with.
+            from their confirmation email. That code is personal. It is not the event code above.
           </li>
-          <li>
-            The <code>registered</code> claim is minted for them, and{' '}
-            <code>firestore.rules</code> starts allowing reads.
-          </li>
+          <li>Their account is given access to the app.</li>
         </ol>
         {/*
           Kept on the page rather than moved into the `info` tip, because it is
@@ -86,8 +81,8 @@ export default async function CodeAccessControlPage() {
           "Blaze" until it was corrected.
         */}
         <p className="muted" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
-          ⚠️ Step 3 is a manual run of <code>scripts/set-claims.ts</code> today. Somebody has to do
-          it before a new attendee can read anything in the app.
+          ⚠️ Step 3 is done by hand today. Until someone on the team has done it, a new attendee
+          cannot read anything in the app.
         </p>
       </Panel>
 

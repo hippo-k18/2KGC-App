@@ -63,12 +63,11 @@ export function CampaignForm({
 
       {!emailReady && (
         <p className="error">
-          <strong>No email provider is configured.</strong> Set <code>RESEND_API_KEY</code> to send
-          anything. Until then every attempt is recorded as skipped, which is visible but useless.
+          <strong>No email provider is connected.</strong> Nothing can be sent until one is.
         </p>
       )}
 
-      <div className="whova-form-row">
+      <div className="whova-form-group">
         <label className="whova-form-label" htmlFor="subject">
           Subject
         </label>
@@ -80,10 +79,11 @@ export function CampaignForm({
           onChange={(e) => setSubject(e.target.value)}
           placeholder="KGC 2027 tickets are open. Early-bird until 1 March"
           maxLength={120}
+          className="whova-text-input"
         />
       </div>
 
-      <div className="whova-form-row">
+      <div className="whova-form-group">
         <label className="whova-form-label" htmlFor="body">
           Message
         </label>
@@ -92,16 +92,17 @@ export function CampaignForm({
           name="body"
           rows={12}
           required
+          className="whova-text-input"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={
             'Tickets for KGC 2027 are open.\n\n3–7 May at Cornell Tech, Roosevelt Island.\n\nEarly-bird pricing runs until 1 March: https://www.knowledgegraph.tech/r/spring-mail'
           }
         />
-        <p className="muted" style={{ fontSize: 12 }}>
-          Plain text. A blank line starts a new paragraph; nothing else is formatted. Each person
-          gets &ldquo;Hi &lt;first name&gt;,&rdquo; automatically. Don&rsquo;t write your own
-          greeting. Use a <code>/r/</code> link so you can tell afterwards whether this worked.
+        <p className="whova-form-description">
+          Plain text. A blank line starts a new paragraph. Each person gets &ldquo;Hi &lt;first
+          name&gt;,&rdquo; automatically, so leave out the greeting. Use a tracked link to measure
+          the result.
         </p>
       </div>
 
@@ -125,7 +126,7 @@ export function CampaignForm({
         </label>
 
         {testOnly ? (
-          <div className="whova-form-row" style={{ marginBottom: 0 }}>
+          <div className="whova-form-group" style={{ marginBottom: 0 }}>
             <label className="whova-form-label" htmlFor="testAddress">
               Send the test to
             </label>
@@ -134,6 +135,7 @@ export function CampaignForm({
               name="testAddress"
               type="email"
               placeholder="you@knowledgegraph.tech"
+              className="whova-text-input"
               style={{ maxWidth: 320 }}
             />
           </div>
@@ -151,21 +153,24 @@ export function CampaignForm({
               ) : null}
             </p>
 
-            <div className="whova-form-row" style={{ marginBottom: 10 }}>
+            <div className="whova-form-group" style={{ marginBottom: 10 }}>
               <label className="whova-form-label" htmlFor="confirmCount">
-                Type <code>{recipientCount}</code> to confirm
+                <span>
+                  Type <code>{recipientCount}</code> to confirm
+                </span>
               </label>
               <input
                 id="confirmCount"
                 name="confirmCount"
                 autoComplete="off"
                 inputMode="numeric"
+                className="whova-text-input"
                 style={{ maxWidth: 120 }}
               />
             </div>
 
             {needsPassphrase && (
-              <div className="whova-form-row" style={{ marginBottom: 0 }}>
+              <div className="whova-form-group" style={{ marginBottom: 0 }}>
                 <label className="whova-form-label" htmlFor="passphrase">
                   Dashboard passphrase
                 </label>
@@ -174,6 +179,7 @@ export function CampaignForm({
                   name="passphrase"
                   type="password"
                   autoComplete="off"
+                  className="whova-text-input"
                   style={{ maxWidth: 240 }}
                 />
               </div>

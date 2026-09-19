@@ -45,12 +45,8 @@ export default async function PostEventAccessPage() {
         title="Post Event Access Duration"
         info={
           <>
-            <strong>Recorded, not yet enforced</strong>
-            <p>
-              <code>firestore.rules</code> gates on the <code>registered</code> claim and knows
-              nothing about a date, so the app stays open after the event until either that claim
-              expires or the rules learn a cutoff.
-            </p>
+            <strong>Saved, not applied yet</strong>
+            <p>The app does not cut off access after the event yet, so it stays open for now.</p>
           </>
         }
         links={[

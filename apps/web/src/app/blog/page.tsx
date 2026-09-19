@@ -67,9 +67,6 @@ export default async function BlogPage({
             Talks, fortnightly news roundups and write-ups from the {SITE.shortName} community.{' '}
             {POSTS.length} posts, 2019 to today.
           </p>
-          <p className="muted" style={{ maxWidth: '62ch' }}>
-            Each post is summarised here and published in full on knowledgegraph.tech.
-          </p>
           {category && (
             <p style={{ marginTop: 18, marginBottom: 0 }}>
               Showing <strong>{posts.length}</strong> {posts.length === 1 ? 'post' : 'posts'} in{' '}

@@ -245,10 +245,8 @@ export default async function CallForPostersPage() {
           */}
           {dates.length === 0 ? (
             <p className="muted">
-              The {SITE.year} calendar is not confirmed yet, so this page states no deadline. The
-              submission dates appear here as soon as the committee sets them. Write to{' '}
-              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> if you need to know
-              before then.
+              Dates to be announced. Questions:{' '}
+              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
             </p>
           ) : (
             <>

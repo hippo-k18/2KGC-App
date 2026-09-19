@@ -39,12 +39,11 @@ export default async function AttendeeMatchmakingPage() {
           <>
             <strong>A report, not a recommender</strong>
             <p>
-              Nothing here is sent to anybody. It shows an organizer where interests overlap so
-              they can seed a discussion topic or a meet-up.
+              Nothing here is sent to anybody. It shows where interests overlap so you can start a
+              discussion topic or a meet-up.
             </p>
             <p>
               Attendees who turned off directory visibility are counted but never paired.
-              Suggesting them would use exactly the data they asked us not to use.
             </p>
           </>
         }
@@ -126,8 +125,7 @@ export default async function AttendeeMatchmakingPage() {
         )}
         {m.pairsFound > m.pairs.length && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-            Showing {m.pairs.length} of {m.pairsFound}. The rest are cut for length, not filtered
-            out. Said plainly because a silently truncated list reads as a complete one.
+            Showing {m.pairs.length} of {m.pairsFound}.
           </p>
         )}
       </Panel>

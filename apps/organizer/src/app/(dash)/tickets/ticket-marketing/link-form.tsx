@@ -46,7 +46,7 @@ export function LinkForm({
       )}
       {state.ok && <p className="ok">{state.message}</p>}
 
-      <div className="whova-form-row">
+      <div className="whova-form-group">
         <label className="whova-form-label" htmlFor="code">
           Code
         </label>
@@ -57,15 +57,16 @@ export function LinkForm({
           maxLength={48}
           placeholder={codePlaceholder}
           pattern="[a-zA-Z0-9\-]{2,48}"
+          className="whova-text-input"
           style={{ maxWidth: 240 }}
         />
-        <p className="muted" style={{ fontSize: 12 }}>
-          Appears in the public URL as <code>/r/your-code</code>. Re-using a code edits that link
-          rather than creating a second one, and never resets the clicks it has already counted.
+        <p className="whova-form-description">
+          Appears in the public URL as <code>/r/your-code</code>. Using an existing code edits
+          that link and keeps its clicks.
         </p>
       </div>
 
-      <div className="whova-form-row">
+      <div className="whova-form-group">
         <label className="whova-form-label" htmlFor="label">
           Label
         </label>
@@ -75,33 +76,37 @@ export function LinkForm({
           required
           maxLength={80}
           placeholder="February announcement email"
+          className="whova-text-input"
           style={{ maxWidth: 340 }}
         />
-        <p className="muted" style={{ fontSize: 12 }}>
-          For you, not the visitor. In six months nobody remembers what &ldquo;q2b&rdquo; was.
+        <p className="whova-form-description">
+          Only you see this.
         </p>
       </div>
 
-      <div className="whova-form-row">
+      <div className="whova-form-group">
         <label className="whova-form-label" htmlFor="destination">
           Goes to
         </label>
-        <select id="destination" name="destination" style={{ maxWidth: 340 }}>
+        <select
+          id="destination"
+          name="destination"
+          className="whova-text-input"
+          style={{ maxWidth: 340 }}
+        >
           {destinations.map((d) => (
             <option key={d.path} value={d.path}>
               {d.label} · {d.path}
             </option>
           ))}
         </select>
-        <p className="muted" style={{ fontSize: 12 }}>
-          A page on the conference site only. An off-site destination is refused: it would turn{' '}
-          <code>/r/…</code> into an open redirect on our own domain, which is exactly what a
-          phishing campaign wants.
+        <p className="whova-form-description">
+          Links can only go to a page on the conference site.
         </p>
       </div>
 
       {showOwner && (
-        <div className="whova-form-row">
+        <div className="whova-form-group">
           <label className="whova-form-label" htmlFor="owner">
             {ownerLabel}
           </label>
@@ -110,21 +115,26 @@ export function LinkForm({
             name="owner"
             maxLength={80}
             placeholder={ownerPlaceholder}
+            className="whova-text-input"
             style={{ maxWidth: 300 }}
           />
-          <p className="muted" style={{ fontSize: 12 }}>
-            Who gets the credit on the leaderboard. Free text. Most of the people a referral
-            contest rewards are speakers and partners who will never hold an account here.
+          <p className="whova-form-description">
+            Who gets the credit on the leaderboard. They do not need an account.
           </p>
         </div>
       )}
 
       {showChannel && (
-        <div className="whova-form-row">
+        <div className="whova-form-group">
           <label className="whova-form-label" htmlFor="channel">
             Channel
           </label>
-          <select id="channel" name="channel" style={{ maxWidth: 240 }}>
+          <select
+            id="channel"
+            name="channel"
+            className="whova-text-input"
+            style={{ maxWidth: 240 }}
+          >
             <option value="linkedin">LinkedIn</option>
             <option value="bluesky">Bluesky</option>
             <option value="mastodon">Mastodon</option>

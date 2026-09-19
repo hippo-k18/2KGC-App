@@ -79,7 +79,7 @@ export default async function ArtifactWebpagePage() {
         }
         tags={<Tag color="green" fill="outline">live at /documents</Tag>}
         actions={
-          <a href={publicUrl('/documents')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/documents')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live page ↗
           </a>
         }

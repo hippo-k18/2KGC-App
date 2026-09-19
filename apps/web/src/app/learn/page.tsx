@@ -86,10 +86,13 @@ export default function LearnPage() {
             height={275}
             priority
           />
-          <p className="tagline">
-            Learn how knowledge graphs can shape the future of your business and career.
-          </p>
-          <p className="strap">Where peer-learning drives practice.</p>
+          {/* One box for both lines, so a phone can put a panel behind them. */}
+          <div className="copy">
+            <p className="tagline">
+              Learn how knowledge graphs can shape the future of your business and career.
+            </p>
+            <p className="strap">Where peer-learning drives practice.</p>
+          </div>
         </div>
       </section>
 

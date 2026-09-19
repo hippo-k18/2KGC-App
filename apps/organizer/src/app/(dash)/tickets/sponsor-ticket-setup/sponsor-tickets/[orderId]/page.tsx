@@ -47,9 +47,8 @@ export default async function SponsorPassSeatsPage({
           <>
             <strong>Each pass is a real registration</strong>
             <p>
-              Naming a seat mints the same ticket a purchase does (badge QR, claim code and all)
-              through the one function that issues them. The address cannot be changed afterwards,
-              because the ticket is keyed to it.
+              Naming a seat issues the same ticket a purchase does, with a badge QR and a claim
+              code. The email address cannot be changed afterwards.
             </p>
           </>
         }
@@ -98,7 +97,7 @@ export default async function SponsorPassSeatsPage({
             value: allocation.total,
             sub: allocation.sources.map((s) => `${s.ticketTypeName} × ${s.quantity}`).join(', '),
           },
-          { label: 'Named', value: allocation.issued.length, sub: 'registrations minted' },
+          { label: 'Named', value: allocation.issued.length, sub: 'tickets issued' },
           {
             label: 'Remaining',
             value: allocation.remaining,

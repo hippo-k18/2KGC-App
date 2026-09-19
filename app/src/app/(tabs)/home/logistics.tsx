@@ -62,7 +62,7 @@ export default function LogisticsScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="the emergency information"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <SkeletonBlock height={64} radius={Radius.lg} />
             <SkeletonBlock height={64} radius={Radius.lg} />
           </SkeletonScreen>

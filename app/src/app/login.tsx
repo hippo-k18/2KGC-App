@@ -14,7 +14,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { EVENT } from '@/config/event';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import {
@@ -181,7 +181,7 @@ export default function LoginScreen() {
         code.includes('invalid-credential') || code.includes('wrong-password')
           ? 'That email and password do not match an account.'
           : code.includes('network')
-            ? 'Cannot reach the server. Is the emulator running?'
+            ? 'Cannot reach the server. Check your connection.'
             : 'Could not sign in. Please try again.',
       );
     } finally {
@@ -199,6 +199,14 @@ export default function LoginScreen() {
     fontSize: 17,
     color: colors.text,
   };
+
+  // A bare text link is a 20pt line box. The box is grown rather than given
+  // `hitSlop`, which the web build ignores.
+  const textLink = {
+    minHeight: HIT_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as const;
 
   return (
     <KeyboardAvoidingView
@@ -242,7 +250,7 @@ export default function LoginScreen() {
               */}
               <Text variant="subhead" tone="secondary">
                 A code was requested for {codeFor}. Codes expire after {CODE_TTL_MINUTES}{' '}
-                minutes — if one does not arrive, send another.
+                minutes. If one does not arrive, send another.
               </Text>
             </View>
 
@@ -297,12 +305,13 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            <View style={{ alignItems: 'center', gap: Spacing.sm }}>
+            <View style={{ alignItems: 'center' }}>
               <Pressable
                 onPress={() => sendCode(true)}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel="Send another code">
+                accessibilityLabel="Send another code"
+                style={textLink}>
                 <Text variant="subhead" tone="tint">
                   Send another code
                 </Text>
@@ -316,7 +325,8 @@ export default function LoginScreen() {
                 }}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel="Use a different email address">
+                accessibilityLabel="Use a different email address"
+                style={textLink}>
                 <Text variant="subhead" tone="secondary">
                   Use a different address
                 </Text>
@@ -331,12 +341,7 @@ export default function LoginScreen() {
               which of two things it was going to do with it — and the address
               is typed in both branches anyway, so hoisting it saved nothing.
             */}
-            <View style={{ gap: 6 }}>
-              <Text variant="heading">Welcome</Text>
-              <Text variant="subhead" tone="secondary">
-                Your ticket gets you in. Choose how you want to sign in.
-              </Text>
-            </View>
+            <Text variant="heading">Welcome</Text>
 
             <Pressable
               onPress={() => {
@@ -466,7 +471,7 @@ export default function LoginScreen() {
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              style={{ alignItems: 'center' }}>
+              style={textLink}>
               <Text variant="subhead" tone="secondary">
                 Back
               </Text>
@@ -543,7 +548,7 @@ export default function LoginScreen() {
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              style={{ alignItems: 'center' }}>
+              style={textLink}>
               <Text variant="subhead" tone="secondary">
                 Back
               </Text>

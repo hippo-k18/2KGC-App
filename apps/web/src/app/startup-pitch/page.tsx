@@ -149,13 +149,11 @@ export default async function StartupPitchPage() {
           */}
           {dates.length === 0 ? (
             <p className="muted">
-              The {SITE.year} calendar is not confirmed yet, so this page states no dates. The
-              application deadline and the date of the pitch event appear here once they are set.
-              Write to{' '}
+              Dates to be announced. Questions:{' '}
               <a href="mailto:startup-pitch@knowledgegraph.tech">
                 startup-pitch@knowledgegraph.tech
-              </a>{' '}
-              if you need to know before then.
+              </a>
+              .
             </p>
           ) : (
             <>

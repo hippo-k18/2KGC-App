@@ -1,0 +1,507 @@
+{
+ "features": [
+  {
+   "area": "Engagement",
+   "feature": "Send an announcement",
+   "path": "/engagement/announcements",
+   "what": "Post a message to every attendee's app home screen and the public announcement wall.",
+   "steps": [
+    "Open Engagement > Announcements.",
+    "Enter Subject and Body.",
+    "Tick 'I understand this reaches every attendee and cannot be recalled.'",
+    "Click Send.",
+    "Wait 60 seconds before sending another."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcements/actions.ts"
+   ],
+   "statusNote": "Saves to the announcements collection, which the app home screen and the public wall read. No recall, edit or delete after sending."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Push notification with an announcement",
+   "path": "/engagement/announcements",
+   "what": "Send the announcement to phones as a push notification.",
+   "steps": [
+    "Open Engagement > Announcements.",
+    "Enter Subject and Body.",
+    "Tick 'Also send as a push notification'.",
+    "Tick the confirmation box.",
+    "Click Send.",
+    "Read the grey note under the form. It says 'Not sent' or 'Broadcast to'."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/push.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/firestore.ts"
+   ],
+   "statusNote": "push.ts only sends when GOOGLE_APPLICATION_CREDENTIALS is set. The Netlify host uses FIREBASE_SERVICE_ACCOUNT, so the push is skipped, and it has never been run against the live project. All 3 sent announcements show Push: no."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Target, schedule, draft or email an announcement",
+   "path": "/engagement/announcements",
+   "what": "Send to a segment, schedule for later, save a draft or deliver by email.",
+   "steps": [
+    "Open Engagement > Announcements.",
+    "Recipients offers 'All attendees' only. When to send offers 'Send now' only."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcements/announcement-form.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcements/page.tsx"
+   ],
+   "statusNote": "Not built. One audience, send now only, no drafts, no email, no test send."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Sent announcements log",
+   "path": "/engagement/announcements",
+   "what": "See every announcement sent, with body, time and push flag.",
+   "steps": [
+    "Open Engagement > Announcements.",
+    "Scroll to Sent.",
+    "Click Subject or Time sent to sort."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcements/page.tsx"
+   ],
+   "statusNote": "No resend, edit or delete."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Meet-ups",
+   "path": "/engagement/community/meet-ups",
+   "what": "Read attendee meet-up posts with reply and reaction counts.",
+   "steps": [
+    "Open Engagement > Community > Meet-ups.",
+    "Click 'Moderate the board' to hide a post."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/category-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/meet-ups/page.tsx"
+   ],
+   "statusNote": "Organizers cannot create a meet-up. No RSVP, capacity, time or place fields. Posts are community board threads."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Discussion topics",
+   "path": "/engagement/community/discussion-topics",
+   "what": "Read attendee questions and ice breaker threads with reply counts.",
+   "steps": [
+    "Open Engagement > Community > Discussion Topics.",
+    "Click 'Moderate the board' to hide a post."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/category-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/discussion-topics/page.tsx"
+   ],
+   "statusNote": "Organizers cannot post or seed a topic from here."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Social groups",
+   "path": "/engagement/community/social-groups",
+   "what": "Read travel, jobs and lost and found posts.",
+   "steps": [
+    "Open Engagement > Community > Social Groups.",
+    "Click 'Moderate the board' to hide a post."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/category-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/social-groups/page.tsx"
+   ],
+   "statusNote": "No group object. These are board posts filtered by category."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Attendee matchmaking report",
+   "path": "/engagement/community/attendee-matchmaking",
+   "what": "See which interests attendees share and which pairs have two or more in common.",
+   "steps": [
+    "Open Engagement > Community > Attendee Matchmaking.",
+    "Read Interest clusters.",
+    "Scroll to People worth introducing."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/attendee-matchmaking/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/engagement.ts"
+   ],
+   "statusNote": "A report only. Nothing is suggested to attendees in the app and there is no export."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Gamification and leaderboard",
+   "path": "/engagement/gamification",
+   "what": "Award points and show a leaderboard.",
+   "steps": [
+    "Open Engagement > Gamification."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/gamification/page.tsx"
+   ],
+   "statusNote": "Not built. No scoring rules, no points collection, no leaderboard in the app. The page shows zeros."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Book a meeting room slot",
+   "path": "/engagement/1-1-meeting-scheduler",
+   "what": "Book meeting rooms for sponsors and exhibitors, list who is in each slot and catch room clashes with the agenda.",
+   "steps": [
+    "Open Engagement > 1-1 Meeting Scheduler.",
+    "Scroll to Add a slot.",
+    "Enter Booked for, Booked by, Room, Day, Time and Capacity.",
+    "Click Add.",
+    "In The plan, type a name in the Name box under the slot and click 'Add (N left)'.",
+    "Click the x next to a name to remove it.",
+    "Click Edit, Confirm or Cancel on the row. Cancel becomes Restore."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/gathering-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/gatherings.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/1-1-meeting-scheduler/page.tsx"
+   ],
+   "statusNote": "Organizer bookings save. Names are free text, not linked to attendee accounts. Attendees cannot request or accept a meeting and nothing appears in the app. No calendar export."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Build a speed networking schedule",
+   "path": "/engagement/speed-networking",
+   "what": "Turn a list of names into round-robin pairings with no repeated pairs.",
+   "steps": [
+    "Open Engagement > Speed Networking.",
+    "Open 'Paste from the attendee list' and copy the names.",
+    "Paste one name per line into Names.",
+    "Enter Rounds.",
+    "Click Build the schedule.",
+    "Print the page or copy the URL."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/speed-networking/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/pairings-core.ts"
+   ],
+   "statusNote": "The schedule is computed and lives in the URL. Nothing is saved and attendees see nothing in the app. No timer."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Plan round tables",
+   "path": "/engagement/round-table",
+   "what": "Set table topics, hosts, rooms, times and seats, and place people at each table.",
+   "steps": [
+    "Open Engagement > Round Table.",
+    "Scroll to Add a table.",
+    "Enter Topic, Host, Room, Day, Time and Capacity.",
+    "Click Add.",
+    "In The plan, type a name in the Name box under the table and click 'Add (N left)'.",
+    "Click the x next to a name to remove it.",
+    "Click Edit, Confirm or Cancel on the row. Cancel becomes Restore."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/gathering-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/gathering-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/gatherings.ts"
+   ],
+   "statusNote": "The plan saves and room clashes are checked. Names are free text. The app does not read it, so attendees are not told. No rotation, no printable table cards."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Session feedback survey",
+   "path": "/engagement/session-feedback",
+   "what": "Create a feedback survey for one session, publish it to the app and read the results.",
+   "steps": [
+    "Open Engagement > Session Feedback.",
+    "Click + New survey.",
+    "Enter Title.",
+    "Pick the Session.",
+    "Type one question per line, for example 'rating: How useful was this session?' or 'single: Pace? | Too slow | Right | Too fast'.",
+    "Set Status to 'Published: collecting responses'.",
+    "Click Create survey.",
+    "On the list, click Results to read answers.",
+    "Click Unpublish to close it."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/survey-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/survey-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/surveys.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/home/survey/[id].tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/firestore.rules"
+   ],
+   "statusNote": "One survey is live with 12 responses. Questions cannot change once answers exist. No drag and drop builder, no required questions, no export. The page tip still says the app cannot show surveys. That tip is out of date."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Event survey",
+   "path": "/engagement/surveys",
+   "what": "Create a survey for all attendees, publish it to the app and read the results.",
+   "steps": [
+    "Open Engagement > Surveys.",
+    "Click + New survey.",
+    "Enter Title and Description.",
+    "Leave Attach to a session on 'Not a session: an event survey'.",
+    "Type one question per line. Start a line with rating:, single:, multi: or text:. Put options after | characters.",
+    "Set Status to 'Published: collecting responses'.",
+    "Click Create survey.",
+    "Click Results on the row to read answers."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/survey-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/survey-form.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/surveys.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/lib/data/surveys.ts"
+   ],
+   "statusNote": "Same save path as Session Feedback, which has live responses. No event survey exists on the live event yet, so this one is untested end to end. No export, no reminder to attendees."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Floormap",
+   "path": "/engagement/floormap",
+   "what": "Upload a floorplan and pin rooms and booths on it.",
+   "steps": [
+    "Open Engagement > Floormap."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/floormap/page.tsx"
+   ],
+   "statusNote": "No image upload and no pin editor. The page only counts rooms, sessions per room and booths with a number."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Announcement wall for a lobby screen",
+   "path": "/engagement/announcement-wall/activity-stream-webpage",
+   "what": "Show recent announcements on a public web page for a screen in the venue.",
+   "steps": [
+    "Open Engagement > Announcement Wall > Activity Stream Webpage.",
+    "Click 'Open the wall'.",
+    "Put that page on the lobby screen.",
+    "Set the kiosk browser to reload every minute.",
+    "Send an announcement from Engagement > Announcements to add to the wall."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcement-wall/activity-stream-webpage/page.tsx"
+   ],
+   "statusNote": "The wall is live at /announcements on the public site but does not refresh itself. No pinning, expiry or images."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Live poll in a session",
+   "path": "/engagement/live-polling",
+   "what": "Create a poll on a session, open and close voting, and watch the count.",
+   "steps": [
+    "Open Content > Agenda Center > Session Q&A Manager. In the Polls column click Off to turn it On for the session.",
+    "Open Engagement > Live Polling.",
+    "Click + New poll.",
+    "Pick the Session, enter the Question, enter Options one per line.",
+    "Tick Open to votes and click Create poll.",
+    "Reload the page to see new votes.",
+    "Click 'Publish the count' to show attendees the current result.",
+    "Click 'Close voting' when done."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/poll-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/live-polling/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/polls.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/agenda/[id].tsx"
+   ],
+   "statusNote": "The live event has 0 polls and 0 votes, so this has never been run on the live project. Create, open and close write to Firestore. Attendees see results only after you click Publish the count, because the tallyPoll function is not deployed. The poll shows in the app only if the session has Polls on."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Photo collection",
+   "path": "/engagement/photos/photo-collection",
+   "what": "Collect and browse attendee photos from the event.",
+   "steps": [
+    "Open Engagement > Photos > Photo Collection."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/photos/photo-collection/page.tsx"
+   ],
+   "statusNote": "No gallery. Attendees cannot upload photos in the app. The page counts speaker, sponsor, exhibitor and profile images and where they are hosted."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Profile photo frames",
+   "path": "/engagement/photos/profile-photo-frames",
+   "what": "Add a branded frame to attendee profile photos.",
+   "steps": [
+    "Open Engagement > Photos > Profile Photo Frames."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/photos/profile-photo-frames/page.tsx"
+   ],
+   "statusNote": "Not built. No frame upload, and the app has no way for an attendee to set a profile photo."
+  },
+  {
+   "area": "Engagement",
+   "feature": "Photo booth",
+   "path": "/engagement/photos/photo-booth",
+   "what": "Let attendees take framed photos in the app.",
+   "steps": [
+    "Open Engagement > Photos > Photo Booth."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/photos/photo-booth/page.tsx"
+   ],
+   "statusNote": "Not built. No camera screen in the app and no frames. The page shows zeros."
+  }
+ ],
+ "uiIssues": [
+  {
+   "path": "/engagement/announcements",
+   "width": 390,
+   "severity": "high",
+   "type": "overflow",
+   "issue": "On a phone the left menu stays beside the page, so the content column is about 160px wide on every Engagement screen (/engagement/announcements, /engagement/community/*, /engagement/gamification, /engagement/1-1-meeting-scheduler, /engagement/speed-networking, /engagement/round-table, /engagement/session-feedback, /engagement/surveys, /engagement/floormap, /engagement/announcement-wall/activity-stream-webpage, /engagement/live-polling, /engagement/photos/*). The announcement form wraps to three words a line and every table is cut to its first column.",
+   "fix": "Below 768px stack the side menu above the content or collapse it behind a button so the content gets the full width.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a390/engagement_announcements-390.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/layout.tsx"
+  },
+  {
+   "path": "/engagement/announcements",
+   "width": 390,
+   "severity": "high",
+   "type": "clipped",
+   "issue": "Tables show only the first column on a phone. Announcements Sent shows Subject only, and the row actions are out of view on Session Feedback (Results, Edit, Unpublish), Round Table and 1-1 Meeting Scheduler (Edit, Cancel, Confirm, the Add button next to Name). Also affects Attendee Matchmaking, Floormap, Photo Collection, Activity Stream Webpage.",
+   "fix": "Render table rows as stacked cards under 768px, with the actions on their own line.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a390/engagement_round_table-390.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/engagement/session-feedback",
+   "width": 390,
+   "severity": "medium",
+   "type": "overflow",
+   "issue": "At 390px the page header does not wrap. The status tag and the action sit outside the white card on the grey background: '+ New survey' on Session Feedback and Surveys, '+ New poll' on Live Polling, 'Open the wall' on Activity Stream Webpage, and the link row on 1-1 Meeting Scheduler and Speed Networking.",
+   "fix": "Let PageHeader wrap: put tags, links and actions on their own rows under the title at phone width.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/b390/engagement_session_feedback-390.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/engagement/community/discussion-topics",
+   "width": 390,
+   "severity": "medium",
+   "type": "overflow",
+   "issue": "Community post rows do not wrap. The title is squeezed to one word a line and the author and date spill outside the card. Affects Meet-ups, Discussion Topics, Social Groups.",
+   "fix": "Add flex-wrap to the post header row and move author and date under the title on narrow screens.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a390/engagement_community_discussion_topics-390.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/category-screen.tsx"
+  },
+  {
+   "path": "/engagement/session-feedback",
+   "width": 1280,
+   "severity": "medium",
+   "type": "hierarchy",
+   "issue": "The main action looks like plain text. '+ New survey', '+ New poll', 'Create the first one', 'Build the schedule' and the round table 'Add' use whova-btn-main without 'primary' and render grey or borderless, while Send on Announcements is blue. At 390px 'Create the first one' wraps to four lines of plain black text.",
+   "fix": "Add the primary class to the one main action on each screen.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/b1280/engagement_session_feedback-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/survey-screen.tsx"
+  },
+  {
+   "path": "/engagement/round-table",
+   "width": 1280,
+   "severity": "medium",
+   "type": "other",
+   "issue": "Form fields are unstyled browser defaults: small boxes and native selects on Round Table, 1-1 Meeting Scheduler, Speed Networking and the survey form. They do not match the Announcements form.",
+   "fix": "Add the whova-text-input class (and a styled select) to these inputs.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_round_table-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/gathering-forms.tsx"
+  },
+  {
+   "path": "/engagement/announcements",
+   "width": 1280,
+   "severity": "medium",
+   "type": "other",
+   "issue": "Time sent shows a raw timestamp: '2026-08-27T22:03:06.235Z'.",
+   "fix": "Format it as a local date and time, for example 'Aug 27, 6:03 PM'.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_announcements-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcements/page.tsx"
+  },
+  {
+   "path": "/engagement/session-feedback",
+   "width": 1280,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "The info tip on Session Feedback and Surveys says 'the app has no screen that renders a survey yet, so a published one is not yet answerable from a phone'. That is wrong now: the app has a survey screen and this survey has 12 responses.",
+   "fix": "Delete that sentence from both pages.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/b1280/engagement_session_feedback-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/session-feedback/page.tsx"
+  },
+  {
+   "path": "/engagement/announcements",
+   "width": 1280,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "Helper copy argues instead of instructing. Announcements: 'Deliberately the only option. A queued blast fires whether or not anybody is awake to stop it...' and 'Counted live from the attendee list, so this is the number it will actually reach.' Speed Networking: 'Whoever turns up: that is genuinely the input. Duplicates are dropped case-insensitively...'. Round Table: 'Eight to ten is the number a conversation survives. Past that it becomes a panel with no microphone.' Matchmaking: 'Said plainly because a silently truncated list reads as a complete one.'",
+   "fix": "Cut each hint to one plain line or remove it, for example 'Seats at the table.' and 'One name per line.'",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_announcements-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/announcements/announcement-form.tsx"
+  },
+  {
+   "path": "/engagement/gamification",
+   "width": 1280,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "Pages for unbuilt features show engineering notes to the organizer. Gamification: 'Of the four things a conference normally awards points for, one ... could be scored honestly today' and an info tip about Firestore triggers and IAM grants. Profile Photo Frames: 'the wider denominator would blame the wrong thing'. Photo Booth tip: 'React Native has no canvas'. Floormap tip: 'no document in the model has a field to hang a floorplan on'. Live Polling tip names the tallyPoll trigger. Photo Collection shows field names like users.photoURL and a warning paragraph.",
+   "fix": "Replace with one line saying the feature is not available yet, and move the notes behind SHOW_GAP_NOTES.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_gamification-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/gamification/page.tsx"
+  },
+  {
+   "path": "/engagement/round-table",
+   "width": 1280,
+   "severity": "medium",
+   "type": "other",
+   "issue": "The 'Powered by Netlify' badge floats over page content. At 1280px it covers the Cancel link on the second Round Table row. At 390px it covers the warning banner on Announcements and stat tiles elsewhere.",
+   "fix": "Turn the badge off in the Netlify site settings.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_round_table-1280.png"
+  },
+  {
+   "path": "/engagement/community/meet-ups",
+   "width": 1280,
+   "severity": "low",
+   "type": "ai-voice",
+   "issue": "Stat tile subtitles read as commentary: 'counted, not RSVPs', 'counted at read time', 'counted, not read off a tally' (Live Polling), 'breaks when they move' (Photo Collection).",
+   "fix": "Use plain labels or drop the subtitle: 'replies', 'reactions', 'votes'.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_community_meet_ups-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/community/category-screen.tsx"
+  },
+  {
+   "path": "/engagement/gamification",
+   "width": 1280,
+   "severity": "low",
+   "type": "empty-state",
+   "issue": "Empty states say 'Not inputted yet' and 'No polls has been entered for this event', which is odd wording and wrong grammar. Header tags also read 'not inputted yet' on Photo Collection, Photo Booth and Profile Photo Frames.",
+   "fix": "Say 'No polls yet', 'No surveys yet', and drop the tag on pages that have nothing to input.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/a1280/engagement_gamification-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/engagement/session-feedback",
+   "width": 1280,
+   "severity": "low",
+   "type": "clipped",
+   "issue": "The 'Questions' column header breaks mid word as 'Questio / ns'.",
+   "fix": "Widen the column or add white-space: nowrap to table headers.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/engagement/b1280/engagement_session_feedback-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/engagement/survey-screen.tsx"
+  }
+ ],
+ "verified": true
+}

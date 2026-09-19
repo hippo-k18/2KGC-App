@@ -63,7 +63,7 @@ export async function SurveyScreen({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New survey
             </Link>
           )
@@ -149,9 +149,7 @@ export async function SurveyScreen({
             ))
           )}
           <p className="muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>
-            No answer here is attributed to anyone. Responses are keyed by uid so nobody can answer
-            twice, and this screen deliberately cannot join the two. Feedback a speaker can trace
-            back to a name is feedback nobody gives honestly.
+            Answers are anonymous. Each attendee can answer once.
           </p>
         </Panel>
       ) : showForm ? (
@@ -167,7 +165,7 @@ export async function SurveyScreen({
             <NotInputted
               what={mode === 'session' ? 'session feedback forms' : 'event surveys'}
               action={
-                <Link href="?new=1" className="whova-btn-main">
+                <Link href="?new=1" className="whova-btn-main primary">
                   Create the first one
                 </Link>
               }
@@ -176,7 +174,7 @@ export async function SurveyScreen({
             <Table
               cols={[
                 { key: 't', label: 'Survey', className: 'cell-fill' },
-                { key: 'q', label: 'Questions', className: 'cell-xs' },
+                { key: 'q', label: 'Questions', className: 'cell-sm' },
                 { key: 'r', label: 'Responses', className: 'cell-sm' },
                 { key: 's', label: 'Status', className: 'cell-sm' },
                 { key: 'a', label: '', className: 'cell-md' },

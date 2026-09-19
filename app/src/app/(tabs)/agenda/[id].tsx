@@ -421,7 +421,7 @@ export default function SessionDetailScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="session details"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View style={{ gap: Spacing.sm }}>
               <SkeletonBlock width="35%" height={12} />
               <SkeletonBlock width="90%" height={26} />
@@ -446,7 +446,7 @@ export default function SessionDetailScreen() {
   return (
     <>
       {header}
-      <Screen grouped>
+      <Screen grouped avoidKeyboard>
         <View style={{ gap: Spacing.sm }}>
           {session.primaryTrackName ? (
             <Text variant="label" style={{ color: accent }}>

@@ -223,7 +223,7 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
                     <dt style={{ fontWeight: 600 }}>{f.prompt}</dt>
                     <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
                       {value === undefined || value === ''
-                        ? '—'
+                        ? 'No answer'
                         : typeof value === 'boolean'
                           ? value
                             ? 'Yes'

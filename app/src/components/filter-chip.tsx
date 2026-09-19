@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Text } from '@/components/text';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -13,6 +13,8 @@ const PADDING_Y = 7;
 const PADDING_X = 14;
 /** Vertical slop that brings the tappable box up to HIT_TARGET. */
 const SLOP_Y = (HIT_TARGET - CHIP_HEIGHT) / 2;
+/** The invisible part of the target. `webSlop` repeats it for the browser. */
+const SLOP = { top: SLOP_Y, bottom: SLOP_Y, left: 2, right: 2 };
 /** Track-colour swatch. A real circle, not a `●` glyph. */
 const DOT = 8;
 /** Gap between the swatch and the label. */
@@ -40,6 +42,11 @@ const DOT_GAP = 6;
  * in a row with an 8pt gap and overlapping targets would be worse than a small
  * one — 2pt each side consumes half the gap and no more.
  *
+ * The pill is drawn on a view inside the `Pressable` rather than on the
+ * `Pressable` itself. react-native-web ignores `hitSlop`, so there the target is
+ * grown with `webSlop`, which pads the pressable; a fill on the same element
+ * would grow with it.
+ *
  * The height is a `minHeight` plus symmetric padding rather than a fixed
  * `height`, so the label is not guillotined at large Dynamic Type. At 1× the
  * padding and the 20pt subhead line box sum to exactly 34, so nothing moves.
@@ -66,35 +73,40 @@ export function FilterChip({
       accessibilityRole={role}
       accessibilityState={{ selected }}
       accessibilityLabel={label}
-      hitSlop={{ top: SLOP_Y, bottom: SLOP_Y, left: 2, right: 2 }}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: DOT_GAP,
-        paddingHorizontal: PADDING_X,
-        paddingVertical: PADDING_Y,
-        minHeight: CHIP_HEIGHT,
-        borderRadius: Radius.pill,
-        backgroundColor: selected
-          ? colors.accent
-          : pressed
-            ? colors.surfacePressed
-            : colors.surface,
-        borderWidth: selected ? 0 : HAIRLINE,
-        borderColor: colors.border,
-      })}>
-      {!selected && dotColor ? (
+      hitSlop={SLOP}
+      style={webSlop({}, SLOP)}>
+      {({ pressed }) => (
         <View
-          style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: dotColor }}
-          {...DECORATIVE}
-        />
-      ) : null}
-      <Text
-        variant="subhead"
-        tone={selected ? 'onAccent' : 'primary'}
-        style={{ fontWeight: selected ? '600' : '400' }}>
-        {label}
-      </Text>
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: DOT_GAP,
+            paddingHorizontal: PADDING_X,
+            paddingVertical: PADDING_Y,
+            minHeight: CHIP_HEIGHT,
+            borderRadius: Radius.pill,
+            backgroundColor: selected
+              ? colors.accent
+              : pressed
+                ? colors.surfacePressed
+                : colors.surface,
+            borderWidth: selected ? 0 : HAIRLINE,
+            borderColor: colors.border,
+          }}>
+          {!selected && dotColor ? (
+            <View
+              style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: dotColor }}
+              {...DECORATIVE}
+            />
+          ) : null}
+          <Text
+            variant="subhead"
+            tone={selected ? 'onAccent' : 'primary'}
+            style={{ fontWeight: selected ? '600' : '400' }}>
+            {label}
+          </Text>
+        </View>
+      )}
     </Pressable>
   );
 }

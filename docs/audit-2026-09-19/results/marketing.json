@@ -1,0 +1,417 @@
+{
+ "features": [
+  {
+   "area": "Marketing",
+   "feature": "Check the public agenda page",
+   "path": "/marketing/event-webpages/agenda-webpage/general-purpose",
+   "what": "Shows how many sessions are published and which ones would look unfinished on the public agenda.",
+   "steps": [
+    "Open Marketing > Event Webpages > Agenda Webpage > General-Purpose.",
+    "Read the problem list.",
+    "Click Fix in Session Manager next to a problem, or Session Manager under the title.",
+    "Click View the live page to check the result."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/webpage-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/webpages.ts"
+   ],
+   "statusNote": "Report only. Sessions are edited in Session Manager and show on /agenda on the next load."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Share a filtered agenda link",
+   "path": "/marketing/event-webpages/agenda-webpage/special-purpose",
+   "what": "Lists a ready link to the public agenda for each day and each track.",
+   "steps": [
+    "Open Marketing > Event Webpages > Agenda Webpage > Special-Purpose.",
+    "Find the day or track in the table.",
+    "Click its link in the URL column. The filtered agenda opens in a new tab.",
+    "Copy the address from the browser."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/agenda-webpage/special-purpose/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/agenda/page.tsx"
+   ],
+   "statusNote": "Checked live: /agenda?day= and /agenda?track= filter the public page. The screen has no copy button and nothing to save."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Agenda link analytics",
+   "path": "/marketing/event-webpages/agenda-webpage/analytics",
+   "what": "Shows clicks, orders and revenue for tracked links that point at the agenda.",
+   "steps": [
+    "Open Marketing > Event Webpages > Agenda Webpage > Analytics.",
+    "Read the link table.",
+    "Click Campaign links to add a tracked link in Tickets > Ticket Marketing > Campaign Link Tracking."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/agenda-webpage/analytics/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/campaigns.ts"
+   ],
+   "statusNote": "Counts tracked links only. No page views. No agenda link exists yet, so the table is empty."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Check the public speakers page",
+   "path": "/marketing/event-webpages/speaker-webpage",
+   "what": "Shows how many speakers are published and how many lack a photo, company or job title.",
+   "steps": [
+    "Open Marketing > Event Webpages > Speaker Webpage.",
+    "Read the problem list.",
+    "Click Fix in Speaker Manager next to a problem, or Speaker Manager under the title."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/webpage-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/speaker-webpage/page.tsx"
+   ],
+   "statusNote": "Report only. Speakers cannot be reordered or edited here."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Check the public sponsors page",
+   "path": "/marketing/event-webpages/sponsor-webpage/sponsor-list",
+   "what": "Shows whether every sponsor has what the public sponsor page needs.",
+   "steps": [
+    "Open Marketing > Event Webpages > Sponsor Webpage > Sponsor List.",
+    "Read the problem list.",
+    "Click Fix in Sponsor Manager next to a problem, or Sponsor Manager under the title."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/webpage-screen.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/sponsor-webpage/sponsor-list/page.tsx"
+   ],
+   "statusNote": "Report only. Sponsors are edited in Sponsor Manager."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Check sponsor artwork",
+   "path": "/marketing/event-webpages/sponsor-webpage/sponsor-banner",
+   "what": "Shows which sponsors have a logo on file, by tier.",
+   "steps": [
+    "Open Marketing > Event Webpages > Sponsor Webpage > Sponsor Banner.",
+    "Scan the artwork table for missing logos.",
+    "Click Sponsor Manager to add a logo."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/sponsor-webpage/sponsor-banner/page.tsx"
+   ],
+   "statusNote": "No banner placement, rotation or impression counts exist. The app has no banner slot."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Check the public exhibitors page",
+   "path": "/marketing/event-webpages/exhibitor-webpage",
+   "what": "Shows which exhibitors are live on /exhibitors and which lack a logo or website.",
+   "steps": [
+    "Open Marketing > Event Webpages > Exhibitor Webpage.",
+    "Read the problem list and the booth table.",
+    "Click Exhibitor Manager to confirm an exhibitor or add a logo."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/exhibitor-webpage/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/exhibitors.ts"
+   ],
+   "statusNote": "Report only. Confirming an exhibitor in Exhibitor Manager publishes them."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Check public documents",
+   "path": "/marketing/event-webpages/artifact-webpage",
+   "what": "Shows which documents anyone can download at /documents and which are held back by ticket type.",
+   "steps": [
+    "Open Marketing > Event Webpages > Artifact Webpage.",
+    "Read the table.",
+    "Click Documents to publish, restrict or add one."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/artifact-webpage/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/planning.ts"
+   ],
+   "statusNote": "Report only. No download counts. Documents are links to files hosted elsewhere."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Check venue and travel info",
+   "path": "/marketing/event-webpages/logistics-webpage",
+   "what": "Shows where a visitor finds venue, dates, registration, travel and conduct answers on the public site.",
+   "steps": [
+    "Open Marketing > Event Webpages > Logistics Webpage.",
+    "Read the table.",
+    "For day-of changes, click Announcements and post one."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/logistics-webpage/page.tsx"
+   ],
+   "statusNote": "No logistics editor. Venue and travel text lives in site code and needs a deploy to change."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Venue map",
+   "path": "/marketing/event-webpages/venue-map-webpage",
+   "what": "Lists the rooms a venue map would show and how many sessions use each.",
+   "steps": [
+    "Open Marketing > Event Webpages > Venue Map Webpage.",
+    "Read the room table.",
+    "Click Floormap (in-app) for the map attendees see in the app."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/venue-map-webpage/page.tsx"
+   ],
+   "statusNote": "No floorplan upload and no pin placement. The public site has no map page."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Event website overview",
+   "path": "/marketing/event-website",
+   "what": "Lists all 22 public pages, opens each one, and links to the screen where each is edited.",
+   "steps": [
+    "Open Marketing > Event Website.",
+    "Click a page name to open it.",
+    "Click the link in the Edited from column to change that page's data.",
+    "Click Website Copy to edit Code of conduct, Call for posters or Startup pitch text."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-website/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/page-content.ts"
+   ],
+   "statusNote": "This screen edits nothing. It links to the editors. 13 pages change from the dashboard, 9 are code and need a deploy. Website Copy saves, but 0 of 3 pages have saved text yet. No branding or domain controls."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Partner and referral links",
+   "path": "/marketing/organizer-co-promo",
+   "what": "Shows clicks, orders and revenue for links that speakers and partners post.",
+   "steps": [
+    "Open Marketing > Organizer Co-Promo.",
+    "Read the link table.",
+    "Click Create a tracked link. It opens Tickets > Ticket Marketing > Campaign Link Tracking."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/organizer-co-promo/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/campaigns.ts"
+   ],
+   "statusNote": "Report only. Links are made in Tickets > Ticket Marketing. There is no cross-event promotion."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Event listing",
+   "path": "/marketing/whova-listing/my-event-listing",
+   "what": "Shows what a search result or shared link displays for the conference.",
+   "steps": [
+    "Open Marketing > Whova Listing > My Event Listing.",
+    "Read the table."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/whova-listing/my-event-listing/page.tsx"
+   ],
+   "statusNote": "No directory listing exists. Site title, description and share image are code and need a deploy."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Tracked link traffic",
+   "path": "/marketing/whova-listing/traffic-analytics",
+   "what": "Shows clicks, orders and revenue for every tracked link.",
+   "steps": [
+    "Open Marketing > Whova Listing > Traffic Analytics.",
+    "Read the table.",
+    "Click Create a tracked link. It opens Tickets > Ticket Marketing > Campaign Link Tracking."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/whova-listing/traffic-analytics/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/campaigns.ts"
+   ],
+   "statusNote": "Counts tracked links only. No page views, referrers or chart."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Social wall",
+   "path": "/marketing/social-wall/social-wall-customization",
+   "what": "Shows community board posts by category and which categories are safe to put on a screen.",
+   "steps": [
+    "Open Marketing > Social Wall > Social Wall Customization.",
+    "Read the category table.",
+    "Click Moderate the board to hide a post."
+   ],
+   "status": "blocked",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/social-wall/social-wall-customization/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/engagement.ts"
+   ],
+   "statusNote": "No public wall page exists. Nothing to customize or project."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Activity stream",
+   "path": "/marketing/social-wall/activity-stream-webpage",
+   "what": "Shows counts for attendee posts and announcements, and which of the two is public.",
+   "steps": [
+    "Open Marketing > Social Wall > Activity Stream Webpage.",
+    "Click /announcements to see the public stream.",
+    "Click Announcements to post one."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/social-wall/activity-stream-webpage/page.tsx"
+   ],
+   "statusNote": "Only announcements are public. The attendee board is not published anywhere."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Social media results",
+   "path": "/marketing/social-media-center/social-media-manager",
+   "what": "Shows clicks, orders and revenue for social links, by channel.",
+   "steps": [
+    "Open Marketing > Social Media Center > Social Media Manager.",
+    "Read the channel and link tables.",
+    "Click Go to the post copy. It opens Tools > App Adoption > Social Media."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/social-media-center/social-media-manager/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/campaigns.ts"
+   ],
+   "statusNote": "Does not post or schedule. No connected accounts. You post by hand."
+  },
+  {
+   "area": "Marketing",
+   "feature": "Content library",
+   "path": "/marketing/social-media-center/content-library",
+   "what": "Lists where post copy, the adoption email, the download button, sponsor logos and speaker headshots live.",
+   "steps": [
+    "Open Marketing > Social Media Center > Content Library.",
+    "Click the link in the Screen column to open an asset."
+   ],
+   "status": "view-only",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/social-media-center/content-library/page.tsx"
+   ],
+   "statusNote": "An index of links. Stores nothing. No shareable graphics exist."
+  }
+ ],
+ "uiIssues": [
+  {
+   "path": "/marketing/*",
+   "width": 390,
+   "severity": "high",
+   "type": "overflow",
+   "issue": "On all 18 Marketing leaf screens the sidebar stays beside the content, so the page body is about 160px wide and tables show only their first column.",
+   "fix": "Below 768px stack the sidebar above the content or hide it behind a menu button, and let tables scroll sideways.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_event_website-390-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/globals.css"
+  },
+  {
+   "path": "/marketing/*",
+   "width": 390,
+   "severity": "high",
+   "type": "clipped",
+   "issue": "On all 18 Marketing leaf screens the header tag is cut off (\"1 thi\", \"22 pag\") and the header button (View the live page, Create a tracked link, Open the site) is pushed off screen.",
+   "fix": "Let the page header wrap so the tag and the button drop under the title.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_event_webpages_agenda_webpage_general_purpose-390-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/marketing/*",
+   "width": 390,
+   "severity": "low",
+   "type": "other",
+   "issue": "Each screen puts its limits behind a small \"i\" next to the title. On a phone it is a tiny tap target.",
+   "fix": "Open the tip on tap and keep it inside the viewport, or show one line under the title.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_event_webpages_speaker_webpage-390-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/marketing/*",
+   "width": 1280,
+   "severity": "medium",
+   "type": "hierarchy",
+   "issue": "The header action (Open the site, Create a tracked link, View /about) shows as plain dark text with no button or underline. It does not look clickable.",
+   "fix": "Style the header action as a button, like Step-by-step setup guide.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_organizer_co_promo-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/organizer-co-promo/page.tsx"
+  },
+  {
+   "path": "/marketing/event-webpages/logistics-webpage",
+   "width": 1280,
+   "severity": "medium",
+   "type": "hierarchy",
+   "issue": "The Venue tile prints the full address at stat-number size and wraps to four lines, making the tile row twice as tall. Also on /marketing/event-webpages/venue-map-webpage.",
+   "fix": "Show the address at body size or move it out of the stat tiles.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_event_webpages_logistics_webpage-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/event-webpages/logistics-webpage/page.tsx"
+  },
+  {
+   "path": "/marketing/social-media-center/content-library",
+   "width": 1280,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "Engineering notes shown to the organizer: \"Nothing in this repo composes an image from a template\", \"The ticket-receipt work put a real email sender in the project; this uses it.\"",
+   "fix": "Replace with \"None yet\" and \"Sends from the dashboard\".",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_social_media_center_content_library-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/social-media-center/content-library/page.tsx"
+  },
+  {
+   "path": "/marketing/whova-listing/my-event-listing",
+   "width": 1280,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "Tables name code paths to the organizer: \"apps/web layout. Needs a deploy\", \"Rendered from ticketTypes on every request\". /marketing/event-website says \"code. Needs a deploy\" on nine rows and adds a footnote about Firestore and React files.",
+   "fix": "Say \"Ask the developer\" or \"Edited in Create Tickets\" and drop the footnotes.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_whova_listing_my_event_listing-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/whova-listing/my-event-listing/page.tsx"
+  },
+  {
+   "path": "/marketing/social-wall/activity-stream-webpage",
+   "width": 1280,
+   "severity": "medium",
+   "type": "ai-voice",
+   "issue": "Essay-style copy and headings: \"Gated by the registered claim, and posted on that understanding. Publishing it retroactively changes the deal.\" Same tone in headings elsewhere: \"Would a visitor notice anything missing?\", \"Where the material actually is\", \"What a wall would be showing the lobby\", \"stated so a number here can be argued with\".",
+   "fix": "Use plain labels: \"Not public\", \"Missing details\", \"Assets\", \"Posts by category\".",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_social_wall_activity_stream_webpage-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/social-wall/activity-stream-webpage/page.tsx"
+  },
+  {
+   "path": "/marketing/whova-listing/my-event-listing",
+   "width": 1280,
+   "severity": "low",
+   "type": "empty-state",
+   "issue": "Whova Listing, Social Wall Customization and Venue Map Webpage are menu items for things that do not exist (tags read \"not applicable\", \"no public wall\", \"0 of 8 pinned\").",
+   "fix": "Hide these three from the nav until they do something, or merge them into Event Website.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_whova_listing_my_event_listing-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/nav.ts"
+  },
+  {
+   "path": "/marketing/organizer-co-promo",
+   "width": 1280,
+   "severity": "low",
+   "type": "ai-voice",
+   "issue": "Link labels in live data carry em dashes (\"Speaker referral — Ada Lovelace\"). Also shown on /marketing/whova-listing/traffic-analytics.",
+   "fix": "Rename the links with a colon or comma in Campaign Link Tracking.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_organizer_co_promo-1280-p0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/marketing/whova-listing/traffic-analytics/page.tsx"
+  },
+  {
+   "path": "/marketing/*",
+   "width": 1280,
+   "severity": "medium",
+   "type": "other",
+   "issue": "The \"Powered by Netlify\" badge sits on top of the last table column and hides text (\"static page. Needs a d...\"). Seen on Logistics Webpage, Content Library and Special-Purpose.",
+   "fix": "Turn off the Netlify badge in site settings.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/marketing/pages/marketing_event_webpages_logistics_webpage-1280-p0.png"
+  }
+ ],
+ "verified": true
+}

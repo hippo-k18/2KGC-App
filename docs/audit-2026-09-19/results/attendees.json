@@ -1,0 +1,730 @@
+{
+ "features": [
+  {
+   "area": "Attendees",
+   "feature": "View and search the attendee list",
+   "path": "/attendees/manage-attendees/attendees",
+   "what": "Lists everyone with a ticket or an app profile, with search, sort and paging.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Attendees.",
+    "Type a name, email or company in the search box.",
+    "Click Search.",
+    "Click a column header to sort."
+   ],
+   "status": "partial",
+   "statusNote": "Every row shows the email as the name, \"no ticket\", no title, no company and \"opted out\". listAttendees() reads only the email field. Search matches emails only. Sorting by any other column does nothing.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/data.ts (line 603-607, .select('email'))"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Add an attendee",
+   "path": "/attendees/manage-attendees/attendees",
+   "what": "Adds one person as a registration so they can be badged and checked in.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Attendees.",
+    "Click Add an attendee.",
+    "Enter Name and Email.",
+    "Click Add attendee."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/add-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/add-form.tsx"
+   ],
+   "statusNote": "The registration saves and the person can be checked in and badged. The Ticket type list is empty because of the listAttendees() bug, so everyone is saved as \"Added by organizer\". No email or claim code is sent. The new row shows on the list as an email only."
+  },
+  {
+   "area": "Attendees",
+   "feature": "Import attendees from CSV",
+   "path": "/attendees/manage-attendees/attendees",
+   "what": "Uploads or pastes a CSV, previews the rows and errors, then creates or updates registrations by email.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Attendees.",
+    "Click Import attendees.",
+    "Choose a CSV file or paste the rows.",
+    "Click Check the file.",
+    "Read the preview and the row errors.",
+    "Tick \"Import the good rows anyway\" if some rows are bad.",
+    "Click Import N attendees."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/import-actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/import-attendees.ts"
+   ],
+   "statusNote": "Registrations save. No email or claim code is sent to the people imported. Imported names and tickets do not show on the Attendees list until listAttendees() is fixed. They do show on Check-in and Name Badges."
+  },
+  {
+   "area": "Attendees",
+   "feature": "Edit or remove an attendee",
+   "path": "/attendees/manage-attendees/attendees",
+   "what": "Change a profile or take someone off the event.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Attendees.",
+    "Click the three dots on a row."
+   ],
+   "status": "blocked",
+   "statusNote": "No edit or remove action exists. The row menu only has Send announcement and Check in at the door. Re-adding the same email updates name and ticket type only.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Export the attendee list",
+   "path": "/attendees/manage-attendees/attendees",
+   "what": "Downloads the attendee list or the badge and catering list as CSV.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Attendees.",
+    "Click Export attendees.",
+    "Pick Export basic attendee list or Export badge and catering list."
+   ],
+   "status": "partial",
+   "statusNote": "The file downloads, but name, title, company, ticket and category come out blank or as the email. Same listAttendees() bug.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/exports.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/export/[kind]/route.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/data.ts"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Attendee analytics",
+   "path": "/attendees/manage-attendees/analytics-and-exports",
+   "what": "Shows app adoption, ticket mix, top companies, revenue and session attendance.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Analytics & Exports."
+   ],
+   "status": "partial",
+   "statusNote": "Adoption, revenue and session attendance are right. \"By ticket type\" and \"Top organisations\" are empty because of the listAttendees() bug.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/analytics-and-exports/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/exports.ts"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Download exports",
+   "path": "/attendees/manage-attendees/analytics-and-exports",
+   "what": "Downloads CSVs: attendees, catering, orders, speakers, sessions, sponsors, checked-in, session attendance, attendance hours.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Analytics & Exports.",
+    "Scroll to Exports.",
+    "Click Download on the row you need."
+   ],
+   "status": "partial",
+   "statusNote": "All nine files download. The attendee and catering files carry blank names and tickets until listAttendees() is fixed.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/exports.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/export/[kind]/route.ts"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Attendee limit",
+   "path": "/attendees/manage-attendees/attendee-limit-upgrade",
+   "what": "Shows the registration count. There is no cap and nothing to buy.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Attendee Limit Upgrade."
+   ],
+   "status": "view-only",
+   "statusNote": "Information page. No setting or purchase exists.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/attendee-limit-upgrade/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Hybrid settings",
+   "path": "/attendees/manage-attendees/hybrid-settings",
+   "what": "States that the event is in-person only.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Hybrid Settings."
+   ],
+   "status": "view-only",
+   "statusNote": "No settings. The data model has no stream or remote audience field.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/hybrid-settings/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Cross-event report",
+   "path": "/attendees/manage-attendees/cross-event-report",
+   "what": "Would compare attendance across events.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Cross-Event Report."
+   ],
+   "status": "view-only",
+   "statusNote": "Only one event exists, so the page shows an empty state.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/cross-event-report/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "See who is an administrator",
+   "path": "/attendees/admin-settings",
+   "what": "Lists the accounts allowed into the dashboard.",
+   "steps": [
+    "Open Attendees > Admin Settings."
+   ],
+   "status": "view-only",
+   "statusNote": "Admins come from the CONSOLE_ALLOWLIST env var. They cannot be added or removed from the browser.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/admin-settings/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Attendee list and contact sharing switches",
+   "path": "/attendees/admin-settings",
+   "what": "Two checkboxes for whether attendees can browse the list and share contact details.",
+   "steps": [
+    "Open Attendees > Admin Settings.",
+    "Tick or untick the two boxes under Attendee-facing.",
+    "Click Save."
+   ],
+   "status": "blocked",
+   "statusNote": "The values save, but nothing reads them. The app and the Firestore rules ignore both switches, so attendees see no change. The screen says so itself.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/admin-settings/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/admin-settings/form.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Note for check-in staff",
+   "path": "/attendees/admin-settings",
+   "what": "Saves a short note that shows as a banner on the Check-in screen.",
+   "steps": [
+    "Open Attendees > Admin Settings.",
+    "Type the note in the Check-in staff box.",
+    "Click Save.",
+    "Open Attendees > Check-in & Checkout > Check-in to see the banner."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/admin-settings/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Volunteer roster",
+   "path": "/attendees/call-for-volunteers/volunteer-manager",
+   "what": "Keeps a list of volunteers with role, shift, status and notes, and warns about clashing shifts.",
+   "steps": [
+    "Open Attendees > Call For Volunteers > Volunteer Manager.",
+    "Scroll to Add a volunteer.",
+    "Enter Name, Email and Role.",
+    "Set Status, Day, Starts and Ends.",
+    "Click Add to roster.",
+    "On a roster row, click Confirm, Declined, No-show or Remove."
+   ],
+   "status": "partial",
+   "statusNote": "The roster saves. There is no public sign-up form, no email to volunteers and no edit for a saved row other than status. The roster is empty on the live project.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/call-for-volunteers/volunteer-manager/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/call-for-volunteers/volunteer-manager/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Volunteer waivers",
+   "path": "/attendees/call-for-volunteers/release-and-consent-forms",
+   "what": "Shows which volunteers have signed each waiver.",
+   "steps": [
+    "Open Attendees > Release & Consent Forms.",
+    "Click + New form.",
+    "Set the audience to Volunteers and the status to Published.",
+    "Click Create form.",
+    "Open Attendees > Call For Volunteers > Release & Consent Forms.",
+    "Click the waiver to see who signed."
+   ],
+   "status": "partial",
+   "statusNote": "Signing links are not sent. Copy each link from the register and send it yourself. A missing waiver blocks nothing. No form and no volunteers exist on the live project, so signing was not seen end to end.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/call-for-volunteers/release-and-consent-forms/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/release-and-consent-forms/register-view.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Categories",
+   "path": "/attendees/categories",
+   "what": "Counts attendees by role and lists who is in each.",
+   "steps": [
+    "Open Attendees > Categories.",
+    "Click View on a category row."
+   ],
+   "status": "view-only",
+   "statusNote": "Categories cannot be created or assigned here. All 52 people show as Uncategorised because of the listAttendees() bug.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/categories/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/data.ts"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Segments",
+   "path": "/attendees/segments",
+   "what": "Groups attendees by ticket type, app adoption, directory presence and company size.",
+   "steps": [
+    "Open Attendees > Segments.",
+    "Click View on a segment row."
+   ],
+   "status": "view-only",
+   "statusNote": "Segments are computed, not editable, and cannot be used as a message audience from here. Ticket and company groups all read 0 because of the listAttendees() bug.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/segments/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/data.ts"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Ticket to session mapping",
+   "path": "/attendees/ticket-session-mapping",
+   "what": "Shows which ticket types include workshops and the video library.",
+   "steps": [
+    "Open Attendees > Ticket Session Mapping."
+   ],
+   "status": "view-only",
+   "statusNote": "Read from the ticket type flags. Edit them in Tickets > Ticket Setup. Nothing enforces the mapping in the app, and \"Held by\" reads 0 for every tier.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/ticket-session-mapping/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Session caps",
+   "path": "/attendees/session-cap",
+   "what": "Lists capped sessions against room seats and door counts.",
+   "steps": [
+    "Open Attendees > Session Cap.",
+    "Filter by day or search.",
+    "To change a cap, open Content > Session Manager and edit the session capacity."
+   ],
+   "status": "view-only",
+   "statusNote": "Caps are set in Session Manager. A cap is a note only. Nothing stops a full session from taking more people.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/session-cap/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Release and consent forms",
+   "path": "/attendees/release-and-consent-forms",
+   "what": "Writes versioned consent forms for attendees, speakers or volunteers and tracks who signed.",
+   "steps": [
+    "Open Attendees > Release & Consent Forms.",
+    "Click + New form.",
+    "Enter title, wording and audience.",
+    "Set status to Published.",
+    "Click Create form.",
+    "Click the form title to open its register.",
+    "Click Open / copy on a row and send that link to the person."
+   ],
+   "status": "partial",
+   "statusNote": "Forms and signatures save. Signing links are not emailed, an unsigned form blocks nothing, and withdrawals are manual. Links need WEB_CONSENT_SECRET or WEB_ORDER_SECRET set on both sites. No form exists on the live project, so signing was not seen end to end.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/release-and-consent-forms/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/release-and-consent-forms/register-view.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/consents.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/consent/[token]/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Check in by badge scan or code",
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "what": "Checks a person in at the main door from a QR scan or a six-character code.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Check-in.",
+    "Type a name in This station's name.",
+    "Click Start camera and hold up the badge, or type the code and click Check in.",
+    "Read the result panel."
+   ],
+   "status": "works",
+   "statusNote": "Camera scanning needs Chrome or Edge. Safari and Firefox fall back to typing the code. On a phone the code box and result panel are cut off.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/scanner.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Check in by name",
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "what": "Finds a person in the list and checks them in without a code. Can be undone.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Check-in.",
+    "Scroll to Check in by name.",
+    "Search for the person.",
+    "Click Check in on their row.",
+    "Click Undo on the row to reverse it."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/desk-table.tsx"
+   ],
+   "statusNote": "Names and tickets show correctly here. On a phone only the name column fits, so the Check in button is off screen."
+  },
+  {
+   "area": "Attendees",
+   "feature": "Check in for a day or a session",
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "what": "Opens a separate list that counts people into one day or one session.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Check-in.",
+    "Pick a day under Check-in for the day, or a session under Check-in for the session.",
+    "Click Start.",
+    "Scan or check in by name as usual.",
+    "Click the Main Door chip to go back to the event list."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/scope-form.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Create a check-in list",
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "what": "Adds another named list, for example a VIP entrance.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Check-in.",
+    "Scroll to Lists.",
+    "Enter a Name and pick a Kind.",
+    "Click Create list."
+   ],
+   "status": "works",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/list-form.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Scan log and check-in exports",
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "what": "Shows recent check-ins and every scan, and downloads the checked-in list.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Check-in.",
+    "Scroll to Recent check-ins and Scan log.",
+    "Click Export Check-in Lists.",
+    "Pick Export checked-in list (CSV) or Export session attendance (CSV)."
+   ],
+   "status": "partial",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/exports.ts"
+   ],
+   "statusNote": "The checked-in and session attendance files are right. \"Export full attendee list (CSV)\" has the listAttendees() bug and comes out with blank names and tickets."
+  },
+  {
+   "area": "Attendees",
+   "feature": "Room door check-in",
+   "path": "/attendees/check-in-and-checkout/session-self-check-in",
+   "what": "Opens a scanner that counts people into one session, and lists door counts per session.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Session Self Check-in.",
+    "Pick the Session.",
+    "Enter a Station name.",
+    "Click Open the room door.",
+    "Scan badges on the screen that opens."
+   ],
+   "status": "partial",
+   "statusNote": "Staff scanning works. Attendees cannot check themselves into a session from their phone.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/session-self-check-in/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/session-self-check-in/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Kiosk check-in",
+   "path": "/attendees/check-in-and-checkout/kiosk-check-in",
+   "what": "A stripped-down scanner to leave on a tablet at the entrance.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Kiosk Check-in.",
+    "Enter a station name and pick the list.",
+    "Click Apply.",
+    "Bookmark the address on the device.",
+    "Lock the device in kiosk mode."
+   ],
+   "status": "partial",
+   "statusNote": "Scanning works. The tablet must stay signed in as an organizer, and badges do not print on scan.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/kiosk-check-in/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/scanner.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Attendee self check-in",
+   "path": "/attendees/check-in-and-checkout/self-check-in",
+   "what": "Lets attendees check themselves in from their own phone.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Self Check-in."
+   ],
+   "status": "blocked",
+   "statusNote": "Not available. Firestore rules deny attendee check-in writes. The page points to Kiosk Check-in instead.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/self-check-in/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Checkout",
+   "path": "/attendees/check-in-and-checkout/checkout",
+   "what": "Shows arrivals at the main door.",
+   "steps": [
+    "Open Attendees > Check-in & Checkout > Checkout."
+   ],
+   "status": "view-only",
+   "statusNote": "Nobody can be checked out. There is no exit record, so no live occupancy number.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/checkout/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Print name badges",
+   "path": "/attendees/name-badges",
+   "what": "Prints 3.5 x 2.25 inch badges with name, company, title, ticket and QR code, 25 to a sheet.",
+   "steps": [
+    "Open Attendees > Name Badges.",
+    "Click a ticket chip or search to filter.",
+    "Click Print 25 badges.",
+    "Print from the browser dialog.",
+    "Go to the next page and repeat."
+   ],
+   "status": "partial",
+   "statusNote": "Badges show real names, companies and tickets. Printing is one sheet of 25 at a time. There is no badge designer, no custom fields and no print on check-in.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/name-badges/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/name-badges/print-button.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Certificates of attendance",
+   "path": "/attendees/certificates",
+   "what": "Issues a certificate with certified hours to everyone counted into at least one session, then prints them.",
+   "steps": [
+    "Scan people into sessions first (Session Self Check-in).",
+    "Open Attendees > Certificates.",
+    "Edit Wording, Signed by and Their role.",
+    "Replace the Certificate mark if needed.",
+    "Click Issue N certificates.",
+    "Scroll to the certificates and print from the browser.",
+    "Click Download CSV for hours by attendee."
+   ],
+   "status": "partial",
+   "statusNote": "Printed or saved as PDF from the browser only. Not emailed, and attendees cannot download their own. The Issue button is disabled until someone has been scanned into a session. Nobody has been on the live project, so issuing was not seen.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/certificates/actions.ts",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/certificates/issue-form.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/certificates/page.tsx"
+   ]
+  },
+  {
+   "area": "Attendees",
+   "feature": "Mailchimp, Constant Contact and Zapier",
+   "path": "/attendees/integrations/mailchimp",
+   "what": "Explains how to move attendee data into these tools by hand.",
+   "steps": [
+    "Open Attendees > Manage Attendees > Analytics & Exports.",
+    "Download the Attendee list CSV.",
+    "Import the file in Mailchimp, Constant Contact or your CRM."
+   ],
+   "status": "blocked",
+   "statusNote": "No connection exists for any of the three. The pages are manual CSV instructions, and the CSV has blank names until listAttendees() is fixed.",
+   "evidence": [
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/integration-guide.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/integrations/mailchimp/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/integrations/constant-contact/page.tsx",
+    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/integrations/crm-integration-via-zapier/page.tsx"
+   ]
+  }
+ ],
+ "uiIssues": [
+  {
+   "path": "/attendees/*",
+   "width": 390,
+   "severity": "high",
+   "type": "overflow",
+   "issue": "On a phone the 200px side menu stays beside the page, so the content column is 160px wide on all 28 Attendees routes. Tables show one column, stat tiles stack, paragraphs wrap to two or three words a line.",
+   "fix": "Below 768px, move the side menu into a collapsible drawer and let .frame-right-side take the full width.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_manage_attendees_attendees-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/layout.tsx"
+  },
+  {
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "width": 390,
+   "severity": "high",
+   "type": "clipped",
+   "issue": "On a phone the badge code box, the Start camera button, the READY result panel and the Check in button on each row run off the right edge. Same on /attendees/check-in-and-checkout/kiosk-check-in. Staff will use this screen on a phone.",
+   "fix": "Let .scan-left and the result panel stack at full width under 768px instead of a fixed 300px column.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_check_in_and_checkout_check_in-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/scanner.tsx"
+  },
+  {
+   "path": "/attendees/manage-attendees/attendees",
+   "width": 1280,
+   "severity": "high",
+   "type": "broken",
+   "issue": "Every attendee row shows the email as the name, a dash for title and company, \"no ticket\" and \"opted out\", while the summary above says 52 of 52 hold a ticket. The same bug makes /attendees/categories show everyone as Uncategorised, /attendees/segments show 0 for ticket and company groups, /attendees/ticket-session-mapping show Held by 0, Analytics & Exports show \"No tickets issued yet\", and leaves the Ticket type list empty in Add an attendee.",
+   "fix": "Remove .select('email') from the queries in data.ts at lines 603, 607, 725 and 729 so the full documents are read.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_manage_attendees_attendees-1280-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/data.ts"
+  },
+  {
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "width": 1280,
+   "severity": "high",
+   "type": "excess-text",
+   "issue": "Developer notes and code names are shown to the organizer. Check-in: \"Device dev_..., kept in this browser's localStorage. It is the checkInStations document id\", \"this is the row Whova puts an inline Check in button on\", \"Same idempotent write as a scan\". Attendees: \"Why this is two collections merged\". Categories: \"setCustomUserClaims\". Admin Settings: \"CONSOLE_ALLOWLIST\", \"src/lib/auth.ts\". Segments: \"RegistrationDoc.ticketType\". Also Ticket Session Mapping, Session Cap, Release & Consent Forms and Kiosk Check-in.",
+   "fix": "Replace each with one plain line, for example \"This device is remembered as Console desk 1.\" Wrap the \"Why\" panels in GapPanel so SHOW_GAP_NOTES hides them.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_check_in_and_checkout_check_in-1280-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/scanner.tsx"
+  },
+  {
+   "path": "/attendees/call-for-volunteers/volunteer-manager",
+   "width": 390,
+   "severity": "medium",
+   "type": "clipped",
+   "issue": "On a phone, form inputs and their hints are wider than the panel and are cut off on the right. Same on /attendees/certificates and /attendees/check-in-and-checkout/session-self-check-in.",
+   "fix": "Give .whova-form-group and .whova-text-input max-width: 100% and drop the fixed 200px width on small screens.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_call_for_volunteers_volunteer_manager-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/form.tsx"
+  },
+  {
+   "path": "/attendees/release-and-consent-forms",
+   "width": 390,
+   "severity": "medium",
+   "type": "broken",
+   "issue": "On a phone the empty state text is drawn on top of the page title and the panel below it, so both are unreadable. Same on /attendees/call-for-volunteers/release-and-consent-forms and /attendees/manage-attendees/cross-event-report.",
+   "fix": "Remove the fixed width and negative offsets on .whova-empty-state so it sizes to its panel.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_release_and_consent_forms-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/attendees/name-badges",
+   "width": 390,
+   "severity": "medium",
+   "type": "overflow",
+   "issue": "Badge previews are 3.5in wide and push the page to 941px. Names and QR codes are cut off. The Print button sits off screen in the header.",
+   "fix": "Wrap .badge-sheet in a horizontally scrolling box on screen, keep the fixed size for print only, and move Print below the title on small screens.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_name_badges-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/name-badges/page.tsx"
+  },
+  {
+   "path": "/attendees/*",
+   "width": 390,
+   "severity": "medium",
+   "type": "clipped",
+   "issue": "Header tags, action buttons and the third header link run off the right edge (\"52 to print\", \"+ New form\", \"Export Check-in Lists\", \"Orders summary\"). Seen on most leaf pages.",
+   "fix": "Let the PageHeader title row wrap, and put tags and actions on their own line under 768px.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_manage_attendees_analytics_and_exports-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/attendees/manage-attendees/attendee-limit-upgrade",
+   "width": 1280,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "Pages are engineering notes with no controls: \"What hybrid would actually require\", \"A player in Expo Go\", \"WP-06\", \"no stream field exists\". Same on /attendees/manage-attendees/hybrid-settings, /attendees/check-in-and-checkout/self-check-in and /attendees/check-in-and-checkout/checkout.",
+   "fix": "Cut each page to one sentence of status and a link to the screen that does the job, or hide these routes from the nav.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/attendees_manage_attendees_hybrid_settings-1280.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/manage-attendees/hybrid-settings/page.tsx"
+  },
+  {
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "width": 390,
+   "severity": "medium",
+   "type": "tap-target",
+   "issue": "Row Check in buttons are 28px tall, filter chips 20px, sort links 16px, pager arrows 28px and the row menu 28px. Too small to hit on a phone at a busy desk. Chips and sort links repeat on Attendees, Categories, Segments, Session Cap and Name Badges.",
+   "fix": "Set a 40px minimum height on .btn-sm, .whova-tag-main links, .pager-btn and .row-actions-btn under 768px.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_check_in_and_checkout_check_in-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/desk-table.tsx"
+  },
+  {
+   "path": "/attendees/call-for-volunteers/volunteer-manager",
+   "width": 1280,
+   "severity": "low",
+   "type": "ai-voice",
+   "issue": "Field hints try to be clever: \"The only number that matters at 07:05 on day one.\", \"Who you will be looking for at the door.\", \"Local wall clock.\" Empty states read \"Not inputted yet\" and \"No volunteers has been entered\".",
+   "fix": "Drop the hints or use plain ones (\"Optional\"). Change the empty state to \"No volunteers yet.\"",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_call_for_volunteers_volunteer_manager-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/call-for-volunteers/volunteer-manager/form.tsx"
+  },
+  {
+   "path": "/attendees/integrations/mailchimp",
+   "width": 1280,
+   "severity": "low",
+   "type": "excess-text",
+   "issue": "Integration pages comment on the build and on Whova: \"exactly what tickets/ticket-marketing/email-campaign is unbuilt for want of\", \"this is the highest-leverage integration on the list\", \"Whova's sync runs every 24 hours, which is not meaningfully fresher\". The Zapier step says \"Import it into Zapier with their own import tool\", which is not how Zapier works. Same on /attendees/integrations/constant-contact and /attendees/integrations/crm-integration-via-zapier.",
+   "fix": "Keep the three export steps, delete the commentary, and rewrite the Zapier steps or remove the page.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_integrations_mailchimp-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/integrations/mailchimp/page.tsx"
+  },
+  {
+   "path": "/attendees/session-cap",
+   "width": 1280,
+   "severity": "low",
+   "type": "clipped",
+   "issue": "Narrow column headers break mid-word (\"Roo m seat s\", \"Coun ted in\", and \"Direc tory\" on the Attendees table). Room names are cut to \"Tata Innovation Center Audi...\" and the Room cell sits higher than the rest of the row.",
+   "fix": "Widen those columns or shorten the labels (\"Seats\", \"Counted\"), let room names wrap, and align the cell to the middle.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_session_cap-1280-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/session-cap/page.tsx"
+  },
+  {
+   "path": "/attendees/check-in-and-checkout/session-self-check-in",
+   "width": 390,
+   "severity": "low",
+   "type": "other",
+   "issue": "The Sessions table lists all 86 sessions with no paging. The page is about 6,500px tall on desktop and 15,000px on a phone.",
+   "fix": "Use the same Pagination and day filter as Session Cap.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_check_in_and_checkout_session_self_check_in-390-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/session-self-check-in/page.tsx"
+  },
+  {
+   "path": "/attendees/manage-attendees/attendees",
+   "width": 1280,
+   "severity": "low",
+   "type": "tiny-text",
+   "issue": "The \"yes\", \"not yet\", \"fits\" and \"opted out\" tags are 10px and stat tile labels are 11px.",
+   "fix": "Raise small tags and tile labels to 12px.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_manage_attendees_attendees-1280-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
+  },
+  {
+   "path": "/attendees/release-and-consent-forms",
+   "width": 1280,
+   "severity": "low",
+   "type": "hierarchy",
+   "issue": "\"+ New form\" renders as plain grey text in the header corner, so the only action on the page does not look clickable.",
+   "fix": "Style it as the primary button.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_release_and_consent_forms-1280-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/release-and-consent-forms/page.tsx"
+  },
+  {
+   "path": "/attendees/check-in-and-checkout/check-in",
+   "width": 1280,
+   "severity": "low",
+   "type": "ai-voice",
+   "issue": "Em dashes in visible text: the list is named \"KGC 2027 (em dash) Main Door\" in the header, chip and banner (also on Kiosk Check-in), and empty table cells use a long dash across Attendees, Categories, Segments and Check-in.",
+   "fix": "Rename the list \"KGC 2027 Main Door\" and use a blank or \"-\" for empty cells.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/attendees/c_attendees_check_in_and_checkout_check_in-1280-0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/check-in/page.tsx"
+  }
+ ],
+ "verified": true
+}

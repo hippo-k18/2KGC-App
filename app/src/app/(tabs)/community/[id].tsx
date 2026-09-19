@@ -93,7 +93,7 @@ export default function PostScreen() {
         <View style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md }}>
           <SkeletonScreen
             label="this topic"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View
               style={{
                 backgroundColor: colors.surface,

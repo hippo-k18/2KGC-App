@@ -40,7 +40,14 @@ export function SurveyForm({
         <label className="whova-form-label" htmlFor="title">
           Title
         </label>
-        <input id="title" name="title" required defaultValue={existing?.title} maxLength={100} />
+        <input
+          id="title"
+          name="title"
+          className="whova-text-input"
+          required
+          defaultValue={existing?.title}
+          maxLength={100}
+        />
       </div>
 
       <div className="whova-form-row">
@@ -50,6 +57,7 @@ export function SurveyForm({
         <input
           id="description"
           name="description"
+          className="whova-text-input"
           defaultValue={existing?.description}
           placeholder="One line telling attendees why it is worth two minutes."
         />
@@ -62,6 +70,7 @@ export function SurveyForm({
         <select
           id="sessionId"
           name="sessionId"
+          className="whova-text-input"
           defaultValue={existing?.sessionId ?? ''}
           style={{ maxWidth: 520 }}
         >
@@ -73,8 +82,8 @@ export function SurveyForm({
           ))}
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
-          A survey attached to a session is session feedback; one without is an event survey. Same
-          machinery, two screens.
+          A survey attached to a session shows under Session Feedback. One without shows under
+          Surveys.
         </p>
       </div>
 
@@ -85,6 +94,7 @@ export function SurveyForm({
         <textarea
           id="questions"
           name="questions"
+          className="whova-text-input"
           rows={10}
           required
           defaultValue={
@@ -110,9 +120,8 @@ text: Anything else?`}</pre>
             still points at it.
           */
           <p className="error" style={{ fontSize: 12 }}>
-            ⚠️ This survey has {existing.responseCount} responses, so the questions can no longer
-            change. Editing the wording would make the answers already stored mean something else.
-            Create a new survey instead.
+            This survey has {existing.responseCount} responses, so the questions can no longer
+            change. Create a new survey instead.
           </p>
         )}
       </div>
@@ -121,7 +130,13 @@ text: Anything else?`}</pre>
         <label className="whova-form-label" htmlFor="status">
           Status
         </label>
-        <select id="status" name="status" defaultValue={existing?.status ?? 'draft'} style={{ maxWidth: 220 }}>
+        <select
+          id="status"
+          name="status"
+          className="whova-text-input"
+          defaultValue={existing?.status ?? 'draft'}
+          style={{ maxWidth: 320 }}
+        >
           <option value="draft">Draft, not visible to attendees</option>
           <option value="published">Published: collecting responses</option>
           <option value="cancelled">Closed</option>
@@ -136,7 +151,7 @@ text: Anything else?`}</pre>
 function SaveButton({ editing }: { editing: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? 'Saving…' : editing ? 'Save changes' : 'Create survey'}
     </button>
   );

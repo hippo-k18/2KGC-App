@@ -1,0 +1,225 @@
+{
+ "features": [],
+ "uiIssues": [
+  {
+   "path": "/tickets/invoice",
+   "width": 390,
+   "severity": "high",
+   "type": "overflow",
+   "issue": "The form and the \"How it works\" column stay side by side on a phone. The right column is about 70px wide with one word per line, and the page scrolls sideways to 487px (472px at 375). At 768 the same column is squeezed to about 260px.",
+   "fix": "Stack the two columns under 900px: replace the inline gridTemplateColumns \"minmax(0,420px) minmax(0,1fr)\" with a class that goes single column.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/tickets_invoice-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/tickets/invoice/page.tsx"
+  },
+  {
+   "path": "/tickets/checkout",
+   "width": 390,
+   "severity": "high",
+   "type": "excess-text",
+   "issue": "The Register card opens with a red engineering note, \"Ticket sales are not configured on this deployment. STRIPE_SECRET_KEY is not set...\", and ends with \"No ticket can be bought until a payment processor is configured.\" Same on /tickets/exhibitor and /tickets/sponsor. /tickets/invoice shows \"Test mode. No payment processor is configured on this deployment...\".",
+   "fix": "Show buyers one plain line such as \"Ticket sales open soon\" and keep the env var detail in server logs.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/tickets_checkout-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/tickets/checkout-form.tsx"
+  },
+  {
+   "path": "/hcls",
+   "width": 390,
+   "severity": "high",
+   "type": "overflow",
+   "issue": "The H1 \"The Healthcare and Life Sciences Symposium (HCLS)\" is set so large that \"Symposium\" runs past the screen edge, and the hero image, date line and buttons follow it out to 407px (same at 375).",
+   "fix": "Cap the H1 with clamp() at about 34px on phones, allow overflow-wrap, and give the hero column min-width: 0.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/hcls-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/hcls/page.tsx"
+  },
+  {
+   "path": "/",
+   "width": 390,
+   "severity": "medium",
+   "type": "other",
+   "issue": "On first visit the cookie notice covers the lower third of the phone screen on every page, hiding \"See the agenda\" in the home hero and the first ticket card on /tickets, and the \"Powered by Netlify\" badge sits on top of the notice.",
+   "fix": "Make the notice a single slim bar at the bottom edge with the button inline, and turn off the Netlify badge in site settings.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/home-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/components/cookie-consent.tsx"
+  },
+  {
+   "path": "/learn",
+   "width": 390,
+   "severity": "medium",
+   "type": "clipped",
+   "issue": "The hero tagline \"Learn how knowledge graphs can shape the future of your business and career.\" and the blue strapline sit on top of the dark wave mesh and cannot be read. Same at 768.",
+   "fix": "Move the text below the artwork on small screens or put a solid panel behind it.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/learn-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/learn/page.tsx"
+  },
+  {
+   "path": "/",
+   "width": 390,
+   "severity": "medium",
+   "type": "spacing",
+   "issue": "Sponsor logos stack one per row in 210px tiles, so the sponsor wall takes about 4,500px of scrolling on the home page and again on /sponsor.",
+   "fix": "Use a two column grid with shorter tiles under 600px.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/home-390-full1.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/components/sponsor-tiers.tsx"
+  },
+  {
+   "path": "/tickets",
+   "width": 390,
+   "severity": "medium",
+   "type": "hierarchy",
+   "issue": "Workshops and Virtual are bare text rows under two full cards, with faint stray \"·\" marks hanging at line ends. The two cheaper tickets look like footnotes.",
+   "fix": "Give Workshops and Virtual the same card as Main Conference, and hide the dot separators when features wrap to separate lines.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/tickets-nobanner-390.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/tickets/tier-card.tsx"
+  },
+  {
+   "path": "/documents",
+   "width": 390,
+   "severity": "medium",
+   "type": "broken",
+   "issue": "All three documents link to \"example.invalid\", which is printed under each title, so nothing opens.",
+   "fix": "Replace the three placeholder documents in the dashboard with real files, or hide the list until they exist. Drop the hostname line.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/documents-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/documents/page.tsx"
+  },
+  {
+   "path": "/startup-pitch",
+   "width": 390,
+   "severity": "medium",
+   "type": "excess-text",
+   "issue": "Important dates reads \"The 2027 calendar is not confirmed yet, so this page states no dates. The application deadline and the date of the pitch event appear here once they are set.\" /call-for-posters has the same paragraph.",
+   "fix": "Replace with \"Dates to be announced.\" and the contact address.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/startup_pitch-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/startup-pitch/page.tsx"
+  },
+  {
+   "path": "/tickets/exhibitor",
+   "width": 390,
+   "severity": "medium",
+   "type": "spacing",
+   "issue": "The hero buttons \"Register\" and \"Attendee tickets\" touch with no gap, and the date and venue line is printed twice in a row. Same on /tickets/sponsor.",
+   "fix": "Add a 12px gap to the button row and remove the repeated \"3–7 May 2027 at Cornell Tech...\" sentence opening.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/tickets_exhibitor-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/tickets/audience-page.tsx"
+  },
+  {
+   "path": "/",
+   "width": 390,
+   "severity": "medium",
+   "type": "other",
+   "issue": "The FAQ expand marker renders as a 7px dot with a speck beside it, so questions do not look tappable. Affects /, /tickets and every page with the FAQ block.",
+   "fix": "Use a chevron or plus sign at 12px or larger.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/faq-summary-390.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/globals.css"
+  },
+  {
+   "path": "/agenda",
+   "width": 390,
+   "severity": "low",
+   "type": "other",
+   "issue": "Sessions titled \"A media archive\" list the speaker as \"(Phil) (Meredith)\" with a blank avatar. It also shows in the home page schedule.",
+   "fix": "Fix the speaker names on that session in the dashboard or hide speakers with no real name.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/agenda-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/components/event-schedule.tsx"
+  },
+  {
+   "path": "/agenda",
+   "width": 390,
+   "severity": "low",
+   "type": "spacing",
+   "issue": "Track and room metadata wraps mid line and leaves a dangling \"·\" at the end of rows; \"All days\" is a 15,800px scroll with no way to jump between days once past the chips.",
+   "fix": "Put room and type on their own line, and make the day chips sticky.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/agenda-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/agenda/page.tsx"
+  },
+  {
+   "path": "/exhibitors",
+   "width": 390,
+   "severity": "low",
+   "type": "clipped",
+   "issue": "The logo placeholder tile cuts the name to \"Graphwis\" and \"Ontotext Labs\" at 11.9px text, and there is a 130px empty gap between aisles.",
+   "fix": "Show initials in the placeholder tile and reduce the section gap.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/exhibitors-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/exhibitors/page.tsx"
+  },
+  {
+   "path": "/previous-events",
+   "width": 390,
+   "severity": "low",
+   "type": "spacing",
+   "issue": "The footer is about 1,300px tall on a phone, longer than the content on /previous-events, /announcements, /documents and /kgc-lifetime-achievement-awards.",
+   "fix": "Lay the three footer link groups out in two columns and shrink the large KGC wordmark on phones.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/previous_events-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/components/site-footer.tsx"
+  },
+  {
+   "path": "/",
+   "width": 390,
+   "severity": "low",
+   "type": "other",
+   "issue": "The home schedule day tabs cut off after Wed with a sliver of the next tab and no sign that the row scrolls.",
+   "fix": "Shrink the tabs so all five days fit in 342px, or add an edge fade.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/home-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/components/event-schedule.tsx"
+  },
+  {
+   "path": "/team",
+   "width": 390,
+   "severity": "low",
+   "type": "tap-target",
+   "issue": "LinkedIn icons beside each person are 20px square. Same on /learn. Checkout radio inputs are 13px, though the whole row is tappable.",
+   "fix": "Pad the icon links to 40px.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/team-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/components/linkedin-icon.tsx"
+  },
+  {
+   "path": "/blog",
+   "width": 390,
+   "severity": "low",
+   "type": "tap-target",
+   "issue": "Category filter chips are 28px tall and wrap into five tight rows.",
+   "fix": "Raise chip height to 36px with 8px row gap.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/blog-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/blog/page.tsx"
+  },
+  {
+   "path": "/documents",
+   "width": 390,
+   "severity": "low",
+   "type": "excess-text",
+   "issue": "Helper copy states the obvious: \"Hosted elsewhere. Each opens in a new tab.\" On /previous-events: \"These open the archived sites, which are maintained separately from this one.\" On /blog: \"Each post is summarised here and published in full on knowledgegraph.tech.\"",
+   "fix": "Delete these lines.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/documents-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/documents/page.tsx"
+  },
+  {
+   "path": "/tickets/sponsor",
+   "width": 390,
+   "severity": "low",
+   "type": "ai-voice",
+   "issue": "Hero and feature copy reads as written for effect: \"rather than a few thousand collecting tote bags\", \"Sessions, not just signage\", \"The attendee list, properly\", \"which is how most sponsor budgets are actually spent.\"",
+   "fix": "Rewrite as plain statements of what the sponsor gets.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/tickets_sponsor-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/tickets/audience-page.tsx"
+  },
+  {
+   "path": "/announcements",
+   "width": 390,
+   "severity": "low",
+   "type": "ai-voice",
+   "issue": "The live announcement \"Moved to Bloomberg 165...\" uses an em dash. It also runs in the home ticker.",
+   "fix": "Edit the announcement text in the dashboard.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/announcements-390-full0.png"
+  },
+  {
+   "path": "/tickets/options",
+   "width": 390,
+   "severity": "low",
+   "type": "other",
+   "issue": "An internal design review page, \"Ten ticketing pages ... the only thing that differs is the part being judged\", is publicly reachable on the live site. It renders without breakage, as does /tickets1.",
+   "fix": "Remove the route or block it from production before launch.",
+   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/web/full/tickets_options-390-full0.png",
+   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/web/src/app/tickets/options/page.tsx"
+  }
+ ],
+ "verified": true
+}

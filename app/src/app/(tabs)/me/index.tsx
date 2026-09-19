@@ -248,7 +248,7 @@ export default function MeScreen() {
               // says the same thing at length — this line has to be true on its
               // own, because a subtitle reading "see note below" is a pointer
               // rather than an answer and the switch is thrown from here.
-              subtitle="Recorded on your profile; does not block other attendees yet"
+              subtitle="Does not block other attendees yet"
               last
               trailing={
                 <Switch
@@ -273,13 +273,9 @@ export default function MeScreen() {
             variant="caption"
             tone="tertiary"
             style={{ paddingHorizontal: Spacing.xs, paddingTop: Spacing.sm }}>
-            Turning off directory visibility deletes your entry, so your profile
-            is not sent to other devices at all.{'\n\n'}
-            Message blocking is only half enforced, and the halves are worth
-            telling apart. The organizers’ desk checks this switch before it
-            sends, so turning it off does stop their messages. Another attendee
-            can still write to you: that would take a rule on the server, and
-            there is not one yet.
+            Turning off directory visibility removes your profile from the attendee list.{'\n\n'}
+            Turning off direct messages stops messages from the organizers. Blocking messages
+            from other attendees is not available yet.
           </Text>
 
           <SectionHeader>Account</SectionHeader>

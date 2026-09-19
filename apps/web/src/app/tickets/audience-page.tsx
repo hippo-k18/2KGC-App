@@ -155,7 +155,7 @@ export async function AudienceTicketsPage({
             <p style={{ marginTop: 28 }}>
               <strong>Paying by invoice?</strong>{' '}
               <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60, with a PO
-              number, which is how most {copy.noun} budgets are actually spent.
+              number.
             </p>
             <p>
               <strong>Questions?</strong>{' '}

@@ -59,6 +59,7 @@ export function QuestionEditor({
         <input
           id="prompt"
           name="prompt"
+          className="whova-text-input"
           required
           maxLength={200}
           defaultValue={editing?.prompt}
@@ -66,8 +67,7 @@ export function QuestionEditor({
         />
         {editing && (
           <p className="muted" style={{ fontSize: 12 }}>
-            Reword this freely. The question keeps its id (<code>{editing.id}</code>), so every
-            answer already given to it stays attached.
+            Answers already given stay with the question when you reword it.
           </p>
         )}
       </div>
@@ -79,6 +79,7 @@ export function QuestionEditor({
         <select
           id="kind"
           name="kind"
+          className="whova-text-input"
           value={kind}
           onChange={(e) => setKind(e.target.value as QuestionFieldDef['kind'])}
           style={{ maxWidth: 260 }}
@@ -92,10 +93,10 @@ export function QuestionEditor({
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
           {needsOptions
-            ? 'Choices are countable: the catering figure comes from these, and free text does not add up.'
+            ? 'Choices are counted in the export.'
             : kind === 'consent'
-              ? 'A consent box records a decision rather than a preference. It is never pre-ticked and cannot be required.'
-              : 'Free text is exported but not tallied. A hundred distinct sentences is a list, not a distribution.'}
+              ? 'Never pre-ticked. Cannot be required.'
+              : 'Free text is exported but not counted.'}
         </p>
       </div>
 
@@ -107,14 +108,13 @@ export function QuestionEditor({
           <textarea
             id="options"
             name="options"
+            className="whova-text-input"
             rows={5}
             defaultValue={(editing?.options ?? []).join('\n')}
             placeholder={'Vegetarian\nVegan\nGluten-free\nNo requirements'}
           />
           <p className="muted" style={{ fontSize: 12 }}>
-            One per line, at least two. Include the &ldquo;none of these&rdquo; option explicitly.
-            A blank answer and &ldquo;no requirements&rdquo; look identical in an export and mean
-            different things to a caterer.
+            One per line, at least two. Include a &ldquo;none of these&rdquo; option.
           </p>
         </div>
       )}
@@ -126,9 +126,10 @@ export function QuestionEditor({
         <input
           id="helpText"
           name="helpText"
+          className="whova-text-input"
           maxLength={200}
           defaultValue={editing?.helpText}
-          placeholder="optional. Shown under the field"
+          placeholder="Optional. Shown under the question"
         />
       </div>
 
@@ -151,10 +152,7 @@ export function QuestionEditor({
         </label>
         {isConsent && (
           <p className="muted" style={{ fontSize: 12 }}>
-            Consent that cannot be withheld is not consent, and in several jurisdictions does not
-            count as it. If this is genuinely a condition of attending, make it a{' '}
-            <strong>Checkbox</strong> and say so in the prompt. &ldquo;I have read the code of
-            conduct&rdquo; is a gate, not a consent.
+            If this is a condition of attending, use a <strong>Checkbox</strong> instead.
           </p>
         )}
       </div>
@@ -166,6 +164,7 @@ export function QuestionEditor({
         <select
           id="ticketTypeIds"
           name="ticketTypeIds"
+          className="whova-text-input"
           multiple
           size={Math.min(5, Math.max(2, tiers.length))}
           defaultValue={editing?.ticketTypeIds ?? []}
@@ -178,9 +177,7 @@ export function QuestionEditor({
           ))}
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
-          Select nothing to ask everybody, which is what most questions want. A buyer who answers
-          and then switches to a tier that does not ask this has their answer{' '}
-          <strong>dropped, not rejected</strong>. They have done nothing wrong.
+          Select nothing to ask everybody.
         </p>
       </div>
 

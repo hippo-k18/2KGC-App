@@ -72,13 +72,10 @@ export default async function SpeedNetworkingPage({
         info={
           <>
             <strong>A schedule you print</strong>
+            <p>Pairs people round by round so nobody meets the same person twice.</p>
             <p>
-              Round-robin pairing: nobody meets the same person twice while somebody else meets
-              nobody, which is what random pairing quietly fails to do.
-            </p>
-            <p>
-              Attendees see nothing (there is no app surface) and nothing is saved. The schedule
-              lives in the URL, so you can send the link to whoever runs the timer.
+              Attendees do not see this in the app yet. Nothing is saved: the schedule is in the
+              page link, so share the link with whoever runs the timer.
             </p>
           </>
         }
@@ -119,15 +116,14 @@ export default async function SpeedNetworkingPage({
             <textarea
               id="names"
               name="names"
+              className="whova-text-input"
               rows={8}
               defaultValue={params.names ?? ''}
               placeholder={'One per line\nAda Lovelace\nGrace Hopper\nAlan Turing'}
               style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }}
             />
             <p className="muted" style={{ fontSize: 12 }}>
-              Whoever turns up: that is genuinely the input. Duplicates are dropped
-              case-insensitively: one person entered twice would otherwise be paired with
-              themselves, and nobody notices until it is printed.
+              One name per line. Duplicates are dropped.
             </p>
           </div>
 
@@ -138,6 +134,7 @@ export default async function SpeedNetworkingPage({
             <input
               id="rounds"
               name="rounds"
+              className="whova-text-input"
               type="number"
               min={1}
               max={30}
@@ -145,13 +142,11 @@ export default async function SpeedNetworkingPage({
               style={{ maxWidth: 100 }}
             />
             <p className="muted" style={{ fontSize: 12 }}>
-              How many you have time for. At five minutes a round, six rounds is half an hour plus
-              the shuffling. Asking for more than full cover needs is capped rather than repeating
-              pairs.
+              How many you have time for. Extra rounds are dropped once everybody has met.
             </p>
           </div>
 
-          <button type="submit" className="whova-btn-main">
+          <button type="submit" className="whova-btn-main primary">
             Build the schedule
           </button>
         </form>
@@ -162,8 +157,7 @@ export default async function SpeedNetworkingPage({
               Paste from the attendee list ({attendees.length} people)
             </summary>
             <p className="muted" style={{ fontSize: 12 }}>
-              A convenience, not a roster. Nobody here has signed up for anything. Copy the ones in
-              the room.
+              Copy the people who are in the room.
             </p>
             <textarea
               readOnly
@@ -179,7 +173,7 @@ export default async function SpeedNetworkingPage({
         <>
           <StatTiles
             tiles={[
-              { label: 'People', value: schedule.people, sub: 'after de-duplication' },
+              { label: 'People', value: schedule.people, sub: 'duplicates removed' },
               {
                 label: 'Rounds',
                 value: schedule.rounds.length,
@@ -195,7 +189,7 @@ export default async function SpeedNetworkingPage({
               {
                 label: 'Repeated pairs',
                 value: repeats.length,
-                sub: repeats.length === 0 ? 'none, by construction' : 'a bug. Please report it',
+                sub: repeats.length === 0 ? 'none' : 'please report this',
               },
             ]}
           />
@@ -212,8 +206,7 @@ export default async function SpeedNetworkingPage({
                 for everybody to meet everybody.
               </strong>{' '}
               Nobody is paired twice in what you have and every person gets{' '}
-              {fewest === most ? `${fewest} meetings` : `${fewest} or ${most} meetings`}. Fair, just
-              not exhaustive.
+              {fewest === most ? `${fewest} meetings` : `${fewest} or ${most} meetings`}.
             </Banner>
           )}
 
@@ -247,9 +240,8 @@ export default async function SpeedNetworkingPage({
               </div>
             ))}
             <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-              Table numbers are positions in the room and are stable across rounds, so
-              &ldquo;everyone on the left moves one table clockwise&rdquo; is a thing you can say
-              over a microphone.
+              Table numbers stay the same every round, so you can call &ldquo;everyone on the left
+              moves one table clockwise&rdquo;.
             </p>
           </Panel>
         </>

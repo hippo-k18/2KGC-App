@@ -56,7 +56,7 @@ export default async function SponsorBannerPage() {
           )
         }
         actions={
-          <a href={publicUrl('/sponsor')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/sponsor')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live sponsor page ↗
           </a>
         }

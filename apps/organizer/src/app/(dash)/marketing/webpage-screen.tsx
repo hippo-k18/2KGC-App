@@ -75,11 +75,9 @@ export async function WebpageScreen({
         title={title}
         info={
           <>
-            <strong>Already live: nothing to publish</strong>
+            <strong>Already live</strong>
             <p>
-              This page is rendered from the same records you edit in {editorLabel}, so a change
-              there appears on <code>{url}</code> on the next page load. There is no cache to clear
-              and no embed snippet to copy: this site <em>is</em> the site.
+              A change in {editorLabel} shows on {url} the next time the page loads.
             </p>
           </>
         }
@@ -88,7 +86,7 @@ export async function WebpageScreen({
           // records at all, and a green tag would say the opposite.
           p.note ? (
             <Tag color="grey" fill="outline">
-              not this collection
+              not measured
             </Tag>
           ) : empty ? (
             <Tag color="grey" fill="outline">
@@ -105,7 +103,7 @@ export async function WebpageScreen({
           )
         }
         actions={
-          <a href={url} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={url} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live page ↗
           </a>
         }
@@ -125,11 +123,11 @@ export async function WebpageScreen({
       */}
       {p.note ? (
         <Banner kind="warning">
-          <strong>Editing these records changes nothing a visitor sees.</strong>{' '}
+          <strong>Changes in {editorLabel} do not show on this page yet.</strong>{' '}
           <a href={url} target="_blank" rel="noreferrer">
             {url}
           </a>{' '}
-          is live, but it is not rendered from the collection {editorLabel} writes. {p.note}
+          is live, but it does not show these records.
         </Banner>
       ) : null}
 
@@ -148,7 +146,7 @@ export async function WebpageScreen({
             label: 'Ready',
             value: notThisCollection || empty ? '—' : clean ? 'yes' : 'not yet',
             sub: notThisCollection
-              ? 'not this collection'
+              ? 'not measured'
               : empty
                 ? 'not inputted yet'
                 : clean
@@ -164,11 +162,10 @@ export async function WebpageScreen({
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Would a visitor notice anything missing?</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Missing details</h2>
         {notThisCollection ? (
           <p className="muted" style={{ marginBottom: 0 }}>
-            Not from here. {p.note} Nothing on this screen measures the page a visitor loads until
-            that source is switched over.
+            Not measured. The public page does not show these records yet.
           </p>
         ) : empty ? (
           <NotInputted
@@ -181,7 +178,7 @@ export async function WebpageScreen({
           />
         ) : clean ? (
           <p className="muted" style={{ marginBottom: 0 }}>
-            No. Every record behind this page has what the page renders.
+            Nothing is missing.
           </p>
         ) : (
           <>
@@ -206,7 +203,7 @@ export async function WebpageScreen({
               is invisible unless you are looking for it.
             */}
             <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-              Listed by how obvious each one is to a visitor, not by how many there are.
+              Most visible to a visitor first.
             </p>
           </>
         )}

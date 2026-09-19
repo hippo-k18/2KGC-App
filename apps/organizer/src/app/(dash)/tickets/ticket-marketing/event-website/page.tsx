@@ -52,11 +52,10 @@ export default async function EventWebsitePage() {
         title="Event Website"
         info={
           <>
-            <strong>The pages are data; the copy is code</strong>
+            <strong>What updates on the website</strong>
             <p>
-              Every page below is a React file in <code>apps/web</code>, so headings and the code of
-              conduct change with a deploy while sessions, speakers, sponsors and prices change the
-              moment they are edited here. Colours, logo and banner are not editable at all.
+              Sessions, speakers, sponsors and prices change on the site as soon as they are edited
+              here. Headings, colours, logo and banner cannot be edited from the dashboard yet.
             </p>
           </>
         }
@@ -85,8 +84,7 @@ export default async function EventWebsitePage() {
       {problems > 0 && (
         <Banner kind="warning">
           <strong>{problems} things would look unfinished to a visitor today.</strong> They are
-          listed below, worst first. Driving a campaign at a page in this state spends your best
-          send on your worst impression.
+          listed below, worst first. Fix them before sending a campaign.
         </Banner>
       )}
 
@@ -100,7 +98,7 @@ export default async function EventWebsitePage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Data-driven pages</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Website pages</h2>
         <Table
           cols={[
             { key: 'p', label: 'Page', className: 'cell-md' },
@@ -156,19 +154,17 @@ export default async function EventWebsitePage() {
             </div>,
             t.listed,
             t.listed > 0 ? (
-              <span key="s">Sells {t.listed} {t.listed === 1 ? 'package' : 'packages'} live from the catalogue.</span>
+              <span key="s">Sells {t.listed} {t.listed === 1 ? 'package' : 'packages'}.</span>
             ) : (
               <span key="s" className="muted">
-                Renders, and has nothing to sell. It tells a visitor this is not open yet. Do not
-                point a campaign at it.
+                Nothing on sale. Visitors are told sales are not open yet.
               </span>
             ),
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Use a <Link href="/tickets/ticket-marketing/campaign-link-tracking">tracked link</Link>{' '}
-          rather than the raw path, or the campaign cannot be measured and therefore cannot be
-          repeated.
+          so the campaign can be measured.
         </p>
       </Panel>
 

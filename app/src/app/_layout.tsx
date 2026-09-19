@@ -2,9 +2,11 @@
 // straight from React Navigation. (expo-router 7 re-exports them again.)
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, usePathname } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
@@ -122,6 +124,16 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider value={navThemes[scheme]}>
+        {/*
+          expo-router turns React Navigation's document title off, so without
+          this the browser tab, history and share sheet show the bare URL. Web
+          only: on iOS `Head` is the Handoff integration, which is not wanted.
+        */}
+        {Platform.OS === 'web' ? (
+          <Head>
+            <title>KGC 2027</title>
+          </Head>
+        ) : null}
         <StatusBar style="auto" />
         <RootNavigator />
       </ThemeProvider>

@@ -225,17 +225,12 @@ export function CheckoutForm({
         )}
 
         {/*
-          Fail closed, and say which variable. This is the same refusal
-          `startCheckout` returns if the form is posted anyway — stated here so
-          it is read before the typing rather than after it.
+          Fail closed. This is the same refusal `startCheckout` returns if the
+          form is posted anyway — stated here so it is read before the typing
+          rather than after it. The variable name goes to the server log, not
+          to the buyer.
         */}
-        {!stripeReady ? (
-          <p className="notice bad" role="alert">
-            <strong>Ticket sales are not configured on this deployment.</strong>{' '}
-            <code>STRIPE_SECRET_KEY</code> is not set, so no payment can be taken and no ticket can
-            be issued. Nothing below will complete a purchase.
-          </p>
-        ) : null}
+        {!stripeReady ? <p className="notice">Ticket sales open soon.</p> : null}
 
         {/*
           How many, and then who — in that order.
@@ -454,11 +449,11 @@ export function CheckoutForm({
           <DemoButton action={demoAction} price={formatPrice(totalCents, selected.currency)} />
         )}
 
-        <p className="hint" style={{ marginTop: 12 }}>
-          {stripeReady
-            ? 'You pay on Stripe. Card details never touch this site.'
-            : 'No ticket can be bought until a payment processor is configured.'}
-        </p>
+        {stripeReady && (
+          <p className="hint" style={{ marginTop: 12 }}>
+            You pay on Stripe. Card details never touch this site.
+          </p>
+        )}
       </form>
     </div>
   );

@@ -61,7 +61,14 @@ const KIND_LABEL: Record<PublicDocument['kind'], string> = {
 };
 
 export default async function DocumentsPage() {
-  const documents = await listPublicDocuments();
+  /*
+   * Placeholder rows point at reserved hosts (`example.invalid`), which no
+   * browser can open. They are left out, so the page shows its empty state
+   * until real files are published.
+   */
+  const documents = (await listPublicDocuments()).filter(
+    (d) => !/(^|\.)(invalid|example|test|localhost)$|(^|\.)example\.(com|org|net)$/i.test(d.host ?? ''),
+  );
 
   return (
     <>
@@ -98,7 +105,6 @@ export default async function DocumentsPage() {
               <h2>
                 {documents.length} {documents.length === 1 ? 'document' : 'documents'}
               </h2>
-              <p className="muted">Hosted elsewhere. Each opens in a new tab.</p>
 
               <ul className="doc-list">
                 {documents.map((d) => (
@@ -111,14 +117,6 @@ export default async function DocumentsPage() {
                         </a>
                       </h3>
                       {d.description && <p className="doc-desc">{d.description}</p>}
-                      {/*
-                        Where the click actually goes. `listPublicDocuments()`
-                        drops any row whose `url` will not parse, so a host is
-                        present on everything that reaches here — but the guard
-                        stays, because an empty string in a `<span>` is a stray
-                        bullet nobody would notice in review.
-                      */}
-                      {d.host && <p className="doc-host">{d.host}</p>}
                     </div>
                   </li>
                 ))}

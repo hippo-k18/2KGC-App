@@ -53,13 +53,12 @@ export default async function AnnouncementWallStreamPage() {
         title="Activity Stream Webpage"
         info={
           <>
-            <strong>A foyer screen, not a live feed</strong>
+            <strong>A screen for the foyer</strong>
             <p>
-              The page reads the announcements collection on every request, so writing one puts it
-              on the wall, but the page does not refresh itself. A browser left open shows what was
-              true when it loaded; set the kiosk browser to reload.
+              Every announcement you send appears on the wall. The page does not refresh by itself,
+              so set the screen&rsquo;s browser to reload every minute or so.
             </p>
-            <p>The wall renders the newest {ANNOUNCEMENT_WALL_LIMIT}.</p>
+            <p>The wall shows the newest {ANNOUNCEMENT_WALL_LIMIT}.</p>
           </>
         }
         tags={<Tag color="green" fill="outline">live at /announcements</Tag>}
@@ -68,7 +67,7 @@ export default async function AnnouncementWallStreamPage() {
             href={publicUrl('/announcements')}
             target="_blank"
             rel="noreferrer"
-            className="whova-btn-main"
+            className="whova-btn-main secondary"
           >
             Open the wall ↗
           </a>
@@ -103,7 +102,7 @@ export default async function AnnouncementWallStreamPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The stream the wall renders</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>On the wall</h2>
         <Table
           cols={[
             { key: 't', label: 'Title', className: 'cell-fill' },

@@ -17,7 +17,6 @@ import {
 } from '../ui';
 import { deleteQuestionAction, moveQuestionAction, toggleFormAction } from './question-form-actions';
 import { QuestionEditor } from './question-form-editor';
-import { PUBLIC_PAGE } from './audience-catalogue';
 
 /**
  * Question Forms, for one audience.
@@ -80,11 +79,10 @@ export async function QuestionFormScreen({
         title={title}
         info={
           <>
-            <strong>Answers belong to the person, not to the purchase</strong>
+            <strong>Answers are kept with the person</strong>
             <p>
-              The buyer answers on <code>{PUBLIC_PAGE[audience]}</code> before the Stripe redirect,
-              and the webhook copies the answers onto the registration. They survive a transferred
-              ticket and a re-bought order, and nothing querying <code>orders</code> can read them.
+              The buyer answers these questions on the ticket page before paying. The answers are
+              saved on their registration and appear in the attendee export.
             </p>
           </>
         }
@@ -114,8 +112,7 @@ export async function QuestionFormScreen({
             These {form.fields.length} questions are switched off, so nobody is being asked
             anything.
           </strong>{' '}
-          Turn the form on below when the questions are the ones you want. Editing a live form is
-          not a draft.
+          Turn the form on below when the questions are ready.
         </Banner>
       )}
 
@@ -271,9 +268,7 @@ export async function QuestionFormScreen({
           <h2 style={{ fontSize: 15, marginTop: 0 }}>Answers to questions you removed</h2>
           <p className="body-2" style={{ marginTop: 0 }}>
             Removing a question does <strong>not</strong> delete the answers already given to it.
-            That is deliberate: an organizer removing a question mid-sale is usually fixing the
-            form, and silently destroying two hundred people&rsquo;s dietary requirements as a side
-            effect of that is not recoverable. They are still on the registrations, under these ids.
+            They are still on the registrations.
           </p>
           <Table
             cols={[

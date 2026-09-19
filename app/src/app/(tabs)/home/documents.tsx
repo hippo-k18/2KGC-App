@@ -64,7 +64,7 @@ export default function DocumentsScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="the documents"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <SkeletonBlock width="40%" height={26} />
             <SkeletonBlock height={64} radius={Radius.lg} />
             <SkeletonBlock height={64} radius={Radius.lg} />

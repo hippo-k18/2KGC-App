@@ -75,7 +75,7 @@ export default async function SpecialPurposeAgendaPage() {
         }
         tags={<Tag color="green" fill="outline">a filter, not a page</Tag>}
         actions={
-          <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live agenda ↗
           </a>
         }

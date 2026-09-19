@@ -120,11 +120,10 @@ export default async function AttendeeActivityPage({
         title="Attendee Activity"
         info={
           <>
-            <strong>Hours are scheduled, not sat through</strong>
+            <strong>How hours are counted</strong>
             <p>
-              A badge is scanned on the way in and never on the way out, so the hours column is the
-              length of the sessions somebody was counted into. There is no screen-view tracking in
-              the app and none is planned.
+              Badges are scanned on the way in only, so Hours is the scheduled length of the
+              sessions an attendee was scanned into.
             </p>
           </>
         }
@@ -143,9 +142,9 @@ export default async function AttendeeActivityPage({
 
       <StatTiles
         tiles={[
-          { label: 'On the roll', value: rows.length, sub: 'tickets and profiles' },
-          { label: 'Any activity', value: active.length, sub: 'app, door or board' },
-          { label: 'Nothing yet', value: quiet.length, sub: 'the follow-up list' },
+          { label: 'Attendees', value: rows.length, sub: 'registered' },
+          { label: 'Active', value: active.length, sub: 'app, check-in or community' },
+          { label: 'Inactive', value: quiet.length, sub: 'no activity yet' },
           {
             label: 'Sessions counted',
             value: attendance.tracked,
@@ -158,7 +157,7 @@ export default async function AttendeeActivityPage({
         tabs={[
           { label: `Everyone (${rows.length})`, href: '?', active: view === 'all' },
           { label: `Active (${active.length})`, href: '?view=active', active: view === 'active' },
-          { label: `Nothing yet (${quiet.length})`, href: '?view=quiet', active: view === 'quiet' },
+          { label: `Inactive (${quiet.length})`, href: '?view=quiet', active: view === 'quiet' },
         ]}
       />
 
@@ -174,7 +173,7 @@ export default async function AttendeeActivityPage({
                 { key: 'a', label: 'App', className: 'cell-sm' },
                 { key: 's', label: 'Sessions', className: 'cell-sm' },
                 { key: 'h', label: 'Hours', className: 'cell-sm' },
-                { key: 'p', label: 'Wrote', className: 'cell-sm' },
+                { key: 'p', label: 'Wrote', className: 'cell-mdsm' },
               ]}
               rows={paginate(shown, page, PER_PAGE).map((r) => [
                 <span key="n">
@@ -183,7 +182,7 @@ export default async function AttendeeActivityPage({
                     <span className="muted"> · {r.attendee.company}</span>
                   ) : null}
                 </span>,
-                r.attendee.ticketType ?? <span className="muted">—</span>,
+                r.attendee.ticketType ?? '',
                 r.attendee.signedIn ? (
                   <Tag key="a" color="green" small>
                     yes
@@ -191,17 +190,16 @@ export default async function AttendeeActivityPage({
                 ) : (
                   <span className="muted">no</span>
                 ),
-                r.sessions || <span className="muted">—</span>,
-                r.minutes > 0 ? formatHours(r.minutes) : <span className="muted">—</span>,
-                r.posts + r.replies > 0 ? (
-                  <span key="p">
-                    {r.posts > 0 ? `${r.posts}p` : ''}
-                    {r.posts > 0 && r.replies > 0 ? ' ' : ''}
-                    {r.replies > 0 ? `${r.replies}r` : ''}
-                  </span>
-                ) : (
-                  <span className="muted">—</span>
-                ),
+                r.sessions,
+                r.minutes > 0 ? formatHours(r.minutes) : 0,
+                <span key="p" style={{ whiteSpace: 'nowrap' }}>
+                  {[
+                    r.posts > 0 ? `${r.posts} ${r.posts === 1 ? 'post' : 'posts'}` : '',
+                    r.replies > 0 ? `${r.replies} ${r.replies === 1 ? 'reply' : 'replies'}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </span>,
               ])}
             />
             <Pagination

@@ -45,9 +45,9 @@ export default async function OrdersSummaryPage() {
           <>
             <strong>Net leads, not gross</strong>
             <p>
-              Every figure is computed from <code>orders</code> rather than from a price list times
-              a headcount, so discounts, tax and partial refunds are already in it. Stripe&rsquo;s
-              processing fees are not. They are charged against the payout, not the order.
+              Every figure comes from the orders themselves, so discounts, tax and partial refunds
+              are already in it. Stripe&rsquo;s processing fees are not. They are taken out of the
+              payout.
             </p>
           </>
         }
@@ -76,9 +76,8 @@ export default async function OrdersSummaryPage() {
       {s.demoOrders > 0 && (
         <Banner kind="warning">
           <strong>{s.demoOrders} test {s.demoOrders === 1 ? 'purchase' : 'purchases'}</strong> are
-          excluded from every figure below. They were made with no payment processor configured, so
-          no money was taken, but they wrote real registrations, and those attendees appear on the
-          check-in list.
+          left out of every figure below. No money was taken, but those attendees are registered
+          and appear on the check-in list.
         </Banner>
       )}
 
@@ -109,25 +108,28 @@ export default async function OrdersSummaryPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Sales by ticket type</h2>
-        <Table
-          cols={[
-            { key: 'name', label: 'Ticket', className: 'cell-fill' },
-            { key: 'sold', label: 'Sold', className: 'cell-sm' },
-            { key: 'refunded', label: 'Refunded', className: 'cell-sm' },
-            { key: 'gross', label: 'Gross', className: 'cell-sm' },
-            { key: 'net', label: 'Net', className: 'cell-sm' },
-          ]}
-          rows={s.byTier.map((t) => [
-            t.name,
-            t.sold,
-            t.refunded === 0 ? <span className="muted">—</span> : t.refunded,
-            <span key="g" className="muted">
-              {money(t.grossCents, s.currency)}
-            </span>,
-            <strong key="n">{money(t.netCents, s.currency)}</strong>,
-          ])}
-          empty={<NotInputted what="orders" compact />}
-        />
+        {s.byTier.length === 0 ? (
+          <NotInputted what="orders" compact />
+        ) : (
+          <Table
+            cols={[
+              { key: 'name', label: 'Ticket', className: 'cell-fill' },
+              { key: 'sold', label: 'Sold', className: 'cell-sm' },
+              { key: 'refunded', label: 'Refunded', className: 'cell-sm' },
+              { key: 'gross', label: 'Gross', className: 'cell-sm' },
+              { key: 'net', label: 'Net', className: 'cell-sm' },
+            ]}
+            rows={s.byTier.map((t) => [
+              t.name,
+              t.sold,
+              t.refunded === 0 ? <span className="muted">—</span> : t.refunded,
+              <span key="g" className="muted">
+                {money(t.grossCents, s.currency)}
+              </span>,
+              <strong key="n">{money(t.netCents, s.currency)}</strong>,
+            ])}
+          />
+        )}
         {/*
           Said explicitly because the arithmetic is genuinely approximate on
           multi-seat orders, and an organizer who spots a rounding discrepancy
@@ -206,8 +208,8 @@ export default async function OrdersSummaryPage() {
           ]}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          Stripe&rsquo;s processing fees are not deducted here. They are charged against the payout,
-          not the order, and only Stripe knows them. Expect roughly 2.9% + $0.30 per transaction.
+          Stripe&rsquo;s processing fees are not deducted here. Expect roughly 2.9% + $0.30 per
+          transaction.
         </p>
       </Panel>
     </>

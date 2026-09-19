@@ -45,9 +45,6 @@ export default function PreviousEventsPage() {
           Every edition of the Knowledge Graph Conference since 2019. Each one keeps its own site,
           with that year&apos;s speakers, programme and sponsors.
         </p>
-        <p className="muted">
-          These open the archived sites, which are maintained separately from this one.
-        </p>
 
         <ul style={{ marginTop: 28, paddingLeft: 0, listStyle: 'none' }}>
           {EDITIONS.map((e) => (

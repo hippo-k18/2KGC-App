@@ -45,15 +45,9 @@ export default async function InvoicePage() {
 
       <section className="band">
         <div className="wrap" style={{ display: 'grid', gap: 40, gridTemplateColumns: 'minmax(0,1fr)' }}>
-          {!stripeEnabled() && (
-            <p className="notice warn">
-              <strong>Test mode.</strong> No payment processor is configured on this deployment, so
-              invoices cannot be raised here. On the live site this form emails a payable Stripe
-              invoice.
-            </p>
-          )}
+          {!stripeEnabled() && <p className="notice">Invoicing opens soon.</p>}
 
-          <div style={{ display: 'grid', gap: 36, gridTemplateColumns: 'minmax(0,420px) minmax(0,1fr)' }}>
+          <div className="invoice-cols">
             <div>
               <InvoiceForm tiers={tiers} />
             </div>

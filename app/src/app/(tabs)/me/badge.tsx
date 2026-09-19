@@ -55,7 +55,7 @@ export default function BadgeScreen() {
   const colors = useTheme();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
-  const { badge, source, loading, error, retry } = useBadge();
+  const { badge, loading, error, retry } = useBadge();
   const checkIn = useCheckInStatus(badge?.registrationId ?? null);
 
   const brightness = useMaxBrightness(Boolean(badge));
@@ -146,17 +146,8 @@ export default function BadgeScreen() {
           />
 
           <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: Spacing.xs }}>
-            {source === 'cache'
-              ? 'Showing the badge saved on this phone. It is the same code and it will scan.'
-              : 'This badge is saved on your phone, so it still works with no signal.'}
-            {'\n\n'}
-            Treat the code like a boarding pass: anyone who photographs it could be checked in as
-            you. If that happens, your own scan will show the desk that you were already checked
-            in — tell them and they can reissue it.
-            {brightness === 'unavailable'
-              ? '\n\nThis device would not let the app raise the screen brightness. Turn it up by ' +
-                'hand before you reach the desk.'
-              : ''}
+            Works offline. Do not share a photo of this code.
+            {brightness === 'unavailable' ? '\n\nTurn your screen brightness up before you scan.' : ''}
           </Text>
         </>
       )}
@@ -189,7 +180,7 @@ function CheckInBanner({
         ink: colors.textSecondary,
         label: loading ? 'Checking…' : 'Check-in status unavailable',
         detail: loading
-          ? 'Asking the door list.'
+          ? 'Checking with the registration desk.'
           : 'This needs a connection. The QR above works either way.',
       }
     : checkedInAt
@@ -237,8 +228,8 @@ function CancelledTicket({ status }: { status: string }) {
       }}>
       <Text variant="heading">No badge for this ticket</Text>
       <Text tone="secondary">
-        This registration is {status}, not active, so there is nothing for the door to scan. The
-        registration desk can sort it out — bring the claim code below.
+        This registration is {status}, so there is no badge to scan. Take the claim code below to
+        the registration desk.
       </Text>
     </View>
   );

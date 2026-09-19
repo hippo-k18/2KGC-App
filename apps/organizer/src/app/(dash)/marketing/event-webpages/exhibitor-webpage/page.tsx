@@ -119,7 +119,7 @@ export default async function ExhibitorWebpagePage() {
         }
         tags={<Tag color="green" fill="outline">live at /exhibitors</Tag>}
         actions={
-          <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live page ↗
           </a>
         }

@@ -2812,3 +2812,497 @@ html:has(dialog[open]) {
   margin: 0;
   padding-left: 16px;
 }
+
+/* ═══════════════════════════ the phone shell (ours) ═════════════════════════
+ *
+ * Whova's dashboard has no phone layout at all; theirs is a fixed 1060px box.
+ * Everything below is inside `max-width: 767px`, so 768 and wider is untouched.
+ * The rules outside the query only give names to things that used to be inline
+ * styles or hide the one element that exists for the phone.
+ *
+ * What section screens can lean on:
+ *   - `.whova-table-wrapper` (what `Table` emits) and `.table-scroll` scroll
+ *     sideways inside themselves and fade at the edge that has more to show.
+ *   - `.stack-sm` turns any flex row into a column under 768px.
+ *   - `.hide-sm` hides an element under 768px.
+ */
+
+#main-header .header-signout {
+  background: none;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 50px;
+  padding: 0 15px;
+}
+
+.rail-toggle {
+  display: none;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  width: 100%;
+}
+
+/*
+ * The edge fade on a sideways scroller. Registered so they can animate: the
+ * scroll timeline drives them, which means a table that fits gets no timeline
+ * and therefore no fade, and a browser without scroll timelines gets a plain
+ * scroller.
+ */
+@property --fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-edge-fade {
+  0% {
+    --fade-start: 0px;
+    --fade-end: 32px;
+  }
+  8%,
+  92% {
+    --fade-start: 32px;
+    --fade-end: 32px;
+  }
+  100% {
+    --fade-start: 32px;
+    --fade-end: 0px;
+  }
+}
+
+@media (max-width: 767px) {
+  .hide-sm {
+    display: none !important;
+  }
+
+  .stack-sm {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  /* ── utility bar: logo and search on one row, the links on the next ── */
+
+  #main-header .main-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 10px 4px;
+  }
+
+  #main-header a.logo {
+    width: auto;
+    margin-right: 12px;
+  }
+
+  .feature-search {
+    flex: 1;
+    margin-left: 0;
+    min-width: 0;
+    order: 2;
+  }
+
+  .feature-search-input {
+    font-size: 16px;
+    height: 40px;
+    width: 100%;
+  }
+
+  .feature-search-key {
+    display: none;
+  }
+
+  .feature-search .whova-menu {
+    max-width: calc(100vw - 20px);
+    min-width: 0 !important;
+    width: calc(100vw - 20px);
+  }
+
+  #main-header .header-links {
+    justify-content: space-between;
+    margin-left: 0;
+    order: 3;
+    width: 100%;
+  }
+
+  #main-header .header-links span.user-name {
+    display: none;
+  }
+
+  #main-header .header-links a,
+  #main-header .header-signout {
+    line-height: 40px;
+    padding: 0 8px;
+  }
+
+  /* ── masthead ── */
+
+  #top-event-name {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  #live-stats {
+    margin: 10px;
+  }
+
+  #top-event-name .event-title .event-name {
+    font-size: 20px;
+  }
+
+  #top-event-name .buttons-cards {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  #top-event-name .buttons {
+    width: 100%;
+  }
+
+  #top-event-name .additional-info {
+    line-height: 22px;
+  }
+
+  #top-event-name .guide-info .btn {
+    height: 40px;
+  }
+
+  #top-event-name .cards {
+    width: 100%;
+  }
+
+  #top-event-name .widget-card {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+
+  /* ── tab strip: nine tabs at their natural width, scrolling in place ── */
+
+  #top-nav {
+    border-radius: 0;
+    margin: 0 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  #top-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  #top-nav .nav-menus {
+    width: max-content;
+  }
+
+  #top-nav .menu-item.small,
+  #top-nav .menu-item.medium,
+  #top-nav .menu-item.large {
+    flex: none;
+  }
+
+  #top-nav .menu-item a {
+    overflow: visible;
+    padding: 13px 14px;
+  }
+
+  /* ── live stats: title and link on one row, the numbers under them ── */
+
+  #live-stats .live-stats-title {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 4px 12px 12px;
+    row-gap: 0;
+  }
+
+  #live-stats .live-stats-title > a {
+    line-height: 40px;
+  }
+
+  #live-stats .subtitle-1 {
+    line-height: 40px;
+  }
+
+  #live-stats .stats-list a {
+    min-height: 40px;
+  }
+
+  #live-stats .stats-list {
+    flex: 0 0 100%;
+    justify-content: flex-start;
+    order: 3;
+  }
+
+  /* ── the rail: a disclosure above the content, closed until asked for ── */
+
+  .frame-wrapper {
+    display: block;
+  }
+
+  .frame-left-side {
+    margin: 0 0 10px;
+    width: 100%;
+  }
+
+  .rail-toggle {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--body);
+    cursor: pointer;
+    display: flex;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    justify-content: space-between;
+    letter-spacing: 0.4px;
+    min-height: 44px;
+    padding: 0 14px 0 12px;
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .rail-body {
+    display: none;
+    margin-top: 10px;
+  }
+
+  .frame-left-side.rail-open .rail-body {
+    display: block;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .sidebar .treeview-menu-item,
+  .sidebar .treeview-submenu-item {
+    min-height: 40px;
+  }
+
+  .sidebar .secondlevel-name,
+  .sidebar .thirdlevel-name {
+    font-size: 14px;
+  }
+
+  .sidebar .firstlevel-name {
+    font-size: 14px;
+  }
+
+  .sidebar .firstlevel {
+    align-items: stretch;
+    min-height: 44px;
+    padding-bottom: 0;
+    padding-top: 0;
+  }
+
+  .sidebar .firstlevel-arrow {
+    justify-content: center;
+    min-width: 44px;
+  }
+
+  /* ── page furniture ── */
+
+  .whova-header__container {
+    padding: 14px 16px;
+  }
+
+  .whova-header__top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .whova-header__feature {
+    font-size: 20px;
+    line-height: 26px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .whova-header__tag-group {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .whova-header__action-group {
+    flex-wrap: wrap;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .whova-header__bottom,
+  .whova-header__link-group {
+    flex-wrap: wrap;
+  }
+
+  .whova-header__link-group {
+    row-gap: 0;
+  }
+
+  .whova-header__link-group a {
+    display: inline-block;
+    padding: 12px 0;
+  }
+
+  .pager-btn,
+  .row-actions-btn {
+    height: 40px;
+    min-width: 40px;
+  }
+
+  /*
+   * Screens lay out their toolbars and filter rows with an inline
+   * `display: flex` and no wrap, which is right at 850px and runs off a phone.
+   * Table rows are flex by class, not inline, so this leaves them alone.
+   */
+  .frame-right-side [style*='display:flex']:not(.whova-table *),
+  .frame-right-side [style*='display: flex']:not(.whova-table *) {
+    flex-wrap: wrap;
+  }
+
+  .frame-right-side {
+    overflow-wrap: break-word;
+  }
+
+  .frame-right-side a {
+    overflow-wrap: anywhere;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .whova-empty-state {
+    padding: 24px 16px;
+  }
+
+  .whova-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .whova-tabs .nav-link {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .gap-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .gap-grid dd {
+    margin-bottom: 10px;
+  }
+
+  .scan-left,
+  .scan-right {
+    min-width: 0;
+  }
+
+  .help-tip .help-tip-body,
+  .infotip__bubble {
+    max-width: min(280px, calc(100vw - 48px));
+  }
+
+  /*
+   * Nothing in a panel may be wider than the panel. Several screens size a
+   * control with an inline `width`, which `max-width` beats without touching
+   * them. 16px on the controls is what stops iOS zooming the page on focus.
+   */
+  .frame-right-side input,
+  .frame-right-side select,
+  .frame-right-side textarea,
+  .frame-right-side img,
+  .frame-right-side video,
+  .frame-right-side iframe,
+  .frame-right-side pre,
+  .login-card input {
+    max-width: 100%;
+  }
+
+  .frame-right-side pre {
+    overflow-x: auto;
+  }
+
+  .frame-right-side code {
+    overflow-wrap: anywhere;
+  }
+
+  .whova-text-input,
+  .scan-desk input {
+    font-size: 16px;
+  }
+
+  .whova-input-sm,
+  .whova-input-lg,
+  .whova-input-xl {
+    max-width: 100%;
+  }
+
+  .form-row > .whova-form-group,
+  .form-row > .whova-form-row {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  /* ── tables: scroll inside their own box, fading where there is more ── */
+
+  .frame-right-side table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .whova-table-wrapper,
+  .table-scroll,
+  .frame-right-side table {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* The table takes the width of its columns, so the row rules run full width. */
+  .whova-table-wrapper > .whova-table {
+    min-width: 100%;
+    width: max-content;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .whova-table-wrapper,
+    .table-scroll,
+    .frame-right-side table,
+    #live-stats .stats-list,
+    #top-nav {
+      animation: scroll-edge-fade linear both;
+      animation-timeline: scroll(self inline);
+      mask-image: linear-gradient(
+        to right,
+        transparent,
+        #000 var(--fade-start),
+        #000 calc(100% - var(--fade-end)),
+        transparent
+      );
+    }
+  }
+
+  .main-footer {
+    padding: 15px 16px;
+  }
+
+  .login-shell {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .login-card .login-body {
+    padding: 20px 16px;
+  }
+}

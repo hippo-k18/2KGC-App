@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { money, salesSummary } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
-import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table } from '../../ui';
+import { Banner, GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,27 @@ export const dynamic = 'force-dynamic';
  *
  * `SETUP-PAYMENTS.md` §5 is the full checklist.
  */
+const STEPS: { name: string; detail: string; path?: string }[] = [
+  {
+    name: 'Tickets are marked as event admission',
+    detail: 'Sent to Stripe on every checkout and invoice.',
+  },
+  {
+    name: 'Billing address collected',
+    detail: 'Required at checkout. Stripe needs it to work out tax.',
+  },
+  {
+    name: 'Turn on tax and set the event location',
+    detail: 'Done in Stripe. Until the location is set, Stripe taxes by billing address.',
+    path: 'settings/tax',
+  },
+  {
+    name: 'New York registration',
+    detail: 'Stripe warns when sales cross a threshold. Whether to register is a question for an accountant.',
+    path: 'tax/registrations',
+  },
+];
+
 export default async function PublishTaxPage() {
   await requireOrganizer();
   const s = await salesSummary();
@@ -44,18 +65,15 @@ export default async function PublishTaxPage() {
         title="Publish"
         info={
           <>
-            <strong>Whova&rsquo;s name for tax settings</strong>
-            <p>
-              Stripe computes and collects the tax, so there are no rates to type here. A second
-              set would disagree with what checkout actually charged.
-            </p>
+            <strong>Sales tax</strong>
+            <p>Stripe computes and collects the tax, so there are no rates to type here.</p>
             {stripeEnabled() ? null : (
-              <p>No Stripe key is configured yet, so nothing has been taxed.</p>
+              <p>Stripe is not connected yet, so nothing has been taxed.</p>
             )}
           </>
         }
         actions={
-          <a href={dash('settings/tax')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={dash('settings/tax')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             Stripe Tax settings ↗
           </a>
         }
@@ -74,10 +92,8 @@ export default async function PublishTaxPage() {
 
       <Banner kind="warning">
         <strong>An event ticket is taxed where the event happens, not where the buyer lives.</strong>{' '}
-        KGC is at Cornell Tech, Roosevelt Island, so the jurisdiction is New York. A buyer in Berlin
-        owes New York&rsquo;s treatment, not German VAT. Until the event location is set in Stripe,
-        Stripe taxes by billing address instead, and that produces a wrong number that looks
-        entirely reasonable.
+        KGC is at Cornell Tech, Roosevelt Island, so New York rules apply to every buyer. Until the
+        event location is set in Stripe, Stripe taxes by billing address instead.
       </Banner>
 
       <StatTiles
@@ -93,60 +109,38 @@ export default async function PublishTaxPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What is already wired, and what is still manual</h2>
-        <Table
-          cols={[
-            { key: 'p', label: 'Piece', className: 'cell-md' },
-            { key: 's', label: 'State', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              'Tax code on every line',
-              <span key="s">
-                Done. <code>txcd_20030000</code>, the code Stripe&rsquo;s own ticketing guide
-                specifies for admission, is sent on Checkout line items and on invoices.
-              </span>,
-            ],
-            [
-              'Automatic tax',
-              <span key="s">
-                Done in code: <code>automatic_tax: {'{'} enabled: true {'}'}</code> on both paths.
-                It stays inert until tax is enabled in the Stripe dashboard, which is why turning it
-                on early was safe.
-              </span>,
-            ],
-            [
-              'Billing address collected',
-              <span key="s">
-                Done. Required at Checkout, because automatic tax needs it and finance needs it on
-                the invoice.
-              </span>,
-            ],
-            [
-              'Event location declared',
-              <span key="s" className="muted">
-                Manual, in Stripe. This is the one that changes the answer.
-              </span>,
-            ],
-            [
-              'New York registration',
-              <span key="s" className="muted">
-                A filing decision, not a toggle. Stripe monitors economic nexus and warns when sales
-                cross a threshold; registering is a question for an accountant.
-              </span>,
-            ],
-          ]}
-        />
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Tax setup</h2>
+        {STEPS.map((row) => (
+          <div
+            key={row.name}
+            style={{
+              alignItems: 'baseline',
+              borderTop: '1px solid var(--hairline)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '4px 16px',
+              padding: '12px 0',
+            }}
+          >
+            <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+              <strong>{row.name}</strong>
+              <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                {row.detail}
+              </div>
+            </div>
+            {row.path ? (
+              <a href={dash(row.path)} target="_blank" rel="noreferrer">
+                Open in Stripe ↗
+              </a>
+            ) : (
+              <Tag color="green" fill="outline">
+                Done
+              </Tag>
+            )}
+          </div>
+        ))}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Links open the {live ? 'live' : 'test'} Stripe dashboard, matching the key this app is
-          configured with:{' '}
-          <a href={dash('tax/registrations')} target="_blank" rel="noreferrer">
-            registrations ↗
-          </a>{' '}
-          ·{' '}
-          <a href={dash('tax')} target="_blank" rel="noreferrer">
-            tax overview ↗
-          </a>
+          Links open the {live ? 'live' : 'test'} Stripe dashboard.
         </p>
       </Panel>
 

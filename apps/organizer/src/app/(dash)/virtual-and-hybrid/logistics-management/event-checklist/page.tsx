@@ -33,17 +33,13 @@ export default async function EventChecklistPage() {
         title="Event Checklist"
         info={
           <>
-            <strong>A report, not a second editor</strong>
-            <p>
-              Every add, tick and reassignment happens in Projects &amp; Checklists over the same{' '}
-              <code>tasks</code> collection. Two editors would be two places for the same job to be
-              half-finished.
-            </p>
+            <strong>Progress report</strong>
+            <p>To add, tick or reassign a task, open Projects &amp; Checklists.</p>
           </>
         }
         tags={overdue > 0 ? <Tag color="red" fill="solid">{overdue} overdue</Tag> : undefined}
         actions={
-          <Link href="/content/project-management/projects-and-checklists" className="whova-btn-main">
+          <Link href="/content/project-management/projects-and-checklists" className="whova-btn-main secondary">
             Open Projects &amp; Checklists
           </Link>
         }
@@ -57,7 +53,7 @@ export default async function EventChecklistPage() {
       <StatTiles
         tiles={[
           { label: 'Tasks', value: total, sub: `${projects.length} projects` },
-          { label: 'Done', value: done, sub: total === 0 ? '—' : `${Math.round((done / total) * 100)}%` },
+          { label: 'Done', value: done, sub: total === 0 ? 'no tasks yet' : `${Math.round((done / total) * 100)}%` },
           { label: 'Blocked', value: blocked, sub: 'need somebody else' },
           { label: 'Overdue', value: overdue, sub: 'due date passed' },
         ]}
@@ -69,7 +65,7 @@ export default async function EventChecklistPage() {
           <NotInputted
             what="tasks"
             action={
-              <Link href="/content/project-management/projects-and-checklists" className="whova-btn-main">
+              <Link href="/content/project-management/projects-and-checklists" className="whova-btn-main primary">
                 Add the first task
               </Link>
             }

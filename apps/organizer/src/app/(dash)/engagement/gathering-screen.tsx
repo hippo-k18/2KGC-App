@@ -176,9 +176,7 @@ export async function GatheringScreen({
             ]}
           />
           <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-            Checked against the agenda as well as against each other. A room double-booked between
-            a session and a table is the clash that actually happens, because the two are planned by
-            different people weeks apart. Back-to-back is not a clash.
+            Checked against the agenda and against each other. Back-to-back is not a clash.
           </p>
         </Panel>
       )}

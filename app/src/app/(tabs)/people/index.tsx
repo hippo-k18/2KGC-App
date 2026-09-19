@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, ScrollView, View } from 'react-native';
+import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { threadIdFor } from '@kgc/shared';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -861,9 +861,11 @@ function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter:
           onPress={() => onJump(letter)}
           accessibilityRole="button"
           accessibilityLabel={`Jump to ${letter === '#' ? 'other' : letter}`}
-          hitSlop={{ top: 0, bottom: 0, left: HIT_TARGET - RAIL_WIDTH, right: 0 }}
+          hitSlop={{ left: HIT_TARGET - RAIL_WIDTH }}
           style={({ pressed }) => ({
-            width: RAIL_WIDTH,
+            // `border-box` on web, so the width has to grow with `webSlop`'s padding.
+            width: Platform.OS === 'web' ? HIT_TARGET : RAIL_WIDTH,
+            ...webSlop({}, { left: HIT_TARGET - RAIL_WIDTH }),
             minHeight: RAIL_LETTER_HEIGHT,
             alignItems: 'center',
             justifyContent: 'center',

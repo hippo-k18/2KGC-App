@@ -136,11 +136,11 @@ export default async function AttendeeOrdersPage({
           <>
             <strong>This screen shows buyer personal data</strong>
             <p>
-              Names, addresses and company names, plus a button that moves money. The CSV carries
-              the same and leaves the building, no badge secret or claim code is ever in it.
+              Names, email addresses and company names. The CSV export has the same data, without
+              badge or claim codes.
               {stripeEnabled()
-                ? ' A partial refund leaves the ticket valid; a full one cancels it.'
-                : ' Refunds need STRIPE_SECRET_KEY on this deployment and are issued from the Stripe dashboard until it is set.'}
+                ? ' A partial refund leaves the ticket valid. A full refund cancels it.'
+                : ' Stripe is not connected, so refunds are issued from the Stripe dashboard.'}
             </p>
           </>
         }

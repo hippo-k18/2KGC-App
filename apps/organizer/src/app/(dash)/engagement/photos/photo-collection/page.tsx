@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { imageCensus } from '@/lib/images';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,16 +46,13 @@ export default async function PhotoCollectionPage() {
         title="Photo Collection"
         info={
           <>
-            <strong>A census, not a gallery</strong>
+            <strong>A count, not a gallery</strong>
             <p>
-              Most images this event holds are URLs somebody typed or an importer copied. Uploads
-              work from Exhibitor, Sponsor and Speaker Manager; the <em>app</em> has no image
-              picker, so attendees still cannot post one.
+              Attendees cannot post photos from the app yet. This screen counts the images the
+              event already has and where each one is hosted.
             </p>
-            <p>So this counts what exists and who serves it, which is the part worth acting on.</p>
           </>
         }
-        tags={<Tag color="grey">not inputted yet</Tag>}
         links={[
           <Link key="m" href={ROUTES.moderateBoard}>
             Moderate the board
@@ -71,29 +68,24 @@ export default async function PhotoCollectionPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Images held', value: census.totalImages, sub: 'across three collections' },
+          { label: 'Images held', value: census.totalImages, sub: 'logos, headshots and profile photos' },
           { label: 'Uploaded here', value: census.uploaded, sub: 'the rest are links' },
-          { label: 'On other people’s servers', value: census.offsite, sub: 'breaks when they move' },
+          { label: 'On other people’s servers', value: census.offsite, sub: 'linked, not uploaded' },
           { label: 'Attendee photos', value: census.sources[2]?.withImage ?? 0, sub: `of ${census.sources[2]?.total ?? 0} profiles` },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Every image, and who serves it</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Images and where they are hosted</h2>
         <Table
           cols={[
             { key: 'l', label: 'Images of', className: 'cell-md' },
             { key: 'n', label: 'Have one', className: 'cell-sm' },
-            { key: 'h', label: 'Served from', className: 'cell-fill' },
+            { key: 'h', label: 'Hosted on', className: 'cell-fill' },
             { key: 'e', label: 'Edited at', className: 'cell-md' },
           ]}
           rows={census.sources.map((s) => [
-            <div key="l">
-              <div>{s.label}</div>
-              <div className="muted" style={{ fontSize: 11 }}>
-                <code>{s.field}</code>
-              </div>
-            </div>,
+            <div key="l">{s.label}</div>,
             <span key="n">
               {s.withImage}
               <span className="muted"> / {s.total}</span>
@@ -111,16 +103,15 @@ export default async function PhotoCollectionPage() {
               </Link>
             ) : (
               <span key="e" className="muted" style={{ fontSize: 12 }}>
-                {s.editedNote ?? 'nowhere'}
+                not editable here
               </span>
             ),
           ])}
           empty={<NotInputted what="images" />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          ⚠️ An image on a domain KGC does not control disappears when that domain does. For a
-          speaker grid on a public page, the failure is visible and permanent, and it happens
-          months after anybody was looking.
+          A linked image disappears if the site hosting it removes it. Upload a copy in the
+          manager that owns it to keep it.
         </p>
       </Panel>
 

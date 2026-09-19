@@ -41,20 +41,20 @@ export default async function MyEventListingPage() {
   const DISCOVERY = [
     {
       need: 'The name shown in a search result',
-      ours: 'The page <title> on knowledgegraph.tech',
-      where: 'apps/web layout',
+      ours: 'The page title on knowledgegraph.tech',
+      where: '',
       live: false,
     },
     {
       need: 'The sentence under it',
-      ours: 'The meta description, also used when a link is shared',
-      where: 'apps/web layout',
+      ours: 'The site description, also used when a link is shared',
+      where: '',
       live: false,
     },
     {
       need: 'The picture when a link is pasted into Slack',
-      ours: 'The Open Graph image',
-      where: 'apps/web layout',
+      ours: 'The site share image',
+      where: '',
       live: false,
     },
     {
@@ -65,13 +65,13 @@ export default async function MyEventListingPage() {
     },
     {
       need: 'The programme',
-      ours: 'Rendered from this dashboard on every request',
+      ours: 'Session Manager',
       where: '/agenda',
       live: true,
     },
     {
       need: 'The price',
-      ours: 'Rendered from ticketTypes on every request',
+      ours: 'Create Tickets',
       where: '/tickets',
       live: true,
     },
@@ -83,17 +83,16 @@ export default async function MyEventListingPage() {
         title="My Event Listing"
         info={
           <>
-            <strong>No directory to be listed in</strong>
+            <strong>No event directory</strong>
             <p>
-              Whova&rsquo;s version edits {EVENT.shortName}&rsquo;s card inside its own event
-              directory. On the open web the equivalent is the site&rsquo;s own metadata, which is
-              what this screen accounts for.
+              A directory listing is not available. This screen shows what people see when they
+              find {EVENT.shortName} through search or a shared link.
             </p>
           </>
         }
         tags={<Tag color="grey" fill="outline">not applicable</Tag>}
         actions={
-          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             Open the site ↗
           </a>
         }
@@ -111,7 +110,7 @@ export default async function MyEventListingPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>How somebody finds {EVENT.shortName}</h2>
         <Table
           cols={[
-            { key: 'n', label: 'What a stranger sees', className: 'cell-md' },
+            { key: 'n', label: 'What people see', className: 'cell-md' },
             { key: 'o', label: 'Where it comes from', className: 'cell-fill' },
             { key: 'p', label: 'Maintained in', className: 'cell-md' },
           ]}
@@ -129,14 +128,15 @@ export default async function MyEventListingPage() {
               </span>
             ) : (
               <span key="p" className="muted" style={{ fontSize: 12 }}>
-                <code>{e.where}</code>. Needs a deploy
+                {e.where ? <code>{e.where}</code> : null}
+                {e.where ? '. ' : ''}Ask the developer
               </span>
             ),
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          The four marked <em>needs a deploy</em> are code in <code>apps/web</code>. The same trade{' '}
-          <Link href="/marketing/event-website">Event Website</Link> sets out for every prose page.
+          <Link href="/marketing/event-website">Event Website</Link> lists every page and where it
+          is edited.
         </p>
       </Panel>
 

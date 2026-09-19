@@ -1,3 +1,5 @@
+import { Platform, type ViewStyle } from 'react-native';
+
 /**
  * Hiding something from a screen reader takes three props, not one.
  *
@@ -33,4 +35,44 @@ export function announced(label: string) {
     importantForAccessibility: 'yes',
     'aria-hidden': false,
   } as const;
+}
+
+interface Edges {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+}
+
+/**
+ * `hitSlop`, for the web build.
+ *
+ * react-native-web drops `hitSlop` entirely, so a control drawn at 28pt and
+ * brought up to 44 with slop is a 28px target in a phone browser. The browser
+ * has no invisible target, but it has the next best thing: padding grows the
+ * box that takes the tap and an equal negative margin gives the space back, so
+ * nothing around the control moves. Spread this after the control's own
+ * padding, and pass that padding in, because it has to be restated as a sum.
+ *
+ * Only for a control with no fill of its own: a background would grow with the
+ * padding. `FilterChip` draws its pill on an inner view for that reason.
+ *
+ * Empty on iOS and Android, where `hitSlop` does the job properly.
+ */
+export function webSlop(padding: Edges, slop: Edges): ViewStyle {
+  if (Platform.OS !== 'web') return {};
+  const top = slop.top ?? 0;
+  const bottom = slop.bottom ?? 0;
+  const left = slop.left ?? 0;
+  const right = slop.right ?? 0;
+  return {
+    paddingTop: (padding.top ?? 0) + top,
+    paddingBottom: (padding.bottom ?? 0) + bottom,
+    paddingLeft: (padding.left ?? 0) + left,
+    paddingRight: (padding.right ?? 0) + right,
+    marginTop: -top,
+    marginBottom: -bottom,
+    marginLeft: -left,
+    marginRight: -right,
+  };
 }

@@ -118,19 +118,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
             <Link href="/">My Events</Link>
             <span className="user-name">{actor}</span>
             <form action={logoutAction} style={{ display: 'inline-flex' }}>
-              <button
-                type="submit"
-                style={{
-                  background: 'none',
-                  border: 0,
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 13,
-                  lineHeight: '50px',
-                  padding: '0 15px',
-                }}
-              >
+              <button type="submit" className="header-signout">
                 Sign out
               </button>
             </form>

@@ -82,7 +82,7 @@ export default async function SocialMediaManagerPage() {
           )
         }
         actions={
-          <Link href="/tools/app-adoption/social-media" className="whova-btn-main">
+          <Link href="/tools/app-adoption/social-media" className="whova-btn-main secondary">
             Go to the post copy
           </Link>
         }

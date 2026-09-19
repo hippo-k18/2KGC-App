@@ -46,7 +46,7 @@ export default async function DownloadableGraphicsPage() {
           </>
         }
         actions={
-          <Link className="whova-btn-main" href="/tools/app-adoption/app-download-button">
+          <Link className="whova-btn-main secondary" href="/tools/app-adoption/app-download-button">
             Snippets and QR markup
           </Link>
         }

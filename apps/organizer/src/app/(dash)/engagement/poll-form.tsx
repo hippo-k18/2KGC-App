@@ -65,8 +65,8 @@ export function PollForm({
         style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}
         hint={
           locked
-            ? `${existing!.actualVotes} ${existing!.actualVotes === 1 ? 'person has' : 'people have'} voted, so options can be reworded but not added, removed or reordered. A vote names its option by position, and moving one would repoint every answer already given.`
-            : 'One per line, two to ten of them. Keep them short enough to read off a projected slide.'
+            ? `${existing!.actualVotes} ${existing!.actualVotes === 1 ? 'person has' : 'people have'} voted, so options can be reworded but not added, removed or reordered.`
+            : 'One per line, two to ten of them.'
         }
       />
 
@@ -74,7 +74,7 @@ export function PollForm({
         name="open"
         label="Open to votes"
         defaultChecked={existing ? existing.open : false}
-        description="Closing a poll is enforced in firestore.rules on the vote-write path, so it genuinely stops votes rather than hiding the question. A new poll starts closed unless you tick this."
+        description="A closed poll takes no votes. A new poll starts closed unless you tick this."
       />
 
       <FormActions>

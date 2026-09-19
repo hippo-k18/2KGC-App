@@ -83,10 +83,8 @@ export default async function CampaignContactListPage({
           <>
             <strong>These are people to email, not ticket holders</strong>
             <p>
-              Importing somebody here creates no registration. An import can never clear a
-              suppression: an address that unsubscribed or bounced stays excluded from every send,
-              because mailing people who asked you to stop takes the ticket receipts down with the
-              newsletter.
+              Importing somebody here does not give them a ticket. An address that unsubscribed or
+              bounced stays excluded from every send, even if it is imported again.
             </p>
           </>
         }
@@ -121,8 +119,8 @@ export default async function CampaignContactListPage({
       <StatTiles
         tiles={[
           { label: 'Contacts', value: summary.total, sub: `${summary.lists.length} lists` },
-          { label: 'Mailable', value: summary.mailable, sub: 'after suppression' },
-          { label: 'Unsubscribed', value: summary.unsubscribed, sub: 'never re-added by an import' },
+          { label: 'Mailable', value: summary.mailable, sub: 'after exclusions' },
+          { label: 'Unsubscribed', value: summary.unsubscribed, sub: 'kept out of every send' },
           { label: 'Bounced', value: summary.bounced, sub: 'dead mailbox' },
         ]}
       />
@@ -142,7 +140,7 @@ export default async function CampaignContactListPage({
               l.count,
               <span key="m" className={l.mailable < l.count ? 'muted' : undefined}>
                 {l.mailable}
-                {l.mailable < l.count ? ` (${l.count - l.mailable} suppressed)` : ''}
+                {l.mailable < l.count ? ` (${l.count - l.mailable} excluded)` : ''}
               </span>,
               <Link key="a" href={`?list=${encodeURIComponent(l.name)}`}>
                 Show

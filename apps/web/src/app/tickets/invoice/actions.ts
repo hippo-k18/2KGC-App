@@ -40,8 +40,7 @@ export async function requestInvoice(
   if (!stripeEnabled()) {
     return {
       error:
-        'Invoicing is not available on this deployment because no payment processor is ' +
-        'configured. Email us and we will raise one by hand.',
+'Invoicing opens soon. Email us and we will raise one by hand.',
     };
   }
 

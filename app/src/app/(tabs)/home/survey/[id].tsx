@@ -100,7 +100,7 @@ export default function SurveyScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="this survey"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <SkeletonBlock width="60%" height={26} />
             <SkeletonBlock height={70} radius={Radius.lg} />
             <SkeletonBlock height={70} radius={Radius.lg} />
@@ -178,7 +178,7 @@ function SurveyForm({ survey }: { survey: Survey }) {
   }
 
   return (
-    <Screen grouped>
+    <Screen grouped avoidKeyboard>
       <View style={{ gap: Spacing.xs }}>
         <Text variant="title" accessibilityRole="header">
           {survey.title}

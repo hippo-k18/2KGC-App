@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,16 +42,6 @@ export default async function StreamingSetupPage() {
     <>
       <PageHeader
         title="Streaming Setup"
-        info={
-          <>
-            <strong>No provider account, so no stream to configure</strong>
-            <p>
-              A streaming provider would supply the ingest endpoint and stream key per room, and the
-              playback URL the app would open. Until one exists there is nothing to store against a
-              session.
-            </p>
-          </>
-        }
         links={[
           <Link key="s" href="/virtual-and-hybrid/virtual-and-hybrid-setup">
             Virtual &amp; Hybrid Setup
@@ -64,14 +53,12 @@ export default async function StreamingSetupPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="streams"
-          action={
-            <Link href={ROUTES.sessionManager} className="whova-btn-main">
-              Open Session Manager
-            </Link>
-          }
-        />
+        <EmptyState>
+          <p className="empty-title">Not available yet</p>
+          <p className="empty-sub">
+            Streaming is not available yet. Sessions cannot be given a stream link.
+          </p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

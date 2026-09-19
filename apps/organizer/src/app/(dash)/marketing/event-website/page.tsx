@@ -147,17 +147,16 @@ export default async function EventWebsitePage() {
         title="Event Website"
         info={
           <>
-            <strong>A real site, not a generated one</strong>
+            <strong>Every page on the public site</strong>
             <p>
-              knowledgegraph.tech is the conference&rsquo;s own design, so there is no page builder
-              and no embed snippet. The trade is that the pages marked <em>code</em> below need a
-              deploy to change; everything else is editable from this dashboard.
+              Pages marked <em>live</em> or <em>copy</em> are edited from this dashboard. For the
+              rest, ask the developer.
             </p>
           </>
         }
         tags={<Tag color="blue">{SITE_PAGES.length} pages</Tag>}
         actions={
-          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             Open the site ↗
           </a>
         }
@@ -180,7 +179,7 @@ export default async function EventWebsitePage() {
           {
             label: 'Editable from here',
             value: editable,
-            sub: `${SITE_PAGES.length - editable} are code`,
+            sub: `${SITE_PAGES.length - editable} need the developer`,
           },
           {
             label: 'Copy confirmed',
@@ -232,7 +231,7 @@ export default async function EventWebsitePage() {
                 </span>
               ) : (
                 <span key="e" className="muted" style={{ fontSize: 12 }}>
-                  code. Needs a deploy
+                  Ask the developer
                 </span>
               ),
             ];
@@ -243,10 +242,8 @@ export default async function EventWebsitePage() {
           once underneath it rather than left to the colour of a tag.
         */}
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          <strong>live</strong>. Rendered from Firestore on every request, so a change here shows
-          there immediately. <strong>copy</strong>. Prose, but the fields that go stale each
-          edition are saved in Website Copy. <strong>code</strong>. A React file; changing a word
-          is a pull request.
+          <strong>live</strong>: a change here shows on the site right away.{' '}
+          <strong>copy</strong>: the text that changes each year is edited in Website Copy.
         </p>
       </Panel>
 

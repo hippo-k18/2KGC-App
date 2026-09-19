@@ -1,5 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { Timestamp } from '@kgc/shared';
@@ -342,7 +351,7 @@ export default function CommunityScreen() {
             <View style={{ padding: Spacing.md, gap: Spacing.md }}>
               <SkeletonScreen
                 label="the community board"
-                slowNotice="Still loading. The app cannot reach the server.">
+                slowNotice="Still loading. Check your connection.">
                 {[0, 1, 2].map((i) => (
                   <View key={i} style={{ gap: Spacing.sm }}>
                     <SkeletonBlock width="35%" height={12} />
@@ -622,7 +631,10 @@ function Composer({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md, gap: Spacing.md }}>
+      {/* Without this the keyboard covers the bottom of the body box on iOS. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md, gap: Spacing.md }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cancel" hitSlop={12}>
             <Text tone="tint">Cancel</Text>
@@ -653,7 +665,9 @@ function Composer({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: Spacing.sm }}>
+          // Room for the chips' web tap target, which a scroller would clip.
+          style={{ marginVertical: -Spacing.xs - 1 }}
+          contentContainerStyle={{ gap: Spacing.sm, paddingVertical: Spacing.xs + 1 }}>
           {CATEGORIES.map((c) => (
             <FilterChip
               key={c.id}
@@ -678,12 +692,14 @@ function Composer({
           onChangeText={setBody}
           placeholder="Say a bit more…"
           placeholderTextColor={colors.textTertiary}
-          style={[field, { minHeight: 140, textAlignVertical: 'top' }]}
+          // Capped, so a long post scrolls inside the box instead of growing
+          // it off the bottom of the sheet.
+          style={[field, { minHeight: 140, maxHeight: 240, textAlignVertical: 'top' }]}
           multiline
           accessibilityLabel="Post body"
           maxLength={2000}
         />
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

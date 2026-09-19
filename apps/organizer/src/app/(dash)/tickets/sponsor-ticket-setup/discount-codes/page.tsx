@@ -28,10 +28,9 @@ export default async function SponsorDiscountCodesPage() {
           <>
             <strong>Discount codes are not scoped per audience</strong>
             <p>
-              They are Stripe promotion codes, and a Stripe promotion code belongs to the Stripe
-              account rather than to a catalogue. There is one list, on{' '}
-              <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, and it applies
-              wherever Checkout accepts a code.
+              Sponsor-only discount codes are not available yet. There is one list of codes, on{' '}
+              <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, and a code
+              works on every checkout.
             </p>
           </>
         }
@@ -48,10 +47,8 @@ export default async function SponsorDiscountCodesPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where a sponsor code is created</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          On <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, with the one
-          list every checkout reads. A returning-sponsor rate is usually better expressed as a
-          negotiated figure on an invoice than as a coupon: the amount is agreed in a conversation,
-          and an account-wide code cannot be restricted to the sponsor it was agreed with.
+          On <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>. A code cannot
+          be limited to one sponsor, so put a negotiated sponsor rate on the invoice instead.
         </p>
       </Panel>
 

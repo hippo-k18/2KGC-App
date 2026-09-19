@@ -13,9 +13,8 @@ export default async function SocialGroupsPage() {
         <>
           <strong>Categories, not groups</strong>
           <p>
-            Ride shares, jobs and lost-and-found. The practical corners of the board. These are
-            categories on shared posts rather than objects with members, so there is nothing to
-            join and no member list, and every post is readable by every ticket holder.
+            Ride shares, jobs and lost-and-found posts from the community board. These are post
+            categories: there is nothing to join, and every ticket holder can read every post.
           </p>
         </>
       }

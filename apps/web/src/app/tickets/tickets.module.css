@@ -525,6 +525,82 @@
   white-space: nowrap;
 }
 
+/*
+ * Below the three-column row, each alternative takes the second panel's card.
+ * As bare stacked rows under two full cards the two cheaper tickets read as
+ * footnotes, and the dot separators were left hanging at the end of wrapped
+ * lines.
+ */
+@media (max-width: 55.99rem) {
+  .altRows {
+    margin-top: 0.9rem;
+    border-top: 0;
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .alt {
+    gap: 0;
+    padding: clamp(0.9rem, 2vw, 1.1rem);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--navy);
+    border-radius: var(--radius);
+    background: var(--white);
+  }
+
+  .altIdent {
+    display: block;
+  }
+
+  .altName {
+    font-size: 1.05rem;
+  }
+
+  .altPrice {
+    margin-top: 0.15rem;
+    font-size: 1.35rem;
+    letter-spacing: -0.025em;
+  }
+
+  .altItems {
+    margin-top: 0.6rem;
+    display: grid;
+    gap: 0.22rem;
+  }
+
+  .altItems li {
+    position: relative;
+    padding-left: 0.95rem;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    color: var(--body);
+  }
+
+  .altItems li:not(:last-child)::after {
+    content: none;
+  }
+
+  .altItems li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 0.5rem;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+  }
+
+  .altAction {
+    margin-top: 0.7rem;
+  }
+
+  .altCta {
+    padding: 0.55rem 1.3rem;
+    font-size: inherit;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .leadCta,
   .secondCta > a,

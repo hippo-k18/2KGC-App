@@ -28,9 +28,8 @@ export default async function AttendeeCategoriesPage() {
           <>
             <strong>One list, kept under Attendees</strong>
             <p>
-              A category here is <code>UserDoc.roles</code>, which the project already keeps because
-              a speaker is also an attendee. Nothing turns a purchase into a category. Where a
-              purchase decides something it does it through an entitlement on the ticket type.
+              Categories are the roles a person holds, such as speaker or attendee. Buying a
+              ticket does not set a category.
             </p>
           </>
         }
@@ -52,15 +51,11 @@ export default async function AttendeeCategoriesPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What a category is here</h2>
         <p className="body-2">
-          Categories are <code>UserDoc.roles</code> (the list this project already keeps because a
-          speaker is also an attendee) surfaced as the cohorts they already are. Nobody has to
-          maintain a second one, and it cannot disagree with what the app and{' '}
-          <code>firestore.rules</code> believe about a person. The list itself is at{' '}
+          Categories are the roles a person holds, such as speaker or attendee. The list is at{' '}
           <Link href="/attendees/categories">Attendees › Categories</Link>.
         </p>
         <p className="body-2">
-          Where a purchase decides what somebody may attend, it does so through an entitlement on
-          the ticket type rather than through a category: <code>includesWorkshops</code>, read by{' '}
+          What a ticket lets somebody attend is set on the ticket type. See{' '}
           <Link href="/attendees/ticket-session-mapping">Ticket Session Mapping</Link>.
         </p>
       </Panel>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money, salesSummary } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,18 +69,17 @@ export default async function VirtualAndHybridSetupPage() {
         title="Virtual & Hybrid Setup"
         info={
           <>
-            <strong>An entitlement report, not a setup wizard</strong>
+            <strong>Remote ticket report</strong>
             <p>
-              This project runs one event format, in person. There is no switch between virtual,
-              hybrid and in-person to flip, and no per-session stream configuration. What this
-              screen does is compare what remote tiers were sold as against what exists.
+              This event runs in person only. This page lists the remote ticket tiers, what they
+              include and how many have been sold. Streaming is not available yet.
             </p>
           </>
         }
         tags={
           remoteSold > 0 ? (
             <Tag color="red" fill="solid">
-              Sold, not delivered
+              Streaming not set up
             </Tag>
           ) : undefined
         }
@@ -106,12 +105,11 @@ export default async function VirtualAndHybridSetupPage() {
       {remoteSold > 0 && (
         <Banner kind="danger">
           <strong>
-            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold against
-            a promise nothing delivers.
+            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold and
+            streaming is not set up.
           </strong>{' '}
-          The remote tiers below are on sale on the public site and nothing in this project streams:
-          no player in the app, no stream URL on a session, no provider account. Every one of them is
-          a refund conversation waiting to happen.
+          These buyers have nothing to watch yet. To stop selling a remote tier, hide it in{' '}
+          <Link href={ROUTES.createTickets}>Create Tickets</Link>.
         </Banner>
       )}
 
@@ -119,35 +117,33 @@ export default async function VirtualAndHybridSetupPage() {
         tiles={[
           { label: 'Remote tiers on sale', value: remote.filter((t) => t.visible).length, sub: `${remote.length} defined` },
           { label: 'Remote tickets sold', value: remoteSold, sub: 'settled orders' },
-          { label: 'Money taken for them', value: money(remoteNet, sales.currency), sub: 'net of refunds' },
+          { label: 'Revenue', value: money(remoteNet, sales.currency), sub: 'net of refunds' },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What the buyer was told</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What each tier includes</h2>
         {remote.length === 0 ? (
           <NotInputted what="remote ticket tiers" />
         ) : (
           remote.map((t) => (
             <div key={t.id} style={{ marginBottom: 18 }}>
-              <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 6 }}>
+              <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
                 <strong>{t.name}</strong>
                 <span className="muted">{money(t.priceCents, t.currency)}</span>
                 <Tag color={t.visible ? 'green' : 'grey'}>{t.visible ? 'on sale' : 'hidden'}</Tag>
               </div>
-              <Table
-                cols={[
-                  { key: 'c', label: 'Sold as', className: 'cell-fill' },
-                  { key: 's', label: 'Delivered by', className: 'cell-md' },
-                ]}
-                rows={t.includes.map((line) => [
-                  line,
-                  <span key="s" className="muted">
-                    nothing
-                  </span>,
-                ])}
-                empty="This tier lists no inclusions."
-              />
+              {t.includes.length === 0 ? (
+                <p className="muted" style={{ margin: 0 }}>
+                  This tier lists no inclusions.
+                </p>
+              ) : (
+                <ul style={{ fontSize: 13, lineHeight: 1.7, margin: 0, paddingLeft: 20 }}>
+                  {t.includes.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))
         )}
@@ -157,15 +153,16 @@ export default async function VirtualAndHybridSetupPage() {
           is false on the document. So even the *entitlement* disagrees with the
           sales page, independently of whether anything serves video.
         */}
-        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-          ⚠️ Note the Virtual tier promises &ldquo;on-demand replays&rdquo; in prose while its{' '}
-          <code>includesVideoLibrary</code> entitlement is <code>false</code>. Those two disagree
-          with each other before any player exists. See{' '}
-          <Link href="/content/documents-and-videos/attendee-video-access">
-            Attendee Video Access
-          </Link>
-          .
-        </p>
+        {remote.some((t) => !t.includesVideoLibrary) && (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            Video library access is turned off for at least one remote tier. If the tier lists
+            replays, check{' '}
+            <Link href="/content/documents-and-videos/attendee-video-access">
+              Attendee Video Access
+            </Link>
+            .
+          </p>
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

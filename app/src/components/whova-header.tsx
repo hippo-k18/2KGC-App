@@ -1,10 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
-import { Platform, Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { Icon, type IconName } from '@/components/icon';
-import { WEB_TAB_BAR } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { Brand, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -21,6 +21,8 @@ const PILL_CHEVRON = 13;
 const ACTION_GLYPH = 22;
 /** Padding around an action glyph; the rest of the 44pt target is `hitSlop`. */
 const ACTION_PADDING = Spacing.xs;
+/** Each side's share of that `hitSlop`. */
+const ACTION_SLOP = (HIT_TARGET - ACTION_GLYPH - ACTION_PADDING * 2) / 2;
 /** Search field height at 1× Dynamic Type. A `minHeight`, never a `height`. */
 const FIELD_HEIGHT = 38;
 /** Body size, so the field's text matches everything else at every font scale. */
@@ -102,10 +104,8 @@ interface WhovaHeaderProps {
  * one device and leaves a band of dead blue on another. Android is edge-to-edge
  * by default from RN 0.81, so this is not iOS-only bookkeeping.
  *
- * The web branch is unrelated to safe areas: `NativeTabs` draws a real bottom
- * tab bar on the devices and a bar pinned to the *top* of the window on web, so
- * the browser preview needs the header pushed clear of it. Same constant, same
- * reason, as `screen-header.tsx`.
+ * There is no web branch. The web tab bar sits along the bottom of the window,
+ * where `(tabs)/_layout.tsx` reserves its space, so the header owes it nothing.
  *
  * ## Departures from Whova
  *
@@ -146,7 +146,7 @@ export function WhovaHeader({
     <View
       style={{
         backgroundColor: colors.header,
-        paddingTop: Platform.OS === 'web' ? WEB_TAB_BAR : insets.top,
+        paddingTop: insets.top,
       }}>
       {/* White status bar content — see departure 1. No-op on web. */}
       <StatusBar style="light" />
@@ -180,10 +180,20 @@ export function WhovaHeader({
               onPress={action.onPress}
               accessibilityRole="button"
               accessibilityLabel={action.label}
-              hitSlop={(HIT_TARGET - ACTION_GLYPH - ACTION_PADDING * 2) / 2}
+              hitSlop={ACTION_SLOP}
               style={({ pressed }) => ({
                 padding: ACTION_PADDING,
                 opacity: pressed ? 0.4 : 1,
+                ...webSlop(
+                  {
+                    top: ACTION_PADDING,
+                    bottom: ACTION_PADDING,
+                    left: ACTION_PADDING,
+                    right: ACTION_PADDING,
+                  },
+                  // Sideways only half the gap to the next action, so two targets never overlap.
+                  { top: ACTION_SLOP, bottom: ACTION_SLOP, left: Spacing.xs / 2, right: Spacing.xs / 2 },
+                ),
               })}>
               <Icon name={action.icon} size={ACTION_GLYPH} color={colors.onHeader} />
             </Pressable>

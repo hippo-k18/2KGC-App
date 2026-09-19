@@ -15,6 +15,7 @@ import {
   type WithId,
   publicSiteOrigin,
 } from '@kgc/shared';
+import { emailKey, mergeAttendees, type AttendeeRow } from './attendees-core';
 import { db } from './firestore';
 
 /**
@@ -543,27 +544,7 @@ export async function getSponsor(id: string): Promise<WithId<SponsorDoc> | null>
   return { id: doc.id, ...(doc.data() as SponsorDoc) };
 }
 
-export interface AttendeeRow {
-  /** Absent until they sign in — a ticket holder who has not is still an attendee. */
-  uid?: string;
-  name: string;
-  email: string;
-  title?: string;
-  company?: string;
-  roles: string[];
-  onboarded: boolean;
-  visibleInDirectory: boolean;
-  messagingEnabled: boolean;
-  interests: string[];
-
-  /** True when a `users` profile exists — i.e. they have opened the app. */
-  signedIn: boolean;
-  /** Present for anyone holding a ticket. Absent for staff added by hand. */
-  registrationId?: string;
-  ticketType?: string;
-  /** `cancelled` after a refund. A cancelled ticket must stay visible. */
-  registrationStatus?: RegistrationDoc['status'];
-}
+export type { AttendeeRow };
 
 /**
  * Every attendee: ticket holders **and** signed-in users, merged.
@@ -596,82 +577,19 @@ export interface AttendeeRow {
  * account. Both are attendees and both appear; the `signedIn` and `ticketType`
  * columns say which is which rather than one of them being silently dropped.
  */
-const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
-
 export async function listAttendees(): Promise<AttendeeRow[]> {
+  // Whole documents, not `select('email')`: the rows are built from every
+  // profile and ticket field. `adoptionCounts()` below is the one that only
+  // needs the address.
   const [userSnap, regSnap] = await Promise.all([
-    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).select('email').get(),
-    db()
-      .collection(COLLECTIONS.registrations)
-      .where('eventId', '==', EVENT_ID)
-      .select('email')
-      .get(),
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
   ]);
 
-  const rows = new Map<string, AttendeeRow>();
-
-  // Users first, so their profile fields are the richer starting point.
-  for (const d of userSnap.docs) {
-    const u = d.data() as UserDoc;
-    rows.set(emailKey(u.email) || d.id, {
-      uid: d.id,
-      /*
-       * `UserDoc.name` is typed as required and the live project holds profiles
-       * without one, which threw `Cannot read properties of undefined (reading
-       * 'localeCompare')` out of the sort below and took down every screen that
-       * lists attendees — Speed Networking, Profile Photo Frames, Gamification
-       * and the desk inbox among them. Falling back the way
-       * `listCommunityPosts` already does keeps the row addressable rather than
-       * dropping a real ticket holder off a list because a field is blank.
-       */
-      name: u.name || u.email || d.id,
-      email: u.email,
-      title: u.title,
-      company: u.company,
-      roles: u.roles ?? [],
-      onboarded: Boolean(u.onboarded),
-      visibleInDirectory: Boolean(u.visibleInDirectory),
-      messagingEnabled: Boolean(u.messagingEnabled),
-      interests: u.interests ?? [],
-      signedIn: true,
-    });
-  }
-
-  for (const d of regSnap.docs) {
-    const r = d.data() as RegistrationDoc;
-    const k = emailKey(r.email);
-    const existing = rows.get(k);
-
-    if (existing) {
-      // Attach the ticket to the profile that already exists.
-      existing.registrationId = d.id;
-      existing.ticketType = r.ticketType;
-      existing.registrationStatus = r.status;
-      continue;
-    }
-
-    /**
-     * A ticket holder with no profile yet. Everything a profile would supply is
-     * genuinely unknown rather than defaulted to something flattering —
-     * `visibleInDirectory: false` because there is no directory projection to
-     * be in, not because they opted out.
-     */
-    rows.set(k || d.id, {
-      name: r.name ?? '(no name yet)',
-      email: r.email,
-      roles: [],
-      onboarded: false,
-      visibleInDirectory: false,
-      messagingEnabled: false,
-      interests: [],
-      signedIn: false,
-      registrationId: d.id,
-      ticketType: r.ticketType,
-      registrationStatus: r.status,
-    });
-  }
-
-  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return mergeAttendees(
+    userSnap.docs.map((d) => ({ id: d.id, data: d.data() as UserDoc })),
+    regSnap.docs.map((d) => ({ id: d.id, data: d.data() as RegistrationDoc })),
+  );
 }
 
 /**
