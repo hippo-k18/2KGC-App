@@ -120,6 +120,12 @@ export default async function OrganizerCoPromoPage() {
           </Link>
         }
         links={[
+          <Link key="e" href="/tickets/ticket-marketing/email-campaign">
+            Email campaign
+          </Link>,
+          <Link key="c" href="/tickets/ticket-marketing/campaign-contact-list">
+            Contact list
+          </Link>,
           <Link key="r" href="/tickets/ticket-marketing/referral-contest">
             Referral contest
           </Link>,

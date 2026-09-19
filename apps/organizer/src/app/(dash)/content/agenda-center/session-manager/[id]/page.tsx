@@ -105,26 +105,15 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Derived on save</h2>
+        <h2 className="section-header">On save</h2>
         <p className="body-2">
-          <code>startsAt</code>, <code>endsAt</code> and <code>day</code> are recomputed from the
-          wall clock above in <code>{session.timeZone}</code> every time you save, using the same{' '}
-          <code>deriveTimes()</code> the seed and the CSV importer use. A 21:00 reception is 01:00
-          UTC the next day; deriving <code>day</code> anywhere else puts it on the wrong tab on
-          every phone. <Link href={ROUTES.report}>Report</Link> shows the audit trail.
-        </p>
-        <p className="body-2">
-          The display caches are written in the <em>same</em> update as the ids they mirror:{' '}
-          <code>speakerNames</code> positionally beside <code>speakerIds</code>,{' '}
-          <code>primaryTrackName</code> and <code>primaryTrackColor</code> from{' '}
-          <code>trackIds[0]</code>, and <code>roomName</code> beside <code>roomId</code>. Changing
-          the speakers also updates each speaker&apos;s own <code>sessionIds</code>, which is what
-          their page in the app lists.
+          Times are in <code>{session.timeZone}</code>. Saving updates the agenda and each
+          speaker&apos;s page in the app. <Link href={ROUTES.report}>Report</Link> shows the
+          history of changes.
         </p>
         <p className="body-2">
           Q&amp;A and polls for this session are toggled on{' '}
-          <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link>, which owns those
-          two flags.
+          <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link>.
         </p>
       </Panel>
     </>

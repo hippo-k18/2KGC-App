@@ -62,11 +62,10 @@ export default async function SocialMediaManagerPage() {
         title="Social Media Manager"
         info={
           <>
-            <strong>Nothing here posts for you</strong>
+            <strong>Posting is manual</strong>
             <p>
-              Connecting an account would mean this dashboard holding OAuth tokens behind a shared
-              passphrase, so anyone who could open Marketing could post as the conference. The posts
-              are written under App Adoption and pasted by a person.
+              Connecting a social account is not available yet. Copy a post from App Adoption and
+              publish it yourself. This screen shows what the tracked links brought in.
             </p>
           </>
         }
@@ -106,7 +105,7 @@ export default async function SocialMediaManagerPage() {
             value: social.length,
             sub: social.length === 0 ? 'not inputted yet' : `across ${byChannel.length} channels`,
           },
-          { label: 'Clicks', value: clicks, sub: 'counted by the redirect' },
+          { label: 'Clicks', value: clicks, sub: 'on social links' },
           {
             label: 'Orders credited',
             value: orders,
@@ -117,7 +116,7 @@ export default async function SocialMediaManagerPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Which channel did anything</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Results by channel</h2>
         <Table
           cols={[
             { key: 'c', label: 'Channel', className: 'cell-md' },
@@ -149,7 +148,7 @@ export default async function SocialMediaManagerPage() {
 
       {social.length > 0 ? (
         <Panel style={{ marginTop: 16 }}>
-          <h2 style={{ fontSize: 15, marginTop: 0 }}>Every social link</h2>
+          <h2 style={{ fontSize: 15, marginTop: 0 }}>Social links</h2>
           <Table
             cols={[
               { key: 'l', label: 'Link', className: 'cell-fill' },

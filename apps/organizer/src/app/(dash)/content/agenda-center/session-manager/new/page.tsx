@@ -109,17 +109,12 @@ export default async function NewSessionPage({
       <Panel>
         <h2 className="section-header">What happens when you press Create</h2>
         <p className="body-2">
-          One document is written, in one transaction. <code>startsAt</code>, <code>endsAt</code> and{' '}
-          <code>day</code> are derived from the wall clock above in <code>{TIME_ZONE}</code> by the
-          same <code>deriveTimes()</code> the seed and the CSV importer use. A 21:00 reception is
-          01:00 UTC the next day, and deriving <code>day</code> anywhere else puts it on the wrong tab
-          on every phone. The id is derived from the title and the start time, so a later import of
-          the same programme updates this session instead of duplicating it, and pressing Create
-          twice is refused rather than saved twice.
+          Times are in <code>{TIME_ZONE}</code>. A later import of the same programme updates this
+          session instead of adding a copy.
         </p>
         <p className="body-2">
-          A new session starts as a <strong>draft</strong>, which is invisible to attendees. Conflict
-          Check still looks at drafts, so a room clash shows up before you publish rather than after.
+          A new session starts as a <strong>draft</strong>, which attendees cannot see. Conflict
+          Check includes drafts, so a room clash shows up before you publish.
         </p>
       </Panel>
     </>

@@ -108,8 +108,7 @@ export function AssignBoothForm({
         </label>
         <input id="orderId" name="orderId" placeholder="optional" style={{ maxWidth: 320 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Links the space to the purchase that paid for it. Leave blank for an allocation made by
-          hand. The audit entry still records who made it.
+          Links the space to the order that paid for it. Leave blank if there is no order.
         </p>
       </div>
 
@@ -154,8 +153,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
           style={{ maxWidth: 140 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          As printed on the floor plan. It is also the document id, so adding{' '}
-          <code>A12</code> twice edits it rather than creating a second one.
+          As printed on the floor plan. Adding a number that already exists updates that booth.
         </p>
       </div>
 
@@ -172,7 +170,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
         </label>
         <input id="zone" name="zone" placeholder="Main aisle" style={{ maxWidth: 220 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Groups a long list into something walkable. Booths sort by zone, then naturally by number. A2 before A10, which a plain sort gets backwards.
+          Booths are listed by zone, then by number.
         </p>
       </div>
 

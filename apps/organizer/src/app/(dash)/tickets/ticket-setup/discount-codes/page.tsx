@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listDiscountCodes, type DiscountCodeRow } from '@/lib/discount-codes';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
-import { Banner, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, EmptyState, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 import { toggleDiscountCodeAction } from './actions';
 import { CodeForm } from './code-form';
 
@@ -45,17 +45,17 @@ export default async function DiscountCodesPage() {
           title="Discount Codes"
           info={
             <>
-              <strong>Waiting on a Stripe key</strong>
-              <p>
-                Codes are held and validated by Stripe rather than stored here, so this screen has
-                nothing to read until <code>STRIPE_SECRET_KEY</code> is set on the deployment.
-              </p>
+              <strong>Waiting on Stripe</strong>
+              <p>Codes are created and checked in Stripe, so Stripe has to be connected first.</p>
             </>
           }
-          tags={<Tag color="grey">no Stripe key</Tag>}
+          tags={<Tag color="grey">Stripe not connected</Tag>}
         />
         <Panel>
-          <NotInputted what="discount codes" />
+          <EmptyState icon="◌">
+            <p className="empty-title">Discount codes need Stripe</p>
+            <p className="empty-sub">Connect Stripe to create and track codes.</p>
+          </EmptyState>
         </Panel>
       </>
     );
@@ -79,11 +79,10 @@ export default async function DiscountCodesPage() {
         title="Discount Codes"
         info={
           <>
-            <strong>Codes live in Stripe, not in this database</strong>
+            <strong>Codes are kept in Stripe</strong>
             <p>
-              A buyer enters one on Stripe&rsquo;s checkout page and Stripe validates it against its
-              own redemption counters, so a code created here works immediately with nothing to
-              publish. The list is every promotion code on the Stripe account, not only KGC&rsquo;s.
+              A code created here works at checkout right away. The list shows every code on the
+              Stripe account.
             </p>
           </>
         }
@@ -104,8 +103,8 @@ export default async function DiscountCodesPage() {
 
       {loadError && (
         <Banner kind="danger">
-          <strong>Could not read codes from Stripe.</strong> {loadError} This screen reads Stripe
-          live rather than a local copy. Nothing is wrong with your codes, only with reading them.
+          <strong>Could not read codes from Stripe.</strong> {loadError} Your codes are
+          not affected.
         </Banner>
       )}
 
@@ -161,7 +160,8 @@ export default async function DiscountCodesPage() {
                   color: 'var(--link)',
                   cursor: 'pointer',
                   fontSize: 12,
-                  padding: 0,
+                  minHeight: 32,
+                  padding: '0 6px',
                 }}
               >
                 {c.active ? 'Turn off' : 'Turn on'}
@@ -171,9 +171,8 @@ export default async function DiscountCodesPage() {
           empty={<NotInputted what="discount codes" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          ⚠️ This lists every promotion code on the Stripe account, not only KGC&rsquo;s. Nothing on
-          a Stripe code scopes it to an event unless it was created here. Codes are deactivated
-          rather than deleted, because Stripe keeps the code attached to every payment that used it.
+          This lists every code on the Stripe account, not only this event&rsquo;s. Codes can be
+          turned off but not deleted.
         </p>
       </Panel>
     </>

@@ -52,8 +52,7 @@ export function ImportForm() {
             <input id="file" name="file" type="file" accept=".csv,text/csv" />
             <p className="muted" style={{ fontSize: 12 }}>
               Needs a <strong>Name</strong> and an <strong>Email</strong> column. Ticket type,
-              company and job title are used if present. Column names are matched loosely, so
-              &ldquo;E-mail Address&rdquo; and &ldquo;Organisation&rdquo; both work.
+              company and job title are used if present.
             </p>
           </div>
 
@@ -87,8 +86,7 @@ export function ImportForm() {
           {state.sample && state.sample.length > 0 && (
             <>
               <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
-                The first rows, as the importer understood them. Check the values landed under the
-                right headings before committing.
+                The first rows. Check each value is under the right heading before you import.
               </p>
               <div className="whova-table-wrapper">
                 <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>

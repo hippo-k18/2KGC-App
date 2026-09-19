@@ -31,16 +31,14 @@ export default async function TicketAddOnsPage() {
         title="Ticket Add-ons"
         info={
           <>
-            <strong>An add-on is not a discount code</strong>
+            <strong>Extras are part of a ticket</strong>
             <p>
-              A discount code changes what a purchase costs and lives in Stripe; an add-on changes
-              what it contains and would live here. Nothing in the data model is purchasable except
-              a ticket type, so the two entitlements below are booleans on a tier rather than
-              products.
+              Add-ons sold on their own are not available yet. Workshops and the video library are
+              switched on per ticket in Create Tickets.
             </p>
           </>
         }
-        tags={<Tag color="grey">No add-on model</Tag>}
+        tags={<Tag color="grey">Not available yet</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
             Create Tickets
@@ -52,14 +50,14 @@ export default async function TicketAddOnsPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Entitlements that exist today</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What each ticket includes</h2>
         <p className="body-2">
-          There are exactly two, and they are booleans on the ticket type rather than products. Both
-          are read as entitlements elsewhere in the dashboard, so they are not decorative.
+          Add-ons sold on their own are not available yet. Two extras can be included in a ticket.
+          Set them in <Link href={ROUTES.createTickets}>Create Tickets</Link>.
         </p>
         <Table
           cols={[
-            { key: 'n', label: 'Tier', className: 'cell-md' },
+            { key: 'n', label: 'Ticket', className: 'cell-md' },
             { key: 'p', label: 'Price', className: 'cell-sm' },
             { key: 'w', label: 'Workshops', className: 'cell-sm' },
             { key: 'v', label: 'Video library', className: 'cell-fill' },
@@ -67,8 +65,8 @@ export default async function TicketAddOnsPage() {
           rows={tiers.map((t) => [
             t.name,
             money(t.priceCents, t.currency),
-            t.includesWorkshops ? <Tag key="w" color="green" small>yes</Tag> : <span key="w" className="muted">—</span>,
-            t.includesVideoLibrary ? <Tag key="v" color="green" small>yes</Tag> : <span key="v" className="muted">—</span>,
+            t.includesWorkshops ? <Tag key="w" color="green" small>yes</Tag> : <span key="w" className="muted">no</span>,
+            t.includesVideoLibrary ? <Tag key="v" color="green" small>yes</Tag> : <span key="v" className="muted">no</span>,
           ])}
           empty={<NotInputted what="ticket types" compact />}
         />

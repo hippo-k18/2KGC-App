@@ -61,9 +61,8 @@ export function AppBrandingForm({
           style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}
         />
         <p className="whova-form-description">
-          The app currently ships <code>#2069BC</code>. White text on it is 5.51:1, which clears
-          AA. A colour chosen here would need checking the same way before it went anywhere near a
-          screen.
+          The app uses <code>#2069BC</code> today. Check that white text is readable on any new
+          colour.
         </p>
       </div>
 
@@ -109,8 +108,8 @@ export function AppBrandingForm({
           placeholder="help@knowledgegraph.tech"
         />
         <p className="whova-form-description">
-          Where an attendee who cannot get into the app is meant to write. Nothing surfaces it yet;
-          the confirmation email in <code>@kgc/scripts</code> has its own hard-coded address.
+          Where an attendee who cannot get into the app should write. It is not shown to attendees
+          yet.
         </p>
       </div>
 
@@ -170,8 +169,7 @@ export function BrandedUrlForm({ brandedSlug }: { brandedSlug: string }) {
           Serving it is the expensive half and is not built.
         */}
         <p className="whova-form-description">
-          Reserving the word costs nothing and settles the argument before it reaches a flyer.
-          Making the address resolve is a separate job. See below.
+          The address sends visitors to the front page of the event website.
         </p>
       </div>
 

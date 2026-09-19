@@ -69,11 +69,10 @@ export default async function ArtifactWebpagePage() {
         title="Artifact Webpage"
         info={
           <>
-            <strong>Half the library is public on purpose</strong>
+            <strong>Public and restricted documents</strong>
             <p>
-              <code>visibleToTicketTypes</code> exists so a deck can be restricted to the people who
-              paid. A restricted document is filtered out server-side and never reaches the browser
-              at all. It is not hidden with a class.
+              A document restricted to a ticket type is left off the public page. Everything else
+              that is published can be downloaded by anyone.
             </p>
           </>
         }
@@ -108,8 +107,8 @@ export default async function ArtifactWebpagePage() {
         <a href={publicUrl('/documents')} target="_blank" rel="noreferrer">
           /documents
         </a>
-        . Restricting one in Documents takes it off that page on the next request; these are links
-        to files hosted elsewhere, so anything already fetched cannot be recalled.
+        . Restricting one in Documents takes it off that page right away. A file someone already
+        downloaded cannot be recalled.
       </Banner>
 
       <StatTiles
@@ -128,7 +127,7 @@ export default async function ArtifactWebpagePage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Which of these a visitor can see</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Published documents</h2>
         <Table
           cols={[
             { key: 't', label: 'Title', className: 'cell-fill' },
@@ -149,7 +148,7 @@ export default async function ArtifactWebpagePage() {
               // A row that reads "not a URL" is worth showing: it is a typo an
               // organizer can fix, and it would 404 on any page that used it.
               <span key="h" className="muted" style={{ fontSize: 12 }}>
-                not a URL
+                no link
               </span>
             ),
             d.onPublicPage ? (
@@ -165,7 +164,7 @@ export default async function ArtifactWebpagePage() {
               // "anyone" here would be the same lie the counts above told, and
               // saying "restricted" would send the organizer to the wrong field.
               <span key="v" className="muted" style={{ fontSize: 12 }}>
-                incomplete, not on the page
+                incomplete, not shown
               </span>
             ),
           ])}

@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { EVENT, PAGE_CONTENT_KEYS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { targetDescription } from '@/lib/firestore';
 import {
   formatMilestones,
   readPageContent,
@@ -54,7 +53,7 @@ export const dynamic = 'force-dynamic';
 
 function Meta({ meta }: { meta: PageContentMeta }) {
   if (!meta.updatedAt) {
-    return <span className="muted">Never edited: the page is on its own copy.</span>;
+    return <span className="muted">Never edited. The page shows its default text.</span>;
   }
   return (
     <span className="muted">
@@ -90,11 +89,10 @@ export default async function WebsiteCopyPage() {
         title="Website Copy"
         info={
           <>
-            <strong>Live without a deploy</strong>
+            <strong>Saves go live at once</strong>
             <p>
-              All three pages read Firestore on every request, so a save is on the public site on
-              the next page load. A box left blank hands the field back to the copy compiled beside
-              the page. It does not empty the page.
+              A save shows on the public site on the next page load. A box left blank puts the
+              default text back. It does not empty the page.
             </p>
           </>
         }
@@ -105,9 +103,6 @@ export default async function WebsiteCopyPage() {
           <Link key="w" href="/marketing/event-website">
             Event Website
           </Link>,
-          <span key="t" className="muted">
-            {targetDescription()}
-          </span>,
         ]}
       />
 
@@ -116,9 +111,8 @@ export default async function WebsiteCopyPage() {
           Code of Conduct · <PageLink path="/code-of-conduct" />
         </h2>
         <p className="body-2">
-          The reporting route only. The policy text is not editable from anywhere and should not
-          be: it is what attendees are told they have agreed to, and changing it is a change that
-          needs a reviewable history. <Meta meta={conductMeta} />
+          Who incident reports go to. The policy text itself cannot be edited here.{' '}
+          <Meta meta={conductMeta} />
         </p>
         {/*
          * The one place on this screen that names a fallback, and the reason it
@@ -134,10 +128,9 @@ export default async function WebsiteCopyPage() {
          */}
         {conduct.reportEmail ? null : (
           <Banner kind="warning">
-            No reporting address is set for {EVENT.name}, so <code>/code-of-conduct</code> is
-            printing <strong>{EVENT.contactEmail}</strong>. The general KGC mailbox. It is a real
-            address and a report sent to it will arrive, but whoever answers enquiries would read
-            it. Type the address incident reports should go to below.
+            No reporting address is set, so the Code of Conduct page shows the general mailbox,{' '}
+            <strong>{EVENT.contactEmail}</strong>. Enter the address incident reports should go to
+            below.
           </Banner>
         )}
         <CodeOfConductForm
@@ -152,9 +145,7 @@ export default async function WebsiteCopyPage() {
           Call for Posters · <PageLink path="/call-for-posters" />
         </h2>
         <p className="body-2">
-          The submission link and the calendar. Both ship marked PLACEHOLDER in the source with a
-          URL still carrying <code>2026</code>, which is the exact pair of mistakes a
-          deploy-to-edit page accumulates. <Meta meta={postersMeta} />
+          The submission link and the key dates. <Meta meta={postersMeta} />
         </p>
         <CallPageForm
           page={PAGE_CONTENT_KEYS.callForPosters}
@@ -170,8 +161,7 @@ export default async function WebsiteCopyPage() {
           Startup Pitch · <PageLink path="/startup-pitch" />
         </h2>
         <p className="body-2">
-          The same page with different words, and the same two fields that go stale.{' '}
-          <Meta meta={pitchMeta} />
+          The submission link and the key dates. <Meta meta={pitchMeta} />
         </p>
         <CallPageForm
           page={PAGE_CONTENT_KEYS.startupPitch}

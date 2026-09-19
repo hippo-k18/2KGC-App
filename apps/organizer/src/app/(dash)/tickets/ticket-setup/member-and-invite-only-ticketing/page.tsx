@@ -34,17 +34,16 @@ export default async function MemberAndInviteOnlyTicketingPage() {
         title="Member & Invite-Only Ticketing"
         info={
           <>
-            <strong>A hidden tier is unlisted, not restricted</strong>
+            <strong>A hidden ticket is unlisted, not restricted</strong>
             <p>
-              Anyone holding the link can buy it and nothing checks who they are. Fine for a
-              speaker comp rate circulated by email, wrong where the restriction has to hold. The
-              only identity check available is a promotion code with a redemption limit of one.
+              Anyone with the link can buy it. For a single invite, use a discount code with a
+              limit of one. Membership checks are not available yet.
             </p>
           </>
         }
         tags={
           <Tag color={hidden.length > 0 ? 'orange' : 'grey'} fill="outline">
-            {hidden.length} hidden {hidden.length === 1 ? 'tier' : 'tiers'}
+            {hidden.length} hidden {hidden.length === 1 ? 'ticket' : 'tickets'}
           </Tag>
         }
         links={[
@@ -61,42 +60,42 @@ export default async function MemberAndInviteOnlyTicketingPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Tiers not shown in the catalogue</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Hidden tickets</h2>
         <Table
           cols={[
-            { key: 'n', label: 'Tier', className: 'cell-md' },
+            { key: 'n', label: 'Ticket', className: 'cell-md' },
             { key: 'p', label: 'Price', className: 'cell-sm' },
             { key: 'a', label: 'Audience', className: 'cell-sm' },
             { key: 't', label: 'Tagline', className: 'cell-fill' },
           ]}
-          rows={hidden.map((t) => [t.name, money(t.priceCents, t.currency), t.audience, t.tagline || '—'])}
-          empty="Every tier is listed in the public catalogue."
+          rows={hidden.map((t) => [t.name, money(t.priceCents, t.currency), t.audience, t.tagline || ''])}
+          empty="No hidden tickets"
         />
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The three ways to restrict a ticket, ranked by what we have</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Ways to restrict a ticket</h2>
         <Table
           cols={[
-            { key: 'w', label: 'Mechanism', className: 'cell-md' },
+            { key: 'w', label: 'Method', className: 'cell-md' },
             { key: 's', label: 'State', className: 'cell-sm' },
-            { key: 'n', label: 'What it really gives you', className: 'cell-fill' },
+            { key: 'n', label: 'What it does', className: 'cell-fill' },
           ]}
           rows={[
             [
-              'Hidden tier',
+              'Hidden ticket',
               <Tag key="s" color="green" small>works</Tag>,
-              'Unlisted URL. No identity check at all. Good enough for comps circulated by email.',
+              <span key="n">Sold by direct link only. Anyone with the link can buy. Hide a ticket in{' '}<Link href={ROUTES.createTickets}>Create Tickets</Link>.</span>,
             ],
             [
-              'Promotion code',
+              'Discount code',
               <Tag key="s" color="green" small>works</Tag>,
-              'Stripe owns the code, its redemption limit and its expiry. Restricts the price, not the right to attend, and a code with a limit of one is the closest thing to an invite this project has today.',
+              <span key="n">A code with a limit of one works as a single invite. Create it in{' '}<Link href={ROUTES.discountCodes}>Discount Codes</Link>.</span>,
             ],
             [
               'Membership check',
-              <Tag key="s" color="grey" small>absent</Tag>,
-              'Verify the buyer against an association database before allowing the purchase. Needs an API credential for someone else’s system, a lookup on the public form, and an answer for what happens when their API is down mid-sale.',
+              <Tag key="s" color="grey" small>not available</Tag>,
+              'Checking a buyer against a membership database is not available yet.',
             ],
           ]}
         />

@@ -42,6 +42,18 @@ function stamp(iso: string): string {
   }).format(d);
 }
 
+/** A plain `YYYY-MM-DD` day as "3 May 2027". */
+function dayLabel(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!y || !m || !d) return day;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
 export default async function ReportPage() {
   await requireOrganizer();
 
@@ -102,7 +114,7 @@ export default async function ReportPage() {
             Tools
           </Link>,
           <span key="d" className="muted">
-            today is {today} in {EVENT.timeZone}
+            Today is {dayLabel(today)}, {EVENT.timeZone.split('/').pop()?.replace(/_/g, ' ')} time
           </span>,
         ]}
       />
@@ -255,11 +267,13 @@ export default async function ReportPage() {
 
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
-          Sessions today ({today})
+          Sessions today ({dayLabel(today)})
         </h2>
         {todaysSessions.length === 0 ? (
           <p className="body-2 muted">
-            Nothing scheduled today: the event runs {days[0] ?? '—'} to {days[days.length - 1] ?? '—'}.
+            {days.length === 0
+              ? 'No sessions yet.'
+              : `Nothing scheduled today. The event runs ${dayLabel(days[0])} to ${dayLabel(days[days.length - 1])}.`}
           </p>
         ) : (
           <Table

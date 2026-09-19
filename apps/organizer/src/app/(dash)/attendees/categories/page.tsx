@@ -55,13 +55,12 @@ export const dynamic = 'force-dynamic';
  * about get an explanation instead of a shrug.
  */
 const ROLE_MEANING: Record<string, string> = {
-  attendee: 'The baseline. Everyone with a claimed ticket has it; it grants nothing extra.',
-  speaker: 'Presenting. Held alongside attendee, never instead of it.',
-  organizer:
-    'Reads every user document and every draft, and is the gate on this dashboard. The only role that confers power.',
-  reviewer: 'Modelled for programme review. Nothing in the rules or the app reads it yet.',
-  exhibitor: 'Modelled for sponsor staff. Nothing in the rules or the app reads it yet.',
-  checkin: 'Modelled for desk staff. Check-in writes are Admin-SDK only, so this reads nothing yet.',
+  attendee: 'Everyone with a ticket who has signed in.',
+  speaker: 'Presenting at the event. Speakers are also attendees.',
+  organizer: 'Can sign in to this dashboard and see everything.',
+  reviewer: 'For programme reviewers. Gives no extra access yet.',
+  exhibitor: 'For sponsor and exhibitor staff. Gives no extra access yet.',
+  checkin: 'For desk staff. Gives no extra access yet.',
 };
 
 /** Roles that `firestore.rules` actually branches on today. */
@@ -153,7 +152,7 @@ export default async function CategoriesPage({
       <Panel>
         <StatTiles
           tiles={[
-            { label: 'Categories in use', value: present.length, sub: `of 6 the model defines` },
+            { label: 'Categories in use', value: present.length, sub: 'of 6 available' },
             {
               label: 'Attendees categorised',
               value: categorised,
@@ -162,7 +161,7 @@ export default async function CategoriesPage({
             {
               label: 'In more than one',
               value: multi,
-              sub: 'roles is a list. A speaker is also an attendee',
+              sub: 'a speaker is also an attendee',
             },
           ]}
         />
@@ -172,17 +171,17 @@ export default async function CategoriesPage({
             { key: 'c', label: 'Category', className: 'cell-sm' },
             { key: 'n', label: 'Attendees', className: 'cell-xs' },
             { key: 'a', label: 'In the app', className: 'cell-xs' },
-            { key: 'm', label: 'What holding it does', className: 'cell-fill' },
+            { key: 'm', label: 'What it means', className: 'cell-fill' },
             { key: 'v', label: '', className: 'cell-xs cell-end-align' },
           ]}
-          empty="No roles are set on any attendee"
+          empty="No attendee has a category yet"
           rows={categories.map((c) => [
             <span key="c">
               <strong>{c.label}</strong>
               {ENFORCED.has(c.key) && (
                 <div>
                   <Tag color="blue" small>
-                    enforced in rules
+                    full access
                   </Tag>
                 </div>
               )}
@@ -203,14 +202,13 @@ export default async function CategoriesPage({
             ),
             c.key === '(none)' ? (
               <span key="m">
-                No <code>users</code> document, or one with an empty <code>roles</code>. Mostly
-                ticket holders who have not opened the app. {c.ticketHolders} of these {c.size}{' '}
-                hold a ticket.
+                Mostly ticket holders who have not opened the app. {c.ticketHolders} of these{' '}
+                {c.size} hold a ticket.
               </span>
             ) : (
               (ROLE_MEANING[c.key] ?? (
                 <span key="m" className="muted">
-                  Not one of the six values <code>Role</code> defines. Came in with the data.
+                  Not a standard category. It came in with imported data.
                 </span>
               ))
             ),
@@ -270,7 +268,7 @@ export default async function CategoriesPage({
               </span>
             ) : (
               <span key="cat" className="muted">
-                {a.signedIn ? 'signed in, no role set' : 'no profile yet'}
+                {a.signedIn ? 'no category set' : 'not signed in yet'}
               </span>
             ),
             a.signedIn ? (
@@ -288,32 +286,8 @@ export default async function CategoriesPage({
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Why this screen only reads</h2>
-        <p className="body-2">
-          The category shown against a person is <code>users/&#123;uid&#125;.roles</code>, and that
-          document decides nothing. <code>firestore.rules</code> gates on the <code>roles</code>{' '}
-          <strong>custom claim</strong> carried in the ID token,{' '}
-          <code>request.auth.token.roles</code>, and never reads the profile to work out who you
-          are, deliberately: an earlier version did, which cost a document read per rule evaluation
-          and counted against the hard cap of ten access calls per request.
-        </p>
-        <p className="body-2">
-          Nothing in this dashboard mints a claim. The only code in the repo that calls{' '}
-          <code>setCustomUserClaims</code> is <code>scripts/src/set-claims.ts</code>, run from a
-          laptop as the stand-in for the <code>verifyOtp</code> Cloud Function that Spark cannot
-          deploy. An &ldquo;add to category&rdquo; button here would therefore write the mirror,
-          leave the claim alone, and display a speaker with none of a speaker&apos;s access. A row
-          that looks correct and is not. Claims also only refresh when a token is issued, so even
-          after someone ran the script the person would carry the old one until they signed out and
-          back in, for up to an hour.
-        </p>
-        <p className="body-2">
-          Of the six values <code>Role</code> defines, exactly one changes behaviour today:{' '}
-          <code>organizer</code>, which opens every user document and every draft and is the gate on
-          this dashboard. <code>reviewer</code>, <code>exhibitor</code> and <code>checkin</code> are
-          modelled and read by nothing. <code>checkin</code> in particular grants no check-in
-          rights, because every write under <code>checkInLists</code> and <code>scanEvents</code> is
-          denied to all clients and made with the Admin SDK instead.
+        <p className="body-2" style={{ margin: 0 }}>
+          Categories cannot be created or assigned from this screen yet.
         </p>
       </Panel>
 

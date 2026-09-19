@@ -65,9 +65,8 @@ export default async function AgendaAnalyticsPage() {
           <>
             <strong>Links, not page views</strong>
             <p>
-              Nothing on knowledgegraph.tech is instrumented, so a visitor who typed the address is
-              invisible here. Every figure below is a link KGC made and the redirect counted.
-              Adding a page tracker is a privacy decision nobody has taken.
+              Only clicks on tracked links are counted. Visitors who reach the agenda any other way
+              are not counted.
             </p>
           </>
         }
@@ -95,7 +94,7 @@ export default async function AgendaAnalyticsPage() {
             General-purpose agenda
           </Link>,
           <Link key="s" href="/marketing/event-webpages/agenda-webpage/special-purpose">
-            Slices of the agenda
+            Special-purpose agenda
           </Link>,
         ]}
       />
@@ -105,7 +104,7 @@ export default async function AgendaAnalyticsPage() {
           {
             label: 'Clicks to the agenda',
             value: clicks,
-            sub: lastClick ? `last ${lastClick.slice(0, 10)}` : 'not inputted yet',
+            sub: lastClick ? `last ${lastClick.slice(0, 10)}` : 'no clicks yet',
           },
           {
             label: 'Orders credited',
@@ -113,7 +112,7 @@ export default async function AgendaAnalyticsPage() {
             sub: clicks > 0 ? `${Math.round((orders / clicks) * 100)}% of clicks` : 'no clicks yet',
           },
           { label: 'Revenue credited', value: money(revenue, currency), sub: 'net of refunds' },
-          { label: 'Published sessions', value: published, sub: 'what the page shows' },
+          { label: 'Published sessions', value: published, sub: 'on the public agenda' },
         ]}
       />
 
@@ -122,7 +121,7 @@ export default async function AgendaAnalyticsPage() {
         <Table
           cols={[
             { key: 'l', label: 'Link', className: 'cell-fill' },
-            { key: 'd', label: 'Slice', className: 'cell-md' },
+            { key: 'd', label: 'Goes to', className: 'cell-md' },
             { key: 'c', label: 'Clicks', className: 'cell-sm' },
             { key: 'n', label: 'Orders', className: 'cell-sm' },
             { key: 'r', label: 'Net', className: 'cell-sm' },
@@ -168,8 +167,8 @@ export default async function AgendaAnalyticsPage() {
           }
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          Clicks are raw hits rather than unique visitors, and attribution is last-click within the
-          cookie&rsquo;s thirty days, both stated so a number here can be argued with.
+          One person clicking twice counts as two clicks. A purchase within thirty days of a click
+          is credited to the last link clicked.
         </p>
       </Panel>
 

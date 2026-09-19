@@ -58,7 +58,7 @@ export default async function PayoutPage() {
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key</Tag>
+            <Tag color="grey">Stripe not connected</Tag>
           )
         }
         links={[
@@ -76,9 +76,10 @@ export default async function PayoutPage() {
 
       {payouts.unavailable ? (
         <Banner kind="warning">
-          <strong>No live figures: Stripe could not be read.</strong> {payouts.unavailable} The
-          figures below come from our own order records, so they show what was sold, not what has
-          reached the bank.
+          <strong>No live figures.</strong>{' '}
+          {stripeEnabled() ? payouts.unavailable : 'Stripe is not connected yet.'} The figures below
+          come from our own order records, so they show what was sold, not what has reached the
+          bank.
         </Banner>
       ) : failed.length > 0 ? (
         <Banner kind="danger">
@@ -142,7 +143,7 @@ export default async function PayoutPage() {
           ])}
           empty={
             payouts.unavailable ? (
-              'Nothing to list: Stripe could not be read. The reason is in the banner above.'
+              'Nothing to list until Stripe can be read.'
             ) : (
               <NotInputted what="payouts" compact />
             )

@@ -125,7 +125,8 @@ export default async function AnnouncementsPage({
           empty={<NotInputted what="announcements" />}
           rows={pageRows.map((a) => [
             <strong key="s">{a.title}</strong>,
-            <span key="b" style={{ fontSize: 13 }}>
+            // Capped to the phone's visible table width so a long body wraps there.
+            <span key="b" style={{ display: 'block', fontSize: 13, maxWidth: 'calc(100vw - 84px)' }}>
               {a.body}
             </span>,
             'All attendees',

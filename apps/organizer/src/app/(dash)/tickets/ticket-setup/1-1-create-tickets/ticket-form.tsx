@@ -83,12 +83,6 @@ export function TicketForm({
         hint={
           <>
             Printed on the badge and shown on the website.
-            {existing && (
-              <>
-                {' '}
-                Id <code>{existing.id}</code> stays the same. Orders point at it.
-              </>
-            )}
           </>
         }
       />
@@ -121,9 +115,8 @@ export function TicketForm({
         }
         hint={
           <>
-            One bullet per line. Shown on the checkout order rail, on the smaller ticket cards, and
-            on the ticket panel, <strong>unless</strong> the grouped list below has something in
-            it, in which case the panel shows that instead.
+            One bullet per line. Shown at checkout and on the ticket cards. The two headline panels
+            show the grouped list below instead, when it has something in it.
           </>
         }
       />
@@ -160,8 +153,8 @@ export function TicketForm({
         hint={
           <>
             <strong>This is what the two headline panels on the website show.</strong> A line with
-            no dash is a heading; a line starting <code>-</code> is a bullet under it. A heading on
-            its own is a group with no bullets. Leave it empty to fall back to the flat list above.
+            no dash is a heading. A line starting with a dash is a bullet under it. Leave it empty
+            to use the list above.
           </>
         }
       />
@@ -182,9 +175,8 @@ export function TicketForm({
         hint={
           <>
             Blank for unlimited. {existing ? `${existing.quantitySold} sold so far. ` : ''}
-            This closes the tier when it is reached, but it is{' '}
-            <strong>not a hard reservation</strong>. Two people can pass the check at the same
-            moment and both pay.
+            Sales close when it is reached, but it is <strong>not a hard reservation</strong>. Two
+            people buying at the same moment can both get through.
           </>
         }
       />
@@ -236,9 +228,7 @@ export function TicketForm({
         ]}
         hint={
           <>
-            ⚠️ Only <strong>attendee</strong> tiers appear on the public website.{' '}
-            <code>catalogue.ts</code> filters to them. An exhibitor or sponsor tier is recorded here
-            and has nothing selling it yet.
+            Only <strong>attendee</strong> tickets appear on the public tickets page.
           </>
         }
       />
@@ -274,13 +264,13 @@ export function TicketForm({
         <CheckboxField
           name="inPerson"
           label="In-person ticket"
-          description="Splits the catalogue on Virtual & Hybrid › Setup and Attendee Customization › Ticket Tiering. Nothing on the public site renders it."
+          description="Used by Virtual & Hybrid › Setup and Attendee Customization › Ticket Tiering. Not shown on the website."
           defaultChecked={existing ? existing.inPerson : true}
         />
         <CheckboxField
           name="featured"
           label="Highlight on the tickets page"
-          description="Draws the dark, emphasised panel on /tickets/exhibitor and /tickets/sponsor."
+          description="Draws this ticket as the dark, larger panel."
           defaultChecked={existing?.featured ?? false}
         />
         {/*
@@ -300,7 +290,7 @@ export function TicketForm({
           label={
             <>
               Includes the video library
-              <span className="muted">. Sold, but nothing serves it yet</span>
+              <span className="muted">. The library itself is not available yet</span>
             </>
           }
           defaultChecked={existing?.includesVideoLibrary ?? false}

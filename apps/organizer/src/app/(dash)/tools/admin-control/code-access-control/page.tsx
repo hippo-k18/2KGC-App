@@ -34,8 +34,8 @@ export default async function CodeAccessControlPage() {
           <>
             <strong>The event code is not what lets people in</strong>
             <p>
-              Only ticket holders can open the app. A shared code is a convenience on a slide and
-              is not treated as security.
+              Only ticket holders can open the app. The code is saved, but the app does not ask for
+              it yet.
             </p>
           </>
         }

@@ -19,6 +19,15 @@ import { TicketForm } from './ticket-form';
 
 export const dynamic = 'force-dynamic';
 
+/** Row actions are text links; this gives them a finger-sized box. */
+const ROW_ACTION = {
+  alignItems: 'center',
+  display: 'inline-flex',
+  fontSize: 12,
+  minHeight: 32,
+  padding: '0 6px',
+} as const;
+
 /**
  * Tickets › Ticket Setup › 1.1 Create Tickets.
  *
@@ -83,11 +92,10 @@ export default async function CreateTicketsPage({
         title="1.1 Create Tickets"
         info={
           <>
-            <strong>These documents are the price list</strong>
+            <strong>This is the price list</strong>
             <p>
-              The website reads <code>ticketTypes</code> to decide what to sell and hands Stripe the
-              same <code>priceCents</code>, so an edit here changes what the next buyer pays with no
-              deploy. A tier cannot be deleted (orders point at it by id) only hidden.
+              The website sells what is listed here. A price change applies to the next buyer.
+              A ticket cannot be deleted, only hidden.
             </p>
           </>
         }
@@ -128,8 +136,7 @@ export default async function CreateTicketsPage({
             */
             <Banner kind="info">
               <strong>This is a {editing.audience} package, not an attendee ticket.</strong> It
-              sells at <code>/tickets/{editing.audience}</code> and stays a {editing.audience}{' '}
-              package when you save. The Audience field below is what decides that.
+              stays a {editing.audience} package when you save, unless you change Audience below.
             </Banner>
           )}
           {editing && editing.quantitySold > 0 && (
@@ -159,9 +166,8 @@ export default async function CreateTicketsPage({
                   {ledger.outstanding.get(editing.id)} more seats are on invoices that have been
                   raised and not paid.
                 </strong>{' '}
-                {editing.quantitySold} sold plus those exceeds the cap of {editing.quantityTotal}.
-                Capacity is checked when an invoice is raised, not when it is paid, so every one of
-                them will register on payment whatever this cap says.
+                {editing.quantitySold} sold plus those is over the cap of {editing.quantityTotal}.
+                Each of them will register when the invoice is paid.
               </Banner>
             )}
           <TicketForm existing={editing} defaultAudience={requestedAudience} />
@@ -259,8 +265,8 @@ export default async function CreateTicketsPage({
                     )}
                   </span>,
 
-                  <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <Link href={`?edit=${t.id}`} style={{ fontSize: 12 }}>
+                  <div key="a" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <Link href={`?edit=${t.id}`} style={ROW_ACTION}>
                       Edit
                     </Link>
                     {/*
@@ -273,12 +279,11 @@ export default async function CreateTicketsPage({
                       <button
                         type="submit"
                         style={{
+                          ...ROW_ACTION,
                           background: 'none',
                           border: 0,
                           color: 'var(--link)',
                           cursor: 'pointer',
-                          fontSize: 12,
-                          padding: 0,
                         }}
                       >
                         {t.visible ? 'Hide' : 'Show'}
@@ -289,9 +294,8 @@ export default async function CreateTicketsPage({
               />
 
               <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-                {totalSold} {totalSold === 1 ? 'ticket' : 'tickets'} sold across all types. There is
-                no delete: orders reference a ticket type by id, and removing one would leave those
-                orders pointing at nothing. Hide it instead.
+                {totalSold} {totalSold === 1 ? 'ticket' : 'tickets'} sold across all types. Tickets
+                cannot be deleted. Hide them instead.
               </p>
             </>
           )}

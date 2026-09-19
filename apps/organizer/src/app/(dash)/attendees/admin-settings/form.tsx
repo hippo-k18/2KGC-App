@@ -53,8 +53,7 @@ export function AdminSettingsForm({
           Attendees can share contact details with each other
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
-          Recorded, and read back by this screen only. The app decides both of these for itself
-          today, so neither switch changes what an attendee sees.
+          Saved, but these do not change what attendees see in the app yet.
         </p>
       </div>
 
@@ -77,7 +76,7 @@ export function AdminSettingsForm({
           style={{ maxWidth: 520, width: '100%' }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          A note, not a permission. Anyone who can open this dashboard can already scan.
+          Shown at the top of Attendee Check-in.
         </p>
       </div>
 

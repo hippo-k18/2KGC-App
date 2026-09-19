@@ -4,6 +4,7 @@ import { readPolls } from '@/lib/polls';
 import { ROUTES } from '@/lib/nav';
 import {
   Banner,
+  EmptyState,
   GapPanel,
   NotInputted,
   PageHeader,
@@ -142,14 +143,15 @@ export default async function LivePollingPage({
         </Panel>
       ) : polls.length === 0 ? (
         <Panel>
-          <NotInputted
-            what="polls"
+          <EmptyState
             action={
               <Link href="?new=1" className="whova-btn-main primary">
                 Create the first one
               </Link>
             }
-          />
+          >
+            <p className="empty-title">No polls yet</p>
+          </EmptyState>
         </Panel>
       ) : (
         polls.map((p) => (

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PageHeader, Panel, Table } from '../../../ui';
+import { GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +30,10 @@ export default async function SessionRsvpPage() {
         title="Session RSVP"
         info={
           <>
-            <strong>Saving a session is not RSVPing to it</strong>
+            <strong>Session RSVP is not available yet</strong>
             <p>
-              The app&rsquo;s schedule feature writes a private bookmark. Nothing counts it, caps it
-              or checks it, and the count would overstate attendance anyway. Attendees save several
-              parallel sessions and go to one.
+              Attendees can save sessions to their own schedule in the app. Saved sessions are not
+              counted or capped.
             </p>
           </>
         }
@@ -52,45 +51,11 @@ export default async function SessionRsvpPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The four parts of an RSVP, and what exists</h2>
-        <Table
-          cols={[
-            { key: 'p', label: 'Part', className: 'cell-md' },
-            { key: 's', label: 'Today', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              'A capacity',
-              <span key="s">
-                Exists. <code>SessionDoc.capacity</code> is a real number and{' '}
-                <Link href="/attendees/session-cap">Session Cap</Link> compares it against the
-                room&rsquo;s seats.
-              </span>,
-            ],
-            [
-              'Eligibility',
-              <span key="s">
-                Partly. <code>includesWorkshops</code> decides who may attend a workshop, which{' '}
-                <Link href="/attendees/ticket-session-mapping">Ticket Session Mapping</Link>{' '}
-                derives from the entitlement rather than guessing from prose.
-              </span>,
-            ],
-            [
-              'A booking that is counted',
-              <span key="s" className="muted">
-                Missing. There is no per-session registration document, so there is nothing to
-                count and nothing to close when it fills.
-              </span>,
-            ],
-            [
-              'A check at the door',
-              <span key="s" className="muted">
-                Missing. Check-in is per event, not per session. One{' '}
-                <code>checkIns</code> document against a list, not against a talk.
-              </span>,
-            ],
-          ]}
-        />
+        <p className="body-2" style={{ margin: 0 }}>
+          Session RSVP is not available yet. Set a session&rsquo;s capacity in{' '}
+          <Link href="/attendees/session-cap">Session Cap</Link> and choose which tickets admit it
+          in <Link href="/attendees/ticket-session-mapping">Ticket Session Mapping</Link>.
+        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

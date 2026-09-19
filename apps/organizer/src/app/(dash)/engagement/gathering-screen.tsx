@@ -191,7 +191,9 @@ export async function GatheringScreen({
             { key: 'a', label: '', className: 'cell-sm' },
           ]}
           rows={rows.map((g) => [
-            <div key="t">
+            // Capped to the phone's visible table width so the first column wraps
+            // there instead of pushing Add out of view. No effect on a wide screen.
+            <div key="t" style={{ maxWidth: 'calc(100vw - 84px)' }}>
               <div>
                 {g.title}{' '}
                 {g.status === 'cancelled' && (

@@ -180,19 +180,24 @@ export default async function RehearsalSessionsPage({
         ) : (
           <Table
             cols={[
-              { key: 'd', label: 'Day', className: 'cell-mdsm' },
+              // The day tab already says which day, so the column only shows on All days.
+              ...(day === 'all' ? [{ key: 'd', label: 'Day', className: 'cell-mdsm' }] : []),
               { key: 'w', label: 'Check at', className: 'cell-sm' },
-              { key: 'r', label: 'Room', className: 'cell-mdsm' },
               { key: 't', label: 'Talk', className: 'cell-fill' },
+              { key: 'r', label: 'Room', className: 'cell-mdsm' },
               { key: 'p', label: 'Speaker', className: 'cell-md' },
             ]}
             rows={shown.map((r) => {
               const opens = minutesOf(r.session.startsAtLocal) - AV_WINDOW_MINUTES;
               const at = `${String(Math.floor(opens / 60)).padStart(2, '0')}:${String(opens % 60).padStart(2, '0')}`;
               return [
-                <span key="d" style={{ whiteSpace: 'nowrap' }}>
-                  {dayLabel(r.session.day)}
-                </span>,
+                ...(day === 'all'
+                  ? [
+                      <span key="d" style={{ whiteSpace: 'nowrap' }}>
+                        {dayLabel(r.session.day)}
+                      </span>,
+                    ]
+                  : []),
                 r.blockedBy ? (
                   <span key="w" style={{ whiteSpace: 'nowrap' }}>
                     <Tag color="orange" small>
@@ -207,11 +212,11 @@ export default async function RehearsalSessionsPage({
                     {at}
                   </strong>
                 ),
-                r.session.roomName,
-                <span key="t">
+                <span key="t" style={{ display: 'inline-block', maxWidth: '42vw' }}>
                   <Link href={`${ROUTES.sessionManager}/${r.session.id}`}>{r.session.title}</Link>{' '}
                   <span className="muted">{clockOf(r.session.startsAtLocal)}</span>
                 </span>,
+                r.session.roomName,
                 r.session.speakerNames.join(', '),
               ];
             })}
@@ -233,10 +238,14 @@ export default async function RehearsalSessionsPage({
               { key: 'b', label: 'Room is busy with', className: 'cell-fill' },
             ]}
             rows={blocked.map((r) => [
-              <span key="t">
+              <span key="t" style={{ display: 'inline-block', maxWidth: '64vw' }}>
                 {dayLabel(r.session.day)} {clockOf(r.session.startsAtLocal)} · {r.session.title}
               </span>,
-              <Link key="b" href={`${ROUTES.sessionManager}/${r.blockedBy!.id}`}>
+              <Link
+                key="b"
+                href={`${ROUTES.sessionManager}/${r.blockedBy!.id}`}
+                style={{ display: 'inline-block', maxWidth: '64vw' }}
+              >
                 {r.blockedBy!.title}
               </Link>,
             ])}

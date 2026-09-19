@@ -186,14 +186,10 @@ export default async function SessionCapPage({
         title="Session Cap"
         info={
           <>
-            <strong>A cap here is a note, not a limit</strong>
+            <strong>A cap is a planning number</strong>
             <p>
-              Nothing enforces <code>SessionDoc.capacity</code>: adding a session to a schedule in
-              the app writes a private bookmark that counts against nothing.
-            </p>
-            <p>
-              &ldquo;Counted in&rdquo; is people scanned at that room&rsquo;s door. A fact about
-              the room afterwards, not seats claimed in advance.
+              The app does not stop attendees adding a full session to their schedule.
+              Counted is the number of people scanned at the session door.
             </p>
           </>
         }
@@ -218,7 +214,7 @@ export default async function SessionCapPage({
             {
               label: 'Capped above the room',
               value: over.length,
-              sub: over.length ? 'more tickets than chairs' : 'every cap fits its room',
+              sub: over.length ? 'more places than seats' : 'every cap fits its room',
             },
             {
               label: 'Cannot be checked',
@@ -228,7 +224,7 @@ export default async function SessionCapPage({
             {
               label: 'Seats capped in total',
               value: seatsCapped,
-              sub: 'the sum of the caps, not a headcount',
+              sub: 'the sum of all caps',
             },
           ]}
         />
@@ -276,16 +272,16 @@ export default async function SessionCapPage({
           cols={[
             { key: 't', label: 'Session', className: 'cell-fill', sortKey: 'title' },
             { key: 'w', label: 'When', className: 'cell-sm', sortKey: 'when' },
-            { key: 'r', label: 'Room', className: 'cell-mdsm cell-truncate', sortKey: 'room' },
+            { key: 'r', label: 'Room', className: 'cell-mdsm', sortKey: 'room' },
             { key: 'c', label: 'Cap', className: 'cell-xs', sortKey: 'cap' },
-            { key: 's', label: 'Room seats', className: 'cell-xs', sortKey: 'seats' },
-            { key: 'in', label: 'Counted in', className: 'cell-xs', sortKey: 'counted' },
+            { key: 's', label: 'Seats', className: 'cell-xs', sortKey: 'seats' },
+            { key: 'in', label: 'Counted', className: 'cell-xs', sortKey: 'counted' },
             { key: 'v', label: 'Fit', className: 'cell-sm', sortKey: 'verdict' },
           ]}
           sort={sort}
           empty={
             capped.length === 0
-              ? 'No session in the programme has a capacity set. An absent cap means uncapped.'
+              ? 'No session has a cap yet.'
               : 'No capped session matches that'
           }
           rows={pageRows.map((r) => [
@@ -300,7 +296,7 @@ export default async function SessionCapPage({
             <span key="w" style={{ fontSize: 12 }}>
               {r.session.day}
               <div className="muted">
-                {r.session.startsAtLocal.slice(11, 16)}–{r.session.endsAtLocal.slice(11, 16)}
+                {r.session.startsAtLocal.slice(11, 16)} to {r.session.endsAtLocal.slice(11, 16)}
               </div>
             </span>,
             r.roomName ?? <span className="muted">unassigned</span>,
@@ -313,7 +309,7 @@ export default async function SessionCapPage({
               String(r.roomCapacity)
             ),
             r.countedIn === null ? (
-              <span key="in" className="muted" title="No door was opened for this session">
+              <span key="in" className="muted" title="Check-in was not opened for this session">
                 not counted
               </span>
             ) : (
@@ -349,30 +345,19 @@ export default async function SessionCapPage({
       </Panel>
 
       <Panel>
-        <h2 className="section-header">What is uncapped, and whether that is deliberate</h2>
+        <h2 className="section-header">Sessions with no cap</h2>
         <p className="body-2">
-          {uncapped.length} of the {live.length} live sessions have no capacity set. An absent{' '}
-          <code>capacity</code> means uncapped, which is the honest default.{' '}
-          <code>models.ts</code> is explicit that a conference which has not decided its cap should
-          not have the model invent one. For a keynote in the main hall that is correct.
+          {uncapped.length} of the {live.length} live sessions have no cap
           {uncappedWorkshops.length > 0 ? (
             <>
-              {' '}
-              <strong>{uncappedWorkshops.length}</strong> of them are workshops, and a workshop
-              without a cap is more often an omission than a decision. It is the format with
-              equipment, tables and a facilitator who needs to know the number.
+              , including <strong>{uncappedWorkshops.length}</strong> workshops
             </>
-          ) : (
-            ' Every workshop in the programme has one.'
-          )}{' '}
-          Caps are set per session in{' '}
-          <Link href={ROUTES.sessionManager}>Session Manager</Link>, not here.
+          ) : null}
+          . Set caps per session in <Link href={ROUTES.sessionManager}>Session Manager</Link>.
         </p>
-        <p className="body-2">
-          The &ldquo;room seats unknown&rdquo; verdict is about <code>RoomDoc.capacity</code> being
-          optional and frequently unset. It means this screen could not check, not that the room is
-          large enough. The two read the same on a dashboard and are opposite in a corridor, so
-          they are separate verdicts rather than one green tick.
+        <p className="body-2" style={{ marginBottom: 0 }}>
+          &ldquo;Room seats unknown&rdquo; means the room has no seat count, so the cap could not be
+          checked.
         </p>
       </Panel>
 

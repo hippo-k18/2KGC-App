@@ -210,7 +210,7 @@ function SessionDetail({
         <p style={{ lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{s.description}</p>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          Not inputted yet. Attendees see the title and the time and nothing else.
+          No description yet. Attendees see only the title and the time.
         </p>
       )}
 
@@ -233,8 +233,8 @@ function SessionDetail({
       */}
       {speakers.length !== s.speakerIds.length ? (
         <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-          {s.speakerIds.length - speakers.length} of the {s.speakerIds.length} speaker ids on this
-          session resolve to no speaker record.
+          {s.speakerIds.length - speakers.length} of the {s.speakerIds.length} speakers on this
+          session could not be found. Edit the session to fix the list.
         </p>
       ) : null}
     </>
@@ -263,9 +263,6 @@ function SessionCard({
           padding: '6px 10px',
         }}
       >
-        <span aria-hidden="true" style={{ opacity: 0.7 }}>
-          ✥
-        </span>
         <DetailDisclosure
           trigger={s.title}
           triggerLabel={`Session details: ${s.title}`}
@@ -569,16 +566,13 @@ export default async function SessionManagerPage({
           Import the agenda
         </h2>
         <p className="body-2">
-          The programme CSV this screen exports, read back in. Speakers, tracks and rooms are
-          matched <strong>by name</strong> against what already exists and a row naming one that
-          does not is reported rather than invented &mdash; so import the speaker and track lists
-          first.
+          Use the same columns as the programme export. Speakers, tracks and rooms are matched{' '}
+          <strong>by name</strong>, and a row naming one that does not exist is reported, not
+          created. Import the speaker and track lists first.
         </p>
         <p className="muted" style={{ fontSize: 12 }}>
-          Times are read as local wall clock in the event&rsquo;s timezone and the UTC instants and
-          day tab are derived from them, so a 21:00 reception stays on the evening it belongs to.
-          New sessions arrive as drafts: an import is a bulk write nobody reviews row by row, and
-          publishing an agenda to a thousand phones is not undone by editing.
+          Times are read in the event&rsquo;s time zone. New sessions arrive as drafts, so nothing
+          reaches attendees until you publish it.
         </p>
         <CsvImportPanel
           previewAction={previewSessionImportAction}
@@ -589,19 +583,16 @@ export default async function SessionManagerPage({
             <>
               Needs <strong>Title</strong>, <strong>Day</strong> and <strong>Start</strong>. End,
               End date, Room, Track, Speakers, Format, Status, Skill level, Capacity and
-              Description are used if present. Several speakers or tracks in one cell are separated
-              by a semicolon &mdash; never a comma, which is half the world&rsquo;s way of writing
-              a name.
+              Description are used if present. Separate several speakers or tracks in one cell with
+              a semicolon, not a comma.
             </>
           }
           placeholder={'Day,Start,End,Title,Room,Track,Speakers\n2027-05-04,09:00,10:00,Knowledge graphs at scale,Bloomberg 165,Graph ML,Ada Okonkwo; Jae Vance'}
           additiveNote={
             <>
-              Nothing was removed. A session missing from the file stays on the programme &mdash;
-              retiring one is <code>status: cancelled</code>, because attendees hold saved-session
-              bookmarks that Firestore will not cascade. A session whose time changed is reported
-              rather than written, because writing it would create a second copy nothing can
-              remove.
+              Nothing was removed. A session missing from the file stays on the programme. To
+              retire one, set its status to cancelled. A session whose time changed is reported, not
+              written. Change the time on the session itself.
             </>
           }
         />

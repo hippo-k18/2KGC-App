@@ -485,12 +485,8 @@ export default async function SpeakerManagerPage({
           )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-            <strong>There is no delete.</strong> Sessions point at a speaker by id, and so does
-            every phone that has one of their talks saved. Removing the document would leave those
-            resolving to nothing, days later and with no warning. A speaker who has dropped out is
-            taken off their sessions in{' '}
-            <Link href={ROUTES.sessionManager}>Session Manager</Link>, which leaves the record
-            findable and the agenda correct.
+            <strong>Speakers cannot be deleted.</strong> Take a speaker who has dropped out off
+            their sessions in <Link href={ROUTES.sessionManager}>Session Manager</Link> instead.
           </p>
         </Panel>
       )}
@@ -500,13 +496,12 @@ export default async function SpeakerManagerPage({
           Import a speaker list
         </h2>
         <p className="body-2">
-          The list the call for papers produced, straight from the committee&rsquo;s spreadsheet.
-          Re-import it as bios and headshots arrive &mdash; a speaker already on the list is matched
-          by name and updated rather than duplicated, and a blank cell leaves what is stored alone.
+          Import the speaker list from a spreadsheet. A speaker already on the list is matched by
+          name and updated, not duplicated. A blank cell leaves the stored value alone.
         </p>
         <p className="muted" style={{ fontSize: 12 }}>
-          Import this before the agenda. The session importer refuses any row naming a speaker it
-          cannot find, rather than inventing a thin record that nothing would ever merge.
+          Import this before the agenda. The agenda import rejects any row naming a speaker it
+          cannot find.
         </p>
         <CsvImportPanel
           previewAction={previewSpeakerImportAction}
@@ -523,10 +518,8 @@ export default async function SpeakerManagerPage({
           placeholder={'Name,Job title,Company,Contact email\nAda Okonkwo,Principal Engineer,Acme Graphs,ada@acme.example'}
           additiveNote={
             <>
-              Nothing was removed. A speaker missing from the file stays on the list &mdash; an
-              import is additive, and there is no delete here to undo one with. Correcting a
-              spelling is a rename, which has to fan out to every session that caches the name, so
-              it is done on the speaker&rsquo;s own page rather than from a spreadsheet.
+              Nothing was removed. A speaker missing from the file stays on the list. To correct a
+              spelling, edit the speaker above. Changing a name in the file adds a second speaker.
             </>
           }
         />

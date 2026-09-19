@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requireOrganizer } from '@/lib/auth';
 import { feedbackTargets, listSurveys, summarise, type SurveyRow } from '@/lib/surveys';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, EmptyState, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { setSurveyStatusAction } from './survey-actions';
 import { SurveyForm } from './survey-form';
 
@@ -162,14 +162,15 @@ export async function SurveyScreen({
       ) : (
         <Panel>
           {scoped.length === 0 ? (
-            <NotInputted
-              what={mode === 'session' ? 'session feedback forms' : 'event surveys'}
+            <EmptyState
               action={
                 <Link href="?new=1" className="whova-btn-main primary">
                   Create the first one
                 </Link>
               }
-            />
+            >
+              <p className="empty-title">No surveys yet</p>
+            </EmptyState>
           ) : (
             <Table
               cols={[

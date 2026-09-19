@@ -75,7 +75,7 @@ export async function CategoryScreen({
       <StatTiles
         tiles={[
           { label: 'Posts', value: posts.length, sub: `${posts.length - visible.length} hidden` },
-          { label: 'Replies', value: replies, sub: 'not RSVPs' },
+          { label: 'Replies', value: replies },
           { label: 'Reactions', value: reactions },
           { label: 'People replying', value: people, sub: 'distinct attendees' },
         ]}

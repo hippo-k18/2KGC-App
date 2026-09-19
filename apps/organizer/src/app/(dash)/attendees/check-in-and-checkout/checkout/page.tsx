@@ -55,12 +55,8 @@ export default async function CheckoutPage() {
         title="Checkout"
         info={
           <>
-            <strong>Arrivals, never occupancy</strong>
-            <p>
-              A check-in document has no exit field, so nobody can be checked out and no figure
-              here means &ldquo;in the building&rdquo;. Occupancy is a safety number; this is not
-              one.
-            </p>
+            <strong>Arrivals only</strong>
+            <p>Checkout is not available yet. This page lists arrivals, not who is on site now.</p>
           </>
         }
         links={[
@@ -75,18 +71,15 @@ export default async function CheckoutPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Arrived at some point', value: checkedIn, sub: 'not a headcount for now' },
-          { label: 'Active registrations', value: active, sub: 'expected over the whole event' },
-          { label: 'Currently on site', value: '—', sub: 'no exit is recorded' },
+          { label: 'Arrived', value: checkedIn },
+          { label: 'Active registrations', value: active },
         ]}
       />
 
       <Panel>
         <h2 className="section-header">Arrivals at the main door ({checkedIn})</h2>
         <p className="body-2">
-          The most recent scans on the door list, in the order they happened. This is the whole of
-          what the building knows: each row is somebody who came through the entrance, and none of
-          them says whether that person is still here.
+          Checkout is not available yet, so this list does not show who has left.
         </p>
         <Table
           cols={[

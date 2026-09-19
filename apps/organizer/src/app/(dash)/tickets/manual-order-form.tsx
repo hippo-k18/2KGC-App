@@ -44,8 +44,7 @@ export function ManualOrderForm({
   if (packages.length === 0) {
     return (
       <p className="muted" style={{ fontSize: 13 }}>
-        No {audienceNoun} package exists to record a payment against. Price one first. An order
-        pointing at no ticket type cannot produce a badge.
+        There is no {audienceNoun} package to record a payment against. Create one first.
       </p>
     );
   }
@@ -102,7 +101,7 @@ export function ManualOrderForm({
         </label>
         <input id="name" name="name" required maxLength={80} placeholder="Ada Lovelace" />
         <p className="muted" style={{ fontSize: 12 }}>
-          Whoever holds the badge, not whoever signed the cheque. This prints at the door.
+          The person who will wear the badge.
         </p>
       </div>
 
@@ -112,8 +111,8 @@ export function ManualOrderForm({
         </label>
         <input id="email" name="email" type="email" required placeholder="ada@example.com" />
         <p className="muted" style={{ fontSize: 12 }}>
-          The join key. The registration id is derived from it, and it is the address they sign in
-          with. Recording the same address twice updates one registration rather than making two.
+          The address they sign in with. Recording the same address twice updates one
+          registration.
         </p>
       </div>
 
@@ -137,7 +136,7 @@ export function ManualOrderForm({
           style={{ maxWidth: 180 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          In whole currency units, not cents. {compHint}
+          In whole units, not cents. {compHint}
         </p>
       </div>
 
@@ -154,8 +153,7 @@ export function ManualOrderForm({
         </label>
         <input id="note" name="note" required maxLength={200} placeholder={notePlaceholder} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Required. This order is paid on your word, and this is the record of what your word was
-          based on. It is stored on the order itself, not only in the audit log.
+          Required. Saved on the order.
         </p>
       </div>
 
@@ -168,8 +166,7 @@ export function ManualOrderForm({
           already been told
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
-          Leave this off for a live recording. The confirmation carries the claim code, which is how
-          they get into the app; skipping it means telling them another way.
+          The confirmation carries the claim code they need to get into the app.
         </p>
       </div>
 

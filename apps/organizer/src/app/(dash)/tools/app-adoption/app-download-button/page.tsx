@@ -3,7 +3,7 @@ import { APP_DISTRIBUTION, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { GapPanel, PageHeader, Panel } from '../../../ui';
 import { EXPO_GO_URL } from '../adoption-context';
-import { QrSymbol, Snippet, qrSvgMarkup } from '../snippet';
+import { QrDownload, QrSymbol, Snippet } from '../snippet';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,11 +41,10 @@ export default async function AppDownloadButtonPage() {
         title="App Download Button"
         info={
           <>
-            <strong>No store badges, deliberately</strong>
+            <strong>No store badges yet</strong>
             <p>
-              The app is not listed on the App Store or Google Play, so a store badge would be a
-              button that goes nowhere. Every snippet here points at <code>/tickets</code>, which
-              carries the real install route.
+              The app is not on the App Store or Google Play yet, so every button here links to the
+              tickets page, which explains how to install it.
             </p>
           </>
         }
@@ -68,14 +67,13 @@ export default async function AppDownloadButtonPage() {
             <QrSymbol text={href} px={168} label={href} />
           </div>
           <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-            <h2 style={{ fontSize: 15, marginTop: 0 }}>The link everything points at</h2>
+            <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the button goes</h2>
             <p className="body-2">
               <code>{href}</code>
             </p>
             <p className="body-2">{APP_DISTRIBUTION}</p>
             <p className="body-2 muted" style={{ fontSize: 12, marginBottom: 0 }}>
-              Expo Go itself is at <a href={EXPO_GO_URL}>{EXPO_GO_URL}</a> if somebody asks what it
-              is.
+              Expo Go: <a href={EXPO_GO_URL}>{EXPO_GO_URL}</a>
             </p>
           </div>
         </div>
@@ -84,20 +82,20 @@ export default async function AppDownloadButtonPage() {
       <Panel style={{ marginTop: 16 }}>
         <Snippet
           title="HTML"
-          note="For a WordPress block, an email, or anywhere that takes raw HTML."
+          note="For a website or an email."
           text={html}
         />
         <Snippet title="Markdown" text={`[Get the KGC 2027 app](${href})`} />
         <Snippet
           title="Plain text"
-          note="For a slide, a printed sign, or a Slack message."
+          note="For a slide, a sign or a chat message."
           text={`Get the KGC 2027 app: ${href}`}
         />
-        <Snippet
-          title="The QR as SVG"
-          note="Paste into a slide or a page. Vector, so it prints at whatever resolution the printer has."
-          text={qrSvgMarkup(href)}
-        />
+        <div className="whova-form-label">QR code</div>
+        <p className="whova-form-description" style={{ marginBottom: 8, marginTop: 0 }}>
+          A vector file for a slide or a printed page.
+        </p>
+        <QrDownload text={href} />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -41,7 +41,7 @@ export default async function MyEventListingPage() {
   const DISCOVERY = [
     {
       need: 'The name shown in a search result',
-      ours: 'The page title on knowledgegraph.tech',
+      ours: 'The site title',
       where: '',
       live: false,
     },
@@ -52,14 +52,14 @@ export default async function MyEventListingPage() {
       live: false,
     },
     {
-      need: 'The picture when a link is pasted into Slack',
+      need: 'The picture when a link is shared',
       ours: 'The site share image',
       where: '',
       live: false,
     },
     {
       need: 'The dates and the venue',
-      ours: 'Written into the pages a visitor lands on',
+      ours: 'The About page',
       where: '/about',
       live: false,
     },
@@ -107,7 +107,7 @@ export default async function MyEventListingPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>How somebody finds {EVENT.shortName}</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What people see in search and shared links</h2>
         <Table
           cols={[
             { key: 'n', label: 'What people see', className: 'cell-md' },

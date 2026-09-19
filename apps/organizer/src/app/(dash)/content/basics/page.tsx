@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { COLLECTIONS, EVENT, EVENT_ID } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
-import { targetDescription } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
 
@@ -19,13 +18,16 @@ export const dynamic = 'force-dynamic';
  * `TIME_ZONE` in particular is what `day` is derived from on every session.
  * Making it editable from a web form would mean a write that silently
  * invalidates every derived day key and moves sessions onto the wrong tab on a
- * thousand phones. That is a migration, not a text input, and the Save button
- * is present-and-disabled so that the choice reads as one.
+ * thousand phones. That is a migration, not a text input, so the page has no
+ * Save button and says it is read-only.
  */
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', padding: '10px 0' }}>
+    <div
+      className="stack-sm"
+      style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', gap: 2, padding: '10px 0' }}
+    >
       <div style={{ color: 'var(--ink)', flex: 'none', fontWeight: 500, width: 180 }}>{label}</div>
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
@@ -52,19 +54,12 @@ export default async function BasicsPage() {
         title="Basics"
         info={
           <>
-            <strong>Read-only on purpose</strong>
+            <strong>Read-only</strong>
             <p>
-              These are compile-time constants in <code>packages/shared</code>, shared by the app,
-              the seed and the importer so the four cannot drift. Changing the timezone would
-              invalidate the derived <code>day</code> on every session. A migration, not a text
-              input.
+              The event name, dates, time zone and venue are fixed for this edition and cannot be
+              changed here.
             </p>
           </>
-        }
-        actions={
-          <button type="button" className="whova-btn-main small primary" disabled title="Read-only: see below">
-            Save
-          </button>
         }
         links={[
           <Link key="c" href="/content">
@@ -73,26 +68,19 @@ export default async function BasicsPage() {
           <Link key="w" href="/content/basics/website-copy">
             Website Copy
           </Link>,
-          <span key="t" className="muted">
-            {targetDescription()}
-          </span>,
         ]}
       />
 
       <Panel>
         <p className="body-2" style={{ marginTop: 0 }}>
-          The copy that <em>does</em> change between editions. The code of conduct&rsquo;s
-          reporting route, the call deadlines. Is edited at{' '}
-          <Link href="/content/basics/website-copy">Website Copy</Link>.
+          These details are read-only. The code of conduct contact and the call deadlines are
+          edited at <Link href="/content/basics/website-copy">Website Copy</Link>.
         </p>
 
         <Row label="Event Name">{EVENT.name}</Row>
         <Row label="Short name">{EVENT.shortName}</Row>
         <Row label="Event ID">
-          <code>{EVENT_ID}</code>{' '}
-          <span className="muted">. Stamped on every top-level document and leading every composite index, so KGC 2028 can
-            exist beside 2027.
-          </span>
+          <code>{EVENT_ID}</code>
         </Row>
         <Row label="Start Date">
           {days[0] ?? <span className="muted">no session is scheduled yet</span>}{' '}
@@ -104,8 +92,7 @@ export default async function BasicsPage() {
         </Row>
         <Row label="Time zone">
           <code>{EVENT.timeZone}</code>{' '}
-          <span className="muted">. Sessions are authored in this zone; a 21:00 reception is 01:00 UTC the next day.
-          </span>
+          <span className="muted">All session times are in this zone.</span>
         </Row>
         <Row label="Location / Venue">{EVENT.venue}</Row>
         <Row label="Website">
@@ -115,7 +102,7 @@ export default async function BasicsPage() {
         </Row>
         <Row label="Tagline and hashtag">
           <Link href="/content/branding-center/app-branding">App Branding</Link>{' '}
-          <span className="muted">The two fields on this screen that are editable.</span>
+          <span className="muted">Edited there.</span>
         </Row>
       </Panel>
 

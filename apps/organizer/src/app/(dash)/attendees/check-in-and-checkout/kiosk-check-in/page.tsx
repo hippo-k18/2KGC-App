@@ -45,7 +45,9 @@ export default async function KioskCheckInPage({
   await requireOrganizer();
 
   const { list: listParam, station } = await searchParams;
-  const [lists, stations] = await Promise.all([listCheckInLists(), listStations()]);
+  const [rawLists, stations] = await Promise.all([listCheckInLists(), listStations()]);
+  // Lists made before the rename carry a long dash in their name.
+  const lists = rawLists.map((l) => ({ ...l, name: l.name.replace(' — ', ': ') }));
 
   /*
     The door is pinned by id rather than taken as `lists[0]`, the same rule the
@@ -68,13 +70,11 @@ export default async function KioskCheckInPage({
         title="Kiosk Check-in"
         info={
           <>
-            <strong>An unattended station, not self-service</strong>
+            <strong>An unattended check-in station</strong>
             <p>
-              The write is still made by this dashboard session. The rules deny client check-ins
-              on purpose. Lock the device itself (Guided Access, or a kiosk browser); nothing here
-              can stop somebody navigating away.
+              Lock the device to this page with Guided Access or a kiosk browser. Badge printing on
+              scan is not available yet.
             </p>
-            <p>Badge printing on scan needs a print agent beside the printer, and there is none.</p>
           </>
         }
         tags={<Tag color="blue">{stationName}</Tag>}
@@ -124,8 +124,8 @@ export default async function KioskCheckInPage({
           </button>
         </form>
         <p className="body-2">
-          Bookmark the resulting address on the device. It carries the station name and the list,
-          so a reload comes back to the same kiosk rather than to the door.
+          Bookmark the address on the device after you press Apply. It keeps the station name and
+          the list.
         </p>
       </Panel>
 
@@ -141,19 +141,13 @@ export default async function KioskCheckInPage({
         ) : (
           <p className="body-2">
             No check-in list exists yet. Open one on{' '}
-            <Link href={ROUTES.checkIn}>Attendee Check-in</Link>. The kiosk writes into a list, it
-            does not create one.
+            <Link href={ROUTES.checkIn}>Attendee Check-in</Link>.
           </p>
         )}
       </Panel>
 
       <Panel>
         <h2 className="section-header">Stations that have scanned ({known.length})</h2>
-        <p className="body-2">
-          <code>checkInStations</code> is keyed by device rather than generated per session, so a
-          station that reloads is still the same station and a duplicate scan can name where the
-          first one happened.
-        </p>
         <Table
           cols={[
             { key: 'l', label: 'Label', className: 'cell-md' },

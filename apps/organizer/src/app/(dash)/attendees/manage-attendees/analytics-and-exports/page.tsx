@@ -82,9 +82,7 @@ export default async function AnalyticsAndExportsPage() {
         <ProgressBar pct={a.adoptionPct} />
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not opened the app yet.
-          This is the
-          number worth moving before doors open. An attendee without the app has no agenda, no
-          badge QR, and has to be checked in by hand at the desk.
+          Without the app they have no badge code and are checked in by name.
         </p>
 
         <Table
@@ -128,18 +126,15 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Session attendance</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
           Counted at the door of each session. {attendance.tracked} of {attendance.live} sessions
-          in the programme have had a door opened for them.{' '}
+          have had check-in opened.{' '}
           {attendance.tracked === 0 ? (
             <>
               None yet. Open one from{' '}
-              <Link href={ROUTES.checkIn}>Check-in</Link>. The Session card&apos;s Start button
-              creates the list and points the scanner at it.
+              <Link href={ROUTES.checkIn}>Check-in</Link> with Start under Check-in for the session.
             </>
           ) : (
             <>
-              A session with no door is left out of the table below rather than shown as zero: the
-              two are the same number and opposite facts, and a programme committee cutting a track
-              on the strength of a zero it never measured is the mistake worth designing against.
+              Sessions with no door opened are left out of the table.
             </>
           )}
         </p>
@@ -179,10 +174,8 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Exports</h2>
 
         <Banner kind="warning">
-          <strong>These files contain personal data and leave the building.</strong> Each one names
-          what it contains below. Send the narrowest that answers the question. Badge secrets and
-          claim codes are in <em>no</em> export: either one is a working credential, and a
-          spreadsheet forwarded to a supplier would become a set of usable tickets.
+          <strong>These files contain personal data.</strong> Share the smallest one that does the
+          job. No export includes badge codes.
         </Banner>
 
         <Table
@@ -212,10 +205,7 @@ export default async function AnalyticsAndExportsPage() {
         />
 
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          Every field is escaped against spreadsheet formula injection. A cell beginning{' '}
-          <code>=</code> is neutralised, because an attendee can type one into a registration form
-          and Excel would otherwise run it. Files are UTF-8 with a byte-order mark so accented
-          names survive Excel on Windows.
+          Files are UTF-8 CSV and open in Excel and Google Sheets.
         </p>
       </Panel>
 

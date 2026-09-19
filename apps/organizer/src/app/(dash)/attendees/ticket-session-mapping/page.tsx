@@ -102,12 +102,10 @@ export default async function TicketSessionMappingPage() {
         title="Ticket Session Mapping"
         info={
           <>
-            <strong>Derived from two booleans</strong>
+            <strong>Set on each ticket type</strong>
             <p>
-              A ticket type carries <code>includesWorkshops</code> and{' '}
-              <code>includesVideoLibrary</code>, and <code>workshop</code> is one session format,
-              so the only line this data can draw is between workshops and everything else. There
-              is no cell to click because there is no cell.
+              A ticket type either includes workshops or it does not. Sessions cannot be mapped to
+              tickets one by one yet.
             </p>
           </>
         }
@@ -131,7 +129,7 @@ export default async function TicketSessionMappingPage() {
             {
               label: 'Workshop sessions',
               value: workshops.length,
-              sub: 'the only sessions any tier restricts',
+              sub: 'the only restricted sessions',
             },
             {
               label: 'Tiers including workshops',
@@ -155,14 +153,15 @@ export default async function TicketSessionMappingPage() {
             { key: 'v', label: 'Video library', className: 'cell-sm' },
             { key: 'n', label: 'Sessions granted', className: 'cell-fill' },
           ]}
-          empty="No ticket types exist. ticketTypes is the only source of truth for prices, so run npm run seed."
+          empty="No ticket types yet. Add one in Ticket Setup."
           rows={rows.map((r) => [
             <span key="t">
               <strong>{r.tier.name}</strong>
-              <div className="muted" style={{ fontSize: 12 }}>
-                <code>{r.tier.id}</code>
-                {!r.tier.visible ? ' · hidden from the catalogue' : ''}
-              </div>
+              {!r.tier.visible ? (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  hidden from the tickets page
+                </div>
+              ) : null}
             </span>,
             r.holders > 0 ? (
               String(r.holders)
@@ -187,7 +186,7 @@ export default async function TicketSessionMappingPage() {
             ),
             r.videoLibrary ? (
               <Tag key="v" color="orange" fill="outline" small>
-                sold, not modelled
+                included, no videos yet
               </Tag>
             ) : (
               <Tag key="v" color="grey" fill="outline" small>
@@ -198,7 +197,7 @@ export default async function TicketSessionMappingPage() {
               <strong>{r.sessionsGranted}</strong> of {live.length}
               {r.inPersonFlag === false && (
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Marked not in-person on the tickets page. See below, that flag grants nothing.
+                  Marked not in-person on the tickets page.
                 </div>
               )}
             </span>,
@@ -209,15 +208,12 @@ export default async function TicketSessionMappingPage() {
           <p className="body-2">
             {unmatched.length} tier{unmatched.length === 1 ? '' : 's'} could not be read for
             entitlements and {unmatched.length === 1 ? 'is' : 'are'} shown as granting nothing extra.
-            An absent boolean is treated as <em>not granted</em> rather than defaulted to true.
-            Handing out workshop access on the strength of a missing key is the wrong direction to
-            fail in.
           </p>
         )}
       </Panel>
 
       <Panel>
-        <h2 className="section-header">The same mapping, from the programme&apos;s side</h2>
+        <h2 className="section-header">By session format</h2>
         <Table
           cols={[
             { key: 'f', label: 'Session format', className: 'cell-sm' },
@@ -235,19 +231,10 @@ export default async function TicketSessionMappingPage() {
                 ) : (
                   <span className="muted">no tier includes workshops</span>
                 )}
-                <div className="muted" style={{ fontSize: 12 }}>
-                  Because <code>includesWorkshops</code> is true on{' '}
-                  {workshopTiers.length === 1 ? 'that tier' : 'those tiers'}, not because anything
-                  was mapped session by session.
-                </div>
               </span>
             ) : (
               <span key="w">
                 Every tier
-                <div className="muted" style={{ fontSize: 12 }}>
-                  The model has no field that would exclude one, so this is what the data says
-                  rather than a decision anybody made.
-                </div>
               </span>
             ),
           ])}
@@ -255,32 +242,13 @@ export default async function TicketSessionMappingPage() {
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Three things this mapping does not mean</h2>
-        <p className="body-2">
-          <strong>Nothing enforces it.</strong> <code>firestore.rules</code> reads neither boolean.
-          Sessions are readable by any registered attendee, so somebody holding a tier without
-          workshops can still open a workshop in the agenda, read its description and add it to
-          their schedule. The booleans decide what the tickets page lists and what the desk is told;
-          no door is locked by them, here or in the app.
-        </p>
-        <p className="body-2">
-          <strong>The video library exists on the ticket and nowhere else.</strong>{' '}
-          {videoTiers.length} tier{videoTiers.length === 1 ? '' : 's'} sell it, and there is no video
-          in this data model to grant: <code>SessionDoc</code> has <code>slidesUrl</code> and no
-          recording field, <code>SessionMaterialDoc</code> has a <code>video</code> kind that nothing
-          writes, the <code>materials</code> subcollection has no block in <code>firestore.rules</code>{' '}
-          at all, and Video Hosting is an honest gap note rather than a screen. The marketing site
-          promises recordings of every session. That promise currently has no storage behind it, and
-          this row says &ldquo;sold, not modelled&rdquo; rather than a green tick for that reason.
-        </p>
-        <p className="body-2">
-          <strong>In-person is not an entitlement.</strong> <code>TicketTypeDoc.inPerson</code> looks
-          like it should split virtual attendees from the room, and it does not:{' '}
-          <code>TicketTypeRow</code> reads it as <code>t.inPerson ?? true</code>, it is a checkbox on
-          the ticket form that drives a catalogue card, and the seeded <code>virtual</code> tier has
-          no such field, so defaulting it would report a virtual ticket as granting in-person
-          access. This screen shows the flag where it is explicitly set and derives no access from
-          it.
+        <h2 className="section-header">Before you rely on this</h2>
+        <p className="body-2" style={{ marginBottom: 0 }}>
+          The app does not block anyone from opening a workshop, so check tickets at the workshop
+          door. No session recordings are hosted yet
+          {videoTiers.length > 0
+            ? `, although ${videoTiers.length} ticket type${videoTiers.length === 1 ? '' : 's'} include the video library.`
+            : '.'}
         </p>
       </Panel>
 

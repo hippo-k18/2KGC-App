@@ -227,7 +227,7 @@ export function PlaceForm({
   }
 
   return (
-    <form action={action} style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
+    <form action={action} style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="id" value={gathering.id} />
       <input

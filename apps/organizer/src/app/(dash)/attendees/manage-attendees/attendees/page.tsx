@@ -247,7 +247,7 @@ export default async function AttendeesPage({
             { key: 'tk', label: 'Ticket', className: 'cell-sm', sortKey: 'ticket' },
             { key: 'cat', label: 'Category', className: 'cell-sm', sortKey: 'category' },
             { key: 'app', label: 'App', className: 'cell-xs', sortKey: 'signedin' },
-            { key: 's', label: 'Directory', className: 'cell-xs', sortKey: 'directory' },
+            { key: 's', label: 'Directory', className: 'cell-sm', sortKey: 'directory' },
             { key: 'act', label: '', className: 'cell-xs cell-end-align' },
           ]}
           sort={sort}
@@ -322,28 +322,11 @@ export default async function AttendeesPage({
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Why this is two collections merged</h2>
-        <p className="body-2">
-          Whova has one attendee list that every registration product feeds. We have two collections
-          doing different jobs. <code>registrations</code> is the imported ticket list, keyed by an
-          opaque server-minted id rather than by email, because addresses change, because{' '}
-          <code>&ldquo;a/b@example.com&rdquo;</code> is a legal address and an illegal Firestore
-          path segment, and because an email-keyed collection is a membership oracle for anyone who
-          can attempt a read. <code>users</code> is the profile someone creates when they sign in
-          and claim a registration. This screen shows the <strong>union</strong> of the two, joined
-          on the email address. The only key they share, and the reason{' '}
-          <code>registrationId</code> is derived from a normalised address at all. It used to read{' '}
-          <code>users</code> alone, which meant somebody who had bought a ticket five minutes ago
-          was invisible here until they opened the app. The &ldquo;App&rdquo; column now carries
-          that distinction instead of it deciding who appears.
-        </p>
-        <p className="body-2">
-          The {hidden > 0 ? `${hidden} attendees marked "opted out" are` : 'opted-out column is'}{' '}
-          about <code>directory/&#123;uid&#125;</code>, the slim ~450-byte projection every attendee
-          may read. Opting out does not filter the profile out of the directory. It deletes the
-          projection outright, so the record never reaches another device. Rules can hide documents
-          but not fields, which is why the directory is a separate collection at all. The trigger
-          that maintains it is unbuilt (Spark plan), so the projection is whatever the seed wrote.
+        <h2 className="section-header">About this list</h2>
+        <p className="body-2" style={{ marginBottom: 0 }}>
+          The list includes everyone with a ticket and everyone who has signed into the app. App
+          shows who has signed in. Directory shows who other attendees can see
+          {hidden > 0 ? `; ${hidden} opted out` : ''}.
         </p>
       </Panel>
 

@@ -176,7 +176,8 @@ export default async function AttendeeActivityPage({
                 { key: 'p', label: 'Wrote', className: 'cell-mdsm' },
               ]}
               rows={paginate(shown, page, PER_PAGE).map((r) => [
-                <span key="n">
+                // Capped so the name wraps on a phone and the next column shows.
+                <span key="n" style={{ display: 'inline-block', maxWidth: '48vw' }}>
                   {r.attendee.name}
                   {r.attendee.company ? (
                     <span className="muted"> · {r.attendee.company}</span>

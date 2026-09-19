@@ -58,7 +58,8 @@ export default async function CheckInPage({
   await requireOrganizer();
 
   const { list: listParam } = await searchParams;
-  const lists = await listCheckInLists();
+  // Lists made before the rename carry a long dash in their name.
+  const lists = (await listCheckInLists()).map((l) => ({ ...l, name: l.name.replace(' — ', ': ') }));
 
   /**
    * The note Attendees › Admin Settings writes for whoever is on the desk.
@@ -211,7 +212,9 @@ export default async function CheckInPage({
           >
             Event check-in
           </div>
-          <div style={{ alignItems: 'center', display: 'flex', gap: 24, padding: '16px 14px' }}>
+          <div
+            style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 24, padding: '16px 14px' }}
+          >
             <div style={{ flex: '1 1 240px' }}>
               <strong>Check-in for the event</strong>
               <div className="muted" style={{ fontSize: 13 }}>
@@ -273,7 +276,7 @@ export default async function CheckInPage({
             >
               <strong>Check-in for the session</strong>
               <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-                Counts people into one room. Same scanner, same badge. A different list.
+                Count attendees into one session.
               </div>
               <SessionScopeForm options={sessionOptions} defaultValue={suggested?.id} />
             </div>
@@ -314,17 +317,15 @@ export default async function CheckInPage({
         {scopeSession ? (
           <Banner kind="info">
             <strong>You are scanning into {scopeSession.title}</strong>, not the
-            main door, {scopeSession.day} {scopeSession.startsAtLocal.slice(11, 16)}–
+            main door, {scopeSession.day} {scopeSession.startsAtLocal.slice(11, 16)} to{' '}
             {scopeSession.endsAtLocal.slice(11, 16)}
-            {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. A badge scanned here is
-            counted into this room and <em>not</em> into the event door list; the same person can be
-            scanned at both, which is the point. Switch back with the{' '}
-            <em>KGC 2027: Main Door</em> chip above.
+            {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. Scans here do not count
+            toward the main door. Switch back with the <em>KGC 2027: Main Door</em> chip above.
           </Banner>
         ) : rows.length - active > 0 ? (
           <Banner kind="warning">
-            {rows.length - active} registrations are cancelled or transferred and are excluded from
-            the denominator above.
+            {rows.length - active} registrations are cancelled or transferred and are not counted
+            above.
           </Banner>
         ) : null}
 
@@ -334,10 +335,7 @@ export default async function CheckInPage({
       <Panel>
         <h2 className="section-header">Check in by name</h2>
         <p className="body-2">
-          The scanner needs a code off the attendee&apos;s phone. This does not. Find the person
-          and press the button. A queue of a thousand reliably contains a flat battery, and this is
-          the row Whova puts an inline <strong>Check in</strong> button on for that reason. Same
-          idempotent write as a scan, so a double click cannot double count.
+          For an attendee without a badge code. Find the person and press Check in.
         </p>
         <DeskTable listId={selected.id} rows={deskRows} />
       </Panel>
@@ -375,11 +373,7 @@ export default async function CheckInPage({
       <Panel>
         <h2 className="section-header">Scan log ({scans.length})</h2>
         <p className="body-2">
-          Every scan, including the rejected ones. A duplicate is not an error state to recover
-          from. The write is a <code>create</code> keyed by registration, so the second one fails
-          with <code>already-exists</code> and <em>that failure is the mechanism</em>. The row below
-          telling you someone was already checked in at 09:12 at Front desk 1 is also the only way
-          a photographed badge gets noticed.
+          Every scan, including duplicates and rejected codes.
         </p>
         <Table
           cols={[

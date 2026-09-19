@@ -54,11 +54,11 @@ export default async function ContentLibraryPage() {
     {
       asset: 'Adoption email',
       kind: 'text',
-      have: 'sends for real',
+      have: 'ready to send',
       ready: true,
       where: '/tools/app-adoption/app-adoption-email',
       label: 'App Adoption › Adoption Email',
-      note: 'The ticket-receipt work put a real email sender in the project; this uses it.',
+      note: 'Sends from the dashboard.',
     },
     {
       asset: 'App download button and links',
@@ -76,7 +76,7 @@ export default async function ContentLibraryPage() {
       ready: sponsors.length > 0 && sponsorLogos === sponsors.length,
       where: '/content/sponsor-center/sponsor-manager',
       label: 'Sponsor Manager',
-      note: 'Uploaded to Storage or linked. Nothing resizes or re-crops one.',
+      note: 'Uploaded or linked. Logos are shown as supplied.',
     },
     {
       asset: 'Speaker headshots',
@@ -85,7 +85,7 @@ export default async function ContentLibraryPage() {
       ready: speakers.length > 0 && headshots === speakers.length,
       where: '/content/speaker-center/speaker-manager',
       label: 'Speaker Manager',
-      note: 'The grid on /speakers is where a missing one shows as a hole.',
+      note: 'A missing one leaves a gap on the public Speakers page.',
     },
     {
       asset: 'Printable and shareable graphics',
@@ -94,7 +94,7 @@ export default async function ContentLibraryPage() {
       ready: false,
       where: '/tools/app-adoption/downloadable-graphics',
       label: 'App Adoption › Downloadable Graphics',
-      note: 'Nothing in this repo composes an image from a template, so there is no badge or story card to hand out.',
+      note: 'None yet.',
     },
   ];
 
@@ -104,11 +104,8 @@ export default async function ContentLibraryPage() {
         title="Content Library"
         info={
           <>
-            <strong>An index, not a store</strong>
-            <p>
-              Nothing is kept here. Every row points at the screen that owns the material, because a
-              second copy drifts and the stale one always wins.
-            </p>
+            <strong>Where each asset is kept</strong>
+            <p>Nothing is stored here. Each row links to the screen where the asset is edited.</p>
           </>
         }
         tags={<Tag color="blue" fill="outline">{ASSETS.filter((a) => a.ready).length} of {ASSETS.length} complete</Tag>}
@@ -137,7 +134,7 @@ export default async function ContentLibraryPage() {
                 ? 'not inputted yet'
                 : sponsorLogos === sponsors.length
                   ? 'all of them'
-                  : 'the rest fall back to a name',
+                  : 'the rest show a name only',
           },
           {
             label: 'Speaker headshots',
@@ -147,7 +144,7 @@ export default async function ContentLibraryPage() {
                 ? 'not inputted yet'
                 : headshots === speakers.length
                   ? 'all of them'
-                  : 'the rest leave a hole in the grid',
+                  : 'the rest show no photo',
           },
           {
             label: 'Text assets',
@@ -158,7 +155,7 @@ export default async function ContentLibraryPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the material actually is</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Assets</h2>
         <Table
           cols={[
             { key: 'a', label: 'Asset', className: 'cell-md' },

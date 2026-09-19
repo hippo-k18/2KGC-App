@@ -64,16 +64,14 @@ export default async function SpecialPurposeAgendaPage() {
         title="Special-Purpose Agenda"
         info={
           <>
-            <strong>A query string, not a second page</strong>
+            <strong>Filtered agenda links</strong>
             <p>
-              <code>/agenda</code> reads <code>?day=</code> and <code>?track=</code> on the server,
-              so every URL below is already live. Open one and the public agenda renders that
-              slice with the filter shown as selected. There is nothing to publish and no snippet to
-              copy.
+              Each link below opens the public agenda filtered to one day or one track. They are
+              live already. Copy the address from the browser to share one.
             </p>
           </>
         }
-        tags={<Tag color="green" fill="outline">a filter, not a page</Tag>}
+        tags={<Tag color="green" fill="outline">live links</Tag>}
         actions={
           <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live agenda ↗
@@ -91,18 +89,18 @@ export default async function SpecialPurposeAgendaPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Published sessions', value: published.length, sub: 'the whole programme' },
-          { label: 'Days', value: days.length, sub: 'each a possible slice' },
-          { label: 'Tracks', value: tracks.length, sub: 'each a possible slice' },
+          { label: 'Published sessions', value: published.length, sub: 'on the full agenda' },
+          { label: 'Days', value: days.length, sub: 'one link each' },
+          { label: 'Tracks', value: tracks.length, sub: 'one link each' },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Slices this programme supports</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Links by day and track</h2>
         <Table
           cols={[
             { key: 'k', label: 'Kind', className: 'cell-sm' },
-            { key: 'l', label: 'Slice', className: 'cell-fill' },
+            { key: 'l', label: 'Shows', className: 'cell-fill' },
             { key: 'u', label: 'URL', className: 'cell-md' },
             { key: 'n', label: 'Sessions', className: 'cell-sm' },
           ]}

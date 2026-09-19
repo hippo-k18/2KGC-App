@@ -73,9 +73,9 @@ export default async function EventChecklistPage() {
         ) : (
           <Table
             cols={[
-              { key: 'p', label: 'Project', className: 'cell-md' },
+              { key: 'p', label: 'Project', className: 'cell-sm' },
               { key: 'b', label: 'Progress', className: 'cell-fill' },
-              { key: 'n', label: 'Done', className: 'cell-sm' },
+              { key: 'n', label: 'Done', className: 'cell-xs' },
             ]}
             rows={projects.map((p) => [
               <span key="p">

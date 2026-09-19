@@ -43,8 +43,7 @@ export function CodeForm() {
           style={{ maxWidth: 260, fontFamily: 'ui-monospace, Menlo, monospace' }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          Letters, digits, hyphens and underscores. This is what people type at checkout, so make it
-          something you can read out on a call.
+          Letters, digits, hyphens and underscores. Buyers type this at checkout.
         </p>
       </div>
 
@@ -94,8 +93,7 @@ export function CodeForm() {
           of it is a revenue figure that does not add up.
         */}
         <p className="muted" style={{ fontSize: 12 }}>
-          Blank for unlimited. Set it for anything you hand to a third party. An uncapped code that
-          escapes is a discount for everyone.
+          Blank for unlimited. Set a limit on any code you share outside the team.
         </p>
       </div>
 
@@ -105,7 +103,7 @@ export function CodeForm() {
         </label>
         <input id="expiresAt" name="expiresAt" type="datetime-local" />
         <p className="muted" style={{ fontSize: 12 }}>
-          Blank means never. Early-bird codes want a date here.
+          Blank means never.
         </p>
       </div>
 

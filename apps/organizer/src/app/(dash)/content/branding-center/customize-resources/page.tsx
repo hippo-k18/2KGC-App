@@ -36,12 +36,8 @@ export default async function CustomizeResourcesPage() {
         title="Customize Resources"
         info={
           <>
-            <strong>The tabs are compiled in</strong>
-            <p>
-              The five tabs are declared in the app&rsquo;s layout at build time, each needing an
-              iOS symbol <em>and</em> an Android vector icon. A new entry is a code change and a
-              store release, not a row in a database.
-            </p>
+            <strong>The app tabs are fixed</strong>
+            <p>Custom app tabs are not available yet. Add links as documents instead.</p>
           </>
         }
         links={[
@@ -56,18 +52,18 @@ export default async function CustomizeResourcesPage() {
 
       <StatTiles
         tiles={[
-          { label: 'App tabs', value: 5, sub: 'fixed at build time' },
-          { label: 'Documents', value: documents.length, sub: 'links an organizer can already edit' },
+          { label: 'App tabs', value: 5, sub: 'cannot be changed here' },
+          { label: 'Documents', value: documents.length, sub: 'links you can edit' },
         ]}
       />
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Add it as a document instead</h2>
         <p className="body-2">
-          The <Link href="/content/documents-and-videos/documents">Documents</Link> screen writes a
-          titled link the app already renders, which covers the shuttle timetable, the venue map
-          PDF and the code of conduct. The three things a custom menu entry is asked for. It is a
-          worse place to put them than a menu item, and it needs no app-store release.
+          Add a titled link on the{' '}
+          <Link href="/content/documents-and-videos/documents">Documents</Link> screen and it shows
+          in the app. Use it for things like the shuttle timetable, the venue map and the code of
+          conduct.
         </p>
         {documents.length === 0 ? (
           <NotInputted

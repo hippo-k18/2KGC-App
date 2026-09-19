@@ -44,12 +44,8 @@ export default async function AppBrandingPage() {
         title="App Branding"
         info={
           <>
-            <strong>Recorded, not applied</strong>
-            <p>
-              The palette ships inside the app bundle and is fixed at build time, so a colour saved
-              here reaches no phone until the app reads its theme at runtime. This is where the
-              decision is written down.
-            </p>
+            <strong>Saved, not applied yet</strong>
+            <p>Colours saved here are recorded. The app does not use them yet.</p>
           </>
         }
         links={[

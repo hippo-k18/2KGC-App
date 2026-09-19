@@ -37,18 +37,17 @@ export default async function AppAdoptionEmailPage() {
 
   const body = `Hi there,
 
-KGC 2027 is close, and the conference app is where your ticket actually lives.
+KGC 2027 is close. Your ticket is in the conference app.
 
 It gives you:
-  - your badge QR code, which is what gets scanned at the door
-  - the full agenda, and a schedule you build yourself
-  - who else is coming, and messages
+  - your badge QR code, scanned at the door
+  - the full agenda and your own schedule
+  - the attendee list and messages
   - session Q&A
 
 ${APP_DISTRIBUTION}
 
-Your ticket is already waiting. Sign in with the email address you bought it
-with and it will find you.
+Sign in with the email address you bought your ticket with.
 
 Your ticket and claim code: ${origin}/tickets
 
@@ -63,9 +62,8 @@ The KGC team`;
           <>
             <strong>This does not send</strong>
             <p>
-              Copy it into whatever you already mail attendees from. Speakers and sponsors{' '}
-              <em>can</em> be mailed from this dashboard; a thousand attendees needs batching, an
-              unsubscribe register and bounce handling.
+              Copy the subject and body into your own mail tool. Analytics &amp; Exports has the
+              list of people who have not signed in.
             </p>
           </>
         }
@@ -82,7 +80,7 @@ The KGC team`;
       <StatTiles
         tiles={[
           { label: 'App adoption', value: `${a.adoptionPct}%`, sub: `${a.ticketHoldersSignedIn} of ${a.ticketHolders}` },
-          { label: 'Have not installed', value: missing, sub: 'the audience for this email' },
+          { label: 'Have not installed', value: missing, sub: 'send this email to them' },
           { label: 'Ticket holders', value: a.ticketHolders, sub: 'total' },
         ]}
       />
@@ -90,18 +88,14 @@ The KGC team`;
       <Panel>
         <ProgressBar pct={a.adoptionPct} />
         <p className="muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-          Every one of the {missing} without the app has to be checked in by hand at the desk, and
-          has no agenda in their pocket. That is the cost this email exists to reduce.
+          {missing} ticket holders have not signed in to the app. Without it they are checked in by
+          hand at the desk.
         </p>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
         <Snippet title="Subject" text={subject} />
-        <Snippet
-          title="Body"
-          note="The install sentence comes from one constant shared with the public site, so the day the app is listed it changes in one place rather than in a dozen pasted copies of this email."
-          text={body}
-        />
+        <Snippet title="Body" text={body} />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -50,11 +50,10 @@ export default async function SocialWallCustomizationPage() {
         title="Social Wall Customization"
         info={
           <>
-            <strong>The board is closed on purpose</strong>
+            <strong>No public wall</strong>
             <p>
-              <code>firestore.rules</code> requires the <code>registered</code> claim to read{' '}
-              <code>communityPosts</code>, and attendees post ride shares and phone numbers there
-              because it is a closed room. A public wall would open it after the fact.
+              A social wall is not available yet. Only registered attendees can read the community
+              board, and some posts carry phone numbers.
             </p>
           </>
         }
@@ -73,9 +72,9 @@ export default async function SocialWallCustomizationPage() {
         tiles={[
           { label: 'Posts on the board', value: visible.length, sub: hidden.length > 0 ? `${hidden.length} hidden by a moderator` : 'none hidden' },
           {
-            label: 'Safe to project',
+            label: 'Safe for a screen',
             value: byCategory.filter((c) => c.projectable).reduce((n, c) => n + c.count, 0),
-            sub: 'no contact details by category',
+            sub: 'categories without contact details',
           },
           {
             label: 'Hidden by a moderator',
@@ -86,12 +85,12 @@ export default async function SocialWallCustomizationPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a wall would be showing the lobby</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Posts by category</h2>
         <Table
           cols={[
             { key: 'c', label: 'Category', className: 'cell-fill' },
             { key: 'n', label: 'Posts', className: 'cell-sm' },
-            { key: 'p', label: 'On a projector', className: 'cell-md' },
+            { key: 'p', label: 'On a screen', className: 'cell-md' },
           ]}
           rows={byCategory.map((c) => [
             CATEGORY_LABEL[c.category],
@@ -108,10 +107,6 @@ export default async function SocialWallCustomizationPage() {
           ])}
           empty={<NotInputted what="community posts" compact />}
         />
-        <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          The categories, not the individual posts. The judgement a wall needs is per category, and
-          two of them fail it every time.
-        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

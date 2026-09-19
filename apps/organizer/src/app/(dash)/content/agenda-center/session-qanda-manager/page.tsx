@@ -69,9 +69,8 @@ export default async function SessionQaManagerPage({
           <>
             <strong>Vote counts do not move</strong>
             <p>
-              Upvotes and poll tallies are written by a Cloud Function trigger that has never
-              deployed. It needs one IAM grant (<code>OWNER-ACTIONS.md</code> §3). The app shows
-              the same frozen figures, so the queue below is ordered by time instead.
+              Upvote and poll counts are not updating yet, so the questions below are ordered by
+              time.
             </p>
           </>
         }
@@ -233,7 +232,7 @@ export default async function SessionQaManagerPage({
                 key="v"
                 className="muted"
                 style={{ fontSize: 12 }}
-                title="Frozen: the counter's trigger has never deployed"
+                title="Vote counts are not updating yet"
               >
                 {q.upvoteCount}
               </span>,

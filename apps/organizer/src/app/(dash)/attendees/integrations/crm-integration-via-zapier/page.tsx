@@ -10,26 +10,18 @@ export default async function Page() {
     <IntegrationGuide
       title="CRM Integration via Zapier"
       vendor="Zapier"
-      whatItIs="Middleware that lets one product trigger an action in another with no code on either side."
+      whatItIs="A service that connects one product to another, such as registrations to a CRM."
       whovaDoes="Provides a Zapier trigger on new registrations, which an organizer wires to whatever CRM they use."
-      ourAnswer={<>
-          Nothing yet, but this is the highest-leverage integration on the list. One outbound
-          webhook on fulfilment answers this guide and most of the others at once, and the
-          fulfilment path already has the exact hook point: the Stripe webhook, where the
-          registration is written.
-        </>}
+      ourAnswer={<>There is no Zapier connection yet. Export a CSV here and import it into your CRM.</>}
       effort="One outbound webhook on fulfilment, at the point the registration is written, and it subsumes most of the other nine guides."
       steps={[
         <>
           Export the list you need from{' '}
-          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>.
-          The attendee, order or speaker CSV.
+          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>
+          as a CSV file.
         </>,
-        <>Import it into Zapier with their own import tool. Every one of these products has one.</>,
-        <>
-          Repeat before the event and after it. Twice is usually enough. Whova&rsquo;s sync runs
-          every 24 hours, which is not meaningfully fresher for an event that happens once a year.
-        </>,
+        <>Import the file into your CRM with its contact import.</>,
+        <>Repeat when the list changes, for example before and after the event.</>,
       ]}
       links={[
         { label: 'Analytics & Exports', href: '/attendees/manage-attendees/analytics-and-exports' },

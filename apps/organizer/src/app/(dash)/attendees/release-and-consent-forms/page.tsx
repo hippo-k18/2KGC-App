@@ -61,13 +61,10 @@ export default async function ReleaseAndConsentFormsPage({
         title="Release & Consent Forms"
         info={
           <>
-            <strong>Recorded, and these are its limits</strong>
+            <strong>Signatures cannot be edited</strong>
             <p>
-              A signature is pinned to the version and the hash of the wording, and is append-only. Nothing here can edit or delete one.
-            </p>
-            <p>
-              Nothing blocks on an unsigned form, nothing mails the signing links, and a withdrawal
-              is handled by a person.
+              Each signature is kept against the version of the wording that was signed. Signing
+              links are not emailed for you, and withdrawals are handled by your team.
             </p>
           </>
         }
@@ -112,7 +109,7 @@ export default async function ReleaseAndConsentFormsPage({
                   year: 'numeric',
                 })}`
               : ', never published'}
-            . Every signature below is against the wording as it stood at that version.
+            . Signatures below are for this version of the wording.
           </Banner>
           <ConsentRegisterView register={reg} />
         </>
@@ -123,8 +120,7 @@ export default async function ReleaseAndConsentFormsPage({
               <EmptyState icon="◌">
                 <strong>No consent form has been written yet.</strong>
                 <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-                  Nothing is being collected until one is published, and until then, nothing on
-                  this screen should be read as evidence that anybody agreed to anything.{' '}
+                  No consent is collected until a form is published.{' '}
                   <Link href="?new=1">Write one</Link>.
                 </div>
               </EmptyState>
@@ -172,40 +168,12 @@ export default async function ReleaseAndConsentFormsPage({
           )}
 
           <Panel>
-            <h2 className="section-header">What a consent record has to be, and what this one is</h2>
-            <ul className="body-2" style={{ paddingLeft: 18 }}>
-              <li>
-                <strong>Immutable, and versioned against the text that was agreed.</strong>{' '}
-                &ldquo;Jane consented&rdquo; is worthless without the wording she saw. So a form
-                carries a version and the sha256 of its body; a signature carries both, pinned to
-                what the form actually said at that moment rather than to what the browser claimed;
-                and <code>update</code> and <code>delete</code> are closed to every client in{' '}
-                <code>firestore.rules</code>. Rewording a form publishes a new version and makes
-                the old signatures outstanding, which is the uncomfortable answer and the correct
-                one.
-              </li>
-              <li>
-                <strong>Reachable by people who have no account.</strong> Most speakers never buy a
-                ticket, so there is nothing for the rules to authenticate. They sign through a
-                capability link. The same HMAC pattern <code>/order/&#123;token&#125;</code> uses, and the record says <code>channel: link</code> rather than pretending that
-                possession of a mailed URL is authentication.
-              </li>
-              <li>
-                <strong>Withdrawable by a person, deliberately.</strong> Withdrawing consent means
-                somebody&rsquo;s photograph has to be pulled from a gallery, a slide deck and a
-                press release, which is a conversation with whoever holds those files rather than a
-                column in this table. The signing page therefore gives an address to write to, and
-                the register is not the system of record for a withdrawal. Making it one would need
-                a decision first: a signature here is append-only on purpose, so a withdrawal has
-                to be a second record that supersedes the first, never an edit to it.
-              </li>
-              <li>
-                <strong>Directory opt-out is not consent.</strong>{' '}
-                <code>UserDoc.visibleInDirectory</code> deletes a profile projection and is about
-                being findable by other attendees. It is not a photography release, it is not
-                versioned, and it must not be reported as one. It never was, and building this
-                store did not change it.
-              </li>
+            <h2 className="section-header">How signing works</h2>
+            <ul className="body-2" style={{ marginBottom: 0, paddingLeft: 18 }}>
+              <li>Changing the wording publishes a new version, and earlier signatures count as outstanding.</li>
+              <li>People without an account, such as speakers, sign through a personal link.</li>
+              <li>To withdraw consent, a person writes to the address on the signing page.</li>
+              <li>Hiding a profile from the directory is not a consent record.</li>
             </ul>
           </Panel>
         </>

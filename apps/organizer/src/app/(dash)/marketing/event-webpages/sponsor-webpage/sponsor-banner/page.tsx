@@ -42,9 +42,8 @@ export default async function SponsorBannerPage() {
           <>
             <strong>Artwork, not placement</strong>
             <p>
-              These logos render on <code>/sponsor</code> and on the sponsor cards in the
-              app&rsquo;s People tab. Nothing rotates a banner on Home, the agenda or a profile, so
-              there is no placement to configure and no impression to count.
+              These logos show on the public Sponsors page and on sponsor cards in the app&rsquo;s
+              People tab. Rotating sponsor banners are not available yet.
             </p>
           </>
         }
@@ -81,7 +80,7 @@ export default async function SponsorBannerPage() {
           {
             label: 'Platinum & gold ready',
             value: `${topTiers.length - topMissing.length}/${topTiers.length}`,
-            sub: 'the tiers that were sold placement',
+            sub: 'top tiers with a logo',
           },
         ]}
       />
@@ -93,7 +92,7 @@ export default async function SponsorBannerPage() {
             { key: 'i', label: '', className: 'cell-sm' },
             { key: 'n', label: 'Sponsor', className: 'cell-fill' },
             { key: 't', label: 'Tier', className: 'cell-sm' },
-            { key: 'w', label: 'Where it renders today', className: 'cell-md' },
+            { key: 'w', label: 'Shown on', className: 'cell-md' },
           ]}
           rows={[...sponsors]
             .sort(
@@ -127,7 +126,7 @@ export default async function SponsorBannerPage() {
                 </span>
               ) : (
                 <span key="w" className="muted" style={{ fontSize: 12 }}>
-                  nowhere, no image
+                  nowhere, no logo
                 </span>
               ),
             ])}
