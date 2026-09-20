@@ -186,7 +186,7 @@ export default async function PublishPage() {
       detail:
         unconfirmedCopy.length === 0
           ? 'The reporting address, the submission links and the deadlines have all been saved for 2027.'
-          : `${unconfirmedCopy.map((p) => p.title).join(', ')} still ${unconfirmedCopy.length === 1 ? 'renders' : 'render'} last edition’s built-in text, including its deadlines and submission links.`,
+          : `${unconfirmedCopy.map((p) => p.title).join(', ')} still ${unconfirmedCopy.length === 1 ? 'shows' : 'show'} last year’s text, including its deadlines and submission links.`,
       href: WEBSITE_COPY,
       blocking: false,
     },

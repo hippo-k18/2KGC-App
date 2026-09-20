@@ -205,7 +205,7 @@ export default async function FormBuilderPage({
                 <NotInputted
                   what="questions"
                   action={
-                    <Link className="whova-btn-main primary" href={`${base}&new=1`}>
+                    <Link className="whova-btn-main secondary" href={`${base}&new=1`}>
                       Add the first one
                     </Link>
                   }

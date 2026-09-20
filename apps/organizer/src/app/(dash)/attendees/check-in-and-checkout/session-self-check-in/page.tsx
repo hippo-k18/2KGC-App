@@ -175,7 +175,7 @@ export default async function SessionSelfCheckInPage({
                 {r.session.day}
                 <div className="muted">{r.session.startsAtLocal.slice(11, 16)}</div>
               </span>,
-              r.session.roomName ?? <span className="muted">-</span>,
+              r.session.roomName ?? <span className="muted">—</span>,
               formatHours(r.minutes),
               r.tracked ? (
                 <strong key="c">{r.countedIn}</strong>

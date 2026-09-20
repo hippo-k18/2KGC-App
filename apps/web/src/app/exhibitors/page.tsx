@@ -118,12 +118,16 @@ export default async function ExhibitorsPage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={e.logoURL} alt={e.name} loading="lazy" />
                           ) : (
-                            /* Initials, never an empty box. The full name
-                               was cut off at the tile's edge ("Graphwis"), and
-                               it is printed in full beside the tile anyway. */
-                            <span className="logo-fallback" aria-hidden="true">
-                              {initials(e.name)}
-                            </span>
+                            /* The name is the fallback, never an empty box. On a
+                               phone the tile shows initials instead, because the
+                               name was cut off at its edge ("Graphwis") and is
+                               printed in full beside the tile anyway. */
+                            <>
+                              <span className="logo-fallback full">{e.name}</span>
+                              <span className="logo-fallback initials" aria-hidden="true">
+                                {initials(e.name)}
+                              </span>
+                            </>
                           )}
                         </div>
 

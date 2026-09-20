@@ -10,6 +10,7 @@ import {
   PageHeader,
   Panel,
   ProgressBar,
+  ROW_ACTION,
   Table,
   Tag,
 } from '../../../ui';
@@ -18,15 +19,6 @@ import { SoldCountForm } from './sold-count-form';
 import { TicketForm } from './ticket-form';
 
 export const dynamic = 'force-dynamic';
-
-/** Row actions are text links; this gives them a finger-sized box. */
-const ROW_ACTION = {
-  alignItems: 'center',
-  display: 'inline-flex',
-  fontSize: 12,
-  minHeight: 32,
-  padding: '0 6px',
-} as const;
 
 /**
  * Tickets › Ticket Setup › 1.1 Create Tickets.
@@ -194,6 +186,7 @@ export default async function CreateTicketsPage({
           ) : (
             <>
               <Table
+                stackSm
                 cols={[
                   { key: 'name', label: 'Ticket', className: 'cell-fill' },
                   { key: 'price', label: 'Price', className: 'cell-sm' },
@@ -217,7 +210,7 @@ export default async function CreateTicketsPage({
                       )}
                     </div>
                     <div className="muted" style={{ fontSize: 11 }}>
-                      {t.tagline || <em>no tagline</em>} · <code>{t.id}</code>
+                      {t.tagline || <em>no tagline</em>}
                     </div>
                   </div>,
 

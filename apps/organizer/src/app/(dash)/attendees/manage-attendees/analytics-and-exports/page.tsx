@@ -161,7 +161,7 @@ export default async function AnalyticsAndExportsPage() {
                 {r.session.day}
                 <div className="muted">{r.session.startsAtLocal.slice(11, 16)}</div>
               </span>,
-              r.session.roomName ?? <span className="muted">-</span>,
+              r.session.roomName ?? <span className="muted">—</span>,
               formatHours(r.minutes),
               <strong key="c">{r.countedIn}</strong>,
             ])}
@@ -178,20 +178,14 @@ export default async function AnalyticsAndExportsPage() {
           job. No export includes badge codes.
         </Banner>
 
-        {/* Phone only: the name and the Download button share the width, nothing scrolls. */}
-        <style>{`
-          @media (max-width: 767px) {
-            .exports-table .whova-table { width: 100%; }
-            .exports-table .cell-md { flex: 1 1 0; max-width: none; min-width: 0; }
-            .exports-table .cell-sm { max-width: none; min-width: 0; }
-          }
-        `}</style>
+        {/* On a phone each export is a card, so what it is for stays beside the button. */}
         <div className="exports-table">
           <Table
+            stackSm
             cols={[
               { key: 'n', label: 'Export', className: 'cell-md' },
-              { key: 'p', label: 'What it is for', className: 'cell-fill hide-sm' },
-              { key: 'c', label: 'Columns', className: 'cell-fill hide-sm' },
+              { key: 'p', label: 'What it is for', className: 'cell-fill' },
+              { key: 'c', label: 'Columns', className: 'cell-fill' },
               { key: 'd', label: '', className: 'cell-sm' },
             ]}
             rows={EXPORTS.map((e) => [

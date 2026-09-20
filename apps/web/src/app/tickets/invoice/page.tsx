@@ -45,11 +45,21 @@ export default async function InvoicePage() {
 
       <section className="band">
         <div className="wrap" style={{ display: 'grid', gap: 40, gridTemplateColumns: 'minmax(0,1fr)' }}>
-          {!stripeEnabled() && <p className="notice">Invoicing opens soon.</p>}
-
           <div className="invoice-cols">
             <div>
-              <InvoiceForm tiers={tiers} />
+              {/*
+                Fail closed, and before the typing rather than after it: a form
+                whose submit can only refuse is twelve fields of wasted effort.
+              */}
+              {stripeEnabled() ? (
+                <InvoiceForm tiers={tiers} />
+              ) : (
+                <p className="notice">
+                  Invoicing is not open yet. Email{' '}
+                  <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will raise
+                  one by hand.
+                </p>
+              )}
             </div>
 
             <div>

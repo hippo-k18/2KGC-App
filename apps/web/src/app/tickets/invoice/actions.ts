@@ -39,8 +39,7 @@ export async function requestInvoice(
 ): Promise<InvoiceState> {
   if (!stripeEnabled()) {
     return {
-      error:
-'Invoicing opens soon. Email us and we will raise one by hand.',
+      error: 'Invoicing is not open yet. Email us and we will raise one by hand.',
     };
   }
 

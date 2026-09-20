@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { clockOf } from '@/lib/time';
+import { clockOf, dayLabel } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tabs, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -40,17 +40,6 @@ const AV_WINDOW_MINUTES = 15;
 function minutesOf(wall: string): number {
   const [h, m] = wall.slice(11, 16).split(':').map(Number);
   return h * 60 + m;
-}
-
-/** `2027-05-03` to `Mon May 3`. Built from the parts so no time zone can move the day. */
-function dayLabel(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
 }
 
 export default async function RehearsalSessionsPage({
@@ -199,11 +188,11 @@ export default async function RehearsalSessionsPage({
                     ]
                   : []),
                 r.blockedBy ? (
-                  <span key="w" style={{ whiteSpace: 'nowrap' }}>
+                  <span key="w">
                     <Tag color="orange" small>
                       busy
                     </Tag>{' '}
-                    <span className="muted">
+                    <span className="muted" style={{ whiteSpace: 'nowrap' }}>
                       until {clockOf(r.blockedBy.endsAtLocal)}
                     </span>
                   </span>

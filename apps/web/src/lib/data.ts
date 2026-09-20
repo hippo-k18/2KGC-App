@@ -401,7 +401,7 @@ export async function listAgenda(): Promise<AgendaDay[]> {
         format: s.format,
         skillLevel: s.skillLevel,
         speakerIds: s.speakerIds ?? [],
-        speakerNames: (s.speakerNames ?? []).filter(isRealName),
+        speakerNames: s.speakerNames ?? [],
       }),
     );
 
@@ -473,25 +473,12 @@ export async function listAgenda(): Promise<AgendaDay[]> {
  * on `listSpeakers()` deliberately: it makes repeat calls within one render
  * free without changing what `/speakers` or the dashboard exports do.
  */
-/**
- * Whether a speaker name is a name. The imported roster carries a record called
- * "(Phil) (Meredith)", which printed on the agenda with a blank avatar.
- * `/speakers` keeps it, because that page mirrors the published roster; the
- * agenda drops a name with nothing outside its brackets.
- */
-function isRealName(name: string | undefined): boolean {
-  return /\p{L}/u.test((name ?? '').replace(/\([^)]*\)/g, ''));
-}
-
 export const agendaSpeakers = cache(async function agendaSpeakers(): Promise<
   Record<string, SpeakerCard>
 > {
   return safely(
     'agendaSpeakers',
-    async () =>
-      Object.fromEntries(
-        (await listSpeakers()).filter((s) => isRealName(s.name)).map((s) => [s.id, s]),
-      ),
+    async () => Object.fromEntries((await listSpeakers()).map((s) => [s.id, s])),
     {},
   );
 });

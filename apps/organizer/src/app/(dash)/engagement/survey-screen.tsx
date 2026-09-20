@@ -164,7 +164,7 @@ export async function SurveyScreen({
           {scoped.length === 0 ? (
             <EmptyState
               action={
-                <Link href="?new=1" className="whova-btn-main primary">
+                <Link href="?new=1" className="whova-btn-main secondary">
                   Create the first one
                 </Link>
               }
@@ -173,6 +173,7 @@ export async function SurveyScreen({
             </EmptyState>
           ) : (
             <Table
+              stackSm
               cols={[
                 { key: 't', label: 'Survey', className: 'cell-fill' },
                 { key: 'q', label: 'Questions', className: 'cell-sm' },

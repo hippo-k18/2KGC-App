@@ -149,8 +149,8 @@ export default async function EventWebsitePage() {
           <>
             <strong>Every page on the public site</strong>
             <p>
-              Pages marked <em>live</em> or <em>copy</em> are edited from this dashboard. For the
-              rest, ask the developer.
+              Pages marked <em>live</em> or <em>copy</em> are edited from this dashboard. The
+              rest cannot be edited here.
             </p>
           </>
         }
@@ -179,15 +179,15 @@ export default async function EventWebsitePage() {
           {
             label: 'Editable from here',
             value: editable,
-            sub: `${SITE_PAGES.length - editable} need the developer`,
+            sub: `${SITE_PAGES.length - editable} cannot be edited here`,
           },
           {
             label: 'Copy confirmed',
             value: `${confirmed}/${copyPages.length}`,
-            sub: confirmed === copyPages.length ? 'saved for this edition' : 'not inputted yet',
+            sub: confirmed === copyPages.length ? 'saved for this edition' : 'not saved yet',
           },
           {
-            label: 'Data problems',
+            label: 'Missing details',
             value: problems,
             sub: problems === 0 ? 'nothing missing' : 'visible to a visitor',
           },
@@ -199,7 +199,7 @@ export default async function EventWebsitePage() {
         <Table
           cols={[
             { key: 't', label: 'Page', className: 'cell-fill' },
-            { key: 'p', label: 'Path', className: 'cell-md' },
+            { key: 'p', label: 'Address', className: 'cell-md' },
             { key: 'e', label: 'Edited from', className: 'cell-md' },
           ]}
           rows={SITE_PAGES.map((p) => {
@@ -209,9 +209,9 @@ export default async function EventWebsitePage() {
               <a key="t" href={publicUrl(p.path)} target="_blank" rel="noreferrer">
                 {p.title} ↗
               </a>,
-              <code key="p" style={{ fontSize: 12 }}>
+              <span key="p" className="muted" style={{ fontSize: 12 }}>
                 {p.path}
-              </code>,
+              </span>,
               p.how === 'data' ? (
                 <span key="e" style={{ fontSize: 12 }}>
                   <Tag color="green" fill="outline" small>
@@ -226,12 +226,12 @@ export default async function EventWebsitePage() {
                   </Tag>{' '}
                   <Link href={WEBSITE_COPY}>Website Copy</Link>
                   <div className="muted" style={{ fontSize: 11 }}>
-                    {at ? `saved ${at.slice(0, 10)}` : 'not inputted yet. Using the built-in text'}
+                    {at ? `saved ${at.slice(0, 10)}` : 'not saved yet. Showing the standard text'}
                   </div>
                 </span>
               ) : (
                 <span key="e" className="muted" style={{ fontSize: 12 }}>
-                  Ask the developer
+                  Not editable here
                 </span>
               ),
             ];

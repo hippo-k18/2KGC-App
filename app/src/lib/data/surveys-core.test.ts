@@ -37,7 +37,7 @@ function survey(over: Partial<Survey> = {}): Survey {
     eventId: 'kgc-2027',
     createdAt: ts(0),
     updatedAt: ts(0),
-    title: 'Opening session — your feedback',
+    title: 'Opening session: your feedback',
     status: 'published',
     responseCount: 0,
     questions: [

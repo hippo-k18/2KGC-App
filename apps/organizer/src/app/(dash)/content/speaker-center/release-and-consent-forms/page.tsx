@@ -129,7 +129,7 @@ export default async function ReleaseAndConsentFormsPage({
             <NotInputted
               what="speaker releases"
               action={
-                <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main primary">
+                <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main secondary">
                   Write the release
                 </Link>
               }

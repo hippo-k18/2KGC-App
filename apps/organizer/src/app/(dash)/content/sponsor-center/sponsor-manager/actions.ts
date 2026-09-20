@@ -109,7 +109,7 @@ export async function saveSponsorAction(
     const clash = await getSponsor(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” is already on the list under a name this close. Edit that record instead of creating a second one.`,
+        error: `A sponsor called “${clash.name}” is already on the list. Edit that one instead of adding a second.`,
       };
     }
   }

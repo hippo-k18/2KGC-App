@@ -90,7 +90,7 @@ export async function WebpageScreen({
             </Tag>
           ) : empty ? (
             <Tag color="grey" fill="outline">
-              not inputted yet
+              nothing added yet
             </Tag>
           ) : clean ? (
             <Tag color="green" fill="outline">
@@ -98,7 +98,7 @@ export async function WebpageScreen({
             </Tag>
           ) : (
             <Tag color="orange" fill="outline">
-              {p.problems.reduce((n, x) => n + x.count, 0)} things to fix
+              {p.problems.reduce((n, x) => n + x.count, 0)} to fix
             </Tag>
           )
         }
@@ -127,7 +127,7 @@ export async function WebpageScreen({
           <a href={url} target="_blank" rel="noreferrer">
             {url}
           </a>{' '}
-          is live, but it does not show these records.
+          is live, but it does not show these {emptyNoun}.
         </Banner>
       ) : null}
 
@@ -165,7 +165,7 @@ export async function WebpageScreen({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Missing details</h2>
         {notThisCollection ? (
           <p className="muted" style={{ marginBottom: 0 }}>
-            Not measured. The public page does not show these records yet.
+            Not measured. The public page does not show these {emptyNoun} yet.
           </p>
         ) : empty ? (
           <NotInputted
@@ -186,7 +186,7 @@ export async function WebpageScreen({
             <Table
               cols={[
                 { key: 'p', label: 'Problem', className: 'cell-fill' },
-                { key: 'n', label: 'Records', className: 'cell-sm' },
+                { key: 'n', label: 'How many', className: 'cell-sm' },
                 { key: 'a', label: '', className: 'cell-sm' },
               ]}
               rows={p.problems.map((x) => [

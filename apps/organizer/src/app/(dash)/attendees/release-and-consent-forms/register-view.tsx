@@ -95,7 +95,7 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
               </div>
             ) : null}
           </span>,
-          r.email ? <span key="e" style={{ fontSize: 12 }}>{r.email}</span> : <span key="e" className="muted">-</span>,
+          r.email ? <span key="e" style={{ fontSize: 12 }}>{r.email}</span> : <span key="e" className="muted">—</span>,
           r.status === 'signed' ? (
             <Tag key="s" color="green">signed v{r.signedVersion}</Tag>
           ) : r.status === 'outdated' ? (
@@ -116,7 +116,7 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
                 </div>
               </>
             ) : (
-              <span className="muted">-</span>
+              <span className="muted">—</span>
             )}
           </span>,
           r.status === 'signed' ? (
@@ -171,7 +171,7 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
             ]}
             rows={orphans.map((o) => [
               o.signedName,
-              o.email ?? '-',
+              o.email ?? '—',
               `v${o.formVersion}`,
               o.signedAt
                 ? new Date(o.signedAt).toLocaleDateString('en-GB', {
@@ -179,7 +179,7 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
                     month: 'short',
                     year: 'numeric',
                   })
-                : '-',
+                : '—',
             ])}
           />
         </Panel>

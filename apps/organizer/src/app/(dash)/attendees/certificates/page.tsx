@@ -137,7 +137,7 @@ export default async function CertificatesPage() {
           },
           {
             label: 'Hours certified',
-            value: totalMinutes > 0 ? formatHours(totalMinutes) : '-',
+            value: totalMinutes > 0 ? formatHours(totalMinutes) : '—',
             sub: totalMinutes > 0 ? 'scheduled, across every attendee' : 'none yet',
           },
           {
@@ -199,7 +199,7 @@ export default async function CertificatesPage() {
                     {r.registration.email}
                   </div>
                 </span>,
-                r.registration.ticketType ?? <span className="muted">-</span>,
+                r.registration.ticketType ?? <span className="muted">—</span>,
                 r.sessions.length,
                 <strong key="h">{formatHours(r.minutes)}</strong>,
                 cert ? (
@@ -276,7 +276,7 @@ export default async function CertificatesPage() {
                     ) : null}
                   </div>
                   <div className="cert-sign" style={{ textAlign: 'right' }}>
-                    Issued {c.issuedAt ? c.issuedAt.slice(0, 10) : '-'}
+                    Issued {c.issuedAt ? c.issuedAt.slice(0, 10) : '—'}
                     <div className="muted">{EVENT.venue}</div>
                   </div>
                 </div>

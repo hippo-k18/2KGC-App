@@ -126,7 +126,7 @@ export default async function ExhibitorManagerPage({
             <NotInputted
               what="exhibitors"
               action={
-                <Link href="?new=1" className="whova-btn-main primary">
+                <Link href="?new=1" className="whova-btn-main secondary">
                   Add the first one
                 </Link>
               }

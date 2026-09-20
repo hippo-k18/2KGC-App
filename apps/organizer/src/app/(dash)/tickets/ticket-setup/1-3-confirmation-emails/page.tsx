@@ -127,6 +127,7 @@ export default async function ConfirmationEmailsPage() {
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Recent sends</h2>
         <Table
+          stackSm
           cols={[
             { key: 'to', label: 'To', className: 'cell-md' },
             { key: 'tp', label: 'Email', className: 'cell-sm' },

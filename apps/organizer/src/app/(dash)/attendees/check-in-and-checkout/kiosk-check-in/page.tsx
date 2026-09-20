@@ -45,9 +45,7 @@ export default async function KioskCheckInPage({
   await requireOrganizer();
 
   const { list: listParam, station } = await searchParams;
-  const [rawLists, stations] = await Promise.all([listCheckInLists(), listStations()]);
-  // Lists made before the rename carry a long dash in their name.
-  const lists = rawLists.map((l) => ({ ...l, name: l.name.replace(' — ', ': ') }));
+  const [lists, stations] = await Promise.all([listCheckInLists(), listStations()]);
 
   /*
     The door is pinned by id rather than taken as `lists[0]`, the same rule the
@@ -150,16 +148,10 @@ export default async function KioskCheckInPage({
         <h2 className="section-header">Stations that have scanned ({known.length})</h2>
         <Table
           cols={[
-            { key: 'l', label: 'Label', className: 'cell-md' },
-            { key: 'd', label: 'Device id', className: 'cell-fill' },
+            { key: 'l', label: 'Station', className: 'cell-fill' },
           ]}
           empty="No device has opened the scanner yet"
-          rows={known.map(([id, label]) => [
-            <strong key="l">{label}</strong>,
-            <code key="d" style={{ fontSize: 12 }}>
-              {id}
-            </code>,
-          ])}
+          rows={known.map(([id, label]) => [<strong key={id}>{label}</strong>])}
         />
       </Panel>
     </>

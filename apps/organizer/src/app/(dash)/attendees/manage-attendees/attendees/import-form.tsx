@@ -104,7 +104,7 @@ export function ImportForm() {
                       <tr key={i}>
                         {Object.values(row).map((v, j) => (
                           <td key={j} style={{ borderBottom: '1px solid var(--hairline)', padding: 6 }}>
-                            {v || <span className="muted">-</span>}
+                            {v || <span className="muted">—</span>}
                           </td>
                         ))}
                       </tr>

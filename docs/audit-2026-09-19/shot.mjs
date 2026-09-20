@@ -16,6 +16,13 @@ if (!origin || !width || !paths.length) {
   console.error('usage: node shot.mjs <dash|web|app> <outDir> <width> <path>...');
   process.exit(2);
 }
+// The dashboard login comes from the environment only. Nothing is defaulted, so
+// no credential lives in this file.
+const { SHOT_EMAIL, SHOT_PASSPHRASE } = process.env;
+if (site === 'dash' && (!SHOT_EMAIL || !SHOT_PASSPHRASE)) {
+  console.error('Set SHOT_EMAIL and SHOT_PASSPHRASE to the dashboard login before running this against dash.');
+  process.exit(2);
+}
 fs.mkdirSync(outDir, { recursive: true });
 const mobile = width < 700;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -35,8 +42,8 @@ page.on('pageerror', (e) => consoleErrors.push('pageerror: ' + String(e).slice(0
 
 if (site === 'dash') {
   await page.goto(origin + '/login', { waitUntil: 'domcontentloaded' });
-  await page.fill('input[name=email]', 'demo@knowledgegraph.tech');
-  await page.fill('input[name=passphrase]', 'kgc2027');
+  await page.fill('input[name=email]', SHOT_EMAIL);
+  await page.fill('input[name=passphrase]', SHOT_PASSPHRASE);
   await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 30000 }), page.click('button[type=submit]')]);
 }
 

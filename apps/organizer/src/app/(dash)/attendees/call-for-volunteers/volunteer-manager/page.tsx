@@ -188,7 +188,7 @@ export default async function VolunteerManagerPage({
                   <span key="s" style={{ fontSize: 13 }}>
                     {v.day}
                     <div className="muted" style={{ fontSize: 12 }}>
-                      {v.startsAtLocal || '-'}
+                      {v.startsAtLocal || '—'}
                       {v.endsAtLocal ? ` to ${v.endsAtLocal}` : ''}
                     </div>
                   </span>

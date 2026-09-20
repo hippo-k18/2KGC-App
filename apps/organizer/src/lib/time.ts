@@ -84,3 +84,19 @@ export function todayInEventZone(now: Date = new Date()): string {
 export function clockOf(wall: string): string {
   return wall.slice(11, 16);
 }
+
+/**
+ * `2027-05-03` as "Mon, May 3", or "Mon, May 3, 2027" with the year. Built from
+ * the parts so no time zone can move the day.
+ */
+export function dayLabel(day: string, withYear = false): string {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!y || !m || !d) return day;
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: withYear ? 'numeric' : undefined,
+    timeZone: 'UTC',
+  });
+}

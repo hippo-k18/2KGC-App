@@ -33,6 +33,15 @@ import { gapNotesVisible } from '@/lib/gap-notes';
  * component, and from here everywhere else.
  */
 
+/** Row actions are text links; this gives them a finger-sized box. */
+export const ROW_ACTION = {
+  alignItems: 'center',
+  display: 'inline-flex',
+  fontSize: 12,
+  minHeight: 32,
+  padding: '0 6px',
+} as const;
+
 export function PageHeader({
   title,
   info,
@@ -100,7 +109,7 @@ export function Panel({ children, style }: { children: ReactNode; style?: React.
 /** Whova's three stat tiles: uppercase letter-spaced label over a large numeral. */
 export function StatTiles({ tiles }: { tiles: { label: string; value: ReactNode; sub?: string }[] }) {
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+    <div className="stat-tiles" style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
       {tiles.map((t) => (
         <div
           key={t.label}
@@ -163,16 +172,26 @@ export function Table({
   rows,
   empty,
   sort,
+  stackSm,
 }: {
   cols: Col[];
   rows: ReactNode[][];
   empty?: ReactNode;
+  /**
+   * Under 768px, lay each row out as a card: one cell per line with its column
+   * name above it. For tables whose row actions would otherwise sit behind a
+   * sideways swipe. Wider screens are untouched.
+   */
+  stackSm?: boolean;
   /** Current sort state plus the query string to build header links from. */
   sort?: { by?: string; dir?: 'asc' | 'desc'; baseParams: URLSearchParams };
 }) {
   return (
     <div className="whova-table-wrapper">
-      <div className={`whova-table${rows.length === 0 ? ' is-empty' : ''}`} role="table">
+      <div
+        className={`whova-table${rows.length === 0 ? ' is-empty' : ''}${stackSm ? ' stack-rows-sm' : ''}`}
+        role="table"
+      >
         <div className="whova-table-head" role="rowgroup">
           <div className="whova-table-row" role="row">
             {cols.map((c) => {
@@ -228,6 +247,7 @@ export function Table({
                     key={cols[j]?.key ?? j}
                     className={`whova-table-cell ${cols[j]?.className ?? 'cell-fill'}`}
                     role="cell"
+                    data-label={typeof cols[j]?.label === 'string' ? cols[j].label : undefined}
                   >
                     {cell}
                   </div>

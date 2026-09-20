@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { EVENT } from '@kgc/shared';
 import { currentSession, requirePassphrase } from '@/lib/auth';
 import { LoginForm } from './login-form';
+import { targetLabel } from '@/lib/firestore';
 import { gapNotesVisible } from '@/lib/gap-notes';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export default async function LoginPage() {
             {EVENT.shortName} EMS
           </h1>
           <p className="body-2" style={{ marginTop: 4, marginBottom: 20 }}>
-            {EVENT.name}
+            {EVENT.name}. {targetLabel()}.
           </p>
 
           <LoginForm needsPassphrase={requirePassphrase()} />

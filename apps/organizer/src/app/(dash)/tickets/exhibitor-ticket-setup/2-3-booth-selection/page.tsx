@@ -9,6 +9,7 @@ import {
   NotInputted,
   PageHeader,
   Panel,
+  ROW_ACTION,
   StatTiles,
   Table,
   Tag,
@@ -47,9 +48,6 @@ export const dynamic = 'force-dynamic';
  * works from at the allocation stage; the drawing matters to the exhibitor,
  * and the exhibitor is not looking at this screen.
  */
-/** Row actions are text links; this gives them a finger-sized box. */
-const ROW_ACTION = { alignItems: 'center', display: 'inline-flex', minHeight: 32 } as const;
-
 export default async function BoothSelectionPage() {
   await requireOrganizer();
 

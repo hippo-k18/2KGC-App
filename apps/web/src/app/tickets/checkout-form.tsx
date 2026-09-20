@@ -230,7 +230,7 @@ export function CheckoutForm({
           rather than after it. The variable name goes to the server log, not
           to the buyer.
         */}
-        {!stripeReady ? <p className="notice">Ticket sales open soon.</p> : null}
+        {!stripeReady ? <p className="notice">Ticket sales are not open yet.</p> : null}
 
         {/*
           How many, and then who — in that order.

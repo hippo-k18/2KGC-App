@@ -177,8 +177,8 @@ export function MessageForm({
 
       {withoutEmail > 0 && !testOnly && (
         <p className="muted" style={{ fontSize: 12 }}>
-          ⚠️ {withoutEmail} {withoutEmail === 1 ? 'record has' : 'records have'} no email address and
-          will receive nothing. They are listed under the recipients below.
+          ⚠️ {withoutEmail} of these {audience.noun} {withoutEmail === 1 ? 'has' : 'have'} no email
+          address and will receive nothing. They are listed under the recipients below.
         </p>
       )}
 

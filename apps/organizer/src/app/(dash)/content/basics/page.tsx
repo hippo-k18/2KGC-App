@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { COLLECTIONS, EVENT, EVENT_ID } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
+import { targetLabel } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
 
@@ -81,6 +82,9 @@ export default async function BasicsPage() {
         <Row label="Short name">{EVENT.shortName}</Row>
         <Row label="Event ID">
           <code>{EVENT_ID}</code>
+        </Row>
+        <Row label="Signed in to">
+          {EVENT.name}. {targetLabel()}.
         </Row>
         <Row label="Start Date">
           {days[0] ?? <span className="muted">no session is scheduled yet</span>}{' '}

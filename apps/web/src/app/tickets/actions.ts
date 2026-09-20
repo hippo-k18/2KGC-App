@@ -336,8 +336,7 @@ export async function startCheckout(
   if (!stripeEnabled()) {
     console.error('[checkout] refused: STRIPE_SECRET_KEY is not set, so no payment can be taken');
     return {
-      error:
-'Ticket sales open soon. Nothing was charged.',
+      error: 'Ticket sales are not open yet. Nothing was charged.',
     };
   }
 

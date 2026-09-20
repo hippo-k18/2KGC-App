@@ -34,8 +34,8 @@ export default async function SponsorTicketsPage({
         heading: `Sponsor ${SITE.shortName} ${SITE.year}`,
         lede: (
           <>
-            A few hundred people who build knowledge graphs for a living, in one place for five
-            days.
+            {SITE.datesLong} at {SITE.venue}. A few hundred people who build knowledge graphs for a
+            living, in one place for five days.
           </>
         ),
         points: [

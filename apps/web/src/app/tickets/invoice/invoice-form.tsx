@@ -184,7 +184,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
           name="billingEmail"
           type="email"
           required
-          placeholder="accounts-payable@company.com"
+          placeholder="ap@company.com"
         />
         <p className="hint">Where the invoice goes. Often accounts payable, not you.</p>
       </div>
@@ -212,7 +212,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
 
       <div className="field">
         <label htmlFor="note">Note on the invoice (optional)</label>
-        <input id="note" name="note" placeholder="VAT ID, cost centre, department…" />
+        <input id="note" name="note" placeholder="VAT ID or cost centre" />
       </div>
 
       <div className="summary">

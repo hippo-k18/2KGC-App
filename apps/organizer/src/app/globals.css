@@ -1281,6 +1281,11 @@ select.whova-text-input {
   padding: 0 8px;
 }
 
+select[multiple].whova-text-input {
+  height: auto;
+  padding: 4px 8px;
+}
+
 .whova-text-input::placeholder {
   color: var(--muted);
 }
@@ -1709,6 +1714,11 @@ select.whova-text-input {
   margin-bottom: 12px;
   padding: 12px;
   width: 100%;
+}
+
+/* The buttons end the form; without this the station label sits against them. */
+.scan-desk form {
+  margin-bottom: 16px;
 }
 
 .scan-desk input:focus {
@@ -2524,6 +2534,11 @@ html:has(dialog[open]) {
   padding: 24px 80px;
 }
 
+/* The action under the text; the 8px column gap alone reads as touching. */
+.whova-empty-state > .whova-btn-main {
+  margin-top: 8px;
+}
+
 .whova-empty-state.default {
   height: 280px;
 }
@@ -2843,8 +2858,15 @@ html:has(dialog[open]) {
   padding: 0 15px;
 }
 
-.rail-toggle {
+.rail-toggle,
+.stats-toggle,
+.stats-toggle-input {
   display: none;
+}
+
+/* The second of two side-by-side blocks; on a phone the rule moves above it. */
+.scope-split {
+  border-left: 1px solid var(--hairline);
 }
 
 .table-scroll {
@@ -2894,6 +2916,11 @@ html:has(dialog[open]) {
   .stack-sm {
     align-items: stretch !important;
     flex-direction: column !important;
+  }
+
+  .scope-split {
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
   }
 
   /* ── utility bar: logo and search on one row, the links on the next ── */
@@ -2989,6 +3016,57 @@ html:has(dialog[open]) {
     flex: 1;
     min-width: 0;
     width: auto;
+  }
+
+  /* ── the stat cards and the live stats band: one disclosure, closed until asked for ── */
+
+  .stats-toggle-input {
+    display: block;
+    height: 1px;
+    opacity: 0;
+    position: absolute;
+    width: 1px;
+  }
+
+  .stats-toggle {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--body);
+    cursor: pointer;
+    display: flex;
+    font-size: 12px;
+    font-weight: 600;
+    justify-content: space-between;
+    letter-spacing: 0.4px;
+    margin-bottom: 6px;
+    min-height: 44px;
+    padding: 0 14px 0 12px;
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .stats-toggle-input:focus-visible + .stats-toggle {
+    outline: 2px solid var(--interactive);
+    outline-offset: 2px;
+  }
+
+  .stats-toggle-input:checked + .stats-toggle svg {
+    transform: rotate(90deg) !important;
+  }
+
+  #top-event-name .cards,
+  #live-stats {
+    display: none;
+  }
+
+  body:has(.stats-toggle-input:checked) #top-event-name .cards {
+    display: flex;
+  }
+
+  body:has(.stats-toggle-input:checked) #live-stats {
+    display: block;
   }
 
   /* ── tab strip: nine tabs at their natural width, scrolling in place ── */
@@ -3164,6 +3242,23 @@ html:has(dialog[open]) {
     padding: 12px 0;
   }
 
+  /* Hide and Restore on the moderation board are small text links on a desk screen. */
+  .mod-action {
+    font-size: 14px !important;
+    margin: 0 !important;
+    min-height: 40px;
+    min-width: 44px;
+    padding: 10px 12px !important;
+  }
+
+  /* Stacked row actions keep the desktop spacing there and get a finger-sized box here. */
+  .row-actions-col a,
+  .row-actions-col button {
+    align-items: center;
+    display: inline-flex;
+    min-height: 32px;
+  }
+
   .pager-btn,
   .row-actions-btn {
     height: 40px;
@@ -3299,6 +3394,16 @@ html:has(dialog[open]) {
     max-width: 100%;
   }
 
+  /* A form row is one column here, so a short field has the line to itself. */
+  .form-row .whova-input-sm {
+    width: 100%;
+  }
+
+  /* Tiles straight under the page header sat against its bottom edge. */
+  .whova-header + .stat-tiles {
+    margin-top: 10px;
+  }
+
   .form-row > .whova-form-group,
   .form-row > .whova-form-row {
     flex-basis: 100%;
@@ -3370,14 +3475,105 @@ html:has(dialog[open]) {
   }
 
   .whova-empty-table {
-    height: 160px;
+    height: auto;
+    min-height: 160px;
     padding: 0 16px;
     text-align: center;
+  }
+
+  /*
+   * A screen may pass the icon empty state as the table's `empty`. It is taller
+   * than the 160px row, so it used to spill up over the column headers. Inside
+   * a table it drops its own box and takes the height of its text.
+   */
+  .whova-empty-table .description:has(> .whova-empty-state) {
+    width: 100%;
+  }
+
+  .whova-empty-table .whova-empty-state {
+    background: none;
+    border: 0;
+    height: auto;
+    padding: 20px 0;
   }
 
   .whova-empty-table .description {
     font-size: 16px;
     line-height: 22px;
+  }
+
+  /*
+   * `Table stackSm`: each row becomes a card, one cell per line under its
+   * column name, so nothing in the row waits behind a sideways swipe.
+   */
+  .whova-table-wrapper > .whova-table.stack-rows-sm {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* The head goes, unless it sorts: then it stays as a wrapped row of sort links. */
+  .whova-table.stack-rows-sm:not(.is-empty) .whova-table-head:not(:has(.sortable-header)),
+  .whova-table.stack-rows-sm:not(.is-empty) .whova-table-header:not(.sortable-header) {
+    display: none;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-head .whova-table-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0 16px;
+    padding: 4px 16px;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-head .whova-table-header {
+    flex: none;
+    max-width: none;
+    min-width: 0;
+    padding: 12px 0;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-body .whova-table-row {
+    display: grid;
+    gap: 10px 16px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 14px 16px;
+  }
+
+  /* Short cells sit two to a line; the name, any long text and the actions get a full line. */
+  .whova-table.stack-rows-sm .whova-table-cell:first-child,
+  .whova-table.stack-rows-sm .whova-table-cell:last-child,
+  .whova-table.stack-rows-sm .whova-table-cell.cell-fill {
+    grid-column: 1 / -1;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell {
+    align-items: flex-start;
+    flex: none;
+    flex-direction: column;
+    gap: 2px;
+    max-width: none;
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+    width: 100%;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell:empty {
+    display: none;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell[data-label]:not([data-label=''])::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+
+  /* `.cell-truncate` is a block, so its label needs a line of its own. */
+  .whova-table.stack-rows-sm .whova-table-cell.cell-truncate::before {
+    display: block;
+    margin-bottom: 2px;
   }
 
   @supports (animation-timeline: scroll()) {

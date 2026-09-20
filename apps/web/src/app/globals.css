@@ -2057,11 +2057,16 @@ a.logo-card:hover {
  * is the element with the most visual weight after the name.
  */
 
-/* `padding: 0` because each aisle is a `<section>` and inherited the page
-   sections' vertical padding, which left about 130px between aisles. */
 .exhibitor-zone {
   margin-top: 30px;
-  padding: 0;
+}
+
+/* Each aisle is a `<section>` and inherits the page sections' vertical padding,
+   which on a phone left about 130px between aisles. */
+@media (width <= 620px) {
+  .exhibitor-zone {
+    padding: 0;
+  }
 }
 
 .exhibitor-zone-title {
@@ -2134,12 +2139,33 @@ a.logo-card:hover {
   box-sizing: border-box;
 }
 
-/* Two initials in the 64px square. `.logo-fallback` sets the weight. */
+/* The name, shrunk to fit the 64px square. `.logo-fallback` sets the weight and
+   colour; only the size and wrapping change at this scale. */
 .exhibitor-logo .logo-fallback {
-  font-size: 1.15rem;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  padding: 4px;
+  overflow-wrap: anywhere;
+}
+
+.exhibitor-logo .logo-fallback.initials {
+  display: none;
+}
+
+/* On a phone the tile shows two initials; the full name is printed beside it. */
+@media (width <= 620px) {
+  .exhibitor-logo .logo-fallback.full {
+    display: none;
+  }
+
+  .exhibitor-logo .logo-fallback.initials {
+    display: inline;
+    font-size: 1.15rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    padding: 0;
+    color: var(--muted);
+  }
 }
 
 .exhibitor-body {
@@ -2302,6 +2328,8 @@ a.logo-card:hover {
 }
 
 .site-footer .mark {
+  /* The mark is a navy-to-teal gradient, which disappears on the navy footer. */
+  filter: brightness(0) invert(1);
   height: 42px;
   width: 42px;
   margin-bottom: 12px;
@@ -3455,12 +3483,45 @@ a.logo-card:hover {
   color: var(--orange);
 }
 
+/* ------------------------------------------ FAQ: the chevron as a triple -- */
+
 /*
- * The FAQ marker was restyled here as a 7px dot with a speck beside it, a
- * two-node glyph that grew an edge on open. On a phone it did not read as a
- * control, so questions did not look tappable. The rotating chevron in the FAQ
- * block is the marker again.
+ * The rotating chevron becomes a two-node glyph whose edge extends and whose
+ * object node appears as the answer opens — subject → predicate → object, which
+ * is the shape of every statement in a knowledge graph.
+ *
+ * `::after` keeps its job as the subject node; the edge and the object are drawn
+ * with `box-shadow`, so this costs no extra element and no JavaScript. The
+ * existing reduced-motion rule at the bottom of the FAQ block already suppresses
+ * the transition.
+ *
+ * Wider than a phone only. At phone size the glyph did not read as a control,
+ * so questions did not look tappable; there the rotating chevron stays.
  */
+@media (width > 620px) {
+  .kgc-faq summary::after {
+    width: 7px;
+    height: 7px;
+    margin: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--highlight);
+    transform: none;
+    /* edge, then the object node — both collapsed until the answer opens */
+    box-shadow:
+      10px 0 0 -3px var(--highlight),
+      10px 0 0 -3.5px var(--highlight);
+    transition: box-shadow 0.22s ease;
+  }
+
+  .kgc-faq details[open] summary::after {
+    margin: 0;
+    transform: none;
+    box-shadow:
+      9px 0 0 -3px var(--highlight),
+      20px 0 0 0 var(--orange);
+  }
+}
 
 /* --------------------------------------------------------- speaker grid -- */
 
@@ -7208,6 +7269,14 @@ a.li-icon::after {
   }
 }
 
+/* A tablet has the same problem: the second row sits unlabelled under Track and
+   reads as the Day chips printed twice. */
+@media (width <= 900px) {
+  .day-nav {
+    display: none;
+  }
+}
+
 /*
  * The invoice page: form beside "How it works", stacked under 900px.
  *
@@ -7226,9 +7295,11 @@ a.li-icon::after {
   }
 }
 
-/* The blog's category chips are links, so they get a 36px tap height. */
-nav.tags a.tag {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
+/* The blog's category chips are links, so on a phone they get a 36px tap height. */
+@media (width <= 620px) {
+  nav.tags a.tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
 }

@@ -134,7 +134,7 @@ export default async function TrackManagerPage({
             <NotInputted
               what="tracks"
               action={
-                <Link className="whova-btn-main primary" href="?new=1">
+                <Link className="whova-btn-main secondary" href="?new=1">
                   Add the first one
                 </Link>
               }
@@ -144,8 +144,7 @@ export default async function TrackManagerPage({
           <Table
             cols={[
               { key: 'c', label: '', className: 'cell-xs' },
-              { key: 'n', label: 'Track', className: 'cell-lg', sortKey: 'track' },
-              { key: 'i', label: 'Id', className: 'cell-fill' },
+              { key: 'n', label: 'Track', className: 'cell-fill', sortKey: 'track' },
               { key: 's', label: 'Sessions', className: 'cell-xs cell-end-align', sortKey: 'sessions' },
               { key: 'p', label: 'Published', className: 'cell-xs cell-end-align', sortKey: 'published' },
               { key: 'pr', label: 'Primary', className: 'cell-xs cell-end-align', sortKey: 'primary' },
@@ -172,9 +171,6 @@ export default async function TrackManagerPage({
                   </div>
                 ) : null}
               </span>,
-              <code key="i" style={{ fontSize: 12 }}>
-                {t.id}
-              </code>,
               t.sessionCount,
               t.publishedCount,
               t.primaryCount,

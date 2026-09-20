@@ -7,7 +7,7 @@ import { money, salesSummary } from '@/lib/commerce';
 import { countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
-import { clockOf, todayInEventZone } from '@/lib/time';
+import { clockOf, dayLabel, todayInEventZone } from '@/lib/time';
 import { EmptyState, PageHeader, Panel, StatTiles, StatusTag, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -40,18 +40,6 @@ function stamp(iso: string): string {
     minute: '2-digit',
     timeZone: EVENT.timeZone,
   }).format(d);
-}
-
-/** A plain `YYYY-MM-DD` day as "3 May 2027". */
-function dayLabel(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  if (!y || !m || !d) return day;
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
 export default async function ReportPage() {
@@ -114,7 +102,7 @@ export default async function ReportPage() {
             Tools
           </Link>,
           <span key="d" className="muted">
-            Today is {dayLabel(today)}, {EVENT.timeZone.split('/').pop()?.replace(/_/g, ' ')} time
+            Today is {dayLabel(today, true)}, {EVENT.timeZone.split('/').pop()?.replace(/_/g, ' ')} time
           </span>,
         ]}
       />

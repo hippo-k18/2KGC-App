@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { COLLECTIONS, EVENT, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { adoptionCounts, countWhereEvent, listSessions } from '@/lib/data';
+import { ChevronIcon } from '@/lib/icons';
 import { IMPLEMENTED, NAV, searchIndex, type NavNode } from '@/lib/nav';
 import { logoutAction } from '../login/actions';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
@@ -167,6 +168,19 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               </Link>
             </div>
           </div>
+
+          {/*
+            Phone only: the two cards and the Live Event Stats band sit behind
+            this, closed, so the screen's own content starts on the first screen.
+            A checkbox rather than state because the band is a sibling further
+            down the page and this file is a server component; the CSS reads it
+            with `:has()`. Hidden at 768px and wider.
+          */}
+          <input type="checkbox" id="stats-open" className="stats-toggle-input" />
+          <label htmlFor="stats-open" className="stats-toggle">
+            <span>Event stats</span>
+            <ChevronIcon open={false} />
+          </label>
 
           <div className="cards">
             <div className="widget-card">

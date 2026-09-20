@@ -199,7 +199,7 @@ beforeEach(async () => {
     // in both directions on both verbs — and one response, belonging to A, so
     // "somebody else may not read mine" is tested against a document that exists.
     await setDoc(doc(db, 'surveys/sv1'), {
-      eventId: 'kgc-2027', title: 'Opening session — your feedback',
+      eventId: 'kgc-2027', title: 'Opening session: your feedback',
       questions: [{ id: 'q1', prompt: 'How useful?', kind: 'rating', required: false }],
       status: 'published', responseCount: 1,
     });

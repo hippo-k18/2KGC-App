@@ -18,15 +18,6 @@ import {
 import { deleteQuestionAction, moveQuestionAction, toggleFormAction } from './question-form-actions';
 import { QuestionEditor } from './question-form-editor';
 
-/** Row actions are text links; this gives them a finger-sized box. */
-const ROW_ACTION = {
-  alignItems: 'center',
-  display: 'inline-flex',
-  fontSize: 12,
-  minHeight: 32,
-  padding: '0 6px',
-} as const;
-
 /**
  * Question Forms, for one audience.
  *
@@ -135,9 +126,9 @@ export async function QuestionFormScreen({
           },
           { label: 'Ticket types', value: tiers.length, sub: `for ${audience}s` },
           {
-            label: 'Answers to removed questions',
+            label: 'Kept answers',
             value: summary.orphaned.reduce((n, o) => n + o.count, 0),
-            sub: summary.orphaned.length ? 'listed below' : 'none',
+            sub: summary.orphaned.length ? 'from removed questions' : 'none',
           },
         ]}
       />
@@ -237,8 +228,12 @@ export async function QuestionFormScreen({
                 )}
               </div>,
 
-              <div key="x" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                <Link href={`?edit=${f.id}`} style={ROW_ACTION}>
+              <div
+                key="x"
+                className="row-actions-col"
+                style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+              >
+                <Link href={`?edit=${f.id}`} style={{ fontSize: 12 }}>
                   Edit
                 </Link>
                 {i > 0 && (
@@ -246,7 +241,7 @@ export async function QuestionFormScreen({
                     <input type="hidden" name="audience" value={audience} />
                     <input type="hidden" name="id" value={f.id} />
                     <input type="hidden" name="direction" value="up" />
-                    <button type="submit" className="linkish" style={ROW_ACTION}>
+                    <button type="submit" className="linkish">
                       Move up
                     </button>
                   </form>
@@ -254,7 +249,7 @@ export async function QuestionFormScreen({
                 <form action={deleteQuestionAction}>
                   <input type="hidden" name="audience" value={audience} />
                   <input type="hidden" name="id" value={f.id} />
-                  <button type="submit" className="linkish" style={ROW_ACTION}>
+                  <button type="submit" className="linkish">
                     Remove
                   </button>
                 </form>
@@ -289,7 +284,7 @@ export async function QuestionFormScreen({
               <code key="i">{o.id}</code>,
               o.count,
               <span key="n" className="muted" style={{ fontSize: 12 }}>
-                Kept on the registrations.
+                Add the question again with the same wording to reconnect these answers.
               </span>,
             ])}
           />

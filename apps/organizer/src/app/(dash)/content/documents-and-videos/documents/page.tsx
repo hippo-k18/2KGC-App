@@ -139,7 +139,7 @@ export default async function DocumentsPage({
             <NotInputted
               what="documents"
               action={
-                <Link href="?new=1" className="whova-btn-main primary">
+                <Link href="?new=1" className="whova-btn-main secondary">
                   Add the first one
                 </Link>
               }

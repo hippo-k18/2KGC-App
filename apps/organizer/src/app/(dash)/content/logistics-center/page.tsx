@@ -165,7 +165,7 @@ export default async function LogisticsCenterPage({
             <NotInputted
               what="rooms"
               action={
-                <Link className="whova-btn-main primary" href="?new=1">
+                <Link className="whova-btn-main secondary" href="?new=1">
                   Add the first one
                 </Link>
               }

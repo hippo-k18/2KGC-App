@@ -147,6 +147,9 @@ export default function BadgeScreen() {
 
           <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: Spacing.xs }}>
             Works offline. Do not share a photo of this code.
+            {'\n\n'}
+            If the desk says you are already checked in and you are not, someone else used your
+            code. Tell the desk and they can issue a new one.
             {brightness === 'unavailable' ? '\n\nTurn your screen brightness up before you scan.' : ''}
           </Text>
         </>

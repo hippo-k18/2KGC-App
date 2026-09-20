@@ -330,7 +330,7 @@ export default async function SponsorManagerPage({
               <Link href="?tab=import" className="btn btn-primary">
                 Import from a spreadsheet
               </Link>
-              <Link href="?new=1" className="btn btn-primary">
+              <Link href="?new=1" className="btn btn-default">
                 Add sponsor
               </Link>
               <span className="spacer" />
@@ -377,7 +377,7 @@ export default async function SponsorManagerPage({
               <NotInputted
                 what="sponsors"
                 action={
-                  <Link href="?new=1" className="whova-btn-main primary">
+                  <Link href="?new=1" className="whova-btn-main secondary">
                     Add the first one
                   </Link>
                 }

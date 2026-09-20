@@ -25,8 +25,9 @@ export default async function ExhibitorTicketsPage({
         heading: `Exhibit at ${SITE.shortName} ${SITE.year}`,
         lede: (
           <>
-            The people walking your booth are the ones deciding what their organisation&rsquo;s
-            graph runs on next year: practitioners and the architects who sign for them.
+            {SITE.datesLong} at {SITE.venue}. The people walking your booth are the ones deciding
+            what their organisation&rsquo;s graph runs on next year: practitioners and the
+            architects who sign for them.
           </>
         ),
         points: [

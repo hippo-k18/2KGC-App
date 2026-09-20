@@ -173,7 +173,7 @@ export async function saveSpeakerAction(
     const clash = await getSpeaker(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” is already on the list under a name this close. If this is a different person, add their company to tell the two apart.`,
+        error: `A speaker called “${clash.name}” is already on the list. If this is a different person, add their company to tell the two apart.`,
       };
     }
   }

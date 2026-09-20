@@ -66,7 +66,7 @@ export function AssignBoothForm({
         <label className="whova-form-label" htmlFor="boothId">
           Booth
         </label>
-        <select id="boothId" name="boothId" required style={{ maxWidth: 320 }}>
+        <select className="whova-text-input" id="boothId" name="boothId" required style={{ maxWidth: 320 }}>
           {assignable.map((b) => (
             <option key={b.id} value={b.id}>
               {b.number} · {b.size}
@@ -82,6 +82,7 @@ export function AssignBoothForm({
           Exhibitor
         </label>
         <select
+          className="whova-text-input"
           id="exhibitorId"
           name="exhibitorId"
           required
@@ -106,7 +107,7 @@ export function AssignBoothForm({
         <label className="whova-form-label" htmlFor="orderId">
           Order id
         </label>
-        <input id="orderId" name="orderId" placeholder="optional" style={{ maxWidth: 320 }} />
+        <input className="whova-text-input" id="orderId" name="orderId" placeholder="optional" style={{ maxWidth: 320 }} />
         <p className="muted" style={{ fontSize: 12 }}>
           Links the space to the order that paid for it. Leave blank if there is no order.
         </p>
@@ -145,6 +146,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
           Number
         </label>
         <input
+          className="whova-text-input"
           id="number"
           name="number"
           required
@@ -161,14 +163,14 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
         <label className="whova-form-label" htmlFor="size">
           Size
         </label>
-        <input id="size" name="size" required placeholder="3m × 2m" style={{ maxWidth: 220 }} />
+        <input className="whova-text-input" id="size" name="size" required placeholder="3m × 2m" style={{ maxWidth: 220 }} />
       </div>
 
       <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="zone">
           Zone
         </label>
-        <input id="zone" name="zone" placeholder="Main aisle" style={{ maxWidth: 220 }} />
+        <input className="whova-text-input" id="zone" name="zone" placeholder="Main aisle" style={{ maxWidth: 220 }} />
         <p className="muted" style={{ fontSize: 12 }}>
           Booths are listed by zone, then by number.
         </p>
@@ -178,7 +180,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
         <label className="whova-form-label" htmlFor="ticketTypeId">
           Sold as
         </label>
-        <select id="ticketTypeId" name="ticketTypeId" style={{ maxWidth: 320 }}>
+        <select className="whova-text-input" id="ticketTypeId" name="ticketTypeId" style={{ maxWidth: 320 }}>
           <option value="">Not decided yet…</option>
           {packages.map((p) => (
             <option key={p.id} value={p.id}>

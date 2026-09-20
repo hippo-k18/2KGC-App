@@ -86,6 +86,7 @@ function PostCard({ post }: { post: ModeratedPost }) {
           <input type="hidden" name="status" value={hidden ? 'visible' : 'hidden'} />
           <button
             type="submit"
+            className="mod-action"
             style={{
               background: 'none',
               border: 0,
@@ -169,6 +170,7 @@ function PostCard({ post }: { post: ModeratedPost }) {
                     <input type="hidden" name="status" value={rHidden ? 'visible' : 'hidden'} />
                     <button
                       type="submit"
+                      className="mod-action"
                       style={{
                         background: 'none',
                         border: 0,

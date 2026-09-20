@@ -59,7 +59,7 @@ export default async function CheckInPage({
 
   const { list: listParam } = await searchParams;
   // Lists made before the rename carry a long dash in their name.
-  const lists = (await listCheckInLists()).map((l) => ({ ...l, name: l.name.replace(' — ', ': ') }));
+  const lists = await listCheckInLists();
 
   /**
    * The note Attendees › Admin Settings writes for whoever is on the desk.
@@ -267,13 +267,7 @@ export default async function CheckInPage({
               </div>
               <DayScopeForm options={dayOptions} defaultValue={suggested?.day} />
             </div>
-            <div
-              style={{
-                borderLeft: '1px solid var(--hairline)',
-                flex: '1 1 260px',
-                padding: 14,
-              }}
-            >
+            <div className="scope-split" style={{ flex: '1 1 260px', padding: 14 }}>
               <strong>Check-in for the session</strong>
               <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
                 Count attendees into one session.
@@ -353,7 +347,7 @@ export default async function CheckInPage({
           empty="Nobody has checked in yet"
           rows={checkIns.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '-'}
+              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
@@ -361,8 +355,8 @@ export default async function CheckInPage({
                 {c.email}
               </div>
             </span>,
-            c.ticketType ?? <span className="muted">-</span>,
-            c.stationLabel || <span className="muted">-</span>,
+            c.ticketType ?? <span className="muted">—</span>,
+            c.stationLabel || <span className="muted">—</span>,
             <code key="r" style={{ fontSize: 12 }}>
               {c.registrationId}
             </code>,
@@ -385,7 +379,7 @@ export default async function CheckInPage({
           empty="No scans yet"
           rows={scans.map((s) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {s.scannedAt ? s.scannedAt.slice(0, 16).replace('T', ' ') : '-'}
+              {s.scannedAt ? s.scannedAt.slice(0, 16).replace('T', ' ') : '—'}
             </span>,
             <Tag key="r" color={s.result === 'ok' ? 'green' : s.result === 'duplicate' ? 'orange' : 'red'}>
               {s.result}

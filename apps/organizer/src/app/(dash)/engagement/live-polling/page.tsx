@@ -145,7 +145,7 @@ export default async function LivePollingPage({
         <Panel>
           <EmptyState
             action={
-              <Link href="?new=1" className="whova-btn-main primary">
+              <Link href="?new=1" className="whova-btn-main secondary">
                 Create the first one
               </Link>
             }

@@ -153,7 +153,7 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
                       {inactive ? (
                         <span className="whova-tag-main red-tag outline-tag">{r.status}</span>
                       ) : (
-                        (r.ticketType ?? '-')
+                        (r.ticketType ?? '—')
                       )}
                     </div>
                     <div className="whova-table-cell cell-mdsm hide-sm" role="cell">
@@ -162,7 +162,7 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
                           {r.checkedInAt.slice(11, 16)} on {r.checkedInAt.slice(0, 10)}
                         </span>
                       ) : (
-                        <span className="muted">-</span>
+                        <span className="muted">—</span>
                       )}
                     </div>
                     <div className="whova-table-cell cell-mdsm cell-end-align" role="cell">

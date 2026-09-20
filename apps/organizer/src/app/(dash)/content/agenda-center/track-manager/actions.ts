@@ -94,7 +94,7 @@ export async function saveTrackAction(
   if (!docId) return { error: 'That name has no letters or numbers. Use some.' };
   if (!id) {
     const clash = await getTrack(docId);
-    if (clash) return { error: `“${clash.name}” is already on the list under a name this close.` };
+    if (clash) return { error: `A track called “${clash.name}” is already on the list. Edit that one instead of adding a second.` };
   }
 
   try {

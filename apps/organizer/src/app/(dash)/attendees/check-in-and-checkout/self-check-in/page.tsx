@@ -94,10 +94,10 @@ export default async function SelfCheckInPage() {
           empty="Nobody has checked in yet"
           rows={recent.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '-'}
+              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
             </span>,
             <strong key="n">{c.name}</strong>,
-            c.stationLabel || <span className="muted">-</span>,
+            c.stationLabel || <span className="muted">—</span>,
           ])}
         />
       </Panel>

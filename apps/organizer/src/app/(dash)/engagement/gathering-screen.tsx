@@ -184,6 +184,7 @@ export async function GatheringScreen({
       <Panel style={{ marginTop: clashes.length + programmeClashes.length > 0 ? 16 : 0 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>The plan</h2>
         <Table
+          stackSm
           cols={[
             { key: 't', label: formCopy.titleLabel, className: 'cell-fill' },
             { key: 'w', label: 'When', className: 'cell-md' },

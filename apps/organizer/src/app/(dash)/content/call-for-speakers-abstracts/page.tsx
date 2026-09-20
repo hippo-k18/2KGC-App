@@ -174,7 +174,7 @@ export default async function CallForSpeakersPage({
               <NotInputted
                 what="call for abstracts"
                 action={
-                  <Link className="whova-btn-main primary" href="?new=1">
+                  <Link className="whova-btn-main secondary" href="?new=1">
                     Create one
                   </Link>
                 }

@@ -376,7 +376,7 @@ export default async function SegmentsPage({
                 {a.email}
               </div>
             </span>,
-            a.company ?? <span className="muted">-</span>,
+            a.company ?? <span className="muted">—</span>,
             a.ticketType ?? <span className="muted">no ticket</span>,
             a.signedIn ? (
               <Tag key="app" color="green" fill="outline" small>

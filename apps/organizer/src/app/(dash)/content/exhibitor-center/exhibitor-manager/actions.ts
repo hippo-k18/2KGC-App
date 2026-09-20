@@ -75,7 +75,7 @@ export async function saveExhibitorAction(
   const existing = id ? await getExhibitor(id) : null;
   if (!id) {
     const clash = await getExhibitor(docId);
-    if (clash) return { error: `“${clash.name}” is already on the list under a name this close.` };
+    if (clash) return { error: `An exhibitor called “${clash.name}” is already on the list. Edit that one instead of adding a second.` };
   }
 
   /**

@@ -510,7 +510,7 @@ export default async function SessionManagerPage({
           <NotInputted
             what="sessions"
             action={
-              <Link className="whova-btn-main primary" href={`${ROUTES.sessionManager}/new?day=${today}`}>
+              <Link className="whova-btn-main secondary" href={`${ROUTES.sessionManager}/new?day=${today}`}>
                 Add the first one
               </Link>
             }

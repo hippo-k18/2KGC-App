@@ -240,6 +240,7 @@ export default async function AttendeesPage({
         </div>
 
         <Table
+          stackSm
           cols={[
             { key: 'n', label: 'Name', className: 'cell-mdsm', sortKey: 'name' },
             { key: 't', label: 'Title', className: 'cell-fill', sortKey: 'title' },
@@ -259,8 +260,8 @@ export default async function AttendeesPage({
                 {a.email}
               </div>
             </span>,
-            a.title ?? <span className="muted">-</span>,
-            a.company ?? <span className="muted">-</span>,
+            a.title ?? <span className="muted">—</span>,
+            a.company ?? <span className="muted">—</span>,
             a.ticketType ? (
               <span key="tk">
                 {a.ticketType}
@@ -279,7 +280,7 @@ export default async function AttendeesPage({
                 no ticket
               </span>
             ),
-            a.roles.join(', ') || <span className="muted">-</span>,
+            a.roles.join(', ') || <span className="muted">—</span>,
             a.signedIn ? (
               <Tag key="app" color="green" fill="outline" small>
                 yes

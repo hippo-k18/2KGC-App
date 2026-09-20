@@ -68,6 +68,7 @@ export function AdminSettingsForm({
           not exist.
         */}
         <input
+          className="whova-text-input"
           id="staffNote"
           name="staffNote"
           defaultValue={staffNote}
