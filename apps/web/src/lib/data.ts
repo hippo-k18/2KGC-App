@@ -19,11 +19,21 @@ import {
   type SponsorDoc,
   type SponsorTier,
   type TrackDoc,
+  type EventBasics,
+  type EventType,
+  type SponsorTierDef,
+  DEFAULT_SPONSOR_TIERS,
+  groupSponsorsByTier,
+  resolveEventBasics,
+  resolveSponsorTiers,
   servableLogoURL,
+  tierRank,
+  tierSize,
   usable,
 } from '@kgc/shared';
 import { cache } from 'react';
 import { db } from './firestore';
+import { SITE } from './site';
 
 /**
  * Every read the public site does.
@@ -126,6 +136,53 @@ export const brandingSettings = cache(async function brandingSettings(): Promise
     },
     { ...defaults },
   );
+});
+
+/**
+ * The event's name, dates, time zone, venue and type, as Content > Basics saved
+ * them, resolved over the constants `SITE` is built from.
+ *
+ * Server components read this where they used to read `SITE.name`,
+ * `SITE.datesLong`, `SITE.venue` and `SITE.timeZone`. Client components cannot
+ * read Firestore and stay on `SITE`, the same split `supportEmail` has. With
+ * nothing saved, or the database unreachable, this returns exactly what `SITE`
+ * says.
+ */
+export const eventBasics = cache(async function eventBasics(): Promise<EventBasics> {
+  return safely(
+    'eventBasics',
+    async () => {
+      const doc = await db().collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.event).get();
+      const data = doc.data() as { eventId?: string; values?: unknown } | undefined;
+      if (!doc.exists || data?.eventId !== EVENT_ID) return resolveEventBasics(null);
+      return resolveEventBasics(usable(SETTINGS_DEFAULTS.event, data.values));
+    },
+    resolveEventBasics(null),
+  );
+});
+
+/** What `siteEvent()` hands a page: the saved basics in the shape `SITE` has. */
+export interface SiteEvent extends EventBasics {
+  /** The short venue line. The saved venue once one is saved, else `SITE.venueShort`. */
+  venueShort: string;
+  /** The event type, only when an organizer has chosen one. */
+  savedEventType?: EventType;
+}
+
+/**
+ * `eventBasics()` with the one field `SITE` has and the settings do not.
+ *
+ * `SITE.venueShort` is a hand-shortened form of the constant venue. Once an
+ * organizer saves a venue of their own there is nothing to shorten it to, so the
+ * saved venue is used in both places.
+ */
+export const siteEvent = cache(async function siteEvent(): Promise<SiteEvent> {
+  const basics = await eventBasics();
+  return {
+    ...basics,
+    venueShort: basics.venue === SITE.venue ? SITE.venueShort : basics.venue,
+    savedEventType: basics.eventTypeSaved ? basics.eventType : undefined,
+  };
 });
 
 /**
@@ -624,27 +681,27 @@ export interface SponsorCard {
   logoURL?: string;
 }
 
-const TIER_ORDER: Record<SponsorTier, number> = {
-  platinum: 0,
-  gold: 1,
-  silver: 2,
-  bronze: 3,
-};
-
 /**
- * How large each tier's logo renders, as a step from 1 to 3.
+ * The tier list the organizer keeps on Sponsor Tiering, in rank order.
  *
- * These are not chosen — they are the `tier_size` map the live site's own
- * sponsor widget serves, and they are why Platinum reads as bought-bigger while
- * Silver and Bronze deliberately share a size. `.logo-row` turns a step into
- * pixels; see the sponsors block in `globals.css`.
+ * It replaces two constants that used to sit here: a fixed order, and the logo
+ * size per tier (Platinum 3, Gold 2, Silver 1, Bronze 1, the `tier_size` map the
+ * live site's own sponsor widget serves). Those four are still what
+ * `resolveSponsorTiers` returns when nothing is saved. `.logo-row` turns a size
+ * step into pixels; see the sponsors block in `globals.css`.
  */
-export const TIER_SIZE: Record<SponsorTier, 1 | 2 | 3> = {
-  platinum: 3,
-  gold: 2,
-  silver: 1,
-  bronze: 1,
-};
+export const sponsorTierList = cache(async function sponsorTierList(): Promise<SponsorTierDef[]> {
+  return safely(
+    'sponsorTierList',
+    async () => {
+      const doc = await db().collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.sponsorTiers).get();
+      const data = doc.data() as { eventId?: string; values?: { tiers?: unknown } } | undefined;
+      if (!doc.exists || data?.eventId !== EVENT_ID) return DEFAULT_SPONSOR_TIERS;
+      return resolveSponsorTiers(data.values?.tiers);
+    },
+    DEFAULT_SPONSOR_TIERS,
+  );
+});
 
 /** `Oxford Semantic Technologies` → `oxford-semantic-technologies`. */
 function logoSlug(name: string): string {
@@ -741,6 +798,7 @@ const SELF_HOSTED_LOGOS = new Set([
 
 export async function listSponsors(): Promise<SponsorCard[]> {
   return safely('listSponsors', async () => {
+  const tiers = await sponsorTierList();
   const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
 
   return snap.docs
@@ -754,7 +812,7 @@ export async function listSponsors(): Promise<SponsorCard[]> {
         logoURL: localLogo(s.name, s.logoURL),
       };
     })
-    .sort((a, b) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9) || a.name.localeCompare(b.name));
+    .sort((a, b) => tierRank(tiers, a.tier) - tierRank(tiers, b.tier) || a.name.localeCompare(b.name));
   }, []);
 }
 
@@ -767,16 +825,15 @@ export async function listSponsors(): Promise<SponsorCard[]> {
  * a conference with no Bronze sponsors shows no Bronze heading.
  */
 export async function listSponsorsByTier(): Promise<
-  { tier: SponsorTier; size: 1 | 2 | 3; sponsors: SponsorCard[] }[]
+  { tier: SponsorTier; name: string; size: 1 | 2 | 3; sponsors: SponsorCard[] }[]
 > {
-  const all = await listSponsors();
-  return (Object.keys(TIER_ORDER) as SponsorTier[])
-    .map((tier) => ({
-      tier,
-      size: TIER_SIZE[tier],
-      sponsors: all.filter((s) => s.tier === tier),
-    }))
-    .filter((band) => band.sponsors.length > 0);
+  const [all, tiers] = await Promise.all([listSponsors(), sponsorTierList()]);
+  return groupSponsorsByTier(tiers, all).map((g) => ({
+    tier: g.tier.id,
+    name: g.tier.name,
+    size: tierSize(g.tier.size),
+    sponsors: g.sponsors,
+  }));
 }
 
 export interface ExhibitorCard {

@@ -19,7 +19,9 @@ import {
   listParams,
   paginate,
 } from '../../../ui';
+import { rankByTrack, OVERALL_MAX } from '@kgc/scripts/src/lib/review-core';
 import { CFA_BASE } from '../routes';
+import { BulkDecisionBar, RowCheckbox, SelectAllCheckbox } from './bulk-decision';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,7 @@ const TABS: { key: 'all' | SubmissionStatus; label: string }[] = [
   { key: 'submitted', label: 'Submitted' },
   { key: 'under-review', label: 'Under review' },
   { key: 'accepted', label: 'Accepted' },
+  { key: 'waitlisted', label: 'Waitlisted' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'draft', label: 'Incomplete' },
   { key: 'withdrawn', label: 'Withdrawn' },
@@ -96,6 +99,7 @@ export default async function SubmissionsPage({
   const call = calls.find((c) => c.id === callId)!;
   const status = (one('status') ?? 'all') as 'all' | SubmissionStatus;
   const q = (one('q') ?? '').trim().toLowerCase();
+  const ranking = one('view') === 'ranking';
 
   const [all, tracks] = await Promise.all([listSubmissions(callId), listTrackOptions()]);
   const counts = countSubmissions(all);
@@ -141,6 +145,15 @@ export default async function SubmissionsPage({
           <Link key="r" href={`${CFA_BASE}/reviewers`}>
             Reviewers
           </Link>,
+          ranking ? (
+            <Link key="v" href={`?call=${callId}`}>
+              List
+            </Link>
+          ) : (
+            <Link key="v" href={`?call=${callId}&view=ranking`}>
+              Ranking by track
+            </Link>
+          ),
         ]}
       />
 
@@ -156,7 +169,12 @@ export default async function SubmissionsPage({
         tiles={[
           {
             label: 'Submitted',
-            value: counts.submitted + counts.underReview + counts.accepted + counts.rejected,
+            value:
+              counts.submitted +
+              counts.underReview +
+              counts.accepted +
+              counts.waitlisted +
+              counts.rejected,
             sub: counts.total === 0 ? 'none yet' : `${counts.underReview} under review`,
           },
           {
@@ -172,11 +190,21 @@ export default async function SubmissionsPage({
                 ? `${counts.awaitingPromotion} not yet on the agenda`
                 : counts.accepted === 0
                   ? 'no decisions yet'
-                  : 'all on the agenda',
+                  : counts.waitlisted > 0
+                    ? `${counts.waitlisted} on the waiting list`
+                    : 'all on the agenda',
           },
         ]}
       />
 
+      {ranking ? (
+        <RankingPanels
+          all={all}
+          trackOrder={call.trackIds}
+          trackName={trackName}
+          hasCriteria={call.rubric.length > 0}
+        />
+      ) : (
       <Panel>
         <form method="get" style={{ alignItems: 'flex-end', display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {calls.length > 1 && (
@@ -223,7 +251,9 @@ export default async function SubmissionsPage({
         ) : (
           <>
             <Table
+              stackSm
               cols={[
+                { key: 'pick', label: <SelectAllCheckbox />, className: 'cell-xs' },
                 { key: 'title', label: 'Abstract' },
                 { key: 'author', label: 'Author', className: 'cell-md' },
                 { key: 'track', label: 'Track / type', className: 'cell-md' },
@@ -236,6 +266,11 @@ export default async function SubmissionsPage({
                   : 'No submissions in this tab.'
               }
               rows={rows.map((s) => [
+                <span key="p">
+                  {s.status === 'draft' || s.status === 'withdrawn' ? null : (
+                    <RowCheckbox id={s.id} title={s.title} />
+                  )}
+                </span>,
                 <span key="t">
                   <Link href={`${CFA_BASE}/submissions/${s.id}`}>
                     <strong>{s.title || 'Untitled'}</strong>
@@ -255,7 +290,7 @@ export default async function SubmissionsPage({
                   {s.reviewsSubmitted}/{s.reviewsAssigned}
                   {s.scoreAverage !== undefined ? (
                     <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                      avg {s.scoreAverage.toFixed(1)}
+                      mean {s.scoreAverage.toFixed(1)}
                     </span>
                   ) : null}
                 </span>,
@@ -268,8 +303,109 @@ export default async function SubmissionsPage({
               perPage={PER_PAGE}
               baseParams={baseParams}
             />
+            <BulkDecisionBar
+              selectable={rows.filter((s) => s.status !== 'draft' && s.status !== 'withdrawn').length}
+            />
           </>
         )}
+      </Panel>
+      )}
+    </>
+  );
+}
+
+/**
+ * One table per track, best mean first.
+ *
+ * The ordering and the ranks are `rankByTrack` in `review-core.ts`, which is
+ * pure and tested. The mean is `SubmissionDoc.scoreAverage`, kept by the same
+ * transaction that accepts a review, so this view does no arithmetic of its own
+ * and cannot disagree with the list. Reviews under a declared conflict are not
+ * in the mean or the count.
+ *
+ * The tick boxes belong to the same bulk form as the list view, because the
+ * ranking is where "accept the top six in this track" is decided.
+ */
+function RankingPanels({
+  all,
+  trackOrder,
+  trackName,
+  hasCriteria,
+}: {
+  all: SubmissionRow[];
+  trackOrder: string[];
+  trackName: Map<string, string>;
+  hasCriteria: boolean;
+}) {
+  const groups = rankByTrack(all, trackOrder);
+
+  if (groups.length === 0) {
+    return (
+      <Panel>
+        <NotInputted what="submissions to rank" />
+      </Panel>
+    );
+  }
+
+  return (
+    <>
+      {!hasCriteria && (
+        <Banner kind="warning">
+          <strong>This call has no scoring criteria yet.</strong> Reviewers cannot score until it
+          does. Add them on the <Link href={`${CFA_BASE}/reviewers`}>Reviewers</Link> screen.
+        </Banner>
+      )}
+      {groups.map((g) => (
+        <Panel key={g.trackId ?? 'none'} style={{ marginBottom: 16 }}>
+          <h2 className="section-header" style={{ marginTop: 0 }}>
+            {g.trackId ? (trackName.get(g.trackId) ?? g.trackId) : 'No track chosen'}
+            <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
+              {g.rows.length} submission{g.rows.length === 1 ? '' : 's'}
+            </span>
+          </h2>
+          <Table
+            stackSm
+            cols={[
+              { key: 'pick', label: '', className: 'cell-xs' },
+              { key: 'rank', label: 'Rank', className: 'cell-xs' },
+              { key: 'title', label: 'Abstract' },
+              { key: 'mean', label: `Mean score (of ${OVERALL_MAX})`, className: 'cell-sm' },
+              { key: 'n', label: 'Reviewers', className: 'cell-sm' },
+              { key: 'status', label: 'Status', className: 'cell-sm' },
+            ]}
+            rows={g.rows.map((r) => {
+              const s = all.find((x) => x.id === r.id)!;
+              return [
+                <span key="p">
+                  <RowCheckbox id={r.id} title={r.title} />
+                </span>,
+                <span key="k">{r.rank ?? <span className="muted">–</span>}</span>,
+                <span key="t">
+                  <Link href={`${CFA_BASE}/submissions/${r.id}`}>
+                    <strong>{r.title || 'Untitled'}</strong>
+                  </Link>
+                  <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                    {s.author ? s.author.name : 'no author on file'}
+                  </span>
+                </span>,
+                <span key="m">
+                  {r.scoreAverage !== undefined ? (
+                    <strong>{r.scoreAverage.toFixed(2)}</strong>
+                  ) : (
+                    <span className="muted">not scored yet</span>
+                  )}
+                </span>,
+                <span key="n">
+                  {r.reviewsSubmitted} of {r.reviewsAssigned}
+                </span>,
+                <StatusCell key="s" row={s} />,
+              ];
+            })}
+          />
+        </Panel>
+      ))}
+      <Panel>
+        <BulkDecisionBar selectable={groups.reduce((n, g) => n + g.rows.length, 0)} />
       </Panel>
     </>
   );
@@ -292,6 +428,8 @@ function countFor(
       return counts.accepted;
     case 'rejected':
       return counts.rejected;
+    case 'waitlisted':
+      return counts.waitlisted;
     case 'withdrawn':
       return counts.withdrawn;
   }
@@ -324,7 +462,9 @@ function StatusCell({ row }: { row: SubmissionRow }) {
         ? 'red'
         : row.status === 'draft'
           ? 'grey'
-          : 'orange';
+          : row.status === 'waitlisted'
+            ? 'blue'
+            : 'orange';
   return (
     <span>
       <Tag color={colour}>{row.status}</Tag>

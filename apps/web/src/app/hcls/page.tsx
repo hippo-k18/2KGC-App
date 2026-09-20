@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { programmeCounts } from '@/lib/data';
+import { programmeCounts, siteEvent } from '@/lib/data';
 import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -92,6 +92,7 @@ function stats(counts: { speakers: number; sponsors: number }) {
 export const dynamic = 'force-dynamic';
 
 export default async function HclsPage() {
+  const ev = await siteEvent();
   const counts = await programmeCounts();
 
   return (
@@ -109,7 +110,7 @@ export default async function HclsPage() {
               Symposium (HCLS)
             </h1>
             <p className="when">
-              {SITE.datesLong} | {SITE.venueShort} + Virtual
+              {ev.datesLong} | {ev.venueShort} + Virtual
             </p>
             <div className="cta">
               <Link href="/tickets" className="btn btn-primary">
@@ -136,7 +137,7 @@ export default async function HclsPage() {
           <h2>About the event</h2>
           <p style={{ margin: 0 }}>
             The Healthcare and Life Sciences Symposium is co-located with the{' '}
-            {SITE.name}.
+            {ev.name}.
           </p>
         </div>
       </section>
@@ -193,7 +194,7 @@ export default async function HclsPage() {
 
       <section className="band band-wash band-centred">
         <div className="wrap narrow">
-          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {SITE.year}</h2>
+          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {ev.year}</h2>
           <p className="lede" style={{ marginBottom: 24 }}>
             Below you’ll find our partners. We welcome any enquiries or feedback.
           </p>

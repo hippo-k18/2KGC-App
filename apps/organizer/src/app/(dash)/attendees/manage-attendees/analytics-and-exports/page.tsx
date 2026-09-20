@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { attendeeCategories } from '@/lib/attendee-categories';
+import { UNCATEGORISED } from '@/lib/attendee-categories-core';
 import { requireOrganizer } from '@/lib/auth';
 import { formatHours, sessionAttendance } from '@/lib/attendance';
 import { EXPORTS, eventAnalytics } from '@/lib/exports';
@@ -27,9 +29,24 @@ export const dynamic = 'force-dynamic';
  * so nobody sends the full attendee export — with every email address on it —
  * to a company that asked for a headcount.
  */
-export default async function AnalyticsAndExportsPage() {
+export default async function AnalyticsAndExportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
-  const [a, attendance] = await Promise.all([eventAnalytics(), sessionAttendance()]);
+  const sp = await searchParams;
+  const category = typeof sp.category === 'string' ? sp.category : '';
+  const [a, attendance, { categories }] = await Promise.all([
+    eventAnalytics(),
+    sessionAttendance(),
+    attendeeCategories(),
+  ]);
+  // Only the two attendee files have a category to filter on.
+  const exportHref = (kind: string) =>
+    category && (kind === 'attendees' || kind === 'catering')
+      ? `/export/${kind}?category=${encodeURIComponent(category)}`
+      : `/export/${kind}`;
 
   // Sessions somebody actually counted, busiest first. Untracked rooms are a
   // separate figure rather than a run of zeroes at the bottom of the table:
@@ -178,6 +195,30 @@ export default async function AnalyticsAndExportsPage() {
           job. No export includes badge codes.
         </Banner>
 
+        <form id="exports" method="get" action="#exports" className="toolbar" style={{ alignItems: 'center', marginTop: 12 }}>
+          <label htmlFor="export-category" className="body-2">
+            Attendee files include
+          </label>
+          <select
+            id="export-category"
+            name="category"
+            className="whova-text-input"
+            defaultValue={category}
+            style={{ width: 200 }}
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value={UNCATEGORISED}>No category</option>
+          </select>
+          <button type="submit" className="btn btn-default">
+            Apply
+          </button>
+        </form>
+
         {/* On a phone each export is a card, so what it is for stays beside the button. */}
         <div className="exports-table">
           <Table
@@ -201,7 +242,7 @@ export default async function AnalyticsAndExportsPage() {
                 nothing, and `download` plus a real Content-Disposition is what
                 makes the browser save it rather than render it.
               */
-              <a key="d" href={`/export/${e.kind}`} className="whova-btn-main secondary small" download>
+              <a key="d" href={exportHref(e.kind)} className="whova-btn-main secondary small" download>
                 Download
               </a>,
             ])}

@@ -43,14 +43,27 @@ import { ANNOUNCEMENT, TICKER } from '@/lib/site';
  * displaces the standing line rather than queueing behind it, because the point
  * of the announcement is that it is the news.
  */
-export function Ticker({ announcements = [] }: { announcements?: string[] }) {
+export function Ticker({
+  announcements = [],
+  dates,
+  venue,
+}: {
+  announcements?: string[];
+  /**
+   * The dates and venue saved on the dashboard's Basics screen, when there are
+   * any. Each replaces the constant line that states the same fact.
+   */
+  dates?: string;
+  venue?: string;
+}) {
   // The organizer's own words lead when there are any; otherwise the one line
   // the owner edits by hand does.
   const lead = announcements.length > 0 ? announcements : ANNOUNCEMENT ? [ANNOUNCEMENT] : [];
 
   if (lead.length === 0 && TICKER.length === 0) return null;
 
-  const items = [...lead, ...TICKER];
+  const facts = [dates ?? TICKER[0], venue ?? TICKER[1], ...TICKER.slice(2)];
+  const items = [...lead, ...facts];
 
   const run = (hidden: boolean) => (
     <ul className="ticker-run" aria-hidden={hidden || undefined}>

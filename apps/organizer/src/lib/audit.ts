@@ -267,6 +267,21 @@ export interface AuditEntry {
      */
     | 'attendee.add'
     /**
+     * Everything an organizer does to one registration afterwards. `update`
+     * covers a corrected address too, which moves the registration to a new id:
+     * `targetId` is the old one and `after.registrationId` the new. `cancel`
+     * records whether a paid seat went back on sale and what happened to the
+     * holder's app access, because those are the two questions asked later.
+     */
+    | 'attendee.update'
+    | 'attendee.cancel'
+    | 'attendee.reinstate'
+    | 'attendee.transfer'
+    | 'attendee.ticketType'
+    | 'attendee.confirmation'
+    /** A category set or cleared, for one person or a selection. */
+    | 'attendee.category'
+    /**
      * One in-app message sent from the organizer desk.
      *
      * This is the only per-person accountability the desk has. The dashboard
@@ -341,7 +356,28 @@ export interface AuditEntry {
     /** Reviewers: who was invited, and who was given whose work to read. */
     | 'reviewer.invite'
     | 'reviewer.update'
-    | 'reviewer.assign';
+    | 'reviewer.assign'
+    /** A reviewer kept away from one submission, and the invitation mail. */
+    | 'reviewer.exclude'
+    | 'reviewer.sendInvitation'
+    /** The scoring criteria reviewers mark against. */
+    | 'call.rubric'
+    /**
+     * Who may open this dashboard, and how much of it.
+     *
+     * Every one of these changes what somebody else can do with the Admin SDK
+     * behind them, so each is its own verb rather than a `settings.update`.
+     * `team.setPassphrase` is the only one whose actor is the member rather
+     * than an owner: it is written when a set-passphrase link is used, and it
+     * never carries the passphrase or its hash, only that one was set.
+     */
+    | 'team.invite'
+    | 'team.roles'
+    | 'team.newLink'
+    | 'team.remove'
+    | 'team.setPassphrase'
+    /** An organizer took somebody out of a capped session, from Session Cap. */
+    | 'sessionSeat.remove';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

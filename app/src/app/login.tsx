@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   TextInput,
@@ -12,6 +13,7 @@ import { Redirect } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
 import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -84,6 +86,7 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  */
 export default function LoginScreen() {
   const colors = useTheme();
+  const { event, branding } = useEventSettings();
   const { user, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -220,16 +223,26 @@ export default function LoginScreen() {
             invisible on a black background. Setting the wordmark as live text
             fixes that, and lets it scale with the reader's type size.
           */}
+          {/* The logo, name and tagline saved on the dashboard, once there are any. */}
           <Image
-            source={require('@/assets/images/kgc-mark.png')}
-            style={{ width: 132, height: 132 }}
+            source={
+              branding.logoUrl ? { uri: branding.logoUrl } : require('@/assets/images/kgc-mark.png')
+            }
+            style={{ width: branding.logoUrl ? 220 : 132, height: 132 }}
             resizeMode="contain"
             accessible
-            accessibilityLabel="KGC"
+            accessibilityLabel={event.shortName}
           />
-          <Text variant="title3">The Knowledge Graph Conference</Text>
-          <Text variant="subhead" tone="secondary">
-            {EVENT.venue}
+          <Text variant="title3" style={{ textAlign: 'center' }}>
+            {event.name === EVENT.name ? 'The Knowledge Graph Conference' : event.name}
+          </Text>
+          {branding.tagline ? (
+            <Text variant="subhead" style={{ textAlign: 'center' }}>
+              {branding.tagline}
+            </Text>
+          ) : null}
+          <Text variant="subhead" tone="secondary" style={{ textAlign: 'center' }}>
+            {event.datesLong} · {event.venue}
           </Text>
         </View>
 
@@ -555,6 +568,19 @@ export default function LoginScreen() {
             </Pressable>
           </>
         )}
+
+        {/* The support address saved on the dashboard. Nothing is shown until one is. */}
+        {branding.supportEmail ? (
+          <Pressable
+            onPress={() => void Linking.openURL(`mailto:${branding.supportEmail}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`Email ${branding.supportEmail} for help`}
+            style={textLink}>
+            <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
+              Trouble signing in? Write to <Text variant="caption" tone="tint">{branding.supportEmail}</Text>
+            </Text>
+          </Pressable>
+        ) : null}
       </Screen>
     </KeyboardAvoidingView>
   );

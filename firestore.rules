@@ -69,6 +69,12 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    /** A session with a cap or a ticket list. 0 means uncapped, like absent. */
+    function sessionIsGated(session) {
+      return session.get('capacity', 0) > 0
+        || session.get('eligibleTicketTypes', []).size() > 0;
+    }
+
     /** The signed-in address, folded to lower case the way registrations store it. */
     function myEmail() {
       return request.auth.token.email.lower();
@@ -322,9 +328,25 @@ service cloud.firestore {
       // the conference. `isRegistered()` costs a ticket; the field allowlists
       // stop a document being used as a bucket.
       match /savedSessions/{sessionId} {
+        /**
+         * A capped or ticket-restricted session goes on a schedule only with a
+         * seat, or a waitlist place, in `sessionSeats`. `existsAfter` because
+         * the app writes both in one transaction. Without this the seat rules
+         * below would guard a counter while the schedule ignored it.
+         *
+         * A session that does not exist is still a plain bookmark, as before.
+         */
+        function seatHeldIfGated() {
+          let path = /databases/$(database)/documents/sessions/$(sessionId);
+          return !exists(path)
+            || !sessionIsGated(get(path).data)
+            || existsAfter(/databases/$(database)/documents/sessionSeats/$(sessionId)/seats/$(uid));
+        }
+
         allow read, delete: if isSelf(uid) && isRegistered();
         allow create, update: if isSelf(uid) && isRegistered()
-          && request.resource.data.keys().hasOnly(['sessionId', 'savedAt', 'remind']);
+          && request.resource.data.keys().hasOnly(['sessionId', 'savedAt', 'remind'])
+          && seatHeldIfGated();
       }
       match /savedContacts/{contactUid} {
         allow read, delete: if isSelf(uid) && isRegistered();
@@ -545,6 +567,188 @@ service cloud.firestore {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // Session seats: capacity, ticket eligibility and the waitlist.
+    //
+    // There is no server in this path, so the arithmetic is restated here. The
+    // app writes the counter and the seat in one transaction; each rule looks at
+    // the other document with `getAfter()`, so neither can be written alone and
+    // a hand-built request cannot take seat 41 of 40, jump the waitlist or seat
+    // a ticket the session is not for. The same cases, as code, are in
+    // `packages/shared/src/session-seats.ts`. Keep the two in step.
+    //
+    // The waitlist is an ordered list of uids on the counter because a rule
+    // cannot run a query, and "who is first in line" has to be one field read.
+    //
+    // The dashboard removes people and raises caps with the Admin SDK, which
+    // bypasses all of this.
+    // -----------------------------------------------------------------------
+
+    match /sessionSeats/{sessionId} {
+      function session() {
+        return get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      }
+      function cap() {
+        return session().get('capacity', 0);
+      }
+      function seatPath(uid) {
+        return /databases/$(database)/documents/sessionSeats/$(sessionId)/seats/$(uid);
+      }
+      function me() {
+        return request.auth.uid;
+      }
+      /** The counter before this write. The first seat creates the document. */
+      function before() {
+        return resource == null ? {'taken': 0, 'waitlist': []} : resource.data;
+      }
+      function after() {
+        return request.resource.data;
+      }
+      // Everybody after the first. A range past the end is an error, not [].
+      function rest(list) {
+        return list.size() > 1 ? list[1:list.size()] : [];
+      }
+      function validCounter() {
+        return after().keys().hasOnly(['eventId', 'sessionId', 'taken', 'waitlist', 'updatedAt'])
+          && after().eventId == session().eventId
+          && after().sessionId == sessionId
+          && after().taken is int && after().taken >= 0
+          && after().waitlist is list;
+      }
+
+      // A free seat, and nobody queueing for it.
+      function takesSeat() {
+        return after().taken == before().taken + 1
+          && after().waitlist == before().waitlist
+          && before().waitlist.size() == 0
+          && (cap() == 0 || after().taken <= cap())
+          && !exists(seatPath(me()))
+          && getAfter(seatPath(me())).data.status == 'seated';
+      }
+      function joinsWaitlist() {
+        return after().taken == before().taken
+          && ((cap() > 0 && before().taken >= cap()) || before().waitlist.size() > 0)
+          && !(me() in before().waitlist)
+          && after().waitlist == before().waitlist.concat([me()])
+          && !exists(seatPath(me()))
+          && getAfter(seatPath(me())).data.status == 'waitlisted';
+      }
+      // Whether a seat given up now belongs to the first person waiting.
+      function owesPromotion() {
+        return before().waitlist.size() > 0 && (cap() == 0 || before().taken <= cap());
+      }
+      function gaveUpMySeat() {
+        return get(seatPath(me())).data.status == 'seated' && !existsAfter(seatPath(me()));
+      }
+      function leavesSeat() {
+        return after().taken == before().taken - 1
+          && after().waitlist == before().waitlist
+          && !owesPromotion()
+          && gaveUpMySeat();
+      }
+      function leavesAndPromotes() {
+        return after().taken == before().taken
+          && owesPromotion()
+          && after().waitlist == rest(before().waitlist)
+          && gaveUpMySeat()
+          && get(seatPath(before().waitlist[0])).data.status == 'waitlisted'
+          && getAfter(seatPath(before().waitlist[0])).data.status == 'seated';
+      }
+      function leavesWaitlist() {
+        return after().taken == before().taken
+          && me() in before().waitlist
+          && after().waitlist == before().waitlist.removeAll([me()])
+          && !existsAfter(seatPath(me()));
+      }
+      // First in line takes a seat that opened without anybody leaving, which
+      // is what a raised cap looks like from here.
+      function claimsSeat() {
+        return before().waitlist.size() > 0
+          && before().waitlist[0] == me()
+          && (cap() == 0 || before().taken < cap())
+          && after().taken == before().taken + 1
+          && after().waitlist == rest(before().waitlist)
+          && get(seatPath(me())).data.status == 'waitlisted'
+          && getAfter(seatPath(me())).data.status == 'seated';
+      }
+
+      // The count and the queue length are what the agenda shows. The list
+      // holds uids and nothing else.
+      allow read: if isRegistered();
+      allow create, update: if isRegistered()
+        && validCounter()
+        && (takesSeat() || joinsWaitlist() || leavesSeat()
+            || leavesAndPromotes() || leavesWaitlist() || claimsSeat());
+      allow delete: if false;
+
+      match /seats/{uid} {
+        function counterPath() {
+          return /databases/$(database)/documents/sessionSeats/$(sessionId);
+        }
+        function counterBefore() {
+          return exists(counterPath()) ? get(counterPath()).data : {'taken': 0, 'waitlist': []};
+        }
+        function counterAfter() {
+          return getAfter(counterPath()).data;
+        }
+        function validSeat() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['eventId', 'sessionId', 'uid', 'registrationId', 'status', 'createdAt'])
+            && d.eventId == session().eventId
+            && d.sessionId == sessionId
+            && d.uid == uid
+            && d.registrationId is string
+            && d.status in ['seated', 'waitlisted']
+            && d.createdAt == request.time;
+        }
+        /**
+         * The ticket check. The registration is read because the ticket type is
+         * not a claim, and it has to be the caller's own and still active. A
+         * session with no list takes every ticket.
+         */
+        function eligible() {
+          let reg = get(/databases/$(database)/documents/registrations/$(request.resource.data.registrationId)).data;
+          let allowed = session().get('eligibleTicketTypes', []);
+          return session().status == 'published'
+            && registrationIsMine(reg)
+            && reg.status == 'active'
+            && (allowed.size() == 0 || reg.get('ticketType', '') in allowed);
+        }
+        // Tied to the counter, which is where the cap and the order are checked.
+        function counterTakesMe() {
+          return request.resource.data.status == 'seated'
+            ? counterAfter().taken == counterBefore().taken + 1
+            : counterAfter().waitlist == counterBefore().waitlist.concat([uid]);
+        }
+        function counterReleasesMe() {
+          return resource.data.status == 'seated'
+            ? (counterAfter().taken == counterBefore().taken - 1
+               || (counterAfter().taken == counterBefore().taken
+                   && counterBefore().waitlist.size() > 0
+                   && counterAfter().waitlist == rest(counterBefore().waitlist)))
+            : !(uid in counterAfter().waitlist);
+        }
+        // Waitlisted to seated, for the first in line only. Whoever gives up a
+        // seat writes this for the next person, so it is not limited to the
+        // owner; the counter rule decides whether the caller really left.
+        function promotes() {
+          return changed().hasOnly(['status', 'promotedAt'])
+            && resource.data.status == 'waitlisted'
+            && request.resource.data.status == 'seated'
+            && request.resource.data.promotedAt == request.time
+            && counterBefore().waitlist.size() > 0
+            && counterBefore().waitlist[0] == uid
+            && counterAfter().waitlist == rest(counterBefore().waitlist);
+        }
+
+        allow get: if (isSelf(uid) && isRegistered()) || isOrganizer();
+        allow list: if isOrganizer();
+        allow create: if isSelf(uid) && isRegistered() && validSeat() && eligible() && counterTakesMe();
+        allow update: if isRegistered() && promotes();
+        allow delete: if isSelf(uid) && isRegistered() && counterReleasesMe();
+      }
+    }
+
     match /speakers/{id} {
       allow read: if isRegistered();
       allow write: if isOrganizer();
@@ -603,8 +807,20 @@ service cloud.firestore {
      * because a predicate that works on a `get` and denies a `list` is exactly
      * how the inbox broke once, and here that asymmetry is load-bearing.
      */
+    /**
+     * ── Three more keys, and these are public ──────────────────────────────
+     *
+     * `branding`, `event` and `sponsorTiers` hold the brand colour, logo and
+     * tagline, the event's name, dates and venue, and the sponsor tier names.
+     * Every value in them is printed on the public website for anybody, and the
+     * app needs them on the sign-in screen, before there is a token to check.
+     * So they are readable signed out. The list is `PUBLIC_SETTINGS_KEYS` in
+     * `@kgc/shared`; a field that is not fit to publish does not belong in one
+     * of these three bags. A `list` stays denied for the reason above.
+     */
     match /settings/{key} {
-      allow read: if isRegistered() && key == 'logistics';
+      allow read: if (isRegistered() && key == 'logistics')
+        || key in ['branding', 'event', 'sponsorTiers'];
       // Admin SDK only, like every other settings write. The dashboard's
       // `saveSettings` runs server-side and bypasses rules; an organizer is a
       // client with a role, and a client that could write this could put an

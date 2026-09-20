@@ -52,8 +52,13 @@ export interface BaseDoc {
  * with a size weight each — Platinum 3, Gold 2, Silver 1, Bronze 1. There is no
  * Diamond tier and no startup tier. Read in that order, this union is also the
  * sort order, so nothing needs a separate ranking table beyond `TIER_ORDER`.
+ *
+ * Those four are now the defaults rather than the whole set. The tier list is
+ * `settings/sponsorTiers`, edited on Sponsor Tiering, and this field holds the
+ * `id` of one entry — so the type is a string, and order and display name come
+ * from `sponsor-tiers.ts`, never from this value.
  */
-export type SponsorTier = "platinum" | "gold" | "silver" | "bronze";
+export type SponsorTier = string;
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 export type SessionFormat =
   | "keynote"
@@ -200,8 +205,28 @@ export interface RegistrationDoc extends BaseDoc {
   /** Addresses an attendee may also sign in with — assistants, forwards, aliases. */
   altEmails: string[];
   name?: string;
+  /**
+   * What an organizer typed for a badge, from Attendees. The attendee's own
+   * profile (`users/{uid}`) wins wherever both exist; these are what a ticket
+   * holder who never opens the app is printed with.
+   */
+  title?: string;
+  company?: string;
   ticketType?: string;
   status: "active" | "cancelled" | "transferred";
+  /**
+   * The two ends of a transfer, or of a corrected address. A registration's id
+   * is derived from its email, so moving a ticket to another address is a new
+   * document rather than an edit, and these are the only link between the two.
+   */
+  transferredTo?: string;
+  transferredFrom?: string;
+  /**
+   * Present while an organizer's cancellation is holding a paid seat out of
+   * `quantitySold`. Names the order and tier it was taken from, so reinstating
+   * puts back exactly what cancelling released. See `OrderDoc.releasedSeats`.
+   */
+  seatRelease?: { orderId: string; ticketTypeId: string };
   /** Set once the holder has signed in and claimed the registration. */
   claimedByUid?: string;
   /** Printed on the badge as a fallback sign-in door for a wrong-address attendee. */
@@ -211,6 +236,20 @@ export interface RegistrationDoc extends BaseDoc {
    * QR payload would let anyone who photographs a badge learn an identity.
    */
   qrSecret: string;
+
+  /**
+   * The organizer's label for this person: an id from `settings/
+   * attendeeCategories`, the name it had when it was set, and who set it.
+   *
+   * `category` is a copy on purpose. The holder's phone can read this document
+   * and cannot read the settings bag, so the name travels with the ticket; a
+   * rename on the dashboard rewrites it. `categorySource: "manual"` is what
+   * stops a repeat purchase from undoing a hand assignment. Not a role and not
+   * a claim: nothing in `firestore.rules` reads it.
+   */
+  categoryId?: string;
+  category?: string;
+  categorySource?: "manual" | "ticket";
 
   /**
    * Answers to the registration question form, keyed by `QuestionFieldDef.id`.
@@ -519,23 +558,54 @@ export interface SessionDoc extends BaseDoc {
   qaEnabled: boolean;
   pollsEnabled: boolean;
   /**
-   * Absent means uncapped.
+   * Seats. Absent or 0 means uncapped.
    *
-   * ⚠️ **Nothing enforces this.** This comment used to read "enforced in a
-   * transaction, not by rules"; there is no such transaction. Nothing in
-   * `app/`, `apps/web/`, `apps/organizer/` or `functions/` reads this field
-   * except `conflicts-core.ts`, which only warns when a cap exceeds what the
-   * room seats. Adding a session to a schedule writes a private
-   * `savedSessions` bookmark with no count and no ceiling, so an attendee can
-   * save a full workshop and nothing objects.
-   *
-   * It is therefore a **stated intent**, useful for planning and for the
-   * over-capacity warning, and it is not a limit. `attendees/session-cap` says
-   * so on screen. Making it real needs a counter and a transaction that does
-   * not exist yet — and a decision about what happens at the door when somebody
-   * turns up to a session they were never counted into.
+   * Enforced twice: the app takes a seat in a transaction over
+   * `sessionSeats/{sessionId}`, and `firestore.rules` re-checks the same
+   * arithmetic with `getAfter()`, so a hand-built request cannot take seat 41
+   * of 40. The cases live in `session-seats.ts` beside this file. Lowering a
+   * cap below the seats already taken removes nobody; the session just stops
+   * promoting from its waitlist until it is back under.
    */
   capacity?: number;
+  /**
+   * Ticket types that may take a seat, as the names `RegistrationDoc.ticketType`
+   * holds. Absent or empty means every ticket. Names rather than ticket type
+   * ids because the registration carries the name and the rules compare the
+   * two directly. Edited on Attendees, Ticket Session Mapping.
+   */
+  eligibleTicketTypes?: string[];
+}
+
+/**
+ * `sessionSeats/{sessionId}` — the seat counter for a capped or restricted
+ * session. Created by the first attendee to take a seat.
+ *
+ * A separate document and not fields on the session, because attendees write
+ * it and may not write a session.
+ */
+export interface SessionSeatsDoc {
+  eventId: string;
+  sessionId: string;
+  taken: number;
+  /** Uids waiting, first in line first. See `session-seats.ts` for why a list. */
+  waitlist: string[];
+  updatedAt: Timestamp;
+}
+
+/**
+ * `sessionSeats/{sessionId}/seats/{uid}` — one attendee's place, seated or
+ * waiting. Tied to a registration so a seat always belongs to a ticket.
+ */
+export interface SessionSeatDoc {
+  eventId: string;
+  sessionId: string;
+  uid: string;
+  registrationId: string;
+  status: "seated" | "waitlisted";
+  createdAt: Timestamp;
+  /** Set when a waitlisted seat becomes a real one. */
+  promotedAt?: Timestamp;
 }
 
 /** `speakers/{id}` */
@@ -1201,6 +1271,18 @@ export interface OrderDoc extends BaseDoc {
   registrationIds?: string[];
 
   /**
+   * Seats an organizer gave back by cancelling an attendee without refunding
+   * the order, as `registrationId → ticketTypeId`.
+   *
+   * A map keyed by registration rather than a count, so cancelling twice is one
+   * entry and reinstating deletes exactly that entry. `soldByTier` and
+   * `decideRefund` both subtract it: the first so that reconciling stock from
+   * orders agrees with `quantitySold`, the second so a later refund of this
+   * order does not hand the same seat back a second time.
+   */
+  releasedSeats?: Record<string, string>;
+
+  /**
    * An organizer accepting a purchase order as payment, out of band.
    *
    * This is the deliberate escape hatch for "the PO is good enough" — and it is
@@ -1266,7 +1348,11 @@ export interface EmailLogDoc {
      * same mail with a different first sentence and splitting them is how the
      * rejection quietly loses the paragraph explaining what happens next.
      */
-    | "submission-decision";
+    | "submission-decision"
+    /** A reviewer's invitation, carrying the link to their review page. */
+    | "reviewer-invitation"
+    /** A dashboard team member's link to choose their passphrase. */
+    | "team-invitation";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */
@@ -2035,6 +2121,13 @@ export type SubmissionStatus =
   | "under-review"
   | "accepted"
   | "rejected"
+  /**
+   * Held in reserve: good enough to take if an accepted author drops out. A
+   * decision like the other two, so it carries a `decision` map and is undone
+   * the same way, and it is its own value rather than a flag on `rejected`
+   * because the acceptance rate must not count it as a rejection.
+   */
+  | "waitlisted"
   | "withdrawn";
 
 /** Where a reviewer is in the invitation, before any submission is assigned. */
@@ -2336,8 +2429,8 @@ export interface SubmissionDoc extends BaseDoc {
   reviewsAssigned: number;
   reviewsSubmitted: number;
   /**
-   * The mean of the submitted reviews' `overall` scores, absent until there is
-   * one. Stored rather than computed because the ranking screen sorts on it and
+   * The mean of the submitted reviews' `overall` scores, on the same 0 to 10
+   * scale, absent until there is one. Reviews under a conflict are left out. Stored rather than computed because the ranking screen sorts on it and
    * Firestore cannot order by a value it does not hold.
    */
   scoreAverage?: number;
@@ -2453,9 +2546,17 @@ export interface ReviewDoc {
    */
   scores?: Record<string, number>;
   /**
-   * The mean of `scores`, stored because the ranking screen sorts on it and
-   * Firestore cannot order by a value it does not hold. Written when the review
-   * is submitted, from the rubric in force at that moment.
+   * A remark per `RubricCriterionDef.id`, beside the score it explains. For the
+   * committee only, like `commentsToCommittee`. Only criteria that were given a
+   * remark have a key.
+   */
+  criterionComments?: Record<string, string>;
+  /**
+   * The mean of `scores` with each first placed on a 0 to 10 scale, so that
+   * criteria with different scales count the same (`overallOf` in
+   * `@kgc/scripts/src/lib/review-core.ts`). Stored because the ranking screen
+   * sorts on it and Firestore cannot order by a value it does not hold. Written
+   * when the review is submitted, from the rubric in force at that moment.
    */
   overall?: number;
   /**
@@ -2481,6 +2582,13 @@ export interface ReviewDoc {
    */
   conflict: boolean;
   conflictNote?: string;
+  /**
+   * The organizer address that excluded this reviewer from this submission.
+   * Absent when the reviewer declared the conflict themselves. Either way the
+   * document stays, `declined`, which is what stops the matcher handing the
+   * pair back.
+   */
+  excludedBy?: string;
 
   /**
    * How this assignment was made. Recorded because "random" is the one an
@@ -2527,6 +2635,8 @@ export interface ReviewerDoc extends BaseDoc {
 
   invitedAt?: Timestamp;
   respondedAt?: Timestamp;
+  /** When the invitation email was last sent. Absent until one has been. */
+  lastInvitationAt?: Timestamp;
   /**
    * Lower-case hex sha256 of the nonce in the reviewer's capability link. Same
    * shape and the same revocation argument as `SubmissionDoc.submitterTokenHash`
@@ -2645,4 +2755,48 @@ export interface CertificateDoc extends BaseDoc {
   issuedAt: Timestamp;
   /** The allowlisted organizer identity, as every other audited write records it. */
   issuedBy: string;
+}
+
+/**
+ * What a dashboard team member may open. `owner` is everything; the rest each
+ * name one area, and a member may hold several. The path rules behind each one
+ * live in `apps/organizer/src/lib/team-core.ts`.
+ */
+export type TeamRole = "owner" | "finance" | "agenda" | "sponsors" | "checkin" | "reviews";
+
+/**
+ * `teamMembers/{id}` — one person invited to the organizer dashboard.
+ *
+ * Server-only, like `orders`. These sit alongside the addresses in the
+ * dashboard's `CONSOLE_ALLOWLIST`, which stay owners and keep the shared
+ * passphrase; a member here signs in with a passphrase of their own.
+ *
+ * The id is derived from the address, so inviting the same person twice is one
+ * document rather than two with different roles.
+ */
+export interface TeamMemberDoc extends BaseDoc {
+  /** Lower case. What they type at sign-in, and the audit actor. */
+  email: string;
+  name?: string;
+  roles: TeamRole[];
+  /** `invited` until they have chosen a passphrase through their link. */
+  status: "invited" | "active";
+  /** `scrypt$N$salt$hash`. Absent until the link has been used. */
+  passphraseHash?: string;
+  /**
+   * Lower-case hex sha256 of the nonce in the outstanding set-passphrase link.
+   * Deleted when the link is used, which is what makes it one-time, and
+   * replaced when a new link is issued, which is what kills the old one.
+   */
+  setupNonceHash?: string;
+  setupExpiresAt?: Timestamp;
+  /**
+   * Copied into the session cookie at sign-in and compared on every request.
+   * Changing it signs the member out everywhere; deleting the document does the
+   * same, because there is then nothing to compare against.
+   */
+  sessionEpoch: string;
+  invitedBy: string;
+  lastSignInAt?: Timestamp;
+  updatedBy: string;
 }

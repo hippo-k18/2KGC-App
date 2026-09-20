@@ -8,7 +8,16 @@ import { SITE } from '@/lib/site';
  * than computed from `new Date()`, which would make the footer a moving target
  * that invalidates the static render every year at midnight on 1 January.
  */
-export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?: string }) {
+export function SiteFooter({
+  contactEmail = SITE.contactEmail,
+  datesShort = SITE.datesShort,
+  venue = SITE.venue,
+}: {
+  contactEmail?: string;
+  /** From Content > Basics, resolved in the root layout. The defaults are the constants. */
+  datesShort?: string;
+  venue?: string;
+}) {
   return (
     <footer className="site-footer">
       <div className="wrap">
@@ -93,7 +102,7 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
         <div className="fine">
           <span>© 2019–2027 Knowledge Graph Conference. All rights reserved.</span>
           <span>
-            {SITE.datesShort} · {SITE.venue}
+            {datesShort} · {venue}
           </span>
         </div>
       </div>

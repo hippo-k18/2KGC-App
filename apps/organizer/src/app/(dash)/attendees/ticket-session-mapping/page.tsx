@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listTicketEntitlements } from '@/lib/cohorts';
+import { capacityIndex, listTicketEntitlements } from '@/lib/cohorts';
 import { listTicketTypes } from '@/lib/commerce';
 import { listAttendees, listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
+import { seatCounts } from '@/lib/session-seats';
+import { joinNames } from '@/lib/session-seats-core';
 import { GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { EligibilityForm, RestrictWorkshopsForm } from './eligibility-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,22 +17,19 @@ export const dynamic = 'force-dynamic';
  * Whova models this as a matrix: every ticket type against every session, each
  * cell independently on or off, with the app enforcing it at the session door.
  *
- * **We have two booleans.** `TicketTypeDoc` carries `includesWorkshops` and
- * `includesVideoLibrary` and nothing else about access — no per-session list,
- * no per-track list, no per-day list. `SessionDoc.format` has `workshop` as one
- * of its six values. The entire mapping this project can derive is therefore:
- * a tier with `includesWorkshops` gets the workshop-format sessions, and every
- * tier gets everything else. That is what is below. It is an approximation of
- * Whova's matrix collapsed to one bit, and it is labelled as one everywhere it
- * appears rather than dressed up as a grid with two columns filled in.
+ * Here a session carries `eligibleTicketTypes`, a list of ticket type names.
+ * Empty means every ticket. It is a list on the session rather than a grid on
+ * the ticket type because that is where the app and `firestore.rules` read it:
+ * taking a seat compares the list with the ticket type on the caller's own
+ * registration, in the app's transaction and again in the rules, so a ticket
+ * the session is not for is refused even by a hand-built request.
  *
- * ── Derived, and enforced nowhere ───────────────────────────────────────────
+ * `TicketTypeDoc.includesWorkshops` is still the switch on the ticket form. It
+ * decides nothing by itself; "Limit all workshops" below copies it onto every
+ * workshop session, which is the step that makes it take effect.
  *
- * The rules do not read either boolean. Sessions are readable by any registered
- * attendee, so an attendee holding a Main Conference ticket can read a workshop
- * session document, see it in the agenda and save it to their schedule. What
- * the booleans do today is decide the bullet list on the tickets page and what
- * the desk is told at the door. Nothing gates a room.
+ * A restricted session stays visible in the agenda to everybody. What a ticket
+ * it is not for cannot do is add it, and the app says why.
  *
  * ── Reads ───────────────────────────────────────────────────────────────────
  *
@@ -48,15 +48,26 @@ function isWorkshop(s: SessionRow) {
   return s.format === 'workshop';
 }
 
-export default async function TicketSessionMappingPage() {
+export default async function TicketSessionMappingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
+  const sp = await searchParams;
+  const editingId = typeof sp.session === 'string' ? sp.session : undefined;
 
-  const [tiers, entitlements, sessions, attendees] = await Promise.all([
+  const [tiers, entitlements, sessions, attendees, caps, counts] = await Promise.all([
     listTicketTypes(),
     listTicketEntitlements(),
     listSessions(),
     listAttendees(),
+    capacityIndex(),
+    seatCounts(),
   ]);
+  const allowedFor = (id: string) => caps.sessionTicketTypes.get(id);
+  /** Whether a holder of this ticket type may add the session. */
+  const mayJoin = (id: string, tierName: string) => !allowedFor(id) || allowedFor(id)!.includes(tierName);
 
   const grants = new Map(entitlements.map((e) => [e.id, e]));
 
@@ -80,10 +91,24 @@ export default async function TicketSessionMappingPage() {
       workshopAccess,
       videoLibrary: g?.includesVideoLibrary === true,
       inPersonFlag: g?.inPersonFlag,
-      sessionsGranted: general.length + (workshopAccess ? workshops.length : 0),
+      // What the app enforces, from the sessions' own lists.
+      generalOpen: general.filter((s) => mayJoin(s.id, t.name)).length,
+      workshopsOpen: workshops.filter((s) => mayJoin(s.id, t.name)).length,
+      sessionsGranted: live.filter((s) => mayJoin(s.id, t.name)).length,
       holders: heldBy(t.name),
     };
   });
+
+  const restricted = live.filter((s) => allowedFor(s.id));
+  const openWorkshops = workshops.filter((s) => !allowedFor(s.id));
+  const workshopTierNames = joinNames(rows.filter((r) => r.workshopAccess).map((r) => r.tier.name));
+  const editing = editingId ? live.find((s) => s.id === editingId) : undefined;
+  const sessionOptions = [...live]
+    .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal))
+    .map((s) => ({
+      value: s.id,
+      label: `${s.day} ${s.startsAtLocal.slice(11, 16)} · ${s.title}${allowedFor(s.id) ? ' (limited)' : ''}`,
+    }));
 
   const workshopTiers = rows.filter((r) => r.workshopAccess);
   const workshopHolders = workshopTiers.reduce((n, r) => n + r.holders, 0);
@@ -93,7 +118,7 @@ export default async function TicketSessionMappingPage() {
   const byFormat = [...new Set(live.map((s) => s.format))].sort().map((f) => ({
     format: f,
     count: live.filter((s) => s.format === f).length,
-    restricted: f === 'workshop',
+    restricted: live.filter((s) => s.format === f && allowedFor(s.id)).length,
   }));
 
   return (
@@ -102,10 +127,10 @@ export default async function TicketSessionMappingPage() {
         title="Ticket Session Mapping"
         info={
           <>
-            <strong>Set on each ticket type</strong>
+            <strong>Which tickets may add which sessions</strong>
             <p>
-              A ticket type either includes workshops or it does not. Sessions cannot be mapped to
-              tickets one by one yet.
+              Limit a session to certain ticket types. Anybody else sees it in the agenda and is
+              told their ticket does not cover it when they try to add it.
             </p>
           </>
         }
@@ -127,9 +152,9 @@ export default async function TicketSessionMappingPage() {
           tiles={[
             { label: 'Ticket types', value: tiers.length, sub: `${live.length} live sessions` },
             {
-              label: 'Workshop sessions',
-              value: workshops.length,
-              sub: 'the only restricted sessions',
+              label: 'Limited sessions',
+              value: restricted.length,
+              sub: `${openWorkshops.length} of ${workshops.length} workshops still open to all`,
             },
             {
               label: 'Tiers including workshops',
@@ -137,9 +162,9 @@ export default async function TicketSessionMappingPage() {
               sub: `${workshopHolders} attendees hold one`,
             },
             {
-              label: 'Open to every tier',
-              value: general.length,
-              sub: 'talks, keynotes, panels, posters, socials',
+              label: 'Open to every ticket',
+              value: live.length - restricted.length,
+              sub: 'no ticket list set',
             },
           ]}
         />
@@ -170,20 +195,27 @@ export default async function TicketSessionMappingPage() {
                 0
               </span>
             ),
-            // Never a switch, never an editable cell: this is what the data says,
-            // and the data does not distinguish between tiers here at all.
-            <Tag key="g" color="green" fill="outline" small>
-              all {general.length}
+            <Tag key="g" color={r.generalOpen === general.length ? 'green' : 'orange'} fill="outline" small>
+              {r.generalOpen === general.length ? `all ${general.length}` : `${r.generalOpen} of ${general.length}`}
             </Tag>,
-            r.workshopAccess ? (
-              <Tag key="w" color="green" fill="outline" small>
-                all {workshops.length}
+            <span key="w">
+              <Tag
+                color={r.workshopsOpen === 0 ? 'grey' : r.workshopsOpen === workshops.length ? 'green' : 'orange'}
+                fill="outline"
+                small
+              >
+                {r.workshopsOpen === 0
+                  ? 'none'
+                  : r.workshopsOpen === workshops.length
+                    ? `all ${workshops.length}`
+                    : `${r.workshopsOpen} of ${workshops.length}`}
               </Tag>
-            ) : (
-              <Tag key="w" color="grey" fill="outline" small>
-                none
-              </Tag>
-            ),
+              {r.workshopsOpen > 0 && !r.workshopAccess && workshops.length > 0 ? (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  ticket does not include workshops
+                </div>
+              ) : null}
+            </span>,
             r.videoLibrary ? (
               <Tag key="v" color="orange" fill="outline" small>
                 included, no videos yet
@@ -213,28 +245,75 @@ export default async function TicketSessionMappingPage() {
       </Panel>
 
       <Panel>
+        <h2 className="section-header">Limit a session to ticket types</h2>
+        <EligibilityForm
+          key={editing?.id ?? 'new'}
+          sessions={sessionOptions}
+          tiers={rows.map((r) => r.tier.name)}
+          sessionId={editing?.id}
+          allowed={editing ? (allowedFor(editing.id) ?? []) : []}
+        />
+
+        <h3 className="section-header" style={{ marginTop: 24 }}>
+          Workshops
+        </h3>
+        <p className="body-2">
+          {workshopTierNames
+            ? `Ticket types that include workshops: ${workshopTierNames}.`
+            : 'No ticket type includes workshops yet.'}{' '}
+          {openWorkshops.length > 0
+            ? `${openWorkshops.length} of ${workshops.length} workshops can still be added by any ticket.`
+            : 'Every workshop is limited by ticket.'}
+        </p>
+        <RestrictWorkshopsForm count={workshops.length} names={workshopTierNames} />
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Limited sessions</h2>
+        <Table
+          stackSm
+          cols={[
+            { key: 't', label: 'Session', className: 'cell-fill' },
+            { key: 'a', label: 'Tickets allowed', className: 'cell-md' },
+            { key: 'n', label: 'Seats taken', className: 'cell-xs' },
+            { key: 'e', label: '', className: 'cell-sm' },
+          ]}
+          empty="No session is limited by ticket yet."
+          rows={restricted.map((s) => [
+            <span key="t">
+              <strong>{s.title}</strong>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {s.format} · {s.day} {s.startsAtLocal.slice(11, 16)}
+              </div>
+            </span>,
+            joinNames(allowedFor(s.id) ?? []),
+            String(counts.get(s.id)?.taken ?? 0),
+            <span key="e">
+              <Link href={`?session=${encodeURIComponent(s.id)}`}>Edit</Link>
+              {' · '}
+              <Link href={`/attendees/session-cap?session=${encodeURIComponent(s.id)}`}>People</Link>
+            </span>,
+          ])}
+        />
+      </Panel>
+
+      <Panel>
         <h2 className="section-header">By session format</h2>
         <Table
           cols={[
             { key: 'f', label: 'Session format', className: 'cell-sm' },
-            { key: 'n', label: 'Sessions', className: 'cell-xs' },
+            { key: 'n', label: 'Sessions', className: 'cell-sm' },
             { key: 'w', label: 'Which tiers get in', className: 'cell-fill' },
           ]}
           empty="No sessions in the programme"
           rows={byFormat.map((f) => [
             <strong key="f">{f.format}</strong>,
             String(f.count),
-            f.restricted ? (
-              <span key="w">
-                {workshopTiers.length > 0 ? (
-                  workshopTiers.map((r) => r.tier.name).join(', ')
-                ) : (
-                  <span className="muted">no tier includes workshops</span>
-                )}
-              </span>
+            f.restricted === 0 ? (
+              <span key="w">Every ticket</span>
             ) : (
               <span key="w">
-                Every tier
+                {f.restricted} of {f.count} limited by ticket
               </span>
             ),
           ])}
@@ -244,8 +323,9 @@ export default async function TicketSessionMappingPage() {
       <Panel>
         <h2 className="section-header">Before you rely on this</h2>
         <p className="body-2" style={{ marginBottom: 0 }}>
-          The app does not block anyone from opening a workshop, so check tickets at the workshop
-          door. No session recordings are hosted yet
+          A limit applies from the next person who tries to add the session. People who already
+          hold a seat keep it; remove them in Session Cap. Everybody can still read a limited
+          session in the agenda. No session recordings are hosted yet
           {videoTiers.length > 0
             ? `, although ${videoTiers.length} ticket type${videoTiers.length === 1 ? '' : 's'} include the video library.`
             : '.'}
@@ -256,17 +336,13 @@ export default async function TicketSessionMappingPage() {
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>The matrix.</strong> A per-session or per-track grant list on the ticket type,
-            plus a UI to edit it. That is a <code>models.ts</code> change, a rules review — the app would have
-            to stop showing every attendee every session — and a decision about what an attendee
-            sees for a session they cannot attend: hidden entirely, or visible and locked. Whova
-            shows it locked, which is the better answer and the more expensive one.
+            <strong>Hiding a session from tickets it is not for.</strong> Rules filter documents
+            and the agenda is one query, so a limited session is visible and locked, not hidden.
+            That is also what Whova does.
           </li>
           <li>
-            <strong>Enforcement anywhere.</strong> Even with a matrix, rules filter documents and
-            the agenda is one query; per-ticket session visibility means either a projection per
-            tier or an entitlement check the client cannot be trusted to make.{' '}
-            <code>users/&#123;uid&#125;/entitlements</code> is modelled and nothing writes it.
+            <strong>Limits by track or by day.</strong> The list is per session. A whole track is
+            limited one session at a time, or with the workshop button.
           </li>
           <li>
             <strong>A video library to grant.</strong> No recording storage, no player, no{' '}
@@ -277,17 +353,6 @@ export default async function TicketSessionMappingPage() {
             <strong>Add-ons.</strong> Whova sells session access as a separate product on top of a
             ticket. Every tier here is all-or-nothing on workshops, and <code>OrderDoc.items</code>{' '}
             has lines for it but <code>ticketTypes</code> has no add-on to sell.
-          </li>
-          <li>
-            <strong>Anything writing the entitlement at fulfilment.</strong> Both booleans are now
-            editable on the ticket form in{' '}
-            <Link href={ROUTES.createTickets}>Ticket Setup</Link> — beside the price they justify,
-            and deliberately not here, because a second place to change them is a second place for
-            them to disagree. What is still missing is the other end: nothing writes{' '}
-            <code>users/&#123;uid&#125;/entitlements</code> when a ticket carrying one is sold. The
-            place for that is the fulfilment path in{' '}
-            <code>apps/web/src/lib/registrations.ts</code>, beside the registration it already
-            writes, so a refund withdraws both together.
           </li>
         </ul>
       </GapPanel>

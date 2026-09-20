@@ -8,6 +8,7 @@ import { countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, dayLabel, todayInEventZone } from '@/lib/time';
+import { eventTimeZone } from '@/lib/event';
 import { EmptyState, PageHeader, Panel, StatTiles, StatusTag, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -45,7 +46,7 @@ function stamp(iso: string): string {
 export default async function ReportPage() {
   await requireOrganizer();
 
-  const today = todayInEventZone();
+  const today = todayInEventZone(new Date(), await eventTimeZone());
   const [
     attendees,
     announcements,

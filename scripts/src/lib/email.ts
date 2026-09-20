@@ -827,6 +827,12 @@ export interface SubmissionDecisionInput {
   callTitle: string;
   title: string;
   accepted: boolean;
+  /**
+   * Set for a waiting-list decision, which is neither. `accepted` is then
+   * ignored. A flag beside the boolean rather than a three-way field so that
+   * every existing caller keeps meaning what it meant.
+   */
+  waitlisted?: boolean;
   /** The author's link back, so they can read their own submission beside the decision. */
   link: string;
   /**
@@ -866,6 +872,8 @@ export async function sendSubmissionDecision(
   input: SubmissionDecisionInput,
 ): Promise<void> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  if (input.waitlisted) return sendWaitlisted(store, input);
 
   const opening = input.accepted
     ? `we are delighted to say that <strong>“${esc(input.title)}”</strong> has been accepted for ${esc(input.callTitle)}.`
@@ -924,6 +932,210 @@ Knowledge Graph Conference 2027`;
     html,
     text,
     template: 'submission-decision',
+    actor: input.actor,
+  });
+}
+
+/**
+ * The waiting-list mail. Its own wording rather than a third branch through
+ * every ternary above, and the same log template, because to the author it is
+ * still "the decision".
+ *
+ * It promises nothing. A place may open or it may not, and the one thing it has
+ * to say clearly is that the author will hear either way.
+ */
+async function sendWaitlisted(store: Firestore, input: SubmissionDecisionInput): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const opening = `thank you for submitting “${input.title}” to ${input.callTitle}. It is on our waiting list.`;
+  const next =
+    'The reviewers rated it well and the programme is full for now. If a place opens we will offer it to you, and we will write to you either way before the programme is final.';
+  const paras = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    `About your abstract for ${esc(input.callTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${esc(opening)}</p>
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${next}</p>
+     ${
+       paras.length
+         ? `<div style="margin:20px 0 0;padding:14px 16px;background:#fafbfc;border:1px solid #e3e5e8;border-radius:4px;">
+         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6b7280;">From the committee</p>
+         ${paras
+           .map(
+             (para) =>
+               `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+           )
+           .join('')}
+       </div>`
+         : ''
+     }
+     ${button(input.link, 'Read your submission')}`,
+  );
+
+  const text = `${greeting} ${opening}
+
+${next}
+${paras.length ? `\nFrom the committee:\n${paras.join('\n\n')}\n` : ''}
+Read your submission:
+${input.link}
+
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: `Your submission to ${input.callTitle}`,
+    html,
+    text,
+    template: 'submission-decision',
+    actor: input.actor,
+  });
+}
+
+export interface ReviewerInvitationInput {
+  to: string;
+  name?: string;
+  /** The call they are being asked to review for, in the words on the public page. */
+  callTitle: string;
+  /** `/review/{token}`, freshly minted for this send. */
+  link: string;
+  /** How many submissions are waiting for them right now. Zero is allowed. */
+  assigned: number;
+  /** When reviews are wanted by, already formatted for a human. Optional. */
+  dueLabel?: string;
+  /** A paragraph from the chair, shown above the button. Plain text. */
+  note?: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The invitation to review, and every reminder after it.
+ *
+ * One template for both, because a reminder is the same mail sent again: each
+ * send carries a newly minted link (`reviewer-token.ts`), so the practical life
+ * of any one URL is "since the last nudge".
+ *
+ * Like the two submission mails it carries no unsubscribe link. It is sent to
+ * one named person by an organizer pressing a button, and it is not governed by
+ * the suppression list.
+ *
+ * ⚠️ It says what the link is: a bearer credential for other people's
+ * unpublished work. The reader has no other way to know not to forward it.
+ */
+export async function sendReviewerInvitation(
+  store: Firestore,
+  input: ReviewerInvitationInput,
+): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const waiting =
+    input.assigned === 0
+      ? 'Nothing has been assigned to you yet. Submissions will appear on your page as they are.'
+      : `${input.assigned} submission${input.assigned === 1 ? ' is' : 's are'} waiting for you.`;
+  const due = input.dueLabel ? ` Reviews are wanted by ${input.dueLabel}.` : '';
+
+  const noteParas = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    `Reviewing for ${esc(input.callTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} thank you for reviewing for <strong>${esc(input.callTitle)}</strong>.</p>
+     ${noteParas
+       .map(
+         (para) =>
+           `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+       )
+       .join('')}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(waiting)}${esc(due)}</p>
+     ${button(input.link, 'Open your review page')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       There is no account and no password. The link is your access, so please do not forward it:
+       anybody who has it can read the submissions assigned to you and score them in your name. If
+       you have a conflict of interest with a submission, say so on its page and it is taken off
+       your list. The link stops working after six months.
+     </p>`,
+  );
+
+  const text = `${greeting} thank you for reviewing for ${input.callTitle}.
+${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
+${waiting}${due}
+
+Open your review page:
+${input.link}
+
+There is no account and no password. The link is your access, so please do not
+forward it: anybody who has it can read the submissions assigned to you and
+score them in your name. If you have a conflict of interest with a submission,
+say so on its page and it is taken off your list. The link stops working after
+six months.
+
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: `Reviewing for ${input.callTitle}`,
+    html,
+    text,
+    template: 'reviewer-invitation',
+    actor: input.actor,
+  });
+}
+
+export interface TeamInvitationInput {
+  to: string;
+  name?: string;
+  /** What they will be able to open, already in words: "Finance, Check-in only". */
+  rolesLabel: string;
+  /** The dashboard's set-passphrase page, carrying a link that works once. */
+  link: string;
+  /** How long the link lasts, already formatted: "3 days". */
+  expiresLabel: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The invitation to the organizer dashboard, and every new link after it.
+ *
+ * One template for the first invitation and for a reset, because they are the
+ * same mail: a link that sets a passphrase once. No unsubscribe link, for the
+ * reason the reviewer invitation has none — one named person, one button press.
+ */
+export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  const html = shell(
+    'Your organizer dashboard access',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.</p>
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Your access: <strong>${esc(input.rolesLabel)}</strong>.</p>
+     ${button(input.link, 'Choose your passphrase')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       The link works once and expires in ${esc(input.expiresLabel)}. After that you sign in with
+       this email address and the passphrase you chose. Please do not forward it.
+     </p>`,
+  );
+
+  const text = `${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.
+
+Your access: ${input.rolesLabel}.
+
+Choose your passphrase:
+${input.link}
+
+The link works once and expires in ${input.expiresLabel}. After that you sign in
+with this email address and the passphrase you chose. Please do not forward it.
+
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: 'Your organizer dashboard access',
+    html,
+    text,
+    template: 'team-invitation',
     actor: input.actor,
   });
 }

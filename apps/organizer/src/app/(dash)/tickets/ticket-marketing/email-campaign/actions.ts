@@ -133,7 +133,7 @@ export async function sendCampaignAction(
     };
   }
 
-  if (!reauthenticate(passphrase)) {
+  if (!(await reauthenticate(passphrase))) {
     return { error: 'That passphrase is not correct. Nothing has been sent.', keep };
   }
 

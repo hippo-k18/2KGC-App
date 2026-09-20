@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { threadIdFor } from '@kgc/shared';
+import { groupSponsorsByTier, threadIdFor, tierName } from '@kgc/shared';
 
 import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
@@ -166,7 +166,7 @@ export default function PeopleScreen() {
   // Whova's "Bookmarked" chip. Real, because the bookmark itself is real.
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const { speakers, error: speakersError, retry: retrySpeakers } = useSpeakers();
-  const { sponsors, error: sponsorsError, retry: retrySponsors } = useSponsors();
+  const { sponsors, tiers, error: sponsorsError, retry: retrySponsors } = useSponsors();
   const { exhibitors, error: exhibitorsError, retry: retryExhibitors } = useExhibitors();
 
   // One segment is visible at a time, and each reads a different collection, so
@@ -235,10 +235,14 @@ export default function PeopleScreen() {
       };
     }
     if (segment === 2) {
-      return {
-        rows: visibleSponsors.map<Row>((s) => ({ kind: 'sponsor', key: s.id, sponsor: s })),
-        letterIndex: new Map<string, number>(),
-      };
+      // One band per tier, in the order and under the names the organizer set on
+      // the dashboard. The band is the attendee list's letter band, reused.
+      const out: Row[] = [];
+      for (const g of groupSponsorsByTier(tiers, visibleSponsors)) {
+        out.push({ kind: 'index', key: `tier-${g.tier.id}`, letter: g.tier.name });
+        for (const s of g.sponsors) out.push({ kind: 'sponsor', key: s.id, sponsor: s });
+      }
+      return { rows: out, letterIndex: new Map<string, number>() };
     }
     if (segment === 3) {
       return {
@@ -260,7 +264,7 @@ export default function PeopleScreen() {
       out.push({ kind: 'attendee', key: person.id, person });
     }
     return { rows: out, letterIndex: index };
-  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors, visibleExhibitors]);
+  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors, visibleExhibitors, tiers]);
 
   const count = rows.filter((r) => r.kind !== 'index').length;
 
@@ -483,7 +487,7 @@ export default function PeopleScreen() {
                   name={s.name}
                   logoURL={s.logoURL}
                   lines={[
-                    s.tier[0].toUpperCase() + s.tier.slice(1),
+                    tierName(tiers, s.tier),
                     s.boothLocation ? `Booth ${s.boothLocation}` : undefined,
                   ]}
                   tags={s.offers?.slice(0, 2) ?? []}

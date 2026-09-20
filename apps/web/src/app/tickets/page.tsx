@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { siteEvent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
@@ -187,6 +188,7 @@ export default async function TicketsPage({
 }: {
   searchParams: Promise<{ cancelled?: string }>;
 }) {
+  const ev = await siteEvent();
   const params = await searchParams;
 
   /**
@@ -210,7 +212,7 @@ export default async function TicketsPage({
         <header className={s.head}>
           <h1 className={s.h1}>Tickets</h1>
           <p className={s.orient}>
-            {SITE.datesLong} at {SITE.venueShort}.
+            {ev.datesLong} at {ev.venueShort}.
           </p>
 
           {params.cancelled && (
@@ -237,7 +239,7 @@ export default async function TicketsPage({
           </>
         ) : (
           <p className={s.empty}>
-            Ticket sales for {SITE.name} have not opened yet. Write to{' '}
+            Ticket sales for {ev.name} have not opened yet. Write to{' '}
             <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will tell you
             the moment they do.
           </p>

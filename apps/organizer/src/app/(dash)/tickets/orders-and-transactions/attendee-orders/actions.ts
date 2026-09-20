@@ -75,7 +75,7 @@ export async function refundOrderAction(
     };
   }
 
-  if (!reauthenticate(passphrase)) {
+  if (!(await reauthenticate(passphrase))) {
     return { error: 'That passphrase is not correct. Nothing has been refunded.' };
   }
 
@@ -203,7 +203,7 @@ export async function markInvoicePaidAction(
   const note = String(formData.get('note') ?? '').trim();
 
   if (!orderId) return { error: 'No order specified.' };
-  if (!reauthenticate(passphrase)) {
+  if (!(await reauthenticate(passphrase))) {
     return { error: 'That passphrase is not correct. Nothing has changed.' };
   }
   if (note.length < 3) {

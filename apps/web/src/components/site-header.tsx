@@ -21,7 +21,14 @@ import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
  * than the translucent white bar this used to be — the mark is white, so on white
  * it disappeared.
  */
-export function SiteHeader() {
+export function SiteHeader({
+  logoUrl,
+  eventName = 'Knowledge Graph Conference',
+}: {
+  /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
+  logoUrl?: string;
+  eventName?: string;
+} = {}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -86,19 +93,26 @@ export function SiteHeader() {
       */}
       <header className="site-header">
         <div className="wrap bar">
-          <Link href="/" className="logo" aria-label="Knowledge Graph Conference, home">
+          <Link href="/" className="logo" aria-label={`${eventName}, home`}>
             {/*
               Intrinsic size is the file's own 2048×763, so Next can reserve the
               right box; CSS takes it down to the header height. `priority`
               because it is the largest thing above the fold on every page.
             */}
-            <Image
-              src="/kgc/cropped-White-Wordmark-2.png"
-              alt="Knowledge Graph Conference"
-              width={2048}
-              height={763}
-              priority
-            />
+            {logoUrl ? (
+              // A logo saved on App Branding. A plain `img`: its host is not in
+              // `images.remotePatterns`, and `next/image` throws on one that is not.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={eventName} />
+            ) : (
+              <Image
+                src="/kgc/cropped-White-Wordmark-2.png"
+                alt="Knowledge Graph Conference"
+                width={2048}
+                height={763}
+                priority
+              />
+            )}
           </Link>
 
           <nav id="main-nav" aria-label="Main" className={open ? 'open' : undefined}>

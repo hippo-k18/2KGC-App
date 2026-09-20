@@ -15,13 +15,10 @@ import type { SponsorTier } from '@kgc/shared';
  * link. See that block for where the numbers come from.
  */
 
-/** Title case for the band heading. Tiers are stored lower case. */
-function tierLabel(tier: SponsorTier): string {
-  return tier[0].toUpperCase() + tier.slice(1);
-}
-
 export interface SponsorBand {
+  /** The tier's id. The heading is `name`, which an organizer can change. */
   tier: SponsorTier;
+  name: string;
   size: 1 | 2 | 3;
   sponsors: SponsorCard[];
 }
@@ -77,7 +74,7 @@ export function SponsorTiers({ bands }: { bands: SponsorBand[] }) {
       {bands.map((band) => (
         <section className="tier-band" key={band.tier} aria-labelledby={`tier-${band.tier}`}>
           <h3 className="tier-title" id={`tier-${band.tier}`}>
-            {tierLabel(band.tier)}
+            {band.name}
           </h3>
           <div className="logo-row">
             {band.sponsors.map((s) => (

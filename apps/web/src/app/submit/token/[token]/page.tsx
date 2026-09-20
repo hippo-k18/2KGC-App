@@ -93,7 +93,15 @@ export default async function SubmissionTokenPage({
           </p>
         )}
 
-        {own.decided && (
+        {own.decided === 'waitlisted' && (
+          <p className="notice" role="status">
+            <strong>This is on the waiting list.</strong> The programme is full for now. If a
+            place opens we will offer it to you, and we will write to you either way. It can no
+            longer be edited.
+          </p>
+        )}
+
+        {own.decided && own.decided !== 'waitlisted' && (
           <p className={`notice ${own.decided === 'accepted' ? '' : 'warn'}`} role="status">
             <strong>
               {own.decided === 'accepted'
@@ -147,7 +155,7 @@ export default async function SubmissionTokenPage({
           <ReadOnly own={own} />
         )}
 
-        {own.editable && own.status !== 'withdrawn' && (
+        {(own.editable || own.decided === 'waitlisted') && own.status !== 'withdrawn' && (
           <form action={withdrawAction} style={{ marginTop: 28 }}>
             <input type="hidden" name="token" value={token} />
             <details>

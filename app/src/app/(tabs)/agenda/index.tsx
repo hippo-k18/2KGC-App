@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { isGated } from '@kgc/shared';
+
 import { DECORATIVE } from '@/components/a11y';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -280,7 +282,16 @@ export default function AgendaScreen() {
           <AgendaRow
             session={item}
             saved={saved.has(item.id)}
-            onToggleSaved={() => toggle(item.id)}
+            onToggleSaved={() => {
+              // Adding a capped or ticket-restricted session can answer "full,
+              // join the waitlist" or "not for your ticket", and a row has
+              // nowhere to say that. The session screen does, so it opens.
+              if (isGated(item) && !saved.has(item.id)) {
+                router.push({ pathname: '/agenda/[id]', params: { id: item.id } });
+                return;
+              }
+              void toggle(item.id, item);
+            }}
             last={index === section.data.length - 1}
             onPress={() => router.push({ pathname: '/agenda/[id]', params: { id: item.id } })}
           />

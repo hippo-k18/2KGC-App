@@ -13,7 +13,8 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     String(formData.get('passphrase') ?? ''),
   );
   if (!result.ok) return { error: result.error };
-  redirect('/content/basics');
+  // Where their roles start: an owner on Basics, a check-in account on Check-in.
+  redirect(result.home);
 }
 
 export async function logoutAction(): Promise<void> {

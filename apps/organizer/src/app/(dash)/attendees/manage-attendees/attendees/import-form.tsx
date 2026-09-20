@@ -144,6 +144,10 @@ export function ImportForm() {
                 rows anyway and leave the rest
               </label>
             )}
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
+              <input type="checkbox" name="sendEmails" defaultChecked /> Email each new attendee
+              their confirmation and claim code
+            </label>
             <SubmitButton idle={`Import ${state.validCount} attendees`} busy="Importing…" />
           </form>
         </>

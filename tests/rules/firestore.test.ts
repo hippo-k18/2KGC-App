@@ -353,6 +353,12 @@ beforeEach(async () => {
     await setDoc(doc(db, 'settings/branding'), {
       eventId: 'kgc-2027', values: { tagline: 'The knowledge graph event of the year' },
     });
+    await setDoc(doc(db, 'settings/event'), {
+      eventId: 'kgc-2027', values: { name: 'Knowledge Graph Conference 2027' },
+    });
+    await setDoc(doc(db, 'settings/sponsorTiers'), {
+      eventId: 'kgc-2027', values: { tiers: [{ id: 'diamond', name: 'Diamond', size: 3 }] },
+    });
     // Thread id is the two uids sorted and joined with '_'. Both sides start
     // with something unread, so "you may not zero the OTHER person's badge" is
     // testable at all — from zero it is indistinguishable from leaving it alone.
@@ -1838,6 +1844,9 @@ describe('the money collections are closed to every client', () => {
     ['ticketTypes', 'main-conference'],
     ['emailLog', 'mail_1'],
     ['auditLog', 'audit_1'],
+    // Not money, but the same posture for a sharper reason: who may sign in to
+    // the dashboard, with what role, and the hash of their passphrase.
+    ['teamMembers', 'team_1'],
   ] as const;
 
   for (const [collectionName, id] of closed) {
@@ -2279,7 +2288,6 @@ describe('the emergency card', () => {
 
   it('refuses every other settings document to the same ticket holder', async () => {
     await assertFails(getDoc(doc(asA(), 'settings/access')));
-    await assertFails(getDoc(doc(asA(), 'settings/branding')));
     // Including an organizer, who is a client with a role and not a server. The
     // dashboard reads these with the Admin SDK and bypasses rules entirely.
     await assertFails(getDoc(doc(asOrg(), 'settings/access')));
@@ -2318,6 +2326,36 @@ describe('the emergency card', () => {
     await assertFails(updateDoc(doc(asOrg(), 'settings/logistics'), { values: { planReady: false } }));
     await assertFails(deleteDoc(doc(asOrg(), 'settings/logistics')));
     await assertFails(setDoc(doc(asOrg(), 'settings/access'), { eventId: 'kgc-2027', values: {} }));
+  });
+});
+
+describe('the public settings bags', () => {
+  // The brand colour and logo, the event's name and dates, and the sponsor tier
+  // names. All of it is printed on the public website, and the app paints its
+  // sign-in screen with it before anybody has a token, so these three keys are
+  // readable signed out. The predicate still names keys: `access` stays shut.
+
+  it('lets anybody read branding, event and sponsorTiers, signed in or not', async () => {
+    for (const key of ['branding', 'event', 'sponsorTiers']) {
+      await assertSucceeds(getDoc(doc(unauth(), `settings/${key}`)));
+      await assertSucceeds(getDoc(doc(noClaim(), `settings/${key}`)));
+      await assertSucceeds(getDoc(doc(asA(), `settings/${key}`)));
+    }
+  });
+
+  it('still refuses access and logistics to the signed-out reader it opened those three to', async () => {
+    await assertFails(getDoc(doc(unauth(), 'settings/access')));
+    await assertFails(getDoc(doc(unauth(), 'settings/logistics')));
+    await assertFails(getDoc(doc(noClaim(), 'settings/access')));
+    // A key nobody has written yet is not public by default either.
+    await assertFails(getDoc(doc(unauth(), 'settings/somethingNew')));
+  });
+
+  it('lets no client write them', async () => {
+    for (const key of ['branding', 'event', 'sponsorTiers']) {
+      await assertFails(setDoc(doc(asOrg(), `settings/${key}`), { eventId: 'kgc-2027', values: {} }));
+      await assertFails(deleteDoc(doc(asOrg(), `settings/${key}`)));
+    }
   });
 });
 

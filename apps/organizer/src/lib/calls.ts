@@ -11,6 +11,7 @@ import {
   type CallFormFieldDef,
   type CallFormVersion,
   type PublishStatus,
+  type RubricCriterionDef,
   type SessionFormat,
   type WithId,
 } from '@kgc/shared';
@@ -88,6 +89,8 @@ export interface CallRow {
   formVersion: number;
   priorVersions: { version: number; fields: CallFormFieldDef[] }[];
   blindReview: BlindReviewMode;
+  /** The scoring criteria, in the order reviewers are asked them. */
+  rubric: RubricCriterionDef[];
   reviewsPerSubmission: number;
   reminderDaysBefore: number[];
   notifyEmails: string[];
@@ -132,6 +135,7 @@ function toRow(id: string, c: CallDoc): CallRow {
     formVersion: c.formVersion ?? 1,
     priorVersions: (c.priorVersions ?? []).map((v) => ({ version: v.version, fields: v.fields })),
     blindReview: c.blindReview ?? 'single-blind',
+    rubric: [...(c.rubric ?? [])].sort((a, b) => a.order - b.order),
     reviewsPerSubmission: c.reviewsPerSubmission ?? 3,
     reminderDaysBefore: c.reminderDaysBefore ?? [],
     notifyEmails: c.notifyEmails ?? [],

@@ -66,7 +66,11 @@ export default defineConfig({
             },
           ],
         },
-        test: { ...shared, name: 'cfa-organizer', include: ['tests/cfa/organizer.test.ts'] },
+        test: {
+          ...shared,
+          name: 'cfa-organizer',
+          include: ['tests/cfa/organizer.test.ts', 'tests/cfa/review.test.ts'],
+        },
       },
     ],
   },

@@ -3,6 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listQaSessions } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, todayInEventZone } from '@/lib/time';
+import { eventTimeZone } from '@/lib/event';
 import { EmptyState, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export const dynamic = 'force-dynamic';
 export default async function ModerateSessionQandAPage() {
   await requireOrganizer();
   const { sessions, questions } = await listQaSessions();
-  const today = todayInEventZone();
+  const today = todayInEventZone(new Date(), await eventTimeZone());
 
   const pending = questions.filter((q) => q.state === 'pending').length;
   const hidden = questions.filter((q) => q.state === 'hidden').length;

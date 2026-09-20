@@ -6,7 +6,7 @@ import { webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
-import { Brand, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
+import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Avatar inside the profile pill. Smaller than a list row's 44pt one. */
@@ -258,7 +258,7 @@ function HeaderTitleButton({
             paddingHorizontal: Spacing.sm,
             paddingVertical: 1,
             borderRadius: Radius.pill,
-            backgroundColor: Brand.blueDark,
+            backgroundColor: colors.headerDeep,
           }}>
           <Text variant="caption" style={{ fontWeight: '600', color: colors.onHeader }}>
             {badge}
@@ -274,12 +274,10 @@ function HeaderTitleButton({
  * person, tap to change" affordance, and the only place the app shows the
  * signed-in user's face.
  *
- * The capsule fill is `Brand.blueDark` rather than a `useTheme()` colour on
- * purpose. The header is the one surface that is deliberately scheme-invariant
- * (`theme.ts`: "Held at Whova's blue in dark too — the header is the brand"), so
- * a fill that shifted with the scheme would be the thing that looked wrong, and
- * there is no `onHeaderMuted` token to reach for. It is a named brand token, not
- * a hex literal at the call site.
+ * The capsule fill is `headerDeep`: `Brand.blueDark` in both schemes, because
+ * the header is deliberately scheme-invariant (`theme.ts`: "Held at Whova's blue
+ * in dark too — the header is the brand"), and the darker step of the
+ * organizer's brand colour once one is saved on the dashboard.
  *
  * The avatar itself is `DECORATIVE` inside `Avatar`; the whole pill carries one
  * label instead, so VoiceOver says "Thomas Deely, profile" once rather than
@@ -315,7 +313,7 @@ function ProfilePill({
         padding: PILL_PADDING,
         paddingRight: Spacing.xs,
         borderRadius: Radius.pill,
-        backgroundColor: Brand.blueDark,
+        backgroundColor: colors.headerDeep,
         opacity: pressed ? 0.7 : 1,
       })}>
       <Avatar name={name} photoURL={photoURL} size={PILL_AVATAR} />

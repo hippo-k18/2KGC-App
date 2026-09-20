@@ -2,7 +2,7 @@ import { Linking, Pressable, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { doc } from 'firebase/firestore';
 
-import { COLLECTIONS, type SponsorDoc, type WithId } from '@kgc/shared';
+import { COLLECTIONS, tierName, type SponsorDoc, type WithId } from '@kgc/shared';
 
 import { SponsorLogo } from '@/components/sponsor-logo';
 import { DataError } from '@/components/data-error';
@@ -13,6 +13,7 @@ import { SkeletonBlock, SkeletonScreen } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
@@ -45,6 +46,7 @@ const BUTTON_HEIGHT = 50;
 export default function SponsorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
+  const { tiers } = useEventSettings();
 
   const {
     data: sponsor,
@@ -105,7 +107,7 @@ export default function SponsorScreen() {
     );
   }
 
-  const tier = sponsor.tier[0].toUpperCase() + sponsor.tier.slice(1);
+  const tier = tierName(tiers, sponsor.tier);
 
   return (
     <>

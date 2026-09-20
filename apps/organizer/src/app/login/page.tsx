@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { EVENT } from '@kgc/shared';
-import { currentSession, requirePassphrase } from '@/lib/auth';
+import { currentAccess, requirePassphrase } from '@/lib/auth';
+import { homeFor } from '@/lib/team-core';
 import { LoginForm } from './login-form';
 import { targetLabel } from '@/lib/firestore';
 import { gapNotesVisible } from '@/lib/gap-notes';
@@ -8,7 +9,8 @@ import { gapNotesVisible } from '@/lib/gap-notes';
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage() {
-  if (await currentSession()) redirect('/content/basics');
+  const access = await currentAccess();
+  if (access) redirect(homeFor(access.roles));
 
   return (
     <div className="login-shell">

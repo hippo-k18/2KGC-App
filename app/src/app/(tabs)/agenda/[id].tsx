@@ -34,6 +34,7 @@ import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDayTab, formatTime } from '@/lib/data/sessions';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
+import { useSessionSeat } from '@/lib/data/session-seats';
 import { refreshCredentials } from '@/lib/data/errors';
 import { getDb } from '@/lib/firebase/client';
 
@@ -288,6 +289,11 @@ export default function SessionDetailScreen() {
   const [error, setError] = useState<Error | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [choosingCalendar, setChoosingCalendar] = useState(false);
+  // A capped or ticket-restricted session: the count, the caller's own place,
+  // and whatever the last press was refused with.
+  const seat = useSessionSeat(session);
+  const [seatMessage, setSeatMessage] = useState<string | null>(null);
+  const [seatBusy, setSeatBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -440,7 +446,23 @@ export default function SessionDetailScreen() {
     );
   }
 
-  const saved = isSaved(session.id);
+  // With a cap or a ticket list, being in the agenda means holding a place. A
+  // bookmark from before the session was capped does not count as one.
+  const saved = seat.gated ? seat.mine !== null : isSaved(session.id);
+  const seated = seat.gated ? seat.mine === 'seated' : saved;
+  const onToggle = async () => {
+    if (!seat.gated) {
+      void toggle(session.id, session);
+      return;
+    }
+    if (seatBusy) return;
+    setSeatBusy(true);
+    setSeatMessage(null);
+    const result = await toggle(session.id, session);
+    // A waitlist place is not a refusal; the lines under the button say it.
+    setSeatMessage(result.ok ? null : result.message);
+    setSeatBusy(false);
+  };
   const accent = session.primaryTrackColor ?? colors.tint;
 
   return (
@@ -476,10 +498,13 @@ export default function SessionDetailScreen() {
           different features to anyone who has not written the code.
         */}
         <Pressable
-          onPress={() => toggle(session.id)}
+          onPress={onToggle}
+          disabled={seatBusy || (seat.gated && !seat.ready)}
           accessibilityRole="button"
-          accessibilityState={{ selected: saved }}
-          accessibilityLabel={saved ? 'Remove from my agenda' : 'Add to my agenda'}
+          accessibilityState={{ selected: saved, busy: seatBusy }}
+          accessibilityLabel={
+            seat.gated ? seat.buttonLabel : saved ? 'Remove from my agenda' : 'Add to my agenda'
+          }
           style={({ pressed }) => ({
             backgroundColor: saved ? colors.surface : colors.accent,
             borderWidth: 1,
@@ -489,19 +514,27 @@ export default function SessionDetailScreen() {
             alignItems: 'center',
             minHeight: HIT_TARGET,
             justifyContent: 'center',
-            opacity: pressed ? 0.8 : 1,
+            opacity: pressed || seatBusy ? 0.8 : 1,
           })}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
             <Icon
-              name={saved ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
+              name={seated ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
               size={20}
               color={saved ? colors.tint : colors.onAccent}
             />
             <Text variant="heading" tone={saved ? 'tint' : 'onAccent'}>
-              {saved ? 'In My Agenda' : 'Add to Agenda'}
+              {seat.gated ? seat.buttonLabel : saved ? 'In My Agenda' : 'Add to Agenda'}
             </Text>
           </View>
         </Pressable>
+
+        {seat.gated && (seat.seatLine || seat.mySeatLine || seatMessage) ? (
+          <View style={{ gap: Spacing.xs }}>
+            {seatMessage ? <Text tone="danger">{seatMessage}</Text> : null}
+            {seat.mySeatLine ? <Text>{seat.mySeatLine}</Text> : null}
+            {seat.seatLine ? <Text tone="secondary">{seat.seatLine}</Text> : null}
+          </View>
+        ) : null}
 
         {/*
           A *different* feature from the button above, and drawn so it reads that

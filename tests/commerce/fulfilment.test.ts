@@ -19,7 +19,7 @@
  *
  * Run with: npm run test:commerce
  */
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { cert, deleteApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore';
@@ -157,6 +157,49 @@ describe('ensureRegistration', () => {
     expect(after.claimCode).toBe(result.claimCode);
     // The badge secret it already had is untouched.
     expect(after.qrSecret).toBe('kept');
+  });
+});
+
+describe('the ticket rule sets a category at registration', () => {
+  const bag = () => db.collection(COLLECTIONS.settings).doc('attendeeCategories');
+  const read = async (email: string) =>
+    (await db.collection(COLLECTIONS.registrations).doc(registrationId(email)).get()).data() as RegistrationDoc;
+
+  beforeEach(async () => {
+    await bag().set({
+      eventId: EVENT_ID,
+      key: 'attendeeCategories',
+      values: {
+        categories: [{ id: 'vip', name: 'VIP', color: 'red' }],
+        ticketRules: [{ ticketType: 'All Access (VIP)', categoryId: 'vip' }],
+      },
+    });
+  });
+  afterEach(() => bag().delete());
+
+  it('labels a buyer of the mapped ticket type and leaves everyone else unlabelled', async () => {
+    await ensureRegistration(db, { ...buyer, ticketType: 'all access (vip) ' });
+    await ensureRegistration(db, { email: 'plain@example.com', name: 'Plain', ticketType: 'Main Conference' });
+
+    expect(await read(buyer.email)).toMatchObject({ categoryId: 'vip', category: 'VIP', categorySource: 'ticket' });
+    expect((await read('plain@example.com')).categoryId).toBeUndefined();
+  });
+
+  it('follows an upgrade, because the first category came from a rule too', async () => {
+    await ensureRegistration(db, buyer);
+    await ensureRegistration(db, { ...buyer, ticketType: 'All Access (VIP)' });
+    expect((await read(buyer.email)).categoryId).toBe('vip');
+  });
+
+  it('never overrides a category an organizer set by hand', async () => {
+    await ensureRegistration(db, buyer);
+    await db
+      .collection(COLLECTIONS.registrations)
+      .doc(registrationId(buyer.email))
+      .update({ categoryId: 'press', category: 'Press', categorySource: 'manual' });
+
+    await ensureRegistration(db, { ...buyer, ticketType: 'All Access (VIP)' });
+    expect(await read(buyer.email)).toMatchObject({ categoryId: 'press', categorySource: 'manual' });
   });
 });
 

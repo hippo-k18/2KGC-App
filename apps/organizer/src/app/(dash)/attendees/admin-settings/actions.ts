@@ -1,8 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizer } from '@/lib/auth';
+import { isAllowed, requireOrganizer, requireOwner } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
+import { inviteMember, removeMember, sendNewLink, setMemberRoles } from '@/lib/team';
+import { parseRoles } from '@/lib/team-core';
 
 export interface AdminSettingsState {
   ok?: boolean;
@@ -51,4 +53,66 @@ export async function saveAdminSettingsAction(
     // AGENTS.md says this codebase keeps repeating.
     message: 'Saved. Recorded and audited, no client enforces these yet.',
   };
+}
+
+// ---------------------------------------------------------------------------
+// The team
+// ---------------------------------------------------------------------------
+
+export interface TeamState {
+  ok?: boolean;
+  message?: string;
+  error?: string;
+  /** The set-passphrase link, shown once so an owner can pass it on by hand. */
+  link?: string;
+}
+
+const PATH = '/attendees/admin-settings';
+
+/**
+ * `owner` is not on offer. Owners are the addresses configured on the server,
+ * which is what keeps a way back in if this list is ever emptied or wrong, and
+ * an invited owner could remove the person who invited them.
+ */
+const grantable = (formData: FormData) =>
+  parseRoles(formData.getAll('roles')).filter((r) => r !== 'owner');
+
+export async function inviteMemberAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
+  const actor = await requireOwner();
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  if (isAllowed(email)) return { error: `${email} is already an owner.` };
+
+  const res = await inviteMember({
+    email,
+    name: String(formData.get('name') ?? ''),
+    roles: grantable(formData),
+    actor,
+  });
+  revalidatePath(PATH);
+  return res.ok ? { ok: true, message: res.message, link: res.link } : { error: res.error };
+}
+
+export async function setRolesAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
+  const actor = await requireOwner();
+  const res = await setMemberRoles({
+    memberId: String(formData.get('memberId') ?? ''),
+    roles: grantable(formData),
+    actor,
+  });
+  revalidatePath(PATH);
+  return res.ok ? { ok: true, message: res.message } : { error: res.error };
+}
+
+export async function newLinkAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
+  const actor = await requireOwner();
+  const res = await sendNewLink({ memberId: String(formData.get('memberId') ?? ''), actor });
+  revalidatePath(PATH);
+  return res.ok ? { ok: true, message: res.message, link: res.link } : { error: res.error };
+}
+
+export async function removeMemberAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
+  const actor = await requireOwner();
+  const res = await removeMember({ memberId: String(formData.get('memberId') ?? ''), actor });
+  revalidatePath(PATH);
+  return res.ok ? { ok: true, message: res.message } : { error: res.error };
 }

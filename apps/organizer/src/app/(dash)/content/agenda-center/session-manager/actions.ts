@@ -2,18 +2,20 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, TIME_ZONE, type SessionDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type SessionDoc } from '@kgc/shared';
 import { sessionId as deriveSessionId, stableGuid } from '@kgc/scripts/src/lib/ids';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit, diff } from '@/lib/audit';
 import { db } from '@/lib/firestore';
 import { listRooms, listSpeakerOptions, listTrackOptions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
+import { eventTimeZone } from '@/lib/event';
 import { deriveTimes } from '@/lib/time';
 import { readCsvUpload, type ProgrammeImportState } from '@/lib/csv-import';
 import { commitSessionImport, previewSessionCsv, type SessionImportOutcome } from './import';
 import { recordError } from '@/lib/errors';
 import { roomChangePush } from '@/lib/push';
+import { setSessionCap } from '@/lib/session-seats';
 import {
   parseSessionForm,
   primaryTrackFor,
@@ -52,7 +54,7 @@ export interface SessionState {
  *     `day` follow from it through the single `deriveTimes()` in
  *     `scripts/src/lib/time.ts` that the seed and the Whova importer also call.
  *     Create goes through exactly the same function as edit — the only
- *     difference is where the zone comes from (`TIME_ZONE` for a new session,
+ *     difference is where the zone comes from (Content > Basics for a new session,
  *     the stored `timeZone` for an existing one), because a session authored in
  *     one zone must not silently move when the event default changes. A 21:00
  *     reception is 01:00 UTC the next day, and deriving `day` anywhere else puts
@@ -240,7 +242,7 @@ export async function createSessionAction(
      * start — so `startsAt`, `endsAt` and `day` below cannot be anything but its
      * output, and the form has no way to supply them.
      */
-    const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, TIME_ZONE);
+    const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, await eventTimeZone());
     const docId = deriveSessionId(input.title, times.startsAtLocal);
     const ref = db().collection(COLLECTIONS.sessions).doc(docId);
 
@@ -474,6 +476,12 @@ export async function saveSessionAction(
       before: outcome.readable.before,
       after: outcome.readable.after,
     });
+
+    // A raised cap lets the front of the waitlist in. Same write Session Cap
+    // makes, so the two screens cannot treat a waitlist differently.
+    if (outcome.readable.changed.includes('capacity')) {
+      await setSessionCap(sessionDocId, input.capacity ?? null, actor);
+    }
 
     let pushNote: string | undefined;
     if (outcome.roomChanged) {

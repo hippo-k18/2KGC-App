@@ -9,6 +9,7 @@ import {
 } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, todayInEventZone } from '@/lib/time';
+import { eventTimeZone } from '@/lib/event';
 import {
   Banner,
   DetailList,
@@ -394,7 +395,7 @@ export default async function SessionManagerPage({
    * dashboard rendered on a UTC host would otherwise offer tomorrow's date to an
    * organizer sitting in New York at 8pm.
    */
-  const today = todayInEventZone();
+  const today = todayInEventZone(new Date(), await eventTimeZone());
 
   const qs = (d: string) => `${ROUTES.sessionManager}?day=${d}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
 

@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
-import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { AVATAR_SIZE, HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -177,6 +177,7 @@ export default function MessagesScreen() {
  */
 function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
   const colors = useTheme();
+  const { event } = useEventSettings();
 
   return (
     <View
@@ -198,7 +199,7 @@ function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
           New messages only appear here, in the app.
         </Text>
         <Text variant="subhead" style={{ color: colors.onBanner }}>
-          {EVENT.shortName} does not send push notifications yet, so check
+          {event.shortName} does not send push notifications yet, so check
           Messages between sessions.
         </Text>
         <Pressable
@@ -239,6 +240,7 @@ function ThreadRow({
   last?: boolean;
 }) {
   const colors = useTheme();
+  const { event } = useEventSettings();
   const when = formatThreadDate(at);
   const body = preview ?? 'No messages yet';
 
@@ -247,7 +249,7 @@ function ThreadRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={
-        `${name}${unread ? `, ${unread} unread` : ''}, via ${EVENT.name}` +
+        `${name}${unread ? `, ${unread} unread` : ''}, via ${event.name}` +
         `, ${body}${when ? `, ${when}` : ''}`
       }
       style={({ pressed }) => ({
@@ -310,7 +312,7 @@ function ThreadRow({
           {/* Whova's "via <event>" line. Every conversation here is event-scoped,
               so it is uniformly true rather than a distinction between sources. */}
           <Text variant="caption" tone="tint" numberOfLines={1}>
-            via {EVENT.name}
+            via {event.name}
           </Text>
 
           <Text

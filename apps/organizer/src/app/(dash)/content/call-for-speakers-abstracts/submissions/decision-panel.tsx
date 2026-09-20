@@ -12,7 +12,7 @@ import {
 import { decideAction } from './actions';
 
 /**
- * Accept or reject one abstract.
+ * Accept, waitlist or reject one abstract.
  *
  * ── Two submits, one form ──────────────────────────────────────────────────
  *
@@ -77,6 +77,9 @@ export function DecisionPanel({
       <FormActions>
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">
           {decided ? 'Change to accepted' : 'Accept'}
+        </SubmitButton>
+        <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
+          {decided ? 'Change to waitlisted' : 'Waitlist'}
         </SubmitButton>
         <SubmitButton name="verdict" value="reject" variant="danger" pendingLabel="Recording…">
           {decided ? 'Change to rejected' : 'Reject'}

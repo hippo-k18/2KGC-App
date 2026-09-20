@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { agendaSpeakers, brandingSettings, listAgenda, listTracks, type AgendaDay } from '@/lib/data';
+import { agendaSpeakers, brandingSettings, listAgenda, listTracks, type AgendaDay, siteEvent } from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { formatDayHeading, SITE } from '@/lib/site';
@@ -65,6 +65,7 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const ev = await siteEvent();
   const params = await searchParams;
   const dayParam = firstValue(params.day);
   const trackParam = firstValue(params.track);
@@ -128,6 +129,7 @@ export default async function AgendaPage({
       pageUrl: `${canonicalOrigin()}/agenda`,
       agenda: allDays,
       tiers: tiers ?? [],
+      event: ev,
       description: branding.tagline || SITE.tagline,
       includeSessions: true,
     }),
@@ -139,11 +141,11 @@ export default async function AgendaPage({
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ld }} />
       )}
       <div className="wrap">
-        <p className="eyebrow">{SITE.datesLong}</p>
+        <p className="eyebrow">{ev.datesLong}</p>
         <h1>Agenda</h1>
         <p className="lede">
-          {total} published sessions across {allDays.length} days at {SITE.venue}. All times are
-          local to the venue ({SITE.timeZone.replace('_', ' ')}). The programme firms up through the
+          {total} published sessions across {allDays.length} days at {ev.venue}. All times are
+          local to the venue ({ev.timeZone.replace('_', ' ')}). The programme firms up through the
           spring; the <Link href="/tickets">KGC app</Link> keeps your own schedule in sync.
         </p>
 

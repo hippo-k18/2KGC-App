@@ -124,6 +124,12 @@ export interface Badge {
   qrSecret: string;
   name: string;
   ticketType: string | null;
+  /**
+   * The organizer's label, such as Speaker or Press. The name is copied onto the
+   * registration because a phone cannot read the category list. Absent on a
+   * badge cached before categories existed, so read it with `?? null`.
+   */
+  category?: string | null;
   /** Printed on the badge as the human fallback when a screen or reader fails. */
   claimCode: string | null;
   status: RegistrationDoc['status'];
@@ -281,6 +287,7 @@ export function useBadge(): BadgeResult {
       qrSecret: d.qrSecret,
       name: d.name ?? d.email,
       ticketType: d.ticketType ?? null,
+      category: d.category ?? null,
       claimCode: d.claimCode ?? null,
       status: d.status,
     }),

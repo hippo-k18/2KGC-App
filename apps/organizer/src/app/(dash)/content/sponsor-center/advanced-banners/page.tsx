@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listSponsors, TIER_ORDER } from '@/lib/data';
+import { tierName } from '@kgc/shared';
+import { listSponsors } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { publicUrl } from '@/lib/webpages';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
@@ -34,17 +36,13 @@ export const dynamic = 'force-dynamic';
  * and it is the order the website already uses.
  */
 
-/**
- * The size weights: Platinum 3, Gold 2, Silver 1, Bronze 1. Written down rather
- * than guessed at each call site, because a rotation that treats a platinum
- * sponsor as a bronze one is a refund conversation.
- */
-const WEIGHT: Record<string, number> = { platinum: 3, gold: 2, silver: 1, bronze: 1 };
 
 export default async function AdvancedBannersPage() {
   await requireOrganizer();
 
-  const sponsors = await listSponsors();
+  const [sponsors, tiers] = await Promise.all([listSponsors(), sponsorTiers()]);
+  /** The logo size each tier was given on Sponsor Tiering. */
+  const WEIGHT: Record<string, number> = Object.fromEntries(tiers.map((t) => [t.id, t.size]));
 
   const withLogo = sponsors.filter((s) => s.hasLogo);
   const withoutLogo = sponsors.filter((s) => !s.hasLogo);
@@ -60,7 +58,7 @@ export default async function AdvancedBannersPage() {
    */
   const totalWeight = withLogo.reduce((n, s) => n + (WEIGHT[s.tier] ?? 1), 0);
 
-  const byTier = TIER_ORDER.map((tier) => {
+  const byTier = tiers.map(({ id: tier }) => {
     const inTier = sponsors.filter((s) => s.tier === tier);
     const shown = inTier.filter((s) => s.hasLogo);
     return {
@@ -129,8 +127,8 @@ export default async function AdvancedBannersPage() {
             { key: 's', label: 'Share of impressions', className: 'cell-fill' },
           ]}
           rows={byTier.map((r) => [
-            <Tag key="t" small color={r.tier === 'platinum' ? 'purple' : 'blue'}>
-              {r.tier}
+            <Tag key="t" small color={r.tier === tiers[0]?.id ? 'purple' : 'blue'}>
+              {tierName(tiers, r.tier)}
             </Tag>,
             r.weight,
             <span key="n">
@@ -179,8 +177,8 @@ export default async function AdvancedBannersPage() {
                 {s.website ?? 'no link'}
               </div>
             </div>,
-            <Tag key="t" small color={s.tier === 'platinum' ? 'purple' : 'blue'}>
-              {s.tier}
+            <Tag key="t" small color={s.tier === tiers[0]?.id ? 'purple' : 'blue'}>
+              {tierName(tiers, s.tier)}
             </Tag>,
             !s.hasLogo ? (
               <span key="s" style={{ color: 'var(--danger)', fontSize: 12 }}>

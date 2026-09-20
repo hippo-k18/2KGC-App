@@ -1,8 +1,7 @@
 import { ANNOUNCEMENT_WALL_LIMIT } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listAnnouncements } from '@/lib/data';
-import { SITE } from '@/lib/site';
+import { listAnnouncements, siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Announcements',
@@ -55,11 +54,10 @@ export const dynamic = 'force-dynamic';
  * Formatted in the **venue's** zone, not the server's and not the reader's, for
  * the reason the agenda page's header gives at length: a time rendered in
  * whatever zone the machine happens to be in is how somebody reads "the keynote
- * moved to 14:00" and turns up five hours late. `SITE.timeZone` comes from
- * `@kgc/shared`, so this and the programme cannot disagree about where the
- * conference is.
+ * moved to 14:00" and turns up five hours late. The zone is the one saved on
+ * Content > Basics (`siteEvent()`), the same one the programme is authored in.
  */
-function announcedAt(ms: number): string {
+function announcedAt(ms: number, timeZone: string): string {
   if (!ms) return '';
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
@@ -68,13 +66,14 @@ function announcedAt(ms: number): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: SITE.timeZone,
+    timeZone,
   })
     .format(new Date(ms))
     .replace(', ', ' · ');
 }
 
 export default async function AnnouncementsPage() {
+  const ev = await siteEvent();
   /*
    * The wall limit, not the default 3 — see `ANNOUNCEMENT_WALL_LIMIT` in
    * `@kgc/shared` for why the archive wants a different number from the ticker.
@@ -89,7 +88,7 @@ export default async function AnnouncementsPage() {
       <div className="wrap">
         <header className="wall-head">
           <p className="wall-eyebrow">
-            {SITE.shortName} {SITE.year} · {SITE.datesLong}
+            {ev.shortName} {ev.year} · {ev.datesLong}
           </p>
           <h1>Announcements</h1>
           <p className="wall-sub">
@@ -108,7 +107,7 @@ export default async function AnnouncementsPage() {
           <div className="wall-empty">
             <p>No announcements yet.</p>
             <p className="wall-sub">
-              Notices posted during {SITE.shortName} appear here, and on the phone of everyone with
+              Notices posted during {ev.shortName} appear here, and on the phone of everyone with
               the app.
             </p>
           </div>
@@ -124,7 +123,7 @@ export default async function AnnouncementsPage() {
               <li className={i === 0 ? 'wall-item latest' : 'wall-item'} key={a.id}>
                 <p className="wall-when">
                   {i === 0 && <span className="wall-badge">Latest</span>}
-                  {announcedAt(a.createdAtMs)}
+                  {announcedAt(a.createdAtMs, ev.timeZone)}
                 </p>
                 <h2>{a.title}</h2>
                 {a.body && <p className="wall-body">{a.body}</p>}

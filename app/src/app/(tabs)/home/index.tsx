@@ -10,7 +10,7 @@ import { SectionCard } from '@/components/section-card';
 import { SessionCard } from '@/components/session-card';
 import { Text } from '@/components/text';
 import { WhovaHeader } from '@/components/whova-header';
-import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -321,14 +321,21 @@ export default function HomeScreen() {
  * scheme-invariant white — the same reasoning that has `whova-header.tsx` reach
  * for `Brand.blueDark` instead of a themed fill.
  */
-function EventBanner({ dateRange }: { dateRange: string }) {
+function EventBanner({ dateRange: agendaDates }: { dateRange: string }) {
   const colors = useTheme();
+  const { event, branding } = useEventSettings();
+  // The dates saved on the dashboard lead. The agenda's own span is the older
+  // source and still answers while the settings document is on its way.
+  const dateRange = event.datesSaved ? event.datesShort : agendaDates || event.datesShort;
 
   return (
     <View style={{ backgroundColor: colors.surface }}>
       <View>
+        {/* The banner saved on the dashboard's App Branding, else the built-in picture. */}
         <Image
-          source={require('@/assets/images/hero-kgc.png')}
+          source={
+            branding.bannerUrl ? { uri: branding.bannerUrl } : require('@/assets/images/hero-kgc.png')
+          }
           style={{ width: '100%', height: HERO_HEIGHT }}
           resizeMode="cover"
           {...DECORATIVE}
@@ -344,7 +351,9 @@ function EventBanner({ dateRange }: { dateRange: string }) {
             backgroundColor: colors.onHeader,
           }}>
           <Image
-            source={require('@/assets/images/kgc-logo.png')}
+            source={
+              branding.logoUrl ? { uri: branding.logoUrl } : require('@/assets/images/kgc-logo.png')
+            }
             style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }}
             resizeMode="contain"
             // The name is spelled out in live text immediately below, so the
@@ -362,10 +371,10 @@ function EventBanner({ dateRange }: { dateRange: string }) {
       */}
       <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 2 }}>
         <Text variant="title2" accessibilityRole="header">
-          {EVENT.name}
+          {event.name}
         </Text>
         <Text variant="subhead" tone="secondary">
-          {EVENT.venue}
+          {event.venue}
         </Text>
         {dateRange ? (
           <Text variant="subhead" tone="secondary">

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { siteEvent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -51,6 +52,7 @@ export default async function CheckoutPage({
 }: {
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
+  const ev = await siteEvent();
   const params = await searchParams;
 
   const [catalogue, form] = await Promise.all([tiersOrNull(), activeForm('attendee')]);
@@ -81,7 +83,7 @@ export default async function CheckoutPage({
           <div className="checkout checkout-closed">
             <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
             <p className="notice warn">
-              Ticket sales for {SITE.name} have not opened. Everything else on this site is
+              Ticket sales for {ev.name} have not opened. Everything else on this site is
               current.
             </p>
             <p>

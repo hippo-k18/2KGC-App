@@ -71,9 +71,9 @@ export function fromWallClock(local: string, timeZone: string = TIME_ZONE): Time
 }
 
 /** `YYYY-MM-DD` for "today" in the event's zone — not the server's. */
-export function todayInEventZone(now: Date = new Date()): string {
+export function todayInEventZone(now: Date = new Date(), timeZone: string = TIME_ZONE): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE,
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

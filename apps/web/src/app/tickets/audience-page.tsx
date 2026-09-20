@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { tiersOrNull } from '@/lib/catalogue';
+import { siteEvent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import type { TicketId } from '@/lib/tickets';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -60,6 +61,7 @@ export async function AudienceTicketsPage({
   copy: AudiencePageCopy;
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
+  const ev = await siteEvent();
   const params = await searchParams;
   const [catalogue, form] = await Promise.all([
     tiersOrNull(copy.audience),
@@ -77,10 +79,10 @@ export async function AudienceTicketsPage({
     <>
       <section className="band band-navy">
         <div className="wrap">
-          <p className="kicker">{SITE.shortName} {SITE.year}</p>
+          <p className="kicker">{ev.shortName} {ev.year}</p>
           <h1>{copy.heading}</h1>
           <p className="when">
-            {SITE.datesLong} | {SITE.venueShort}
+            {ev.datesLong} | {ev.venueShort}
           </p>
           <p className="lede" style={{ maxWidth: '46rem' }}>
             {copy.lede}

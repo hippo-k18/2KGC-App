@@ -1,26 +1,27 @@
 import Link from 'next/link';
 import { COLLECTIONS, EVENT, EVENT_ID } from '@kgc/shared';
+import { eventBasics } from '@/lib/event';
+import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
 import { targetLabel } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
+import { BasicsForm } from './basics-form';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Content > Basics.
  *
- * Read-only, and the reason is on the page rather than only in this comment:
- * the event's identity lives in `packages/shared/src/event.ts` as compile-time
- * constants shared by the Expo app, the seed script, the CSV importer and this
- * dashboard, precisely so the four cannot drift.
+ * The event's name, dates, time zone, venue and type are `settings/event`,
+ * edited in the form below. The constants in `packages/shared/src/event.ts` are
+ * the fallback for anything left empty, so the masthead, the website and the
+ * app show what they always did until somebody saves.
  *
- * `TIME_ZONE` in particular is what `day` is derived from on every session.
- * Making it editable from a web form would mean a write that silently
- * invalidates every derived day key and moves sessions onto the wrong tab on a
- * thousand phones. That is a migration, not a text input, so the page has no
- * Save button and says it is read-only.
+ * The time zone is the one field with consequences beyond a label: session
+ * times are wall clock in it. `actions.ts` explains what a change does and
+ * does not move.
  */
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -38,7 +39,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default async function BasicsPage() {
   await requireOrganizer();
 
-  const [sessions, attendees, speakers, sponsors, tracks, registrations] = await Promise.all([
+  const [saved, basics, sessions, attendees, speakers, sponsors, tracks, registrations] = await Promise.all([
+    readSettings(SETTINGS_KEYS.event),
+    eventBasics(),
     listSessions(),
     countWhereEvent(COLLECTIONS.users),
     countWhereEvent(COLLECTIONS.speakers),
@@ -55,10 +58,10 @@ export default async function BasicsPage() {
         title="Basics"
         info={
           <>
-            <strong>Read-only</strong>
+            <strong>Event details</strong>
             <p>
-              The event name, dates, time zone and venue are fixed for this edition and cannot be
-              changed here.
+              The name, dates, time zone, venue and event type. The website and the attendee app
+              show what is saved here.
             </p>
           </>
         }
@@ -74,31 +77,53 @@ export default async function BasicsPage() {
 
       <Panel>
         <p className="body-2" style={{ marginTop: 0 }}>
-          These details are read-only. The code of conduct contact and the call deadlines are
-          edited at <Link href="/content/basics/website-copy">Website Copy</Link>.
+          Leave a box empty to use the value shown in grey. The code of conduct contact and the
+          call deadlines are edited at <Link href="/content/basics/website-copy">Website Copy</Link>.
         </p>
 
-        <Row label="Event Name">{EVENT.name}</Row>
-        <Row label="Short name">{EVENT.shortName}</Row>
+        <BasicsForm
+          saved={{
+            name: saved.name,
+            shortName: saved.shortName,
+            startDate: saved.startDate,
+            endDate: saved.endDate,
+            timeZone: saved.timeZone,
+            venue: saved.venue,
+            eventType: saved.eventType,
+          }}
+          shown={basics}
+          sessionsInZone={sessions.filter((x) => x.timeZone === basics.timeZone).length}
+        />
+        {saved.updatedBy && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+            Last changed by {saved.updatedBy}
+            {saved.updatedAt ? ` on ${saved.updatedAt.slice(0, 10)}` : ''}.
+          </p>
+        )}
+      </Panel>
+
+      <Panel style={{ marginTop: 16 }}>
+        <Row label="Shown as">
+          {basics.name}. {basics.datesLong}. {basics.venue}
+        </Row>
         <Row label="Event ID">
           <code>{EVENT_ID}</code>
         </Row>
         <Row label="Signed in to">
-          {EVENT.name}. {targetLabel()}.
+          {basics.name}. {targetLabel()}.
         </Row>
-        <Row label="Start Date">
-          {days[0] ?? <span className="muted">no session is scheduled yet</span>}{' '}
-          <span className="muted">(earliest scheduled session)</span>
+        <Row label="Scheduled sessions">
+          {days.length === 0 ? (
+            <span className="muted">no session is scheduled yet</span>
+          ) : (
+            <>
+              {days[0]} to {days[days.length - 1]}
+              {days[0] < basics.startDate || days[days.length - 1] > basics.endDate ? (
+                <span className="muted"> Some sessions fall outside the event dates.</span>
+              ) : null}
+            </>
+          )}
         </Row>
-        <Row label="End Date">
-          {days[days.length - 1] ?? <span className="muted">no session is scheduled yet</span>}{' '}
-          <span className="muted">(latest scheduled session)</span>
-        </Row>
-        <Row label="Time zone">
-          <code>{EVENT.timeZone}</code>{' '}
-          <span className="muted">All session times are in this zone.</span>
-        </Row>
-        <Row label="Location / Venue">{EVENT.venue}</Row>
         <Row label="Website">
           <a href={EVENT.website} target="_blank" rel="noreferrer">
             {EVENT.website}

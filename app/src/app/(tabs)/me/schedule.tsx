@@ -12,7 +12,27 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { placementWhen, useMyGatherings } from '@/lib/data/gatherings';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
-import { formatDayTab, useSessions } from '@/lib/data/sessions';
+import { useSessionSeat } from '@/lib/data/session-seats';
+import { formatDayTab, useSessions, type Session } from '@/lib/data/sessions';
+
+/**
+ * Where the attendee stands on a capped session: seated, or still waiting. A
+ * component of its own so each row holds its own listener, and a session with
+ * no cap holds none. Only a handful of saved sessions are ever capped.
+ */
+function SeatNote({ session }: { session: Session }) {
+  const colors = useTheme();
+  const seat = useSessionSeat(session);
+  if (!seat.gated || !seat.ready) return null;
+  const line = seat.mySeatLine ?? 'No seat reserved. Open the session to reserve one.';
+  return (
+    <View style={{ backgroundColor: colors.surface, paddingHorizontal: Spacing.md, paddingBottom: 8 }}>
+      <Text variant="caption" tone={seat.mine === 'seated' ? 'secondary' : 'danger'}>
+        {line}
+      </Text>
+    </View>
+  );
+}
 
 /**
  * My Schedule — the saved sessions, grouped by day and flagged for clashes.
@@ -131,6 +151,7 @@ export default function MyScheduleScreen() {
                 last={index === section.data.length - 1}
                 onPress={() => router.push({ pathname: '/agenda/[id]', params: { id: item.id } })}
               />
+              <SeatNote session={item} />
               {clashes.has(item.id) ? (
                 <View style={{ backgroundColor: colors.surface, paddingHorizontal: Spacing.md, paddingBottom: 8 }}>
                   <Text variant="caption" tone="danger">

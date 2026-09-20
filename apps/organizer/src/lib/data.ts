@@ -14,8 +14,10 @@ import {
   type UserDoc,
   type WithId,
   publicSiteOrigin,
+  tierRank,
 } from '@kgc/shared';
 import { emailKey, mergeAttendees, type AttendeeRow } from './attendees-core';
+import { sponsorTiers } from './event';
 import { db } from './firestore';
 
 /**
@@ -502,10 +504,13 @@ export interface SponsorRow {
   contactEmail?: string;
 }
 
-/** Whova orders tiers by value and that ordering drives three surfaces (§9.2). */
-export const TIER_ORDER: SponsorTier[] = ['platinum', 'gold', 'silver', 'bronze'];
-
+/**
+ * Whova orders tiers by value and that ordering drives three surfaces (§9.2).
+ * The order is the saved tier list from Sponsor Tiering: `sponsorTiers()` in
+ * `lib/event.ts`.
+ */
 export async function listSponsors(): Promise<SponsorRow[]> {
+  const tiers = await sponsorTiers();
   const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
   return snap.docs
     .map((d) => {
@@ -527,7 +532,7 @@ export async function listSponsors(): Promise<SponsorRow[]> {
     })
     .sort(
       (a, b) =>
-        TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || a.name.localeCompare(b.name),
+        tierRank(tiers, a.tier) - tierRank(tiers, b.tier) || a.name.localeCompare(b.name),
     );
 }
 

@@ -41,12 +41,32 @@
  * it. Add a key back when a screen writes it in the same commit.
  */
 
+import { EVENT_SETTINGS_DEFAULTS, type EventSettings } from "./event-basics.js";
+import {
+  DEFAULT_ATTENDEE_CATEGORIES,
+  type AttendeeCategoryDef,
+  type TicketCategoryRule,
+} from "./attendee-categories.js";
+import { DEFAULT_SPONSOR_TIERS, type SponsorTierDef } from "./sponsor-tiers.js";
+
 /** Every settings key in use. A const so a typo is a compile error. */
 export const SETTINGS_KEYS = {
   branding: "branding",
   access: "access",
   logistics: "logistics",
+  /** Content > Basics. Public: the website and the app both print it. */
+  event: "event",
+  /** Content > Sponsor Center > Sponsor Tiering. Public for the same reason. */
+  sponsorTiers: "sponsorTiers",
+  /** Attendees > Categories, and the ticket rule under Tickets. Not public. */
+  attendeeCategories: "attendeeCategories",
 } as const;
+
+/**
+ * The bags a signed-out phone may read. `firestore.rules` names the same
+ * three keys; everything in them is already printed on the public website.
+ */
+export const PUBLIC_SETTINGS_KEYS: readonly SettingsKey[] = ["branding", "event", "sponsorTiers"];
 
 export type SettingsKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];
 
@@ -69,6 +89,15 @@ export interface BrandingSettings {
   hashtag: string;
   /** A URL path segment: 3–40 lower-case letters, digits and hyphens. */
   brandedSlug: string;
+  /** An image URL, uploaded here or pasted. Shown in the website and app headers. */
+  logoUrl: string;
+  /** An image URL. The wide picture behind the website hero and the app's Home header. */
+  bannerUrl: string;
+}
+
+/** `settings/sponsorTiers` — the ordered tier list. See `sponsor-tiers.ts`. */
+export interface SponsorTierSettings {
+  tiers: SponsorTierDef[];
 }
 
 /**
@@ -114,11 +143,24 @@ export interface LogisticsSettings {
   planReady: boolean;
 }
 
+/**
+ * `settings/attendeeCategories` — the category list and the ticket rules. See
+ * `attendee-categories.ts`. Not readable by a phone: the app prints the name
+ * already copied onto the holder's own registration.
+ */
+export interface AttendeeCategorySettings {
+  categories: AttendeeCategoryDef[];
+  ticketRules: TicketCategoryRule[];
+}
+
 /** Key → value shape. The map every install indexes to get a typed bag. */
 export interface SettingsValues {
   branding: BrandingSettings;
   access: AccessSettings;
   logistics: LogisticsSettings;
+  event: EventSettings;
+  sponsorTiers: SponsorTierSettings;
+  attendeeCategories: AttendeeCategorySettings;
 }
 
 /**
@@ -141,6 +183,8 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     supportEmail: "",
     hashtag: "",
     brandedSlug: "",
+    logoUrl: "",
+    bannerUrl: "",
   },
   access: {
     attendeeListVisible: true,
@@ -167,6 +211,9 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     incidentProcedure: "",
     planReady: false,
   },
+  event: EVENT_SETTINGS_DEFAULTS,
+  sponsorTiers: { tiers: DEFAULT_SPONSOR_TIERS },
+  attendeeCategories: { categories: DEFAULT_ATTENDEE_CATEGORIES, ticketRules: [] },
 };
 
 /** The installs that can read a settings document. */
@@ -225,33 +272,33 @@ type Register = { [K in SettingsKey]: { [F in keyof SettingsValues[K]]: Settings
 export const SETTINGS_REGISTER: Register = {
   branding: {
     brandColor: {
-      status: "recorded",
-      readers: [],
+      status: "live",
+      readers: ["web", "app"],
       why:
-        "No surface can honour it. The app compiles its palette into the bundle " +
-        "(app/src/constants/theme.ts, read through useTheme()), so a runtime hex " +
-        "would need the theme to be fetched and to have a first-paint fallback — " +
-        "that is a change to how the app boots, not a settings read. The website's " +
-        "palette is hand-tuned CSS whose contrast pairings were fixed by hand. " +
-        "This field records the decision; it does not apply it.",
+        "The website's root layout turns it into the navy custom properties (header, " +
+        "primary button) and the app's useTheme() lays it over header, tint and accent. " +
+        "Both derive their text and hover steps with brandPalette() in brand-theme.ts, " +
+        "and both keep their built-in palette until a colour is saved.",
     },
     accentColor: {
-      status: "recorded",
-      readers: [],
-      why: "Same as brandColor — build-time in the app, authored CSS on the website.",
-    },
-    tagline: {
       status: "live",
       readers: ["web"],
       why:
-        "The website's OG description. apps/web/src/app/layout.tsx became " +
+        "The website's highlight colour (links, the teal accents). The app has one brand " +
+        "colour and no second accent to map it to.",
+    },
+    tagline: {
+      status: "live",
+      readers: ["web", "app"],
+      why:
+        "The app's sign-in screen prints it under the event name. The website's OG description. apps/web/src/app/layout.tsx became " +
         "generateMetadata() to read it, and keeps SITE.tagline as the fallback so an " +
         "empty setting cannot blank a social card. Baked at build on prerendered " +
         "routes and regenerated per request on the force-dynamic ones.",
     },
     supportEmail: {
       status: "live",
-      readers: ["web"],
+      readers: ["web", "app"],
       /*
        * Wired in exactly one place, and the narrowness is the decision rather
        * than an unfinished job. `SITE.contactEmail` has thirteen call sites and
@@ -261,6 +308,7 @@ export const SETTINGS_REGISTER: Register = {
        * footer, which is the only site-wide renderer of it.
        */
       why:
+        "The app's sign-in screen and Me tab print it as the help address. " +
         "The site footer's contact address (apps/web/src/components/site-footer.tsx), " +
         "resolved in the root layout and passed in. The other twelve SITE.contactEmail " +
         "call sites stay on the constant — some are client components.",
@@ -279,6 +327,16 @@ export const SETTINGS_REGISTER: Register = {
         "the homepage; anything else 404s, so the catch-all cannot swallow a top-level " +
         "route added later. A temporary redirect on purpose — a 308 on a value an " +
         "organizer can edit cannot be withdrawn from a browser cache.",
+    },
+    logoUrl: {
+      status: "live",
+      readers: ["web", "app"],
+      why: "The website header and the app's sign-in screen show it in place of the built-in mark.",
+    },
+    bannerUrl: {
+      status: "live",
+      readers: ["web", "app"],
+      why: "The website's homepage hero and the app's Home header use it as their picture.",
     },
   },
   access: {
@@ -380,6 +438,54 @@ export const SETTINGS_REGISTER: Register = {
         "Content › Logistics Center reports whether the card is ready, and the app's " +
         "emergency card refuses to render without it — a half-filled card during an " +
         "emergency is worse than none.",
+    },
+  },
+  /*
+   * Every field resolves through `resolveEventBasics()`, which falls back to
+   * the constants in `event.ts` — so an unset field is the old behaviour, not a
+   * blank. `firestore.rules` lets any client read this bag and the two beside
+   * it in `PUBLIC_SETTINGS_KEYS`; all three hold only what the public site prints.
+   */
+  event: {
+    name: { status: "live", readers: ["organizer", "web", "app"], why: "The dashboard masthead, the website titles and hero, the app Home header." },
+    shortName: { status: "live", readers: ["organizer", "web", "app"], why: "The short form in page titles and the app." },
+    startDate: { status: "live", readers: ["organizer", "web", "app"], why: "The date range on the masthead, the website and the app." },
+    endDate: { status: "live", readers: ["organizer", "web", "app"], why: "The date range on the masthead, the website and the app." },
+    timeZone: {
+      status: "live",
+      readers: ["organizer", "web"],
+      why:
+        "Session times are authored as wall clock in this zone. Saving a new zone re-derives " +
+        "every session's start and end, and the website agenda formats in it.",
+    },
+    venue: { status: "live", readers: ["organizer", "web", "app"], why: "Printed beside the dates on all three surfaces." },
+    eventType: {
+      status: "live",
+      readers: ["organizer", "web"],
+      why: "The masthead badge, and the attendance mode in the website's structured data.",
+    },
+  },
+  sponsorTiers: {
+    tiers: {
+      status: "live",
+      readers: ["organizer", "web", "app"],
+      why:
+        "Sponsor Manager's tier select, the website's sponsor bands and the app's sponsor " +
+        "list all group with groupSponsorsByTier() over this list.",
+    },
+  },
+  attendeeCategories: {
+    categories: {
+      status: "live",
+      readers: ["organizer", "app"],
+      why:
+        "The attendee list, the exports and the printed badge read the list. The app prints " +
+        "the name copied onto the holder's registration.",
+    },
+    ticketRules: {
+      status: "live",
+      readers: ["organizer", "web"],
+      why: "ensureRegistration applies it on every purchase, import and hand-added attendee.",
     },
   },
 };

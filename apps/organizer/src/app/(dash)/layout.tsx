@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { COLLECTIONS, EVENT, publicSiteOrigin } from '@kgc/shared';
-import { requireOrganizer } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
 import { adoptionCounts, countWhereEvent, listSessions } from '@/lib/data';
+import { eventBasics } from '@/lib/event';
 import { ChevronIcon } from '@/lib/icons';
-import { IMPLEMENTED, NAV, searchIndex, type NavNode } from '@/lib/nav';
+import { IMPLEMENTED, NAV, allPaths, searchIndex, type NavNode } from '@/lib/nav';
+import { canOpen } from '@/lib/team-core';
 import { logoutAction } from '../login/actions';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
 import { FeatureSearch } from './feature-search';
@@ -50,12 +52,21 @@ function appOrigin(): string {
  * organizer watches.
  *
  * This layout gate is convenience, not security — server actions are separately
- * addressable endpoints and each calls `requireOrganizer()` for itself.
+ * addressable endpoints and each calls `requireOrganizer()` for itself. The
+ * same goes for roles: the rail and the tab strip below leave out what a team
+ * member cannot open, and the refusal itself is in `requireAccess()`.
  */
 
-function slim(nodes: NavNode[], prefix = ''): SlimNode[] {
-  return nodes.map((n) => {
+/**
+ * The tree, less whatever `open` refuses. A branch survives when it can be
+ * opened itself or when anything beneath it can, so a check-in account keeps
+ * Attendees › Check-in & Checkout and loses the other eight tabs.
+ */
+function slim(nodes: NavNode[], open: (path: string) => boolean, prefix = ''): SlimNode[] {
+  return nodes.flatMap((n) => {
     const path = prefix ? `${prefix}/${n.slug}` : n.slug;
+    const children = n.children ? slim(n.children, open, path) : undefined;
+    if (!open(path) && !children?.length) return [];
     return {
       name: n.name,
       title: n.title,
@@ -64,7 +75,7 @@ function slim(nodes: NavNode[], prefix = ''): SlimNode[] {
       tag: n.tag,
       tagLabel: n.tagLabel,
       implemented: IMPLEMENTED.has(path),
-      children: n.children ? slim(n.children, path) : undefined,
+      children,
     };
   });
 }
@@ -80,8 +91,10 @@ function prettyDay(day: string): string {
 }
 
 export default async function DashLayout({ children }: { children: React.ReactNode }) {
-  const actor = await requireOrganizer();
-  const [sessions, adoption, announcements, posts, speakers, sponsors] = await Promise.all([
+  const { email: actor, roles } = await requireAccess();
+  const open = (path: string) => canOpen(roles, path);
+  const [basics, sessions, adoption, announcements, posts, speakers, sponsors] = await Promise.all([
+    eventBasics(),
     listSessions(),
     adoptionCounts(),
     countWhereEvent(COLLECTIONS.announcements),
@@ -92,15 +105,22 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   const { registrations, users, signedIn } = adoption;
 
   const days = [...new Set(sessions.map((s) => s.day))].sort();
-  const dateRange =
-    days.length === 0
+  /* The dates saved on Content > Basics lead; with none saved, the agenda's own span. */
+  const dateRange = basics.datesSaved
+    ? basics.datesShort
+    : days.length === 0
       ? 'no sessions scheduled'
       : days.length === 1
         ? prettyDay(days[0])
         : `${prettyDay(days[0])} – ${prettyDay(days[days.length - 1])}`;
 
   const published = sessions.filter((s) => s.status === 'published').length;
-  const nav = slim(NAV);
+  const nav = slim(NAV, open);
+  // For the rail's fixed links, which are not in the tree. Null for an owner,
+  // so the common case ships no list at all.
+  const allowed = roles.includes('owner')
+    ? null
+    : allPaths().filter(open).map((p) => `/${p}`);
 
   return (
     <>
@@ -108,15 +128,15 @@ export default async function DashLayout({ children }: { children: React.ReactNo
         <div className="main-header">
           <Link className="logo" href="/">
             {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size chrome in a server component; next/image adds a client runtime and buys nothing. */}
-            <img className="logo-mark" src="/kgc/wordmark-white.png" alt={EVENT.shortName} />
+            <img className="logo-mark" src="/kgc/wordmark-white.png" alt={basics.shortName} />
             <span className="logo-project">EMS</span>
           </Link>
           <nav className="header-links">
             <a href={EVENT.website} target="_blank" rel="noreferrer">
               Event website
             </a>
-            <Link href="/tools">Help Center</Link>
-            <Link href="/">My Events</Link>
+            {open('tools') ? <Link href="/tools">Help Center</Link> : null}
+            {open('') ? <Link href="/">My Events</Link> : null}
             <span className="user-name">{actor}</span>
             <form action={logoutAction} style={{ display: 'inline-flex' }}>
               <button type="submit" className="header-signout">
@@ -124,33 +144,35 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               </button>
             </form>
           </nav>
-          <FeatureSearch entries={searchIndex()} />
+          <FeatureSearch entries={searchIndex().filter((e) => open(e.path))} />
         </div>
       </header>
 
       <div id="top-event-name" className="layout-boxed">
         <div className="event-title">
-          <span className="event-name">{EVENT.name}</span>
+          <span className="event-name">{basics.name}</span>
           <span className="event-status-badge badge-alert">Draft</span>
         </div>
 
         <div className="buttons-cards">
           <div className="buttons">
             <div className="additional-info">
-              {dateRange} | {EVENT.venue} |{' '}
+              {dateRange} | {basics.venue} |{' '}
               <a className="tutorial-video" href={EVENT.website} target="_blank" rel="noreferrer">
                 <u>Event website</u>
               </a>
               |{' '}
-              <span className="event-status-badge badge-info">In-person event</span>
+              <span className="event-status-badge badge-info">{basics.eventTypeLabel}</span>
               <span className="event-status-badge badge-alert">App: draft</span>
               <span className="event-status-badge badge-alert">Tickets: draft</span>
             </div>
 
             <div className="guide-info">
-              <Link className="btn btn-primary" href="/publish">
-                Step-by-step setup guide
-              </Link>
+              {open('publish') ? (
+                <Link className="btn btn-primary" href="/publish">
+                  Step-by-step setup guide
+                </Link>
+              ) : null}
               <Dropdown
                 label="Preview"
                 className="btn btn-default event-title-btn"
@@ -163,9 +185,11 @@ export default async function DashLayout({ children }: { children: React.ReactNo
                   { label: 'Attendee Registration Page', href: `${publicSiteOrigin()}/tickets` },
                 ]}
               />
-              <Link className="btn btn-default event-title-btn" href="/tools/report">
-                Report
-              </Link>
+              {open('tools/report') ? (
+                <Link className="btn btn-default event-title-btn" href="/tools/report">
+                  Report
+                </Link>
+              ) : null}
             </div>
           </div>
 
@@ -214,6 +238,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <TopNav nav={nav} draftTabs={['tickets', 'publish']} />
 
       <LiveStats
+        viewAll={open('tools/report')}
         stats={[
           { label: 'Signed in', value: users, href: '/attendees/manage-attendees/attendees' },
           { label: 'Registered', value: registrations, href: '/attendees/check-in-and-checkout/check-in' },
@@ -222,20 +247,21 @@ export default async function DashLayout({ children }: { children: React.ReactNo
           { label: 'Sponsors', value: sponsors, href: '/content/sponsor-center/sponsor-manager' },
           { label: 'Posts', value: posts },
           { label: 'Announcements', value: announcements, href: '/engagement/announcements' },
-        ]}
+        ].map((stat) => (stat.href && !open(stat.href) ? { ...stat, href: undefined } : stat))}
       />
 
       <div className="layout-boxed frame-wrapper">
         <Sidebar
           nav={nav}
-          footnote={`${EVENT.shortName} Event Management System`}
+          allowed={allowed}
+          footnote={`${basics.shortName} Event Management System`}
         />
         <div className="frame-right-side">{children}</div>
       </div>
 
       <footer className="main-footer">
-        <strong>{EVENT.shortName} EMS</strong>. The event management system for{' '}
-        {EVENT.name}.
+        <strong>{basics.shortName} EMS</strong>. The event management system for{' '}
+        {basics.name}.
       </footer>
     </>
   );

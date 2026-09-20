@@ -5,12 +5,13 @@ import { Redirect, Stack, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { useScheme } from '@/hooks/use-theme';
+import { useScheme, useTheme } from '@/hooks/use-theme';
 import { AuthProvider, useAuth } from '@/lib/auth/auth-provider';
+import { EventSettingsProvider, useEventSettings } from '@/lib/data/event-settings';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -118,12 +119,31 @@ function RootNavigator() {
   );
 }
 
+/**
+ * The provider sits outside everything, the sign-in screen included, so the
+ * brand colour and event name saved on the dashboard reach the first screen a
+ * person sees. `Themed` is a separate component because it reads that context.
+ */
 export default function RootLayout() {
+  return (
+    <EventSettingsProvider>
+      <Themed />
+    </EventSettingsProvider>
+  );
+}
+
+function Themed() {
   const scheme = useScheme();
+  const { event } = useEventSettings();
+  const tint = useTheme().tint;
+  const navTheme = useMemo(
+    () => ({ ...navThemes[scheme], colors: { ...navThemes[scheme].colors, primary: tint } }),
+    [scheme, tint],
+  );
 
   return (
     <AuthProvider>
-      <ThemeProvider value={navThemes[scheme]}>
+      <ThemeProvider value={navTheme}>
         {/*
           expo-router turns React Navigation's document title off, so without
           this the browser tab, history and share sheet show the bare URL. Web
@@ -131,7 +151,7 @@ export default function RootLayout() {
         */}
         {Platform.OS === 'web' ? (
           <Head>
-            <title>KGC 2027</title>
+            <title>{`${event.shortName} ${event.year}`}</title>
           </Head>
         ) : null}
         <StatusBar style="auto" />

@@ -6,6 +6,7 @@ import { getRegistration } from '@/lib/registrations';
 import { pendingTemporaryPasswordFor } from '@/lib/app-account';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { QrCode } from '@/components/qr-code';
+import { siteEvent } from '@/lib/data';
 import { APP_DISTRIBUTION, APP_URL, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ const appHost = APP_URL.replace(/^https?:\/\//, '');
  * does not open a door on its own.
  */
 export default async function OrderPage({ params }: { params: Promise<{ token: string }> }) {
+  const ev = await siteEvent();
   const { token } = await params;
   const payload = readOrderToken(decodeURIComponent(token));
   if (!payload) notFound();
@@ -118,18 +120,18 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
         */}
         <div className="pass">
           <div className="pass-main">
-            <p className="pass-kicker">{SITE.name}</p>
+            <p className="pass-kicker">{ev.name}</p>
             <p className="pass-name">{attendeeName || reg.email}</p>
             <p className="pass-tier">{reg.ticketType ?? 'Registered'}</p>
 
             <dl className="pass-facts">
               <div>
                 <dt>Dates</dt>
-                <dd>{SITE.datesLong}</dd>
+                <dd>{ev.datesLong}</dd>
               </div>
               <div>
                 <dt>Venue</dt>
-                <dd>{SITE.venueShort}</dd>
+                <dd>{ev.venueShort}</dd>
               </div>
               {/*
                 Both of these run the full width of the panel. An address and a

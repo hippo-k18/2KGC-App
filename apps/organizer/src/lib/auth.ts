@@ -1,8 +1,12 @@
 import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { cookies } from 'next/headers';
+import { cache } from 'react';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { TeamRole } from '@kgc/shared';
+import { checkMemberPassphrase, findMember, stampSignIn } from './team';
+import { canExport, canOpen, canRunAction, homeFor } from './team-core';
 
 /**
  * Console auth: an email allowlist plus a shared passphrase.
@@ -30,6 +34,20 @@ import { redirect } from 'next/navigation';
  * *whether* an email is authentic, so if that decision is ever revisited it is
  * one function, not a rewrite.
  *
+ * ── Team members, added 2026-09-20 ──────────────────────────────────────────
+ *
+ * The allowlist above is unchanged and its addresses are owners. Beside it sits
+ * `teamMembers` in Firestore (`lib/team.ts`): people an owner invited from
+ * Attendees › Admin Settings, each with roles that limit what they can open and
+ * a passphrase of their own, stored as a scrypt hash and chosen through a
+ * one-time link. For them the three costs above change: the audit actor is an
+ * address only that person can sign in as, and revocation is a deleted
+ * document, felt on their next request with no redeploy.
+ *
+ * **Roles are enforced in one place, `requireOrganizer()`**, from the path the
+ * request was made to — see `team-core.ts` for why the path, and for the map.
+ * No page or action carries a role check of its own and none should grow one.
+ *
  * ⚠️ The Admin SDK behind this bypasses `firestore.rules` entirely. The
  * passphrase is the whole boundary, so it must be long, it must not be shared
  * outside the organizer team, and the dashboard URL should be treated as a
@@ -44,6 +62,14 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // One working day at a registration 
 export interface ConsoleSession {
   email: string;
   expiresAt: number;
+  /** Team members only: `TeamMemberDoc.sessionEpoch` as it stood at sign-in. */
+  epoch?: string;
+}
+
+/** Who is asking, and what they hold. An allowlisted address is an owner. */
+export interface ConsoleAccess {
+  email: string;
+  roles: TeamRole[];
 }
 
 /**
@@ -100,14 +126,31 @@ function decode(token: string | undefined): ConsoleSession | null {
   try {
     const session = JSON.parse(Buffer.from(payload, 'base64url').toString()) as ConsoleSession;
     if (!session.email || session.expiresAt < Date.now()) return null;
-    // Re-check the allowlist on every request, not just at sign-in: removing
-    // someone from the env var must lock them out of a live session too.
-    if (!isAllowed(session.email)) return null;
     return session;
   } catch {
     return null;
   }
 }
+
+/**
+ * What a signed cookie is worth right now.
+ *
+ * Re-checked on every request, not just at sign-in: removing someone from the
+ * env var, or from the team, must lock them out of a live session too. For a
+ * member that is one document read by id, and `cache()` keeps it to one per
+ * request however many times the layout, the page and an action ask.
+ */
+const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess | null> => {
+  const session = decode(token);
+  if (!session) return null;
+  if (isAllowed(session.email)) return { email: session.email, roles: ['owner'] };
+
+  const member = await findMember(session.email);
+  if (!member || member.status !== 'active' || member.roles.length === 0) return null;
+  // A new set-passphrase link rotates the epoch, which ends every older session.
+  if (!session.epoch || session.epoch !== member.sessionEpoch) return null;
+  return { email: member.email, roles: member.roles };
+});
 
 /**
  * The single point at which an email becomes an authenticated identity.
@@ -189,12 +232,40 @@ function passphraseMatches(supplied: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+async function startSession(session: ConsoleSession): Promise<void> {
+  const jar = await cookies();
+  jar.set(COOKIE, encode(session), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: SESSION_TTL_MS / 1000,
+  });
+}
+
+const NO_MATCH = 'That email and password do not match.';
+
 export async function signIn(
   email: string,
   supplied = '',
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; home: string } | { ok: false; error: string }> {
   const normalised = email.trim().toLowerCase();
   if (!normalised) return { ok: false, error: 'Enter an email address.' };
+
+  // An invited member, on their own passphrase. The allowlist is asked first
+  // and wins, so an address in both places is an owner on the shared secret and
+  // a stale team document can never narrow or widen what an owner holds.
+  if (!isAllowed(normalised)) {
+    const member = await checkMemberPassphrase(normalised, supplied);
+    if (!member || member.roles.length === 0) return { ok: false, error: NO_MATCH };
+    await startSession({
+      email: member.email,
+      expiresAt: Date.now() + SESSION_TTL_MS,
+      epoch: member.sessionEpoch,
+    });
+    await stampSignIn(member.id);
+    return { ok: true, home: homeFor(member.roles) };
+  }
 
   if (requirePassphrase()) {
     if (!passphrase()) {
@@ -213,27 +284,13 @@ export async function signIn(
           'dashboard holds live credentials. Short secrets may only guard demo data.',
       };
     }
-    if (!passphraseMatches(supplied)) {
-      return { ok: false, error: 'That email and password do not match.' };
-    }
+    // Deliberately the same message as an unknown address — a sign-in form
+    // should not be an oracle for who the organizers are.
+    if (!passphraseMatches(supplied)) return { ok: false, error: NO_MATCH };
   }
 
-  if (!isAllowed(normalised)) {
-    // Deliberately the same message either way — a sign-in form should not be
-    // an oracle for who the organizers are.
-    return { ok: false, error: 'That email and password do not match.' };
-  }
-
-  const session: ConsoleSession = { email: normalised, expiresAt: Date.now() + SESSION_TTL_MS };
-  const jar = await cookies();
-  jar.set(COOKIE, encode(session), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: SESSION_TTL_MS / 1000,
-  });
-  return { ok: true };
+  await startSession({ email: normalised, expiresAt: Date.now() + SESSION_TTL_MS });
+  return { ok: true, home: homeFor(['owner']) };
 }
 
 export async function signOut(): Promise<void> {
@@ -241,16 +298,103 @@ export async function signOut(): Promise<void> {
   jar.delete(COOKIE);
 }
 
-export async function currentSession(): Promise<ConsoleSession | null> {
+/** Who is signed in and what they hold, or null. Never redirects. */
+export async function currentAccess(): Promise<ConsoleAccess | null> {
   const jar = await cookies();
-  return decode(jar.get(COOKIE)?.value);
+  return accessFor(jar.get(COOKIE)?.value);
 }
 
-/** Every page and every server action starts here. Returns the audit actor. */
+export async function currentSession(): Promise<ConsoleSession | null> {
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value;
+  return (await accessFor(token)) ? decode(token) : null;
+}
+
+/** Set by `src/middleware.ts` on every request. The same literals live there. */
+const PATH_HEADER = 'x-kgc-path';
+const ACTION_HEADER = 'x-kgc-action';
+
+/**
+ * The page bundles that import a server action, from Next's own manifest.
+ *
+ * ⚠️ This reads a Next internal: the manifest singleton `app-render` keeps on
+ * `globalThis`, checked against next@15.5. There is no public way to ask which
+ * screens an action belongs to, and the alternative was a role argument typed
+ * into two hundred actions. If an upgrade moves it, this returns nothing, every
+ * action is refused to every role but owner, and the desk says so at once —
+ * loud and closed, never quiet and open.
+ */
+function bundlesImporting(actionId: string): string[] {
+  const singleton = (globalThis as Record<symbol, unknown>)[
+    Symbol.for('next.server.action-manifests')
+  ] as
+    | { serverActionsManifest?: { node?: Record<string, { workers?: Record<string, unknown> }> } }
+    | undefined;
+  return Object.keys(singleton?.serverActionsManifest?.node?.[actionId]?.workers ?? {});
+}
+
+/**
+ * Every page and every server action starts here, and **this is the role
+ * guard**. Returns who is asking and what they hold.
+ *
+ * Three questions, in order: is there a live session; may its roles open the
+ * path this request was made to; and, when the request carries a server
+ * action, may they open a screen that action belongs to. The third is not
+ * implied by the second. Next runs an action id wherever it is posted —
+ * verified on 2026-09-20 by posting this file's neighbours at the check-in
+ * screen — so without it a check-in account reaches the refund action by
+ * posting its id at a URL it is allowed to open.
+ *
+ * ⚠️ With no path to judge — the middleware did not run — every role but owner
+ * is refused with an error rather than a redirect. Home would be refused for
+ * the same reason, and a redirect to it would loop.
+ */
+export async function requireAccess(): Promise<ConsoleAccess> {
+  const access = await currentAccess();
+  if (!access) redirect('/login');
+  if (access.roles.includes('owner')) return access;
+
+  const h = await headers();
+  const path = h.get(PATH_HEADER);
+  if (path === null) {
+    throw new Error('This request did not say which screen it was for, so it was refused.');
+  }
+  if (!canOpen(access.roles, path)) redirect(homeFor(access.roles));
+
+  const action = h.get(ACTION_HEADER);
+  if (action !== null) {
+    // `form` is a POST that did not name its action in a header. The id is in a
+    // body this function cannot read, so it cannot be checked, so it is refused.
+    const known = action === 'form' ? [] : bundlesImporting(action);
+    if (!canRunAction(access.roles, known)) redirect(homeFor(access.roles));
+  }
+  return access;
+}
+
+/** `requireAccess()` for the two hundred callers that want only the audit actor. */
 export async function requireOrganizer(): Promise<string> {
-  const session = await currentSession();
-  if (!session) redirect('/login');
-  return session.email;
+  return (await requireAccess()).email;
+}
+
+/**
+ * For the screen that decides who else gets in. The path rule already keeps
+ * Admin Settings to owners; this says so a second time, by role, so that moving
+ * the screen in `nav.ts` could not quietly hand the team list to somebody else.
+ */
+export async function requireOwner(): Promise<string> {
+  const access = await requireAccess();
+  if (!access.roles.includes('owner')) redirect(homeFor(access.roles));
+  return access.email;
+}
+
+/**
+ * The same guard for `/export/{kind}`, which answers with a status rather than
+ * a redirect because the caller asked for a file.
+ */
+export async function exportAccess(kind: string): Promise<'ok' | 'signed-out' | 'forbidden'> {
+  const access = await currentAccess();
+  if (!access) return 'signed-out';
+  return canExport(access.roles, kind) ? 'ok' : 'forbidden';
 }
 
 /**
@@ -271,7 +415,14 @@ export async function requireOrganizer(): Promise<string> {
  * on localhost: `requirePassphrase()` makes one mandatory in production, so a
  * deployment cannot reach this and get a free pass.
  */
-export function reauthenticate(supplied: string): boolean {
+export async function reauthenticate(supplied: string): Promise<boolean> {
+  const access = await currentAccess();
+  if (!access) return false;
+  // A team member proves it with their own passphrase, never the shared one:
+  // they were not given it, and the point of the step is that it is still them.
+  if (!isAllowed(access.email)) {
+    return Boolean(await checkMemberPassphrase(access.email, supplied));
+  }
   if (!requirePassphrase()) return true;
   return passphraseMatches(supplied);
 }

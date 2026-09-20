@@ -3,7 +3,8 @@ import dynamic from 'next/dynamic';
 import { CookieConsent } from '@/components/cookie-consent';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
-import { brandingSettings } from '@/lib/data';
+import { brandPalette, isHexColor, mixHex } from '@kgc/shared';
+import { brandingSettings, siteEvent } from '@/lib/data';
 import { canonicalOrigin } from '@/lib/event-jsonld';
 import { SITE } from '@/lib/site';
 import './globals.css';
@@ -33,8 +34,14 @@ import './globals.css';
  * tag live is the wrong trade, and the per-route `force-dynamic` convention
  * this app already follows is the right place to make that decision.
  */
+/**
+ * Static routes pick up a saved colour, name or date within a minute instead of
+ * at the next build. Routes that declare `force-dynamic` are unaffected.
+ */
+export const revalidate = 60;
+
 export async function generateMetadata(): Promise<Metadata> {
-  const branding = await brandingSettings();
+  const [branding, ev] = await Promise.all([brandingSettings(), siteEvent()]);
   const tagline = branding.tagline || SITE.tagline;
 
   return {
@@ -52,15 +59,15 @@ export async function generateMetadata(): Promise<Metadata> {
      */
     metadataBase: new URL(canonicalOrigin()),
     title: {
-      default: `${SITE.name} · ${SITE.datesShort}`,
-      template: `%s · ${SITE.shortName} 2027`,
+      default: `${ev.name} · ${ev.datesShort}`,
+      template: `%s · ${ev.shortName} ${ev.year}`,
     },
-    description: `${SITE.name}. ${SITE.datesLong}, ${SITE.venue}. Five days of workshops, talks and the people building the semantic layer under enterprise AI.`,
+    description: `${ev.name}. ${ev.datesLong}, ${ev.venue}. Five days of workshops, talks and the people building the semantic layer under enterprise AI.`,
     icons: { icon: '/favicon.png' },
     openGraph: {
-      title: `${SITE.name} · ${SITE.datesShort}`,
+      title: `${ev.name} · ${ev.datesShort}`,
       description: tagline,
-      images: ['/hero-kgc.png'],
+      images: [branding.bannerUrl || '/hero-kgc.png'],
       type: 'website',
     },
   };
@@ -92,6 +99,34 @@ const ReferenceOverlay =
     ? dynamic(() => import('@/components/reference-overlay').then((m) => m.ReferenceOverlay))
     : () => null;
 
+/**
+ * The saved brand colours, as overrides of the palette in `globals.css`.
+ *
+ * The stylesheet hangs every navy surface off `--palette-2` (header, primary
+ * button) and every highlight off `--palette-6`, so re-pointing those two, plus
+ * the steps derived from them, recolours the site without touching a rule.
+ * `brandPalette()` is the same derivation the app uses. Nothing is emitted
+ * when no colour is saved, so the stylesheet's own values stand.
+ *
+ * Both values are checked against the six-digit hex pattern before they reach
+ * the `<style>` text, here as well as on save.
+ */
+function BrandStyle({ brandColor, accentColor }: { brandColor: string; accentColor: string }) {
+  const brand = brandPalette(brandColor);
+  const lines: string[] = [];
+  if (brand) {
+    lines.push(
+      `--palette-2:${brand.brand}`,
+      `--blue-dark:${brand.brandDark}`,
+      `--btn-fg:${brand.onBrand}`,
+      `--btn-bg-hover:${mixHex(brand.brand, '#FFFFFF', 0.45)}`,
+    );
+  }
+  if (isHexColor(accentColor)) lines.push(`--palette-6:${accentColor.toUpperCase()}`);
+  if (lines.length === 0) return null;
+  return <style>{`:root{${lines.join(';')}}`}</style>;
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   /*
    * The footer's contact address is the one place `supportEmail` is wired.
@@ -107,14 +142,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * `brandingSettings()` is `cache()`d, so this and `generateMetadata()` above
    * cost one document read between them.
    */
-  const branding = await brandingSettings();
+  const [branding, ev] = await Promise.all([brandingSettings(), siteEvent()]);
 
   return (
     <html lang="en">
+      <head>
+        <BrandStyle brandColor={branding.brandColor} accentColor={branding.accentColor} />
+      </head>
       <body>
-        <SiteHeader />
+        <SiteHeader logoUrl={branding.logoUrl || undefined} eventName={ev.name} />
         <main>{children}</main>
-        <SiteFooter contactEmail={branding.supportEmail || SITE.contactEmail} />
+        <SiteFooter
+          contactEmail={branding.supportEmail || SITE.contactEmail}
+          datesShort={ev.datesShort}
+          venue={ev.venue}
+        />
         <CookieConsent />
         <ReferenceOverlay />
       </body>

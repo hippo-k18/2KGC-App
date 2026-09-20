@@ -13,7 +13,8 @@ import { ScreenHeader } from '@/components/screen-header';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { EVENT } from '@/config/event';
+import { useBadge } from '@/lib/data/badge';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { logout, useAuth } from '@/lib/auth/auth-provider';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { totalUnread, useThreads } from '@/lib/data/messages';
@@ -29,11 +30,14 @@ import { getDb } from '@/lib/firebase/client';
  */
 export default function MeScreen() {
   const colors = useTheme();
+  const { event } = useEventSettings();
   const router = useRouter();
   const { user, profile, profileError, retryProfile } = useAuth();
   const { saved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads, error: threadsError, retry: retryThreads } = useThreads(user?.uid);
   const unread = totalUnread(threads, user?.uid);
+  // The category an organizer gave this attendee. It lives on their registration.
+  const { badge } = useBadge();
 
   const failure = combineFailures([
     { error: profileError, subject: 'your profile', retry: retryProfile },
@@ -190,6 +194,11 @@ export default function MeScreen() {
                   ORGANIZER
                 </Text>
               ) : null}
+              {badge?.category ? (
+                <Text variant="caption" tone="tint">
+                  {badge.category.toUpperCase()}
+                </Text>
+              ) : null}
             </View>
             <Chevron />
           </Pressable>
@@ -220,7 +229,7 @@ export default function MeScreen() {
               onPress={() => router.push({ pathname: '/messages', params: { from: 'me' } })}
               trailing={<Chevron />}
             />
-            <ListRow title="Venue" subtitle={EVENT.venue} last />
+            <ListRow title="Venue" subtitle={event.venue} last />
           </View>
 
           <SectionHeader>Privacy</SectionHeader>

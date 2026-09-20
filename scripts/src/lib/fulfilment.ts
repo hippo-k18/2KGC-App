@@ -1,5 +1,13 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { COLLECTIONS, EVENT_ID, type RegistrationDoc } from "@kgc/shared";
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  SETTINGS_KEYS,
+  categoryFromRule,
+  resolveAttendeeCategories,
+  resolveTicketRules,
+  type RegistrationDoc,
+} from "@kgc/shared";
 import { claimCode, emailHash, normaliseEmail, qrSecret, registrationId } from "./ids.js";
 
 /**
@@ -80,6 +88,12 @@ export interface EnsureRegistrationInput {
  * invalidates a badge that is physically in someone's hand. So they are minted
  * only on first creation, and an attendee who has already claimed their
  * registration is not un-claimed by a second ticket.
+ *
+ * **The ticket rule is applied here**, because this is the one place a
+ * purchase, an invoice, an import and a hand-added attendee all pass through.
+ * `settings/attendeeCategories` is read inside the transaction and the ticket
+ * type is resolved with `categoryFromRule`, which leaves a category an
+ * organizer set by hand alone and does nothing when no rule names the ticket.
  */
 export async function ensureRegistration(
   store: Firestore,
@@ -91,8 +105,17 @@ export async function ensureRegistration(
 
   const result = await store.runTransaction(async (tx) => {
     const existing = await tx.get(regRef);
+    const bag = (await tx.get(store.collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.attendeeCategories))).data();
+    const stored = bag?.eventId === EVENT_ID ? bag.values : undefined;
+    const categories = resolveAttendeeCategories(stored?.categories);
+    const rules = resolveTicketRules(stored?.ticketRules, categories);
     // A native Date, never a sentinel — see the docblock above.
     const now = new Date();
+
+    const byRule = (current: Pick<RegistrationDoc, "categorySource">) => {
+      const next = categoryFromRule(current, categories, rules, input.ticketType);
+      return next === "keep" ? undefined : next;
+    };
 
     if (existing.exists) {
       const prev = existing.data() as RegistrationDoc;
@@ -105,6 +128,7 @@ export async function ensureRegistration(
         name: input.name,
         ticketType: input.ticketType,
         status: "active",
+        ...(byRule(prev) ?? {}),
         updatedAt: now,
       });
 
@@ -132,6 +156,7 @@ export async function ensureRegistration(
       // Random and opaque, and the only value that ever goes into a badge QR.
       // A uid here would let anyone who photographs a badge learn an identity.
       qrSecret: qrSecret(),
+      ...(byRule({}) ?? {}),
     };
 
     tx.set(regRef, { ...fresh, createdAt: now, updatedAt: now });

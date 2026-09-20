@@ -4,7 +4,12 @@ import { sessionAttendance } from '@/lib/attendance';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { seatCounts, sessionSeats, type SeatHolder } from '@/lib/session-seats';
+import { joinNames, seatFill } from '@/lib/session-seats-core';
+import { ConfirmButton } from '../../form';
+import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { removeSeatAction } from './actions';
+import { CapForm } from './cap-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,29 +17,26 @@ export const dynamic = 'force-dynamic';
  * Attendees › Session Cap.
  *
  * Whova caps a session, counts registrations against the cap, closes the
- * session when it fills and hands the door a list of who may come in. We have
- * the first of those four: `SessionDoc.capacity` is a number an organizer can
- * write, and `RoomDoc.capacity` is what the room seats. This screen compares
- * them.
+ * session when it fills and promotes from a waitlist. So does this. The app
+ * takes a seat in a transaction when an attendee adds a capped session to their
+ * agenda, `firestore.rules` re-check the count so the app cannot be bypassed,
+ * and a full session offers a waitlist that is promoted in order.
  *
- * ── The cap is a note, not a limit, and the screen says so at the top ───────
+ * Seats and Waitlist come from `sessionSeats/{sessionId}`, the counter those
+ * transactions move. A session nobody has joined has no counter and reads 0,
+ * which is a true zero: there is no other way onto a capped session.
  *
- * `models.ts` describes `capacity` as "enforced in a transaction, not by
- * rules". **There is no such transaction.** Nothing in `app/`, `apps/web/`,
- * `apps/organizer/` or `functions/` reads `SessionDoc.capacity` except
- * `conflicts-core.ts`, which raises a warning and changes nothing. The nearest
- * thing to a registration is `users/{uid}/savedSessions/{sessionId}` — a
- * private bookmark, allowed by `firestore.rules` with no count and no ceiling,
- * on a subcollection an organizer cannot even enumerate without a collection
- * group query. So there is no "seats taken" column here, because there is no
- * honest number to put in it. Whova's screen has one; showing an invented one
- * would be the fourteen-times-repeated defect this project keeps finding.
+ * "Counted" is a different question with a different answer: people scanned at
+ * that session's door, after the fact. It is `null`, rendered "not counted",
+ * for any session whose door was never opened.
  *
- * There *is* now a "Counted in" column, and it is a different question with a
- * different answer: people scanned at that session's door, after the fact. It
- * is `null` — rendered "not counted" — for any session whose door was never
- * opened, because a zero there would be the invented number this screen exists
- * to refuse.
+ * ── What an organizer does here ─────────────────────────────────────────────
+ *
+ * Manage opens one session on this same screen (`?session=`): the people
+ * seated, the waitlist in order, a Remove beside each and the cap. Removing
+ * somebody hands their seat to the first person waiting; raising the cap seats
+ * as many as now fit. Both go through `lib/session-seats.ts`, which uses the
+ * same planning functions as the app.
  *
  * ── Reads ───────────────────────────────────────────────────────────────────
  *
@@ -71,6 +73,9 @@ interface CappedRow {
    * cannot stand behind.
    */
   countedIn: number | null;
+  /** Seats held through the app. 0 when nobody has joined. */
+  taken: number;
+  waiting: number;
 }
 
 const VERDICT: Record<Verdict, { label: string; color: 'red' | 'orange' | 'green'; rank: number }> =
@@ -91,12 +96,14 @@ export default async function SessionCapPage({
   const sp = await searchParams;
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const day = typeof sp.day === 'string' ? sp.day : undefined;
+  const managedId = typeof sp.session === 'string' ? sp.session : undefined;
   const { page, sort, baseParams } = listParams(sp);
 
-  const [sessions, caps, attendance] = await Promise.all([
+  const [sessions, caps, attendance, counts] = await Promise.all([
     listSessions(),
     capacityIndex(),
     sessionAttendance(),
+    seatCounts(),
   ]);
   const countedIn = new Map(
     attendance.rows.filter((r) => r.tracked).map((r) => [r.session.id, r.countedIn]),
@@ -133,6 +140,8 @@ export default async function SessionCapPage({
         verdict,
         headroom: roomCapacity === undefined ? undefined : roomCapacity - capacity,
         countedIn: countedIn.has(s.id) ? countedIn.get(s.id)! : null,
+        taken: counts.get(s.id)?.taken ?? 0,
+        waiting: counts.get(s.id)?.waitlist.length ?? 0,
       };
     });
 
@@ -153,6 +162,8 @@ export default async function SessionCapPage({
     cap: (r) => r.capacity,
     seats: (r) => r.roomCapacity ?? -1,
     counted: (r) => r.countedIn ?? -1,
+    taken: (r) => r.taken,
+    waiting: (r) => r.waiting,
     verdict: (r) => VERDICT[r.verdict].rank,
   });
   // Problems first by default, so the screen is useful before anyone touches a
@@ -171,6 +182,55 @@ export default async function SessionCapPage({
   const uncapped = live.filter((s) => !caps.sessionCapacity.has(s.id));
   const uncappedWorkshops = uncapped.filter((s) => s.format === 'workshop');
   const seatsCapped = capped.reduce((n, r) => n + r.capacity, 0);
+  const seatsTaken = capped.reduce((n, r) => n + r.taken, 0);
+  const full = capped.filter((r) => r.taken >= r.capacity);
+  const waitingTotal = capped.reduce((n, r) => n + r.waiting, 0);
+
+  // Restricted to certain tickets but not capped: these hold seats too, so an
+  // organizer needs a way to see and remove people.
+  const restrictedOnly = live.filter(
+    (s) => caps.sessionTicketTypes.has(s.id) && !caps.sessionCapacity.has(s.id),
+  );
+
+  const managed = managedId ? live.find((s) => s.id === managedId) : undefined;
+  const people = managed ? await sessionSeats(managed.id) : undefined;
+  const managedCap = managed ? caps.sessionCapacity.get(managed.id) : undefined;
+  const managedTickets = managed ? caps.sessionTicketTypes.get(managed.id) : undefined;
+  const removed = typeof sp.removed === 'string' ? sp.removed : undefined;
+  const promoted = typeof sp.promoted === 'string' ? Number(sp.promoted) : 0;
+  const failure = typeof sp.error === 'string' ? sp.error : undefined;
+
+  const manageHref = (id: string) => {
+    const p = new URLSearchParams(baseParams);
+    p.set('session', id);
+    return `?${p.toString()}`;
+  };
+
+  const peopleRows = (list: SeatHolder[]) =>
+    list.map((h) => [
+      ...(h.status === 'waitlisted' ? [<strong key="p">{h.position ?? ''}</strong>] : []),
+      <span key="n">
+        <strong>{h.name}</strong>
+        {h.email && h.email !== h.name ? (
+          <div className="muted" style={{ fontSize: 12 }}>
+            {h.email}
+          </div>
+        ) : null}
+      </span>,
+      h.ticketType ?? <span className="muted">none recorded</span>,
+      h.since ? h.since.slice(0, 10) : '',
+      <ConfirmButton
+        key="x"
+        action={removeSeatAction}
+        label="Remove"
+        confirmLabel={`Remove ${h.name}`}
+        hidden={{ sessionId: managed!.id, uid: h.uid, name: h.name }}
+      >
+        {h.status === 'seated'
+          ? 'Takes this session off their agenda. The seat goes to the first person on the waitlist.'
+          : 'Takes them off the waitlist. Everybody behind them moves up.'}
+      </ConfirmButton>,
+    ]);
 
   const href = (next: { q?: string; day?: string }) => {
     const p = new URLSearchParams();
@@ -186,10 +246,11 @@ export default async function SessionCapPage({
         title="Session Cap"
         info={
           <>
-            <strong>A cap is a planning number</strong>
+            <strong>A cap is a limit</strong>
             <p>
-              The app does not stop attendees adding a full session to their schedule.
-              Counted is the number of people scanned at the session door.
+              Adding a capped session in the app takes a seat. A full session offers a waitlist,
+              and a freed seat goes to the first person waiting. Counted is the number of people
+              scanned at the session door.
             </p>
           </>
         }
@@ -202,6 +263,81 @@ export default async function SessionCapPage({
           </Link>,
         ]}
       />
+
+      {managedId && !managed ? <Banner kind="warning">That session is not in the programme.</Banner> : null}
+
+      {managed && people ? (
+        <Panel>
+          <h2 className="section-header">{managed.title}</h2>
+          <p className="body-2">
+            {managed.day} · {managed.startsAtLocal.slice(11, 16)} to {managed.endsAtLocal.slice(11, 16)}
+            {managed.roomName ? ` · ${managed.roomName}` : ''}
+            {' · '}
+            <Link href="/attendees/session-cap">Close</Link>
+          </p>
+
+          {failure ? <Banner kind="danger">{failure}</Banner> : null}
+          {removed ? (
+            <Banner kind="success">
+              {removed} was removed.
+              {promoted > 0 ? ' The first person on the waitlist now has the seat.' : ''}
+            </Banner>
+          ) : null}
+
+          <StatTiles
+            tiles={[
+              {
+                label: 'Seats taken',
+                value: people.state.taken,
+                sub: managedCap ? `of ${managedCap}` : 'no cap',
+              },
+              { label: 'On the waitlist', value: people.state.waitlist.length, sub: 'promoted in order' },
+              {
+                label: 'Tickets allowed',
+                value: managedTickets ? managedTickets.length : 'All',
+                sub: managedTickets ? joinNames(managedTickets) : 'every ticket type',
+              },
+            ]}
+          />
+
+          <CapForm key={managed.id} sessionId={managed.id} capacity={managedCap} />
+
+          <h3 className="section-header" style={{ marginTop: 24 }}>
+            Seated
+          </h3>
+          <Table
+            stackSm
+            cols={[
+              { key: 'n', label: 'Name', className: 'cell-fill' },
+              { key: 't', label: 'Ticket', className: 'cell-mdsm' },
+              { key: 's', label: 'Since', className: 'cell-sm' },
+              { key: 'x', label: '', className: 'cell-sm' },
+            ]}
+            empty="Nobody has taken a seat yet."
+            rows={peopleRows(people.seated)}
+          />
+
+          <h3 className="section-header" style={{ marginTop: 24 }}>
+            Waitlist
+          </h3>
+          <Table
+            stackSm
+            cols={[
+              { key: 'p', label: 'No.', className: 'cell-xs' },
+              { key: 'n', label: 'Name', className: 'cell-fill' },
+              { key: 't', label: 'Ticket', className: 'cell-mdsm' },
+              { key: 's', label: 'Joined', className: 'cell-sm' },
+              { key: 'x', label: '', className: 'cell-sm' },
+            ]}
+            empty="Nobody is waiting."
+            rows={peopleRows(people.waitlisted)}
+          />
+
+          <p className="body-2" style={{ marginBottom: 0 }}>
+            Somebody moved into a seat from here gets a notification in the app and an email.
+          </p>
+        </Panel>
+      ) : null}
 
       <Panel>
         <StatTiles
@@ -222,9 +358,14 @@ export default async function SessionCapPage({
               sub: 'no room, or the room has no capacity recorded',
             },
             {
-              label: 'Seats capped in total',
-              value: seatsCapped,
-              sub: 'the sum of all caps',
+              label: 'Seats taken',
+              value: seatsTaken,
+              sub: `of ${seatsCapped} capped seats`,
+            },
+            {
+              label: 'Full sessions',
+              value: full.length,
+              sub: waitingTotal ? `${waitingTotal} waiting across them` : 'nobody waiting',
             },
           ]}
         />
@@ -272,13 +413,14 @@ export default async function SessionCapPage({
           cols={[
             { key: 't', label: 'Session', className: 'cell-fill', sortKey: 'title' },
             { key: 'w', label: 'When', className: 'cell-sm', sortKey: 'when' },
-            { key: 'r', label: 'Room', className: 'cell-mdsm', sortKey: 'room' },
-            { key: 'c', label: 'Cap', className: 'cell-xs', sortKey: 'cap' },
-            { key: 's', label: 'Seats', className: 'cell-xs', sortKey: 'seats' },
-            { key: 'in', label: 'Counted', className: 'cell-xs', sortKey: 'counted' },
+            { key: 'r', label: 'Room', className: 'cell-sm', sortKey: 'room' },
+            { key: 'tk', label: 'Seats taken', className: 'cell-sm', sortKey: 'taken' },
+            { key: 'in', label: 'Counted', className: 'cell-sm', sortKey: 'counted' },
             { key: 'v', label: 'Fit', className: 'cell-sm', sortKey: 'verdict' },
+            { key: 'm', label: '', className: 'cell-xs' },
           ]}
           sort={sort}
+          stackSm
           empty={
             capped.length === 0
               ? 'No session has a cap yet.'
@@ -300,14 +442,21 @@ export default async function SessionCapPage({
               </div>
             </span>,
             r.roomName ?? <span className="muted">unassigned</span>,
-            <strong key="c">{r.capacity}</strong>,
-            r.roomCapacity === undefined ? (
-              <span key="s" className="muted">
-                —
-              </span>
-            ) : (
-              String(r.roomCapacity)
-            ),
+            <span key="tk">
+              <strong>{r.taken}</strong> of {r.capacity}
+              {r.waiting > 0 ? (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {r.waiting} waiting
+                </div>
+              ) : null}
+              {seatFill(r.taken, r.capacity) !== 'open' ? (
+                <div>
+                  <Tag color={seatFill(r.taken, r.capacity) === 'over' ? 'red' : 'orange'} fill="outline" small>
+                    {seatFill(r.taken, r.capacity) === 'over' ? 'over cap' : 'full'}
+                  </Tag>
+                </div>
+              ) : null}
+            </span>,
             r.countedIn === null ? (
               <span key="in" className="muted" title="Check-in was not opened for this session">
                 not counted
@@ -335,10 +484,13 @@ export default async function SessionCapPage({
               )}
               {r.verdict === 'fits' && (
                 <div className="muted" style={{ fontSize: 12 }}>
-                  {r.headroom} spare
+                  room seats {r.roomCapacity}
                 </div>
               )}
             </span>,
+            <Link key="m" href={manageHref(r.session.id)}>
+              Manage
+            </Link>,
           ])}
         />
         <Pagination total={ordered.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
@@ -361,39 +513,49 @@ export default async function SessionCapPage({
         </p>
       </Panel>
 
+      {restrictedOnly.length > 0 ? (
+        <Panel>
+          <h2 className="section-header">Limited by ticket, with no cap</h2>
+          <Table
+            stackSm
+            cols={[
+              { key: 't', label: 'Session', className: 'cell-fill' },
+              { key: 'a', label: 'Tickets allowed', className: 'cell-md' },
+              { key: 'tk', label: 'Taken', className: 'cell-xs' },
+              { key: 'm', label: '', className: 'cell-xs' },
+            ]}
+            rows={restrictedOnly.map((s) => [
+              <strong key="t">{s.title}</strong>,
+              joinNames(caps.sessionTicketTypes.get(s.id) ?? []),
+              String(counts.get(s.id)?.taken ?? 0),
+              <Link key="m" href={manageHref(s.id)}>
+                Manage
+              </Link>,
+            ])}
+          />
+          <p className="body-2" style={{ marginBottom: 0 }}>
+            Choose which tickets a session is for in{' '}
+            <Link href="/attendees/ticket-session-mapping">Ticket Session Mapping</Link>.
+          </p>
+        </Panel>
+      ) : null}
+
       <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Registration against a cap.</strong> The feature Whova&apos;s screen exists for.
-            Needs a real per-session registration — a document the organizer can count, written in a
-            transaction that rejects the write when the count reaches the cap. Saving a session
-            today is a bookmark in the attendee&apos;s own subcollection: it is not a claim on a
-            seat, nobody but them can read it, and two people saving simultaneously cannot conflict
-            because there is nothing to conflict over.
+            <strong>A warning on the scanner.</strong> Per-session check-in is built and the Counted
+            column comes from a real door list, but the scanner does not warn at the moment a room
+            passes its cap, and it does not check the badge against the seat list.
           </li>
           <li>
-            <strong>Seats taken, and closing a full session.</strong> Both are downstream of the
-            above. Firestore has no way to reserve across a redirect, so the same caution that
-            applies to <code>quantitySold</code> on a ticket tier applies here: a counter is a count,
-            not a lock.
+            <strong>Adding somebody by hand.</strong> An organizer can remove a person and raise the
+            cap, but cannot put a named attendee into a seat from here.
           </li>
           <li>
-            <strong>A waitlist.</strong> Whova promotes from one when a seat frees. There is no
-            waitlist document, and a waitlist without a notification to send is a list nobody is
-            told they are on.
-          </li>
-          <li>
-            <strong>Enforcement at the door.</strong> Per-session check-in is built — the Counted in
-            column above comes from a real door list per session — but the scanner does not refuse
-            the badge that takes a room past its cap, and should not: the operator can see the
-            number and the fire marshal, not the software, decides who stays out. What is missing is
-            the warning, on the scanner, at the moment it crosses.
-          </li>
-          <li>
-            <strong>Editing a cap.</strong> This screen reads. The write belongs next to the rest of
-            the session fields in Session Manager, where the room is chosen — a cap set away from
-            the room it has to fit is how a session ends up 40 over.
+            <strong>A push when a seat opens.</strong> A promoted attendee gets an in-app notification
+            and an email when the organizer frees the seat. When another attendee frees it, their
+            app shows the seat at once but nothing is sent, because no server runs on that path.
           </li>
         </ul>
       </GapPanel>

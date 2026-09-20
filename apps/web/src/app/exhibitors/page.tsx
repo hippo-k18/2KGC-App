@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listExhibitorsByZone } from '@/lib/data';
-import { SITE } from '@/lib/site';
+import { listExhibitorsByZone, siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Exhibitors',
@@ -46,6 +45,7 @@ function initials(name: string): string {
 }
 
 export default async function ExhibitorsPage() {
+  const ev = await siteEvent();
   const zones = await listExhibitorsByZone();
   const total = zones.reduce((n, z) => n + z.exhibitors.length, 0);
 
@@ -54,11 +54,11 @@ export default async function ExhibitorsPage() {
       <section>
         <div className="wrap">
           <p className="eyebrow">Exhibition</p>
-          <h1>Exhibitors at {SITE.shortName} {SITE.year}</h1>
+          <h1>Exhibitors at {ev.shortName} {ev.year}</h1>
           <p className="lede">
             The exhibition hall is where the coffee is served, which is where most of the
-            conversations at {SITE.shortName} actually start. {SITE.datesLong} at{' '}
-            {SITE.venueShort}.
+            conversations at {ev.shortName} actually start. {ev.datesLong} at{' '}
+            {ev.venueShort}.
           </p>
         </div>
       </section>
@@ -75,12 +75,12 @@ export default async function ExhibitorsPage() {
             <>
               <h2>The floor plan is still being set</h2>
               <p>
-                No exhibitors are confirmed for {SITE.year} yet. Booth packages are on sale now, and
+                No exhibitors are confirmed for {ev.year} yet. Booth packages are on sale now, and
                 this page fills in as they are signed.
               </p>
               <p style={{ marginTop: 20 }}>
                 <Link className="btn btn-primary" href="/tickets/exhibitor">
-                  Exhibit at {SITE.shortName}
+                  Exhibit at {ev.shortName}
                 </Link>
               </p>
             </>
@@ -168,7 +168,7 @@ export default async function ExhibitorsPage() {
       {total > 0 && (
         <section>
           <div className="wrap narrow">
-            <h2>Exhibit at {SITE.shortName} {SITE.year}</h2>
+            <h2>Exhibit at {ev.shortName} {ev.year}</h2>
             <p>
               Booth packages include a staffed space for the whole week and full conference passes
               for your team.

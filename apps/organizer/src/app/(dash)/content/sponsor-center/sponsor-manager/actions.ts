@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
-import type { SponsorTier } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
-import { getSponsor, TIER_ORDER } from '@/lib/data';
+import { getSponsor } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { removeImage, uploadImage, UploadRejected, UploadUnavailable } from '@/lib/uploads';
@@ -21,12 +21,11 @@ import { EMAIL, normaliseWebsite, parseOffers, sponsorSlug } from './sponsor-fie
  * audit trail, validation, id collision and no-delete. The differences are the
  * ones the data model forces, and they are worth naming:
  *
- * - **`tier` is the field with a contract behind it.** It is a closed union in
- *   `@kgc/shared`, and it decides logo size on the public site (`TIER_SIZE`) and
- *   position in the app's directory (`useSponsors`' comparator). So it is a
- *   `<select>` over `TIER_ORDER` and it is re-checked here, because a tier that
- *   is not in the union sorts to the end of every one of those three surfaces
- *   and renders under no heading at all.
+ * - **`tier` is the field with a contract behind it.** It is the id of one
+ *   entry in the saved tier list (Sponsor Tiering), and it decides logo size on
+ *   the public site and position in the app's directory. So it is a `<select>`
+ *   over that list and it is re-checked here, because a tier that is not in the
+ *   list sorts to the end of every one of those three surfaces.
  *
  * ── There is no delete, and no retire either ────────────────────────────────
  *
@@ -57,10 +56,6 @@ function logoTarget(docId: string) {
   return { folder: `${COLLECTIONS.sponsors}/${docId}`, name: 'logo' };
 }
 
-function isTier(value: string): value is SponsorTier {
-  return (TIER_ORDER as string[]).includes(value);
-}
-
 export async function saveSponsorAction(
   _prev: FormState,
   formData: FormData,
@@ -80,7 +75,7 @@ export async function saveSponsorAction(
   const fieldErrors: Record<string, string> = {};
 
   if (name.length < 2) fieldErrors.name = 'Enter the sponsoring company’s name.';
-  if (!isTier(tier)) {
+  if (!(await sponsorTiers()).some((t) => t.id === tier)) {
     fieldErrors.tier = 'Choose a tier. This is what the sponsor bought, and it decides their logo size on the public site.';
   }
   if (contactEmail && !EMAIL.test(contactEmail)) {

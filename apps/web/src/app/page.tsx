@@ -5,6 +5,7 @@ import {
   listAnnouncements,
   listSponsorsByTier,
   programmeCounts,
+  siteEvent,
 } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
@@ -136,6 +137,7 @@ async function programmeOrNothing() {
 }
 
 export default async function HomePage() {
+  const ev = await siteEvent();
   // The ticket catalogue lives in Firestore now, so the homepage's price row
   // reads it like any other data rather than importing a frozen array.
   // The homepage shows a price teaser. If the catalogue cannot be read the
@@ -166,6 +168,7 @@ export default async function HomePage() {
       pageUrl: `${canonicalOrigin()}/`,
       agenda,
       tiers,
+      event: ev,
       description: branding.tagline || SITE.tagline,
     }),
   );
@@ -187,9 +190,24 @@ export default async function HomePage() {
         what the organizer actually announced, and `SiteHeader` is a client
         component. See the note in that file.
       */}
-      <Ticker announcements={announcements.map((a) => a.title)} />
+      <Ticker
+        announcements={announcements.map((a) => a.title)}
+        dates={ev.datesSaved ? ev.datesLong : undefined}
+        venue={ev.venueShort !== SITE.venueShort ? ev.venueShort : undefined}
+      />
 
-      <section className="hero">
+      {/*
+        A banner saved on App Branding replaces the campus photograph. Set as an
+        inline background so the stylesheet's own picture stands when none is saved.
+      */}
+      <section
+        className="hero"
+        style={
+          branding.bannerUrl
+            ? { backgroundImage: `url(${JSON.stringify(branding.bannerUrl)})` }
+            : undefined
+        }
+      >
         {/* The node-and-edge field over the photograph — see `graph-field.tsx`. */}
         <GraphField />
         <div className="wrap">
@@ -201,11 +219,14 @@ export default async function HomePage() {
             a visitor arrives wanting to confirm — which conference this is, and
             when.
           */}
-          <p className="hero-eyebrow">KGC {SITE.year}</p>
-          <h1>The Knowledge Graph Conference</h1>
-          <p className="lede">Make Your Enterprise Data AI Ready</p>
+          {/* The name and tagline follow Content > Basics and App Branding once they are saved. */}
+          <p className="hero-eyebrow">
+            {ev.shortName} {ev.year}
+          </p>
+          <h1>{ev.name === SITE.name ? 'The Knowledge Graph Conference' : ev.name}</h1>
+          <p className="lede">{branding.tagline || 'Make Your Enterprise Data AI Ready'}</p>
           <p className="hero-dates">
-            {SITE.datesLong} &nbsp;|&nbsp; {SITE.venueShort}
+            {ev.datesLong} &nbsp;|&nbsp; {ev.venueShort}
           </p>
 
           {/*
@@ -268,7 +289,7 @@ export default async function HomePage() {
       {agenda.length > 0 && (
         <section className="kgc-wide" aria-labelledby="schedule-heading">
           <h2 id="schedule-heading" className="hero-headline" style={{ fontSize: 32 }}>
-            KGC {SITE.year} Full Agenda
+            KGC {ev.year} Full Agenda
           </h2>
           <EventSchedule days={agenda} limitPerDay={4} moreHref="/agenda" />
         </section>
@@ -455,7 +476,7 @@ export default async function HomePage() {
           <summary>Where should I make hotel arrangements?</summary>
           <div className="answer">
             <p>
-              For KGC {SITE.year} we recommend the following, both within easy reach of the campus
+              For KGC {ev.year} we recommend the following, both within easy reach of the campus
               and the city:
             </p>
             <ul>
@@ -506,7 +527,7 @@ export default async function HomePage() {
         <div className="wrap narrow center">
           <h2>Bring your team</h2>
           <p className="lede" style={{ margin: '0 auto 24px' }}>
-            {SITE.datesLong} at {SITE.venue}. Register now, and your ticket appears in the KGC app
+            {ev.datesLong} at {ev.venue}. Register now, and your ticket appears in the KGC app
             the moment you sign in with the same email address.
           </p>
           <Link href="/tickets" className="btn btn-primary">

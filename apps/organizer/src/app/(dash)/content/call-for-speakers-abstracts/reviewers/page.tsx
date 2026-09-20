@@ -2,13 +2,22 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listCalls } from '@/lib/calls';
 import { listTrackOptions } from '@/lib/data';
-import { listReviewers, reviewerInvitesAvailable } from '@/lib/reviewers';
+import {
+  invitationEmailAvailable,
+  listReviewers,
+  reviewProgress,
+  reviewerInvitesAvailable,
+  reviewerLink,
+} from '@/lib/reviewers';
+import { submittedReviewCount } from '@/lib/rubric';
 import { listSubmissions } from '@/lib/submissions';
 import { Banner, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { ConfirmButton } from '../../../form';
 import { CFA_BASE } from '../routes';
 import { AssignByTrackForm, AssignForm, InviteReviewerForm } from './reviewer-forms';
-import { setReviewerStatusAction } from './actions';
+import { CriterionForm, DefaultCriteriaForm, InvitationForm } from './criteria-forms';
+import { moveCriterionAction, setReviewerStatusAction } from './actions';
+import { liftExclusionAction } from '../submissions/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,19 +33,14 @@ export const dynamic = 'force-dynamic';
  * thing that claim means, or a second kind of user document half the app's
  * queries would have to know about.
  *
- * ── What is built here, and what honestly is not ───────────────────────────
+ * ── What is on this screen ─────────────────────────────────────────────────
  *
- * Built: the committee list, invitation, assignment by hand and by track, and
- * the `reviews/{reviewerId}` document written at the moment of assignment —
- * which is what makes "who has not reviewed yet" a query rather than a
- * subtraction.
- *
- * Not built, and not implied anywhere on this screen: the reviewer's own
- * screen. The rubric, the scoring form, and the rule that hides other reviewers'
- * scores until yours is entered are `CFA-PLAN.md` phase 3. There is deliberately
- * no "copy invitation link" button, because the link would point at a route that
- * does not exist — `lib/reviewers.ts` mints the token only to store its hash and
- * throws the plaintext away.
+ * The scoring criteria, the committee, the invitation, assignment by hand and by
+ * track, and the conflicts of interest. The reviewer's own page is
+ * `/review/{token}` on the website. Each row carries a freshly minted link to
+ * it, because the invitation mail only reaches people once the sender domain is
+ * verified and until then the organizer pastes the link into a message of their
+ * own.
  */
 export default async function ReviewersPage({
   searchParams,
@@ -61,6 +65,15 @@ export default async function ReviewersPage({
   const trackName = new Map(tracks.map((t) => [t.id, t.name]));
   const canInvite = reviewerInvitesAvailable();
 
+  const [progress, scored] = await Promise.all([
+    reviewProgress(assignable.map((s) => s.id)),
+    callId ? submittedReviewCount(callId) : Promise.resolve(0),
+  ]);
+  const titleOf = new Map(submissions.map((s) => [s.id, s.title || 'Untitled']));
+  const nameOf = new Map(reviewers.map((r) => [r.id, r.name]));
+  const invitable = reviewers.filter((r) => r.status === 'invited' || r.status === 'accepted');
+  const emailOn = invitationEmailAvailable();
+
   const capacity = active.reduce((n, r) => n + r.maxAssignments, 0);
   const load = active.reduce((n, r) => n + r.assignedCount, 0);
   const needed = call ? assignable.length * call.reviewsPerSubmission : 0;
@@ -71,10 +84,11 @@ export default async function ReviewersPage({
         title="Reviewers"
         info={
           <>
-            <strong>Reviewers cannot score yet</strong>
+            <strong>How reviewing works</strong>
             <p>
-              You can build the committee and assign submissions here. The scoring form for
-              reviewers is not available yet.
+              Set the scoring criteria, add reviewers, assign submissions, then send each
+              reviewer their link. They score from that link with no account. Rankings are on
+              the Submissions screen.
             </p>
           </>
         }
@@ -139,6 +153,70 @@ export default async function ReviewersPage({
         ]}
       />
 
+      {call && (
+        <Panel style={{ marginBottom: 16 }}>
+          <h2 className="section-header" style={{ marginTop: 0 }}>
+            Scoring criteria · {call.title}
+          </h2>
+          {call.rubric.length === 0 ? (
+            <>
+              <p className="body-2">
+                Reviewers score each submission against these. There are none yet, so reviewers
+                can read their submissions but cannot score them.
+              </p>
+              <DefaultCriteriaForm callId={call.id} />
+            </>
+          ) : (
+            <>
+              {scored > 0 && (
+                <p className="body-2">
+                  {scored} review{scored === 1 ? ' has' : 's have'} been scored, so scales are
+                  fixed and criteria cannot be removed. Names and descriptions can still change.
+                  A criterion added now does not change the overall of reviews already in.
+                </p>
+              )}
+              <Table
+                stackSm
+                cols={[
+                  { key: 'n', label: 'Criterion' },
+                  { key: 's', label: 'Scale', className: 'cell-sm' },
+                  { key: 'x', label: '', className: 'cell-md' },
+                ]}
+                rows={call.rubric.map((c, i) => [
+                  <span key="n">
+                    <strong>{c.label}</strong>
+                    {c.description ? (
+                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                        {c.description}
+                      </span>
+                    ) : null}
+                  </span>,
+                  <span key="s">
+                    {c.min} to {c.max}
+                  </span>,
+                  <span key="x" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    {i > 0 && <MoveButton callId={call.id} id={c.id} direction="up" />}
+                    {i < call.rubric.length - 1 && (
+                      <MoveButton callId={call.id} id={c.id} direction="down" />
+                    )}
+                    <details>
+                      <summary className="linkish" style={{ cursor: 'pointer', listStyle: 'none' }}>
+                        Edit
+                      </summary>
+                      <div style={{ marginTop: 8 }}>
+                        <CriterionForm callId={call.id} existing={c} locked={scored > 0} />
+                      </div>
+                    </details>
+                  </span>,
+                ])}
+              />
+            </>
+          )}
+          <h3 className="section-header">Add a criterion</h3>
+          <CriterionForm callId={call.id} />
+        </Panel>
+      )}
+
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
           The committee
@@ -147,10 +225,11 @@ export default async function ReviewersPage({
           <NotInputted what="reviewers" />
         ) : (
           <Table
+            stackSm
             cols={[
               { key: 'n', label: 'Reviewer' },
               { key: 't', label: 'Tracks', className: 'cell-md' },
-              { key: 'l', label: 'Load', className: 'cell-sm' },
+              { key: 'l', label: 'Reviews done', className: 'cell-sm' },
               { key: 's', label: 'Status', className: 'cell-sm' },
               { key: 'x', label: '', className: 'cell-md' },
             ]}
@@ -170,7 +249,13 @@ export default async function ReviewersPage({
                 )}
               </span>,
               <span key="l">
-                {r.assignedCount}/{r.maxAssignments}
+                {progress.byReviewer.get(r.id)?.submitted ?? 0} of {r.assignedCount}
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  will take {r.maxAssignments}
+                  {progress.byReviewer.get(r.id)?.conflicts
+                    ? ` · ${progress.byReviewer.get(r.id)?.conflicts} conflict${progress.byReviewer.get(r.id)?.conflicts === 1 ? '' : 's'}`
+                    : ''}
+                </span>
               </span>,
               <span key="s">
                 <Tag
@@ -186,6 +271,19 @@ export default async function ReviewersPage({
                 </Tag>
               </span>,
               <span key="x" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {canInvite && (r.status === 'invited' || r.status === 'accepted') && (
+                  <details>
+                    <summary className="linkish" style={{ cursor: 'pointer', listStyle: 'none' }}>
+                      Review link
+                    </summary>
+                    <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                      Their private link. Anyone who has it can score as {r.name}.
+                    </p>
+                    <code style={{ display: 'block', fontSize: 12, wordBreak: 'break-all' }}>
+                      {reviewerLink(r.id)}
+                    </code>
+                  </details>
+                )}
                 {r.status !== 'accepted' && r.status !== 'removed' && (
                   <StatusButton id={r.id} status="accepted" label="Mark accepted" />
                 )}
@@ -198,12 +296,13 @@ export default async function ReviewersPage({
                     hidden={{ id: r.id, status: 'removed' }}
                     label="Remove"
                     confirmLabel="Take them off the committee"
+                    width={240}
                   >
                     {r.assignedCount > 0 ? (
                       <>
                         They hold {r.assignedCount} assignment
-                        {r.assignedCount === 1 ? '' : 's'}. Those stay on the submissions, and
-                        they will not be assigned anything new.
+                        {r.assignedCount === 1 ? '' : 's'}. Those stay on the submissions, their
+                        link stops working, and they will not be assigned anything new.
                       </>
                     ) : (
                       <>They have no assignments.</>
@@ -222,7 +321,8 @@ export default async function ReviewersPage({
             Add a reviewer
           </h2>
           <p className="body-2">
-            Nothing is emailed from here. Add the reviewer, then invite them yourself.
+            Adding a reviewer sends nothing. Assign their submissions, then send the invitation
+            below.
           </p>
           <InviteReviewerForm tracks={tracks} />
         </Panel>
@@ -247,7 +347,79 @@ export default async function ReviewersPage({
           )}
         </Panel>
       )}
+
+      {call && invitable.length > 0 && canInvite && (
+        <Panel style={{ marginTop: 16 }}>
+          <h2 className="section-header" style={{ marginTop: 0 }}>
+            Invite reviewers
+          </h2>
+          <p className="body-2">
+            Emails the reviewer a private link to their review page. Send it again as a reminder:
+            every email carries a new link and the old ones keep working.
+          </p>
+          <InvitationForm callId={call.id} reviewers={invitable} emailOn={emailOn} />
+        </Panel>
+      )}
+
+      {progress.conflicts.length > 0 && (
+        <Panel style={{ marginTop: 16 }}>
+          <h2 className="section-header" style={{ marginTop: 0 }}>
+            Conflicts of interest
+          </h2>
+          <p className="body-2">
+            These reviewers cannot open these submissions and assignment skips them. Exclude a
+            reviewer from a submission on that submission&rsquo;s page.
+          </p>
+          <Table
+            stackSm
+            cols={[
+              { key: 'r', label: 'Reviewer', className: 'cell-md' },
+              { key: 's', label: 'Submission' },
+              { key: 'w', label: 'Who said so', className: 'cell-md' },
+            ]}
+            rows={progress.conflicts.map((c) => [
+              <span key="r">{nameOf.get(c.reviewerId) ?? c.reviewerId}</span>,
+              <span key="s">
+                <Link href={`${CFA_BASE}/submissions/${c.submissionId}`}>
+                  {titleOf.get(c.submissionId) ?? c.submissionId}
+                </Link>
+                {c.note ? (
+                  <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                    {c.note}
+                  </span>
+                ) : null}
+              </span>,
+              <span key="w">
+                {c.excludedBy ? `Excluded by ${c.excludedBy}` : 'Declared by the reviewer'}
+                {c.liftable ? (
+                  <form action={liftExclusionAction}>
+                    <input type="hidden" name="submissionId" value={c.submissionId} />
+                    <input type="hidden" name="reviewerId" value={c.reviewerId} />
+                    <button type="submit" className="linkish">
+                      Lift exclusion
+                    </button>
+                  </form>
+                ) : null}
+              </span>,
+            ])}
+          />
+        </Panel>
+      )}
     </>
+  );
+}
+
+/** Reorders one criterion. A POST, because it changes what reviewers see. */
+function MoveButton({ callId, id, direction }: { callId: string; id: string; direction: 'up' | 'down' }) {
+  return (
+    <form action={moveCriterionAction}>
+      <input type="hidden" name="callId" value={callId} />
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="direction" value={direction} />
+      <button type="submit" className="linkish">
+        {direction === 'up' ? 'Move up' : 'Move down'}
+      </button>
+    </form>
   );
 }
 

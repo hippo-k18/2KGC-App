@@ -135,6 +135,14 @@ export const COLLECTIONS = {
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",
   auditLog: "auditLog",
+  /** Seat counters for capped or ticket-restricted sessions. See `SessionSeatsDoc`. */
+  sessionSeats: "sessionSeats",
+  /**
+   * Server-only: the people invited to the organizer dashboard, their roles and
+   * their hashed passphrases. No `match` block in `firestore.rules`, and it must
+   * not get one — a client that could read this could read who holds the keys.
+   */
+  teamMembers: "teamMembers",
 } as const;
 
 export const SUBCOLLECTIONS = {
@@ -169,6 +177,8 @@ export const SUBCOLLECTIONS = {
    * the organizer's notes; see `GatheringPlacementDoc`.
    */
   gatherings: "gatherings",
+  /** `sessionSeats/{sessionId}/seats/{uid}` — one attendee's seat or waitlist place. */
+  seats: "seats",
 } as const;
 
 /** The single document inside `sessions/{id}/qaBoard`. */

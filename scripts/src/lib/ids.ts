@@ -65,6 +65,19 @@ export function contactId(email: string): string {
   return `contact_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 32)}`;
 }
 
+/**
+ * `reviewers/{id}` — derived from the address, so inviting the same person twice
+ * converges on one document rather than two people with one inbox. Never the
+ * address itself, for the reasons `registrationId` gives.
+ *
+ * Here rather than in `apps/organizer` since the day a second writer appeared
+ * (`seed-cfa-demo.ts`): two spellings of one id is a duplicated committee,
+ * discovered when half the assignments are on the wrong document.
+ */
+export function reviewerId(email: string): string {
+  return `rev_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 24)}`;
+}
+
 /** Lookup key. Never the document id, so the plaintext address is not a path. */
 export function emailHash(email: string): string {
   return createHash('sha256').update(normaliseEmail(email)).digest('hex');

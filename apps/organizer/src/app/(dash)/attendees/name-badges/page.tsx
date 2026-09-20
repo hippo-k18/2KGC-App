@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { CATEGORY_COLOR_HEX } from '@kgc/shared';
+import { attendeeCategories } from '@/lib/attendee-categories';
+import { UNCATEGORISED, categoryLabel, inCategory } from '@/lib/attendee-categories-core';
 import { requireOrganizer } from '@/lib/auth';
 import { QR_QUIET_ZONE, badgeQr, listBadgeRows } from '@/lib/badges';
 import { ROUTES } from '@/lib/nav';
@@ -54,9 +57,10 @@ export default async function NameBadgesPage({
   const sp = await searchParams;
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const ticket = typeof sp.ticket === 'string' ? sp.ticket : undefined;
+  const category = typeof sp.category === 'string' ? sp.category : undefined;
   const { page, baseParams } = listParams(sp);
 
-  const all = await listBadgeRows();
+  const [all, { categories }] = await Promise.all([listBadgeRows(), attendeeCategories()]);
 
   /**
    * Cancelled and transferred registrations are excluded outright rather than
@@ -69,8 +73,9 @@ export default async function NameBadgesPage({
   const needle = (q ?? '').trim().toLowerCase();
   const matched = printable.filter((r) => {
     if (ticket && (r.ticketType ?? '') !== ticket) return false;
+    if (!inCategory(r, category)) return false;
     if (!needle) return true;
-    return [r.name, r.company, r.title, r.ticketType]
+    return [r.name, r.company, r.title, r.ticketType, categoryLabel(categories, r)]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(needle));
   });
@@ -79,10 +84,11 @@ export default async function NameBadgesPage({
   const tickets = [...new Set(printable.map((r) => r.ticketType).filter(Boolean))].sort() as string[];
   const withoutCompany = printable.filter((r) => !r.company).length;
 
-  const href = (next: { q?: string; ticket?: string }) => {
+  const href = (next: { q?: string; ticket?: string; category?: string }) => {
     const p = new URLSearchParams();
     if (next.q) p.set('q', next.q);
     if (next.ticket) p.set('ticket', next.ticket);
+    if (next.category) p.set('category', next.category);
     const s = p.toString();
     return s ? `?${s}` : '/attendees/name-badges';
   };
@@ -104,7 +110,27 @@ export default async function NameBadgesPage({
           height: 2.25in;
           overflow: hidden;
           padding: 0.18in;
+          position: relative;
           width: 3.5in;
+        }
+        /* The category, as a band a door volunteer can read from two metres. */
+        .badge.has-band { padding-bottom: 0.46in; }
+        .badge-band {
+          bottom: 0;
+          font-size: 13px;
+          font-weight: 700;
+          left: 0;
+          letter-spacing: 1.5px;
+          line-height: 0.32in;
+          overflow: hidden;
+          position: absolute;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+          right: 0;
+          text-align: center;
+          text-overflow: ellipsis;
+          text-transform: uppercase;
+          white-space: nowrap;
         }
         .badge-fields { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
         .badge-name {
@@ -178,12 +204,13 @@ export default async function NameBadgesPage({
       <Panel>
         <form method="get" className="toolbar">
           {ticket ? <input type="hidden" name="ticket" value={ticket} /> : null}
-          <SearchInput defaultValue={q} placeholder="Enter name, company or job title" />
+          {category ? <input type="hidden" name="category" value={category} /> : null}
+          <SearchInput defaultValue={q} placeholder="Enter name, company, job title or category" />
           <button type="submit" className="btn btn-default">
             Search
           </button>
           {q ? (
-            <Link className="btn btn-default" href={href({ ticket })}>
+            <Link className="btn btn-default" href={href({ ticket, category })}>
               Clear
             </Link>
           ) : null}
@@ -192,7 +219,7 @@ export default async function NameBadgesPage({
         <div className="toolbar">
           <Link
             className={`whova-tag-main ${!ticket ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
-            href={href({ q })}
+            href={href({ q, category })}
             style={{ textDecoration: 'none' }}
           >
             All tickets ({printable.length})
@@ -201,7 +228,7 @@ export default async function NameBadgesPage({
             <Link
               key={t}
               className={`whova-tag-main ${t === ticket ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
-              href={href({ q, ticket: t })}
+              href={href({ q, ticket: t, category })}
               style={{ textDecoration: 'none' }}
             >
               {t} ({printable.filter((r) => r.ticketType === t).length})
@@ -209,17 +236,42 @@ export default async function NameBadgesPage({
           ))}
         </div>
 
+        <div className="toolbar">
+          <Link
+            className={`whova-tag-main ${!category ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+            href={href({ q, ticket })}
+            style={{ textDecoration: 'none' }}
+          >
+            All categories
+          </Link>
+          {[...categories.map((c) => ({ id: c.id, name: c.name })), { id: UNCATEGORISED, name: 'No category' }].map(
+            (c) => (
+              <Link
+                key={c.id}
+                className={`whova-tag-main ${c.id === category ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+                href={href({ q, ticket, category: c.id })}
+                style={{ textDecoration: 'none' }}
+              >
+                {c.name} ({printable.filter((r) => inCategory(r, c.id)).length})
+              </Link>
+            ),
+          )}
+        </div>
+
         <p className="body-2">
           Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet. Print prints the sheet
-          on screen, so page through and print each one.
+          on screen, so page through and print each one. The category prints as a coloured band.
+          Turn on background graphics in the print dialog to print the colour.
         </p>
 
         <div className="badge-sheet">
           {pageRows.map((r) => {
             const qr = badgeQr(r.qrSecret);
             const span = qr.size + QR_QUIET_ZONE * 2;
+            const cat = categories.find((c) => c.id === r.categoryId);
+            const band = cat ? CATEGORY_COLOR_HEX[cat.color] : undefined;
             return (
-              <div className="badge" key={r.registrationId}>
+              <div className={`badge${cat ? ' has-band' : ''}`} key={r.registrationId}>
                 <div className="badge-fields">
                   <div className="badge-name">{r.name}</div>
                   {r.company ? <div className="badge-company">{r.company}</div> : null}
@@ -246,6 +298,11 @@ export default async function NameBadgesPage({
                     transform={`translate(${QR_QUIET_ZONE} ${QR_QUIET_ZONE})`}
                   />
                 </svg>
+                {cat && band ? (
+                  <div className="badge-band" style={{ background: band.band, color: band.text }}>
+                    {cat.name}
+                  </div>
+                ) : null}
               </div>
             );
           })}

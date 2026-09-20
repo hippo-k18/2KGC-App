@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listSponsors, TIER_ORDER } from '@/lib/data';
+import { tierName } from '@kgc/shared';
+import { listSponsors } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { publicUrl } from '@/lib/webpages';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
@@ -28,10 +30,12 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SponsorBannerPage() {
   await requireOrganizer();
-  const sponsors = await listSponsors();
+  const [sponsors, tiers] = await Promise.all([listSponsors(), sponsorTiers()]);
 
   const withLogo = sponsors.filter((s) => s.hasLogo);
-  const topTiers = sponsors.filter((s) => s.tier === 'platinum' || s.tier === 'gold');
+  /** The first two tiers in the saved order: Platinum and Gold until somebody changes them. */
+  const top = tiers.slice(0, 2).map((t) => t.id);
+  const topTiers = sponsors.filter((s) => top.includes(s.tier));
   const topMissing = topTiers.filter((s) => !s.hasLogo);
 
   return (
@@ -94,13 +98,7 @@ export default async function SponsorBannerPage() {
             { key: 't', label: 'Tier', className: 'cell-sm' },
             { key: 'w', label: 'Shown on', className: 'cell-md' },
           ]}
-          rows={[...sponsors]
-            .sort(
-              (a, b) =>
-                TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) ||
-                a.name.localeCompare(b.name),
-            )
-            .map((s) => [
+          rows={sponsors.map((s) => [
               // The image itself, because the thing an organizer is checking is
               // whether a wordmark got squeezed — a "yes" column cannot show that.
               s.logoURL ? (
@@ -118,7 +116,7 @@ export default async function SponsorBannerPage() {
               ),
               s.name,
               <Tag key="t" color="grey" fill="outline" small>
-                {s.tier}
+                {tierName(tiers, s.tier)}
               </Tag>,
               s.hasLogo ? (
                 <span key="w" style={{ fontSize: 12 }}>

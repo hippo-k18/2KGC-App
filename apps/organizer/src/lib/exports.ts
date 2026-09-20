@@ -10,6 +10,7 @@ import {
   type SessionAttendanceRow,
 } from './attendance';
 import { listOrders, money, type OrderRow } from './commerce';
+import { inCategory } from './attendee-categories-core';
 import { listAttendees, listSessions, listSpeakers, listSponsors } from './data';
 import type { AttendeeRow, SessionRow, SpeakerRow, SponsorRow } from './data';
 
@@ -53,7 +54,12 @@ export interface ExportDef {
   purpose: string;
   /** Named so an organizer knows what they are about to hand over. */
   contains: string;
-  build: () => Promise<{ csv: string; rows: number }>;
+  /** `category` narrows the two attendee files to one category, as the list's filter does. */
+  build: (opts?: ExportOptions) => Promise<{ csv: string; rows: number }>;
+}
+
+export interface ExportOptions {
+  category?: string;
 }
 
 function def<T>(
@@ -61,7 +67,7 @@ function def<T>(
   title: string,
   purpose: string,
   contains: string,
-  load: () => Promise<T[]>,
+  load: (opts: ExportOptions) => Promise<T[]>,
   columns: Column<T>[],
 ): ExportDef {
   return {
@@ -69,8 +75,8 @@ function def<T>(
     title,
     purpose,
     contains,
-    build: async () => {
-      const rows = await load();
+    build: async (opts = {}) => {
+      const rows = await load(opts);
       return { csv: toCsv(rows, columns), rows: rows.length };
     },
   };
@@ -83,8 +89,8 @@ export const EXPORTS: ExportDef[] = [
     'attendees',
     'Attendee list',
     'The everyday one: badge printing, catering numbers, a delegate list.',
-    'Name, email, title, company, ticket type, and whether they have the app.',
-    listAttendees,
+    'Name, email, title, company, ticket type, category, and whether they have the app.',
+    async ({ category }) => (await listAttendees()).filter((a) => inCategory(a, category)),
     [
       { header: 'Name', value: (a) => a.name },
       { header: 'Email', value: (a) => a.email },
@@ -92,7 +98,7 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Company', value: (a) => a.company ?? '' },
       { header: 'Ticket', value: (a) => a.ticketType ?? '' },
       { header: 'Ticket status', value: (a) => a.registrationStatus ?? '' },
-      { header: 'Category', value: (a) => a.roles.join('; ') },
+      { header: 'Category', value: (a) => a.category ?? '' },
       { header: 'Signed into app', value: (a) => yesNo(a.signedIn) },
       { header: 'In directory', value: (a) => yesNo(a.visibleInDirectory) },
       { header: 'Interests', value: (a) => a.interests.join('; ') },
@@ -103,17 +109,18 @@ export const EXPORTS: ExportDef[] = [
     'catering',
     'Badge and catering list',
     'The one you send to a supplier. Deliberately the narrowest export here.',
-    'Name and company only, no email, no ticket price, nothing personal.',
-    async () => {
+    'Name, company, ticket and badge category. No email, no ticket price, nothing personal.',
+    async ({ category }) => {
       const all = await listAttendees();
       // Refunded tickets are excluded: this list becomes a headcount somebody
       // is invoiced for, and a cancelled registration is not a lunch.
-      return all.filter((a) => a.registrationStatus !== 'cancelled');
+      return all.filter((a) => a.registrationStatus !== 'cancelled' && inCategory(a, category));
     },
     [
       { header: 'Name', value: (a) => a.name },
       { header: 'Company', value: (a) => a.company ?? '' },
       { header: 'Ticket', value: (a) => a.ticketType ?? '' },
+      { header: 'Category', value: (a) => a.category ?? '' },
     ],
   ),
 

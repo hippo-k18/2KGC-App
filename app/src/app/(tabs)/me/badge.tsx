@@ -12,7 +12,7 @@ import { Text } from '@/components/text';
 import { QrCode } from '@/components/qr-code';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/lib/data/badge';
 
@@ -53,6 +53,7 @@ import { badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/li
  */
 export default function BadgeScreen() {
   const colors = useTheme();
+  const { event } = useEventSettings();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
   const { badge, loading, error, retry } = useBadge();
@@ -98,8 +99,13 @@ export default function BadgeScreen() {
               {badge.name}
             </Text>
             <Text tone="secondary" style={{ textAlign: 'center' }}>
-              {badge.ticketType ?? 'Ticket'} · {EVENT.name}
+              {badge.ticketType ?? 'Ticket'} · {event.name}
             </Text>
+            {badge.category ? (
+              <Text variant="caption" tone="tint" style={{ textAlign: 'center' }}>
+                {badge.category.toUpperCase()}
+              </Text>
+            ) : null}
 
             {badgeIsScannable(badge) ? (
               <View
