@@ -494,8 +494,8 @@ string literals.
 
 **Top-level:** `registrations`, `users`, `directory`, `sessions`, `speakers`,
 `sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`,
-`ticketTypes`, `orders`, `emailLog`, plus the modelled-but-unbuilt
-`checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+`ticketTypes`, `orders`, `emailLog`, `sessionSeats`, plus the
+modelled-but-unbuilt `checkInStations`, `badgeTemplates`, `badgePrintJobs`.
 
 Added by the August 2026 dashboard build-out, all **server-only** and all
 without a `firestore.rules` match block — every write is Admin-SDK, and they
@@ -526,7 +526,17 @@ An `orders` `list` is the entire buyer database in one query.
 `notifications`, `fcmTokens`, `entitlements`; `sessions/{id}/questions`
 (`/upvotes`), `/polls` (`/votes`), `/qaBoard`, `/materials`;
 `threads/{id}/messages`; `communityPosts/{id}/replies`, `/reactions`;
-`sponsors/{id}/leads`; `checkInLists/{id}/checkIns`.
+`sponsors/{id}/leads`; `checkInLists/{id}/checkIns`;
+`sessionSeats/{sessionId}/seats`.
+
+**`sessionSeats/{sessionId}` is the one client-moved counter in the product.**
+It holds `taken` and the waitlist as an *ordered list of uids*, with one
+`seats/{uid}` document per person. The list is on the counter rather than
+derived from the seat documents because rules cannot run a query, and "is this
+uid first in line" has to be one field read. The arithmetic is in
+`packages/shared/src/session-seats.ts` — plain functions, no Firestore import —
+so the app's transaction, the dashboard's Admin-SDK write and the rules cannot
+disagree about who is next. Do not add a second copy of that planning code.
 
 Decisions worth preserving — do not "simplify" these:
 
@@ -643,7 +653,15 @@ Four things to know before editing it:
   pinned to what was actually published, rather than to whatever the client sent.
   Without it a signature could name wording nobody ever agreed to, which is the
   one property the whole record exists to have.
-  All four are deliberate and documented in place. Adding a fifth is a decision,
+  The fifth, added 2026-09-20, is the seat path: `sessionSeats/{sessionId}` and
+  its `seats/{uid}` documents read the session for the cap and the ticket list,
+  the caller's registration for the ticket type, and each other with `get` and
+  `getAfter`, because a seat and the counter that admits it are written in one
+  transaction and each has to check the other. Its heaviest branch — giving up a
+  seat and promoting the first person waiting — reaches five, and
+  `tests/rules/session-seats.test.ts` runs every branch on the emulator, which
+  does enforce the limit.
+  All five are deliberate and documented in place. Adding a sixth is a decision,
   not a detail: the cap is 10 access calls per single-document request and 20 per
   query, and exceeding it is a hard error, not a slowdown.
 - **The ticket list is no longer closed outright.** `registrations` was

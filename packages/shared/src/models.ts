@@ -844,6 +844,15 @@ export interface PollDoc {
   totalVotes: number;
   talliesUpdatedAt?: Timestamp;
   open: boolean;
+  /**
+   * Keep the published result up to date without anybody pressing a button.
+   *
+   * Off, the numbers attendees see move only when an organizer publishes the
+   * count, which is the safe default for a poll whose result is meant to land
+   * as a reveal. On, the room view recounts and republishes while it is open,
+   * so the phones in the room follow the screen at the front of it.
+   */
+  liveResults?: boolean;
   createdAt: Timestamp;
 }
 

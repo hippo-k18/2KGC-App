@@ -84,6 +84,13 @@ export function PollForm({
         description="A closed poll takes no votes. A new poll starts closed unless you tick this."
       />
 
+      <CheckboxField
+        name="liveResults"
+        label="Live results"
+        defaultChecked={existing ? existing.liveResults : false}
+        description="Keeps the result attendees see up to date while the room view is open, so you do not have to publish the count by hand. Leave it off for a poll you want to reveal at the end."
+      />
+
       <FormActions>
         <SubmitButton pendingLabel="Saving…">
           {existing ? 'Save changes' : 'Create poll'}

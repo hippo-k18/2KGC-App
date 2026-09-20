@@ -138,9 +138,10 @@ export default async function ModerateSessionQandAPage() {
             organise around.
           </li>
           <li>
-            <strong>Pin is absent and upvote counts do not move.</strong> Both wait on the
-            `upvoteCount` trigger, which is written and undeployed — a pin control fighting a frozen
-            ranking would be worse than no pin control.
+            <strong>Pin is absent.</strong> It needs a field on the question and somewhere in the
+            app&rsquo;s board to render a pinned row, neither of which exists. Upvote counts are no
+            longer part of this note: the queue counts the votes themselves and shows the real
+            number.
           </li>
         </ul>
       </GapPanel>
