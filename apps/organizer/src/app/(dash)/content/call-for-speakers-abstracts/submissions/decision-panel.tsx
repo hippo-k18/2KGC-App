@@ -71,7 +71,7 @@ export function DecisionPanel({
             : 'Email the author, no address on file, so nothing can be sent'
         }
         disabled={!authorEmail}
-        description="Unticked by default. An email in somebody's inbox cannot be recalled by anything in this product, so this is the half of the decision that is genuinely final."
+        description="Unticked by default. An email cannot be recalled once it is sent."
       />
 
       <FormActions>

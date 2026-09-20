@@ -342,7 +342,7 @@ Keep that link private — it shows the badge QR that gets scanned at the door.
 
   await send(store, {
     to: input.to,
-    subject: `Your KGC 2027 ticket — ${input.ticketType}`,
+    subject: `Your KGC 2027 ticket: ${input.ticketType}`,
     html,
     text,
     template: 'purchase-confirmation',
@@ -404,7 +404,7 @@ their own confirmation with a claim code.`;
 
   await send(store, {
     to: input.to,
-    subject: `KGC 2027 invoice — ${input.companyName} (${seats})`,
+    subject: `KGC 2027 invoice: ${input.companyName} (${seats})`,
     html,
     text,
     template: 'invoice-raised',

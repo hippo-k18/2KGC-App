@@ -4,6 +4,7 @@ import { money, salesSummary } from '@/lib/commerce';
 import { payoutSummary } from '@/lib/payouts';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { wrapCol } from '../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,7 +144,7 @@ export default async function PayoutPage() {
           ])}
           empty={
             payouts.unavailable ? (
-              'Nothing to list until Stripe can be read.'
+              'No payouts to list yet.'
             ) : (
               <NotInputted what="payouts" compact />
             )
@@ -158,14 +159,20 @@ export default async function PayoutPage() {
             { key: 'g', label: 'Gap', className: 'cell-md' },
             { key: 'w', label: 'Why', className: 'cell-fill' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Processing fees',
-              'Taken out of the payout, not the order. Roughly 2.9% + 30¢ per card payment. Stripe has the exact figure.',
+              <span key="w">
+                Taken out of the payout, not the order. Roughly 2.9% + 30¢ per card payment. Stripe
+                has the exact figure.
+              </span>,
             ],
             [
               'Stripe’s rolling hold',
-              'A new account waits several days before its first payout, then settles on a rolling schedule.',
+              <span key="w">
+                A new account waits several days before its first payout, then settles on a rolling
+                schedule.
+              </span>,
             ],
             [
               'Manual orders',
@@ -179,13 +186,17 @@ export default async function PayoutPage() {
             ],
             [
               'Demo orders',
-              'Left out of every sales figure. No money was taken.',
+              <span key="w">
+                Left out of every sales figure. No money was taken.
+              </span>,
             ],
             [
               'Disputes',
-              'A chargeback takes money back and adds a fee. Disputes only show in Stripe.',
+              <span key="w">
+                A chargeback takes money back and adds a fee. Disputes only show in Stripe.
+              </span>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

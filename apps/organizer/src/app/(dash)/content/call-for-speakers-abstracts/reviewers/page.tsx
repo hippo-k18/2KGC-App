@@ -71,11 +71,10 @@ export default async function ReviewersPage({
         title="Reviewers"
         info={
           <>
-            <strong>The reviewing screen is not built</strong>
+            <strong>Reviewers cannot score yet</strong>
             <p>
-              Assignment writes a review document straight away, so progress is a real query. The
-              rubric and the scoring form a reviewer would use are the next phase, and no link is
-              offered until they exist.
+              You can build the committee and assign submissions here. The scoring form for
+              reviewers is not available yet.
             </p>
           </>
         }
@@ -100,10 +99,8 @@ export default async function ReviewersPage({
 
       {!canInvite && (
         <Banner kind="danger">
-          <strong>No reviewer can be added on this deployment.</strong> Every reviewer document
-          stores the hash of their capability link, and neither{' '}
-          <code>WEB_REVIEWER_SECRET</code> nor <code>WEB_ORDER_SECRET</code> is set, so no link can
-          be minted. Set one and this screen works.
+          <strong>Reviewers cannot be added yet.</strong> Reviewer links are not set up for this
+          event. Ask your administrator to finish the setup.
         </Banner>
       )}
 
@@ -118,8 +115,7 @@ export default async function ReviewersPage({
           <strong>The committee is smaller than the workload.</strong> {assignable.length}{' '}
           submission{assignable.length === 1 ? '' : 's'} × {call.reviewsPerSubmission} review
           {call.reviewsPerSubmission === 1 ? '' : 's'} is {needed} reviews, and the committee has
-          said it will take {capacity}. Assignment will stop short rather than push anybody past
-          what they agreed to.
+          said it will take {capacity}. Assignment stops at each reviewer&rsquo;s limit.
         </Banner>
       )}
 
@@ -128,7 +124,7 @@ export default async function ReviewersPage({
           {
             label: 'Reviewers',
             value: active.length,
-            sub: active.length === 0 ? 'not inputted yet' : `${reviewers.length - active.length} removed`,
+            sub: active.length === 0 ? 'none yet' : `${reviewers.length - active.length} removed`,
           },
           {
             label: 'Assignments made',
@@ -206,12 +202,11 @@ export default async function ReviewersPage({
                     {r.assignedCount > 0 ? (
                       <>
                         They hold {r.assignedCount} assignment
-                        {r.assignedCount === 1 ? '' : 's'}. Those stay on the submissions. A review
-                        somebody wrote is not deleted by removing them, and the matcher will not
-                        hand them anything new.
+                        {r.assignedCount === 1 ? '' : 's'}. Those stay on the submissions, and
+                        they will not be assigned anything new.
                       </>
                     ) : (
-                      <>They have no assignments, so this costs nothing.</>
+                      <>They have no assignments.</>
                     )}
                   </ConfirmButton>
                 )}
@@ -227,9 +222,7 @@ export default async function ReviewersPage({
             Add a reviewer
           </h2>
           <p className="body-2">
-            Nothing is emailed. The committee is recorded here and you write to them yourself. An
-            invitation to review is usually one paragraph of a longer personal message, and a
-            template is the wrong shape for it.
+            Nothing is emailed from here. Add the reviewer, then invite them yourself.
           </p>
           <InviteReviewerForm tracks={tracks} />
         </Panel>

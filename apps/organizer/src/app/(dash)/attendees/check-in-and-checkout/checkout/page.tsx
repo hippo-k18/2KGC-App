@@ -91,7 +91,7 @@ export default async function CheckoutPage() {
           empty="Nobody has checked in yet"
           rows={recent.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '-'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
@@ -99,8 +99,8 @@ export default async function CheckoutPage() {
                 {c.email}
               </div>
             </span>,
-            c.ticketType ?? <span className="muted">—</span>,
-            c.stationLabel || <span className="muted">—</span>,
+            c.ticketType ?? <span className="muted">-</span>,
+            c.stationLabel || <span className="muted">-</span>,
           ])}
         />
       </Panel>

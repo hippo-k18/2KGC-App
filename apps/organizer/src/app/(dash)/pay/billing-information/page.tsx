@@ -84,6 +84,9 @@ export default async function BillingInformationPage() {
           <Link key="o" href={ROUTES.attendeeOrders}>
             Attendee orders
           </Link>,
+          <Link key="t" href="/pay/publish">
+            Sales tax
+          </Link>,
         ]}
       />
 

@@ -8,7 +8,7 @@ import { saveAdminSettingsAction, type AdminSettingsState } from './actions';
 function SaveButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? 'Saving…' : 'Save'}
     </button>
   );

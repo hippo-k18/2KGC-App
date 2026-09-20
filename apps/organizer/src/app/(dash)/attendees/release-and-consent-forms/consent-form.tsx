@@ -132,7 +132,7 @@ export function ConsentForm({ existing }: { existing?: ConsentFormRow }) {
       </div>
 
       <div className="whova-form-row">
-        <button type="submit" className="whova-btn-main">
+        <button type="submit" className="whova-btn-main primary">
           {existing ? 'Save' : 'Create form'}
         </button>
       </div>

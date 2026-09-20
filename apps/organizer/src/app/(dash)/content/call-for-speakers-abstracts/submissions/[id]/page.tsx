@@ -119,8 +119,8 @@ export default async function SubmissionDetailPage({
          * help centre corrects it — see `promoteSubmission`.
          */
         <Banner kind="warning">
-          <strong>Accepted, and not on the agenda.</strong> Acceptance is not scheduling. A
-          session needs a day, a time and a room, and none of those has been decided. Put it on the
+          <strong>Accepted, and not on the agenda.</strong> It still needs a day, a time and a room.
+          Put it on the
           agenda from{' '}
           <Link href={`${ROUTES.sessionManager}/from-accepted`}>
             Session Manager → From accepted submissions
@@ -191,15 +191,15 @@ export default async function SubmissionDetailPage({
             </dl>
             {linkable && (
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-                Their own link back to this submission. Send it if they have lost theirs. It opens
-                this submission and nothing else, and re-sending does not kill the old one:{' '}
+                Their own link back to this submission. Send it if they have lost theirs. The
+                old link keeps working:{' '}
                 <code style={{ wordBreak: 'break-all' }}>{submissionLink(submission.id)}</code>
               </p>
             )}
             {!linkable && (
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-                No link can be minted on this deployment. Neither <code>WEB_SUBMISSION_SECRET</code>{' '}
-                nor <code>WEB_ORDER_SECRET</code> is set.
+                Author links are not set up for this event. Ask your administrator to finish the
+                setup.
               </p>
             )}
           </>
@@ -207,8 +207,7 @@ export default async function SubmissionDetailPage({
           <>
             <NotInputted what="author record" compact />
             <p className="body-2" style={{ marginBottom: 0 }}>
-              An abstract is always written with an identity document beside it, so a submission
-              without one was not created by the portal. There is nobody to email about it.
+              This submission has no author on file, so there is nobody to email about it.
             </p>
           </>
         )}
@@ -305,13 +304,11 @@ export default async function SubmissionDetailPage({
 
         {submission.status === 'draft' ? (
           <p className="body-2" style={{ marginBottom: 0 }}>
-            This is still a draft. Its author has not finished it, so there is nothing to decide
-            on. Deciding on an unfinished abstract would be deciding on something nobody offered.
+            This is still a draft. It can be decided once the author submits it.
           </p>
         ) : submission.status === 'withdrawn' ? (
           <p className="body-2" style={{ marginBottom: 0 }}>
-            The author withdrew this. A withdrawal is theirs to make, and a decision on top of it
-            would put a rejection into the acceptance rate for a paper nobody was judging.
+            The author withdrew this, so it cannot be decided.
           </p>
         ) : (
           <>
@@ -329,9 +326,8 @@ export default async function SubmissionDetailPage({
                   confirmLabel="Remove the decision"
                 >
                   The submission goes back to <strong>under review</strong> and the decision is
-                  deleted rather than flagged as reversed. ⚠️ If the author has already been
-                  emailed, that message stands. Nothing here can recall it, and they will still
-                  believe whatever it said until somebody writes to them.
+                  deleted. ⚠️ If the author has already been emailed, that message cannot be
+                  recalled. Write to them yourself.
                 </ConfirmButton>
               </div>
             )}

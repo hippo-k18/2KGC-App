@@ -109,7 +109,7 @@ export function SessionForm({
             Open “{values.title || 'the new session'}” →
           </Link>{' '}
           <span className="muted">
-            Anything else it needs. Q&amp;A and polls, a longer description. Is on that page.
+            Q&amp;A, polls and the longer description are on that page.
           </span>
         </p>
       ) : null}

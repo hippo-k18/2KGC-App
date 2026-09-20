@@ -5,6 +5,7 @@ import { listOrders, listTicketTypes, money, recentEmails } from '@/lib/commerce
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 import { PUBLIC_PAGE } from './audience-catalogue';
+import { wrapCol } from './wrap-col';
 
 /**
  * The registration page, widget, settings and confirmation screens, for one
@@ -236,7 +237,7 @@ export async function AudienceRegistrationWidget({
             { key: 'w', label: 'What', className: 'cell-md' },
             { key: 'v', label: 'Use this', className: 'cell-fill' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Plain link',
               <a key="v" href={`${publicSiteOrigin()}${path}`} target="_blank" rel="noreferrer">
@@ -254,7 +255,7 @@ export async function AudienceRegistrationWidget({
                 . Clicks are counted, and a purchase within thirty days is credited to the link.
               </span>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

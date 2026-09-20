@@ -85,7 +85,7 @@ export default async function TrackManagerPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add track
             </Link>
           )
@@ -134,7 +134,7 @@ export default async function TrackManagerPage({
             <NotInputted
               what="tracks"
               action={
-                <Link className="whova-btn-main" href="?new=1">
+                <Link className="whova-btn-main primary" href="?new=1">
                   Add the first one
                 </Link>
               }

@@ -161,7 +161,7 @@ export default async function AnalyticsAndExportsPage() {
                 {r.session.day}
                 <div className="muted">{r.session.startsAtLocal.slice(11, 16)}</div>
               </span>,
-              r.session.roomName ?? <span className="muted">—</span>,
+              r.session.roomName ?? <span className="muted">-</span>,
               formatHours(r.minutes),
               <strong key="c">{r.countedIn}</strong>,
             ])}
@@ -178,31 +178,41 @@ export default async function AnalyticsAndExportsPage() {
           job. No export includes badge codes.
         </Banner>
 
-        <Table
-          cols={[
-            { key: 'n', label: 'Export', className: 'cell-md' },
-            { key: 'p', label: 'What it is for', className: 'cell-fill' },
-            { key: 'c', label: 'Columns', className: 'cell-fill' },
-            { key: 'd', label: '', className: 'cell-sm' },
-          ]}
-          rows={EXPORTS.map((e) => [
-            <strong key="n">{e.title}</strong>,
-            <span key="p" style={{ fontSize: 13 }}>
-              {e.purpose}
-            </span>,
-            <span key="c" className="muted" style={{ fontSize: 12 }}>
-              {e.contains}
-            </span>,
-            /*
-              A plain link, not a form. A CSV download is a GET that changes
-              nothing, and `download` plus a real Content-Disposition is what
-              makes the browser save it rather than render it.
-            */
-            <a key="d" href={`/export/${e.kind}`} className="whova-btn-main" download>
-              Download
-            </a>,
-          ])}
-        />
+        {/* Phone only: the name and the Download button share the width, nothing scrolls. */}
+        <style>{`
+          @media (max-width: 767px) {
+            .exports-table .whova-table { width: 100%; }
+            .exports-table .cell-md { flex: 1 1 0; max-width: none; min-width: 0; }
+            .exports-table .cell-sm { max-width: none; min-width: 0; }
+          }
+        `}</style>
+        <div className="exports-table">
+          <Table
+            cols={[
+              { key: 'n', label: 'Export', className: 'cell-md' },
+              { key: 'p', label: 'What it is for', className: 'cell-fill hide-sm' },
+              { key: 'c', label: 'Columns', className: 'cell-fill hide-sm' },
+              { key: 'd', label: '', className: 'cell-sm' },
+            ]}
+            rows={EXPORTS.map((e) => [
+              <strong key="n">{e.title}</strong>,
+              <span key="p" style={{ fontSize: 13 }}>
+                {e.purpose}
+              </span>,
+              <span key="c" className="muted" style={{ fontSize: 12 }}>
+                {e.contains}
+              </span>,
+              /*
+                A plain link, not a form. A CSV download is a GET that changes
+                nothing, and `download` plus a real Content-Disposition is what
+                makes the browser save it rather than render it.
+              */
+              <a key="d" href={`/export/${e.kind}`} className="whova-btn-main secondary small" download>
+                Download
+              </a>,
+            ])}
+          />
+        </div>
 
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
           Files are UTF-8 CSV and open in Excel and Google Sheets.

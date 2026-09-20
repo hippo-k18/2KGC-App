@@ -54,11 +54,10 @@ export default async function SponsorTieringPage() {
         title="Sponsor Tiering"
         info={
           <>
-            <strong>Tiers are a type, not a table</strong>
+            <strong>Four fixed tiers</strong>
             <p>
-              <code>SponsorTier</code> is a four-value union in <code>@kgc/shared</code>, so
-              renaming one or adding a fifth is a code change in three consumers rather than an
-              edit here. A sponsor moves between tiers on its own record.
+              Tiers cannot be renamed or added here yet. To move a sponsor between tiers, edit the
+              sponsor.
             </p>
           </>
         }
@@ -75,7 +74,7 @@ export default async function SponsorTieringPage() {
       <StatTiles
         tiles={[
           { label: 'Sponsors', value: sponsors.length, sub: 'across four tiers' },
-          { label: 'Tiers', value: TIER_ORDER.length, sub: 'fixed in models.ts' },
+          { label: 'Tiers', value: TIER_ORDER.length, sub: 'Platinum to Bronze' },
           {
             label: 'Missing a logo',
             value: sponsors.filter((s) => !s.hasLogo).length,
@@ -90,7 +89,7 @@ export default async function SponsorTieringPage() {
           <NotInputted
             what="sponsors"
             action={
-              <Link className="whova-btn-main" href={`${ROUTES.sponsorManager}?new=1`}>
+              <Link className="whova-btn-main primary" href={`${ROUTES.sponsorManager}?new=1`}>
                 Add the first one
               </Link>
             }
@@ -127,21 +126,17 @@ export default async function SponsorTieringPage() {
           ])}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Logo weight is the sizing ratio the public sponsor page applies; nothing in the app does,
-          because the app has no sponsor banner surface. To move a sponsor between tiers, edit them
-          in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link>.
+          Logo weight sets logo size on the public sponsor page. To move a sponsor between tiers,
+          edit them in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link>.
         </p>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where a tier decides placement</h2>
         <p className="body-2">
-          A tier is only worth anything if it decides placement, and placement needs a surface. The{' '}
-          <Link href="/content/sponsor-center/advanced-banners">public sponsor page</Link> renders
-          sponsors grouped by tier and applies the weights above. Three other surfaces have no
-          sponsor slot at all: there is no banner component on any app screen,{' '}
-          <code>SessionDoc</code> has no sponsor field so a talk cannot be attributed to one, and
-          announcements have nowhere to carry a name.
+          The <Link href="/content/sponsor-center/advanced-banners">public sponsor page</Link>{' '}
+          groups sponsors by tier and applies the weights above. Sponsor banners in the app,
+          sponsored sessions and sponsored announcements are not available yet.
         </p>
       </Panel>
 

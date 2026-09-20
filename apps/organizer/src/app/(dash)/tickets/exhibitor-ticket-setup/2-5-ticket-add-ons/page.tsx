@@ -145,40 +145,40 @@ export default async function ExhibitorAddOnsPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Extras on sale</h2>
-        <Table
-          cols={[
-            { key: 'n', label: 'Extra', className: 'cell-fill' },
-            { key: 'p', label: 'Price', className: 'cell-sm' },
-            { key: 's', label: 'Sold', className: 'cell-sm' },
-            { key: 'v', label: 'Listed', className: 'cell-sm' },
-          ]}
-          rows={extras.map((t) => [
-            <div key="n">
-              <div>{t.name}</div>
-              <div className="muted" style={{ fontSize: 11 }}>
-                {t.tagline || <em>no tagline</em>}
-              </div>
-            </div>,
-            money(t.priceCents, t.currency),
-            t.quantitySold,
-            t.visible ? (
-              <Tag key="v" color="green" small>
-                yes
-              </Tag>
-            ) : (
-              <Tag key="v" color="grey" small>
-                link only
-              </Tag>
-            ),
-          ])}
-          empty="No extras yet"
-        />
-        {extras.length === 0 && (
-          <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-            To sell an extra staff pass or a power upgrade, create it in{' '}
+        {extras.length === 0 ? (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 0 }}>
+            No extras yet. To sell an extra staff pass or a power upgrade, create it in{' '}
             <Link href={`${ROUTES.createTickets}?audience=exhibitor`}>Create Tickets</Link> with a
             price under {money(EXTRA_THRESHOLD_CENTS)}.
           </p>
+        ) : (
+          <Table
+            cols={[
+              { key: 'n', label: 'Extra', className: 'cell-fill' },
+              { key: 'p', label: 'Price', className: 'cell-sm' },
+              { key: 's', label: 'Sold', className: 'cell-sm' },
+              { key: 'v', label: 'Listed', className: 'cell-sm' },
+            ]}
+            rows={extras.map((t) => [
+              <div key="n">
+                <div>{t.name}</div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {t.tagline || <em>no tagline</em>}
+                </div>
+              </div>,
+              money(t.priceCents, t.currency),
+              t.quantitySold,
+              t.visible ? (
+                <Tag key="v" color="green" small>
+                  yes
+                </Tag>
+              ) : (
+                <Tag key="v" color="grey" small>
+                  link only
+                </Tag>
+              ),
+            ])}
+          />
         )}
       </Panel>
 

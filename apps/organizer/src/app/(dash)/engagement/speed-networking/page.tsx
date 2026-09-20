@@ -184,7 +184,7 @@ export default async function SpeedNetworkingPage({
               {
                 label: 'Meetings each',
                 value: fewest === most ? fewest : `${fewest}–${most}`,
-                sub: fewest === most ? 'identical for everybody' : 'differs by one at most',
+                sub: fewest === most ? 'same for everyone' : 'differs by one at most',
               },
               {
                 label: 'Repeated pairs',
@@ -240,8 +240,7 @@ export default async function SpeedNetworkingPage({
               </div>
             ))}
             <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-              Table numbers stay the same every round, so you can call &ldquo;everyone on the left
-              moves one table clockwise&rdquo;.
+              Table numbers stay the same every round. Read each round out before people move.
             </p>
           </Panel>
         </>

@@ -59,7 +59,7 @@ export default async function ExhibitorManagerPage({
         tags={<Tag color="blue">{summary.confirmed} confirmed</Tag>}
         actions={
           !showForm ? (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add exhibitor
             </Link>
           ) : (
@@ -105,8 +105,7 @@ export default async function ExhibitorManagerPage({
       {summary.overAllocated > 0 && (
         <Banner kind="danger">
           <strong>{summary.overAllocated} exhibitor{summary.overAllocated === 1 ? ' has' : 's have'} claimed more staff passes than their package allows.</strong>{' '}
-          Worth settling before doors open. It is otherwise an argument at the desk with somebody
-          who is already holding a box of leaflets.
+          Settle it with them before doors open.
         </Banner>
       )}
 
@@ -127,7 +126,7 @@ export default async function ExhibitorManagerPage({
             <NotInputted
               what="exhibitors"
               action={
-                <Link href="?new=1" className="whova-btn-main">
+                <Link href="?new=1" className="whova-btn-main primary">
                   Add the first one
                 </Link>
               }

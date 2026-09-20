@@ -101,7 +101,7 @@ export async function saveSponsorAction(
 
   const docId = id || sponsorSlug(name);
   if (!docId) {
-    return { error: 'That name produces an empty id. Use some letters or numbers.', fieldErrors: { name: 'Use some letters or numbers.' } };
+    return { error: 'That name has no letters or numbers. Use some.', fieldErrors: { name: 'Use some letters or numbers.' } };
   }
 
   const existing = id ? await getSponsor(id) : null;
@@ -109,7 +109,7 @@ export async function saveSponsorAction(
     const clash = await getSponsor(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” already uses the id “${docId}”. Edit that record instead of creating a second one. The app and the website both key sponsors by this id.`,
+        error: `“${clash.name}” is already on the list under a name this close. Edit that record instead of creating a second one.`,
       };
     }
   }
@@ -208,7 +208,7 @@ export async function saveSponsorAction(
       ok: true,
       message: existing
         ? `Saved ${name}.`
-        : `Added ${name} as ${docId}. They are on the public sponsor page and in the app now.`,
+        : `Added ${name}. They are on the public sponsor page and in the app now.`,
     };
   } catch (err) {
     recordError('sponsor.save', err);

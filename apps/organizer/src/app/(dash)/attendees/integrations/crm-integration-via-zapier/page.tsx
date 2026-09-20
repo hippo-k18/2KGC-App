@@ -17,8 +17,8 @@ export default async function Page() {
       steps={[
         <>
           Export the list you need from{' '}
-          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>
-          as a CSV file.
+          <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link> as a
+          CSV file.
         </>,
         <>Import the file into your CRM with its contact import.</>,
         <>Repeat when the list changes, for example before and after the event.</>,

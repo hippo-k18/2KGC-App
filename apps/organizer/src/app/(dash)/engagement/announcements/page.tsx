@@ -75,6 +75,9 @@ export default async function AnnouncementsPage({
           <Link key="e" href="/engagement">
             Engagement
           </Link>,
+          <Link key="em" href="/virtual-and-hybrid/logistics-management/emergency-manager">
+            Emergency Manager
+          </Link>,
           <span key="n" className="muted">
             {all.length} sent
           </span>,

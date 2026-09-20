@@ -104,11 +104,11 @@ function SpeakerDetail({ s }: { s: SpeakerRow }) {
         items={[
           {
             label: 'Job title',
-            value: s.title ?? <span className="muted">Not inputted yet</span>,
+            value: s.title ?? <span className="muted">Not set</span>,
           },
           {
             label: 'Affiliation',
-            value: s.company ?? <span className="muted">Not inputted yet</span>,
+            value: s.company ?? <span className="muted">Not set</span>,
           },
           {
             label: 'Contact',
@@ -135,7 +135,7 @@ function SpeakerDetail({ s }: { s: SpeakerRow }) {
                 ))}
               </span>
             ) : (
-              <span className="muted">Not inputted yet</span>
+              <span className="muted">Not set</span>
             ),
           },
         ]}
@@ -391,7 +391,7 @@ export default async function SpeakerManagerPage({
             <NotInputted
               what="speakers"
               action={
-                <Link className="whova-btn-main" href="?new=1">
+                <Link className="whova-btn-main primary" href="?new=1">
                   Add the first one
                 </Link>
               }
@@ -407,7 +407,7 @@ export default async function SpeakerManagerPage({
               { key: 'act', label: '', className: 'cell-xs cell-end-align' },
             ]}
             sort={sort}
-            empty="Not inputted yet"
+            empty="Nothing here yet"
             rows={pageRows.map((s) => [
               <DetailDisclosure
                 key="s"

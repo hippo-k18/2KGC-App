@@ -49,10 +49,10 @@ export function RoomForm({ existing }: { existing?: EditableRoom }) {
             ...(state.fanOutOk ? null : { color: 'var(--danger)', fontWeight: 600 }),
           }}
         >
-          Agenda caches: {state.fanOut}
+          Agenda: {state.fanOut}
           {state.fanOutOk
             ? null
-            : ' Those sessions still show the old room name to attendees. Repair them from the agenda cache check on Track Manager.'}
+            : ' Those sessions still show the old room name to attendees. Use “Repair” on Track Manager to update them.'}
         </p>
       )}
 
@@ -67,15 +67,14 @@ export function RoomForm({ existing }: { existing?: EditableRoom }) {
         hint={
           existing ? (
             <>
-              As signposted at the venue. This is the only wayfinding an attendee gets. Renaming
-              rewrites the room shown on{' '}
+              As signposted at the venue. Renaming updates the room shown on{' '}
               {existing.sessionCount === 0
                 ? 'no sessions; nothing is scheduled here yet'
                 : `${existing.sessionCount} session${existing.sessionCount === 1 ? '' : 's'}`}
-              . Id <code>{existing.id}</code> never changes. Sessions point at it.
+              .
             </>
           ) : (
-            'As signposted at the venue, not as named in the contract. It is the only wayfinding an attendee gets.'
+            'As signposted at the venue, not as named in the contract.'
           )
         }
       />
@@ -102,9 +101,8 @@ export function RoomForm({ existing }: { existing?: EditableRoom }) {
       </FormGrid>
 
       <p className="muted" style={{ fontSize: 12 }}>
-        Building and floor are organizer-side only: the app shows the room name and nothing else,
-        because it cannot read this collection. They are worth filling in for the printed signage
-        and for whoever is directing people in the lobby.
+        Attendees see only the room name. Building and floor are for your team and the printed
+        signage.
       </p>
 
       <FormActions>

@@ -172,7 +172,7 @@ export function Table({
 }) {
   return (
     <div className="whova-table-wrapper">
-      <div className="whova-table" role="table">
+      <div className={`whova-table${rows.length === 0 ? ' is-empty' : ''}`} role="table">
         <div className="whova-table-head" role="rowgroup">
           <div className="whova-table-row" role="row">
             {cols.map((c) => {
@@ -381,8 +381,8 @@ export function NotInputted({
 }) {
   return (
     <EmptyState icon="◌" action={action} compact={compact}>
-      <p className="empty-title">Not inputted yet</p>
-      {what ? <p className="empty-sub">No {what} has been entered for this event.</p> : null}
+      <p className="empty-title">Nothing here yet</p>
+      {what ? <p className="empty-sub">No {what} yet.</p> : null}
     </EmptyState>
   );
 }

@@ -52,8 +52,7 @@ export function MessageForm({
 
       {!emailReady && (
         <p className="error">
-          <strong>No email provider is configured.</strong> Set <code>RESEND_API_KEY</code> to send
-          anything. Until then every attempt is recorded as skipped, which is visible but useless.
+          <strong>Email is not set up yet.</strong> Nothing can be sent until it is.
         </p>
       )}
 
@@ -63,6 +62,7 @@ export function MessageForm({
         </label>
         <input
           id="subject"
+          className="whova-text-input"
           name="subject"
           required
           value={subject}
@@ -78,6 +78,7 @@ export function MessageForm({
         </label>
         <textarea
           id="body"
+          className="whova-text-input"
           name="body"
           rows={12}
           required
@@ -125,6 +126,7 @@ export function MessageForm({
             </label>
             <input
               id="testAddress"
+              className="whova-text-input"
               name="testAddress"
               type="email"
               placeholder="you@knowledgegraph.tech"
@@ -135,16 +137,18 @@ export function MessageForm({
           <>
             <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
               This will email <strong>{recipients.length}</strong> {audience.noun} and{' '}
-              <strong>cannot be recalled</strong>. Sending twice is indistinguishable from a mistake
-              in somebody&rsquo;s inbox.
+              <strong>cannot be recalled</strong>. Check before you send.
             </p>
 
             <div className="whova-form-row" style={{ marginBottom: 10 }}>
               <label className="whova-form-label" htmlFor="confirmCount">
-                Type <code>{recipients.length}</code> to confirm
+                <span>
+                  Type <code>{recipients.length}</code> to confirm
+                </span>
               </label>
               <input
                 id="confirmCount"
+                className="whova-text-input"
                 name="confirmCount"
                 autoComplete="off"
                 inputMode="numeric"
@@ -159,6 +163,7 @@ export function MessageForm({
                 </label>
                 <input
                   id="passphrase"
+                  className="whova-text-input"
                   name="passphrase"
                   type="password"
                   autoComplete="off"

@@ -139,7 +139,7 @@ export async function MessageScreen({
             <strong>{withoutEmail}</strong> {withoutEmail === 1 ? 'record has' : 'records have'} no
             email address and are not in the list above.
             {audienceId === 'speakers' &&
-              ' A speaker only has one once they hold a ticket. Contact details live on the user record, not the speaker record.'}
+              ' A speaker only has one once they hold a ticket.'}
             {audienceId === 'sponsors' && ' Add a main contact in Sponsor Manager.'}
           </p>
         )}

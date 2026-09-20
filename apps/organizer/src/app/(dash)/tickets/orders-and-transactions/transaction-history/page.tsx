@@ -15,6 +15,7 @@ import {
   Table,
   Tag,
 } from '../../../ui';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,7 @@ function shortEmailError(error?: string): string {
   if (/testing emails|verify a domain|validation_error/i.test(error)) {
     return 'Sending domain not verified';
   }
+  if (/API_KEY|not set|unset/i.test(error)) return 'Email was not set up yet';
   const message = /"message"\s*:\s*"([^"]+)"/.exec(error)?.[1] ?? error;
   return message.length > 80 ? `${message.slice(0, 77)}...` : message;
 }
@@ -136,9 +138,9 @@ export default async function TransactionHistoryPage({
       what: e.subject,
       detail:
         e.status === 'sent'
-          ? e.template
+          ? 'sent'
           : e.status === 'skipped'
-            ? (e.reason ?? 'not sent')
+            ? shortEmailError(e.reason ?? 'not sent')
             : shortEmailError(e.error),
       raw: e.status === 'failed' && e.error && e.error !== shortEmailError(e.error) ? e.error : undefined,
       tone: e.status === 'sent' ? 'blue' : e.status === 'skipped' ? 'grey' : 'red',
@@ -273,7 +275,7 @@ export default async function TransactionHistoryPage({
             { key: 'what', label: 'What', className: 'cell-fill' },
             { key: 'amt', label: 'Amount', className: 'cell-sm' },
           ]}
-          rows={rows.map((e) => [
+          rows={wrapCol(rows.map((e) => [
             <span key="w" className="muted" style={{ fontSize: 12 }}>
               {e.at.slice(0, 10)}
               <br />
@@ -310,7 +312,7 @@ export default async function TransactionHistoryPage({
             <span key="a" style={{ fontSize: 13 }}>
               {e.amount ?? <span className="muted">—</span>}
             </span>,
-          ])}
+          ]), 3)}
           empty={
             q || kind ? 'Nothing matches that filter.' : <NotInputted what="transactions" compact />
           }

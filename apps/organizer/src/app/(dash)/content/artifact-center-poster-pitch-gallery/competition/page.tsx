@@ -35,9 +35,7 @@ export default async function ArtifactCompetitionPage() {
           <>
             <strong>Nothing to vote on yet</strong>
             <p>
-              A contest needs the <code>artifacts</code> collection first. The tally is the second
-              problem: counters here are trigger-written and the triggers have never deployed, so a
-              leaderboard would have to be counted at read time.
+              Voting on posters, demos and pitches is not available yet.
             </p>
           </>
         }

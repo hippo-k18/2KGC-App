@@ -91,10 +91,10 @@ export async function saveTrackAction(
    * unfile every talk in the track.
    */
   const docId = id || mintTrackId(name);
-  if (!docId) return { error: 'That name produces an empty id. Use some letters or numbers.' };
+  if (!docId) return { error: 'That name has no letters or numbers. Use some.' };
   if (!id) {
     const clash = await getTrack(docId);
-    if (clash) return { error: `“${clash.name}” already uses the id “${docId}”.` };
+    if (clash) return { error: `“${clash.name}” is already on the list under a name this close.` };
   }
 
   try {
@@ -159,7 +159,7 @@ export async function saveTrackAction(
 
   return {
     ok: true,
-    message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+    message: existing ? `Saved ${name}.` : `Added ${name}.`,
     fanOut,
     fanOutOk,
   };

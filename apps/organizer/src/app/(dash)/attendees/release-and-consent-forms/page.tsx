@@ -75,7 +75,7 @@ export default async function ReleaseAndConsentFormsPage({
               Back to forms
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New form
             </Link>
           )

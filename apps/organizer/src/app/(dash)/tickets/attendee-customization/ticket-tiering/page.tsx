@@ -69,7 +69,9 @@ export default async function TicketTieringPage() {
           rows={tiers.map((t) => [
             <span key="n">
               {t.name}
-              <div className="muted" style={{ fontSize: 12 }}>{t.tagline || '—'}</div>
+              <div className="muted" style={{ fontSize: 12, maxWidth: 'max(50vw, 220px)' }}>
+                {t.tagline || '—'}
+              </div>
             </span>,
             money(t.priceCents, t.currency),
             sold(t.name)?.sold ?? 0,

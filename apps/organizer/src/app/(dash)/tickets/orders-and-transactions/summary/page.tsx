@@ -57,7 +57,7 @@ export default async function OrdersSummaryPage() {
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key</Tag>
+            <Tag color="grey">Stripe not connected</Tag>
           )
         }
         links={[

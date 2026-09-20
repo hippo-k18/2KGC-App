@@ -70,7 +70,7 @@ export default async function CustomizeResourcesPage() {
             what="documents"
             action={
               <Link
-                className="whova-btn-main"
+                className="whova-btn-main primary"
                 href="/content/documents-and-videos/documents?new=1"
               >
                 Add the first one

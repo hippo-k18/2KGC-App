@@ -3,6 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { pageReadiness, publicUrl } from '@/lib/webpages';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,7 +106,7 @@ export default async function EventWebsitePage() {
             { key: 'c', label: 'Live', className: 'cell-sm' },
             { key: 'i', label: 'What a visitor would notice', className: 'cell-fill' },
           ]}
-          rows={pages.map((p) => [
+          rows={wrapCol(pages.map((p) => [
             <div key="p">
               <a href={publicUrl(p.path)} target="_blank" rel="noreferrer">
                 {p.title}
@@ -131,7 +132,7 @@ export default async function EventWebsitePage() {
                 {p.problems.map((x) => `${x.count} ${x.label}`).join(' · ')}
               </span>
             ),
-          ])}
+          ]), 2)}
         />
       </Panel>
 

@@ -34,11 +34,10 @@ export default async function VideoHostingPage() {
         title="Video Hosting"
         info={
           <>
-            <strong>Waiting on a hosting account</strong>
+            <strong>Not available yet</strong>
             <p>
-              Serving recordings behind a ticket needs a video provider and expiring signed URLs.
-              That is an account and a credential rather than a screen. See{' '}
-              <code>OWNER-ACTIONS.md</code>.
+              Recordings cannot be hosted here yet. Host them elsewhere and add the link as a
+              document.
             </p>
           </>
         }
@@ -54,7 +53,7 @@ export default async function VideoHostingPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Recordings hosted', value: '—', sub: 'not inputted yet' },
+          { label: 'Recordings hosted', value: 0, sub: 'none yet' },
           {
             label: 'Tiers that include video',
             value: entitled.length,
@@ -67,7 +66,7 @@ export default async function VideoHostingPage() {
         <NotInputted
           what="recordings"
           action={
-            <Link className="whova-btn-main" href="/content/documents-and-videos/documents?new=1">
+            <Link className="whova-btn-main primary" href="/content/documents-and-videos/documents?new=1">
               Link one as a document
             </Link>
           }

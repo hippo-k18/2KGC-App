@@ -107,7 +107,7 @@ async function saveCallPage(
   if (submitLabel && !submitUrl) {
     return {
       error: 'Some fields need attention.',
-      fieldErrors: { submitLabel: 'A button label with no URL renders nothing. Add the link or clear the label.' },
+      fieldErrors: { submitLabel: 'A button needs a link. Add the link or clear the label.' },
     };
   }
 
@@ -161,8 +161,8 @@ async function commit<K extends PageContentKey>(
     version: Date.now(),
     message:
       overridden === 0
-        ? 'Cleared. The page is back to the copy compiled into it.'
-        : `Saved. The page is live with ${overridden === 1 ? 'this override' : `these ${overridden} overrides`} on the next request, no deploy.`,
+        ? 'Cleared. The page shows its default copy again.'
+        : `Saved. ${overridden === 1 ? 'This change is' : `These ${overridden} changes are`} live on the website now.`,
   };
 }
 

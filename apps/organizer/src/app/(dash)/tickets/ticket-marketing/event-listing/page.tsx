@@ -5,6 +5,7 @@ import { listTicketTypes } from '@/lib/commerce';
 import { listSessions } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
 import { GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +97,7 @@ export default async function EventListingPage() {
             { key: 'w', label: 'What it needs', className: 'cell-fill' },
             { key: 's', label: 'State', className: 'cell-sm' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Search',
               <span key="w">
@@ -143,7 +144,7 @@ export default async function EventListingPage() {
                 measurable
               </Tag>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 
@@ -154,7 +155,7 @@ export default async function EventListingPage() {
             { key: 'f', label: 'Field', className: 'cell-sm' },
             { key: 'v', label: 'Value', className: 'cell-fill' },
           ]}
-          rows={[
+          rows={wrapCol([
             ['Name', EVENT.name],
             [
               'Dates',
@@ -186,7 +187,7 @@ export default async function EventListingPage() {
                 {publicUrl('/agenda')}
               </a>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

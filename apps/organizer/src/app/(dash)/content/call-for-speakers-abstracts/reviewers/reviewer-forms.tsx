@@ -46,7 +46,7 @@ export function InviteReviewerForm({ tracks }: { tracks: TrackOption[] }) {
           name="affiliation"
           maxLength={120}
           width="lg"
-          hint="Used by the committee to spot conflicts of interest. Nothing checks it."
+          hint="Helps the committee spot conflicts of interest."
         />
         <Field
           label="Most submissions they will take"
@@ -56,7 +56,7 @@ export function InviteReviewerForm({ tracks }: { tracks: TrackOption[] }) {
           max={200}
           defaultValue={10}
           width="sm"
-          hint="Respected by assignment: somebody at their ceiling is passed over and named, not quietly loaded up."
+          hint="Assignment never gives them more than this."
         />
       </FormGrid>
 
@@ -142,8 +142,7 @@ export function AssignByTrackForm({ callId, target }: { callId: string; target: 
       <p className="body-2">
         Gives every submission with a track up to {target} reviewer{target === 1 ? '' : 's'} whose
         own tracks include it, least-loaded first, never past what a reviewer said they would take.
-        A submission that already has its full complement is left alone. Piling a fourth reviewer
-        onto a paper that has three takes that reviewer away from one that has none.
+        A submission that already has enough reviewers is left alone.
       </p>
       <FormActions>
         <SubmitButton variant="secondary" pendingLabel="Matching…">

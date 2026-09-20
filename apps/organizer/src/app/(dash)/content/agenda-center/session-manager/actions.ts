@@ -249,8 +249,8 @@ export async function createSessionAction(
       if (existing.exists) {
         const clash = existing.data() as SessionDoc;
         throw new Error(
-          `“${clash.title}” already starts at ${times.startsAtLocal.replace('T', ' ')} and holds the id “${docId}”. ` +
-            'If this is a second run of the same session, change the time; if you have just pressed Create twice, it is already saved.',
+          `“${clash.title}” already starts at ${times.startsAtLocal.replace('T', ' ')}. ` +
+            'If this is a second run of the same session, change the time. If you pressed Create twice, it is already saved.',
         );
       }
 

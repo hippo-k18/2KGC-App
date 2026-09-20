@@ -78,7 +78,7 @@ export default async function NewSessionPage({
             Conflict Check
           </Link>,
           <span key="tz" className="muted">
-            times are wall clock in {TIME_ZONE}
+            times are in {TIME_ZONE}
           </span>,
         ]}
       />

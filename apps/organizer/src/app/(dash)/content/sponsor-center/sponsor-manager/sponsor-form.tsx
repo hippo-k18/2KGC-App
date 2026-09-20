@@ -65,11 +65,10 @@ export function SponsorForm({
           hint={
             existing ? (
               <>
-                Id <code>{existing.id}</code> stays the same when you rename them. Lead scans and
-                the website&rsquo;s logo files both point at it.
+                Renaming keeps their lead scans and logo.
               </>
             ) : (
-              'The id is made from this name, and it is permanent.'
+              'As it should appear in the app and on the website.'
             )
           }
         />
@@ -128,7 +127,7 @@ export function SponsorForm({
         rows={4}
         defaultValue={existing?.description}
         maxLength={1200}
-        hint="Shown on the sponsor's own screen in the app. Not shown on the website, which renders logos only."
+        hint="Shown on the sponsor's own screen in the app. The website shows logos only."
       />
 
       <Textarea

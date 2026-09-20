@@ -120,7 +120,8 @@ function TierGroup({
             )}
           </div>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {/* A 180px basis so the contact, booth and offers wrap under the name on a phone. */}
+          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
             <div className="muted" style={{ fontSize: 11 }}>
               Sponsor
             </div>
@@ -255,7 +256,7 @@ export default async function SponsorManagerPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add sponsor
             </Link>
           )
@@ -297,7 +298,7 @@ export default async function SponsorManagerPage({
             <p className="body-2">
               A reminder is an email to the sponsors missing something. Both segments are on{' '}
               <Link href={ROUTES.messageSponsors}>Message Sponsors</Link>, which shows every address
-              before it sends and records each one individually.
+              before it sends.
             </p>
             <div className="toolbar">
               <Link className="btn btn-primary" href={`${ROUTES.messageSponsors}?segment=no-logo`}>
@@ -321,8 +322,7 @@ export default async function SponsorManagerPage({
           <>
             <p className="body-2" style={{ marginTop: 0 }}>
               {sponsors.length} sponsors across {byTier.length}{' '}
-              {byTier.length === 1 ? 'tier' : 'tiers'}. Sponsors buy brand visibility; exhibitors
-              buy direct engagement and booth staff, and they live in{' '}
+              {byTier.length === 1 ? 'tier' : 'tiers'}. Exhibitors are managed in{' '}
               <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link>.
             </p>
 
@@ -360,18 +360,16 @@ export default async function SponsorManagerPage({
                 <strong>
                   {missingLogo} of {sponsors.length} sponsors have no logo.
                 </strong>{' '}
-                The app&rsquo;s People tab renders a name where a logo should be, and the public
-                sponsor page does the same, which is the one thing a sponsor notices. Open one and
-                upload it.
+                The app and the public sponsor page show their name instead. Open one and upload
+                it.
               </Banner>
             ) : null}
 
             {hotlinked > 0 ? (
               <Banner kind="warning">
-                <strong>{hotlinked} logos are hotlinked to a third-party CDN</strong> rather than
-                stored here. If that host moves or blocks them they vanish from the app and from
-                this screen at once. Uploading a replacement on the sponsor&rsquo;s own form fixes
-                one permanently.
+                <strong>{hotlinked} logos are linked from another website</strong> and not stored
+                here. If that site removes them they disappear from the app and this screen. Upload
+                a copy on the sponsor&rsquo;s form to fix it.
               </Banner>
             ) : null}
 
@@ -379,7 +377,7 @@ export default async function SponsorManagerPage({
               <NotInputted
                 what="sponsors"
                 action={
-                  <Link href="?new=1" className="whova-btn-main">
+                  <Link href="?new=1" className="whova-btn-main primary">
                     Add the first one
                   </Link>
                 }

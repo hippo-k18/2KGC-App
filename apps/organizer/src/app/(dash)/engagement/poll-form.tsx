@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import type { PollRow } from '@/lib/polls';
 import { CheckboxField, Field, FormActions, FormBanner, Select, SubmitButton, Textarea } from '../form';
@@ -42,7 +43,13 @@ export function PollForm({
           placeholder="Choose a session…"
           defaultValue={defaultSessionId}
           options={sessions.map((s) => ({ value: s.id, label: s.label }))}
-          hint="A poll belongs to one session. Attendees see it on that session's screen."
+          hint={
+            <>
+              Attendees see the poll on that session&rsquo;s screen. Polls must be turned on for
+              the session in{' '}
+              <Link href="/content/agenda-center/session-qanda-manager">Session Q&amp;A Manager</Link>.
+            </>
+          }
         />
       )}
 
@@ -53,7 +60,7 @@ export function PollForm({
         width="xl"
         maxLength={200}
         defaultValue={existing?.question}
-        placeholder="Which of these is the biggest obstacle in your own graph work?"
+        placeholder="What is your biggest obstacle?"
       />
 
       <Textarea

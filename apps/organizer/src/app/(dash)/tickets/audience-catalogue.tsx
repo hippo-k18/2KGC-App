@@ -164,8 +164,8 @@ export async function AudienceCatalogue({
                       </Tag>
                     )}
                   </div>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    {t.tagline || <em>no tagline</em>} · <code>{t.id}</code>
+                  <div className="muted" style={{ fontSize: 11, maxWidth: 'max(50vw, 220px)' }}>
+                    {t.tagline || <em>no tagline</em>}
                   </div>
                 </div>,
 

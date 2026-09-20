@@ -113,7 +113,7 @@ export async function commitSponsorImport(input: {
       failed.push({
         line,
         name,
-        message: !docId ? 'That name produces an empty id.' : `“${row.tier}” is not a tier.`,
+        message: !docId ? 'That name has no letters or numbers.' : `“${row.tier}” is not a tier.`,
       });
       continue;
     }

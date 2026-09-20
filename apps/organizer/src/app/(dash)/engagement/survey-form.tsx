@@ -59,7 +59,7 @@ export function SurveyForm({
           name="description"
           className="whova-text-input"
           defaultValue={existing?.description}
-          placeholder="One line telling attendees why it is worth two minutes."
+          placeholder="Why it is worth two minutes"
         />
       </div>
 
@@ -105,11 +105,11 @@ export function SurveyForm({
           style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          One per line. Prefix with <code>rating:</code>, <code>single:</code>, <code>multi:</code>{' '}
-          or <code>text:</code>, no prefix means a rating. Choices take options after a{' '}
-          <code>|</code>:
+          One question per line. Start a line with <code>rating:</code>, <code>single:</code>,{' '}
+          <code>multi:</code> or <code>text:</code>. A line with no prefix is a rating. For single
+          and multi, list the options after <code>|</code>.
         </p>
-        <pre className="whova-code" style={{ fontSize: 12 }}>{`rating: How useful was this session?
+        <pre className="whova-code" style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{`rating: How useful was this session?
 single: Would you attend again? | Yes | No | Maybe
 text: Anything else?`}</pre>
         {existing && existing.responseCount > 0 && (

@@ -26,11 +26,10 @@ export default async function AttendeeVideoAccessPage() {
         title="Attendee Video Access"
         info={
           <>
-            <strong>The entitlement, not the library</strong>
+            <strong>Who the ticket promises video to</strong>
             <p>
-              This reads <code>TicketTypeDoc.includesVideoLibrary</code>, which Checkout charges
-              against. Nothing serves a recording yet. Video Hosting is waiting on a provider
-              account.
+              This lists the ticket types that include the video library. Recordings cannot be
+              hosted here yet.
             </p>
           </>
         }
@@ -48,9 +47,10 @@ export default async function AttendeeVideoAccessPage() {
         <Banner kind="warning">
           <strong>
             {entitled.length} ticket {entitled.length === 1 ? 'tier advertises' : 'tiers advertise'}{' '}
-            a video library that nothing serves.
+            a video library that is not available yet.
           </strong>{' '}
-          It is on the public price list and buyers are paying for it. Resolve it before doors open. Either serve it, or change the copy on{' '}
+          Buyers are paying for it. Host the recordings elsewhere and link them, or change the
+          ticket description on{' '}
           <Link href={ROUTES.createTickets}>Ticket types</Link>.
         </Banner>
       ) : null}

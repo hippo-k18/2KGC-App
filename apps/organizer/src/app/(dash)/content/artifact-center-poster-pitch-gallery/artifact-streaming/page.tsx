@@ -27,10 +27,9 @@ export default async function ArtifactStreamingPage() {
         title="Artifact Streaming"
         info={
           <>
-            <strong>No artifacts, and no video</strong>
+            <strong>Not available yet</strong>
             <p>
-              A scheduled live slot needs an artifact to attach it to and a video provider to serve
-              it. Video Hosting sets out the second; Artifact Manager the first.
+              Live streams for posters, demos and pitches are not available yet.
             </p>
           </>
         }

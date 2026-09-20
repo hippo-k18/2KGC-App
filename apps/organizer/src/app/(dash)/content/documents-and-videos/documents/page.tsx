@@ -73,9 +73,7 @@ export default async function DocumentsPage({
               reach the file.
             </p>
             <p>
-              A document restricted to a ticket type is not visible in the app yet: the attendee
-              app has no way to tell tiers apart, because ticket tier is not carried on the
-              sign-in token.
+              A document restricted to a ticket type is not shown in the app yet.
             </p>
           </>
         }
@@ -86,7 +84,7 @@ export default async function DocumentsPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add document
             </Link>
           )
@@ -107,7 +105,7 @@ export default async function DocumentsPage({
             {broken.length} {broken.length === 1 ? 'document has' : 'documents have'} an address the
             app cannot open.
           </strong>{' '}
-          The row is still listed and the tap does nothing. Open it and paste a full{' '}
+          Attendees see the row but it does not open. Edit it and paste a full{' '}
           <code>https://</code> address.
         </Banner>
       ) : null}
@@ -123,7 +121,7 @@ export default async function DocumentsPage({
           {
             label: 'Broken links',
             value: broken.length,
-            sub: broken.length === 0 ? 'all parse' : 'not a valid URL',
+            sub: broken.length === 0 ? 'every link is valid' : 'not a valid address',
           },
         ]}
       />
@@ -141,7 +139,7 @@ export default async function DocumentsPage({
             <NotInputted
               what="documents"
               action={
-                <Link href="?new=1" className="whova-btn-main">
+                <Link href="?new=1" className="whova-btn-main primary">
                   Add the first one
                 </Link>
               }

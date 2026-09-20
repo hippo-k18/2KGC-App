@@ -155,7 +155,10 @@ export function useReplies(postId: string | undefined) {
     [postId],
     (id, d) => ({ id, ...d }) as Reply,
   );
-  return { replies: data ?? [], error, retry };
+  // Filtered here rather than in the query: replies written before `status`
+  // existed carry no such field, and an equality filter would drop them all.
+  const replies = (data ?? []).filter((r) => !r.status || r.status === 'visible');
+  return { replies, error, retry };
 }
 
 export async function createPost(input: {

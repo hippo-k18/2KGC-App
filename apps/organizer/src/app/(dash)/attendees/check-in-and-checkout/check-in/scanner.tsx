@@ -77,7 +77,7 @@ const VERDICT: Record<ScanResult['outcome'], string> = {
 };
 
 function timeOf(iso: string | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',

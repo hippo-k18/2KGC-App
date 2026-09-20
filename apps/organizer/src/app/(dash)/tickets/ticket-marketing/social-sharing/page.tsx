@@ -5,6 +5,7 @@ import { listLinks } from '@/lib/campaigns';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,7 +129,7 @@ export default async function SocialSharingPage() {
             { key: 'w', label: 'Why', className: 'cell-fill' },
             { key: 's', label: '', className: 'cell-sm' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Link preview',
               'Social platforms show a title and image for the page you link to. The conference site has these set.',
@@ -150,7 +151,7 @@ export default async function SocialSharingPage() {
                 habit
               </Tag>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

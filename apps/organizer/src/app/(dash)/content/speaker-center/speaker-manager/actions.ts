@@ -173,7 +173,7 @@ export async function saveSpeakerAction(
     const clash = await getSpeaker(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” already uses the id “${docId}”. If this is a different person, add their company to tell the two apart.`,
+        error: `“${clash.name}” is already on the list under a name this close. If this is a different person, add their company to tell the two apart.`,
       };
     }
   }
@@ -302,7 +302,7 @@ export async function saveSpeakerAction(
 
   return {
     ok: true,
-    message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+    message: existing ? `Saved ${name}.` : `Added ${name}.`,
     fanOut,
     fanOutOk,
   };

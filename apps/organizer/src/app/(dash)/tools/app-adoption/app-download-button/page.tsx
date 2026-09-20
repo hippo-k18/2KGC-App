@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { APP_DISTRIBUTION, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { GapPanel, PageHeader, Panel } from '../../../ui';
-import { EXPO_GO_URL } from '../adoption-context';
 import { QrDownload, QrSymbol, Snippet } from '../snippet';
 
 export const dynamic = 'force-dynamic';
@@ -71,9 +70,8 @@ export default async function AppDownloadButtonPage() {
             <p className="body-2">
               <code>{href}</code>
             </p>
-            <p className="body-2">{APP_DISTRIBUTION}</p>
-            <p className="body-2 muted" style={{ fontSize: 12, marginBottom: 0 }}>
-              Expo Go: <a href={EXPO_GO_URL}>{EXPO_GO_URL}</a>
+            <p className="body-2" style={{ marginBottom: 0 }}>
+              {APP_DISTRIBUTION}
             </p>
           </div>
         </div>

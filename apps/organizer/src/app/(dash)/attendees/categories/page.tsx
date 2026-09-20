@@ -257,7 +257,7 @@ export default async function CategoriesPage({
                 {a.email}
               </div>
             </span>,
-            a.company ?? <span className="muted">—</span>,
+            a.company ?? <span className="muted">-</span>,
             a.roles.length > 0 ? (
               <span key="cat" style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
                 {a.roles.map((r) => (

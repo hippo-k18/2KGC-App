@@ -60,7 +60,7 @@ export default async function FormBuilderPage({
           <NotInputted
             what="call for abstracts"
             action={
-              <Link className="whova-btn-main" href={`${CFA_BASE}?new=1`}>
+              <Link className="whova-btn-main primary" href={`${CFA_BASE}?new=1`}>
                 Create one
               </Link>
             }
@@ -109,8 +109,8 @@ export default async function FormBuilderPage({
           <>
             <strong>The form is versioned, not frozen</strong>
             <p>
-              Adding a question is always allowed. Changing or removing one mints a new version, and
-              earlier submissions stay pinned to the version they answered.
+              Adding a question is always allowed. Changing or removing one starts a new version,
+              and earlier submissions keep the version they answered.
             </p>
           </>
         }
@@ -128,7 +128,7 @@ export default async function FormBuilderPage({
               Back
             </Link>
           ) : (
-            <Link href={`${base}&new=1`} className="whova-btn-main">
+            <Link href={`${base}&new=1`} className="whova-btn-main primary">
               + Add question
             </Link>
           )
@@ -205,7 +205,7 @@ export default async function FormBuilderPage({
                 <NotInputted
                   what="questions"
                   action={
-                    <Link className="whova-btn-main" href={`${base}&new=1`}>
+                    <Link className="whova-btn-main primary" href={`${base}&new=1`}>
                       Add the first one
                     </Link>
                   }
@@ -274,12 +274,11 @@ export default async function FormBuilderPage({
                         <>
                           {answeredCount.get(f.id)} answer
                           {answeredCount.get(f.id) === 1 ? '' : 's'} have been given to this. They
-                          are <strong>not</strong> deleted. They stay on the submissions and are
-                          still readable under version {call.formVersion}, which this removal
-                          archives. What changes is that nobody is asked it again.
+                          are <strong>not</strong> deleted and stay on the submissions. Nobody is
+                          asked this question again.
                         </>
                       ) : (
-                        <>Nobody has answered this yet, so removing it costs nothing.</>
+                        <>Nobody has answered this yet.</>
                       )}
                     </ConfirmButton>
                   </span>,
@@ -294,10 +293,8 @@ export default async function FormBuilderPage({
                 Answers to questions that are no longer asked
               </h2>
               <p className="body-2">
-                These were given to questions that have since been removed. They are still stored on
-                the submissions and are still exported; nothing here deletes them, because they are
-                somebody&rsquo;s data and destroying them as a side effect of tidying a form is not
-                recoverable.
+                These were given to questions that have since been removed. They stay on the
+                submissions and in the export.
               </p>
               <Table
                 cols={[

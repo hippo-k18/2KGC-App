@@ -70,7 +70,7 @@ export default async function PhotoCollectionPage() {
         tiles={[
           { label: 'Images held', value: census.totalImages, sub: 'logos, headshots and profile photos' },
           { label: 'Uploaded here', value: census.uploaded, sub: 'the rest are links' },
-          { label: 'On other people’s servers', value: census.offsite, sub: 'linked, not uploaded' },
+          { label: 'Hosted elsewhere', value: census.offsite, sub: 'linked, not uploaded' },
           { label: 'Attendee photos', value: census.sources[2]?.withImage ?? 0, sub: `of ${census.sources[2]?.total ?? 0} profiles` },
         ]}
       />
@@ -110,8 +110,8 @@ export default async function PhotoCollectionPage() {
           empty={<NotInputted what="images" />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          A linked image disappears if the site hosting it removes it. Upload a copy in the
-          manager that owns it to keep it.
+          A linked image disappears if the site hosting it removes it. To keep it, open its row
+          and upload a copy.
         </p>
       </Panel>
 

@@ -176,7 +176,7 @@ function SessionDetail({
           },
           {
             label: 'Room',
-            value: s.roomName ?? <span className="muted">Not inputted yet</span>,
+            value: s.roomName ?? <span className="muted">Not set</span>,
           },
           {
             label: 'Track',
@@ -189,7 +189,7 @@ function SessionDetail({
                 ))}
               </span>
             ) : (
-              <span className="muted">Not inputted yet</span>
+              <span className="muted">Not set</span>
             ),
           },
           { label: 'Format', value: <span style={{ textTransform: 'capitalize' }}>{s.format}</span> },
@@ -198,7 +198,7 @@ function SessionDetail({
             value: s.skillLevel ? (
               <span style={{ textTransform: 'capitalize' }}>{s.skillLevel}</span>
             ) : (
-              <span className="muted">Not inputted yet</span>
+              <span className="muted">Not set</span>
             ),
           },
           { label: 'Status', value: <StatusTag status={s.status} /> },
@@ -510,7 +510,7 @@ export default async function SessionManagerPage({
           <NotInputted
             what="sessions"
             action={
-              <Link className="whova-btn-main" href={`${ROUTES.sessionManager}/new?day=${today}`}>
+              <Link className="whova-btn-main primary" href={`${ROUTES.sessionManager}/new?day=${today}`}>
                 Add the first one
               </Link>
             }

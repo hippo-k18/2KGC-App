@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { NAV, ROUTES, counts } from '@/lib/nav';
+import { NAV, ROUTES } from '@/lib/nav';
 import { Banner, PageHeader, Panel } from './ui';
 
 /**
@@ -20,8 +20,6 @@ import { Banner, PageHeader, Panel } from './ui';
  */
 
 export default function DashNotFound() {
-  const { total, implemented } = counts();
-
   return (
     <>
       <PageHeader
@@ -42,17 +40,14 @@ export default function DashNotFound() {
       <Panel>
         <Banner kind="info">
           <div>
-            <strong>Nothing is routed here.</strong> This dashboard carries {total} navigation
-            paths and every one of them resolves. A section renders an index of its children, a
-            leaf renders its screen. So an address that lands on this page is not in the navigation
-            at all: a typed URL, an old bookmark, or a record that has since been deleted.
+            <strong>There is no screen at this address.</strong> The link may be old, or the record
+            it pointed to has been deleted.
           </div>
         </Banner>
 
         <h2 className="section-header">Start from a section</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          The nine tabs above, with what is under each. {implemented} of {total} screens read real
-          data. Feature search in the dark bar at the top matches any title in the tree.
+          Pick a tab below, or search for a feature in the bar at the top.
         </p>
 
         <div className="index-grid">

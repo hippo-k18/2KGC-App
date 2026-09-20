@@ -87,8 +87,7 @@ export async function sendCampaignAction(
   if (!emailEnabled()) {
     return {
       error:
-        'No email provider is configured on this deployment (RESEND_API_KEY is unset), so ' +
-        'nothing can be sent. Every attempt would be logged as skipped.',
+        'Email sending is not set up yet, so nothing can be sent.',
       keep,
     };
   }

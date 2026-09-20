@@ -6,6 +6,7 @@ import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 import { publicUrl } from '@/lib/webpages';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { wrapCol } from '../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -262,7 +263,7 @@ export default async function PublishTicketsPage() {
             { key: 'c', label: 'Check', className: 'cell-md' },
             { key: 'd', label: '', className: 'cell-fill' },
           ]}
-          rows={checks.map((c) => [
+          rows={wrapCol(checks.map((c) => [
             <Tag
               key="s"
               small
@@ -274,7 +275,7 @@ export default async function PublishTicketsPage() {
             <span key="d" style={{ fontSize: 13 }}>
               {c.detail}
             </span>,
-          ])}
+          ]), 2)}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           <strong>stop</strong> means somebody will pay and something will go wrong.{' '}

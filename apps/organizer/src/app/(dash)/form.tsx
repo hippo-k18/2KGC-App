@@ -355,7 +355,7 @@ export function DateTimeField({
         timeZoneNote ? (
           <>
             {hint ? <>{hint} </> : null}
-            Wall clock in {timeZoneNote}.
+            Time in {timeZoneNote}.
           </>
         ) : (
           hint

@@ -79,8 +79,8 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
             ...(state.fanOutOk ? null : { color: 'var(--danger)', fontWeight: 600 }),
           }}
         >
-          Agenda caches: {state.fanOut}
-          {state.fanOutOk ? null : ' Run the agenda check on Track Manager to repair them.'}
+          Agenda: {state.fanOut}
+          {state.fanOutOk ? null : ' Use “Repair” on Track Manager to update them.'}
         </p>
       )}
 
@@ -219,9 +219,8 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
 
       {existing?.userId ? (
         <p className="muted" style={{ fontSize: 12 }}>
-          Joined to the attendee account <code>{existing.userId}</code>. That link is what makes
-          their profile, their saved sessions and their messages resolve to this speaker, and
-          nothing on this form touches it.
+          This speaker is linked to an attendee account. Saving this form does not change that
+          link.
         </p>
       ) : null}
 

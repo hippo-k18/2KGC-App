@@ -71,8 +71,7 @@ export async function refundOrderAction(
   if (!stripeEnabled()) {
     return {
       error:
-        'No Stripe key is configured on this deployment, so no refund can be issued from here. ' +
-        'Use the Stripe dashboard.',
+        'Stripe is not connected, so no refund can be issued from here. Use the Stripe dashboard.',
     };
   }
 

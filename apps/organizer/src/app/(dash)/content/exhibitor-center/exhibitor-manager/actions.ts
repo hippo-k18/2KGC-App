@@ -70,12 +70,12 @@ export async function saveExhibitorAction(
   }
 
   const docId = id || slugify(name);
-  if (!docId) return { error: 'That name produces an empty id. Use some letters or numbers.' };
+  if (!docId) return { error: 'That name has no letters or numbers. Use some.' };
 
   const existing = id ? await getExhibitor(id) : null;
   if (!id) {
     const clash = await getExhibitor(docId);
-    if (clash) return { error: `“${clash.name}” already uses the id “${docId}”.` };
+    if (clash) return { error: `“${clash.name}” is already on the list under a name this close.` };
   }
 
   /**
@@ -171,7 +171,7 @@ export async function saveExhibitorAction(
     revalidatePath(ROUTE);
     return {
       ok: true,
-      message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+      message: existing ? `Saved ${name}.` : `Added ${name}.`,
     };
   } catch (err) {
     recordError('exhibitor.save', err);

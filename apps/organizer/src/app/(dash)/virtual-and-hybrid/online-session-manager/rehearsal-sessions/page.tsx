@@ -181,7 +181,7 @@ export default async function RehearsalSessionsPage({
           <Table
             cols={[
               // The day tab already says which day, so the column only shows on All days.
-              ...(day === 'all' ? [{ key: 'd', label: 'Day', className: 'cell-mdsm' }] : []),
+              ...(day === 'all' ? [{ key: 'd', label: 'Day', className: 'cell-sm' }] : []),
               { key: 'w', label: 'Check at', className: 'cell-sm' },
               { key: 't', label: 'Talk', className: 'cell-fill' },
               { key: 'r', label: 'Room', className: 'cell-mdsm' },

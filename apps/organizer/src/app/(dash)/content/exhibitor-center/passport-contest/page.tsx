@@ -32,11 +32,9 @@ export default async function PassportContestPage() {
         title="Passport Contest"
         info={
           <>
-            <strong>Needs a booth scanner first</strong>
+            <strong>Not available yet</strong>
             <p>
-              A stamp is a scan made <em>by</em> the booth, and the only scanner in this product is
-              the check-in desk&rsquo;s. The same scan pointed at a stamps subcollection is what
-              this screen is waiting on.
+              Booths cannot scan attendees to give a stamp yet, so the contest cannot run.
             </p>
           </>
         }
@@ -49,13 +47,13 @@ export default async function PassportContestPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Exhibitors', value: s.confirmed, sub: 'confirmed, would be stops' },
+          { label: 'Exhibitors', value: s.confirmed, sub: 'confirmed' },
           {
             label: 'Booths assigned',
             value: s.confirmed - s.withoutBooth,
             sub: `${s.withoutBooth} without`,
           },
-          { label: 'Stamps collected', value: '—', sub: 'not inputted yet' },
+          { label: 'Stamps collected', value: 0, sub: 'none yet' },
         ]}
       />
 

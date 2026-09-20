@@ -87,12 +87,10 @@ export default async function PrePaidExhibitorsPage() {
         title="Pre-paid Exhibitors"
         info={
           <>
-            <strong>Three separate records, none of which creates the others</strong>
+            <strong>Order, exhibitor record and booth</strong>
             <p>
-              An order, so the ledger and the badge exist. An <code>exhibitors</code> record, so the
-              app lists them. A booth, so they know where to stand. Orders match on the exhibitor
-              contact email, so a package bought by a procurement address reads as
-              &ldquo;no order&rdquo;.
+              Each exhibitor needs all three. Orders match on the exhibitor contact email, so a
+              package bought under a different address reads as &ldquo;no order&rdquo;.
             </p>
           </>
         }
@@ -118,12 +116,11 @@ export default async function PrePaidExhibitorsPage() {
         <Banner kind="warning">
           <strong>
             {rows.length - withOrder} of {rows.length}{' '}
-            {rows.length - withOrder === 1 ? 'exhibitor has' : 'exhibitors have'} nothing in the
-            ledger.
+            {rows.length - withOrder === 1 ? 'exhibitor has' : 'exhibitors have'} no order on
+            record.
           </strong>{' '}
-          Either the package was paid for outside this system and has not been recorded, or the
-          order is under a different address from the contact email. Record it below so the badge,
-          the receipt and the reconciliation all exist.
+          Either the package was paid for elsewhere and has not been recorded, or the order is
+          under a different address from the contact email. Record it below.
         </Banner>
       )}
 
@@ -223,19 +220,16 @@ export default async function PrePaidExhibitorsPage() {
           }
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Orders match on <strong>contact email</strong>. A package bought by a procurement address
-          and staffed by a marketing contact will read as &ldquo;no order&rdquo; here. That is a
-          missing link in the model rather than an unpaid exhibitor, and it is why this column says
-          what it matched on.
+          Orders match on <strong>contact email</strong>. A package bought under a different
+          address reads as &ldquo;no order&rdquo; here.
         </p>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Record a pre-paid or comped package</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          This writes exactly what a card purchase writes: a registration with a claim code, an
-          order in the ledger, and an incremented sold counter. Enter <strong>0</strong> for a comp. A comped exhibitor gets a real badge, and a second code path to one is a second way for
-          somebody to be turned away at the door.
+          This issues a real ticket with a claim code and an order. Enter <strong>0</strong> for
+          a comp.
         </p>
         <ManualOrderForm
           packages={packages.map((p) => ({

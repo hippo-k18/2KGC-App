@@ -100,12 +100,11 @@ export default async function CertificatesPage() {
           <>
             <strong>Printed here, not emailed</strong>
             <p>
-              There is no per-recipient send queue in this dashboard, so certificates are printed
-              or saved as PDF by the browser.
+              Certificates are printed or saved as PDF from your browser. They are not emailed.
             </p>
             <p>
-              Hours are each session&rsquo;s <em>scheduled</em> length (nothing records a
-              departure) and only sessions whose door was opened count at all.
+              Hours are each session&rsquo;s scheduled length. Only sessions with check-in opened
+              count.
             </p>
           </>
         }
@@ -138,8 +137,8 @@ export default async function CertificatesPage() {
           },
           {
             label: 'Hours certified',
-            value: totalMinutes > 0 ? formatHours(totalMinutes) : '—',
-            sub: totalMinutes > 0 ? 'scheduled, across every attendee' : 'not inputted yet',
+            value: totalMinutes > 0 ? formatHours(totalMinutes) : '-',
+            sub: totalMinutes > 0 ? 'scheduled, across every attendee' : 'none yet',
           },
           {
             label: 'At the door only',
@@ -152,11 +151,8 @@ export default async function CertificatesPage() {
       <Panel>
         <h2 className="section-header">Issue</h2>
         <p className="body-2">
-          Writes one certificate per attendee who has been counted into at least one session,
-          copying in the hours and the session titles as they stand right now. Running it again
-          re-issues everybody at the current attendance, which is what you want after a late
-          room door is scanned, and is why the wording is stored on each certificate rather than
-          read live.
+          Issues one certificate to each attendee counted into at least one session, with their
+          hours and session titles as of now. Issue again after more scans to update everyone.
         </p>
         <IssueForm
           statement={wording.statement}
@@ -203,7 +199,7 @@ export default async function CertificatesPage() {
                     {r.registration.email}
                   </div>
                 </span>,
-                r.registration.ticketType ?? <span className="muted">—</span>,
+                r.registration.ticketType ?? <span className="muted">-</span>,
                 r.sessions.length,
                 <strong key="h">{formatHours(r.minutes)}</strong>,
                 cert ? (
@@ -280,7 +276,7 @@ export default async function CertificatesPage() {
                     ) : null}
                   </div>
                   <div className="cert-sign" style={{ textAlign: 'right' }}>
-                    Issued {c.issuedAt ? c.issuedAt.slice(0, 10) : '—'}
+                    Issued {c.issuedAt ? c.issuedAt.slice(0, 10) : '-'}
                     <div className="muted">{EVENT.venue}</div>
                   </div>
                 </div>

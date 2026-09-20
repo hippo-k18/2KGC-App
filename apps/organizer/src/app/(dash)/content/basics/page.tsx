@@ -112,7 +112,7 @@ export default async function BasicsPage() {
           <NotInputted
             what="content"
             action={
-              <Link className="whova-btn-main" href={ROUTES.sessionManager}>
+              <Link className="whova-btn-main primary" href={ROUTES.sessionManager}>
                 Start with the agenda
               </Link>
             }

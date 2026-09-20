@@ -82,7 +82,7 @@ export default async function SubmissionsPage({
           <NotInputted
             what="call for abstracts"
             action={
-              <Link className="whova-btn-main" href={`${CFA_BASE}?new=1`}>
+              <Link className="whova-btn-main primary" href={`${CFA_BASE}?new=1`}>
                 Create one
               </Link>
             }
@@ -123,10 +123,10 @@ export default async function SubmissionsPage({
         title="Submissions"
         info={
           <>
-            <strong>The author is a second document</strong>
+            <strong>Authors and blind review</strong>
             <p>
-              An abstract and its author are stored apart, so hiding the author from a reviewer is a
-              decision about what a screen loads rather than a rewrite. An organizer sees both.
+              Organizers always see the author. Whether reviewers see the author is set by the
+              review mode on the call.
             </p>
           </>
         }
@@ -157,12 +157,12 @@ export default async function SubmissionsPage({
           {
             label: 'Submitted',
             value: counts.submitted + counts.underReview + counts.accepted + counts.rejected,
-            sub: counts.total === 0 ? 'not inputted yet' : `${counts.underReview} under review`,
+            sub: counts.total === 0 ? 'none yet' : `${counts.underReview} under review`,
           },
           {
             label: 'Incomplete',
             value: counts.draft,
-            sub: counts.draft === 0 ? 'nobody has started and stopped' : 'started, never submitted',
+            sub: counts.draft === 0 ? 'none' : 'started, never submitted',
           },
           {
             label: 'Accepted',
@@ -196,7 +196,7 @@ export default async function SubmissionsPage({
           {calls.length === 1 && <input type="hidden" name="call" value={callId} />}
           {status !== 'all' && <input type="hidden" name="status" value={status} />}
           <SearchInput defaultValue={q} placeholder="Title, abstract, author, affiliation" />
-          <button type="submit" className="whova-btn-main">
+          <button type="submit" className="whova-btn-main primary">
             Search
           </button>
         </form>

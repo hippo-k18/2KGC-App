@@ -104,7 +104,7 @@ export function ImportForm() {
                       <tr key={i}>
                         {Object.values(row).map((v, j) => (
                           <td key={j} style={{ borderBottom: '1px solid var(--hairline)', padding: 6 }}>
-                            {v || <span className="muted">—</span>}
+                            {v || <span className="muted">-</span>}
                           </td>
                         ))}
                       </tr>
@@ -161,7 +161,7 @@ export function ImportForm() {
 function SubmitButton({ idle, busy }: { idle: string; busy: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? busy : idle}
     </button>
   );

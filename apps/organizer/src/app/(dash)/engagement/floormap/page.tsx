@@ -87,8 +87,8 @@ export default async function FloormapPage() {
             value: `${booked}/${standing}`,
             sub:
               exhibitors.withoutBooth > 0
-                ? `${exhibitors.withoutBooth} exhibitors without one`
-                : 'the whole hall',
+                ? `${exhibitors.withoutBooth} ${exhibitors.withoutBooth === 1 ? 'exhibitor' : 'exhibitors'} without one`
+                : 'all numbered',
           },
           { label: 'Map images', value: 0 },
         ]}

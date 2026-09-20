@@ -353,7 +353,7 @@ export default async function CheckInPage({
           empty="Nobody has checked in yet"
           rows={checkIns.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '-'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
@@ -361,8 +361,8 @@ export default async function CheckInPage({
                 {c.email}
               </div>
             </span>,
-            c.ticketType ?? <span className="muted">—</span>,
-            c.stationLabel || <span className="muted">—</span>,
+            c.ticketType ?? <span className="muted">-</span>,
+            c.stationLabel || <span className="muted">-</span>,
             <code key="r" style={{ fontSize: 12 }}>
               {c.registrationId}
             </code>,
@@ -385,7 +385,7 @@ export default async function CheckInPage({
           empty="No scans yet"
           rows={scans.map((s) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {s.scannedAt ? s.scannedAt.slice(0, 16).replace('T', ' ') : '—'}
+              {s.scannedAt ? s.scannedAt.slice(0, 16).replace('T', ' ') : '-'}
             </span>,
             <Tag key="r" color={s.result === 'ok' ? 'green' : s.result === 'duplicate' ? 'orange' : 'red'}>
               {s.result}

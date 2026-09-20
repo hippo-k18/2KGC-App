@@ -36,11 +36,9 @@ export default async function FairManagerPage() {
         title="Fair Manager"
         info={
           <>
-            <strong>Consent comes before code</strong>
+            <strong>Not available yet</strong>
             <p>
-              An application hands an attendee&rsquo;s name, address and CV to a third-party
-              company. Nothing in this product has asked anybody&rsquo;s permission for that, and
-              the answer is a recorded consent rather than a checkbox.
+              Job postings and applications are not available yet.
             </p>
           </>
         }
@@ -56,9 +54,9 @@ export default async function FairManagerPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Exhibitors', value: summary.confirmed, sub: 'some of whom recruit' },
-          { label: 'Job postings', value: '—', sub: 'not inputted yet' },
-          { label: 'Applications', value: '—', sub: 'not inputted yet' },
+          { label: 'Exhibitors', value: summary.confirmed, sub: 'confirmed' },
+          { label: 'Job postings', value: 0, sub: 'none yet' },
+          { label: 'Applications', value: 0, sub: 'none yet' },
         ]}
       />
 
@@ -66,7 +64,7 @@ export default async function FairManagerPage() {
         <NotInputted
           what="job postings"
           action={
-            <Link className="whova-btn-main" href="/content/exhibitor-center/exhibitor-manager">
+            <Link className="whova-btn-main primary" href="/content/exhibitor-center/exhibitor-manager">
               The companies in the hall
             </Link>
           }

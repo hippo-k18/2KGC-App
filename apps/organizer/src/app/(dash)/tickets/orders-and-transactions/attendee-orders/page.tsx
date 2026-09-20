@@ -161,7 +161,7 @@ export default async function AttendeeOrdersPage({
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key: refunds disabled</Tag>
+            <Tag color="grey">Refunds disabled</Tag>
           )
         }
         links={[

@@ -712,15 +712,18 @@ a {
   margin-right: 3px;
 }
 
-.sidebar .menu-tag {
+.menu-tag {
   color: #fff;
   line-height: 12px;
-  margin: auto 0 auto 8px;
   padding: 2px 3px;
   font-size: 9px;
   border-radius: 2px;
   text-transform: uppercase;
   font-weight: 700;
+}
+
+.sidebar .menu-tag {
+  margin: auto 0 auto 8px;
   flex: none;
 }
 
@@ -997,9 +1000,10 @@ a {
 /* The newer design-system button, for screens built after the migration. */
 .whova-btn-main {
   align-items: center;
+  background-color: var(--interactive);
   border: 1px solid transparent;
   border-radius: 4px;
-  color: var(--body);
+  color: #fff;
   display: inline-flex;
   font-family: var(--font);
   font-size: 14px;
@@ -1028,6 +1032,7 @@ a {
   background-color: var(--interactive);
   color: #fff;
 }
+.whova-btn-main:hover,
 .whova-btn-main.primary:hover {
   background-color: var(--interactive-dark);
 }
@@ -3145,7 +3150,13 @@ html:has(dialog[open]) {
   }
 
   .whova-header__link-group {
+    column-gap: 16px;
     row-gap: 0;
+  }
+
+  /* A wrapped row would start its second line with the bar. */
+  .whova-header__vertical-bar {
+    display: none;
   }
 
   .whova-header__link-group a {
@@ -3209,9 +3220,48 @@ html:has(dialog[open]) {
     min-width: 0;
   }
 
-  .help-tip .help-tip-body,
-  .infotip__bubble {
+  .help-tip .help-tip-body {
     max-width: min(280px, calc(100vw - 48px));
+  }
+
+  /*
+   * A closed bubble is only hidden, so centred on an "i" near the right edge it
+   * still widened the page. Closed it takes no box at all; open it spans the
+   * header or panel it sits in instead of hanging from the icon.
+   */
+  .infotip {
+    margin: -8px -8px -8px -2px;
+    padding: 8px;
+    position: static;
+  }
+
+  .whova-header__feature,
+  .panel {
+    position: relative;
+  }
+
+  .infotip__bubble,
+  .infotip.right .infotip__bubble {
+    display: none;
+    left: 0;
+    margin-top: 28px;
+    max-width: none;
+    right: 0;
+    top: auto;
+    transform: none;
+    width: auto;
+  }
+
+  .infotip:hover .infotip__bubble,
+  .infotip:focus-within .infotip__bubble,
+  .infotip.right:hover .infotip__bubble,
+  .infotip.right:focus-within .infotip__bubble {
+    display: block;
+    transform: none;
+  }
+
+  .infotip__bubble::before {
+    display: none;
   }
 
   /*
@@ -3273,6 +3323,61 @@ html:has(dialog[open]) {
   .whova-table-wrapper > .whova-table {
     min-width: 100%;
     width: max-content;
+  }
+
+  /*
+   * The fixed columns keep their desktop widths otherwise, and a 272px label
+   * column fills the phone before the text beside it starts.
+   */
+  .cell-xs {
+    max-width: 80px;
+    min-width: 80px;
+  }
+  .cell-sm {
+    max-width: 104px;
+    min-width: 104px;
+  }
+  .cell-mdsm {
+    max-width: 128px;
+    min-width: 128px;
+  }
+  .cell-md {
+    max-width: 152px;
+    min-width: 152px;
+  }
+  .cell-lg {
+    max-width: 184px;
+    min-width: 184px;
+  }
+
+  /* One long cell must not push every other column off the screen. */
+  .whova-table-wrapper .cell-fill {
+    max-width: max(70vw, 240px);
+  }
+
+  .whova-table-header {
+    overflow-wrap: normal;
+  }
+
+  /* An empty table has nothing to scroll to, so it stays the width of the panel. */
+  .whova-table-wrapper > .whova-table.is-empty {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .whova-table.is-empty .whova-table-head {
+    overflow: hidden;
+  }
+
+  .whova-empty-table {
+    height: 160px;
+    padding: 0 16px;
+    text-align: center;
+  }
+
+  .whova-empty-table .description {
+    font-size: 16px;
+    line-height: 22px;
   }
 
   @supports (animation-timeline: scroll()) {

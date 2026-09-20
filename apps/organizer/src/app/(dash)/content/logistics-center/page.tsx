@@ -88,9 +88,8 @@ export default async function LogisticsCenterPage({
           <>
             <strong>Rooms, not venue notes</strong>
             <p>
-              Wifi, parking, shuttles and accessibility have no screen in the app to read them, so
-              there is no form for them here. Until there is, a titled link on the Documents screen
-              is what the app renders.
+              Venue notes such as wifi, parking, shuttles and accessibility are not available here
+              yet. Add them as a link on the Documents screen.
             </p>
           </>
         }
@@ -100,7 +99,7 @@ export default async function LogisticsCenterPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add room
             </Link>
           )
@@ -120,16 +119,16 @@ export default async function LogisticsCenterPage({
 
       <StatTiles
         tiles={[
-          { label: 'Rooms', value: rooms.length, sub: 'named on every session in them' },
+          { label: 'Rooms', value: rooms.length, sub: 'shown on their sessions' },
           {
             label: 'Nothing scheduled',
             value: unused.length,
-            sub: unused.length === 0 ? 'every room is in use' : 'booked but empty, or a leftover',
+            sub: unused.length === 0 ? 'every room is in use' : 'no sessions in them',
           },
           {
             label: 'No seat count',
             value: noCapacity.length,
-            sub: 'Conflict Check cannot flag an oversized session',
+            sub: 'Conflict Check cannot check these',
           },
         ]}
       />
@@ -158,17 +157,15 @@ export default async function LogisticsCenterPage({
             Rooms
           </h2>
           <p className="body-2">
-            The room name is copied onto every session held in it, and that copy is what a phone
-            shows. The app has no read access to this collection, so there is no second source.
-            Renaming a room here rewrites the name on every session in it, in one go, and says how
-            many it touched.
+            Attendees see the room name on each session. Renaming a room here updates every
+            session in it.
           </p>
 
           {rooms.length === 0 ? (
             <NotInputted
               what="rooms"
               action={
-                <Link className="whova-btn-main" href="?new=1">
+                <Link className="whova-btn-main primary" href="?new=1">
                   Add the first one
                 </Link>
               }
@@ -183,7 +180,7 @@ export default async function LogisticsCenterPage({
               { key: 'p', label: 'Published', className: 'cell-xs cell-end-align' },
               { key: 'a', label: '', className: 'cell-xs cell-end-align' },
             ]}
-            empty="Not inputted yet"
+            empty="Nothing here yet"
             rows={rooms.map((r) => [
               <span key="n">
                 <strong>{r.name}</strong>
@@ -225,12 +222,8 @@ export default async function LogisticsCenterPage({
           )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-            <strong>There is no delete.</strong> Every session in a room points at it by id, and
-            the cached room name is the attendee&rsquo;s only wayfinding. Deleting the document
-            would leave that name unrepairable, because the name needed to repair it went with it.
-            A room that is no longer in use is emptied by moving its sessions in{' '}
-            <Link href={ROUTES.sessionManager}>Session Manager</Link>, after which it appears above
-            with nothing scheduled.
+            <strong>Rooms cannot be deleted.</strong> Move its sessions to another room in{' '}
+            <Link href={ROUTES.sessionManager}>Session Manager</Link> instead.
           </p>
         </Panel>
       )}
@@ -240,10 +233,8 @@ export default async function LogisticsCenterPage({
           The venue
         </h2>
         <p className="body-2">
-          <strong>{EVENT.venue}</strong>. A compile-time constant in <code>@kgc/shared</code>{' '}
-          shared by the app, the seed script, the importer and this dashboard, so the four cannot
-          drift. <Link href="/content/basics">Basics</Link> explains why that is read-only rather
-          than a text input.
+          <strong>{EVENT.venue}</strong>. The venue cannot be edited here. It is listed with the
+          other event details on <Link href="/content/basics">Basics</Link>.
         </p>
         <p className="body-2">
           <strong>Emergency card:</strong>{' '}
@@ -267,7 +258,7 @@ export default async function LogisticsCenterPage({
           <Link href="/virtual-and-hybrid/logistics-management/emergency-manager">
             Emergency Manager
           </Link>
-          , in the same settings document as the venue notes above.
+          .
         </p>
       </Panel>
 

@@ -123,6 +123,10 @@ export default async function NameBadgesPage({
           text-transform: uppercase;
         }
         .badge-qr { flex: 0 0 1.1in; margin-left: 0.12in; }
+        @media screen and (max-width: 767px) {
+          .badge-sheet { grid-template-columns: minmax(0, 3.5in); }
+          .badge { max-width: 100%; }
+        }
         @media print {
           @page { margin: 0.4in; }
           body * { visibility: hidden; }
@@ -136,11 +140,10 @@ export default async function NameBadgesPage({
         title="Name Badges"
         info={
           <>
-            <strong>The QR is the attendee&rsquo;s <code>qrSecret</code>, alone</strong>
+            <strong>What the QR code holds</strong>
             <p>
-              It is a bearer credential for <em>attendance</em>: photographed, it can be checked in
-              as that person, and the duplicate shows in the scan log. No email, attendee id or
-              sign-in code is printed, or even loaded onto this page.
+              Only the check-in code. No email or sign-in code is printed. A photographed badge can
+              be checked in as that person, and the duplicate shows in the scan log.
             </p>
           </>
         }
@@ -207,10 +210,8 @@ export default async function NameBadgesPage({
         </div>
 
         <p className="body-2">
-          Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet. The size that fits a
-          standard clip holder without folding. Printing takes whichever sheet is on screen, so
-          page through and print each one; the pager is a query parameter, so the sheet is also a
-          link you can send to whoever is standing at the printer.
+          Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet. Print prints the sheet
+          on screen, so page through and print each one.
         </p>
 
         <div className="badge-sheet">

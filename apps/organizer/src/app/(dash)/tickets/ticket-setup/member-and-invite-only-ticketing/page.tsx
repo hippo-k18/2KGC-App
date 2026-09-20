@@ -61,16 +61,21 @@ export default async function MemberAndInviteOnlyTicketingPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Hidden tickets</h2>
-        <Table
-          cols={[
-            { key: 'n', label: 'Ticket', className: 'cell-md' },
-            { key: 'p', label: 'Price', className: 'cell-sm' },
-            { key: 'a', label: 'Audience', className: 'cell-sm' },
-            { key: 't', label: 'Tagline', className: 'cell-fill' },
-          ]}
-          rows={hidden.map((t) => [t.name, money(t.priceCents, t.currency), t.audience, t.tagline || ''])}
-          empty="No hidden tickets"
-        />
+        {hidden.length === 0 ? (
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+            No hidden tickets yet.
+          </p>
+        ) : (
+          <Table
+            cols={[
+              { key: 'n', label: 'Ticket', className: 'cell-md' },
+              { key: 'p', label: 'Price', className: 'cell-sm' },
+              { key: 'a', label: 'Audience', className: 'cell-sm' },
+              { key: 't', label: 'Tagline', className: 'cell-fill' },
+            ]}
+            rows={hidden.map((t) => [t.name, money(t.priceCents, t.currency), t.audience, t.tagline || ''])}
+          />
+        )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>

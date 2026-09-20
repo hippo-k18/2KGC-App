@@ -68,7 +68,16 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
 
   return (
     <>
-      <div className="toolbar">
+      {/* Phone only: the desk is worked with a thumb, so the row button has to be on screen. */}
+      <style>{`
+        @media (max-width: 767px) {
+          .desk-chips .whova-tag-main { min-height: 40px; padding: 0 14px; }
+          .desk-table .btn-sm { min-height: 40px; min-width: 88px; }
+          .desk-table .whova-table { width: 100%; }
+          .desk-table .cell-fill { min-width: 0; overflow-wrap: anywhere; }
+        }
+      `}</style>
+      <div className="toolbar desk-chips">
         <div className="whova-search-input" style={{ flex: '0 1 420px', maxWidth: 420, width: '100%' }}>
           <span className="search-glyph" aria-hidden="true">
             ⌕
@@ -95,17 +104,17 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
         ))}
       </div>
 
-      <div className="whova-table-wrapper">
+      <div className="whova-table-wrapper desk-table">
         <div className="whova-table" role="table">
           <div className="whova-table-head" role="rowgroup">
             <div className="whova-table-row" role="row">
               <div className="whova-table-header cell-fill" role="columnheader">
                 Attendee
               </div>
-              <div className="whova-table-header cell-sm" role="columnheader">
+              <div className="whova-table-header cell-sm hide-sm" role="columnheader">
                 Ticket
               </div>
-              <div className="whova-table-header cell-mdsm" role="columnheader">
+              <div className="whova-table-header cell-mdsm hide-sm" role="columnheader">
                 Checked in
               </div>
               <div className="whova-table-header cell-mdsm cell-end-align" role="columnheader">
@@ -140,20 +149,20 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
                         ) : null}
                       </span>
                     </div>
-                    <div className="whova-table-cell cell-sm" role="cell">
+                    <div className="whova-table-cell cell-sm hide-sm" role="cell">
                       {inactive ? (
                         <span className="whova-tag-main red-tag outline-tag">{r.status}</span>
                       ) : (
-                        (r.ticketType ?? '—')
+                        (r.ticketType ?? '-')
                       )}
                     </div>
-                    <div className="whova-table-cell cell-mdsm" role="cell">
+                    <div className="whova-table-cell cell-mdsm hide-sm" role="cell">
                       {r.checkedInAt ? (
                         <span style={{ fontSize: 13 }}>
                           {r.checkedInAt.slice(11, 16)} on {r.checkedInAt.slice(0, 10)}
                         </span>
                       ) : (
-                        <span className="muted">—</span>
+                        <span className="muted">-</span>
                       )}
                     </div>
                     <div className="whova-table-cell cell-mdsm cell-end-align" role="cell">

@@ -53,9 +53,6 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
           <Link key="cc" href={ROUTES.conflictCheck}>
             Conflict Check
           </Link>,
-          <span key="id" className="muted">
-            <code>{`sessions/${session.id}`}</code>
-          </span>,
           <span key="u" className="muted">
             last saved{' '}
             {session.updatedAt

@@ -59,10 +59,9 @@ export function FieldForm({
         <p className="whova-banner warning" role="note" style={{ marginBottom: 16 }}>
           <span>
             ⚠️ {answered} {answered === 1 ? 'submission has' : 'submissions have'} already answered
-            this. Rewording the prompt is safe. The question keeps its id and the answers stay
-            attached. Changing its <strong>type</strong>, its options, or removing it mints a new
-            form version, and those {answered} answers stay pinned to the version they were given
-            under. Nothing is destroyed either way.
+            this. Rewording the prompt keeps those answers attached. Changing its{' '}
+            <strong>type</strong> or its options, or removing it, starts a new form version. The
+            earlier answers are kept under the old version.
           </span>
         </p>
       )}
@@ -98,7 +97,7 @@ export function FieldForm({
         hint={
           isDescription
             ? 'Shown between questions. It asks nothing and stores nothing.'
-            : 'What the submitter reads. The answer is stored under an id derived from this the first time it is saved, and that id never changes afterwards.'
+            : 'What the submitter reads.'
         }
       />
 
@@ -148,7 +147,7 @@ export function FieldForm({
           defaultChecked={existing?.required ?? false}
           description={
             kind === 'consent'
-              ? 'A consent box cannot be required. Consent that cannot be withheld is not consent, and the validator refuses it. If this is a condition of submitting, make it a plain checkbox and say so in the prompt.'
+              ? 'A consent box cannot be required. If agreeing is a condition of submitting, use a plain checkbox and say so in the prompt.'
               : 'A submitter cannot finish without answering. Nothing stops them saving a draft.'
           }
         />

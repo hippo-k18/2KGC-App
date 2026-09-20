@@ -278,7 +278,7 @@ export async function GatheringScreen({
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <h2 style={{ fontSize: 15, margin: 0 }}>
             {editing ? `Edit “${editing.title}”` : `Add a ${formCopy.noun.replace(/s$/, '').toLowerCase()}`}
           </h2>

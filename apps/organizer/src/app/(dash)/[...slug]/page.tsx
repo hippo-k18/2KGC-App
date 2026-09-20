@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { GAPS } from '@/lib/gaps';
-import { IMPLEMENTED, resolve, type NavNode } from '@/lib/nav';
+import { resolve, type NavNode } from '@/lib/nav';
 import { gapNotesVisible } from '@/lib/gap-notes';
 import { PageHeader, Panel } from '../ui';
 
@@ -28,7 +28,6 @@ function Index({ node, base }: { node: NavNode; base: string }) {
     <div className="index-grid">
       {(node.children ?? []).map((c) => {
         const href = `${base}/${c.slug}`;
-        const built = IMPLEMENTED.has(href.slice(1));
         return (
           <Link key={c.slug} className="index-card" href={href}>
             <span className="index-title">
@@ -36,7 +35,9 @@ function Index({ node, base }: { node: NavNode; base: string }) {
               {c.tag ? <span className={`menu-tag ${c.tag}`}>{c.tagLabel ?? c.tag}</span> : null}
             </span>
             <span className="index-sub">
-              {c.children ? `${c.children.length} screens` : built ? 'Open' : 'Not inputted yet'}
+              {c.children
+                ? `${c.children.length} ${c.children.length === 1 ? 'screen' : 'screens'}`
+                : 'Open'}
             </span>
           </Link>
         );

@@ -355,7 +355,7 @@ async function main() {
   const ME = 'demo_000';
   const CONVERSATIONS = [
     { with: 'demo_003', unread: 2, lines: [
-      [1, 'Enjoyed your talk on provenance — do you have the slides?'],
+      [1, 'Enjoyed your talk on provenance. Do you have the slides?'],
       [0, 'Thanks! I will put them in the session materials tonight.'],
       [1, 'Perfect. Are you around for the reception on Tuesday?'],
     ]},
@@ -647,7 +647,7 @@ async function main() {
 
     push(COLLECTIONS.surveys, 'seed-survey-keynote', {
       ...base(),
-      title: 'Opening session — your feedback',
+      title: 'Opening session: your feedback',
       description: 'Two minutes. It decides what we programme next year.',
       sessionId: feedbackSessionId,
       questions: FEEDBACK_QUESTIONS,

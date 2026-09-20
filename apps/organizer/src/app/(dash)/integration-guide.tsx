@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { gapNotesVisible } from '@/lib/gap-notes';
 import { PageHeader, Panel, Table } from './ui';
@@ -53,11 +52,7 @@ export async function IntegrationGuide({
         title={title}
         info={
           <>
-            <strong>Nothing is syncing with {vendor}</strong>
-            <p>
-              This page documents how to move data between {vendor} and {EVENT.shortName} by
-              hand. No connection is configured, so nothing arrives on its own.
-            </p>
+            <p>There is no automatic sync with {vendor} yet.</p>
           </>
         }
         links={(links ?? []).map((l, i) => (

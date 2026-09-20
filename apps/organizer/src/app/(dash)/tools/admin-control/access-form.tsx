@@ -4,6 +4,10 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { saveAccessSettingsAction, type AccessState } from './actions';
 
+/** Under 768px the two bare inputs get a 40px tap height and 16px text, so iOS does not zoom. */
+const PHONE_INPUTS =
+  '@media (max-width: 767px) { .access-input { font-size: 16px; min-height: 40px; padding: 6px 10px; } }';
+
 /** Shared submit button — `useFormStatus` only reports its own form. */
 function SaveButton() {
   const { pending } = useFormStatus();
@@ -33,8 +37,10 @@ export function PostEventForm({
         <label className="whova-form-label" htmlFor="postEventDays">
           Days of access after the event
         </label>
+        <style>{PHONE_INPUTS}</style>
         <input
           id="postEventDays"
+          className="access-input"
           name="postEventDays"
           type="number"
           min={0}
@@ -79,8 +85,10 @@ export function CodeAccessForm({
         <label className="whova-form-label" htmlFor="eventCode">
           Event code
         </label>
+        <style>{PHONE_INPUTS}</style>
         <input
           id="eventCode"
+          className="access-input"
           name="eventCode"
           defaultValue={eventCode}
           placeholder="KGC2027"
