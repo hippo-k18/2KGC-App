@@ -1,322 +1,231 @@
 {
- "verified": true,
- "features": [
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Remote ticket report",
-   "path": "/virtual-and-hybrid/virtual-and-hybrid-setup",
-   "what": "Shows each remote ticket tier, what it promises, how many were sold and the money taken.",
-   "steps": [
-    "Open Virtual & Hybrid > Virtual & Hybrid Setup.",
-    "Read the three tiles for tiers on sale, tickets sold and money taken.",
-    "Read the table under each tier to see what buyers were promised.",
-    "Click Create Tickets to hide or change the tier."
-   ],
-   "status": "view-only",
-   "statusNote": "Report only. There is no event format switch and nothing delivers the streams the Virtual tier promises.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/virtual-and-hybrid-setup/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Streaming setup",
-   "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
-   "what": "Meant to attach a stream link or key to each session.",
-   "steps": [
-    "Open Virtual & Hybrid > Online Session Manager > Streaming Setup."
-   ],
-   "status": "blocked",
-   "statusNote": "Not built. Sessions have no stream field, there is no provider account and no player in the app. The page is an empty state.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/streaming-setup/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "AV check schedule",
-   "path": "/virtual-and-hybrid/online-session-manager/rehearsal-sessions",
-   "what": "Lists the 15 minute AV check slot before every talk and flags talks whose room is still busy.",
-   "steps": [
-    "Open Virtual & Hybrid > Online Session Manager > Rehearsal Sessions.",
-    "Read the Check at column for each talk.",
-    "Scroll to the second table for talks with no free window.",
-    "Click a talk title to open it in Session Manager.",
-    "Click Message Speakers to contact them."
-   ],
-   "status": "view-only",
-   "statusNote": "Computed from the agenda. You cannot book a rehearsal, mark a speaker as checked or send calendar invites.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/rehearsal-sessions/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Zoom integration",
-   "path": "/virtual-and-hybrid/adv-stream-integration/zoom",
-   "what": "Meant to connect a Zoom account and create a meeting per session.",
-   "steps": [
-    "Open Virtual & Hybrid > Adv. Stream Integration > Zoom."
-   ],
-   "status": "blocked",
-   "statusNote": "Not built. No Zoom credentials, no OAuth flow and no meeting link field on sessions.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/adv-stream-integration/zoom/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Microsoft Teams integration",
-   "path": "/virtual-and-hybrid/adv-stream-integration/microsoft-teams",
-   "what": "Meant to connect Teams and create a meeting per session.",
-   "steps": [
-    "Open Virtual & Hybrid > Adv. Stream Integration > Microsoft Teams."
-   ],
-   "status": "blocked",
-   "statusNote": "Not built. No Microsoft app registration, no Graph client and no meeting link field on sessions.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/adv-stream-integration/microsoft-teams/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Attendance gamification",
-   "path": "/virtual-and-hybrid/attendance-gamification",
-   "what": "Meant to award points for attending sessions and show a leaderboard.",
-   "steps": [
-    "Open Virtual & Hybrid > Attendance Gamification."
-   ],
-   "status": "blocked",
-   "statusNote": "Not built. No points, prizes or leaderboard exist in the data model.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendance-gamification/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Attendee activity",
-   "path": "/virtual-and-hybrid/attendee-activity",
-   "what": "Shows per attendee whether they signed into the app, sessions scanned into, scheduled hours, and posts and replies written.",
-   "steps": [
-    "Open Virtual & Hybrid > Attendee Activity.",
-    "Click Everyone, Active or Nothing yet to filter the list.",
-    "Use the pager under the table to move through attendees.",
-    "Click Analytics & Exports for downloads."
-   ],
-   "status": "view-only",
-   "statusNote": "Read-only table. No search or message action on this page. Export lives in Analytics & Exports.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendee-activity/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Event checklist progress",
-   "path": "/virtual-and-hybrid/logistics-management/event-checklist",
-   "what": "Shows task totals, done, blocked and overdue counts, with a progress bar per project.",
-   "steps": [
-    "Open Virtual & Hybrid > Logistics Management > Event Checklist.",
-    "Read the tiles and the progress bar for each project.",
-    "Click Open Projects & Checklists to add, tick or reassign tasks."
-   ],
-   "status": "view-only",
-   "statusNote": "Report only. Tasks are edited in Content > Project Management > Projects & Checklists. No overdue reminders are sent.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/event-checklist/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Emergency plan",
-   "path": "/virtual-and-hybrid/logistics-management/emergency-manager",
-   "what": "Stores the emergency number, venue security, first aid point, assembly point, on-site lead and incident procedure. The attendee app shows it under Home > Logistics once marked ready.",
-   "steps": [
-    "Open Virtual & Hybrid > Logistics Management > Emergency Manager.",
-    "Fill in the contact and location fields.",
-    "Write the procedure under What to do.",
-    "Tick \"This plan has been reviewed and is ready for the event\". It needs an assembly point or an on-site lead.",
-    "Click Save."
-   ],
-   "status": "partial",
-   "statusNote": "Save writes to Firestore with an audit entry. The app code reads the plan at Home > Logistics when it is marked ready, not checked on a device. The live plan is still Draft, so attendees see \"No emergency plan published\". No alert broadcast and no incident log.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/actions.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/emergency-form.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/emergency-manager/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/settings.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/home/logistics.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/firestore.rules"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Other virtual tools",
-   "path": "/virtual-and-hybrid/other-tools",
-   "what": "Meant to hold virtual backgrounds, lobby video, interpretation, captions, name pronunciation and a countdown.",
-   "steps": [
-    "Open Virtual & Hybrid > Other Tools."
-   ],
-   "status": "blocked",
-   "statusNote": "Not built. None of the six tools exist.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/other-tools/page.tsx"
-   ]
-  },
-  {
-   "area": "Virtual & Hybrid",
-   "feature": "Tutorials and tips",
-   "path": "/virtual-and-hybrid/tutorials-and-tips",
-   "what": "Meant to show organizer help articles and videos.",
-   "steps": [
-    "Open Virtual & Hybrid > Tutorials and Tips."
-   ],
-   "status": "blocked",
-   "statusNote": "Not built. No help content or article store exists.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/tutorials-and-tips/page.tsx"
-   ]
-  }
- ],
- "uiIssues": [
-  {
-   "path": "/virtual-and-hybrid/attendee-activity",
-   "width": 390,
-   "severity": "high",
-   "type": "overflow",
-   "issue": "The sidebar menu stays beside the content on a phone, leaving the page about 160px wide, so every title, tile, table and form is squeezed into a narrow strip (all 15 /virtual-and-hybrid pages).",
-   "fix": "Below 768px stack the sidebar under the content or collapse it into a drawer so the content column gets the full width.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendee_activity-390-full.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/globals.css"
-  },
-  {
-   "path": "/virtual-and-hybrid/virtual-and-hybrid-setup",
-   "width": 390,
-   "severity": "high",
-   "type": "overflow",
-   "issue": "In the event header the Registrations and Agenda cards sit on top of the date and venue text, which wraps one word per line, and the Agenda card runs off the right edge to 488px (all 15 /virtual-and-hybrid pages).",
-   "fix": "Stack .buttons-cards vertically on phones and let .cards wrap inside the viewport.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_virtual_and_hybrid_setup-390-full.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/layout.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/attendee-activity",
-   "width": 390,
-   "severity": "high",
-   "type": "clipped",
-   "issue": "Tables show only their first column on a phone with no way to scroll sideways. Attendee Activity loses Ticket, App, Sessions, Hours and Wrote. Rehearsal Sessions shows only Day and the page is 12,349px tall. Event Checklist loses the progress bars. Setup loses Delivered by.",
-   "fix": "Give tables a visible horizontal scroll at full content width or switch rows to stacked cards under 600px.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendee_activity-390-full.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/online-session-manager/rehearsal-sessions",
-   "width": 390,
-   "severity": "high",
-   "type": "overflow",
-   "issue": "Header actions and links fall outside the white page card: Message Speakers and the orange tag on Rehearsal Sessions, Open Projects & Checklists on Event Checklist, and the third link on Setup, Attendee Activity and Attendance Gamification.",
-   "fix": "Let the PageHeader title row wrap and place actions and links on their own lines under the title on narrow screens.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/rehearsal-390-crop.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/adv-stream-integration/zoom",
-   "width": 1280,
-   "severity": "medium",
-   "type": "hierarchy",
-   "issue": "Buttons render as plain black text with no border or fill, so they do not look clickable: the empty-state actions on Streaming Setup, Zoom, Microsoft Teams, Attendance Gamification, Other Tools and Tutorials and Tips, plus Message Speakers and Open Projects & Checklists.",
-   "fix": "Add the primary or secondary modifier to these whova-btn-main links, or give the base class a default fill.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_adv_stream_integration_zoom-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/globals.css"
-  },
-  {
-   "path": "/virtual-and-hybrid/attendance-gamification",
-   "width": 390,
-   "severity": "medium",
-   "type": "overflow",
-   "issue": "On a phone the empty-state box is wider than its card and the action text spills out of the bottom of the box (Attendance Gamification, Zoom, Microsoft Teams, Streaming Setup, Other Tools, Tutorials and Tips).",
-   "fix": "Set max-width 100% and height auto on .whova-empty-state and let the action wrap inside it.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendance_gamification-390-full.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
-   "width": 1280,
-   "severity": "medium",
-   "type": "empty-state",
-   "issue": "Seven of the eleven screens in this tab are dead ends that say \"Not inputted yet\" with a button to an unrelated page, such as \"Attendance is at the door\" on Zoom and \"Go to Report\" on Tutorials and Tips.",
-   "fix": "Hide the unbuilt screens from the nav, or replace each empty state with one line saying the feature is not available.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_online_session_manager_streaming_setup-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/streaming-setup/page.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
-   "width": 1280,
-   "severity": "medium",
-   "type": "other",
-   "issue": "Empty states read wrong: \"Not inputted yet\" and \"No streams has been entered for this event\", \"No Zoom meetings has been entered\", \"No tutorials has been entered\".",
-   "fix": "Change the NotInputted copy to \"Nothing here yet\" and \"No {what} yet.\" so plurals work.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_online_session_manager_streaming_setup-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/logistics-management/emergency-manager",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "Engineering notes are shown to the organizer. Setup prints \"includesVideoLibrary entitlement is false\" in code font under the table. The Emergency Manager banner ends \"an announcement, which is real\". The info tips mention \"fcmTokens\", \"a development build rather than Expo Go\" and the \"tasks collection\".",
-   "fix": "Cut these to one plain sentence each, for example \"This page stores the plan. It does not alert anyone.\"",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_logistics_management_emergency_manager-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/emergency-manager/page.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/logistics-management/emergency-manager",
-   "width": 390,
-   "severity": "low",
-   "type": "excess-text",
-   "issue": "Five of the seven emergency form fields carry a helper paragraph, such as \"This is the single most useful line on the card\" and \"One named person who decides. Not a team address.\" On a phone the form runs over 1,400px and placeholders are cut off inside the inputs.",
-   "fix": "Drop the helper text except for the procedure field and shorten placeholders.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_logistics_management_emergency_manager-390-full.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/emergency-form.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/virtual-and-hybrid-setup",
-   "width": 1280,
-   "severity": "low",
-   "type": "ai-voice",
-   "issue": "Setup copy is odd: tile \"Money taken for them\", heading \"What the buyer was told\", and a Delivered by column that says \"nothing\" on every row. The source also has a \"Sold, not delivered\" tag and a \"refund conversation waiting to happen\" banner that show once a remote ticket sells. Event Checklist tip reads \"A report, not a second editor\".",
-   "fix": "Use plain labels: \"Virtual tickets sold\", \"Revenue\", and one sentence saying streaming is not set up.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_virtual_and_hybrid_setup-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/virtual-and-hybrid-setup/page.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/attendee-activity",
-   "width": 1280,
-   "severity": "low",
-   "type": "ai-voice",
-   "issue": "Empty table cells show an em dash, 81 on the first page of Attendee Activity, and Event Checklist uses one in the Done tile.",
-   "fix": "Leave empty cells blank or show 0.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendee_activity-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendee-activity/page.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/attendee-activity",
-   "width": 1280,
-   "severity": "low",
-   "type": "other",
-   "issue": "The Wrote column shows codes like \"1p 1r\" with no legend, and tile labels are vague: \"On the roll\", \"Nothing yet\", \"the follow-up list\".",
-   "fix": "Show \"1 post, 1 reply\" and rename the tiles Attendees, Active and Inactive.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendee_activity-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendee-activity/page.tsx"
-  },
-  {
-   "path": "/virtual-and-hybrid/online-session-manager/rehearsal-sessions",
-   "width": 1280,
-   "severity": "low",
-   "type": "other",
-   "issue": "Rehearsal Sessions lists all 83 talks in one unpaged table with raw dates like 2027-05-03, and the second heading reads \"The ones with nowhere to rehearse\".",
-   "fix": "Group or filter by day, format dates as Mon May 3, and rename the heading \"No free slot\".",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_online_session_manager_rehearsal_sessions-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/rehearsal-sessions/page.tsx"
-  }
- ]
+  "verified": true,
+  "features": [
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Remote ticket report",
+      "path": "/virtual-and-hybrid/virtual-and-hybrid-setup",
+      "what": "Shows each remote ticket tier, what it promises, how many were sold and the money taken.",
+      "steps": [
+        "Open Virtual & Hybrid > Virtual & Hybrid Setup.",
+        "Read the three tiles for tiers on sale, tickets sold and money taken.",
+        "Read the table under each tier to see what buyers were promised.",
+        "Click Create Tickets to hide or change the tier."
+      ],
+      "status": "view-only",
+      "statusNote": "Report only. There is no event format switch and nothing delivers the streams the Virtual tier promises.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/virtual-and-hybrid-setup/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Streaming setup",
+      "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
+      "what": "Meant to attach a stream link or key to each session.",
+      "steps": [
+        "Open Virtual & Hybrid > Online Session Manager > Streaming Setup."
+      ],
+      "status": "blocked",
+      "statusNote": "Not built. Sessions have no stream field, there is no provider account and no player in the app. The page is an empty state.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/streaming-setup/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "AV check schedule",
+      "path": "/virtual-and-hybrid/online-session-manager/rehearsal-sessions",
+      "what": "Lists the 15 minute AV check slot before every talk and flags talks whose room is still busy.",
+      "steps": [
+        "Open Virtual & Hybrid > Online Session Manager > Rehearsal Sessions.",
+        "Read the Check at column for each talk.",
+        "Scroll to the second table for talks with no free window.",
+        "Click a talk title to open it in Session Manager.",
+        "Click Message Speakers to contact them."
+      ],
+      "status": "view-only",
+      "statusNote": "Computed from the agenda. You cannot book a rehearsal, mark a speaker as checked or send calendar invites.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/rehearsal-sessions/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Zoom integration",
+      "path": "/virtual-and-hybrid/adv-stream-integration/zoom",
+      "what": "Meant to connect a Zoom account and create a meeting per session.",
+      "steps": [
+        "Open Virtual & Hybrid > Adv. Stream Integration > Zoom."
+      ],
+      "status": "blocked",
+      "statusNote": "Not built. No Zoom credentials, no OAuth flow and no meeting link field on sessions.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/adv-stream-integration/zoom/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Microsoft Teams integration",
+      "path": "/virtual-and-hybrid/adv-stream-integration/microsoft-teams",
+      "what": "Meant to connect Teams and create a meeting per session.",
+      "steps": [
+        "Open Virtual & Hybrid > Adv. Stream Integration > Microsoft Teams."
+      ],
+      "status": "blocked",
+      "statusNote": "Not built. No Microsoft app registration, no Graph client and no meeting link field on sessions.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/adv-stream-integration/microsoft-teams/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Attendance gamification",
+      "path": "/virtual-and-hybrid/attendance-gamification",
+      "what": "Meant to award points for attending sessions and show a leaderboard.",
+      "steps": [
+        "Open Virtual & Hybrid > Attendance Gamification."
+      ],
+      "status": "blocked",
+      "statusNote": "Not built. No points, prizes or leaderboard exist in the data model.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendance-gamification/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Attendee activity",
+      "path": "/virtual-and-hybrid/attendee-activity",
+      "what": "Shows per attendee whether they signed into the app, sessions scanned into, scheduled hours, and posts and replies written.",
+      "steps": [
+        "Open Virtual & Hybrid > Attendee Activity.",
+        "Click Everyone, Active or Nothing yet to filter the list.",
+        "Use the pager under the table to move through attendees.",
+        "Click Analytics & Exports for downloads."
+      ],
+      "status": "view-only",
+      "statusNote": "Read-only table. No search or message action on this page. Export lives in Analytics & Exports.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendee-activity/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Event checklist progress",
+      "path": "/virtual-and-hybrid/logistics-management/event-checklist",
+      "what": "Shows task totals, done, blocked and overdue counts, with a progress bar per project.",
+      "steps": [
+        "Open Virtual & Hybrid > Logistics Management > Event Checklist.",
+        "Read the tiles and the progress bar for each project.",
+        "Click Open Projects & Checklists to add, tick or reassign tasks."
+      ],
+      "status": "view-only",
+      "statusNote": "Report only. Tasks are edited in Content > Project Management > Projects & Checklists. No overdue reminders are sent.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/event-checklist/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Emergency plan",
+      "path": "/virtual-and-hybrid/logistics-management/emergency-manager",
+      "what": "Stores the emergency number, venue security, first aid point, assembly point, on-site lead and incident procedure. The attendee app shows it under Home > Logistics once marked ready.",
+      "steps": [
+        "Open Virtual & Hybrid > Logistics Management > Emergency Manager.",
+        "Fill in the contact and location fields.",
+        "Write the procedure under What to do.",
+        "Tick \"This plan has been reviewed and is ready for the event\". It needs an assembly point or an on-site lead.",
+        "Click Save."
+      ],
+      "status": "partial",
+      "statusNote": "Save records the plan with an audit entry. The app shows it under Home > Logistics once it is marked ready, not checked on a device. The live plan is still Draft, so attendees see \"No emergency plan published\". No alert broadcast and no incident log.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/actions.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/emergency-form.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/logistics-management/emergency-manager/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/settings.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/home/logistics.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/firestore.rules"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Other virtual tools",
+      "path": "/virtual-and-hybrid/other-tools",
+      "what": "Meant to hold virtual backgrounds, lobby video, interpretation, captions, name pronunciation and a countdown.",
+      "steps": [
+        "Open Virtual & Hybrid > Other Tools."
+      ],
+      "status": "blocked",
+      "statusNote": "Not built. None of the six tools exist.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/other-tools/page.tsx"
+      ]
+    },
+    {
+      "area": "Virtual & Hybrid",
+      "feature": "Tutorials and tips",
+      "path": "/virtual-and-hybrid/tutorials-and-tips",
+      "what": "Meant to show organizer help articles and videos.",
+      "steps": [
+        "Open Virtual & Hybrid > Tutorials and Tips."
+      ],
+      "status": "blocked",
+      "statusNote": "Not built. No help content or article store exists.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/tutorials-and-tips/page.tsx"
+      ]
+    }
+  ],
+  "uiIssues": [
+    {
+      "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
+      "width": 1280,
+      "severity": "medium",
+      "type": "empty-state",
+      "issue": "Seven of the eleven screens in this tab are dead ends that say \"Not inputted yet\" with a button to an unrelated page, such as \"Attendance is at the door\" on Zoom and \"Go to Report\" on Tutorials and Tips.",
+      "fix": "Hide the unbuilt screens from the nav, or replace each empty state with one line saying the feature is not available.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_online_session_manager_streaming_setup-1280.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/streaming-setup/page.tsx"
+    },
+    {
+      "path": "/virtual-and-hybrid/attendee-activity",
+      "width": 1280,
+      "severity": "low",
+      "type": "ai-voice",
+      "issue": "Empty table cells show an em dash, 81 on the first page of Attendee Activity, and Event Checklist uses one in the Done tile.",
+      "fix": "Leave empty cells blank or show 0.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendee_activity-1280.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendee-activity/page.tsx"
+    },
+    {
+      "path": "/virtual-and-hybrid/attendee-activity",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "The Wrote column shows codes like \"1p 1r\" with no legend, and tile labels are vague: \"On the roll\", \"Nothing yet\", \"the follow-up list\".",
+      "fix": "Show \"1 post, 1 reply\" and rename the tiles Attendees, Active and Inactive.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_attendee_activity-1280.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/attendee-activity/page.tsx"
+    },
+    {
+      "path": "/virtual-and-hybrid/online-session-manager/rehearsal-sessions",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "Rehearsal Sessions lists all 83 talks in one unpaged table with raw dates like 2027-05-03, and the second heading reads \"The ones with nowhere to rehearse\".",
+      "fix": "Group or filter by day, format dates as Mon May 3, and rename the heading \"No free slot\".",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/virtual-and-hybrid/virtual_and_hybrid_online_session_manager_rehearsal_sessions-1280.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/virtual-and-hybrid/online-session-manager/rehearsal-sessions/page.tsx"
+    },
+    {
+      "path": "/virtual-and-hybrid/online-session-manager/rehearsal-sessions",
+      "width": 390,
+      "severity": "medium",
+      "type": "broken",
+      "issue": "In \"busy\" rows the end time runs into the talk title, reading \"until 09:00Lessons from a s\". The page is 7,512px tall.",
+      "fix": "Separate the time and title cells and let the title wrap.",
+      "source": "round one review, remaining problem 3"
+    }
+  ]
 }

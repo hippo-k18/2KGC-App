@@ -46,13 +46,13 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 <main>
 <header>
   <h1>KGC Dashboard Field Guide</h1>
-  <p class="lede">Every feature in the organizer dashboard, how to use it, and whether it works on the live site today. Checked against the code and the live dashboard on 19 September 2026.</p>
+  <p class="lede">Every feature in the organizer dashboard, how to use it, and where it stands. Checked against the code and the live dashboard on 19 September 2026, and updated on 21 September 2026 after two rounds of fixes.</p>
   <div class="tally">
-    <div><b>205</b> <span>features</span></div>
-    <div><b>39</b> <span>work</span></div>
-    <div><b>47</b> <span>partial</span></div>
-    <div><b>87</b> <span>view only</span></div>
-    <div><b>32</b> <span>blocked</span></div>
+    <div><b>218</b> <span>features</span></div>
+    <div><b>56</b> <span>work</span></div>
+    <div><b>52</b> <span>partial</span></div>
+    <div><b>80</b> <span>view only</span></div>
+    <div><b>30</b> <span>blocked</span></div>
   </div>
 </header>
 
@@ -60,23 +60,11 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 
 <section id="needs">
   <h2>What running the conference needs</h2>
-  <p class="lede">91 needs from an organizer's list. Of the 42 the event cannot run without: 6 are covered, 32 are partly covered, 4 are missing.</p>
+  <p class="lede">91 needs from an organizer's list. Of the 42 the event cannot run without: 16 are covered, 24 are partly covered, 2 are missing.</p>
   <div class="filters" data-for="needs" role="group" aria-label="Filter needs">
     <button id="n-all" aria-pressed="true" data-v="all">All</button><button id="n-missing" aria-pressed="false" data-v="missing">Missing</button><button id="n-partial" aria-pressed="false" data-v="partial">Partial</button><button id="n-have" aria-pressed="false" data-v="have">Have</button>
   </div>
   <div class="tablewrap"><table><tbody>
-<tr data-verdict="missing">
-  <td class="need"><span class="pri pri-must">must</span>Collect reviewer scores and comments against configurable criteria and see aggregate rankings per track</td>
-  <td><span class="st v-missing">Missing</span></td>
-  <td class="where"><span class="hard">Hard to find</span></td>
-  <td class="gnote">The reviewer scoring screen is not built. No criteria, scores or rankings.</td>
-</tr>
-<tr data-verdict="missing">
-  <td class="need"><span class="pri pri-must">must</span>Assign attendee categories or tags (speaker, sponsor, staff, press, VIP) that control access and badge design</td>
-  <td><span class="st v-missing">Missing</span></td>
-  <td class="where">Categories (view-only)<span class="path">/attendees/categories</span></td>
-  <td class="gnote">Categories cannot be created or assigned, and a ticket purchase does not set one. Everyone shows as Uncategorised.</td>
-</tr>
 <tr data-verdict="missing">
   <td class="need"><span class="pri pri-must">must</span>Attach a live stream to each session from an external provider (Zoom, YouTube, Vimeo, RTMP) and play it inside the platform</td>
   <td><span class="st v-missing">Missing</span></td>
@@ -90,12 +78,6 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">No streams or recordings exist to gate. Documents can be limited by ticket type.</td>
 </tr>
 <tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Create the event with name, dates, time zone, venue address, and event type (in-person, virtual, hybrid)</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">View event basics<span class="path">/content/basics</span></td>
-  <td class="gnote">View-only. Name, dates, time zone and venue are fixed in code. No event type setting.</td>
-</tr>
-<tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Upload logo, banner, and brand colors that apply to the event website, registration pages, emails, and mobile app</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">App Branding<span class="path">/content/branding-center/app-branding</span></td>
@@ -105,19 +87,19 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-must">must</span>Publish a public event website with agenda, speakers, sponsors, venue, and ticket pages on a custom domain</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Event Website overview<span class="path">/marketing/event-website</span></td>
-  <td class="gnote">The site is live with agenda, speakers, sponsors and tickets. 13 of 22 pages change from the dashboard, 9 need a deploy. No domain setting.</td>
+  <td class="gnote">The site is live with agenda, speakers, sponsors and tickets. Custom pages are now written from the dashboard. 9 pages still need a developer. No domain setting.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Make last-minute schedule changes that update the website and app immediately and notify affected attendees</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Edit a session<span class="path">/content/agenda-center/session-manager</span></td>
-  <td class="gnote">Edits reach the website and app at once. Attendees are not notified. Push is blocked, so post an announcement by hand.</td>
+  <td class="gnote">Edits reach the website and app at once. A notice is written for everybody who saved the session, and the job that delivers it is not switched on yet, so announce a change yourself.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Restrict sessions to certain ticket types (workshops, VIP), with capacity limits, sign-up, and waitlists</td>
   <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Session capacity, Ticket Session Mapping, Session Cap<span class="path">/attendees/session-cap</span></td>
-  <td class="gnote">Capacity and workshop eligibility are recorded but nothing enforces them. No sign-up, no waitlist. Settings sit under Attendees, not Agenda.</td>
+  <td class="where">Session Cap, Session RSVP<span class="path">/tickets/ticket-setup/session-rsvp</span></td>
+  <td class="gnote">Caps, ticket eligibility, sign-up and the waitlist all work, and a seat is taken one at a time so two people cannot both get the last place. Waiting on the new access settings being published to the live event.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Publish a call for papers form with custom fields, submission categories, file uploads, and an open and close date</td>
@@ -126,46 +108,40 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">Call, dates, tracks, session types and custom fields work. No file upload field. No call exists on the live event yet.</td>
 </tr>
 <tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Assign submissions to reviewers manually or automatically, with conflict-of-interest exclusions and optional blind review</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Manage reviewers<span class="path">/content/call-for-speakers-abstracts/reviewers</span></td>
-  <td class="gnote">Manual and by-track assignment and a blind review option exist. No conflict-of-interest exclusions. Reviewers get no invitation and have no screen to review on.</td>
-</tr>
-<tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Record accept, reject, and waitlist decisions and send decision emails in bulk from templates</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Accept or reject submissions<span class="path">/content/call-for-speakers-abstracts/submissions</span></td>
-  <td class="gnote">Accept and reject save, one submission at a time. No waitlist decision. Email only reaches the account owner until the sender domain is verified.</td>
+  <td class="gnote">Accept and reject save, one submission at a time. No waitlist decision. Email only reaches the account owner until the event has its own sending address.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Accept card payments through a connected payment processor with payouts to the organizer's bank account</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Payout, Billing Information<span class="path">/tickets/payout</span></td>
-  <td class="gnote">Blocked: no Stripe key is set. Checkout refuses every order and payouts show a dash.</td>
+  <td class="gnote">Waiting on a payment account. Checkout refuses every order and payouts show a dash.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Create discount codes with percent or fixed amount, usage limits, expiry, and restriction to specific ticket types</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Discount Codes<span class="path">/tickets/ticket-setup/discount-codes</span></td>
-  <td class="gnote">Blocked: no Stripe key is set. The form is hidden. A code cannot be limited to a ticket type.</td>
+  <td class="gnote">Waiting on a payment account. The form is hidden. A code cannot be limited to a ticket type.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Issue complimentary tickets and hidden or access-code tickets for speakers, sponsors, staff, and press</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Hide a ticket, Add an attendee, Sponsor passes<span class="path">/tickets/ticket-setup/1-1-create-tickets</span></td>
-  <td class="gnote">Hidden tickets work by private link. A free attendee can be added by hand under Attendees. Sponsor passes are blocked and access codes depend on discount codes, which are blocked.</td>
+  <td class="gnote">Hidden tickets work by private link. A free attendee can be added by hand under Attendees. Sponsor passes and access codes both wait on a payment account.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Issue full and partial refunds and cancel orders from the dashboard, with the capacity released back to inventory</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Refund an order<span class="path">/tickets/orders-and-transactions/attendee-orders</span></td>
-  <td class="gnote">Blocked: no Stripe key is set. Full refunds only, even with a key.</td>
+  <td class="gnote">Waiting on a payment account. Full refunds only, even once one is connected. A cancelled registration does give its seat back.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Generate invoices and receipts automatically with company name, billing address, and tax or VAT number, and allow reissue after edits</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Invoice a company (public site /tickets/invoice)<span class="path">/tickets/orders-and-transactions/attendee-orders</span></td>
-  <td class="gnote">Blocked: no Stripe key is set. Invoices are raised by Stripe with company name and billing email. VAT number is a free-text note. No reissue from the dashboard.</td>
+  <td class="gnote">Waiting on a payment account. Invoices carry company name and billing email. VAT number is a free-text note. No reissue from the dashboard.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Build the registration form with custom questions (text, dropdown, checkbox, consent) and mark fields required</td>
@@ -177,67 +153,55 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-must">must</span>Capture terms acceptance, code of conduct agreement, and photo and data consent with a timestamp</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Release &amp; Consent Forms, consent question<span class="path">/attendees/release-and-consent-forms</span></td>
-  <td class="gnote">Versioned forms record who signed and when. Signing links are not emailed and an unsigned form blocks nothing. No form exists on the live event.</td>
+  <td class="gnote">Versioned forms record who signed and when, a required form blocks check-in and app access, and the signing link goes out by email once the event has its own sending address. No form exists on the live event.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Send an automatic confirmation email with ticket, QR code, and calendar file</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">1.3 Confirmation Emails<span class="path">/tickets/ticket-setup/1-3-confirmation-emails</span></td>
-  <td class="gnote">Log only. The template cannot be edited and nothing can be resent. Email only reaches the account owner until the sender domain is verified.</td>
-</tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Create sponsor tiers and sponsor profiles with logo, description, links, and contacts, displayed by tier on the website and app</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Sponsor Manager, Sponsor Tiering<span class="path">/content/sponsor-center/sponsor-manager</span></td>
-  <td class="gnote">Sponsor profiles work and show by tier on the website. The four tiers are fixed in code and cannot be added or renamed.</td>
+  <td class="gnote">Log only. The template cannot be edited and nothing can be resent. Email only reaches the account owner until the event has its own sending address.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Send email campaigns to filtered segments (ticket type, registration status, speakers, sponsors) with merge fields</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Email Campaign, Campaign Contact List<span class="path">/tickets/ticket-marketing/email-campaign</span></td>
-  <td class="gnote">Email only reaches the account owner until the sender domain is verified. Sends to imported contact lists, not attendee segments. Plain text, no merge fields. Filed under Tickets, not Marketing.</td>
+  <td class="gnote">Email only reaches the account owner until the event has its own sending address. Sends to imported contact lists, not attendee segments. Plain text, no merge fields. Filed under Tickets, not Marketing.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Send from a verified organizer domain with a custom sender name and reply-to address</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where"><span class="hard">Hard to find</span></td>
-  <td class="gnote">The sender domain is not verified and there is no screen for sender name or reply-to. It is set in the Resend account and env vars.</td>
+  <td class="gnote">The event has no sending address of its own yet, and there is no screen for the sender name or the reply-to address.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Search, filter, and view the full attendee list with ticket type, payment status, form answers, and check-in status</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Attendees<span class="path">/attendees/manage-attendees/attendees</span></td>
-  <td class="gnote">Names, tickets and companies are blank because of the listAttendees() bug. Search matches email only. Check-in and Name Badges show the right names.</td>
-</tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Add, edit, and cancel attendees manually and import attendees in bulk by spreadsheet</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Add an attendee, Import attendees from CSV<span class="path">/attendees/manage-attendees/attendees</span></td>
-  <td class="gnote">Add and import work. No edit, no cancel. No email or claim code goes to the people added.</td>
+  <td class="gnote">Rows show name, company, title and ticket. Search still matches the email address only.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Design badges with name, company, category, and QR code, and export print-ready files for bulk pre-print</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Name Badges<span class="path">/attendees/name-badges</span></td>
-  <td class="gnote">Prints name, company, title, ticket and QR, 25 to a sheet from the browser. No designer, no category styling, no print file export.</td>
+  <td class="gnote">Prints name, company, title, ticket, category and QR, 25 to a sheet from the browser. No designer and no print file export.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Give attendees a mobile app and web app with the agenda, speakers, sponsors, maps, and a personal schedule</td>
   <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Attendee app (Expo)<span class="path">/tools/app-adoption/app-download-button</span></td>
+  <td class="where">Attendee app<span class="path">/tools/app-adoption/app-download-button</span></td>
   <td class="gnote">The app has agenda, people, sponsors, my schedule, documents and badge. It is not in the app stores, and the download button points to the tickets page.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Add custom content pages and documents: venue maps, floor plans, Wi-Fi, travel, FAQ, code of conduct</td>
   <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Documents, Emergency Manager<span class="path">/content/documents-and-videos/documents</span></td>
-  <td class="gnote">Titled links only. No custom pages, no file upload, no map. Venue, travel and conduct text is in site code.</td>
+  <td class="where">Custom pages, Documents<span class="path">/content/branding-center/customize-resources</span></td>
+  <td class="gnote">Pages with headings, lists and links are written from the dashboard and show on the website and in the app. Waiting on the new access settings being published to the live event. Still no file upload and no map.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Limit app access to registered attendees, with login by registration email</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">App sign-in by email code<span class="path">/tools/admin-control/code-access-control</span></td>
-  <td class="gnote">Ticket holders sign in with a code sent to their email. Each new attendee still needs a script run by hand before the app shows anything. The join code setting is ignored.</td>
+  <td class="gnote">Ticket holders sign in with a code sent to their email. A join code can be asked for at sign-in once the new access settings are published to the live event. Each new attendee still needs a hand-run step before the app shows anything.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>Send push and in-app announcements to everyone or to a segment, immediately or scheduled</td>
@@ -249,37 +213,19 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-must">must</span>Moderate community content: review reports, remove posts and messages, and block or ban users</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Moderator Tools &gt; Community Board<span class="path">/tools/moderator-tools/community-board</span></td>
-  <td class="gnote">Posts can be hidden or deleted. A hidden reply still shows in the app, so delete it. No report queue, no ban, and direct messages cannot be moderated.</td>
-</tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Send session feedback ratings and an overall event survey, and see and export the responses</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Session Feedback, Surveys<span class="path">/engagement/session-feedback</span></td>
-  <td class="gnote">Session feedback is live with responses. The event survey is untested. No export of answers.</td>
-</tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Export attendees, orders, payments, refunds, and form answers to CSV or Excel at any time</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Analytics &amp; Exports, Attendee Orders export<span class="path">/attendees/manage-attendees/analytics-and-exports</span></td>
-  <td class="gnote">Nine CSVs download. Orders, check-ins and sessions are right. The attendee and catering files have blank names and tickets.</td>
+  <td class="gnote">Posts and replies can be hidden or deleted, and a hidden reply stops showing in the app once the new access settings are published. Replies written before that change do not show at all until they are brought up to date. No report queue, no ban, and direct messages cannot be moderated.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-must">must</span>View sales reports: revenue by ticket type, by day, by discount code, net of fees and refunds, reconcilable with processor payouts</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Orders and Transactions &gt; Summary, Pay &gt; Balance<span class="path">/tickets/orders-and-transactions/summary</span></td>
-  <td class="gnote">Revenue by ticket type and day, refunds and a fee estimate. No split by discount code. Totals come from KGC orders, not Stripe, and read $0 today.</td>
+  <td class="gnote">Revenue by ticket type and day, refunds and a fee estimate. No split by discount code. Totals come from this event’s own orders and read $0 today.</td>
 </tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Invite team members with roles that limit access by area (finance, agenda, sponsors, check-in, review), with an audit log of changes</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Admin Settings, audit trail in Tools &gt; Report<span class="path">/attendees/admin-settings</span><span class="hard">Hard to find</span></td>
-  <td class="gnote">An audit trail of dashboard changes exists under Tools &gt; Report. No invites and no roles. Admins are set in an env var, and the list sits under Attendees.</td>
-</tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-must">must</span>Meet data protection requirements: GDPR consent records, data export and deletion on request, and a published privacy policy</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Release &amp; Consent Forms, unsubscribe, cookie banner<span class="path">/attendees/release-and-consent-forms</span></td>
-  <td class="gnote">Consent records and email unsubscribe exist. No privacy policy page on the site. No way to export or delete one person's data. Attendees cannot be removed.</td>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Create the event with name, dates, time zone, venue address, and event type (in-person, virtual, hybrid)</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Edit event basics<span class="path">/content/basics</span></td>
+  <td class="gnote">Name, short name, dates, time zone, venue and event type are typed on Content &gt; Basics. The website header and footer, the agenda day tabs and the app home screen read them.</td>
 </tr>
 <tr data-verdict="have">
   <td class="need"><span class="pri pri-must">must</span>Create, edit, and delete sessions with title, abstract, start and end time, room, track, session type, and tags</td>
@@ -306,34 +252,76 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">No delete. Remove the speaker from their sessions instead.</td>
 </tr>
 <tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Assign submissions to reviewers manually or automatically, with conflict-of-interest exclusions and optional blind review</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Manage reviewers<span class="path">/content/call-for-speakers-abstracts/reviewers</span></td>
+  <td class="gnote">Manual and by-track assignment, conflict-of-interest exclusions and blind review all work.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Collect reviewer scores and comments against configurable criteria and see aggregate rankings per track</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Reviewer scoring<span class="path">/content/call-for-speakers-abstracts/reviewers</span></td>
+  <td class="gnote">Criteria, scores, comments and a ranking by track all work, with the spread of scores and who has not finished. Reviewers reach it by a private link sent by hand until the event has its own sending address.</td>
+</tr>
+<tr data-verdict="have">
   <td class="need"><span class="pri pri-must">must</span>Create multiple ticket types with price, quantity cap, sale window, and description (early bird, regular, student, workshop, virtual)</td>
   <td><span class="st v-have">Have</span></td>
   <td class="where">1.1 Create Tickets<span class="path">/tickets/ticket-setup/1-1-create-tickets</span></td>
-  <td class="gnote">Tickets save and show on the website. Nobody can buy until payments are connected (see N21).</td>
+  <td class="gnote">Tickets save and show on the website. Nobody can buy until a payment account is connected.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Create sponsor tiers and sponsor profiles with logo, description, links, and contacts, displayed by tier on the website and app</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Sponsor Manager, Sponsor Tiering<span class="path">/content/sponsor-center/sponsor-manager</span></td>
+  <td class="gnote">Sponsor profiles show by tier on the website, and tier names, their order and the logo size are all editable. A tier carries nothing else: complimentary passes are set per sponsorship ticket.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Add, edit, and cancel attendees manually and import attendees in bulk by spreadsheet</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Add an attendee, Import attendees from CSV<span class="path">/attendees/manage-attendees/attendees</span></td>
+  <td class="gnote">Add, edit, cancel and import all work, and every change is in the audit log. Nobody added by hand is emailed a claim code until the event has its own sending address.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Assign attendee categories or tags (speaker, sponsor, staff, press, VIP) that control access and badge design</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Categories<span class="path">/attendees/categories</span></td>
+  <td class="gnote">Up to twenty categories with a colour, assigned by hand or by a rule on a ticket type, and shown on the list, the badge and the exports. A category set by hand is never overwritten by a rule.</td>
 </tr>
 <tr data-verdict="have">
   <td class="need"><span class="pri pri-must">must</span>Check attendees in by QR scan or name search from a phone or tablet, with multiple devices syncing in real time</td>
   <td><span class="st v-have">Have</span></td>
   <td class="where">Check-in<span class="path">/attendees/check-in-and-checkout/check-in</span></td>
-  <td class="gnote">Camera scanning needs Chrome or Edge. On a phone the code box and the Check in button are cut off, so use a tablet or laptop.</td>
+  <td class="gnote">Camera scanning needs Chrome or Edge. The screen now fits a phone.</td>
 </tr>
-<tr data-verdict="missing">
-  <td class="need"><span class="pri pri-should">should</span>Send speakers a self-service link to fill in their own bio, photo, and slides, and track who has completed it</td>
-  <td><span class="st v-missing">Missing</span></td>
-  <td class="where"><span class="hard">Hard to find</span></td>
-  <td class="gnote">Speaker Manager filters show missing bios and photos, but no link lets a speaker fill in their own profile.</td>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Send session feedback ratings and an overall event survey, and see and export the responses</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Session Feedback, Surveys<span class="path">/engagement/session-feedback</span></td>
+  <td class="gnote">Session feedback is live with responses, and every answer downloads as a spreadsheet, one row per answer. Registration answers download one row per person.</td>
 </tr>
-<tr data-verdict="missing">
-  <td class="need"><span class="pri pri-should">should</span>Transfer a ticket to another person and upgrade or change ticket type after purchase</td>
-  <td><span class="st v-missing">Missing</span></td>
-  <td class="where"><span class="hard">Hard to find</span></td>
-  <td class="gnote">No transfer or upgrade. Attendees cannot be edited at all.</td>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Export attendees, orders, payments, refunds, and form answers to CSV or Excel at any time</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Analytics &amp; Exports, Attendee Orders export<span class="path">/attendees/manage-attendees/analytics-and-exports</span></td>
+  <td class="gnote">Nine files download and the attendee and catering files are correct. Survey answers, session feedback and registration answers download as well.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Invite team members with roles that limit access by area (finance, agenda, sponsors, check-in, review), with an audit log of changes</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Admin Settings<span class="path">/attendees/admin-settings</span><span class="hard">Hard to find</span></td>
+  <td class="gnote">Team members are invited by email with roles for finance, agenda, sponsors, check-in and review, and every change is written to the audit log. The list sits under Attendees, where an organizer would not look for it.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-must">must</span>Meet data protection requirements: GDPR consent records, data export and deletion on request, and a published privacy policy</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Person data export and delete, Release &amp; Consent Forms<span class="path">/attendees/manage-attendees/attendees</span></td>
+  <td class="gnote">Consent records, a privacy notice on the website, and a download and a delete of everything held about one person, with a plain list of what has to stay.</td>
 </tr>
 <tr data-verdict="missing">
   <td class="need"><span class="pri pri-should">should</span>Give sponsors and exhibitors a self-service portal to edit their own profile and manage their staff passes</td>
   <td><span class="st v-missing">Missing</span></td>
   <td class="where"><span class="hard">Hard to find</span></td>
-  <td class="gnote">No sponsor or exhibitor login.</td>
+  <td class="gnote">No sponsor or exhibitor login. Speakers do have one.</td>
 </tr>
 <tr data-verdict="missing">
   <td class="need"><span class="pri pri-should">should</span>Provide lead retrieval so exhibitors can scan attendee badges and export their leads</td>
@@ -357,7 +345,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-should">should</span>Control which app sections and menu items are shown and in what order</td>
   <td><span class="st v-missing">Missing</span></td>
   <td class="where">Customize Resources (view-only)<span class="path">/content/branding-center/customize-resources</span></td>
-  <td class="gnote">App tabs are fixed at build time.</td>
+  <td class="gnote">App tabs are fixed. Custom pages appear in the app home section but cannot be reordered or hidden.</td>
 </tr>
 <tr data-verdict="missing">
   <td class="need"><span class="pri pri-should">should</span>Publish session recordings for on-demand viewing after the session, with an access expiry date</td>
@@ -378,12 +366,6 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">No streams, so nothing to count.</td>
 </tr>
 <tr data-verdict="missing">
-  <td class="need"><span class="pri pri-should">should</span>Create staff and volunteer accounts limited to check-in only</td>
-  <td><span class="st v-missing">Missing</span></td>
-  <td class="where">See who is an administrator<span class="path">/attendees/admin-settings</span></td>
-  <td class="gnote">Admins come from an env var and all have full access. No check-in-only account.</td>
-</tr>
-<tr data-verdict="missing">
   <td class="need"><span class="pri pri-should">should</span>Connect to outside tools: CRM, email marketing, Zapier or webhooks, a public API, single sign-on, and an embeddable agenda and ticket widget</td>
   <td><span class="st v-missing">Missing</span></td>
   <td class="where">Connection guides (text only)<span class="path">/attendees/integrations/mailchimp</span></td>
@@ -396,34 +378,34 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">Sessions and documents can stay draft and tickets can be hidden. There is no event-level draft or preview. Publish is a checklist, not a switch.</td>
 </tr>
 <tr data-verdict="partial">
+  <td class="need"><span class="pri pri-should">should</span>Send speakers a self-service link to fill in their own bio, photo, and slides, and track who has completed it</td>
+  <td><span class="st v-partial">Partial</span></td>
+  <td class="where">Speaker self-service portal<span class="path">/content/speaker-center/speaker-manager</span></td>
+  <td class="gnote">A private link per speaker for their own bio, photo, links and slides, with a tracker of who has opened it and an approval step. The link is sent by hand until the event has its own sending address.</td>
+</tr>
+<tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Attach slides, papers, and recordings to sessions</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Documents<span class="path">/content/documents-and-videos/documents</span></td>
-  <td class="gnote">Links only, no file upload, and documents are event-wide rather than attached to a session. No recordings.</td>
+  <td class="gnote">Links only, no file upload, and documents are event-wide rather than attached to a session. A speaker can add a slides link against each session they are on. No recordings.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Support pay-by-invoice or bank transfer orders that can be marked paid manually</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Mark an invoice paid, 2.6 Offline Payment<span class="path">/tickets/exhibitor-ticket-setup/2-6-offline-payment</span></td>
-  <td class="gnote">Offline Payment works but lists exhibitor packages only and sits under Exhibitor Ticket Setup. Mark paid needs a Stripe invoice, so it is blocked.</td>
+  <td class="gnote">Offline Payment works but lists exhibitor packages only and sits under Exhibitor Ticket Setup. Mark paid needs an invoice from the payment account.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Support group orders where one buyer purchases several tickets and assigns them to named attendees later</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">See group orders<span class="path">/tickets/ticket-setup/create-group-tickets</span></td>
-  <td class="gnote">View-only. Group orders are placed on the website with attendees named at purchase, not later. Blocked: no Stripe key is set.</td>
+  <td class="gnote">View only. Group orders are placed on the website with attendees named at purchase, not later, and wait on a payment account.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Configure tax rates and multiple currencies</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Sales tax<span class="path">/pay/publish</span><span class="hard">Hard to find</span></td>
-  <td class="gnote">Blocked: no Stripe key is set. Tax is set up in Stripe, not here. One currency. The nav label for this page is Pay &gt; Publish, not Sales Tax.</td>
-</tr>
-<tr data-verdict="partial">
-  <td class="need"><span class="pri pri-should">should</span>Show different questions depending on ticket type or a previous answer</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">1.2 Question Forms<span class="path">/tickets/ticket-setup/1-2-question-forms</span></td>
-  <td class="gnote">A question can be limited to ticket types. No logic based on a previous answer.</td>
+  <td class="gnote">Waiting on a payment account. Tax is set up there, not here. One currency. The menu label for this page is Pay &gt; Publish, not Sales Tax.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Collect dietary, accessibility, and visa invitation letter requests, and produce visa letters</td>
@@ -435,13 +417,13 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-should">should</span>Manage exhibitor profiles with booth number, materials, and staff, plus a floor plan or booth map</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Exhibitor Manager, 2.3 Booth Selection<span class="path">/content/exhibitor-center/exhibitor-manager</span></td>
-  <td class="gnote">Saves in the dashboard. The app keeps the old exhibitor list because the mirror function is not deployed. No floor plan image. Booth allocation is under Tickets, away from the exhibitor list.</td>
+  <td class="gnote">Saves in the dashboard. The app keeps the old exhibitor list because the refresh job is not switched on. No floor plan image. Booth allocation is under Tickets, away from the exhibitor list.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Track sponsor deliverables and allotted complimentary tickets per sponsor</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Sponsor Tickets, Projects &amp; Checklists<span class="path">/tickets/sponsor-ticket-setup/sponsor-tickets</span></td>
-  <td class="gnote">Free passes per package save. Issuing a pass is blocked because no sponsor order can be made. Deliverables can only be tracked as checklist tasks.</td>
+  <td class="gnote">Free passes per package save. Issuing a pass waits on a payment account. There is now a report per sponsor of their tracked links, clicks and orders. Deliverables are still tracked as checklist tasks.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>See delivery, open, click, bounce, and unsubscribe statistics per campaign</td>
@@ -465,13 +447,13 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-should">should</span>Allow attendee-to-attendee direct messaging and group chat, with the ability to turn it off</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">App direct messages, Admin Settings switches<span class="path">/attendees/admin-settings</span></td>
-  <td class="gnote">The app has one-to-one messages. No group chat. The off switch saves but nothing reads it.</td>
+  <td class="gnote">The app has one-to-one messages. No group chat. The off switch takes effect once the new access settings are published to the live event.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Run live polls in sessions and display results on the room screen</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Live Polling<span class="path">/engagement/live-polling</span></td>
-  <td class="gnote">Create, open and close work. Results show only after you click Publish the count. No room screen view. Never run on the live event.</td>
+  <td class="gnote">Create, open and close work, and a room screen counts votes as they arrive. In the app attendees still see the result only after Publish the count.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Run session Q and A with upvoting and moderator approval before questions appear</td>
@@ -486,12 +468,6 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">Only the organizer books room slots. Attendees cannot request a meeting and nothing shows in the app.</td>
 </tr>
 <tr data-verdict="partial">
-  <td class="need"><span class="pri pri-should">should</span>See a live dashboard of check-in counts, by ticket type and by hour, during the event</td>
-  <td><span class="st v-partial">Partial</span></td>
-  <td class="where">Check-in, Tools &gt; Report<span class="path">/tools/report</span></td>
-  <td class="gnote">Live door counts and an attendance hours CSV. No chart by ticket type or by hour.</td>
-</tr>
-<tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Send an emergency broadcast by push and email to all attendees on-site</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Emergency Manager, Announcements<span class="path">/virtual-and-hybrid/logistics-management/emergency-manager</span><span class="hard">Hard to find</span></td>
@@ -501,19 +477,19 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="need"><span class="pri pri-should">should</span>View engagement reports: app adoption, session attendance, poll and survey results, messages, meetings, sponsor views and leads</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Analytics &amp; Exports, Attendee Activity<span class="path">/attendees/manage-attendees/analytics-and-exports</span></td>
-  <td class="gnote">App adoption, session attendance and survey results exist. Ticket and company breakdowns are empty. No sponsor views or leads.</td>
+  <td class="gnote">App adoption, session attendance and survey results exist, ticket and company breakdowns read real numbers, and there is a report per sponsor of tracked links, clicks and orders. Sponsor profile views are not recorded anywhere.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Send post-event thank-you and survey emails, and issue certificates of attendance</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Certificates, Email Campaign, Surveys<span class="path">/attendees/certificates</span></td>
-  <td class="gnote">Certificates print from the browser only and are not emailed. Email only reaches the account owner until the sender domain is verified.</td>
+  <td class="gnote">Certificates print from the browser only and are not emailed. Email only reaches the account owner until the event has its own sending address.</td>
 </tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-should">should</span>Keep the app and content available after the event, and produce per-sponsor ROI reports</td>
   <td><span class="st v-partial">Partial</span></td>
   <td class="where">Post Event Access Duration<span class="path">/tools/admin-control/post-event-access-duration</span></td>
-  <td class="gnote">The app stays open because nothing ever closes it. The setting saves but is ignored. No sponsor ROI report.</td>
+  <td class="gnote">The window that closes the app works once the new access settings are published to the live event, and one save afterwards is what starts it. There is now a report per sponsor.</td>
 </tr>
 <tr data-verdict="have">
   <td class="need"><span class="pri pri-should">should</span>Let submitters log in to edit or withdraw a submission before the deadline</td>
@@ -528,16 +504,40 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="gnote">Reached from Session Manager, not from the call screen. List is empty until submissions are accepted.</td>
 </tr>
 <tr data-verdict="have">
+  <td class="need"><span class="pri pri-should">should</span>Transfer a ticket to another person and upgrade or change ticket type after purchase</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Transfer a ticket, change ticket type<span class="path">/attendees/manage-attendees/attendees</span></td>
+  <td class="gnote">A ticket transfers to a named person with a fresh badge code, and a ticket type can be changed after purchase. The new holder is not emailed until the event has its own sending address.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-should">should</span>Show different questions depending on ticket type or a previous answer</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">1.2 Question Forms<span class="path">/tickets/ticket-setup/1-2-question-forms</span></td>
+  <td class="gnote">A question can be limited to ticket types and shown only when an earlier answer matches. The same holds on the exhibitor and sponsor forms.</td>
+</tr>
+<tr data-verdict="have">
   <td class="need"><span class="pri pri-should">should</span>Scan attendance per session to enforce workshop access and record session headcounts</td>
   <td><span class="st v-have">Have</span></td>
   <td class="where">Check in for a day or a session, Session Self Check-in<span class="path">/attendees/check-in-and-checkout/session-self-check-in</span></td>
-  <td class="gnote">Counts heads per session. It does not refuse someone without the right ticket. The label says Self Check-in but staff do the scanning.</td>
+  <td class="gnote">Counts heads per session. The door does not refuse somebody without the right ticket, though signing up in the app does. The label says Self Check-in but staff do the scanning.</td>
 </tr>
 <tr data-verdict="have">
   <td class="need"><span class="pri pri-should">should</span>Offer an attendee directory with profiles, interests, and search, with privacy opt-out per attendee</td>
   <td><span class="st v-have">Have</span></td>
   <td class="where">App People tab with profile visibility toggle<span class="path">/attendees/admin-settings</span></td>
-  <td class="gnote">Each attendee can hide themselves from the directory in the app. The dashboard switches for the directory do nothing.</td>
+  <td class="gnote">Each attendee can hide themselves from the directory in the app. The dashboard switches for the directory still do nothing.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-should">should</span>See a live dashboard of check-in counts, by ticket type and by hour, during the event</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Check-in door dashboard<span class="path">/attendees/check-in-and-checkout/check-in</span></td>
+  <td class="gnote">A door screen shows how many people are in, split by ticket type and by hour, updating as the desk scans.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-should">should</span>Create staff and volunteer accounts limited to check-in only</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Admin Settings, check-in only role<span class="path">/attendees/admin-settings</span></td>
+  <td class="gnote">A team member can be given the check-in only role, which opens the door and nothing else, so a volunteer cannot download the attendee list. The invitation link is sent by hand until the event has its own sending address.</td>
 </tr>
 <tr data-verdict="missing">
   <td class="need"><span class="pri pri-nice">nice</span>Clone a previous year's event as a starting template</td>
@@ -587,12 +587,6 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td class="where"><span class="hard">Hard to find</span></td>
   <td class="gnote">Not built.</td>
 </tr>
-<tr data-verdict="missing">
-  <td class="need"><span class="pri pri-nice">nice</span>Display digital signage for rooms showing current and next session</td>
-  <td><span class="st v-missing">Missing</span></td>
-  <td class="where">Announcement Wall<span class="path">/engagement/announcement-wall/activity-stream-webpage</span></td>
-  <td class="gnote">The public wall shows announcements, not the current and next session, and does not refresh.</td>
-</tr>
 <tr data-verdict="partial">
   <td class="need"><span class="pri pri-nice">nice</span>Generate tracking links or referral codes to measure which channels and partners drive registrations</td>
   <td><span class="st v-partial">Partial</span></td>
@@ -610,6 +604,12 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <td><span class="st v-have">Have</span></td>
   <td class="where">App community board, Community screens<span class="path">/engagement/community/meet-ups</span></td>
   <td class="gnote">Attendees post meet-ups, jobs, travel and lost and found in the app. Organizers can read and moderate but not post.</td>
+</tr>
+<tr data-verdict="have">
+  <td class="need"><span class="pri pri-nice">nice</span>Display digital signage for rooms showing current and next session</td>
+  <td><span class="st v-have">Have</span></td>
+  <td class="where">Room sign<span class="path">/content/logistics-center</span></td>
+  <td class="gnote">A screen per room shows what is on now and next, refreshes itself, and says when it last managed to.</td>
 </tr></tbody></table></div>
 </section>
 
@@ -621,11 +621,11 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 </section>
 
 <section class="area" id="content"><h2>Content</h2>
-<article class="f" data-status="view-only">
-  <header><h3>View event basics</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Shows event name, dates, time zone, venue and record counts.</p>
-  <ol><li>Open Content &gt; Basics.</li></ol>
-  <p class="note">Save button is disabled. Name, dates and venue are fixed in code.</p>
+<article class="f" data-status="works">
+  <header><h3>Edit event basics</h3><span class="st st-works">Works</span></header>
+  <p class="what">Sets the event name, short name, start and end dates, time zone, venue and event type. The website header and footer, the agenda day tabs and the app home screen all read them.</p>
+  <ol><li>Open Content &gt; Basics.</li><li>Change the name, short name, dates, time zone, venue or event type.</li><li>Click Save.</li><li>Check the website header and the app home screen show the new details.</li></ol>
+  
   <p class="path">/content/basics</p>
 </article>
 <article class="f" data-status="partial">
@@ -651,9 +651,16 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Customize app tabs and resources</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Shows the five fixed app tabs and the document count.</p>
+  <p class="what">Shows the five fixed app tabs, and holds the custom pages for the app and the website.</p>
   <ol><li>Open Content &gt; Branding Center &gt; Customize Resources.</li></ol>
-  <p class="note">App tabs are fixed at build time. No control to add or rename one.</p>
+  <p class="note">The five app tabs are fixed and cannot be added to, reordered or renamed. Custom pages written here do reach the app and the website.</p>
+  <p class="path">/content/branding-center/customize-resources</p>
+</article>
+<article class="f" data-status="partial">
+  <header><h3>Write a custom page for the app and website</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Writes pages such as Wi-Fi, getting here or an FAQ, with headings, lists, links, bold and code. A published page appears at its own address on the website and in the app’s home section.</p>
+  <ol><li>Open Content &gt; Branding Center &gt; Customize Resources.</li><li>Click New page.</li><li>Enter the title, the summary and the web address.</li><li>Write the body.</li><li>Set it to published, or leave it as a draft.</li><li>Click Save.</li><li>Open that address on the website to check it.</li></ol>
+  <p class="note">Pages save, publish and render on the test event. Waiting on the new access settings being published to the live event.</p>
   <p class="path">/content/branding-center/customize-resources</p>
 </article>
 <article class="f" data-status="view-only">
@@ -675,6 +682,13 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="what">Changes any field on an existing session, including cancelling it.</p>
   <ol><li>Open Content &gt; Agenda Center &gt; Session Manager.</li><li>Pick the day tab.</li><li>Click Edit on the session.</li><li>Change the fields.</li><li>Click Save.</li></ol>
   
+  <p class="path">/content/agenda-center/session-manager</p>
+</article>
+<article class="f" data-status="blocked">
+  <header><h3>Tell attendees when a session moves</h3><span class="st st-blocked">Blocked</span></header>
+  <p class="what">Writes a notice to everybody who has the session in their schedule when you change its room or its time, and shows it to them in the app.</p>
+  <ol><li>Open Content &gt; Agenda Center &gt; Session Manager.</li><li>Click Edit on the session.</li><li>Change the room or the time.</li><li>Click Save.</li></ol>
+  <p class="note">The notice is written by a background job that is not switched on yet, so the room changes and nobody is told. Announce it yourself for now.</p>
   <p class="path">/content/agenda-center/session-manager</p>
 </article>
 <article class="f" data-status="works">
@@ -775,18 +789,25 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   
   <p class="path">/content/speaker-center/speaker-manager</p>
 </article>
+<article class="f" data-status="partial">
+  <header><h3>Let speakers fill in their own profile</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Sends each speaker a private link where they fill in their own title, company, bio, photo and links, and add a slides link for each session they are on. What they send is a draft until an organizer approves it.</p>
+  <ol><li>Open Content &gt; Speaker Center &gt; Speaker Manager.</li><li>Open the three dots on a speaker row and click Send profile link.</li><li>Copy the link and send it to the speaker.</li><li>Watch the tracker for who has not opened it, who has sent something and who is waiting on you.</li><li>Open a submitted draft, read it, then click Approve or Turn down.</li><li>Click Revoke links to stop every link sent so far.</li></ol>
+  <p class="note">The portal, the tracker, approval and revoking all work. The link is copied and sent by hand until the event has its own sending address. A photo address a speaker supplies is held rather than published.</p>
+  <p class="path">/content/speaker-center/speaker-manager</p>
+</article>
 <article class="f" data-status="blocked">
   <header><h3>Email speakers</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Sends a plain text email to all speakers, incomplete profiles, or speakers with no session.</p>
   <ol><li>Open Content &gt; Speaker Center &gt; Message Speakers.</li><li>Pick a segment tab.</li><li>Enter subject and message.</li><li>Tick Send me a test first. Click Send test to me.</li><li>Untick it. Type the recipient count and the dashboard passphrase.</li><li>Click Send to N speakers.</li></ol>
-  <p class="note">All 137 speakers have no contact email, so every segment has 0 people and Send is disabled. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed.</p>
+  <p class="note">All 137 speakers have no contact email, so every segment has 0 people and Send is disabled. Mail also waits until the event has its own sending address, so today it only reaches the account owner.</p>
   <p class="path">/content/speaker-center/message-speakers</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Track speaker release forms</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Shows who has signed the speaker release and gives each unsigned speaker a signing link.</p>
   <ol><li>Open Content &gt; Speaker Center &gt; Release &amp; Consent Forms.</li><li>Click + New form. It opens Attendees &gt; Release &amp; Consent Forms.</li><li>Write the form for speakers and publish it.</li><li>Return here, open the form's register and copy the link for an unsigned speaker.</li><li>Send the link to the speaker yourself.</li></ol>
-  <p class="note">No speaker form is published yet. Links are copied and sent one at a time. No speaker has an email on file.</p>
+  <p class="note">No speaker form is published yet and no speaker has an email address on file. A published form sends its own signing links once the event has its own sending address.</p>
   <p class="path">/content/speaker-center/release-and-consent-forms</p>
 </article>
 <article class="f" data-status="works">
@@ -803,25 +824,32 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   
   <p class="path">/content/call-for-speakers-abstracts/form-builder</p>
 </article>
+<article class="f" data-status="works">
+  <header><h3>Manage reviewers</h3><span class="st st-works">Works</span></header>
+  <p class="what">Adds committee members, assigns submissions to them one by one or by track, and records a conflict of interest.</p>
+  <ol><li>Open Content &gt; Call For Speakers/Abstracts.</li><li>Click Reviewers.</li><li>Enter name and email. Click Add reviewer.</li><li>Pick a submission and a reviewer. Click Assign. Or click Assign by track.</li><li>Tick Conflict of interest to take a reviewer off a submission.</li></ol>
+  
+  <p class="path">/content/call-for-speakers-abstracts/reviewers</p>
+</article>
 <article class="f" data-status="partial">
-  <header><h3>Manage reviewers</h3><span class="st st-partial">Partial</span></header>
-  <p class="what">Adds committee members and assigns submissions to them one by one or by track.</p>
-  <ol><li>Open Content &gt; Call For Speakers/Abstracts.</li><li>Click Reviewers.</li><li>Enter name and email. Click Add reviewer.</li><li>Pick a submission and a reviewer. Click Assign. Or click Assign by track.</li></ol>
-  <p class="note">Reviewers have nowhere to score. The reviewing screen is not built and no invitation is sent. The list and assignments save, nothing more.</p>
+  <header><h3>Score and rank submissions</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Sets the scoring criteria for the call, lets each reviewer score and comment on the submissions assigned to them, and ranks submissions by average score within a track.</p>
+  <ol><li>Open Content &gt; Call For Speakers/Abstracts.</li><li>Click Reviewers.</li><li>Add each criterion with its lowest and highest score.</li><li>Tick Hide author names if the call is blind.</li><li>Add a reviewer and assign submissions to them.</li><li>Copy the reviewer’s link and send it to them.</li><li>Read the ranking, the spread of scores and who has not finished.</li></ol>
+  <p class="note">Criteria, scores, comments, conflicts of interest, blind review and the ranking all work. The reviewer link is copied and sent by hand until the event has its own sending address, and on the live event it only opens once the website and the dashboard share their link settings.</p>
   <p class="path">/content/call-for-speakers-abstracts/reviewers</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Accept or reject submissions</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Records accept or reject on a submission, with an optional email to the author. Can be undone.</p>
   <ol><li>Open Content &gt; Call For Speakers/Abstracts.</li><li>Click Submissions.</li><li>Open a submission.</li><li>Tick the email box if the author should be told.</li><li>Click Accept or Reject.</li></ol>
-  <p class="note">The decision saves. The email does not arrive. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed. No submissions exist yet.</p>
+  <p class="note">The decision saves, one submission at a time. There is no waitlist decision. The email waits until the event has its own sending address, so today it only reaches the account owner. No submissions exist yet.</p>
   <p class="path">/content/call-for-speakers-abstracts/submissions</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Add or edit an exhibitor</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Creates or edits an exhibitor with logo, booth number, staff pass allocation and contact.</p>
   <ol><li>Open Content &gt; Exhibitor Center &gt; Exhibitor Manager.</li><li>Click + Add exhibitor, or Edit on a row.</li><li>Enter company, booth, staff passes and contact.</li><li>Choose a logo.</li><li>Click Add exhibitor or Save changes.</li></ol>
-  <p class="note">Saves in the dashboard only. The app's exhibitor list is a copy made by a Cloud Function that is not deployed, so attendees keep seeing the seeded list. Booth is free text and is not checked against the floor plan.</p>
+  <p class="note">Saves in the dashboard only. The app’s exhibitor list is refreshed by a background job that is not switched on yet, so attendees keep seeing the old list. Booth is free text and is not checked against the floor plan.</p>
   <p class="path">/content/exhibitor-center/exhibitor-manager</p>
 </article>
 <article class="f" data-status="partial">
@@ -835,7 +863,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Email exhibitors</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Sends a plain text email to all exhibitors, those with no booth, or those over their pass allocation.</p>
   <ol><li>Open Content &gt; Exhibitor Center &gt; Message Exhibitors.</li><li>Pick a segment tab.</li><li>Enter subject and message.</li><li>Tick Send me a test first. Click Send test to me.</li><li>Untick it. Type the recipient count and the dashboard passphrase.</li><li>Click Send to N exhibitors.</li></ol>
-  <p class="note">All 5 exhibitor addresses are placeholders ending in example.invalid. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed.</p>
+  <p class="note">All 5 exhibitor addresses are placeholders. Mail also waits until the event has its own sending address, so today it only reaches the account owner.</p>
   <p class="path">/content/exhibitor-center/message-exhibitors</p>
 </article>
 <article class="f" data-status="view-only">
@@ -880,18 +908,25 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   
   <p class="path">/content/sponsor-center/sponsor-manager</p>
 </article>
-<article class="f" data-status="view-only">
-  <header><h3>Review sponsor tiers</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Shows sponsors per tier and the logo weight the public sponsor page uses.</p>
-  <ol><li>Open Content &gt; Sponsor Center &gt; Sponsor Tiering.</li><li>To move a sponsor, edit its tier in Sponsor Manager.</li></ol>
-  <p class="note">Four tiers are fixed in code. Tiers cannot be added, renamed or reweighted.</p>
+<article class="f" data-status="works">
+  <header><h3>Download a report for one sponsor</h3><span class="st st-works">Works</span></header>
+  <p class="what">A report per sponsor: the tracked links credited to them, the clicks on each, the orders those links led to and any lead records. It names the links it counted. Profile views and document opens are not recorded anywhere, so they are not in the file.</p>
+  <ol><li>Open Content &gt; Sponsor Center &gt; Sponsor Manager.</li><li>Click the sponsor report download on the sponsor.</li><li>Open the file.</li></ol>
+  
+  <p class="path">/content/sponsor-center/sponsor-manager</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Edit sponsor tiers</h3><span class="st st-works">Works</span></header>
+  <p class="what">Sets the tier names, their order and how large each tier’s logos are drawn on the public sponsor page. A tier carries nothing else: complimentary passes are set per sponsorship ticket on Tickets.</p>
+  <ol><li>Open Content &gt; Sponsor Center &gt; Sponsor Tiering.</li><li>Click Edit tiers.</li><li>Rename a tier, move it up or down, or change its logo size.</li><li>Click Save.</li><li>To move a sponsor between tiers, edit the sponsor in Sponsor Manager.</li></ol>
+  
   <p class="path">/content/sponsor-center/sponsor-tiering</p>
 </article>
 <article class="f" data-status="blocked">
   <header><h3>Email sponsors</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Sends a plain text email to all sponsors, those missing a logo, or those with no booth.</p>
   <ol><li>Open Content &gt; Sponsor Center &gt; Message Sponsors.</li><li>Pick a segment tab.</li><li>Enter subject and message.</li><li>Tick Send me a test first. Click Send test to me.</li><li>Untick it. Type the recipient count and the dashboard passphrase.</li><li>Click Send to N sponsors.</li></ol>
-  <p class="note">All 18 sponsor addresses are placeholders ending in example.invalid. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed.</p>
+  <p class="note">All 18 sponsor addresses are placeholders. Mail also waits until the event has its own sending address, so today it only reaches the account owner.</p>
   <p class="path">/content/sponsor-center/message-sponsors</p>
 </article>
 <article class="f" data-status="view-only">
@@ -926,7 +961,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Artifact manager (posters, pitches)</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Shows how many sessions are marked as posters.</p>
   <ol><li>Open Content &gt; Artifact Center &gt; Artifact Manager.</li></ol>
-  <p class="note">No artifact collection exists. Posters can only be entered as sessions.</p>
+  <p class="note">Nothing holds posters as their own records. Posters can only be entered as sessions.</p>
   <p class="path">/content/artifact-center-poster-pitch-gallery/artifact-manager</p>
 </article>
 <article class="f" data-status="view-only">
@@ -983,6 +1018,13 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="what">Creates a room or changes its name, building, floor and seat count. A rename updates every session in it.</p>
   <ol><li>Open Content &gt; Logistics Center.</li><li>Click + Add room, or Edit on a row.</li><li>Enter room, building, floor and seats.</li><li>Click Add room or Save changes.</li></ol>
   <p class="note">There is no delete. Move the sessions out and leave the room empty.</p>
+  <p class="path">/content/logistics-center</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Put a sign outside each room</h3><span class="st st-works">Works</span></header>
+  <p class="what">A screen for the corridor outside a room showing what is on now, what is next and when. It refreshes itself and says when it last managed to, so a screen that has quietly stopped is visible as stopped.</p>
+  <ol><li>Open Content &gt; Logistics Center.</li><li>Click the screen link on the room’s row.</li><li>Open that address on the screen outside the room and leave it running.</li></ol>
+  
   <p class="path">/content/logistics-center</p>
 </article><p class="empty" hidden>Nothing here with that status.</p></section>
 <section class="area" id="virtual-hybrid"><h2>Virtual &amp; Hybrid</h2>
@@ -1046,7 +1088,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Emergency plan</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Stores the emergency number, venue security, first aid point, assembly point, on-site lead and incident procedure. The attendee app shows it under Home &gt; Logistics once marked ready.</p>
   <ol><li>Open Virtual &amp; Hybrid &gt; Logistics Management &gt; Emergency Manager.</li><li>Fill in the contact and location fields.</li><li>Write the procedure under What to do.</li><li>Tick &quot;This plan has been reviewed and is ready for the event&quot;. It needs an assembly point or an on-site lead.</li><li>Click Save.</li></ol>
-  <p class="note">Save writes to Firestore with an audit entry. The app code reads the plan at Home &gt; Logistics when it is marked ready, not checked on a device. The live plan is still Draft, so attendees see &quot;No emergency plan published&quot;. No alert broadcast and no incident log.</p>
+  <p class="note">Save records the plan with an audit entry. The app shows it under Home &gt; Logistics once it is marked ready, not checked on a device. The live plan is still Draft, so attendees see &quot;No emergency plan published&quot;. No alert broadcast and no incident log.</p>
   <p class="path">/virtual-and-hybrid/logistics-management/emergency-manager</p>
 </article>
 <article class="f" data-status="blocked">
@@ -1075,7 +1117,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Push notification with an announcement</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Send the announcement to phones as a push notification.</p>
   <ol><li>Open Engagement &gt; Announcements.</li><li>Enter Subject and Body.</li><li>Tick 'Also send as a push notification'.</li><li>Tick the confirmation box.</li><li>Click Send.</li><li>Read the grey note under the form. It says 'Not sent' or 'Broadcast to'.</li></ol>
-  <p class="note">push.ts only sends when GOOGLE_APPLICATION_CREDENTIALS is set. The Netlify host uses FIREBASE_SERVICE_ACCOUNT, so the push is skipped, and it has never been run against the live project. All 3 sent announcements show Push: no.</p>
+  <p class="note">The push is skipped on the live host and has never been run against the live event. All 3 sent announcements show Push: no. The app cannot receive a push yet either.</p>
   <p class="path">/engagement/announcements</p>
 </article>
 <article class="f" data-status="blocked">
@@ -1159,7 +1201,14 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Event survey</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Create a survey for all attendees, publish it to the app and read the results.</p>
   <ol><li>Open Engagement &gt; Surveys.</li><li>Click + New survey.</li><li>Enter Title and Description.</li><li>Leave Attach to a session on 'Not a session: an event survey'.</li><li>Type one question per line. Start a line with rating:, single:, multi: or text:. Put options after | characters.</li><li>Set Status to 'Published: collecting responses'.</li><li>Click Create survey.</li><li>Click Results on the row to read answers.</li></ol>
-  <p class="note">Same save path as Session Feedback, which has live responses. No event survey exists on the live event yet, so this one is untested end to end. No export, no reminder to attendees.</p>
+  <p class="note">No event survey exists on the live event yet, so this one has not been run end to end. There is no reminder to attendees.</p>
+  <p class="path">/engagement/surveys</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Download survey and feedback answers</h3><span class="st st-works">Works</span></header>
+  <p class="what">Downloads every answer to the event surveys and to session feedback as a spreadsheet, one row per answer, so a survey with different questions is still one file.</p>
+  <ol><li>Open Engagement &gt; Surveys, or Engagement &gt; Session Feedback.</li><li>Click the answers download.</li><li>Open the file.</li></ol>
+  
   <p class="path">/engagement/surveys</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1179,8 +1228,15 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 <article class="f" data-status="partial">
   <header><h3>Live poll in a session</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Create a poll on a session, open and close voting, and watch the count.</p>
-  <ol><li>Open Content &gt; Agenda Center &gt; Session Q&amp;A Manager. In the Polls column click Off to turn it On for the session.</li><li>Open Engagement &gt; Live Polling.</li><li>Click + New poll.</li><li>Pick the Session, enter the Question, enter Options one per line.</li><li>Tick Open to votes and click Create poll.</li><li>Reload the page to see new votes.</li><li>Click 'Publish the count' to show attendees the current result.</li><li>Click 'Close voting' when done.</li></ol>
-  <p class="note">The live event has 0 polls and 0 votes, so this has never been run on the live project. Create, open and close write to Firestore. Attendees see results only after you click Publish the count, because the tallyPoll function is not deployed. The poll shows in the app only if the session has Polls on.</p>
+  <ol><li>Open Content &gt; Agenda Center &gt; Session Q&amp;A Manager. In the Polls column click Off to turn it On for the session.</li><li>Open Engagement &gt; Live Polling.</li><li>Click + New poll.</li><li>Pick the Session, enter the Question, enter Options one per line.</li><li>Tick Open to votes and click Create poll.</li><li>Click the room screen link to watch the count on a projector.</li><li>Click &quot;Publish the count&quot; to show attendees the current result in the app.</li><li>Click &quot;Close voting&quot; when done.</li></ol>
+  <p class="note">Create, open and close all work, and the room screen counts votes as they arrive. In the app attendees still see the result only after you click Publish the count, because the service that adds up votes is not switched on yet. The poll shows in the app only if the session has Polls on.</p>
+  <p class="path">/engagement/live-polling</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Show poll results on a room screen</h3><span class="st st-works">Works</span></header>
+  <p class="what">A full screen of the live result, sized for a projector, with the bars moving as votes arrive and no publish click needed.</p>
+  <ol><li>Open Engagement &gt; Live Polling.</li><li>Click the room screen link on the poll.</li><li>Put that screen on the projector and leave it running.</li></ol>
+  
   <p class="path">/engagement/live-polling</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1279,7 +1335,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Event website overview</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Lists all 22 public pages, opens each one, and links to the screen where each is edited.</p>
   <ol><li>Open Marketing &gt; Event Website.</li><li>Click a page name to open it.</li><li>Click the link in the Edited from column to change that page's data.</li><li>Click Website Copy to edit Code of conduct, Call for posters or Startup pitch text.</li></ol>
-  <p class="note">This screen edits nothing. It links to the editors. 13 pages change from the dashboard, 9 are code and need a deploy. Website Copy saves, but 0 of 3 pages have saved text yet. No branding or domain controls.</p>
+  <p class="note">This screen edits nothing. It links to the editors. 13 pages change from the dashboard and 9 still need a developer. Custom pages are written on Content &gt; Branding Center &gt; Customize Resources. No branding or domain controls.</p>
   <p class="path">/marketing/event-website</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1292,14 +1348,14 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 <article class="f" data-status="view-only">
   <header><h3>Event listing</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Shows what a search result or shared link displays for the conference.</p>
-  <ol><li>Open Marketing &gt; Whova Listing &gt; My Event Listing.</li><li>Read the table.</li></ol>
+  <ol><li>Open Marketing, then My Event Listing.</li><li>Read the table.</li></ol>
   <p class="note">No directory listing exists. Site title, description and share image are code and need a deploy.</p>
   <p class="path">/marketing/whova-listing/my-event-listing</p>
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Tracked link traffic</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Shows clicks, orders and revenue for every tracked link.</p>
-  <ol><li>Open Marketing &gt; Whova Listing &gt; Traffic Analytics.</li><li>Read the table.</li><li>Click Create a tracked link. It opens Tickets &gt; Ticket Marketing &gt; Campaign Link Tracking.</li></ol>
+  <ol><li>Open Marketing, then Traffic Analytics.</li><li>Read the table.</li><li>Click Create a tracked link. It opens Tickets &gt; Ticket Marketing &gt; Campaign Link Tracking.</li></ol>
   <p class="note">Counts tracked links only. No page views, referrers or chart.</p>
   <p class="path">/marketing/whova-listing/traffic-analytics</p>
 </article>
@@ -1364,21 +1420,21 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>See group orders</h3><span class="st st-view-only">View only</span></header>
   <p class="what">List invoiced and multi-seat orders with seats, totals and payment status.</p>
   <ol><li>Open Tickets &gt; Ticket Setup &gt; Create Group Tickets.</li><li>Read the Group orders table.</li></ol>
-  <p class="note">Group orders are placed on the website. There is no group ticket or group discount to set up here, and no order can be placed until a Stripe key exists.</p>
+  <p class="note">Group orders are placed on the website. There is no group ticket or group discount to set up here, and no order can be placed until a payment account is connected.</p>
   <p class="path">/tickets/ticket-setup/create-group-tickets</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Registration questions</h3><span class="st st-partial">Partial</span></header>
-  <p class="what">Build the questions buyers answer at checkout, limit a question to certain tickets, reorder, remove, and switch the form on or off.</p>
-  <ol><li>Open Tickets &gt; Ticket Setup &gt; 1.2 Question Forms.</li><li>Under Add a question, enter the Question and pick an Answer type.</li><li>Tick Required if needed. Pick tickets under Ask only on, or leave empty for everyone.</li><li>Click Add question.</li><li>Use Edit, Move up or Remove on a row. After Edit, click Save question.</li><li>Click Start asking to turn the form on.</li></ol>
-  <p class="note">Questions save and show at checkout. No answers can come in until a Stripe key is set, because checkout refuses without one. Start asking is disabled until one question exists.</p>
+  <p class="what">Build the questions buyers answer at checkout, limit a question to certain tickets or to an earlier answer, reorder, remove, and switch the form on or off.</p>
+  <ol><li>Open Tickets &gt; Ticket Setup &gt; 1.2 Question Forms.</li><li>Under Add a question, enter the Question and pick an Answer type.</li><li>Tick Required if needed. Pick tickets under Ask only on, or leave empty for everyone.</li><li>Under Show only when, pick an earlier question and the answer that reveals this one.</li><li>Click Add question.</li><li>Use Edit, Move up or Remove on a row. After Edit, click Save question.</li><li>Click Start asking to turn the form on.</li></ol>
+  <p class="note">Questions save and show at checkout, and a question can depend on the ticket or on an earlier answer. No answers can come in until a payment account is connected.</p>
   <p class="path">/tickets/ticket-setup/1-2-question-forms</p>
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Confirmation email log</h3><span class="st st-view-only">View only</span></header>
   <p class="what">See which purchase, invoice and refund emails were sent, failed or skipped, with the provider error.</p>
   <ol><li>Open Tickets &gt; Ticket Setup &gt; 1.3 Confirmation Emails.</li><li>Read Recent sends.</li></ol>
-  <p class="note">Templates cannot be edited and there is no resend button. Sends fail for every address but the owner until the Resend domain is verified.</p>
+  <p class="note">Templates cannot be edited and there is no resend button. Sends fail for every address but the account owner until the event has its own sending address.</p>
   <p class="path">/tickets/ticket-setup/1-3-confirmation-emails</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1392,7 +1448,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Discount codes</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Create percent or fixed discount codes with a redemption limit and expiry, and turn codes off.</p>
   <ol><li>Open Tickets &gt; Ticket Setup &gt; Discount Codes.</li><li>Enter a code, the type and the amount.</li><li>Set a limit and expiry if needed.</li><li>Click Create code.</li></ol>
-  <p class="note">No STRIPE_SECRET_KEY is set, so the form is not shown and the action refuses.</p>
+  <p class="note">Waiting on a payment account. The form is not shown and the action refuses.</p>
   <p class="path">/tickets/ticket-setup/discount-codes</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1409,11 +1465,11 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="note">Text guides only. No connection exists for any of the four systems.</p>
   <p class="path">/tickets/ticket-setup/memberclicks-connection-guide</p>
 </article>
-<article class="f" data-status="view-only">
-  <header><h3>Session RSVP</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Describes which parts of session booking exist.</p>
-  <ol><li>Open Tickets &gt; Ticket Setup &gt; Session RSVP.</li></ol>
-  <p class="note">Attendees cannot book a seat in a session and nothing counts or closes a session. Only session capacity and workshop eligibility exist.</p>
+<article class="f" data-status="partial">
+  <header><h3>Say who may sign up for a session</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Sets which ticket types may take a seat in a session. With a cap on the session, attendees sign up in the app, and when the room is full they join a waitlist and move up automatically when somebody drops out.</p>
+  <ol><li>Open Content &gt; Agenda Center &gt; Session Manager and set the session capacity.</li><li>Open Tickets &gt; Ticket Setup &gt; Session RSVP.</li><li>Click Manage on the session.</li><li>Tick the ticket types that may sign up.</li><li>Click Save.</li><li>Watch the numbers on Session Manager and on Attendees &gt; Session Cap.</li></ol>
+  <p class="note">Seats, the waitlist and the ticket check all work on the test event. Waiting on the new access settings being published to the live event.</p>
   <p class="path">/tickets/ticket-setup/session-rsvp</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1455,7 +1511,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Exhibitor registration questions</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Build the questions exhibitors answer at checkout.</p>
   <ol><li>Open Tickets &gt; Exhibitor Ticket Setup &gt; 2.2 Question Forms.</li><li>Under Add a question, enter the Question and pick an Answer type.</li><li>Click Add question.</li><li>Click Start asking.</li></ol>
-  <p class="note">The live form has no questions yet. Questions save, but no answers can come in until a Stripe key is set. Offline payments skip the questions.</p>
+  <p class="note">The live form has no questions yet. Questions save, and a question can depend on an earlier answer. No answers can come in until a payment account is connected. Offline payments skip the questions.</p>
   <p class="path">/tickets/exhibitor-ticket-setup/2-2-question-forms</p>
 </article>
 <article class="f" data-status="partial">
@@ -1483,21 +1539,21 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Exhibitor discount codes</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Points to the shared discount code screen.</p>
   <ol><li>Open Tickets &gt; Exhibitor Ticket Setup &gt; Discount Codes.</li><li>Click Discount Codes (all audiences).</li></ol>
-  <p class="note">Codes need a Stripe key, and a code cannot be limited to exhibitors.</p>
+  <p class="note">Codes wait on a payment account, and a code cannot be limited to exhibitors.</p>
   <p class="path">/tickets/exhibitor-ticket-setup/discount-codes</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Record an offline payment</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Issue a ticket for a wire, cheque or contract payment. It creates the registration, the order and the sold count.</p>
   <ol><li>Open Tickets &gt; Exhibitor Ticket Setup &gt; 2.6 Offline Payment.</li><li>Pick the Package.</li><li>Enter Name, Email, Amount received and Why.</li><li>Tick Do not send a confirmation only if the buyer needs no email.</li><li>Click Record payment.</li><li>Copy the claim code shown and give it to the buyer.</li></ol>
-  <p class="note">The order and registration are written. The confirmation email fails for any address but the owner until the Resend domain is verified.</p>
+  <p class="note">The order and registration are written. The confirmation email fails for any address but the account owner until the event has its own sending address.</p>
   <p class="path">/tickets/exhibitor-ticket-setup/2-6-offline-payment</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Pre-paid and comped exhibitors</h3><span class="st st-partial">Partial</span></header>
   <p class="what">See which exhibitors have no order on record, and record a pre-paid or free package for them.</p>
   <ol><li>Open Tickets &gt; Exhibitor Ticket Setup &gt; Pre-Paid Exhibitors.</li><li>Check the Reconciliation table for &quot;no order&quot;.</li><li>Under Record a pre-paid or comped package, pick the Package.</li><li>Enter Name, Email, Amount received (0 for a comp) and Why.</li><li>Click Record payment.</li></ol>
-  <p class="note">Recording works. The confirmation email fails for any address but the owner until the Resend domain is verified.</p>
+  <p class="note">Recording works. The confirmation email fails for any address but the account owner until the event has its own sending address.</p>
   <p class="path">/tickets/exhibitor-ticket-setup/pre-paid-exhibitors</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1539,14 +1595,14 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Issue a sponsor pass to a named person</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Turns one of a sponsor's included passes into a real registration for a named person.</p>
   <ol><li>Open Tickets &gt; Sponsor Ticket Setup &gt; Sponsor Tickets.</li><li>Under Passes to be named, click Name N more on the sponsorship.</li><li>Enter Attendee name and Email address. Leave Email them their ticket ticked to send the confirmation.</li><li>Click Issue pass.</li><li>To fix a typo, edit the name on the seat and click Save.</li></ol>
-  <p class="note">Needs a sponsor order and none can be made. Sponsor checkout is off (no Stripe key). 2.6 Offline Payment only lists exhibitor packages, so a sponsor order cannot be recorded by hand. Passes to be named is empty.</p>
+  <p class="note">Needs a sponsor order and none can be made. Sponsor checkout waits on a payment account, and 2.6 Offline Payment lists exhibitor packages only, so a sponsor order cannot be recorded by hand. Passes to be named is empty.</p>
   <p class="path">/tickets/sponsor-ticket-setup/sponsor-tickets</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Ask sponsors questions at checkout</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Builds the question form sponsors fill in when they buy, and switches it on or off.</p>
   <ol><li>Open Tickets &gt; Sponsor Ticket Setup &gt; Question Forms.</li><li>Under Add a question, enter the Question and pick an Answer type.</li><li>Tick Required if needed. Pick packages under Ask only on, or select none for all.</li><li>Click Add question.</li><li>Click Start asking to turn the form on.</li><li>Click Move up to reorder. Click Remove to delete a question.</li></ol>
-  <p class="note">Questions save and the form switches on. No sponsor can finish checkout without a Stripe key, so no answers come in.</p>
+  <p class="note">Questions save and the form switches on, and a question can depend on an earlier answer. No sponsor can finish checkout until a payment account is connected, so no answers come in.</p>
   <p class="path">/tickets/sponsor-ticket-setup/question-forms</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1588,21 +1644,21 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>See payouts and balance</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Shows Stripe balance, pending amount and the list of payouts to the bank.</p>
   <ol><li>Open Tickets &gt; Payout.</li><li>Read Available, Pending and the Payouts table.</li><li>Click Stripe payouts to open Stripe.</li></ol>
-  <p class="note">STRIPE_SECRET_KEY is not set, so balance and payouts show a dash and the table is empty.</p>
+  <p class="note">Waiting on a payment account, so the balance and payouts show a dash and the table is empty.</p>
   <p class="path">/tickets/payout</p>
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Pre-flight check before selling tickets</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Runs checks on the live ticket page and lists what would go wrong for a buyer.</p>
   <ol><li>Open Tickets &gt; Publish Tickets.</li><li>Read the Pre-flight table. Fix every row marked stop.</li><li>Click The live page to see what buyers see.</li></ol>
-  <p class="note">There is no publish switch. Tickets go live when a tier is visible. The check currently reports stop because no Stripe key is set, so nobody can pay.</p>
+  <p class="note">There is no publish switch. Tickets go live when a tier is visible. The check reports stop because no payment account is connected, so nobody can pay.</p>
   <p class="path">/tickets/publish-tickets</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Send a ticket email campaign</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Sends a plain-text email to a contact list, with a test send first.</p>
   <ol><li>Open Tickets &gt; Ticket Marketing &gt; Email Campaign.</li><li>Click the list tab you want.</li><li>Enter Subject and Message.</li><li>Tick Send me a test first, enter your address, click Send test.</li><li>Untick it. Type the recipient count, enter the Dashboard passphrase, click Send to N.</li></ol>
-  <p class="note">The Resend domain is not verified. Only mail to hartigandeely@gmail.com is delivered, so only a test send to that address arrives. Every other recipient fails with a 403.</p>
+  <p class="note">Only mail to the account owner is delivered until the event has its own sending address, so only a test send to that address arrives. Every other recipient fails.</p>
   <p class="path">/tickets/ticket-marketing/email-campaign</p>
 </article>
 <article class="f" data-status="works">
@@ -1616,21 +1672,21 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Create tracked links</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Creates short /r/ links that count clicks and credit ticket orders to a campaign.</p>
   <ol><li>Open Tickets &gt; Ticket Marketing &gt; Campaign Link Tracking.</li><li>Under New link, enter a Code and a Label.</li><li>Pick the page under Goes to.</li><li>Click Create link.</li><li>Click Retire to switch a link off, Restore to bring it back.</li></ol>
-  <p class="note">Links save and clicks count. Orders are credited through Stripe checkout, which is off, so the orders column stays at 0.</p>
+  <p class="note">Links save and clicks count. Orders are credited at checkout, which waits on a payment account, so the orders column stays at 0.</p>
   <p class="path">/tickets/ticket-marketing/campaign-link-tracking</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Run a referral leaderboard</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Gives a speaker or partner their own link and ranks referrers by orders.</p>
   <ol><li>Open Tickets &gt; Ticket Marketing &gt; Referral Contest.</li><li>Under Give somebody a referral link, enter Code, Label and Referrer.</li><li>Click Create link. Send the /r/ link to that person.</li><li>Read the Leaderboard.</li></ol>
-  <p class="note">Links save and clicks count. The leaderboard ranks by orders, and no order can be credited without a Stripe key. No prizes. Referrers cannot see their own numbers.</p>
+  <p class="note">Links save and clicks count. The leaderboard ranks by orders, and no order can be credited until a payment account is connected. No prizes. Referrers cannot see their own numbers.</p>
   <p class="path">/tickets/ticket-marketing/referral-contest</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Make links for social posts</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Creates one tracked link per social channel and shows clicks by channel.</p>
   <ol><li>Open Tickets &gt; Ticket Marketing &gt; Social Sharing.</li><li>Under New channel link, enter Code and Label, pick the page and the Channel.</li><li>Click Create link. Paste the /r/ link into your post.</li><li>Read By channel for results.</li></ol>
-  <p class="note">It only makes links. Nothing is posted or scheduled. Order credit needs Stripe checkout, which is off.</p>
+  <p class="note">It only makes links. Nothing is posted or scheduled. Order credit waits on a payment account.</p>
   <p class="path">/tickets/ticket-marketing/social-sharing</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1665,14 +1721,14 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Refund an order</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Refunds a card order in full and cancels the ticket.</p>
   <ol><li>Open Tickets &gt; Orders and Transactions &gt; Attendee Orders.</li><li>Click Refund on the order.</li><li>Type the amount to confirm. Enter the Dashboard passphrase and a reason.</li><li>Click Refund $N.</li></ol>
-  <p class="note">No Stripe key is set, so refunds are disabled. Full refunds only, even with a key.</p>
+  <p class="note">Waiting on a payment account, so refunds are disabled. Full refunds only, even once one is connected.</p>
   <p class="path">/tickets/orders-and-transactions/attendee-orders</p>
 </article>
 <article class="f" data-status="blocked">
   <header><h3>Mark an invoice paid</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Marks a pending invoice as paid by wire or cheque and issues the tickets.</p>
   <ol><li>Open Tickets &gt; Orders and Transactions &gt; Attendee Orders.</li><li>Click Unpaid.</li><li>Click Mark paid on the invoice.</li><li>Enter the PO number or who approved it, and the Dashboard passphrase.</li><li>Click Issue tickets now.</li></ol>
-  <p class="note">Invoices are raised through Stripe and no key is set, so no invoice exists to mark paid. Unpaid shows 0.</p>
+  <p class="note">Invoices are raised by the payment account, and none is connected, so no invoice exists to mark paid. Unpaid shows 0.</p>
   <p class="path">/tickets/orders-and-transactions/attendee-orders</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1703,11 +1759,11 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="note">No editing here and no scheduled price changes.</p>
   <p class="path">/tickets/attendee-customization/ticket-tiering</p>
 </article>
-<article class="f" data-status="view-only">
-  <header><h3>Attendee categories</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Points to the category list under Attendees.</p>
-  <ol><li>Open Tickets &gt; Attendee Customization &gt; Attendee Categories.</li><li>Click Open Attendees &gt; Categories.</li></ol>
-  <p class="note">The page is a pointer. A ticket purchase does not assign a category.</p>
+<article class="f" data-status="works">
+  <header><h3>Give a ticket type its own attendee category</h3><span class="st st-works">Works</span></header>
+  <p class="what">Sets a rule so that buying a given ticket puts that person in a category. A category set by hand is never overwritten by a rule.</p>
+  <ol><li>Open Tickets &gt; Attendee Customization &gt; Attendee Categories.</li><li>Pick the ticket type.</li><li>Pick the category it should assign.</li><li>Click Save.</li><li>Check somebody’s row on Attendees &gt; Manage Attendees &gt; Attendees.</li></ol>
+  
   <p class="path">/tickets/attendee-customization/attendee-categories</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1722,14 +1778,14 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>View and search the attendee list</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Lists everyone with a ticket or an app profile, with search, sort and paging.</p>
   <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Type a name, email or company in the search box.</li><li>Click Search.</li><li>Click a column header to sort.</li></ol>
-  <p class="note">Every row shows the email as the name, &quot;no ticket&quot;, no title, no company and &quot;opted out&quot;. listAttendees() reads only the email field. Search matches emails only. Sorting by any other column does nothing.</p>
+  <p class="note">Rows now show name, company, title and ticket. Search still matches the email address only, and sorting by a column other than name does nothing.</p>
   <p class="path">/attendees/manage-attendees/attendees</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Add an attendee</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Adds one person as a registration so they can be badged and checked in.</p>
-  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click Add an attendee.</li><li>Enter Name and Email.</li><li>Click Add attendee.</li></ol>
-  <p class="note">The registration saves and the person can be checked in and badged. The Ticket type list is empty because of the listAttendees() bug, so everyone is saved as &quot;Added by organizer&quot;. No email or claim code is sent. The new row shows on the list as an email only.</p>
+  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click Add an attendee.</li><li>Enter Name and Email.</li><li>Pick the Ticket type.</li><li>Click Add attendee.</li></ol>
+  <p class="note">The registration saves with the ticket type you pick, and the person can be checked in and badged. Nobody is emailed a claim code until the event has its own sending address.</p>
   <p class="path">/attendees/manage-attendees/attendees</p>
 </article>
 <article class="f" data-status="works">
@@ -1739,32 +1795,53 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   
   <p class="path">/attendees/manage-attendees/attendees</p>
 </article>
-<article class="f" data-status="blocked">
-  <header><h3>Edit or remove an attendee</h3><span class="st st-blocked">Blocked</span></header>
-  <p class="what">Change a profile or take someone off the event.</p>
-  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click the three dots on a row.</li></ol>
-  <p class="note">No edit or remove action exists. The row menu only has Send announcement and Check in at the door. Re-adding the same email updates name and ticket type only.</p>
+<article class="f" data-status="works">
+  <header><h3>Edit or cancel an attendee</h3><span class="st st-works">Works</span></header>
+  <p class="what">Changes an attendee’s name, email, company, title or ticket type, or cancels the registration and gives the seat back to stock. Every change is written to the audit log with who made it.</p>
+  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click a name to open the panel, or use the three dots on the row.</li><li>Click Edit, change the fields and click Save.</li><li>To change what they hold, pick a different ticket type and save.</li><li>To take them off the event, click Cancel registration and confirm.</li></ol>
+  
   <p class="path">/attendees/manage-attendees/attendees</p>
 </article>
 <article class="f" data-status="partial">
-  <header><h3>Export the attendee list</h3><span class="st st-partial">Partial</span></header>
+  <header><h3>Transfer a ticket to somebody else</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Moves a registration to a different person. The new holder gets their own badge code and claim code, and the old one stops working.</p>
+  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click the name to open the panel.</li><li>Click Transfer ticket.</li><li>Enter the new holder’s name and email address.</li><li>Click Transfer.</li></ol>
+  <p class="note">The transfer and the new badge code work. The new holder is not emailed their ticket until the event has its own sending address, so give them the claim code yourself.</p>
+  <p class="path">/attendees/manage-attendees/attendees</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Export the attendee list</h3><span class="st st-works">Works</span></header>
   <p class="what">Downloads the attendee list or the badge and catering list as CSV.</p>
   <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click Export attendees.</li><li>Pick Export basic attendee list or Export badge and catering list.</li></ol>
-  <p class="note">The file downloads, but name, title, company, ticket and category come out blank or as the email. Same listAttendees() bug.</p>
+  
   <p class="path">/attendees/manage-attendees/attendees</p>
 </article>
-<article class="f" data-status="partial">
-  <header><h3>Attendee analytics</h3><span class="st st-partial">Partial</span></header>
+<article class="f" data-status="works">
+  <header><h3>Download everything held about one person</h3><span class="st st-works">Works</span></header>
+  <p class="what">One file with everything held about a person: their registration, profile, saved sessions, messages, posts, survey answers and check-ins. Badge and claim codes are left out and the file says so.</p>
+  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click the name to open the panel.</li><li>Click Download their data.</li><li>Send the file to the person who asked for it.</li></ol>
+  
+  <p class="path">/attendees/manage-attendees/attendees</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Delete one person’s data</h3><span class="st st-works">Works</span></header>
+  <p class="what">Removes a person from the event and shows, in plain words, what will go and what has to stay. A paid order is a financial record and stays, with their name taken off it. An unsubscribe stays as well, so they are not mailed again.</p>
+  <ol><li>Open Attendees &gt; Manage Attendees &gt; Attendees.</li><li>Click the name to open the panel.</li><li>Click Delete their data.</li><li>Read the list of what goes and what stays.</li><li>Type their email address and the dashboard passphrase.</li><li>Click Delete.</li></ol>
+  
+  <p class="path">/attendees/manage-attendees/attendees</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Attendee analytics</h3><span class="st st-works">Works</span></header>
   <p class="what">Shows app adoption, ticket mix, top companies, revenue and session attendance.</p>
   <ol><li>Open Attendees &gt; Manage Attendees &gt; Analytics &amp; Exports.</li></ol>
-  <p class="note">Adoption, revenue and session attendance are right. &quot;By ticket type&quot; and &quot;Top organisations&quot; are empty because of the listAttendees() bug.</p>
+  
   <p class="path">/attendees/manage-attendees/analytics-and-exports</p>
 </article>
-<article class="f" data-status="partial">
-  <header><h3>Download exports</h3><span class="st st-partial">Partial</span></header>
+<article class="f" data-status="works">
+  <header><h3>Download exports</h3><span class="st st-works">Works</span></header>
   <p class="what">Downloads CSVs: attendees, catering, orders, speakers, sessions, sponsors, checked-in, session attendance, attendance hours.</p>
   <ol><li>Open Attendees &gt; Manage Attendees &gt; Analytics &amp; Exports.</li><li>Scroll to Exports.</li><li>Click Download on the row you need.</li></ol>
-  <p class="note">All nine files download. The attendee and catering files carry blank names and tickets until listAttendees() is fixed.</p>
+  
   <p class="path">/attendees/manage-attendees/analytics-and-exports</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1788,18 +1865,18 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="note">Only one event exists, so the page shows an empty state.</p>
   <p class="path">/attendees/manage-attendees/cross-event-report</p>
 </article>
-<article class="f" data-status="view-only">
-  <header><h3>See who is an administrator</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Lists the accounts allowed into the dashboard.</p>
-  <ol><li>Open Attendees &gt; Admin Settings.</li></ol>
-  <p class="note">Admins come from the CONSOLE_ALLOWLIST env var. They cannot be added or removed from the browser.</p>
+<article class="f" data-status="partial">
+  <header><h3>Invite a team member and set what they can open</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Invites somebody to the dashboard by email. They set their own passphrase and see only the areas their roles cover: Finance, Agenda, Sponsors, Check-in only or Reviewer manager. Owner sees everything. A role decides which screens open, which buttons work and which exports download.</p>
+  <ol><li>Open Attendees &gt; Admin Settings.</li><li>Enter the person’s name and email address.</li><li>Tick the roles they need.</li><li>Click Invite.</li><li>Copy the link shown and send it to them.</li><li>Use Change roles or Remove on their row later.</li></ol>
+  <p class="note">Invitations, roles and the audit trail all work. The link is copied and sent by hand until the event has its own sending address. It works once and expires in three days.</p>
   <p class="path">/attendees/admin-settings</p>
 </article>
 <article class="f" data-status="blocked">
   <header><h3>Attendee list and contact sharing switches</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Two checkboxes for whether attendees can browse the list and share contact details.</p>
   <ol><li>Open Attendees &gt; Admin Settings.</li><li>Tick or untick the two boxes under Attendee-facing.</li><li>Click Save.</li></ol>
-  <p class="note">The values save, but nothing reads them. The app and the Firestore rules ignore both switches, so attendees see no change. The screen says so itself.</p>
+  <p class="note">The values save, but nothing reads them, so attendees see no change. Attendee messaging is switched off on Tools &gt; Admin Control &gt; Code Access Control instead.</p>
   <p class="path">/attendees/admin-settings</p>
 </article>
 <article class="f" data-status="works">
@@ -1823,39 +1900,39 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="note">Signing links are not sent. Copy each link from the register and send it yourself. A missing waiver blocks nothing. No form and no volunteers exist on the live project, so signing was not seen end to end.</p>
   <p class="path">/attendees/call-for-volunteers/release-and-consent-forms</p>
 </article>
-<article class="f" data-status="view-only">
-  <header><h3>Categories</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Counts attendees by role and lists who is in each.</p>
-  <ol><li>Open Attendees &gt; Categories.</li><li>Click View on a category row.</li></ol>
-  <p class="note">Categories cannot be created or assigned here. All 52 people show as Uncategorised because of the listAttendees() bug.</p>
+<article class="f" data-status="works">
+  <header><h3>Create and assign attendee categories</h3><span class="st st-works">Works</span></header>
+  <p class="what">Up to twenty named categories with a colour. Assign one by hand to a person or to a selection, or set a rule on a ticket type. Categories show on the attendee list, on the name badge and in the exports.</p>
+  <ol><li>Open Attendees &gt; Categories.</li><li>Click New category, enter the name, pick a colour and save.</li><li>To assign by hand, tick people on Attendees &gt; Manage Attendees &gt; Attendees and pick the category.</li><li>To assign by ticket, open Tickets &gt; Attendee Customization &gt; Attendee Categories.</li><li>Check the result on Attendees &gt; Name Badges.</li></ol>
+  
   <p class="path">/attendees/categories</p>
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Segments</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Groups attendees by ticket type, app adoption, directory presence and company size.</p>
   <ol><li>Open Attendees &gt; Segments.</li><li>Click View on a segment row.</li></ol>
-  <p class="note">Segments are computed, not editable, and cannot be used as a message audience from here. Ticket and company groups all read 0 because of the listAttendees() bug.</p>
+  <p class="note">Segments are computed, not editable, and cannot be used as a message audience from here. Ticket and company groups now read real numbers.</p>
   <p class="path">/attendees/segments</p>
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Ticket to session mapping</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Shows which ticket types include workshops and the video library.</p>
   <ol><li>Open Attendees &gt; Ticket Session Mapping.</li></ol>
-  <p class="note">Read from the ticket type flags. Edit them in Tickets &gt; Ticket Setup. Nothing enforces the mapping in the app, and &quot;Held by&quot; reads 0 for every tier.</p>
+  <p class="note">Read from the ticket type flags. Edit them in Tickets &gt; Ticket Setup. Held by now reads real numbers. Who may take a seat in a session is set on Tickets &gt; Ticket Setup &gt; Session RSVP.</p>
   <p class="path">/attendees/ticket-session-mapping</p>
 </article>
-<article class="f" data-status="view-only">
-  <header><h3>Session caps</h3><span class="st st-view-only">View only</span></header>
-  <p class="what">Lists capped sessions against room seats and door counts.</p>
-  <ol><li>Open Attendees &gt; Session Cap.</li><li>Filter by day or search.</li><li>To change a cap, open Content &gt; Session Manager and edit the session capacity.</li></ol>
-  <p class="note">Caps are set in Session Manager. A cap is a note only. Nothing stops a full session from taking more people.</p>
+<article class="f" data-status="partial">
+  <header><h3>Set a cap on a session</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Caps how many people may take a seat in a session, against room seats and door counts. A full session sends the next person to a waitlist.</p>
+  <ol><li>Open Attendees &gt; Session Cap.</li><li>Filter by day or search.</li><li>To change a cap, open Content &gt; Agenda Center &gt; Session Manager and edit the session capacity.</li><li>Set who may sign up on Tickets &gt; Ticket Setup &gt; Session RSVP.</li></ol>
+  <p class="note">The cap is counted and held when somebody signs up in the app. Waiting on the new access settings being published to the live event.</p>
   <p class="path">/attendees/session-cap</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Release and consent forms</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Writes versioned consent forms for attendees, speakers or volunteers and tracks who signed.</p>
-  <ol><li>Open Attendees &gt; Release &amp; Consent Forms.</li><li>Click + New form.</li><li>Enter title, wording and audience.</li><li>Set status to Published.</li><li>Click Create form.</li><li>Click the form title to open its register.</li><li>Click Open / copy on a row and send that link to the person.</li></ol>
-  <p class="note">Forms and signatures save. Signing links are not emailed, an unsigned form blocks nothing, and withdrawals are manual. Links need WEB_CONSENT_SECRET or WEB_ORDER_SECRET set on both sites. No form exists on the live project, so signing was not seen end to end.</p>
+  <ol><li>Open Attendees &gt; Release &amp; Consent Forms.</li><li>Click + New form.</li><li>Enter title, wording and audience.</li><li>Tick Required if an unsigned form should block check-in and app access.</li><li>Set status to Published.</li><li>Click Create form.</li><li>Click the form title to open its register.</li><li>Click Send signing links to email everybody who has not signed, or copy one link at a time.</li></ol>
+  <p class="note">Forms, signatures and the block at the desk all work. The signing link goes out by email once the event has its own sending address, and until then each link is copied from the register. If two organizers press Send at the same moment, some people get the email twice. No form exists on the live event yet.</p>
   <p class="path">/attendees/release-and-consent-forms</p>
 </article>
 <article class="f" data-status="works">
@@ -1886,11 +1963,18 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   
   <p class="path">/attendees/check-in-and-checkout/check-in</p>
 </article>
-<article class="f" data-status="partial">
-  <header><h3>Scan log and check-in exports</h3><span class="st st-partial">Partial</span></header>
+<article class="f" data-status="works">
+  <header><h3>Watch arrivals as they happen</h3><span class="st st-works">Works</span></header>
+  <p class="what">A door screen showing how many people are in, split by ticket type and by hour, updating as the desk scans.</p>
+  <ol><li>Open Attendees &gt; Check-in &amp; Checkout &gt; Check-in.</li><li>Read the arrivals panel above the desk table.</li><li>Leave the screen open on the desk through the day.</li></ol>
+  
+  <p class="path">/attendees/check-in-and-checkout/check-in</p>
+</article>
+<article class="f" data-status="works">
+  <header><h3>Scan log and check-in exports</h3><span class="st st-works">Works</span></header>
   <p class="what">Shows recent check-ins and every scan, and downloads the checked-in list.</p>
   <ol><li>Open Attendees &gt; Check-in &amp; Checkout &gt; Check-in.</li><li>Scroll to Recent check-ins and Scan log.</li><li>Click Export Check-in Lists.</li><li>Pick Export checked-in list (CSV) or Export session attendance (CSV).</li></ol>
-  <p class="note">The checked-in and session attendance files are right. &quot;Export full attendee list (CSV)&quot; has the listAttendees() bug and comes out with blank names and tickets.</p>
+  
   <p class="path">/attendees/check-in-and-checkout/check-in</p>
 </article>
 <article class="f" data-status="partial">
@@ -1911,7 +1995,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Attendee self check-in</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Lets attendees check themselves in from their own phone.</p>
   <ol><li>Open Attendees &gt; Check-in &amp; Checkout &gt; Self Check-in.</li></ol>
-  <p class="note">Not available. Firestore rules deny attendee check-in writes. The page points to Kiosk Check-in instead.</p>
+  <p class="note">Not available. The app’s access settings do not let an attendee check themselves in. The page points to Kiosk Check-in instead.</p>
   <p class="path">/attendees/check-in-and-checkout/self-check-in</p>
 </article>
 <article class="f" data-status="view-only">
@@ -1925,7 +2009,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Print name badges</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Prints 3.5 x 2.25 inch badges with name, company, title, ticket and QR code, 25 to a sheet.</p>
   <ol><li>Open Attendees &gt; Name Badges.</li><li>Click a ticket chip or search to filter.</li><li>Click Print 25 badges.</li><li>Print from the browser dialog.</li><li>Go to the next page and repeat.</li></ol>
-  <p class="note">Badges show real names, companies and tickets. Printing is one sheet of 25 at a time. There is no badge designer, no custom fields and no print on check-in.</p>
+  <p class="note">Badges show real names, companies, tickets and categories. Printing is one sheet of 25 at a time. There is no badge designer, no custom fields and no print on check-in.</p>
   <p class="path">/attendees/name-badges</p>
 </article>
 <article class="f" data-status="partial">
@@ -1939,7 +2023,7 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Mailchimp, Constant Contact and Zapier</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Explains how to move attendee data into these tools by hand.</p>
   <ol><li>Open Attendees &gt; Manage Attendees &gt; Analytics &amp; Exports.</li><li>Download the Attendee list CSV.</li><li>Import the file in Mailchimp, Constant Contact or your CRM.</li></ol>
-  <p class="note">No connection exists for any of the three. The pages are manual CSV instructions, and the CSV has blank names until listAttendees() is fixed.</p>
+  <p class="note">No connection exists for any of the three. The pages are instructions for a manual export.</p>
   <p class="path">/attendees/integrations/mailchimp</p>
 </article><p class="empty" hidden>Nothing here with that status.</p></section>
 <section class="area" id="tools-pay-and-publish"><h2>Tools, Pay and Publish</h2>
@@ -1981,8 +2065,8 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
 <article class="f" data-status="partial">
   <header><h3>Moderate the community board</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Hide, restore or permanently delete attendee posts and replies on the app community board.</p>
-  <ol><li>Open Tools &gt; Moderator Tools &gt; Community Board.</li><li>Find the post or reply and click Hide.</li><li>To bring it back, open the Hidden tab and click Restore.</li><li>To remove it for good, hide it first, click Delete, type &quot;delete&quot; and click Delete permanently.</li><li>For a reply, always finish with Delete. Hide alone leaves it visible in the app.</li></ol>
-  <p class="note">Hiding a post removes it from the app board. Hiding a reply does not: the app loads replies without checking status, so a hidden reply still shows. Delete the reply to remove it.</p>
+  <ol><li>Open Tools &gt; Moderator Tools &gt; Community Board.</li><li>Find the post or reply and click Hide.</li><li>To bring it back, open the Hidden tab and click Restore.</li><li>To remove it for good, hide it first, click Delete, type &quot;delete&quot; and click Delete permanently.</li></ol>
+  <p class="note">Hiding a post or a reply now takes it out of the app. Waiting on the new access settings being published to the live event. Replies written before this change do not show in the app at all until they are brought up to date, so the board can read &quot;No replies yet&quot; under a post that has five.</p>
   <p class="path">/tools/moderator-tools/community-board</p>
 </article>
 <article class="f" data-status="view-only">
@@ -2006,18 +2090,25 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <p class="note">Sessions have no chat in the app, so the page is always empty. Direct messages cannot be moderated either.</p>
   <p class="path">/tools/moderator-tools/session-chats</p>
 </article>
-<article class="f" data-status="blocked">
-  <header><h3>Post-event app access</h3><span class="st st-blocked">Blocked</span></header>
+<article class="f" data-status="partial">
+  <header><h3>Post-event app access</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Set how many days attendees keep app access after the event, and whether it becomes read-only.</p>
   <ol><li>Open Tools &gt; Admin Control &gt; Post Event Access Duration.</li><li>Enter Days of access after the event.</li><li>Tick Read-only afterwards if wanted.</li><li>Click Save.</li></ol>
-  <p class="note">The value saves, but the app and firestore.rules never read it. Access never ends and never goes read-only.</p>
+  <p class="note">The window closes the app after the chosen number of days and can make it read-only first. Waiting on the new access settings being published to the live event. Save this screen once afterwards, or the app never closes.</p>
   <p class="path">/tools/admin-control/post-event-access-duration</p>
 </article>
-<article class="f" data-status="blocked">
-  <header><h3>Event join code</h3><span class="st st-blocked">Blocked</span></header>
-  <p class="what">Set a shared event code and require it to join the event in the app.</p>
+<article class="f" data-status="partial">
+  <header><h3>Ask for a join code at sign-in</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Sets a shared event code and asks for it when somebody joins the event in the app.</p>
   <ol><li>Open Tools &gt; Admin Control &gt; Code Access Control.</li><li>Enter a code of 4 to 32 letters, digits or hyphens.</li><li>Tick Require the code to join the event.</li><li>Click Save.</li></ol>
-  <p class="note">The code saves, but the app never asks for it. New attendees still need scripts/set-claims.ts run by hand before they can read anything in the app.</p>
+  <p class="note">The code is asked for at sign-in once the new access settings are published to the live event. Treat it as something you announce rather than a password.</p>
+  <p class="path">/tools/admin-control/code-access-control</p>
+</article>
+<article class="f" data-status="partial">
+  <header><h3>Turn attendee messaging off</h3><span class="st st-partial">Partial</span></header>
+  <p class="what">Stops attendees messaging each other, event wide.</p>
+  <ol><li>Open Tools &gt; Admin Control &gt; Code Access Control.</li><li>Untick Attendees can message each other.</li><li>Click Save.</li></ol>
+  <p class="note">The switch takes effect in the app once the new access settings are published to the live event.</p>
   <p class="path">/tools/admin-control/code-access-control</p>
 </article>
 <article class="f" data-status="view-only">
@@ -2031,35 +2122,35 @@ section.area>h2{padding-bottom:10px;border-bottom:1px solid var(--ink)}
   <header><h3>Balance</h3><span class="st st-view-only">View only</span></header>
   <p class="what">See gross sales, refunds, unpaid invoices and an estimate of what reaches the bank after Stripe fees.</p>
   <ol><li>Open Pay &gt; Balance.</li><li>Read the tiles and the From sold to banked table.</li><li>Click Stripe balance to see the real figure in Stripe.</li></ol>
-  <p class="note">Read only. Totals come from KGC orders, not Stripe, and leave out test orders. No Stripe key is set, so nothing has been charged and every figure is $0.00.</p>
+  <p class="note">Read only. Totals come from this event’s own orders and leave out test orders. No payment account is connected, so nothing has been charged and every figure is $0.00.</p>
   <p class="path">/pay/balance</p>
 </article>
 <article class="f" data-status="partial">
   <header><h3>Order details</h3><span class="st st-partial">Partial</span></header>
   <p class="what">Search and filter every ticket order, and export the list as CSV.</p>
   <ol><li>Open Pay &gt; Order Details. It redirects to Tickets &gt; Orders &amp; Transactions &gt; Attendee Orders.</li><li>Type a name or email and click Search, or click a status filter.</li><li>Click Export CSV to download the list.</li></ol>
-  <p class="note">Listing, search and CSV work. Refunds are disabled because no Stripe key is set.</p>
+  <p class="note">Listing, search and CSV all work. Refunds are disabled until a payment account is connected.</p>
   <p class="path">/pay/order-details</p>
 </article>
 <article class="f" data-status="blocked">
   <header><h3>Billing information</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">Jump to the Stripe pages for the payout bank account, business details, tax registration, invoice branding and API keys.</p>
   <ol><li>Open Pay &gt; Billing Information.</li><li>Click Open next to the setting you need.</li><li>Sign in to Stripe and change it there.</li></ol>
-  <p class="note">Links only, and there is no Stripe account connected yet (STRIPE_SECRET_KEY is unset), so the links open the generic test dashboard.</p>
+  <p class="note">Links only, and no payment account is connected yet, so the links open the generic test dashboard.</p>
   <p class="path">/pay/billing-information</p>
 </article>
 <article class="f" data-status="blocked">
   <header><h3>Sales tax</h3><span class="st st-blocked">Blocked</span></header>
   <p class="what">See tax collected against gross sales and which parts of sales tax setup are still to do in Stripe.</p>
   <ol><li>Open Pay &gt; Publish. This is the sales tax page.</li><li>Read the tiles and the setup table.</li><li>Click Stripe Tax settings to set the event location and registration in Stripe.</li></ol>
-  <p class="note">No Stripe key is set, so no tax is collected. Event location and registration must be done in Stripe.</p>
+  <p class="note">No payment account is connected, so no tax is collected. The event location and tax registration are set up in the payment account.</p>
   <p class="path">/pay/publish</p>
 </article>
 <article class="f" data-status="view-only">
   <header><h3>Launch checklist</h3><span class="st st-view-only">View only</span></header>
   <p class="what">Check nine things before going public: tickets on sale, payments, a completed purchase, agenda clashes, draft sessions, speaker details, sponsor details and website copy.</p>
   <ol><li>Open Publish.</li><li>Read the Blocking and Worth fixing counts.</li><li>Click Fix on a row to open the screen that fixes it.</li><li>Reload Publish until Blocking shows 0.</li><li>Click View the live site to check the result.</li></ol>
-  <p class="note">A checklist, not a switch. The site is already live and the Draft badges in the header never change. Now 2 blocking (no Stripe key, 1 agenda clash), 5 worth fixing, 2 of 9 passing.</p>
+  <p class="note">A checklist, not a switch. The site is already live and the Draft badges in the header never change. Now 2 blocking (no payment account, 1 agenda clash), 5 worth fixing, 2 of 9 passing.</p>
   <p class="path">/publish</p>
 </article><p class="empty" hidden>Nothing here with that status.</p></section>
 </main>

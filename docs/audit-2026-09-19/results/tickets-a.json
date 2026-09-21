@@ -18,7 +18,7 @@
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts",
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/ticket-form.tsx"
       ],
-      "statusNote": "The ticket saves and shows on the website. Nobody can buy it until a Stripe key is set, because checkout refuses without one."
+      "statusNote": "The ticket saves and shows on the website. Nobody can buy it until a payment account is connected."
     },
     {
       "area": "Tickets",
@@ -82,17 +82,18 @@
       "evidence": [
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/create-group-tickets/page.tsx"
       ],
-      "statusNote": "Group orders are placed on the website. There is no group ticket or group discount to set up here, and no order can be placed until a Stripe key exists."
+      "statusNote": "Group orders are placed on the website. There is no group ticket or group discount to set up here, and no order can be placed until a payment account is connected."
     },
     {
       "area": "Tickets",
       "feature": "Registration questions",
       "path": "/tickets/ticket-setup/1-2-question-forms",
-      "what": "Build the questions buyers answer at checkout, limit a question to certain tickets, reorder, remove, and switch the form on or off.",
+      "what": "Build the questions buyers answer at checkout, limit a question to certain tickets or to an earlier answer, reorder, remove, and switch the form on or off.",
       "steps": [
         "Open Tickets > Ticket Setup > 1.2 Question Forms.",
         "Under Add a question, enter the Question and pick an Answer type.",
         "Tick Required if needed. Pick tickets under Ask only on, or leave empty for everyone.",
+        "Under Show only when, pick an earlier question and the answer that reveals this one.",
         "Click Add question.",
         "Use Edit, Move up or Remove on a row. After Edit, click Save question.",
         "Click Start asking to turn the form on."
@@ -103,7 +104,7 @@
         "apps/organizer/src/app/(dash)/tickets/question-form-screen.tsx",
         "apps/web/src/lib/question-forms.ts"
       ],
-      "statusNote": "Questions save and show at checkout. No answers can come in until a Stripe key is set, because checkout refuses without one. Start asking is disabled until one question exists."
+      "statusNote": "Questions save and show at checkout, and a question can depend on the ticket or on an earlier answer. No answers can come in until a payment account is connected."
     },
     {
       "area": "Tickets",
@@ -118,7 +119,7 @@
       "evidence": [
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-3-confirmation-emails/page.tsx"
       ],
-      "statusNote": "Templates cannot be edited and there is no resend button. Sends fail for every address but the owner until the Resend domain is verified."
+      "statusNote": "Templates cannot be edited and there is no resend button. Sends fail for every address but the account owner until the event has its own sending address."
     },
     {
       "area": "Tickets",
@@ -151,7 +152,7 @@
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/page.tsx",
         "apps/organizer/src/lib/stripe.ts"
       ],
-      "statusNote": "No STRIPE_SECRET_KEY is set, so the form is not shown and the action refuses."
+      "statusNote": "Waiting on a payment account. The form is not shown and the action refuses."
     },
     {
       "area": "Tickets",
@@ -190,17 +191,22 @@
     },
     {
       "area": "Tickets",
-      "feature": "Session RSVP",
+      "feature": "Say who may sign up for a session",
       "path": "/tickets/ticket-setup/session-rsvp",
-      "what": "Describes which parts of session booking exist.",
+      "what": "Sets which ticket types may take a seat in a session. With a cap on the session, attendees sign up in the app, and when the room is full they join a waitlist and move up automatically when somebody drops out.",
       "steps": [
-        "Open Tickets > Ticket Setup > Session RSVP."
+        "Open Content > Agenda Center > Session Manager and set the session capacity.",
+        "Open Tickets > Ticket Setup > Session RSVP.",
+        "Click Manage on the session.",
+        "Tick the ticket types that may sign up.",
+        "Click Save.",
+        "Watch the numbers on Session Manager and on Attendees > Session Cap."
       ],
-      "status": "view-only",
+      "status": "partial",
       "evidence": [
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/session-rsvp/page.tsx"
       ],
-      "statusNote": "Attendees cannot book a seat in a session and nothing counts or closes a session. Only session capacity and workshop eligibility exist."
+      "statusNote": "Seats, the waitlist and the ticket check all work on the test event. Waiting on the new access settings being published to the live event."
     },
     {
       "area": "Tickets",
@@ -279,7 +285,7 @@
         "apps/organizer/src/app/(dash)/tickets/audience-catalogue.tsx",
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts"
       ],
-      "statusNote": "Packages save and list on /tickets/exhibitor. Nobody can buy one online until a Stripe key is set. Use 2.6 Offline Payment meanwhile."
+      "statusNote": "Packages save and list on the public exhibitor page. Nobody can buy one online until a payment account is connected. Use 2.6 Offline Payment meanwhile."
     },
     {
       "area": "Tickets",
@@ -297,7 +303,7 @@
         "apps/organizer/src/app/(dash)/tickets/question-form-actions.ts",
         "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-2-question-forms/page.tsx"
       ],
-      "statusNote": "The live form has no questions yet. Questions save, but no answers can come in until a Stripe key is set. Offline payments skip the questions."
+      "statusNote": "The live form has no questions yet. Questions save, and a question can depend on an earlier answer. No answers can come in until a payment account is connected. Offline payments skip the questions."
     },
     {
       "area": "Tickets",
@@ -364,7 +370,7 @@
         "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/discount-codes/page.tsx",
         "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/actions.ts"
       ],
-      "statusNote": "Codes need a Stripe key, and a code cannot be limited to exhibitors."
+      "statusNote": "Codes wait on a payment account, and a code cannot be limited to exhibitors."
     },
     {
       "area": "Tickets",
@@ -385,7 +391,7 @@
         "apps/organizer/src/lib/manual-orders.ts",
         "apps/organizer/src/app/(dash)/tickets/manual-order-form.tsx"
       ],
-      "statusNote": "The order and registration are written. The confirmation email fails for any address but the owner until the Resend domain is verified."
+      "statusNote": "The order and registration are written. The confirmation email fails for any address but the account owner until the event has its own sending address."
     },
     {
       "area": "Tickets",
@@ -404,7 +410,7 @@
         "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/pre-paid-exhibitors/page.tsx",
         "apps/organizer/src/lib/manual-orders.ts"
       ],
-      "statusNote": "Recording works. The confirmation email fails for any address but the owner until the Resend domain is verified."
+      "statusNote": "Recording works. The confirmation email fails for any address but the account owner until the event has its own sending address."
     },
     {
       "area": "Tickets",
@@ -454,46 +460,6 @@
   ],
   "uiIssues": [
     {
-      "path": "/tickets/* (all 28 screens in this section)",
-      "width": 390,
-      "severity": "high",
-      "type": "overflow",
-      "issue": "The 200px side menu stays beside the content on a phone, so every page body is squeezed into about 160px and tables show one column at a time. Long page titles (\"Confirmation\", \"MemberClicks\", \"YourMembership\") and the tag and links beside them are cut off at the right edge.",
-      "fix": "Add a max-width 700px rule that stacks the rail above the content, or collapses it behind a Menu button, and lets the content take full width. Let page titles break words.",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_1_1_create_tickets-390-p0.png",
-      "source": "apps/organizer/src/app/globals.css (.sidebar, only one phone media query in the file)"
-    },
-    {
-      "path": "/tickets/* (all screens)",
-      "width": 390,
-      "severity": "high",
-      "type": "overflow",
-      "issue": "The event header breaks on a phone: the date and venue wrap one word per line under the title and the Registrations and Agenda cards run off the right edge (div.cards ends at 488px).",
-      "fix": "Stack the event meta and the stat cards in a column under 700px.",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/tickets_ticket_setup_1_1_create_tickets-390.png",
-      "source": "apps/organizer/src/app/(dash)/layout.tsx"
-    },
-    {
-      "path": "/tickets/ticket-setup/1-2-question-forms, /tickets/exhibitor-ticket-setup/2-2-question-forms, /tickets/exhibitor-ticket-setup/2-3-booth-selection, /tickets/exhibitor-ticket-setup/2-6-offline-payment, /tickets/exhibitor-ticket-setup/pre-paid-exhibitors",
-      "width": 390,
-      "severity": "high",
-      "type": "clipped",
-      "issue": "Form inputs, selects and help text are wider than the panel and are cut off at the right edge, so typed text and the booth help text cannot be read.",
-      "fix": "Give form controls max-width: 100% and box-sizing: border-box, and let help text wrap.",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/sheetB.png",
-      "source": "apps/organizer/src/app/globals.css (.whova-form-group)"
-    },
-    {
-      "path": "/tickets/ticket-setup/1-3-confirmation-emails, /tickets/ticket-setup/member-and-invite-only-ticketing, /tickets/ticket-setup/session-rsvp, /tickets/ticket-setup/1-5-registration-widgets",
-      "width": 390,
-      "severity": "medium",
-      "type": "hierarchy",
-      "issue": "Table rows grow 200 to 470px tall because long-text columns wrap off screen. The confirmation email page is about 6,500px of mostly blank rows. Caused by the side menu squeeze.",
-      "fix": "On phones render each row as a stacked card, or cap the long column with a line clamp.",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_1_3_confirmation_emails-390-p1.png",
-      "source": "apps/organizer/src/app/(dash)/ui.tsx (Table)"
-    },
-    {
       "path": "/tickets/exhibitor-ticket-setup/2-5-ticket-add-ons",
       "width": 1280,
       "severity": "medium",
@@ -508,20 +474,10 @@
       "width": 1280,
       "severity": "medium",
       "type": "empty-state",
-      "issue": "The page says \"No discount codes has been entered\" with no form and no reason. The cause, a missing Stripe key, shows only in a small grey tag.",
-      "fix": "Replace the empty state with one line: \"Discount codes need a Stripe key.\"",
+      "issue": "The page says \"No discount codes has been entered\" with no form and no reason. The cause, that no payment account is connected, shows only in a small grey tag.",
+      "fix": "Replace the empty state with one line: \"Discount codes need a payment account.\"",
       "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/tickets_ticket_setup_discount_codes-1280.png",
       "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/page.tsx"
-    },
-    {
-      "path": "/tickets/ticket-setup/create-group-tickets, /tickets/ticket-setup/discount-codes, /tickets/ticket-setup/1-6-abandoned-registration, /tickets/exhibitor-ticket-setup/2-2-question-forms, /tickets/exhibitor-ticket-setup/2-4-confirmation-emails, /tickets/exhibitor-ticket-setup/2-6-offline-payment",
-      "width": 1280,
-      "severity": "low",
-      "type": "other",
-      "issue": "Empty states read \"No group orders has been entered\", \"No questions has been entered\". The verb is wrong for plurals.",
-      "fix": "Change the NotInputted copy to \"No {what} yet.\"",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_create_group_tickets-390-p0.png",
-      "source": "apps/organizer/src/app/(dash)/ui.tsx line 385"
     },
     {
       "path": "/tickets/ticket-setup/1-1-create-tickets, /tickets/ticket-setup/create-group-tickets, /tickets/ticket-setup/1-6-abandoned-registration, /tickets/ticket-setup/1-7-registration-settings, /tickets/exhibitor-ticket-setup/registration-settings, /tickets/exhibitor-ticket-setup/2-2-question-forms, /tickets/exhibitor-ticket-setup/pre-paid-exhibitors",
@@ -532,16 +488,6 @@
       "fix": "Delete these notes or cut each to one plain line, for example \"Tickets cannot be deleted. Hide them instead.\"",
       "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/sheetA.png",
       "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-7-registration-settings/page.tsx; create-group-tickets/page.tsx; 1-6-abandoned-registration/page.tsx"
-    },
-    {
-      "path": "/tickets/ticket-setup/1-2-question-forms, /tickets/exhibitor-ticket-setup/2-2-question-forms, /tickets/exhibitor-ticket-setup/2-6-offline-payment, /tickets/exhibitor-ticket-setup/pre-paid-exhibitors, /tickets/exhibitor-ticket-setup/2-5-ticket-add-ons, /tickets/ticket-setup/1-6-abandoned-registration",
-      "width": 1280,
-      "severity": "medium",
-      "type": "excess-text",
-      "issue": "Long opinion copy sits above and inside simple forms: \"A hundred distinct sentences is a list, not a distribution\", \"They have done nothing wrong\", \"this is the record of what your word was based on\", \"worth reading this table in April rather than in May\", \"The one recoverable case\".",
-      "fix": "Keep one short hint per field at most, for example \"Required. Saved on the order.\" and drop the rest.",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/sheetC.png",
-      "source": "apps/organizer/src/app/(dash)/tickets/question-form-editor.tsx; manual-order-form.tsx; exhibitor-ticket-setup/2-5-ticket-add-ons/page.tsx"
     },
     {
       "path": "/tickets/ticket-setup/ticket-add-ons, /tickets/ticket-setup/member-and-invite-only-ticketing, /tickets/ticket-setup/session-rsvp, /tickets/ticket-setup/memberclicks-connection-guide, /tickets/ticket-setup/imis-connection-guide, /tickets/ticket-setup/yourmembership-connection-guide, /tickets/ticket-setup/neon-crm-connection-guide",
@@ -564,16 +510,6 @@
       "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-3-confirmation-emails/page.tsx; scripts/src/lib (email templates)"
     },
     {
-      "path": "/tickets/ticket-setup/1-1-create-tickets, /tickets/exhibitor-ticket-setup/2-3-booth-selection, /tickets/ticket-setup/1-2-question-forms",
-      "width": 390,
-      "severity": "medium",
-      "type": "tap-target",
-      "issue": "Row actions (Edit, Hide, Release, Block, Move up, Remove) are 12px text links with no padding, stacked a few pixels apart, and sit in the last table column which is off screen on a phone.",
-      "fix": "Give row actions at least 32px height and spacing, and keep them visible in a stacked phone row.",
-      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_1_1_create_tickets-390-p0.png",
-      "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/page.tsx lines 262-286"
-    },
-    {
       "path": "/tickets/* (all screens)",
       "width": 1280,
       "severity": "low",
@@ -582,6 +518,42 @@
       "fix": "Turn off the Netlify badge in the site settings.",
       "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_1_3_confirmation_emails-1280-p0.png",
       "source": ""
+    },
+    {
+      "path": "/tickets/exhibitor-ticket-setup/2-6-offline-payment",
+      "width": 390,
+      "severity": "medium",
+      "type": "other",
+      "issue": "Form controls are unstyled browser defaults about 20px tall and hard to tap: the whole Record a payment form, the Allocate a space form on 2.3 Booth Selection, and the check-in staff input on Attendees > Admin Settings. The 1.2 Question Forms required box is a bare 13x13 checkbox where every other dashboard checkbox is 16x16.",
+      "fix": "Use the standard dashboard input, select and checkbox classes on these forms.",
+      "source": "round one review, remaining problem 2; round two verification, 390 pass"
+    },
+    {
+      "path": "/tickets/ticket-setup/create-group-tickets",
+      "width": 390,
+      "severity": "medium",
+      "type": "broken",
+      "issue": "The empty-state box is narrower than the table and sits on the column headers. On Create Group Tickets, 2.6 Offline Payment, 2.2 Question Forms and 1.6 Abandoned Registration.",
+      "fix": "Let the empty state fill the table width, or drop the fixed header row when there are no rows.",
+      "source": "round one review, remaining problem 1"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-3-confirmation-emails",
+      "width": 390,
+      "severity": "low",
+      "type": "spacing",
+      "issue": "Recent sends rows are about 140px tall and mostly empty, because a hidden long column wraps inside the sideways-scrolling area.",
+      "fix": "Clamp the long column or stack the row as a card at phone width.",
+      "source": "round one review, remaining problem 5"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "width": 390,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "The price is half cut (\"$1,199\") and the row actions start off screen. The only cue that the table scrolls is a fade on the right edge. Same on /tickets/ticket-setup/1-2-question-forms, which also prints each field’s slug in a code font under the question.",
+      "fix": "Add a visible scroll cue or stack the rows, and remove the slug line.",
+      "source": "round one review, remaining problem 4 and 6; round two verification, 390 pass"
     }
   ],
   "verified": true

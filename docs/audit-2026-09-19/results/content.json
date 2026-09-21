@@ -1,879 +1,928 @@
 {
- "features": [
-  {
-   "area": "Content",
-   "feature": "View event basics",
-   "path": "/content/basics",
-   "what": "Shows event name, dates, time zone, venue and record counts.",
-   "steps": [
-    "Open Content > Basics."
-   ],
-   "status": "view-only",
-   "statusNote": "Save button is disabled. Name, dates and venue are fixed in code.",
-   "evidence": "apps/organizer/src/app/(dash)/content/basics/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Edit website copy (three pages)",
-   "path": "/content/basics/website-copy",
-   "what": "Edits the code of conduct reporting contact, and the submission link, button label and deadlines on the call for posters and startup pitch pages.",
-   "steps": [
-    "Open Content > Basics.",
-    "Click Website Copy.",
-    "Edit the reporting address and committee. Click Save reporting route.",
-    "Edit a call's submission URL, button label and deadlines. Click Save this call."
-   ],
-   "status": "partial",
-   "evidence": "apps/organizer/src/app/(dash)/content/basics/website-copy/actions.ts",
-   "statusNote": "Only these fields on three pages. All other website text is fixed in code. Plain text only."
-  },
-  {
-   "area": "Content",
-   "feature": "Set tagline, support email and brand colours",
-   "path": "/content/branding-center/app-branding",
-   "what": "Saves the tagline, support address, hashtag and two brand colours.",
-   "steps": [
-    "Open Content > Branding Center > App Branding.",
-    "Enter tagline, support address, hashtag and colours.",
-    "Click Save."
-   ],
-   "status": "partial",
-   "statusNote": "Tagline and support email reach the website. Colours and hashtag are saved but nothing reads them.",
-   "evidence": "apps/organizer/src/app/(dash)/content/branding-center/actions.ts, packages/shared/src/settings.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Set a short event URL",
-   "path": "/content/branding-center/branded-event-url",
-   "what": "Reserves a slug that redirects to the public homepage.",
-   "steps": [
-    "Open Content > Branding Center > Branded Event URL.",
-    "Enter the slug.",
-    "Click Save."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/branding-center/actions.ts, packages/shared/src/settings.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Customize app tabs and resources",
-   "path": "/content/branding-center/customize-resources",
-   "what": "Shows the five fixed app tabs and the document count.",
-   "steps": [
-    "Open Content > Branding Center > Customize Resources."
-   ],
-   "status": "view-only",
-   "statusNote": "App tabs are fixed at build time. No control to add or rename one.",
-   "evidence": "apps/organizer/src/app/(dash)/content/branding-center/customize-resources/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Web app speaker page",
-   "path": "/content/branding-center/web-app-speaker-page",
-   "what": "Shows speaker profile gaps and links to the public speakers page.",
-   "steps": [
-    "Open Content > Branding Center > Web App Speaker Page."
-   ],
-   "status": "view-only",
-   "statusNote": "There is no web app. Page is a read-only count of missing photos and bios.",
-   "evidence": "apps/organizer/src/app/(dash)/content/branding-center/web-app-speaker-page/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Add a session",
-   "path": "/content/agenda-center/session-manager",
-   "what": "Creates a session with time, room, tracks, speakers, format, capacity and status.",
-   "steps": [
-    "Open Content > Agenda Center > Session Manager.",
-    "Pick a day tab.",
-    "Click Add session.",
-    "Enter title, start, end, location, tracks and speakers.",
-    "Set Status to published.",
-    "Click Create session."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/actions.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Edit a session",
-   "path": "/content/agenda-center/session-manager",
-   "what": "Changes any field on an existing session, including cancelling it.",
-   "steps": [
-    "Open Content > Agenda Center > Session Manager.",
-    "Pick the day tab.",
-    "Click Edit on the session.",
-    "Change the fields.",
-    "Click Save."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/actions.ts, apps/organizer/src/app/(dash)/content/agenda-center/session-manager/[id]/page.tsx",
-   "statusNote": "Attendees are not told when a session moves or is cancelled. Announce it yourself. There is no delete, set Status to cancelled."
-  },
-  {
-   "area": "Content",
-   "feature": "Search the agenda",
-   "path": "/content/agenda-center/session-manager",
-   "what": "Finds sessions by title, speaker, room or track.",
-   "steps": [
-    "Open Content > Agenda Center > Session Manager.",
-    "Type at least 3 characters in the search box.",
-    "Click Search."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Export the programme",
-   "path": "/content/agenda-center/session-manager",
-   "what": "Downloads all sessions as a CSV.",
-   "steps": [
-    "Open Content > Agenda Center > Session Manager.",
-    "Click Export programme (CSV)."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/export/[kind]/route.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Import the agenda from CSV",
-   "path": "/content/agenda-center/session-manager",
-   "what": "Bulk creates or updates sessions from a spreadsheet. New rows arrive as drafts.",
-   "steps": [
-    "Import speakers and tracks first.",
-    "Open Content > Agenda Center > Session Manager.",
-    "Scroll to Import the agenda.",
-    "Choose a CSV file or paste it.",
-    "Click Check the file.",
-    "Review the preview.",
-    "Click Import N sessions."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/import.ts, apps/organizer/src/app/(dash)/content/csv-import-panel.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Turn accepted submissions into sessions",
-   "path": "/content/agenda-center/session-manager/from-accepted",
-   "what": "Schedules an accepted abstract as a session and creates its speaker.",
-   "steps": [
-    "Open Content > Agenda Center > Session Manager.",
-    "Click From accepted submissions.",
-    "Click Schedule it on a submission.",
-    "Enter start, end and room.",
-    "Click Add to the agenda."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/from-accepted/actions.ts",
-   "statusNote": "The live event has no call and no accepted submissions yet, so the list is empty."
-  },
-  {
-   "area": "Content",
-   "feature": "Add or edit a track",
-   "path": "/content/agenda-center/track-manager",
-   "what": "Creates a track or changes its name, colour and description. Changes copy onto its sessions.",
-   "steps": [
-    "Open Content > Agenda Center > Track Manager.",
-    "Click + Add track, or Edit on a row.",
-    "Enter name, colour and description.",
-    "Click Add track or Save changes."
-   ],
-   "status": "partial",
-   "statusNote": "There is no delete. A track can only be removed from its sessions.",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/actions.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Import tracks from CSV",
-   "path": "/content/agenda-center/track-manager",
-   "what": "Bulk creates or updates tracks by name.",
-   "steps": [
-    "Open Content > Agenda Center > Track Manager.",
-    "Scroll to Import a track list.",
-    "Choose a CSV file or paste it.",
-    "Click Check the file.",
-    "Click Import N tracks."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/import.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Repair agenda name copies",
-   "path": "/content/agenda-center/track-manager",
-   "what": "Rebuilds the speaker, track and room names stored on each session.",
-   "steps": [
-    "Open Content > Agenda Center > Track Manager.",
-    "Scroll to Agenda cache check.",
-    "Click Check for drift.",
-    "Click Repair if drift is found."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/actions.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Check the agenda for clashes",
-   "path": "/content/agenda-center/conflict-check",
-   "what": "Lists speaker clashes, room clashes, over-capacity sessions and published sessions with no room or speaker.",
-   "steps": [
-    "Open Content > Agenda Center > Conflict Check.",
-    "Read the Must fix list.",
-    "Fix each one in Session Manager."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/conflict-check/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Turn session Q&A and polls on or off",
-   "path": "/content/agenda-center/session-qanda-manager",
-   "what": "Toggles Q&A and polls per session.",
-   "steps": [
-    "Open Content > Agenda Center > Session Q&A Manager.",
-    "Find the session.",
-    "Click On or Off in the Q&A or Polls column."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-qanda-manager/actions.ts",
-   "statusNote": "Turns the Q&A and poll panels on in the app's session page. Polls themselves are written elsewhere."
-  },
-  {
-   "area": "Content",
-   "feature": "Moderate attendee questions",
-   "path": "/content/agenda-center/session-qanda-manager",
-   "what": "Approves, hides or marks questions answered.",
-   "steps": [
-    "Open Content > Agenda Center > Session Q&A Manager.",
-    "Scroll to Questions.",
-    "Click the Pending tab.",
-    "Click Approve, Answered or Hide on a question."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-qanda-manager/actions.ts",
-   "statusNote": "Vote counts do not update. The function that counts upvotes is not deployed."
-  },
-  {
-   "area": "Content",
-   "feature": "Add or edit a speaker",
-   "path": "/content/speaker-center/speaker-manager",
-   "what": "Creates or edits a speaker with photo upload, bio, contact email and links.",
-   "steps": [
-    "Open Content > Speaker Center > Speaker Manager.",
-    "Click + Add speaker, or open the row menu and click Edit speaker.",
-    "Enter name, title, company and bio.",
-    "Choose a photo.",
-    "Click Add speaker or Save changes."
-   ],
-   "status": "partial",
-   "statusNote": "There is no delete. A speaker who drops out is removed from their sessions instead.",
-   "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/actions.ts, apps/organizer/src/lib/uploads.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Filter and search speakers",
-   "path": "/content/speaker-center/speaker-manager",
-   "what": "Filters speakers by missing bio, missing photo or no session.",
-   "steps": [
-    "Open Content > Speaker Center > Speaker Manager.",
-    "Click No bio, No photo or No session.",
-    "Or type a name and click Search."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Import speakers from CSV",
-   "path": "/content/speaker-center/speaker-manager",
-   "what": "Bulk creates or updates speakers by name.",
-   "steps": [
-    "Open Content > Speaker Center > Speaker Manager.",
-    "Scroll to Import a speaker list.",
-    "Choose a CSV file or paste it.",
-    "Click Check the file.",
-    "Click Import N speakers."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/import.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Export speakers",
-   "path": "/content/speaker-center/speaker-manager",
-   "what": "Downloads the speaker list as a CSV.",
-   "steps": [
-    "Open Content > Speaker Center > Speaker Manager.",
-    "Click Export speakers."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/export/[kind]/route.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Email speakers",
-   "path": "/content/speaker-center/message-speakers",
-   "what": "Sends a plain text email to all speakers, incomplete profiles, or speakers with no session.",
-   "steps": [
-    "Open Content > Speaker Center > Message Speakers.",
-    "Pick a segment tab.",
-    "Enter subject and message.",
-    "Tick Send me a test first. Click Send test to me.",
-    "Untick it. Type the recipient count and the dashboard passphrase.",
-    "Click Send to N speakers."
-   ],
-   "status": "blocked",
-   "statusNote": "All 137 speakers have no contact email, so every segment has 0 people and Send is disabled. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed.",
-   "evidence": "apps/organizer/src/app/(dash)/messaging/actions.ts, apps/organizer/src/lib/messaging.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Track speaker release forms",
-   "path": "/content/speaker-center/release-and-consent-forms",
-   "what": "Shows who has signed the speaker release and gives each unsigned speaker a signing link.",
-   "steps": [
-    "Open Content > Speaker Center > Release & Consent Forms.",
-    "Click + New form. It opens Attendees > Release & Consent Forms.",
-    "Write the form for speakers and publish it.",
-    "Return here, open the form's register and copy the link for an unsigned speaker.",
-    "Send the link to the speaker yourself."
-   ],
-   "status": "partial",
-   "statusNote": "No speaker form is published yet. Links are copied and sent one at a time. No speaker has an email on file.",
-   "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/release-and-consent-forms/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Open a call for abstracts",
-   "path": "/content/call-for-speakers-abstracts",
-   "what": "Creates a call with open and close dates, session types, tracks and blind review. It gets a public page at /submit/{id}.",
-   "steps": [
-    "Open Content > Call For Speakers/Abstracts.",
-    "Click + New call.",
-    "Enter title, instructions, opens and closes dates.",
-    "Pick session types and tracks.",
-    "Set Status to open.",
-    "Click Create call."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/actions.ts, apps/web/src/app/submit/[callId]/page.tsx",
-   "statusNote": "No call exists on the live event yet."
-  },
-  {
-   "area": "Content",
-   "feature": "Build the submission form",
-   "path": "/content/call-for-speakers-abstracts/form-builder",
-   "what": "Adds, edits, reorders and deletes custom fields on the submission form.",
-   "steps": [
-    "Open Content > Call For Speakers/Abstracts.",
-    "Click Submission form.",
-    "Click + Add question.",
-    "Enter the question and its type. Click Add question.",
-    "Click Up or Down to reorder. Click Remove to delete."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/form-builder/actions.ts",
-   "statusNote": "Needs a call first. None exists yet."
-  },
-  {
-   "area": "Content",
-   "feature": "Manage reviewers",
-   "path": "/content/call-for-speakers-abstracts/reviewers",
-   "what": "Adds committee members and assigns submissions to them one by one or by track.",
-   "steps": [
-    "Open Content > Call For Speakers/Abstracts.",
-    "Click Reviewers.",
-    "Enter name and email. Click Add reviewer.",
-    "Pick a submission and a reviewer. Click Assign. Or click Assign by track."
-   ],
-   "status": "partial",
-   "statusNote": "Reviewers have nowhere to score. The reviewing screen is not built and no invitation is sent. The list and assignments save, nothing more.",
-   "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/reviewers/actions.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Accept or reject submissions",
-   "path": "/content/call-for-speakers-abstracts/submissions",
-   "what": "Records accept or reject on a submission, with an optional email to the author. Can be undone.",
-   "steps": [
-    "Open Content > Call For Speakers/Abstracts.",
-    "Click Submissions.",
-    "Open a submission.",
-    "Tick the email box if the author should be told.",
-    "Click Accept or Reject."
-   ],
-   "status": "partial",
-   "statusNote": "The decision saves. The email does not arrive. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed. No submissions exist yet.",
-   "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/submissions/actions.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Add or edit an exhibitor",
-   "path": "/content/exhibitor-center/exhibitor-manager",
-   "what": "Creates or edits an exhibitor with logo, booth number, staff pass allocation and contact.",
-   "steps": [
-    "Open Content > Exhibitor Center > Exhibitor Manager.",
-    "Click + Add exhibitor, or Edit on a row.",
-    "Enter company, booth, staff passes and contact.",
-    "Choose a logo.",
-    "Click Add exhibitor or Save changes."
-   ],
-   "status": "partial",
-   "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/actions.ts",
-   "statusNote": "Saves in the dashboard only. The app's exhibitor list is a copy made by a Cloud Function that is not deployed, so attendees keep seeing the seeded list. Booth is free text and is not checked against the floor plan."
-  },
-  {
-   "area": "Content",
-   "feature": "Cancel or reinstate an exhibitor",
-   "path": "/content/exhibitor-center/exhibitor-manager",
-   "what": "Marks an exhibitor cancelled without deleting the record, or brings them back.",
-   "steps": [
-    "Open Content > Exhibitor Center > Exhibitor Manager.",
-    "Click Cancel on the row.",
-    "Click Reinstate to undo."
-   ],
-   "status": "partial",
-   "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/actions.ts",
-   "statusNote": "Saves in the dashboard. The app's exhibitor list does not change until the mirror function is deployed."
-  },
-  {
-   "area": "Content",
-   "feature": "Email exhibitors",
-   "path": "/content/exhibitor-center/message-exhibitors",
-   "what": "Sends a plain text email to all exhibitors, those with no booth, or those over their pass allocation.",
-   "steps": [
-    "Open Content > Exhibitor Center > Message Exhibitors.",
-    "Pick a segment tab.",
-    "Enter subject and message.",
-    "Tick Send me a test first. Click Send test to me.",
-    "Untick it. Type the recipient count and the dashboard passphrase.",
-    "Click Send to N exhibitors."
-   ],
-   "status": "blocked",
-   "statusNote": "All 5 exhibitor addresses are placeholders ending in example.invalid. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed.",
-   "evidence": "apps/organizer/src/app/(dash)/messaging/actions.ts, memory: resend-domain-unverified"
-  },
-  {
-   "area": "Content",
-   "feature": "Passport contest",
-   "path": "/content/exhibitor-center/passport-contest",
-   "what": "Shows how many exhibitors and booths would be stops.",
-   "steps": [
-    "Open Content > Exhibitor Center > Passport Contest."
-   ],
-   "status": "view-only",
-   "statusNote": "No way to create a contest or collect stamps. Counts only.",
-   "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/passport-contest/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Exhibitor outreach campaigns",
-   "path": "/content/exhibitor-center/outreach-campaigns",
-   "what": "Shows signed exhibitor count and links to Message Exhibitors.",
-   "steps": [
-    "Open Content > Exhibitor Center > Outreach Campaigns."
-   ],
-   "status": "view-only",
-   "statusNote": "No prospect list exists. Nothing to add or send from here.",
-   "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/outreach-campaigns/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Exhibitor trivia",
-   "path": "/content/exhibitor-center/exhibitor-trivia",
-   "what": "Shows how many booths could set a question.",
-   "steps": [
-    "Open Content > Exhibitor Center > Exhibitor Trivia."
-   ],
-   "status": "view-only",
-   "statusNote": "No way to add questions. Counts only.",
-   "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-trivia/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Add or edit a sponsor",
-   "path": "/content/sponsor-center/sponsor-manager",
-   "what": "Creates or edits a sponsor with tier, logo upload, website, booth, offers and contact.",
-   "steps": [
-    "Open Content > Sponsor Center > Sponsor Manager.",
-    "Click + Add sponsor, or Edit on a row.",
-    "Enter company, tier, website and contact.",
-    "Choose a logo.",
-    "Click Add sponsor or Save changes."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-manager/actions.ts",
-   "statusNote": "There is no delete."
-  },
-  {
-   "area": "Content",
-   "feature": "Import sponsors from a spreadsheet",
-   "path": "/content/sponsor-center/sponsor-manager?tab=import",
-   "what": "Bulk creates or updates sponsors from CSV.",
-   "steps": [
-    "Open Content > Sponsor Center > Sponsor Manager.",
-    "Click Import from a spreadsheet.",
-    "Choose a CSV file or paste it.",
-    "Click Check the file.",
-    "Click Import N sponsors."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-manager/import.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Export sponsors",
-   "path": "/content/sponsor-center/sponsor-manager",
-   "what": "Downloads the sponsor list as a CSV.",
-   "steps": [
-    "Open Content > Sponsor Center > Sponsor Manager.",
-    "Click Export sponsors to CSV."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/export/[kind]/route.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Review sponsor tiers",
-   "path": "/content/sponsor-center/sponsor-tiering",
-   "what": "Shows sponsors per tier and the logo weight the public sponsor page uses.",
-   "steps": [
-    "Open Content > Sponsor Center > Sponsor Tiering.",
-    "To move a sponsor, edit its tier in Sponsor Manager."
-   ],
-   "status": "view-only",
-   "statusNote": "Four tiers are fixed in code. Tiers cannot be added, renamed or reweighted.",
-   "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-tiering/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Email sponsors",
-   "path": "/content/sponsor-center/message-sponsors",
-   "what": "Sends a plain text email to all sponsors, those missing a logo, or those with no booth.",
-   "steps": [
-    "Open Content > Sponsor Center > Message Sponsors.",
-    "Pick a segment tab.",
-    "Enter subject and message.",
-    "Tick Send me a test first. Click Send test to me.",
-    "Untick it. Type the recipient count and the dashboard passphrase.",
-    "Click Send to N sponsors."
-   ],
-   "status": "blocked",
-   "statusNote": "All 18 sponsor addresses are placeholders ending in example.invalid. The sender domain is not verified, so mail only reaches the Resend account owner. Every other recipient is logged as failed.",
-   "evidence": "apps/organizer/src/app/(dash)/messaging/actions.ts, memory: resend-domain-unverified"
-  },
-  {
-   "area": "Content",
-   "feature": "Sponsor banners",
-   "path": "/content/sponsor-center/advanced-banners",
-   "what": "Shows the rotation order and impression share each tier would get.",
-   "steps": [
-    "Open Content > Sponsor Center > Advanced Banners."
-   ],
-   "status": "view-only",
-   "statusNote": "The app has no banner slot. The rotation is a calculation, nothing is shown to attendees.",
-   "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/advanced-banners/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Sponsor outreach campaigns",
-   "path": "/content/sponsor-center/outreach-campaigns",
-   "what": "Shows signed sponsor count and links to Message Sponsors.",
-   "steps": [
-    "Open Content > Sponsor Center > Outreach Campaigns."
-   ],
-   "status": "view-only",
-   "statusNote": "No prospect list exists. Nothing to add or send from here.",
-   "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/outreach-campaigns/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Run the planning checklist",
-   "path": "/content/project-management/projects-and-checklists",
-   "what": "Adds tasks with project, assignee, due date and notes, and moves them through todo, doing, done or blocked.",
-   "steps": [
-    "Open Content > Project Management > Projects & Checklists.",
-    "Click + Add task.",
-    "Enter task, project, owner and due date.",
-    "Click Add task.",
-    "Click the status pill on a task to move it to the next status."
-   ],
-   "status": "works",
-   "evidence": "apps/organizer/src/app/(dash)/content/project-management/projects-and-checklists/actions.ts",
-   "statusNote": "Owners are not notified. The pill is the only way to change status from the list."
-  },
-  {
-   "area": "Content",
-   "feature": "Message team members",
-   "path": "/content/project-management/message-team-members",
-   "what": "Lists the names on tasks and their open task counts.",
-   "steps": [
-    "Open Content > Project Management > Message Team Members."
-   ],
-   "status": "view-only",
-   "statusNote": "Assignees are free text with no email on file, so there is nobody to send to.",
-   "evidence": "apps/organizer/src/app/(dash)/content/project-management/message-team-members/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Artifact manager (posters, pitches)",
-   "path": "/content/artifact-center-poster-pitch-gallery/artifact-manager",
-   "what": "Shows how many sessions are marked as posters.",
-   "steps": [
-    "Open Content > Artifact Center > Artifact Manager."
-   ],
-   "status": "view-only",
-   "statusNote": "No artifact collection exists. Posters can only be entered as sessions.",
-   "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/artifact-manager/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Message presenters",
-   "path": "/content/artifact-center-poster-pitch-gallery/message-presenters",
-   "what": "Empty screen that links to Artifact Manager and Message Speakers.",
-   "steps": [
-    "Open Content > Artifact Center > Message Presenters."
-   ],
-   "status": "view-only",
-   "statusNote": "No presenters exist, no send form.",
-   "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/message-presenters/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Poster competition",
-   "path": "/content/artifact-center-poster-pitch-gallery/competition",
-   "what": "Empty screen.",
-   "steps": [
-    "Open Content > Artifact Center > Competition."
-   ],
-   "status": "view-only",
-   "statusNote": "No voting or judging exists.",
-   "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/competition/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Artifact streaming",
-   "path": "/content/artifact-center-poster-pitch-gallery/artifact-streaming",
-   "what": "Empty screen.",
-   "steps": [
-    "Open Content > Artifact Center > Artifact Streaming."
-   ],
-   "status": "view-only",
-   "statusNote": "No streaming exists.",
-   "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/artifact-streaming/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Career fair",
-   "path": "/content/fair-center/fair-manager",
-   "what": "Shows confirmed exhibitor count.",
-   "steps": [
-    "Open Content > Fair Center > Fair Manager."
-   ],
-   "status": "view-only",
-   "statusNote": "No job postings or applications can be entered.",
-   "evidence": "apps/organizer/src/app/(dash)/content/fair-center/fair-manager/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Share documents with attendees",
-   "path": "/content/documents-and-videos/documents",
-   "what": "Adds a titled link (PDF, slides, video or web page) to the app, optionally limited to ticket types.",
-   "steps": [
-    "Open Content > Documents & Videos > Documents.",
-    "Click + Add document.",
-    "Enter title, link, kind and description.",
-    "Tick ticket types to restrict it, or leave all unticked.",
-    "Set Status to published.",
-    "Click Add document."
-   ],
-   "status": "partial",
-   "statusNote": "Links only. There is no file upload, so host the PDF elsewhere first. No delete, set it to draft instead.",
-   "evidence": "apps/organizer/src/app/(dash)/content/documents-and-videos/documents/actions.ts, app/src/lib/data/documents.ts"
-  },
-  {
-   "area": "Content",
-   "feature": "Host session recordings",
-   "path": "/content/documents-and-videos/video-hosting",
-   "what": "Shows which ticket tiers promise video.",
-   "steps": [
-    "Open Content > Documents & Videos > Video Hosting.",
-    "To share a recording, add it as a document with kind video."
-   ],
-   "status": "view-only",
-   "statusNote": "No video hosting. Two ticket tiers advertise a video library.",
-   "evidence": "apps/organizer/src/app/(dash)/content/documents-and-videos/video-hosting/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Attendee video access",
-   "path": "/content/documents-and-videos/attendee-video-access",
-   "what": "Shows which ticket types include the video library and how many sold.",
-   "steps": [
-    "Open Content > Documents & Videos > Attendee Video Access."
-   ],
-   "status": "view-only",
-   "statusNote": "Nothing serves the video library, so there is no access to grant.",
-   "evidence": "apps/organizer/src/app/(dash)/content/documents-and-videos/attendee-video-access/page.tsx"
-  },
-  {
-   "area": "Content",
-   "feature": "Add or edit a room",
-   "path": "/content/logistics-center",
-   "what": "Creates a room or changes its name, building, floor and seat count. A rename updates every session in it.",
-   "steps": [
-    "Open Content > Logistics Center.",
-    "Click + Add room, or Edit on a row.",
-    "Enter room, building, floor and seats.",
-    "Click Add room or Save changes."
-   ],
-   "status": "partial",
-   "statusNote": "There is no delete. Move the sessions out and leave the room empty.",
-   "evidence": "apps/organizer/src/app/(dash)/content/logistics-center/actions.ts"
-  }
- ],
- "uiIssues": [
-  {
-   "path": "/content/*",
-   "width": 390,
-   "severity": "high",
-   "type": "overflow",
-   "issue": "On a phone the left menu keeps its 210px width and the page gets a 160px column. Every Content screen becomes a strip of one-word lines. Session cards cut titles and rooms mid-word (\"Early Morni\", \"Tata Innovatio\") and lose the Edit link. Tables show only the first column, cut off, with no sign they scroll (speaker-manager, track-manager, exhibitor-manager, logistics-center, sponsor-tiering, advanced-banners, documents, session-qanda-manager). Affects all 44 Content routes.",
-   "fix": "Under 768px hide .frame-left-side behind a menu button and let .frame-right-side take the full width. Then let session card headers wrap, and render tables as stacked cards or give them a visible horizontal scroll.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_agenda_center_session_manager-t0-390.png",
-   "source": "apps/organizer/src/app/globals.css (.frame-wrapper, .frame-left-side, .frame-right-side); only 2 media queries in the file"
-  },
-  {
-   "path": "/content/project-management/projects-and-checklists",
-   "width": 390,
-   "severity": "high",
-   "type": "broken",
-   "issue": "Task title, owner and due date are printed on top of each other (\"Book\" under \"Tom due\"). The owner and due columns are fixed at 130px and 110px, so this stays broken after the menu is fixed.",
-   "fix": "Stack the task row vertically on narrow screens instead of a fixed flex row.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_project_management_projects_and_checklists-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/content/project-management/projects-and-checklists/page.tsx"
-  },
-  {
-   "path": "/content/speaker-center/message-speakers",
-   "width": 390,
-   "severity": "medium",
-   "type": "overflow",
-   "issue": "In the send box \"Type N to confirm\" overlaps itself and the passphrase input runs past the card. Same on message-sponsors and message-exhibitors.",
-   "fix": "Give the confirm inputs width:100% and put the label on one line.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_speaker_center_message_speakers-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/messaging/message-form.tsx"
-  },
-  {
-   "path": "/content/artifact-center-poster-pitch-gallery/artifact-manager",
-   "width": 390,
-   "severity": "medium",
-   "type": "broken",
-   "issue": "In the empty-state box the action link prints over the last line of the message (\"event.\" under \"Poster sessions are on the agenda\"). Same on both outreach-campaigns pages, video-hosting and fair-manager.",
-   "fix": "Let the empty-state box grow with its content instead of a fixed height.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_artifact_center_poster_pitch_gallery_artifact_manager-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/ui.tsx (EmptyState)"
-  },
-  {
-   "path": "/content/basics",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "Engineering notes are shown as page copy: \"PROJECT kgc-conference-app-and-website (LIVE)\", \"Stamped on every top-level document and leading every composite index\", \"A compile-time constant in @kgc/shared\" (logistics-center), \"fixed in models.ts\" (sponsor-tiering), \"SessionDoc has no sponsor field\" (sponsor-tiering), \"the confirmation email in @kgc/scripts has its own hard-coded address\" (app-branding).",
-   "fix": "Delete code names and file paths from visible copy and keep one plain sentence per field.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_basics-t0-1280.png",
-   "source": "apps/organizer/src/app/(dash)/content/basics/page.tsx, apps/organizer/src/app/(dash)/content/logistics-center/page.tsx, apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-tiering/page.tsx, apps/organizer/src/app/(dash)/content/branding-center/app-branding/page.tsx"
-  },
-  {
-   "path": "/content/agenda-center/track-manager",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "Long paragraphs explain design choices where the organizer needs one instruction: \"There is no delete. Sessions carry track ids, and Firestore has no cascade...\" (track-manager, speaker-manager, logistics-center), the Agenda cache check paragraphs, \"A second per-sponsor weight would mean two answers...\" (advanced-banners), \"What is stored is a typed name against the hash of the wording...\" (release-and-consent-forms), \"These are distinct strings, not people...\" (message-team-members).",
-   "fix": "Cut each to one line, for example \"Tracks cannot be deleted. Remove the track from its sessions instead.\"",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_agenda_center_track_manager-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/page.tsx"
-  },
-  {
-   "path": "/content/exhibitor-center/exhibitor-manager",
-   "width": 1280,
-   "severity": "medium",
-   "type": "ai-voice",
-   "issue": "Warnings are written as one-liners instead of facts: \"It is otherwise an argument at the desk with somebody who is already holding a box of leaflets\", \"Reserving the word costs nothing and settles the argument before it reaches a flyer\" (branded-event-url), \"never a comma, which is half the world's way of writing a name\" (session-manager), \"publishing an agenda to a thousand phones is not undone by editing\" (session-manager), \"Sending twice is indistinguishable from a mistake in somebody's inbox\" (message screens).",
-   "fix": "State the fact and the action only, for example \"1 exhibitor is over their pass allocation.\"",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_exhibitor_center_exhibitor_manager-t0-1280.png",
-   "source": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/page.tsx"
-  },
-  {
-   "path": "/content/agenda-center/session-manager",
-   "width": 1280,
-   "severity": "low",
-   "type": "ai-voice",
-   "issue": "Em dashes in visible copy. Session Manager import help (\"reported rather than invented\", \"separated by a semicolon\"), Track Manager import help (\"does not rename anything\"), Speaker Manager import help (\"as bios and headshots arrive\").",
-   "fix": "Split each into two sentences.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_agenda_center_session_manager-t3-390.png",
-   "source": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/page.tsx, apps/organizer/src/app/(dash)/content/agenda-center/track-manager/page.tsx, apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/page.tsx"
-  },
-  {
-   "path": "/content/exhibitor-center/passport-contest",
-   "width": 1280,
-   "severity": "low",
-   "type": "empty-state",
-   "issue": "Empty states read \"Not inputted yet\" and \"No prospects has been entered for this event\", which is ungrammatical for every plural noun. Seen on 12 Content screens.",
-   "fix": "Change the template to \"No {what} yet.\"",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_exhibitor_center_passport_contest-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/ui.tsx:385"
-  },
-  {
-   "path": "/content/exhibitor-center/exhibitor-manager",
-   "width": 1280,
-   "severity": "low",
-   "type": "excess-text",
-   "issue": "The notes panel says the app and website have no exhibitor page. Both now have one, so the note is wrong.",
-   "fix": "Remove the note.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_exhibitor_center_exhibitor_manager-t0-1280.png",
-   "source": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/page.tsx:282"
-  },
-  {
-   "path": "/content/project-management/projects-and-checklists",
-   "width": 1280,
-   "severity": "low",
-   "type": "hierarchy",
-   "issue": "The only way to mark a task done is to click its small status pill, which looks like a label, not a button.",
-   "fix": "Add a checkbox or a \"Mark done\" button next to Edit.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_project_management_projects_and_checklists-t0-1280.png",
-   "source": "apps/organizer/src/app/(dash)/content/project-management/projects-and-checklists/page.tsx:54"
-  },
-  {
-   "path": "/content/agenda-center/session-manager",
-   "width": 1280,
-   "severity": "low",
-   "type": "other",
-   "issue": "Each session card shows a drag handle, but sessions cannot be dragged.",
-   "fix": "Remove the handle until drag to reschedule exists.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_agenda_center_session_manager-t0-1280.png",
-   "source": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/page.tsx:267"
-  },
-  {
-   "path": "/content/basics",
-   "width": 1280,
-   "severity": "low",
-   "type": "hierarchy",
-   "issue": "A greyed-out Save button sits in the header of a page with nothing to save.",
-   "fix": "Remove the button and label the page read-only.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_basics-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/content/basics/page.tsx:65"
-  },
-  {
-   "path": "/content",
-   "width": 390,
-   "severity": "low",
-   "type": "tap-target",
-   "issue": "The expand arrows in the left menu are 23x11px, too small to hit with a thumb. On every Content page.",
-   "fix": "Make the whole menu row the toggle, at least 40px tall.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_basics-t0-390.png",
-   "source": "apps/organizer/src/app/(dash)/menu.tsx"
-  }
- ],
- "verified": true
+  "features": [
+    {
+      "area": "Content",
+      "feature": "Edit event basics",
+      "path": "/content/basics",
+      "what": "Sets the event name, short name, start and end dates, time zone, venue and event type. The website header and footer, the agenda day tabs and the app home screen all read them.",
+      "steps": [
+        "Open Content > Basics.",
+        "Change the name, short name, dates, time zone, venue or event type.",
+        "Click Save.",
+        "Check the website header and the app home screen show the new details."
+      ],
+      "status": "works",
+      "statusNote": "Saving this screen once is also what sets the app access window running.",
+      "evidence": "apps/organizer/src/app/(dash)/content/basics/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Edit website copy (three pages)",
+      "path": "/content/basics/website-copy",
+      "what": "Edits the code of conduct reporting contact, and the submission link, button label and deadlines on the call for posters and startup pitch pages.",
+      "steps": [
+        "Open Content > Basics.",
+        "Click Website Copy.",
+        "Edit the reporting address and committee. Click Save reporting route.",
+        "Edit a call's submission URL, button label and deadlines. Click Save this call."
+      ],
+      "status": "partial",
+      "evidence": "apps/organizer/src/app/(dash)/content/basics/website-copy/actions.ts",
+      "statusNote": "Only these fields on three pages. All other website text is fixed in code. Plain text only."
+    },
+    {
+      "area": "Content",
+      "feature": "Set tagline, support email and brand colours",
+      "path": "/content/branding-center/app-branding",
+      "what": "Saves the tagline, support address, hashtag and two brand colours.",
+      "steps": [
+        "Open Content > Branding Center > App Branding.",
+        "Enter tagline, support address, hashtag and colours.",
+        "Click Save."
+      ],
+      "status": "partial",
+      "statusNote": "Tagline and support email reach the website. Colours and hashtag are saved but nothing reads them.",
+      "evidence": "apps/organizer/src/app/(dash)/content/branding-center/actions.ts, packages/shared/src/settings.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Set a short event URL",
+      "path": "/content/branding-center/branded-event-url",
+      "what": "Reserves a slug that redirects to the public homepage.",
+      "steps": [
+        "Open Content > Branding Center > Branded Event URL.",
+        "Enter the slug.",
+        "Click Save."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/branding-center/actions.ts, packages/shared/src/settings.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Customize app tabs and resources",
+      "path": "/content/branding-center/customize-resources",
+      "what": "Shows the five fixed app tabs, and holds the custom pages for the app and the website.",
+      "steps": [
+        "Open Content > Branding Center > Customize Resources."
+      ],
+      "status": "view-only",
+      "statusNote": "The five app tabs are fixed and cannot be added to, reordered or renamed. Custom pages written here do reach the app and the website.",
+      "evidence": "apps/organizer/src/app/(dash)/content/branding-center/customize-resources/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Write a custom page for the app and website",
+      "path": "/content/branding-center/customize-resources",
+      "what": "Writes pages such as Wi-Fi, getting here or an FAQ, with headings, lists, links, bold and code. A published page appears at its own address on the website and in the app’s home section.",
+      "steps": [
+        "Open Content > Branding Center > Customize Resources.",
+        "Click New page.",
+        "Enter the title, the summary and the web address.",
+        "Write the body.",
+        "Set it to published, or leave it as a draft.",
+        "Click Save.",
+        "Open that address on the website to check it."
+      ],
+      "status": "partial",
+      "statusNote": "Pages save, publish and render on the test event. Waiting on the new access settings being published to the live event.",
+      "evidence": "round two, feature 9"
+    },
+    {
+      "area": "Content",
+      "feature": "Web app speaker page",
+      "path": "/content/branding-center/web-app-speaker-page",
+      "what": "Shows speaker profile gaps and links to the public speakers page.",
+      "steps": [
+        "Open Content > Branding Center > Web App Speaker Page."
+      ],
+      "status": "view-only",
+      "statusNote": "There is no web app. Page is a read-only count of missing photos and bios.",
+      "evidence": "apps/organizer/src/app/(dash)/content/branding-center/web-app-speaker-page/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Add a session",
+      "path": "/content/agenda-center/session-manager",
+      "what": "Creates a session with time, room, tracks, speakers, format, capacity and status.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager.",
+        "Pick a day tab.",
+        "Click Add session.",
+        "Enter title, start, end, location, tracks and speakers.",
+        "Set Status to published.",
+        "Click Create session."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/actions.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Edit a session",
+      "path": "/content/agenda-center/session-manager",
+      "what": "Changes any field on an existing session, including cancelling it.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager.",
+        "Pick the day tab.",
+        "Click Edit on the session.",
+        "Change the fields.",
+        "Click Save."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/actions.ts, apps/organizer/src/app/(dash)/content/agenda-center/session-manager/[id]/page.tsx",
+      "statusNote": "There is no delete, set Status to cancelled."
+    },
+    {
+      "area": "Content",
+      "feature": "Tell attendees when a session moves",
+      "path": "/content/agenda-center/session-manager",
+      "what": "Writes a notice to everybody who has the session in their schedule when you change its room or its time, and shows it to them in the app.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager.",
+        "Click Edit on the session.",
+        "Change the room or the time.",
+        "Click Save."
+      ],
+      "status": "blocked",
+      "statusNote": "The notice is written by a background job that is not switched on yet, so the room changes and nobody is told. Announce it yourself for now.",
+      "evidence": "round two, also in this round"
+    },
+    {
+      "area": "Content",
+      "feature": "Search the agenda",
+      "path": "/content/agenda-center/session-manager",
+      "what": "Finds sessions by title, speaker, room or track.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager.",
+        "Type at least 3 characters in the search box.",
+        "Click Search."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Export the programme",
+      "path": "/content/agenda-center/session-manager",
+      "what": "Downloads all sessions as a CSV.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager.",
+        "Click Export programme (CSV)."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/export/[kind]/route.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Import the agenda from CSV",
+      "path": "/content/agenda-center/session-manager",
+      "what": "Bulk creates or updates sessions from a spreadsheet. New rows arrive as drafts.",
+      "steps": [
+        "Import speakers and tracks first.",
+        "Open Content > Agenda Center > Session Manager.",
+        "Scroll to Import the agenda.",
+        "Choose a CSV file or paste it.",
+        "Click Check the file.",
+        "Review the preview.",
+        "Click Import N sessions."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/import.ts, apps/organizer/src/app/(dash)/content/csv-import-panel.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Turn accepted submissions into sessions",
+      "path": "/content/agenda-center/session-manager/from-accepted",
+      "what": "Schedules an accepted abstract as a session and creates its speaker.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager.",
+        "Click From accepted submissions.",
+        "Click Schedule it on a submission.",
+        "Enter start, end and room.",
+        "Click Add to the agenda."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/from-accepted/actions.ts",
+      "statusNote": "The live event has no call and no accepted submissions yet, so the list is empty."
+    },
+    {
+      "area": "Content",
+      "feature": "Add or edit a track",
+      "path": "/content/agenda-center/track-manager",
+      "what": "Creates a track or changes its name, colour and description. Changes copy onto its sessions.",
+      "steps": [
+        "Open Content > Agenda Center > Track Manager.",
+        "Click + Add track, or Edit on a row.",
+        "Enter name, colour and description.",
+        "Click Add track or Save changes."
+      ],
+      "status": "partial",
+      "statusNote": "There is no delete. A track can only be removed from its sessions.",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/actions.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Import tracks from CSV",
+      "path": "/content/agenda-center/track-manager",
+      "what": "Bulk creates or updates tracks by name.",
+      "steps": [
+        "Open Content > Agenda Center > Track Manager.",
+        "Scroll to Import a track list.",
+        "Choose a CSV file or paste it.",
+        "Click Check the file.",
+        "Click Import N tracks."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/import.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Repair agenda name copies",
+      "path": "/content/agenda-center/track-manager",
+      "what": "Rebuilds the speaker, track and room names stored on each session.",
+      "steps": [
+        "Open Content > Agenda Center > Track Manager.",
+        "Scroll to Agenda cache check.",
+        "Click Check for drift.",
+        "Click Repair if drift is found."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/track-manager/actions.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Check the agenda for clashes",
+      "path": "/content/agenda-center/conflict-check",
+      "what": "Lists speaker clashes, room clashes, over-capacity sessions and published sessions with no room or speaker.",
+      "steps": [
+        "Open Content > Agenda Center > Conflict Check.",
+        "Read the Must fix list.",
+        "Fix each one in Session Manager."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/conflict-check/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Turn session Q&A and polls on or off",
+      "path": "/content/agenda-center/session-qanda-manager",
+      "what": "Toggles Q&A and polls per session.",
+      "steps": [
+        "Open Content > Agenda Center > Session Q&A Manager.",
+        "Find the session.",
+        "Click On or Off in the Q&A or Polls column."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-qanda-manager/actions.ts",
+      "statusNote": "Turns the Q&A and poll panels on in the app's session page. Polls themselves are written elsewhere."
+    },
+    {
+      "area": "Content",
+      "feature": "Moderate attendee questions",
+      "path": "/content/agenda-center/session-qanda-manager",
+      "what": "Approves, hides or marks questions answered.",
+      "steps": [
+        "Open Content > Agenda Center > Session Q&A Manager.",
+        "Scroll to Questions.",
+        "Click the Pending tab.",
+        "Click Approve, Answered or Hide on a question."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/agenda-center/session-qanda-manager/actions.ts",
+      "statusNote": "Vote counts do not update. The service that adds up upvotes is not switched on yet."
+    },
+    {
+      "area": "Content",
+      "feature": "Add or edit a speaker",
+      "path": "/content/speaker-center/speaker-manager",
+      "what": "Creates or edits a speaker with photo upload, bio, contact email and links.",
+      "steps": [
+        "Open Content > Speaker Center > Speaker Manager.",
+        "Click + Add speaker, or open the row menu and click Edit speaker.",
+        "Enter name, title, company and bio.",
+        "Choose a photo.",
+        "Click Add speaker or Save changes."
+      ],
+      "status": "partial",
+      "statusNote": "There is no delete. A speaker who drops out is removed from their sessions instead.",
+      "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/actions.ts, apps/organizer/src/lib/uploads.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Filter and search speakers",
+      "path": "/content/speaker-center/speaker-manager",
+      "what": "Filters speakers by missing bio, missing photo or no session.",
+      "steps": [
+        "Open Content > Speaker Center > Speaker Manager.",
+        "Click No bio, No photo or No session.",
+        "Or type a name and click Search."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Import speakers from CSV",
+      "path": "/content/speaker-center/speaker-manager",
+      "what": "Bulk creates or updates speakers by name.",
+      "steps": [
+        "Open Content > Speaker Center > Speaker Manager.",
+        "Scroll to Import a speaker list.",
+        "Choose a CSV file or paste it.",
+        "Click Check the file.",
+        "Click Import N speakers."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/speaker-manager/import.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Export speakers",
+      "path": "/content/speaker-center/speaker-manager",
+      "what": "Downloads the speaker list as a CSV.",
+      "steps": [
+        "Open Content > Speaker Center > Speaker Manager.",
+        "Click Export speakers."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/export/[kind]/route.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Let speakers fill in their own profile",
+      "path": "/content/speaker-center/speaker-manager",
+      "what": "Sends each speaker a private link where they fill in their own title, company, bio, photo and links, and add a slides link for each session they are on. What they send is a draft until an organizer approves it.",
+      "steps": [
+        "Open Content > Speaker Center > Speaker Manager.",
+        "Open the three dots on a speaker row and click Send profile link.",
+        "Copy the link and send it to the speaker.",
+        "Watch the tracker for who has not opened it, who has sent something and who is waiting on you.",
+        "Open a submitted draft, read it, then click Approve or Turn down.",
+        "Click Revoke links to stop every link sent so far."
+      ],
+      "status": "partial",
+      "statusNote": "The portal, the tracker, approval and revoking all work. The link is copied and sent by hand until the event has its own sending address. A photo address a speaker supplies is held rather than published.",
+      "evidence": "round two, feature 10"
+    },
+    {
+      "area": "Content",
+      "feature": "Email speakers",
+      "path": "/content/speaker-center/message-speakers",
+      "what": "Sends a plain text email to all speakers, incomplete profiles, or speakers with no session.",
+      "steps": [
+        "Open Content > Speaker Center > Message Speakers.",
+        "Pick a segment tab.",
+        "Enter subject and message.",
+        "Tick Send me a test first. Click Send test to me.",
+        "Untick it. Type the recipient count and the dashboard passphrase.",
+        "Click Send to N speakers."
+      ],
+      "status": "blocked",
+      "statusNote": "All 137 speakers have no contact email, so every segment has 0 people and Send is disabled. Mail also waits until the event has its own sending address, so today it only reaches the account owner.",
+      "evidence": "apps/organizer/src/app/(dash)/messaging/actions.ts, apps/organizer/src/lib/messaging.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Track speaker release forms",
+      "path": "/content/speaker-center/release-and-consent-forms",
+      "what": "Shows who has signed the speaker release and gives each unsigned speaker a signing link.",
+      "steps": [
+        "Open Content > Speaker Center > Release & Consent Forms.",
+        "Click + New form. It opens Attendees > Release & Consent Forms.",
+        "Write the form for speakers and publish it.",
+        "Return here, open the form's register and copy the link for an unsigned speaker.",
+        "Send the link to the speaker yourself."
+      ],
+      "status": "partial",
+      "statusNote": "No speaker form is published yet and no speaker has an email address on file. A published form sends its own signing links once the event has its own sending address.",
+      "evidence": "apps/organizer/src/app/(dash)/content/speaker-center/release-and-consent-forms/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Open a call for abstracts",
+      "path": "/content/call-for-speakers-abstracts",
+      "what": "Creates a call with open and close dates, session types, tracks and blind review. It gets a public page at /submit/{id}.",
+      "steps": [
+        "Open Content > Call For Speakers/Abstracts.",
+        "Click + New call.",
+        "Enter title, instructions, opens and closes dates.",
+        "Pick session types and tracks.",
+        "Set Status to open.",
+        "Click Create call."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/actions.ts, apps/web/src/app/submit/[callId]/page.tsx",
+      "statusNote": "No call exists on the live event yet."
+    },
+    {
+      "area": "Content",
+      "feature": "Build the submission form",
+      "path": "/content/call-for-speakers-abstracts/form-builder",
+      "what": "Adds, edits, reorders and deletes custom fields on the submission form.",
+      "steps": [
+        "Open Content > Call For Speakers/Abstracts.",
+        "Click Submission form.",
+        "Click + Add question.",
+        "Enter the question and its type. Click Add question.",
+        "Click Up or Down to reorder. Click Remove to delete."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/form-builder/actions.ts",
+      "statusNote": "Needs a call first. None exists yet."
+    },
+    {
+      "area": "Content",
+      "feature": "Manage reviewers",
+      "path": "/content/call-for-speakers-abstracts/reviewers",
+      "what": "Adds committee members, assigns submissions to them one by one or by track, and records a conflict of interest.",
+      "steps": [
+        "Open Content > Call For Speakers/Abstracts.",
+        "Click Reviewers.",
+        "Enter name and email. Click Add reviewer.",
+        "Pick a submission and a reviewer. Click Assign. Or click Assign by track.",
+        "Tick Conflict of interest to take a reviewer off a submission."
+      ],
+      "status": "works",
+      "statusNote": "",
+      "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/reviewers/actions.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Score and rank submissions",
+      "path": "/content/call-for-speakers-abstracts/reviewers",
+      "what": "Sets the scoring criteria for the call, lets each reviewer score and comment on the submissions assigned to them, and ranks submissions by average score within a track.",
+      "steps": [
+        "Open Content > Call For Speakers/Abstracts.",
+        "Click Reviewers.",
+        "Add each criterion with its lowest and highest score.",
+        "Tick Hide author names if the call is blind.",
+        "Add a reviewer and assign submissions to them.",
+        "Copy the reviewer’s link and send it to them.",
+        "Read the ranking, the spread of scores and who has not finished."
+      ],
+      "status": "partial",
+      "statusNote": "Criteria, scores, comments, conflicts of interest, blind review and the ranking all work. The reviewer link is copied and sent by hand until the event has its own sending address, and on the live event it only opens once the website and the dashboard share their link settings.",
+      "evidence": "round two, feature 5"
+    },
+    {
+      "area": "Content",
+      "feature": "Accept or reject submissions",
+      "path": "/content/call-for-speakers-abstracts/submissions",
+      "what": "Records accept or reject on a submission, with an optional email to the author. Can be undone.",
+      "steps": [
+        "Open Content > Call For Speakers/Abstracts.",
+        "Click Submissions.",
+        "Open a submission.",
+        "Tick the email box if the author should be told.",
+        "Click Accept or Reject."
+      ],
+      "status": "partial",
+      "statusNote": "The decision saves, one submission at a time. There is no waitlist decision. The email waits until the event has its own sending address, so today it only reaches the account owner. No submissions exist yet.",
+      "evidence": "apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/submissions/actions.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Add or edit an exhibitor",
+      "path": "/content/exhibitor-center/exhibitor-manager",
+      "what": "Creates or edits an exhibitor with logo, booth number, staff pass allocation and contact.",
+      "steps": [
+        "Open Content > Exhibitor Center > Exhibitor Manager.",
+        "Click + Add exhibitor, or Edit on a row.",
+        "Enter company, booth, staff passes and contact.",
+        "Choose a logo.",
+        "Click Add exhibitor or Save changes."
+      ],
+      "status": "partial",
+      "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/actions.ts",
+      "statusNote": "Saves in the dashboard only. The app’s exhibitor list is refreshed by a background job that is not switched on yet, so attendees keep seeing the old list. Booth is free text and is not checked against the floor plan."
+    },
+    {
+      "area": "Content",
+      "feature": "Cancel or reinstate an exhibitor",
+      "path": "/content/exhibitor-center/exhibitor-manager",
+      "what": "Marks an exhibitor cancelled without deleting the record, or brings them back.",
+      "steps": [
+        "Open Content > Exhibitor Center > Exhibitor Manager.",
+        "Click Cancel on the row.",
+        "Click Reinstate to undo."
+      ],
+      "status": "partial",
+      "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/actions.ts",
+      "statusNote": "Saves in the dashboard. The app's exhibitor list does not change until the mirror function is deployed."
+    },
+    {
+      "area": "Content",
+      "feature": "Email exhibitors",
+      "path": "/content/exhibitor-center/message-exhibitors",
+      "what": "Sends a plain text email to all exhibitors, those with no booth, or those over their pass allocation.",
+      "steps": [
+        "Open Content > Exhibitor Center > Message Exhibitors.",
+        "Pick a segment tab.",
+        "Enter subject and message.",
+        "Tick Send me a test first. Click Send test to me.",
+        "Untick it. Type the recipient count and the dashboard passphrase.",
+        "Click Send to N exhibitors."
+      ],
+      "status": "blocked",
+      "statusNote": "All 5 exhibitor addresses are placeholders. Mail also waits until the event has its own sending address, so today it only reaches the account owner.",
+      "evidence": "apps/organizer/src/app/(dash)/messaging/actions.ts, memory: resend-domain-unverified"
+    },
+    {
+      "area": "Content",
+      "feature": "Passport contest",
+      "path": "/content/exhibitor-center/passport-contest",
+      "what": "Shows how many exhibitors and booths would be stops.",
+      "steps": [
+        "Open Content > Exhibitor Center > Passport Contest."
+      ],
+      "status": "view-only",
+      "statusNote": "No way to create a contest or collect stamps. Counts only.",
+      "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/passport-contest/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Exhibitor outreach campaigns",
+      "path": "/content/exhibitor-center/outreach-campaigns",
+      "what": "Shows signed exhibitor count and links to Message Exhibitors.",
+      "steps": [
+        "Open Content > Exhibitor Center > Outreach Campaigns."
+      ],
+      "status": "view-only",
+      "statusNote": "No prospect list exists. Nothing to add or send from here.",
+      "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/outreach-campaigns/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Exhibitor trivia",
+      "path": "/content/exhibitor-center/exhibitor-trivia",
+      "what": "Shows how many booths could set a question.",
+      "steps": [
+        "Open Content > Exhibitor Center > Exhibitor Trivia."
+      ],
+      "status": "view-only",
+      "statusNote": "No way to add questions. Counts only.",
+      "evidence": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-trivia/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Add or edit a sponsor",
+      "path": "/content/sponsor-center/sponsor-manager",
+      "what": "Creates or edits a sponsor with tier, logo upload, website, booth, offers and contact.",
+      "steps": [
+        "Open Content > Sponsor Center > Sponsor Manager.",
+        "Click + Add sponsor, or Edit on a row.",
+        "Enter company, tier, website and contact.",
+        "Choose a logo.",
+        "Click Add sponsor or Save changes."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-manager/actions.ts",
+      "statusNote": "There is no delete."
+    },
+    {
+      "area": "Content",
+      "feature": "Import sponsors from a spreadsheet",
+      "path": "/content/sponsor-center/sponsor-manager?tab=import",
+      "what": "Bulk creates or updates sponsors from CSV.",
+      "steps": [
+        "Open Content > Sponsor Center > Sponsor Manager.",
+        "Click Import from a spreadsheet.",
+        "Choose a CSV file or paste it.",
+        "Click Check the file.",
+        "Click Import N sponsors."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-manager/import.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Export sponsors",
+      "path": "/content/sponsor-center/sponsor-manager",
+      "what": "Downloads the sponsor list as a CSV.",
+      "steps": [
+        "Open Content > Sponsor Center > Sponsor Manager.",
+        "Click Export sponsors to CSV."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/export/[kind]/route.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Download a report for one sponsor",
+      "path": "/content/sponsor-center/sponsor-manager",
+      "what": "A report per sponsor: the tracked links credited to them, the clicks on each, the orders those links led to and any lead records. It names the links it counted. Profile views and document opens are not recorded anywhere, so they are not in the file.",
+      "steps": [
+        "Open Content > Sponsor Center > Sponsor Manager.",
+        "Click the sponsor report download on the sponsor.",
+        "Open the file."
+      ],
+      "status": "works",
+      "statusNote": "",
+      "evidence": "round two, feature 12"
+    },
+    {
+      "area": "Content",
+      "feature": "Edit sponsor tiers",
+      "path": "/content/sponsor-center/sponsor-tiering",
+      "what": "Sets the tier names, their order and how large each tier’s logos are drawn on the public sponsor page. A tier carries nothing else: complimentary passes are set per sponsorship ticket on Tickets.",
+      "steps": [
+        "Open Content > Sponsor Center > Sponsor Tiering.",
+        "Click Edit tiers.",
+        "Rename a tier, move it up or down, or change its logo size.",
+        "Click Save.",
+        "To move a sponsor between tiers, edit the sponsor in Sponsor Manager."
+      ],
+      "status": "works",
+      "statusNote": "",
+      "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-tiering/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Email sponsors",
+      "path": "/content/sponsor-center/message-sponsors",
+      "what": "Sends a plain text email to all sponsors, those missing a logo, or those with no booth.",
+      "steps": [
+        "Open Content > Sponsor Center > Message Sponsors.",
+        "Pick a segment tab.",
+        "Enter subject and message.",
+        "Tick Send me a test first. Click Send test to me.",
+        "Untick it. Type the recipient count and the dashboard passphrase.",
+        "Click Send to N sponsors."
+      ],
+      "status": "blocked",
+      "statusNote": "All 18 sponsor addresses are placeholders. Mail also waits until the event has its own sending address, so today it only reaches the account owner.",
+      "evidence": "apps/organizer/src/app/(dash)/messaging/actions.ts, memory: resend-domain-unverified"
+    },
+    {
+      "area": "Content",
+      "feature": "Sponsor banners",
+      "path": "/content/sponsor-center/advanced-banners",
+      "what": "Shows the rotation order and impression share each tier would get.",
+      "steps": [
+        "Open Content > Sponsor Center > Advanced Banners."
+      ],
+      "status": "view-only",
+      "statusNote": "The app has no banner slot. The rotation is a calculation, nothing is shown to attendees.",
+      "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/advanced-banners/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Sponsor outreach campaigns",
+      "path": "/content/sponsor-center/outreach-campaigns",
+      "what": "Shows signed sponsor count and links to Message Sponsors.",
+      "steps": [
+        "Open Content > Sponsor Center > Outreach Campaigns."
+      ],
+      "status": "view-only",
+      "statusNote": "No prospect list exists. Nothing to add or send from here.",
+      "evidence": "apps/organizer/src/app/(dash)/content/sponsor-center/outreach-campaigns/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Run the planning checklist",
+      "path": "/content/project-management/projects-and-checklists",
+      "what": "Adds tasks with project, assignee, due date and notes, and moves them through todo, doing, done or blocked.",
+      "steps": [
+        "Open Content > Project Management > Projects & Checklists.",
+        "Click + Add task.",
+        "Enter task, project, owner and due date.",
+        "Click Add task.",
+        "Click the status pill on a task to move it to the next status."
+      ],
+      "status": "works",
+      "evidence": "apps/organizer/src/app/(dash)/content/project-management/projects-and-checklists/actions.ts",
+      "statusNote": "Owners are not notified. The pill is the only way to change status from the list."
+    },
+    {
+      "area": "Content",
+      "feature": "Message team members",
+      "path": "/content/project-management/message-team-members",
+      "what": "Lists the names on tasks and their open task counts.",
+      "steps": [
+        "Open Content > Project Management > Message Team Members."
+      ],
+      "status": "view-only",
+      "statusNote": "Assignees are free text with no email on file, so there is nobody to send to.",
+      "evidence": "apps/organizer/src/app/(dash)/content/project-management/message-team-members/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Artifact manager (posters, pitches)",
+      "path": "/content/artifact-center-poster-pitch-gallery/artifact-manager",
+      "what": "Shows how many sessions are marked as posters.",
+      "steps": [
+        "Open Content > Artifact Center > Artifact Manager."
+      ],
+      "status": "view-only",
+      "statusNote": "Nothing holds posters as their own records. Posters can only be entered as sessions.",
+      "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/artifact-manager/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Message presenters",
+      "path": "/content/artifact-center-poster-pitch-gallery/message-presenters",
+      "what": "Empty screen that links to Artifact Manager and Message Speakers.",
+      "steps": [
+        "Open Content > Artifact Center > Message Presenters."
+      ],
+      "status": "view-only",
+      "statusNote": "No presenters exist, no send form.",
+      "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/message-presenters/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Poster competition",
+      "path": "/content/artifact-center-poster-pitch-gallery/competition",
+      "what": "Empty screen.",
+      "steps": [
+        "Open Content > Artifact Center > Competition."
+      ],
+      "status": "view-only",
+      "statusNote": "No voting or judging exists.",
+      "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/competition/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Artifact streaming",
+      "path": "/content/artifact-center-poster-pitch-gallery/artifact-streaming",
+      "what": "Empty screen.",
+      "steps": [
+        "Open Content > Artifact Center > Artifact Streaming."
+      ],
+      "status": "view-only",
+      "statusNote": "No streaming exists.",
+      "evidence": "apps/organizer/src/app/(dash)/content/artifact-center-poster-pitch-gallery/artifact-streaming/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Career fair",
+      "path": "/content/fair-center/fair-manager",
+      "what": "Shows confirmed exhibitor count.",
+      "steps": [
+        "Open Content > Fair Center > Fair Manager."
+      ],
+      "status": "view-only",
+      "statusNote": "No job postings or applications can be entered.",
+      "evidence": "apps/organizer/src/app/(dash)/content/fair-center/fair-manager/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Share documents with attendees",
+      "path": "/content/documents-and-videos/documents",
+      "what": "Adds a titled link (PDF, slides, video or web page) to the app, optionally limited to ticket types.",
+      "steps": [
+        "Open Content > Documents & Videos > Documents.",
+        "Click + Add document.",
+        "Enter title, link, kind and description.",
+        "Tick ticket types to restrict it, or leave all unticked.",
+        "Set Status to published.",
+        "Click Add document."
+      ],
+      "status": "partial",
+      "statusNote": "Links only. There is no file upload, so host the PDF elsewhere first. No delete, set it to draft instead.",
+      "evidence": "apps/organizer/src/app/(dash)/content/documents-and-videos/documents/actions.ts, app/src/lib/data/documents.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Host session recordings",
+      "path": "/content/documents-and-videos/video-hosting",
+      "what": "Shows which ticket tiers promise video.",
+      "steps": [
+        "Open Content > Documents & Videos > Video Hosting.",
+        "To share a recording, add it as a document with kind video."
+      ],
+      "status": "view-only",
+      "statusNote": "No video hosting. Two ticket tiers advertise a video library.",
+      "evidence": "apps/organizer/src/app/(dash)/content/documents-and-videos/video-hosting/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Attendee video access",
+      "path": "/content/documents-and-videos/attendee-video-access",
+      "what": "Shows which ticket types include the video library and how many sold.",
+      "steps": [
+        "Open Content > Documents & Videos > Attendee Video Access."
+      ],
+      "status": "view-only",
+      "statusNote": "Nothing serves the video library, so there is no access to grant.",
+      "evidence": "apps/organizer/src/app/(dash)/content/documents-and-videos/attendee-video-access/page.tsx"
+    },
+    {
+      "area": "Content",
+      "feature": "Add or edit a room",
+      "path": "/content/logistics-center",
+      "what": "Creates a room or changes its name, building, floor and seat count. A rename updates every session in it.",
+      "steps": [
+        "Open Content > Logistics Center.",
+        "Click + Add room, or Edit on a row.",
+        "Enter room, building, floor and seats.",
+        "Click Add room or Save changes."
+      ],
+      "status": "partial",
+      "statusNote": "There is no delete. Move the sessions out and leave the room empty.",
+      "evidence": "apps/organizer/src/app/(dash)/content/logistics-center/actions.ts"
+    },
+    {
+      "area": "Content",
+      "feature": "Put a sign outside each room",
+      "path": "/content/logistics-center",
+      "what": "A screen for the corridor outside a room showing what is on now, what is next and when. It refreshes itself and says when it last managed to, so a screen that has quietly stopped is visible as stopped.",
+      "steps": [
+        "Open Content > Logistics Center.",
+        "Click the screen link on the room’s row.",
+        "Open that address on the screen outside the room and leave it running."
+      ],
+      "status": "works",
+      "statusNote": "",
+      "evidence": "round two, feature 7"
+    }
+  ],
+  "uiIssues": [
+    {
+      "path": "/content/basics",
+      "width": 1280,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "Content > Basics still prints the event id under the event name in a code font. It means nothing to an organizer and nothing on the screen acts on it.",
+      "fix": "Remove the id line.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_basics-t0-1280.png",
+      "source": "apps/organizer/src/app/(dash)/content/basics/page.tsx, apps/organizer/src/app/(dash)/content/logistics-center/page.tsx, apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-tiering/page.tsx, apps/organizer/src/app/(dash)/content/branding-center/app-branding/page.tsx"
+    },
+    {
+      "path": "/content/exhibitor-center/exhibitor-manager",
+      "width": 1280,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "The notes panel says the app and website have no exhibitor page. Both now have one, so the note is wrong.",
+      "fix": "Remove the note.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_exhibitor_center_exhibitor_manager-t0-1280.png",
+      "source": "apps/organizer/src/app/(dash)/content/exhibitor-center/exhibitor-manager/page.tsx:282"
+    },
+    {
+      "path": "/content/project-management/projects-and-checklists",
+      "width": 1280,
+      "severity": "low",
+      "type": "hierarchy",
+      "issue": "The only way to mark a task done is to click its small status pill, which looks like a label, not a button.",
+      "fix": "Add a checkbox or a \"Mark done\" button next to Edit.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_project_management_projects_and_checklists-t0-1280.png",
+      "source": "apps/organizer/src/app/(dash)/content/project-management/projects-and-checklists/page.tsx:54"
+    },
+    {
+      "path": "/content/agenda-center/session-manager",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "Each session card shows a drag handle, but sessions cannot be dragged.",
+      "fix": "Remove the handle until drag to reschedule exists.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles1280/content_agenda_center_session_manager-t0-1280.png",
+      "source": "apps/organizer/src/app/(dash)/content/agenda-center/session-manager/page.tsx:267"
+    },
+    {
+      "path": "/content",
+      "width": 390,
+      "severity": "low",
+      "type": "tap-target",
+      "issue": "The expand arrows in the left menu are 23x11px, too small to hit with a thumb. On every Content page.",
+      "fix": "Make the whole menu row the toggle, at least 40px tall.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/content/tiles/content_basics-t0-390.png",
+      "source": "apps/organizer/src/app/(dash)/menu.tsx"
+    },
+    {
+      "path": "/content/speaker-center/message-speakers",
+      "width": 390,
+      "severity": "medium",
+      "type": "broken",
+      "issue": "The empty-state box is narrower than the table and sits on top of the column headers, leaving stray vertical strips on both sides. In both \"Who gets this\" and \"Recently sent\", and on message-exhibitors and message-sponsors.",
+      "fix": "Let the empty state fill the table width, or drop the fixed header row when there are no rows.",
+      "source": "round one review, remaining problem 1"
+    },
+    {
+      "path": "/content/logistics-center",
+      "width": 390,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "Logistics Center and Speaker Manager still use the sideways-scrolling table at phone width instead of stacked rows, so the three-dot menu, including the new Send profile link, is only reachable after scrolling the table sideways.",
+      "fix": "Use the stacked row layout on these tables under 768px.",
+      "source": "round two verification, 390 pass"
+    },
+    {
+      "path": "/content/call-for-speakers-abstracts/reviewers",
+      "width": 390,
+      "severity": "high",
+      "type": "clipped",
+      "issue": "Opening a criterion’s Edit renders a 394px form starting at x=44, so its right edge is at 438 on a 390 screen. The name, lowest score, highest score and description boxes and the Save button all run off the right and nothing scrolls to them.",
+      "fix": "Let the inline editor take the panel width instead of sitting inside the table cell.",
+      "source": "round two verification, 390 pass"
+    },
+    {
+      "path": "/content/call-for-speakers-abstracts/reviewers",
+      "width": 390,
+      "severity": "medium",
+      "type": "tap-target",
+      "issue": "Row actions built as a disclosure summary were not covered by the 32px row-action fix. Edit is 21x16, Review link 60x16 and Remove 44x16, nine of them, sitting beside Move up and Move down at 32px so the row is visibly misaligned. Admin Settings has twelve more at 111x16.",
+      "fix": "Include summary elements in the row-action minimum height.",
+      "source": "round two verification, problem 12 partly fixed"
+    }
+  ],
+  "verified": true
 }

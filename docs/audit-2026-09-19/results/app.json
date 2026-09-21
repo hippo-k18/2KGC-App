@@ -1,156 +1,164 @@
 {
- "features": [],
- "uiIssues": [
-  {
-   "path": "/community/[id]",
-   "width": 390,
-   "severity": "high",
-   "type": "clipped",
-   "issue": "From code, confirmed in the live bundle: on the web build the tab bar is fixed to the bottom of the window and nothing reserves space for it. The Reply box and Send button on a community topic sit under the tabs. The same strip hides the last row on every tab screen (Home, Agenda, People, Community, Me, Surveys, Documents, Logistics, survey Submit). No screenshot: the tool cannot sign in to the app.",
-   "fix": "Add bottom padding equal to the tab bar height on web to the tab content container, or to Screen and the reply bar.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/_layout.tsx:53 and app/(tabs)/community/[id].tsx:248"
-  },
-  {
-   "path": "/home",
-   "width": 390,
-   "severity": "medium",
-   "type": "spacing",
-   "issue": "From code, confirmed in the live bundle: every signed-in header on web adds 68px of top padding for a tab pill that used to float at the top. The tabs now sit at the bottom, so each screen opens with an empty band above the title. Affects all tab roots and pushed screens. No screenshot: the tool cannot sign in to the app.",
-   "fix": "Set WEB_TAB_BAR to 0 for the top inset and move that allowance to the bottom.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/components/pushed-header.tsx:25, components/whova-header.tsx:149, components/screen-header.tsx:34"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "medium",
-   "type": "other",
-   "issue": "A 'Powered by Netlify' badge floats over the bottom right corner of the app. After sign-in that corner holds the Me tab and the Send buttons.",
-   "fix": "Turn off the Netlify badge for the kgc27-app site in Netlify site settings.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
-   "source": ""
-  },
-  {
-   "path": "/people",
-   "width": 390,
-   "severity": "medium",
-   "type": "tap-target",
-   "issue": "From code: small controls rely on hitSlop to reach 44pt, and hitSlop does nothing in the web build, so on a phone browser the A to Z rail letters are 16 by 13px, Follow is 28px tall, filter chips 34px and the Messages icon 30px. Affects /people, /agenda, /community, /home.",
-   "fix": "Give these controls real padding or minHeight of 44 on web instead of hitSlop.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/people/index.tsx:864, components/follow-button.tsx:62, components/filter-chip.tsx:69, components/messages-button.tsx:42"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "medium",
-   "type": "tap-target",
-   "issue": "From code: 'Back', 'Send another code' and 'Use a different address' are bare 20px text links with no padding, and the last two are stacked 8px apart.",
-   "fix": "Give each link minHeight 44 and centre the text.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:301-323, 460-473, 537-550"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "medium",
-   "type": "ai-voice",
-   "issue": "Em dashes in attendee copy, all present in the live bundle: the code step on /login ('Codes expire after 10 minutes ... send another'), the length hint on /change-password, and two lines on /me/badge ('already checked in ... tell them', 'sort it out ... bring the claim code').",
-   "fix": "Split each into two sentences and drop the dash.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:245, app/change-password.tsx:264, app/(tabs)/me/badge.tsx:155, app/(tabs)/me/badge.tsx:241"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "low",
-   "type": "excess-text",
-   "issue": "A failed sign-in with no network shows 'Cannot reach the server. Is the emulator running?', which is a developer note. /change-password tells the attendee the length rule is 'Firebase's minimum, not ours'. Both strings are in the live bundle.",
-   "fix": "Use 'Cannot reach the server. Check your connection.' and 'At least 6 characters.'",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:184, app/change-password.tsx:264"
-  },
-  {
-   "path": "/home",
-   "width": 390,
-   "severity": "low",
-   "type": "excess-text",
-   "issue": "Load errors explain internals to attendees, for example 'Access is carried in the token this device received when you signed in' and 'this build of the app is missing a database index for it'. Shown only when a screen fails to load.",
-   "fix": "Cut each to one line: what failed and what to do (try again, sign in again, or see the registration desk).",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/components/data-error.tsx:85-143"
-  },
-  {
-   "path": "/me/badge",
-   "width": 390,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "From code: under the QR code sits a caption of two to three paragraphs, about 60 to 80 words, in small grey text covering offline use, the boarding pass warning and brightness.",
-   "fix": "Keep one line ('Works offline. Do not share a photo of this code.') and drop the rest.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/me/badge.tsx:148-160"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "low",
-   "type": "excess-text",
-   "issue": "The landing says how to sign in twice: 'Your ticket gets you in. Choose how you want to sign in.' above the buttons and 'First time here? Choose Create account and we will email you a code.' below them.",
-   "fix": "Drop the line under Welcome and keep the first time hint.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:336-338, 390-392"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "low",
-   "type": "other",
-   "issue": "The KGC mark shows as a pale square that does not match the grey page behind it.",
-   "fix": "Export kgc-mark.png with a transparent background.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:215"
-  },
-  {
-   "path": "/login",
-   "width": 390,
-   "severity": "low",
-   "type": "other",
-   "issue": "The browser tab has no title, so the page shows as the bare URL in tabs, history and share sheets.",
-   "fix": "Set a web title such as 'KGC 2027' in app.json or the root layout.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/app.json"
-  },
-  {
-   "path": "/community",
-   "width": 390,
-   "severity": "low",
-   "type": "clipped",
-   "issue": "From code: the New topic sheet has no keyboard handling and the body box grows without a scroll container, so a long post runs under the keyboard.",
-   "fix": "Wrap the sheet in KeyboardAvoidingView and cap the body box with maxHeight.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/community/index.tsx:624-686"
-  },
-  {
-   "path": "/home/survey/[id]",
-   "width": 390,
-   "severity": "low",
-   "type": "clipped",
-   "issue": "From code: the survey screen has text answers but no KeyboardAvoidingView, so a free text question near the bottom can sit behind the keyboard on iOS. Session Q&A on /agenda/[id] has the same gap.",
-   "fix": "Wrap both screens in KeyboardAvoidingView with behavior 'padding' on iOS.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/home/survey/[id].tsx:319, components/session-qa.tsx:82"
-  },
-  {
-   "path": "/+not-found",
-   "width": 390,
-   "severity": "low",
-   "type": "ai-voice",
-   "issue": "From code: the not found screen says 'The route you followed isn't part of the app.'",
-   "fix": "Use 'Page not found.' with a button to Home.",
-   "shot": "",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/+not-found.tsx:15"
-  }
- ],
- "verified": true
+  "features": [],
+  "uiIssues": [
+    {
+      "path": "/community/[id]",
+      "width": 390,
+      "severity": "high",
+      "type": "clipped",
+      "issue": "From code, confirmed in the live bundle: on the web build the tab bar is fixed to the bottom of the window and nothing reserves space for it. The Reply box and Send button on a community topic sit under the tabs. The same strip hides the last row on every tab screen (Home, Agenda, People, Community, Me, Surveys, Documents, Logistics, survey Submit). No screenshot: the tool cannot sign in to the app.",
+      "fix": "Add bottom padding equal to the tab bar height on web to the tab content container, or to Screen and the reply bar.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/_layout.tsx:53 and app/(tabs)/community/[id].tsx:248"
+    },
+    {
+      "path": "/home",
+      "width": 390,
+      "severity": "medium",
+      "type": "spacing",
+      "issue": "From code, confirmed in the live bundle: every signed-in header on web adds 68px of top padding for a tab pill that used to float at the top. The tabs now sit at the bottom, so each screen opens with an empty band above the title. Affects all tab roots and pushed screens. No screenshot: the tool cannot sign in to the app.",
+      "fix": "Set WEB_TAB_BAR to 0 for the top inset and move that allowance to the bottom.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/components/pushed-header.tsx:25, components/whova-header.tsx:149, components/screen-header.tsx:34"
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "severity": "medium",
+      "type": "other",
+      "issue": "A 'Powered by Netlify' badge floats over the bottom right corner of the app. After sign-in that corner holds the Me tab and the Send buttons.",
+      "fix": "Turn off the Netlify badge for the kgc27-app site in Netlify site settings.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
+      "source": ""
+    },
+    {
+      "path": "/people",
+      "width": 390,
+      "severity": "medium",
+      "type": "tap-target",
+      "issue": "From code: small controls rely on hitSlop to reach 44pt, and hitSlop does nothing in the web build, so on a phone browser the A to Z rail letters are 16 by 13px, Follow is 28px tall, filter chips 34px and the Messages icon 30px. Affects /people, /agenda, /community, /home.",
+      "fix": "Give these controls real padding or minHeight of 44 on web instead of hitSlop.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/people/index.tsx:864, components/follow-button.tsx:62, components/filter-chip.tsx:69, components/messages-button.tsx:42"
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "severity": "medium",
+      "type": "tap-target",
+      "issue": "From code: 'Back', 'Send another code' and 'Use a different address' are bare 20px text links with no padding, and the last two are stacked 8px apart.",
+      "fix": "Give each link minHeight 44 and centre the text.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:301-323, 460-473, 537-550"
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "A failed sign-in with no network shows 'Cannot reach the server. Is the emulator running?', which is a developer note. /change-password tells the attendee the length rule is 'Firebase's minimum, not ours'. Both strings are in the live bundle.",
+      "fix": "Use 'Cannot reach the server. Check your connection.' and 'At least 6 characters.'",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:184, app/change-password.tsx:264"
+    },
+    {
+      "path": "/home",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "Load errors explain internals to attendees, for example 'Access is carried in the token this device received when you signed in' and 'this build of the app is missing a database index for it'. Shown only when a screen fails to load.",
+      "fix": "Cut each to one line: what failed and what to do (try again, sign in again, or see the registration desk).",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/components/data-error.tsx:85-143"
+    },
+    {
+      "path": "/me/badge",
+      "width": 390,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "From code: under the QR code sits a caption of two to three paragraphs, about 60 to 80 words, in small grey text covering offline use, the boarding pass warning and brightness.",
+      "fix": "Keep one line ('Works offline. Do not share a photo of this code.') and drop the rest.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/me/badge.tsx:148-160"
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "The landing says how to sign in twice: 'Your ticket gets you in. Choose how you want to sign in.' above the buttons and 'First time here? Choose Create account and we will email you a code.' below them.",
+      "fix": "Drop the line under Welcome and keep the first time hint.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:336-338, 390-392"
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "The KGC mark shows as a pale square that does not match the grey page behind it.",
+      "fix": "Export kgc-mark.png with a transparent background.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/login.tsx:215"
+    },
+    {
+      "path": "/login",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "The browser tab has no title, so the page shows as the bare URL in tabs, history and share sheets.",
+      "fix": "Set a web title such as 'KGC 2027' in app.json or the root layout.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/app/login-390.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/app.json"
+    },
+    {
+      "path": "/community",
+      "width": 390,
+      "severity": "low",
+      "type": "clipped",
+      "issue": "From code: the New topic sheet has no keyboard handling and the body box grows without a scroll container, so a long post runs under the keyboard.",
+      "fix": "Wrap the sheet in KeyboardAvoidingView and cap the body box with maxHeight.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/community/index.tsx:624-686"
+    },
+    {
+      "path": "/home/survey/[id]",
+      "width": 390,
+      "severity": "low",
+      "type": "clipped",
+      "issue": "From code: the survey screen has text answers but no KeyboardAvoidingView, so a free text question near the bottom can sit behind the keyboard on iOS. Session Q&A on /agenda/[id] has the same gap.",
+      "fix": "Wrap both screens in KeyboardAvoidingView with behavior 'padding' on iOS.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/home/survey/[id].tsx:319, components/session-qa.tsx:82"
+    },
+    {
+      "path": "/+not-found",
+      "width": 390,
+      "severity": "low",
+      "type": "ai-voice",
+      "issue": "From code: the not found screen says 'The route you followed isn't part of the app.'",
+      "fix": "Use 'Page not found.' with a button to Home.",
+      "shot": "",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/+not-found.tsx:15"
+    },
+    {
+      "path": "/community/[id]",
+      "width": 390,
+      "severity": "high",
+      "type": "broken",
+      "issue": "The board now asks for replies marked visible, and replies written before that change carry no such mark, so they come back as none. In the test database 15 of 16 replies are in that state, and the board prints \"No replies yet\" under posts that have five. The dashboard still shows all of them, so the two disagree.",
+      "fix": "Bring the older replies up to date before or with the access settings publish, then re-check a seeded post on the phone.",
+      "source": "round three verification, finding A"
+    },
+    {
+      "path": "/me/badge",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "The long badge caption was cut, and the advice on what to do if somebody else has already been checked in with your code went with it. That is the one line on the screen an attendee needs at the desk.",
+      "fix": "Keep one short line of what to do if the code has already been used.",
+      "source": "round one review, diff finding 5"
+    }
+  ],
+  "verified": true
 }

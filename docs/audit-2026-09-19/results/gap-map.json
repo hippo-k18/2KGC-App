@@ -1,914 +1,914 @@
 {
- "map": [
-  {
-   "needId": "N01",
-   "need": "Create the event with name, dates, time zone, venue address, and event type (in-person, virtual, hybrid)",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "View event basics",
-   "path": "/content/basics",
-   "reachable": true,
-   "note": "View-only. Name, dates, time zone and venue are fixed in code. No event type setting."
-  },
-  {
-   "needId": "N02",
-   "need": "Upload logo, banner, and brand colors that apply to the event website, registration pages, emails, and mobile app",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "App Branding",
-   "path": "/content/branding-center/app-branding",
-   "reachable": true,
-   "note": "Tagline and support email reach the website. Colours save but nothing reads them. No logo or banner upload."
-  },
-  {
-   "needId": "N03",
-   "need": "Publish a public event website with agenda, speakers, sponsors, venue, and ticket pages on a custom domain",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Event Website overview",
-   "path": "/marketing/event-website",
-   "reachable": true,
-   "note": "The site is live with agenda, speakers, sponsors and tickets. 13 of 22 pages change from the dashboard, 9 need a deploy. No domain setting."
-  },
-  {
-   "needId": "N04",
-   "need": "Keep the event in draft and preview it before publishing, with control over what is visible to the public",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Launch checklist, session Status, Hide ticket",
-   "path": "/publish",
-   "reachable": true,
-   "note": "Sessions and documents can stay draft and tickets can be hidden. There is no event-level draft or preview. Publish is a checklist, not a switch."
-  },
-  {
-   "needId": "N05",
-   "need": "Clone a previous year's event as a starting template",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "Only one event exists. No clone."
-  },
-  {
-   "needId": "N06",
-   "need": "Create, edit, and delete sessions with title, abstract, start and end time, room, track, session type, and tags",
-   "priority": "must",
-   "verdict": "have",
-   "feature": "Session Manager",
-   "path": "/content/agenda-center/session-manager",
-   "reachable": true,
-   "note": "No delete. Set Status to cancelled instead."
-  },
-  {
-   "needId": "N07",
-   "need": "Manage multiple parallel tracks and rooms across several days, with a grid view that flags room and speaker conflicts",
-   "priority": "must",
-   "verdict": "have",
-   "feature": "Track Manager, Logistics Center, Conflict Check",
-   "path": "/content/agenda-center/conflict-check",
-   "reachable": true,
-   "note": "Clashes come as a list, not a grid. Rooms live under Content > Logistics Center, which an organizer would not guess."
-  },
-  {
-   "needId": "N08",
-   "need": "Bulk import and export sessions and speakers by spreadsheet",
-   "priority": "must",
-   "verdict": "have",
-   "feature": "Import and export in Session Manager and Speaker Manager",
-   "path": "/content/agenda-center/session-manager",
-   "reachable": true,
-   "note": "Imported sessions arrive as drafts."
-  },
-  {
-   "needId": "N09",
-   "need": "Maintain speaker profiles with photo, bio, title, company, and social links, linked to their sessions",
-   "priority": "must",
-   "verdict": "have",
-   "feature": "Speaker Manager",
-   "path": "/content/speaker-center/speaker-manager",
-   "reachable": true,
-   "note": "No delete. Remove the speaker from their sessions instead."
-  },
-  {
-   "needId": "N10",
-   "need": "Send speakers a self-service link to fill in their own bio, photo, and slides, and track who has completed it",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "Speaker Manager filters show missing bios and photos, but no link lets a speaker fill in their own profile."
-  },
-  {
-   "needId": "N11",
-   "need": "Make last-minute schedule changes that update the website and app immediately and notify affected attendees",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Edit a session",
-   "path": "/content/agenda-center/session-manager",
-   "reachable": true,
-   "note": "Edits reach the website and app at once. Attendees are not notified. Push is blocked, so post an announcement by hand."
-  },
-  {
-   "needId": "N12",
-   "need": "Restrict sessions to certain ticket types (workshops, VIP), with capacity limits, sign-up, and waitlists",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Session capacity, Ticket Session Mapping, Session Cap",
-   "path": "/attendees/session-cap",
-   "reachable": true,
-   "note": "Capacity and workshop eligibility are recorded but nothing enforces them. No sign-up, no waitlist. Settings sit under Attendees, not Agenda."
-  },
-  {
-   "needId": "N13",
-   "need": "Attach slides, papers, and recordings to sessions",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Documents",
-   "path": "/content/documents-and-videos/documents",
-   "reachable": true,
-   "note": "Links only, no file upload, and documents are event-wide rather than attached to a session. No recordings."
-  },
-  {
-   "needId": "N14",
-   "need": "Publish a call for papers form with custom fields, submission categories, file uploads, and an open and close date",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Open a call for abstracts, Form Builder",
-   "path": "/content/call-for-speakers-abstracts",
-   "reachable": true,
-   "note": "Call, dates, tracks, session types and custom fields work. No file upload field. No call exists on the live event yet."
-  },
-  {
-   "needId": "N15",
-   "need": "Let submitters log in to edit or withdraw a submission before the deadline",
-   "priority": "should",
-   "verdict": "have",
-   "feature": "Author link /submit/token/{token}",
-   "path": "/content/call-for-speakers-abstracts",
-   "reachable": true,
-   "note": "Authors edit or withdraw through a private link, not a login. Not seen live because no call exists."
-  },
-  {
-   "needId": "N16",
-   "need": "Assign submissions to reviewers manually or automatically, with conflict-of-interest exclusions and optional blind review",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Manage reviewers",
-   "path": "/content/call-for-speakers-abstracts/reviewers",
-   "reachable": true,
-   "note": "Manual and by-track assignment and a blind review option exist. No conflict-of-interest exclusions. Reviewers get no invitation and have no screen to review on."
-  },
-  {
-   "needId": "N17",
-   "need": "Collect reviewer scores and comments against configurable criteria and see aggregate rankings per track",
-   "priority": "must",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "The reviewer scoring screen is not built. No criteria, scores or rankings."
-  },
-  {
-   "needId": "N18",
-   "need": "Record accept, reject, and waitlist decisions and send decision emails in bulk from templates",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Accept or reject submissions",
-   "path": "/content/call-for-speakers-abstracts/submissions",
-   "reachable": true,
-   "note": "Accept and reject save, one submission at a time. No waitlist decision. Email only reaches the account owner until the sender domain is verified."
-  },
-  {
-   "needId": "N19",
-   "need": "Convert accepted submissions into agenda sessions and speaker profiles without retyping",
-   "priority": "should",
-   "verdict": "have",
-   "feature": "Turn accepted submissions into sessions",
-   "path": "/content/agenda-center/session-manager/from-accepted",
-   "reachable": true,
-   "note": "Reached from Session Manager, not from the call screen. List is empty until submissions are accepted."
-  },
-  {
-   "needId": "N20",
-   "need": "Create multiple ticket types with price, quantity cap, sale window, and description (early bird, regular, student, workshop, virtual)",
-   "priority": "must",
-   "verdict": "have",
-   "feature": "1.1 Create Tickets",
-   "path": "/tickets/ticket-setup/1-1-create-tickets",
-   "reachable": true,
-   "note": "Tickets save and show on the website. Nobody can buy until payments are connected (see N21)."
-  },
-  {
-   "needId": "N21",
-   "need": "Accept card payments through a connected payment processor with payouts to the organizer's bank account",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Payout, Billing Information",
-   "path": "/tickets/payout",
-   "reachable": true,
-   "note": "Blocked: no Stripe key is set. Checkout refuses every order and payouts show a dash."
-  },
-  {
-   "needId": "N22",
-   "need": "Create discount codes with percent or fixed amount, usage limits, expiry, and restriction to specific ticket types",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Discount Codes",
-   "path": "/tickets/ticket-setup/discount-codes",
-   "reachable": true,
-   "note": "Blocked: no Stripe key is set. The form is hidden. A code cannot be limited to a ticket type."
-  },
-  {
-   "needId": "N23",
-   "need": "Issue complimentary tickets and hidden or access-code tickets for speakers, sponsors, staff, and press",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Hide a ticket, Add an attendee, Sponsor passes",
-   "path": "/tickets/ticket-setup/1-1-create-tickets",
-   "reachable": true,
-   "note": "Hidden tickets work by private link. A free attendee can be added by hand under Attendees. Sponsor passes are blocked and access codes depend on discount codes, which are blocked."
-  },
-  {
-   "needId": "N24",
-   "need": "Issue full and partial refunds and cancel orders from the dashboard, with the capacity released back to inventory",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Refund an order",
-   "path": "/tickets/orders-and-transactions/attendee-orders",
-   "reachable": true,
-   "note": "Blocked: no Stripe key is set. Full refunds only, even with a key."
-  },
-  {
-   "needId": "N25",
-   "need": "Generate invoices and receipts automatically with company name, billing address, and tax or VAT number, and allow reissue after edits",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Invoice a company (public site /tickets/invoice)",
-   "path": "/tickets/orders-and-transactions/attendee-orders",
-   "reachable": true,
-   "note": "Blocked: no Stripe key is set. Invoices are raised by Stripe with company name and billing email. VAT number is a free-text note. No reissue from the dashboard."
-  },
-  {
-   "needId": "N26",
-   "need": "Support pay-by-invoice or bank transfer orders that can be marked paid manually",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Mark an invoice paid, 2.6 Offline Payment",
-   "path": "/tickets/exhibitor-ticket-setup/2-6-offline-payment",
-   "reachable": true,
-   "note": "Offline Payment works but lists exhibitor packages only and sits under Exhibitor Ticket Setup. Mark paid needs a Stripe invoice, so it is blocked."
-  },
-  {
-   "needId": "N27",
-   "need": "Support group orders where one buyer purchases several tickets and assigns them to named attendees later",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "See group orders",
-   "path": "/tickets/ticket-setup/create-group-tickets",
-   "reachable": true,
-   "note": "View-only. Group orders are placed on the website with attendees named at purchase, not later. Blocked: no Stripe key is set."
-  },
-  {
-   "needId": "N28",
-   "need": "Configure tax rates and multiple currencies",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Sales tax",
-   "path": "/pay/publish",
-   "reachable": false,
-   "note": "Blocked: no Stripe key is set. Tax is set up in Stripe, not here. One currency. The nav label for this page is Pay > Publish, not Sales Tax."
-  },
-  {
-   "needId": "N29",
-   "need": "Transfer a ticket to another person and upgrade or change ticket type after purchase",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No transfer or upgrade. Attendees cannot be edited at all."
-  },
-  {
-   "needId": "N30",
-   "need": "Sell add-ons such as workshops, dinners, and merchandise at checkout",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "Ticket Add-ons (view-only)",
-   "path": "/tickets/ticket-setup/ticket-add-ons",
-   "reachable": true,
-   "note": "The page only lists which tickets include workshops and video. Add-ons cannot be created or sold."
-  },
-  {
-   "needId": "N31",
-   "need": "Build the registration form with custom questions (text, dropdown, checkbox, consent) and mark fields required",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "1.2 Question Forms",
-   "path": "/tickets/ticket-setup/1-2-question-forms",
-   "reachable": true,
-   "note": "Text, choice, multi-choice and consent questions with a required flag all save and show at checkout. No answers can arrive until checkout works."
-  },
-  {
-   "needId": "N32",
-   "need": "Show different questions depending on ticket type or a previous answer",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "1.2 Question Forms",
-   "path": "/tickets/ticket-setup/1-2-question-forms",
-   "reachable": true,
-   "note": "A question can be limited to ticket types. No logic based on a previous answer."
-  },
-  {
-   "needId": "N33",
-   "need": "Capture terms acceptance, code of conduct agreement, and photo and data consent with a timestamp",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Release & Consent Forms, consent question",
-   "path": "/attendees/release-and-consent-forms",
-   "reachable": true,
-   "note": "Versioned forms record who signed and when. Signing links are not emailed and an unsigned form blocks nothing. No form exists on the live event."
-  },
-  {
-   "needId": "N34",
-   "need": "Send an automatic confirmation email with ticket, QR code, and calendar file",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "1.3 Confirmation Emails",
-   "path": "/tickets/ticket-setup/1-3-confirmation-emails",
-   "reachable": true,
-   "note": "Log only. The template cannot be edited and nothing can be resent. Email only reaches the account owner until the sender domain is verified."
-  },
-  {
-   "needId": "N35",
-   "need": "Collect dietary, accessibility, and visa invitation letter requests, and produce visa letters",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "1.2 Question Forms",
-   "path": "/tickets/ticket-setup/1-2-question-forms",
-   "reachable": true,
-   "note": "Dietary and access needs can be asked as questions and the catering CSV exports them. No visa letters."
-  },
-  {
-   "needId": "N36",
-   "need": "Create sponsor tiers and sponsor profiles with logo, description, links, and contacts, displayed by tier on the website and app",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Sponsor Manager, Sponsor Tiering",
-   "path": "/content/sponsor-center/sponsor-manager",
-   "reachable": true,
-   "note": "Sponsor profiles work and show by tier on the website. The four tiers are fixed in code and cannot be added or renamed."
-  },
-  {
-   "needId": "N37",
-   "need": "Manage exhibitor profiles with booth number, materials, and staff, plus a floor plan or booth map",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Exhibitor Manager, 2.3 Booth Selection",
-   "path": "/content/exhibitor-center/exhibitor-manager",
-   "reachable": true,
-   "note": "Saves in the dashboard. The app keeps the old exhibitor list because the mirror function is not deployed. No floor plan image. Booth allocation is under Tickets, away from the exhibitor list."
-  },
-  {
-   "needId": "N38",
-   "need": "Give sponsors and exhibitors a self-service portal to edit their own profile and manage their staff passes",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No sponsor or exhibitor login."
-  },
-  {
-   "needId": "N39",
-   "need": "Provide lead retrieval so exhibitors can scan attendee badges and export their leads",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No badge scanning for exhibitors and no lead export."
-  },
-  {
-   "needId": "N40",
-   "need": "Offer sponsored placements such as banners, sponsored sessions, and sponsored push notifications, with impression and click reports",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "Advanced Banners (view-only)",
-   "path": "/content/sponsor-center/advanced-banners",
-   "reachable": true,
-   "note": "The app has no banner slot. The page is a calculation."
-  },
-  {
-   "needId": "N41",
-   "need": "Track sponsor deliverables and allotted complimentary tickets per sponsor",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Sponsor Tickets, Projects & Checklists",
-   "path": "/tickets/sponsor-ticket-setup/sponsor-tickets",
-   "reachable": true,
-   "note": "Free passes per package save. Issuing a pass is blocked because no sponsor order can be made. Deliverables can only be tracked as checklist tasks."
-  },
-  {
-   "needId": "N42",
-   "need": "Send email campaigns to filtered segments (ticket type, registration status, speakers, sponsors) with merge fields",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Email Campaign, Campaign Contact List",
-   "path": "/tickets/ticket-marketing/email-campaign",
-   "reachable": true,
-   "note": "Email only reaches the account owner until the sender domain is verified. Sends to imported contact lists, not attendee segments. Plain text, no merge fields. Filed under Tickets, not Marketing."
-  },
-  {
-   "needId": "N43",
-   "need": "Schedule emails in advance and save reusable templates",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No scheduled send and no saved templates."
-  },
-  {
-   "needId": "N44",
-   "need": "See delivery, open, click, bounce, and unsubscribe statistics per campaign",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Email Campaign, Transaction History",
-   "path": "/tickets/ticket-marketing/email-campaign",
-   "reachable": true,
-   "note": "Sent, failed, bounced and unsubscribed are tracked. No opens or clicks."
-  },
-  {
-   "needId": "N45",
-   "need": "Send from a verified organizer domain with a custom sender name and reply-to address",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "The sender domain is not verified and there is no screen for sender name or reply-to. It is set in the Resend account and env vars."
-  },
-  {
-   "needId": "N46",
-   "need": "Generate tracking links or referral codes to measure which channels and partners drive registrations",
-   "priority": "nice",
-   "verdict": "partial",
-   "feature": "Campaign Link Tracking, Referral Contest",
-   "path": "/tickets/ticket-marketing/campaign-link-tracking",
-   "reachable": true,
-   "note": "Links save and clicks count. Orders stay at 0 until checkout works."
-  },
-  {
-   "needId": "N47",
-   "need": "Send automated reminders to abandoned checkouts and to invited people who have not registered",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "1.6 Abandoned Registration (view-only)",
-   "path": "/tickets/ticket-setup/1-6-abandoned-registration",
-   "reachable": true,
-   "note": "Lists abandoned checkouts. No reminder can be sent."
-  },
-  {
-   "needId": "N48",
-   "need": "Search, filter, and view the full attendee list with ticket type, payment status, form answers, and check-in status",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Attendees",
-   "path": "/attendees/manage-attendees/attendees",
-   "reachable": true,
-   "note": "Names, tickets and companies are blank because of the listAttendees() bug. Search matches email only. Check-in and Name Badges show the right names."
-  },
-  {
-   "needId": "N49",
-   "need": "Add, edit, and cancel attendees manually and import attendees in bulk by spreadsheet",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Add an attendee, Import attendees from CSV",
-   "path": "/attendees/manage-attendees/attendees",
-   "reachable": true,
-   "note": "Add and import work. No edit, no cancel. No email or claim code goes to the people added."
-  },
-  {
-   "needId": "N50",
-   "need": "Assign attendee categories or tags (speaker, sponsor, staff, press, VIP) that control access and badge design",
-   "priority": "must",
-   "verdict": "missing",
-   "feature": "Categories (view-only)",
-   "path": "/attendees/categories",
-   "reachable": true,
-   "note": "Categories cannot be created or assigned, and a ticket purchase does not set one. Everyone shows as Uncategorised."
-  },
-  {
-   "needId": "N51",
-   "need": "Check attendees in by QR scan or name search from a phone or tablet, with multiple devices syncing in real time",
-   "priority": "must",
-   "verdict": "have",
-   "feature": "Check-in",
-   "path": "/attendees/check-in-and-checkout/check-in",
-   "reachable": true,
-   "note": "Camera scanning needs Chrome or Edge. On a phone the code box and the Check in button are cut off, so use a tablet or laptop."
-  },
-  {
-   "needId": "N52",
-   "need": "Keep check-in working during poor or lost connectivity and sync when back online",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "Check-in writes go through the server. No offline mode."
-  },
-  {
-   "needId": "N53",
-   "need": "Design badges with name, company, category, and QR code, and export print-ready files for bulk pre-print",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Name Badges",
-   "path": "/attendees/name-badges",
-   "reachable": true,
-   "note": "Prints name, company, title, ticket and QR, 25 to a sheet from the browser. No designer, no category styling, no print file export."
-  },
-  {
-   "needId": "N54",
-   "need": "Print badges on demand at the desk for walk-ins and reprints",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Name Badges",
-   "path": "/attendees/name-badges",
-   "reachable": true,
-   "note": "Reprints come from the same sheet printer. Nothing prints on check-in."
-  },
-  {
-   "needId": "N55",
-   "need": "Register and take payment from walk-in attendees on-site",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Add an attendee",
-   "path": "/attendees/manage-attendees/attendees",
-   "reachable": true,
-   "note": "A walk-in can be added and checked in. No card payment at the desk."
-  },
-  {
-   "needId": "N56",
-   "need": "Scan attendance per session to enforce workshop access and record session headcounts",
-   "priority": "should",
-   "verdict": "have",
-   "feature": "Check in for a day or a session, Session Self Check-in",
-   "path": "/attendees/check-in-and-checkout/session-self-check-in",
-   "reachable": true,
-   "note": "Counts heads per session. It does not refuse someone without the right ticket. The label says Self Check-in but staff do the scanning."
-  },
-  {
-   "needId": "N57",
-   "need": "Offer a self-service check-in kiosk mode",
-   "priority": "nice",
-   "verdict": "partial",
-   "feature": "Kiosk Check-in",
-   "path": "/attendees/check-in-and-checkout/kiosk-check-in",
-   "reachable": true,
-   "note": "Scanning works. The tablet stays signed in as an organizer and no badge prints."
-  },
-  {
-   "needId": "N58",
-   "need": "Give attendees a mobile app and web app with the agenda, speakers, sponsors, maps, and a personal schedule",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Attendee app (Expo)",
-   "path": "/tools/app-adoption/app-download-button",
-   "reachable": true,
-   "note": "The app has agenda, people, sponsors, my schedule, documents and badge. It is not in the app stores, and the download button points to the tickets page."
-  },
-  {
-   "needId": "N59",
-   "need": "Add custom content pages and documents: venue maps, floor plans, Wi-Fi, travel, FAQ, code of conduct",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Documents, Emergency Manager",
-   "path": "/content/documents-and-videos/documents",
-   "reachable": true,
-   "note": "Titled links only. No custom pages, no file upload, no map. Venue, travel and conduct text is in site code."
-  },
-  {
-   "needId": "N60",
-   "need": "Control which app sections and menu items are shown and in what order",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "Customize Resources (view-only)",
-   "path": "/content/branding-center/customize-resources",
-   "reachable": true,
-   "note": "App tabs are fixed at build time."
-  },
-  {
-   "needId": "N61",
-   "need": "Limit app access to registered attendees, with login by registration email",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "App sign-in by email code",
-   "path": "/tools/admin-control/code-access-control",
-   "reachable": true,
-   "note": "Ticket holders sign in with a code sent to their email. Each new attendee still needs a script run by hand before the app shows anything. The join code setting is ignored."
-  },
-  {
-   "needId": "N62",
-   "need": "Send push and in-app announcements to everyone or to a segment, immediately or scheduled",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Announcements",
-   "path": "/engagement/announcements",
-   "reachable": true,
-   "note": "Posts to the app home screen and the public wall for everyone. Push is skipped on the live host. No segment, no schedule, no draft."
-  },
-  {
-   "needId": "N63",
-   "need": "Allow attendee-to-attendee direct messaging and group chat, with the ability to turn it off",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "App direct messages, Admin Settings switches",
-   "path": "/attendees/admin-settings",
-   "reachable": true,
-   "note": "The app has one-to-one messages. No group chat. The off switch saves but nothing reads it."
-  },
-  {
-   "needId": "N64",
-   "need": "Moderate community content: review reports, remove posts and messages, and block or ban users",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Moderator Tools > Community Board",
-   "path": "/tools/moderator-tools/community-board",
-   "reachable": true,
-   "note": "Posts can be hidden or deleted. A hidden reply still shows in the app, so delete it. No report queue, no ban, and direct messages cannot be moderated."
-  },
-  {
-   "needId": "N65",
-   "need": "Run a community board with topics such as meetups, job postings, ride sharing, and lost and found",
-   "priority": "nice",
-   "verdict": "have",
-   "feature": "App community board, Community screens",
-   "path": "/engagement/community/meet-ups",
-   "reachable": true,
-   "note": "Attendees post meet-ups, jobs, travel and lost and found in the app. Organizers can read and moderate but not post."
-  },
-  {
-   "needId": "N66",
-   "need": "Run live polls in sessions and display results on the room screen",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Live Polling",
-   "path": "/engagement/live-polling",
-   "reachable": true,
-   "note": "Create, open and close work. Results show only after you click Publish the count. No room screen view. Never run on the live event."
-  },
-  {
-   "needId": "N67",
-   "need": "Run session Q and A with upvoting and moderator approval before questions appear",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Session Q&A Manager",
-   "path": "/content/agenda-center/session-qanda-manager",
-   "reachable": true,
-   "note": "Approve, hide and mark answered work. Vote counts do not update. The manager is under Content while its backlog is under Tools."
-  },
-  {
-   "needId": "N68",
-   "need": "Send session feedback ratings and an overall event survey, and see and export the responses",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Session Feedback, Surveys",
-   "path": "/engagement/session-feedback",
-   "reachable": true,
-   "note": "Session feedback is live with responses. The event survey is untested. No export of answers."
-  },
-  {
-   "needId": "N69",
-   "need": "Offer an attendee directory with profiles, interests, and search, with privacy opt-out per attendee",
-   "priority": "should",
-   "verdict": "have",
-   "feature": "App People tab with profile visibility toggle",
-   "path": "/attendees/admin-settings",
-   "reachable": true,
-   "note": "Each attendee can hide themselves from the directory in the app. The dashboard switches for the directory do nothing."
-  },
-  {
-   "needId": "N70",
-   "need": "Let attendees book one-to-one meetings with each other and with exhibitors, with time slots and locations",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "1-1 Meeting Scheduler",
-   "path": "/engagement/1-1-meeting-scheduler",
-   "reachable": true,
-   "note": "Only the organizer books room slots. Attendees cannot request a meeting and nothing shows in the app."
-  },
-  {
-   "needId": "N71",
-   "need": "Recommend people to meet based on interests or shared sessions",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "Attendee Matchmaking (report only)",
-   "path": "/engagement/community/attendee-matchmaking",
-   "reachable": true,
-   "note": "Shows shared interests to the organizer. Nothing is suggested to attendees."
-  },
-  {
-   "needId": "N72",
-   "need": "Run gamification with points, a leaderboard, and challenges such as a booth passport contest",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "Gamification (empty)",
-   "path": "/engagement/gamification",
-   "reachable": true,
-   "note": "Not built. Passport Contest is counts only."
-  },
-  {
-   "needId": "N73",
-   "need": "Provide a shared photo gallery with organizer moderation",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "Photo Collection (counts only)",
-   "path": "/engagement/photos/photo-collection",
-   "reachable": true,
-   "note": "Attendees cannot upload photos."
-  },
-  {
-   "needId": "N74",
-   "need": "Attach a live stream to each session from an external provider (Zoom, YouTube, Vimeo, RTMP) and play it inside the platform",
-   "priority": "must",
-   "verdict": "missing",
-   "feature": "Streaming Setup (empty)",
-   "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
-   "reachable": true,
-   "note": "Sessions have no stream field and the app has no player."
-  },
-  {
-   "needId": "N75",
-   "need": "Gate streams and recordings so only holders of the right ticket type can watch",
-   "priority": "must",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No streams or recordings exist to gate. Documents can be limited by ticket type."
-  },
-  {
-   "needId": "N76",
-   "need": "Publish session recordings for on-demand viewing after the session, with an access expiry date",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "Video Hosting (view-only)",
-   "path": "/content/documents-and-videos/video-hosting",
-   "reachable": true,
-   "note": "No video hosting. Two ticket tiers advertise a video library that nothing serves."
-  },
-  {
-   "needId": "N77",
-   "need": "Give remote attendees the same chat, Q and A, and polls as in-room attendees",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No remote audience. App Q&A and polls work for anyone signed in, but there is no stream to watch."
-  },
-  {
-   "needId": "N78",
-   "need": "Offer virtual sponsor booths with video, downloads, and live chat",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "Not built."
-  },
-  {
-   "needId": "N79",
-   "need": "Report virtual attendance: viewers per session and watch time",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "",
-   "path": "",
-   "reachable": false,
-   "note": "No streams, so nothing to count."
-  },
-  {
-   "needId": "N80",
-   "need": "See a live dashboard of check-in counts, by ticket type and by hour, during the event",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Check-in, Tools > Report",
-   "path": "/tools/report",
-   "reachable": true,
-   "note": "Live door counts and an attendance hours CSV. No chart by ticket type or by hour."
-  },
-  {
-   "needId": "N81",
-   "need": "Create staff and volunteer accounts limited to check-in only",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "See who is an administrator",
-   "path": "/attendees/admin-settings",
-   "reachable": true,
-   "note": "Admins come from an env var and all have full access. No check-in-only account."
-  },
-  {
-   "needId": "N82",
-   "need": "Display digital signage for rooms showing current and next session",
-   "priority": "nice",
-   "verdict": "missing",
-   "feature": "Announcement Wall",
-   "path": "/engagement/announcement-wall/activity-stream-webpage",
-   "reachable": true,
-   "note": "The public wall shows announcements, not the current and next session, and does not refresh."
-  },
-  {
-   "needId": "N83",
-   "need": "Send an emergency broadcast by push and email to all attendees on-site",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Emergency Manager, Announcements",
-   "path": "/virtual-and-hybrid/logistics-management/emergency-manager",
-   "reachable": false,
-   "note": "The plan shows in the app once marked ready. An announcement reaches the app home screen only. No push, no email. Filed under Virtual & Hybrid, where nobody would look during an incident."
-  },
-  {
-   "needId": "N84",
-   "need": "Export attendees, orders, payments, refunds, and form answers to CSV or Excel at any time",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Analytics & Exports, Attendee Orders export",
-   "path": "/attendees/manage-attendees/analytics-and-exports",
-   "reachable": true,
-   "note": "Nine CSVs download. Orders, check-ins and sessions are right. The attendee and catering files have blank names and tickets."
-  },
-  {
-   "needId": "N85",
-   "need": "View sales reports: revenue by ticket type, by day, by discount code, net of fees and refunds, reconcilable with processor payouts",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Orders and Transactions > Summary, Pay > Balance",
-   "path": "/tickets/orders-and-transactions/summary",
-   "reachable": true,
-   "note": "Revenue by ticket type and day, refunds and a fee estimate. No split by discount code. Totals come from KGC orders, not Stripe, and read $0 today."
-  },
-  {
-   "needId": "N86",
-   "need": "View engagement reports: app adoption, session attendance, poll and survey results, messages, meetings, sponsor views and leads",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Analytics & Exports, Attendee Activity",
-   "path": "/attendees/manage-attendees/analytics-and-exports",
-   "reachable": true,
-   "note": "App adoption, session attendance and survey results exist. Ticket and company breakdowns are empty. No sponsor views or leads."
-  },
-  {
-   "needId": "N87",
-   "need": "Send post-event thank-you and survey emails, and issue certificates of attendance",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Certificates, Email Campaign, Surveys",
-   "path": "/attendees/certificates",
-   "reachable": true,
-   "note": "Certificates print from the browser only and are not emailed. Email only reaches the account owner until the sender domain is verified."
-  },
-  {
-   "needId": "N88",
-   "need": "Keep the app and content available after the event, and produce per-sponsor ROI reports",
-   "priority": "should",
-   "verdict": "partial",
-   "feature": "Post Event Access Duration",
-   "path": "/tools/admin-control/post-event-access-duration",
-   "reachable": true,
-   "note": "The app stays open because nothing ever closes it. The setting saves but is ignored. No sponsor ROI report."
-  },
-  {
-   "needId": "N89",
-   "need": "Invite team members with roles that limit access by area (finance, agenda, sponsors, check-in, review), with an audit log of changes",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Admin Settings, audit trail in Tools > Report",
-   "path": "/attendees/admin-settings",
-   "reachable": false,
-   "note": "An audit trail of dashboard changes exists under Tools > Report. No invites and no roles. Admins are set in an env var, and the list sits under Attendees."
-  },
-  {
-   "needId": "N90",
-   "need": "Connect to outside tools: CRM, email marketing, Zapier or webhooks, a public API, single sign-on, and an embeddable agenda and ticket widget",
-   "priority": "should",
-   "verdict": "missing",
-   "feature": "Connection guides (text only)",
-   "path": "/attendees/integrations/mailchimp",
-   "reachable": true,
-   "note": "Every integration page is a manual CSV guide. No API, webhooks, SSO or embeddable widget."
-  },
-  {
-   "needId": "N91",
-   "need": "Meet data protection requirements: GDPR consent records, data export and deletion on request, and a published privacy policy",
-   "priority": "must",
-   "verdict": "partial",
-   "feature": "Release & Consent Forms, unsubscribe, cookie banner",
-   "path": "/attendees/release-and-consent-forms",
-   "reachable": true,
-   "note": "Consent records and email unsubscribe exist. No privacy policy page on the site. No way to export or delete one person's data. Attendees cannot be removed."
-  }
- ]
+  "map": [
+    {
+      "needId": "N01",
+      "need": "Create the event with name, dates, time zone, venue address, and event type (in-person, virtual, hybrid)",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Edit event basics",
+      "path": "/content/basics",
+      "reachable": true,
+      "note": "Name, short name, dates, time zone, venue and event type are typed on Content > Basics. The website header and footer, the agenda day tabs and the app home screen read them."
+    },
+    {
+      "needId": "N02",
+      "need": "Upload logo, banner, and brand colors that apply to the event website, registration pages, emails, and mobile app",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "App Branding",
+      "path": "/content/branding-center/app-branding",
+      "reachable": true,
+      "note": "Tagline and support email reach the website. Colours save but nothing reads them. No logo or banner upload."
+    },
+    {
+      "needId": "N03",
+      "need": "Publish a public event website with agenda, speakers, sponsors, venue, and ticket pages on a custom domain",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Event Website overview",
+      "path": "/marketing/event-website",
+      "reachable": true,
+      "note": "The site is live with agenda, speakers, sponsors and tickets. Custom pages are now written from the dashboard. 9 pages still need a developer. No domain setting."
+    },
+    {
+      "needId": "N04",
+      "need": "Keep the event in draft and preview it before publishing, with control over what is visible to the public",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Launch checklist, session Status, Hide ticket",
+      "path": "/publish",
+      "reachable": true,
+      "note": "Sessions and documents can stay draft and tickets can be hidden. There is no event-level draft or preview. Publish is a checklist, not a switch."
+    },
+    {
+      "needId": "N05",
+      "need": "Clone a previous year's event as a starting template",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "Only one event exists. No clone."
+    },
+    {
+      "needId": "N06",
+      "need": "Create, edit, and delete sessions with title, abstract, start and end time, room, track, session type, and tags",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Session Manager",
+      "path": "/content/agenda-center/session-manager",
+      "reachable": true,
+      "note": "No delete. Set Status to cancelled instead."
+    },
+    {
+      "needId": "N07",
+      "need": "Manage multiple parallel tracks and rooms across several days, with a grid view that flags room and speaker conflicts",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Track Manager, Logistics Center, Conflict Check",
+      "path": "/content/agenda-center/conflict-check",
+      "reachable": true,
+      "note": "Clashes come as a list, not a grid. Rooms live under Content > Logistics Center, which an organizer would not guess."
+    },
+    {
+      "needId": "N08",
+      "need": "Bulk import and export sessions and speakers by spreadsheet",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Import and export in Session Manager and Speaker Manager",
+      "path": "/content/agenda-center/session-manager",
+      "reachable": true,
+      "note": "Imported sessions arrive as drafts."
+    },
+    {
+      "needId": "N09",
+      "need": "Maintain speaker profiles with photo, bio, title, company, and social links, linked to their sessions",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Speaker Manager",
+      "path": "/content/speaker-center/speaker-manager",
+      "reachable": true,
+      "note": "No delete. Remove the speaker from their sessions instead."
+    },
+    {
+      "needId": "N10",
+      "need": "Send speakers a self-service link to fill in their own bio, photo, and slides, and track who has completed it",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Speaker self-service portal",
+      "path": "/content/speaker-center/speaker-manager",
+      "reachable": true,
+      "note": "A private link per speaker for their own bio, photo, links and slides, with a tracker of who has opened it and an approval step. The link is sent by hand until the event has its own sending address."
+    },
+    {
+      "needId": "N11",
+      "need": "Make last-minute schedule changes that update the website and app immediately and notify affected attendees",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Edit a session",
+      "path": "/content/agenda-center/session-manager",
+      "reachable": true,
+      "note": "Edits reach the website and app at once. A notice is written for everybody who saved the session, and the job that delivers it is not switched on yet, so announce a change yourself."
+    },
+    {
+      "needId": "N12",
+      "need": "Restrict sessions to certain ticket types (workshops, VIP), with capacity limits, sign-up, and waitlists",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Session Cap, Session RSVP",
+      "path": "/tickets/ticket-setup/session-rsvp",
+      "reachable": true,
+      "note": "Caps, ticket eligibility, sign-up and the waitlist all work, and a seat is taken one at a time so two people cannot both get the last place. Waiting on the new access settings being published to the live event."
+    },
+    {
+      "needId": "N13",
+      "need": "Attach slides, papers, and recordings to sessions",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Documents",
+      "path": "/content/documents-and-videos/documents",
+      "reachable": true,
+      "note": "Links only, no file upload, and documents are event-wide rather than attached to a session. A speaker can add a slides link against each session they are on. No recordings."
+    },
+    {
+      "needId": "N14",
+      "need": "Publish a call for papers form with custom fields, submission categories, file uploads, and an open and close date",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Open a call for abstracts, Form Builder",
+      "path": "/content/call-for-speakers-abstracts",
+      "reachable": true,
+      "note": "Call, dates, tracks, session types and custom fields work. No file upload field. No call exists on the live event yet."
+    },
+    {
+      "needId": "N15",
+      "need": "Let submitters log in to edit or withdraw a submission before the deadline",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "Author link /submit/token/{token}",
+      "path": "/content/call-for-speakers-abstracts",
+      "reachable": true,
+      "note": "Authors edit or withdraw through a private link, not a login. Not seen live because no call exists."
+    },
+    {
+      "needId": "N16",
+      "need": "Assign submissions to reviewers manually or automatically, with conflict-of-interest exclusions and optional blind review",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Manage reviewers",
+      "path": "/content/call-for-speakers-abstracts/reviewers",
+      "reachable": true,
+      "note": "Manual and by-track assignment, conflict-of-interest exclusions and blind review all work."
+    },
+    {
+      "needId": "N17",
+      "need": "Collect reviewer scores and comments against configurable criteria and see aggregate rankings per track",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Reviewer scoring",
+      "path": "/content/call-for-speakers-abstracts/reviewers",
+      "reachable": true,
+      "note": "Criteria, scores, comments and a ranking by track all work, with the spread of scores and who has not finished. Reviewers reach it by a private link sent by hand until the event has its own sending address."
+    },
+    {
+      "needId": "N18",
+      "need": "Record accept, reject, and waitlist decisions and send decision emails in bulk from templates",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Accept or reject submissions",
+      "path": "/content/call-for-speakers-abstracts/submissions",
+      "reachable": true,
+      "note": "Accept and reject save, one submission at a time. No waitlist decision. Email only reaches the account owner until the event has its own sending address."
+    },
+    {
+      "needId": "N19",
+      "need": "Convert accepted submissions into agenda sessions and speaker profiles without retyping",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "Turn accepted submissions into sessions",
+      "path": "/content/agenda-center/session-manager/from-accepted",
+      "reachable": true,
+      "note": "Reached from Session Manager, not from the call screen. List is empty until submissions are accepted."
+    },
+    {
+      "needId": "N20",
+      "need": "Create multiple ticket types with price, quantity cap, sale window, and description (early bird, regular, student, workshop, virtual)",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "1.1 Create Tickets",
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "reachable": true,
+      "note": "Tickets save and show on the website. Nobody can buy until a payment account is connected."
+    },
+    {
+      "needId": "N21",
+      "need": "Accept card payments through a connected payment processor with payouts to the organizer's bank account",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Payout, Billing Information",
+      "path": "/tickets/payout",
+      "reachable": true,
+      "note": "Waiting on a payment account. Checkout refuses every order and payouts show a dash."
+    },
+    {
+      "needId": "N22",
+      "need": "Create discount codes with percent or fixed amount, usage limits, expiry, and restriction to specific ticket types",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Discount Codes",
+      "path": "/tickets/ticket-setup/discount-codes",
+      "reachable": true,
+      "note": "Waiting on a payment account. The form is hidden. A code cannot be limited to a ticket type."
+    },
+    {
+      "needId": "N23",
+      "need": "Issue complimentary tickets and hidden or access-code tickets for speakers, sponsors, staff, and press",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Hide a ticket, Add an attendee, Sponsor passes",
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "reachable": true,
+      "note": "Hidden tickets work by private link. A free attendee can be added by hand under Attendees. Sponsor passes and access codes both wait on a payment account."
+    },
+    {
+      "needId": "N24",
+      "need": "Issue full and partial refunds and cancel orders from the dashboard, with the capacity released back to inventory",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Refund an order",
+      "path": "/tickets/orders-and-transactions/attendee-orders",
+      "reachable": true,
+      "note": "Waiting on a payment account. Full refunds only, even once one is connected. A cancelled registration does give its seat back."
+    },
+    {
+      "needId": "N25",
+      "need": "Generate invoices and receipts automatically with company name, billing address, and tax or VAT number, and allow reissue after edits",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Invoice a company (public site /tickets/invoice)",
+      "path": "/tickets/orders-and-transactions/attendee-orders",
+      "reachable": true,
+      "note": "Waiting on a payment account. Invoices carry company name and billing email. VAT number is a free-text note. No reissue from the dashboard."
+    },
+    {
+      "needId": "N26",
+      "need": "Support pay-by-invoice or bank transfer orders that can be marked paid manually",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Mark an invoice paid, 2.6 Offline Payment",
+      "path": "/tickets/exhibitor-ticket-setup/2-6-offline-payment",
+      "reachable": true,
+      "note": "Offline Payment works but lists exhibitor packages only and sits under Exhibitor Ticket Setup. Mark paid needs an invoice from the payment account."
+    },
+    {
+      "needId": "N27",
+      "need": "Support group orders where one buyer purchases several tickets and assigns them to named attendees later",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "See group orders",
+      "path": "/tickets/ticket-setup/create-group-tickets",
+      "reachable": true,
+      "note": "View only. Group orders are placed on the website with attendees named at purchase, not later, and wait on a payment account."
+    },
+    {
+      "needId": "N28",
+      "need": "Configure tax rates and multiple currencies",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Sales tax",
+      "path": "/pay/publish",
+      "reachable": false,
+      "note": "Waiting on a payment account. Tax is set up there, not here. One currency. The menu label for this page is Pay > Publish, not Sales Tax."
+    },
+    {
+      "needId": "N29",
+      "need": "Transfer a ticket to another person and upgrade or change ticket type after purchase",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "Transfer a ticket, change ticket type",
+      "path": "/attendees/manage-attendees/attendees",
+      "reachable": true,
+      "note": "A ticket transfers to a named person with a fresh badge code, and a ticket type can be changed after purchase. The new holder is not emailed until the event has its own sending address."
+    },
+    {
+      "needId": "N30",
+      "need": "Sell add-ons such as workshops, dinners, and merchandise at checkout",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "Ticket Add-ons (view-only)",
+      "path": "/tickets/ticket-setup/ticket-add-ons",
+      "reachable": true,
+      "note": "The page only lists which tickets include workshops and video. Add-ons cannot be created or sold."
+    },
+    {
+      "needId": "N31",
+      "need": "Build the registration form with custom questions (text, dropdown, checkbox, consent) and mark fields required",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "1.2 Question Forms",
+      "path": "/tickets/ticket-setup/1-2-question-forms",
+      "reachable": true,
+      "note": "Text, choice, multi-choice and consent questions with a required flag all save and show at checkout. No answers can arrive until checkout works."
+    },
+    {
+      "needId": "N32",
+      "need": "Show different questions depending on ticket type or a previous answer",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "1.2 Question Forms",
+      "path": "/tickets/ticket-setup/1-2-question-forms",
+      "reachable": true,
+      "note": "A question can be limited to ticket types and shown only when an earlier answer matches. The same holds on the exhibitor and sponsor forms."
+    },
+    {
+      "needId": "N33",
+      "need": "Capture terms acceptance, code of conduct agreement, and photo and data consent with a timestamp",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Release & Consent Forms, consent question",
+      "path": "/attendees/release-and-consent-forms",
+      "reachable": true,
+      "note": "Versioned forms record who signed and when, a required form blocks check-in and app access, and the signing link goes out by email once the event has its own sending address. No form exists on the live event."
+    },
+    {
+      "needId": "N34",
+      "need": "Send an automatic confirmation email with ticket, QR code, and calendar file",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "1.3 Confirmation Emails",
+      "path": "/tickets/ticket-setup/1-3-confirmation-emails",
+      "reachable": true,
+      "note": "Log only. The template cannot be edited and nothing can be resent. Email only reaches the account owner until the event has its own sending address."
+    },
+    {
+      "needId": "N35",
+      "need": "Collect dietary, accessibility, and visa invitation letter requests, and produce visa letters",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "1.2 Question Forms",
+      "path": "/tickets/ticket-setup/1-2-question-forms",
+      "reachable": true,
+      "note": "Dietary and access needs can be asked as questions and the catering CSV exports them. No visa letters."
+    },
+    {
+      "needId": "N36",
+      "need": "Create sponsor tiers and sponsor profiles with logo, description, links, and contacts, displayed by tier on the website and app",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Sponsor Manager, Sponsor Tiering",
+      "path": "/content/sponsor-center/sponsor-manager",
+      "reachable": true,
+      "note": "Sponsor profiles show by tier on the website, and tier names, their order and the logo size are all editable. A tier carries nothing else: complimentary passes are set per sponsorship ticket."
+    },
+    {
+      "needId": "N37",
+      "need": "Manage exhibitor profiles with booth number, materials, and staff, plus a floor plan or booth map",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Exhibitor Manager, 2.3 Booth Selection",
+      "path": "/content/exhibitor-center/exhibitor-manager",
+      "reachable": true,
+      "note": "Saves in the dashboard. The app keeps the old exhibitor list because the refresh job is not switched on. No floor plan image. Booth allocation is under Tickets, away from the exhibitor list."
+    },
+    {
+      "needId": "N38",
+      "need": "Give sponsors and exhibitors a self-service portal to edit their own profile and manage their staff passes",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "No sponsor or exhibitor login. Speakers do have one."
+    },
+    {
+      "needId": "N39",
+      "need": "Provide lead retrieval so exhibitors can scan attendee badges and export their leads",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "No badge scanning for exhibitors and no lead export."
+    },
+    {
+      "needId": "N40",
+      "need": "Offer sponsored placements such as banners, sponsored sessions, and sponsored push notifications, with impression and click reports",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "Advanced Banners (view-only)",
+      "path": "/content/sponsor-center/advanced-banners",
+      "reachable": true,
+      "note": "The app has no banner slot. The page is a calculation."
+    },
+    {
+      "needId": "N41",
+      "need": "Track sponsor deliverables and allotted complimentary tickets per sponsor",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Sponsor Tickets, Projects & Checklists",
+      "path": "/tickets/sponsor-ticket-setup/sponsor-tickets",
+      "reachable": true,
+      "note": "Free passes per package save. Issuing a pass waits on a payment account. There is now a report per sponsor of their tracked links, clicks and orders. Deliverables are still tracked as checklist tasks."
+    },
+    {
+      "needId": "N42",
+      "need": "Send email campaigns to filtered segments (ticket type, registration status, speakers, sponsors) with merge fields",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Email Campaign, Campaign Contact List",
+      "path": "/tickets/ticket-marketing/email-campaign",
+      "reachable": true,
+      "note": "Email only reaches the account owner until the event has its own sending address. Sends to imported contact lists, not attendee segments. Plain text, no merge fields. Filed under Tickets, not Marketing."
+    },
+    {
+      "needId": "N43",
+      "need": "Schedule emails in advance and save reusable templates",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "No scheduled send and no saved templates."
+    },
+    {
+      "needId": "N44",
+      "need": "See delivery, open, click, bounce, and unsubscribe statistics per campaign",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Email Campaign, Transaction History",
+      "path": "/tickets/ticket-marketing/email-campaign",
+      "reachable": true,
+      "note": "Sent, failed, bounced and unsubscribed are tracked. No opens or clicks."
+    },
+    {
+      "needId": "N45",
+      "need": "Send from a verified organizer domain with a custom sender name and reply-to address",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "The event has no sending address of its own yet, and there is no screen for the sender name or the reply-to address."
+    },
+    {
+      "needId": "N46",
+      "need": "Generate tracking links or referral codes to measure which channels and partners drive registrations",
+      "priority": "nice",
+      "verdict": "partial",
+      "feature": "Campaign Link Tracking, Referral Contest",
+      "path": "/tickets/ticket-marketing/campaign-link-tracking",
+      "reachable": true,
+      "note": "Links save and clicks count. Orders stay at 0 until checkout works."
+    },
+    {
+      "needId": "N47",
+      "need": "Send automated reminders to abandoned checkouts and to invited people who have not registered",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "1.6 Abandoned Registration (view-only)",
+      "path": "/tickets/ticket-setup/1-6-abandoned-registration",
+      "reachable": true,
+      "note": "Lists abandoned checkouts. No reminder can be sent."
+    },
+    {
+      "needId": "N48",
+      "need": "Search, filter, and view the full attendee list with ticket type, payment status, form answers, and check-in status",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Attendees",
+      "path": "/attendees/manage-attendees/attendees",
+      "reachable": true,
+      "note": "Rows show name, company, title and ticket. Search still matches the email address only."
+    },
+    {
+      "needId": "N49",
+      "need": "Add, edit, and cancel attendees manually and import attendees in bulk by spreadsheet",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Add an attendee, Import attendees from CSV",
+      "path": "/attendees/manage-attendees/attendees",
+      "reachable": true,
+      "note": "Add, edit, cancel and import all work, and every change is in the audit log. Nobody added by hand is emailed a claim code until the event has its own sending address."
+    },
+    {
+      "needId": "N50",
+      "need": "Assign attendee categories or tags (speaker, sponsor, staff, press, VIP) that control access and badge design",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Categories",
+      "path": "/attendees/categories",
+      "reachable": true,
+      "note": "Up to twenty categories with a colour, assigned by hand or by a rule on a ticket type, and shown on the list, the badge and the exports. A category set by hand is never overwritten by a rule."
+    },
+    {
+      "needId": "N51",
+      "need": "Check attendees in by QR scan or name search from a phone or tablet, with multiple devices syncing in real time",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Check-in",
+      "path": "/attendees/check-in-and-checkout/check-in",
+      "reachable": true,
+      "note": "Camera scanning needs Chrome or Edge. The screen now fits a phone."
+    },
+    {
+      "needId": "N52",
+      "need": "Keep check-in working during poor or lost connectivity and sync when back online",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "Check-in writes go through the server. No offline mode."
+    },
+    {
+      "needId": "N53",
+      "need": "Design badges with name, company, category, and QR code, and export print-ready files for bulk pre-print",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Name Badges",
+      "path": "/attendees/name-badges",
+      "reachable": true,
+      "note": "Prints name, company, title, ticket, category and QR, 25 to a sheet from the browser. No designer and no print file export."
+    },
+    {
+      "needId": "N54",
+      "need": "Print badges on demand at the desk for walk-ins and reprints",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Name Badges",
+      "path": "/attendees/name-badges",
+      "reachable": true,
+      "note": "Reprints come from the same sheet printer. Nothing prints on check-in."
+    },
+    {
+      "needId": "N55",
+      "need": "Register and take payment from walk-in attendees on-site",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Add an attendee",
+      "path": "/attendees/manage-attendees/attendees",
+      "reachable": true,
+      "note": "A walk-in can be added and checked in. No card payment at the desk."
+    },
+    {
+      "needId": "N56",
+      "need": "Scan attendance per session to enforce workshop access and record session headcounts",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "Check in for a day or a session, Session Self Check-in",
+      "path": "/attendees/check-in-and-checkout/session-self-check-in",
+      "reachable": true,
+      "note": "Counts heads per session. The door does not refuse somebody without the right ticket, though signing up in the app does. The label says Self Check-in but staff do the scanning."
+    },
+    {
+      "needId": "N57",
+      "need": "Offer a self-service check-in kiosk mode",
+      "priority": "nice",
+      "verdict": "partial",
+      "feature": "Kiosk Check-in",
+      "path": "/attendees/check-in-and-checkout/kiosk-check-in",
+      "reachable": true,
+      "note": "Scanning works. The tablet stays signed in as an organizer and no badge prints."
+    },
+    {
+      "needId": "N58",
+      "need": "Give attendees a mobile app and web app with the agenda, speakers, sponsors, maps, and a personal schedule",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Attendee app",
+      "path": "/tools/app-adoption/app-download-button",
+      "reachable": true,
+      "note": "The app has agenda, people, sponsors, my schedule, documents and badge. It is not in the app stores, and the download button points to the tickets page."
+    },
+    {
+      "needId": "N59",
+      "need": "Add custom content pages and documents: venue maps, floor plans, Wi-Fi, travel, FAQ, code of conduct",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Custom pages, Documents",
+      "path": "/content/branding-center/customize-resources",
+      "reachable": true,
+      "note": "Pages with headings, lists and links are written from the dashboard and show on the website and in the app. Waiting on the new access settings being published to the live event. Still no file upload and no map."
+    },
+    {
+      "needId": "N60",
+      "need": "Control which app sections and menu items are shown and in what order",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "Customize Resources (view-only)",
+      "path": "/content/branding-center/customize-resources",
+      "reachable": true,
+      "note": "App tabs are fixed. Custom pages appear in the app home section but cannot be reordered or hidden."
+    },
+    {
+      "needId": "N61",
+      "need": "Limit app access to registered attendees, with login by registration email",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "App sign-in by email code",
+      "path": "/tools/admin-control/code-access-control",
+      "reachable": true,
+      "note": "Ticket holders sign in with a code sent to their email. A join code can be asked for at sign-in once the new access settings are published to the live event. Each new attendee still needs a hand-run step before the app shows anything."
+    },
+    {
+      "needId": "N62",
+      "need": "Send push and in-app announcements to everyone or to a segment, immediately or scheduled",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Announcements",
+      "path": "/engagement/announcements",
+      "reachable": true,
+      "note": "Posts to the app home screen and the public wall for everyone. Push is skipped on the live host. No segment, no schedule, no draft."
+    },
+    {
+      "needId": "N63",
+      "need": "Allow attendee-to-attendee direct messaging and group chat, with the ability to turn it off",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "App direct messages, Admin Settings switches",
+      "path": "/attendees/admin-settings",
+      "reachable": true,
+      "note": "The app has one-to-one messages. No group chat. The off switch takes effect once the new access settings are published to the live event."
+    },
+    {
+      "needId": "N64",
+      "need": "Moderate community content: review reports, remove posts and messages, and block or ban users",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Moderator Tools > Community Board",
+      "path": "/tools/moderator-tools/community-board",
+      "reachable": true,
+      "note": "Posts and replies can be hidden or deleted, and a hidden reply stops showing in the app once the new access settings are published. Replies written before that change do not show at all until they are brought up to date. No report queue, no ban, and direct messages cannot be moderated."
+    },
+    {
+      "needId": "N65",
+      "need": "Run a community board with topics such as meetups, job postings, ride sharing, and lost and found",
+      "priority": "nice",
+      "verdict": "have",
+      "feature": "App community board, Community screens",
+      "path": "/engagement/community/meet-ups",
+      "reachable": true,
+      "note": "Attendees post meet-ups, jobs, travel and lost and found in the app. Organizers can read and moderate but not post."
+    },
+    {
+      "needId": "N66",
+      "need": "Run live polls in sessions and display results on the room screen",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Live Polling",
+      "path": "/engagement/live-polling",
+      "reachable": true,
+      "note": "Create, open and close work, and a room screen counts votes as they arrive. In the app attendees still see the result only after Publish the count."
+    },
+    {
+      "needId": "N67",
+      "need": "Run session Q and A with upvoting and moderator approval before questions appear",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Session Q&A Manager",
+      "path": "/content/agenda-center/session-qanda-manager",
+      "reachable": true,
+      "note": "Approve, hide and mark answered work. Vote counts do not update. The manager is under Content while its backlog is under Tools."
+    },
+    {
+      "needId": "N68",
+      "need": "Send session feedback ratings and an overall event survey, and see and export the responses",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Session Feedback, Surveys",
+      "path": "/engagement/session-feedback",
+      "reachable": true,
+      "note": "Session feedback is live with responses, and every answer downloads as a spreadsheet, one row per answer. Registration answers download one row per person."
+    },
+    {
+      "needId": "N69",
+      "need": "Offer an attendee directory with profiles, interests, and search, with privacy opt-out per attendee",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "App People tab with profile visibility toggle",
+      "path": "/attendees/admin-settings",
+      "reachable": true,
+      "note": "Each attendee can hide themselves from the directory in the app. The dashboard switches for the directory still do nothing."
+    },
+    {
+      "needId": "N70",
+      "need": "Let attendees book one-to-one meetings with each other and with exhibitors, with time slots and locations",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "1-1 Meeting Scheduler",
+      "path": "/engagement/1-1-meeting-scheduler",
+      "reachable": true,
+      "note": "Only the organizer books room slots. Attendees cannot request a meeting and nothing shows in the app."
+    },
+    {
+      "needId": "N71",
+      "need": "Recommend people to meet based on interests or shared sessions",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "Attendee Matchmaking (report only)",
+      "path": "/engagement/community/attendee-matchmaking",
+      "reachable": true,
+      "note": "Shows shared interests to the organizer. Nothing is suggested to attendees."
+    },
+    {
+      "needId": "N72",
+      "need": "Run gamification with points, a leaderboard, and challenges such as a booth passport contest",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "Gamification (empty)",
+      "path": "/engagement/gamification",
+      "reachable": true,
+      "note": "Not built. Passport Contest is counts only."
+    },
+    {
+      "needId": "N73",
+      "need": "Provide a shared photo gallery with organizer moderation",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "Photo Collection (counts only)",
+      "path": "/engagement/photos/photo-collection",
+      "reachable": true,
+      "note": "Attendees cannot upload photos."
+    },
+    {
+      "needId": "N74",
+      "need": "Attach a live stream to each session from an external provider (Zoom, YouTube, Vimeo, RTMP) and play it inside the platform",
+      "priority": "must",
+      "verdict": "missing",
+      "feature": "Streaming Setup (empty)",
+      "path": "/virtual-and-hybrid/online-session-manager/streaming-setup",
+      "reachable": true,
+      "note": "Sessions have no stream field and the app has no player."
+    },
+    {
+      "needId": "N75",
+      "need": "Gate streams and recordings so only holders of the right ticket type can watch",
+      "priority": "must",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "No streams or recordings exist to gate. Documents can be limited by ticket type."
+    },
+    {
+      "needId": "N76",
+      "need": "Publish session recordings for on-demand viewing after the session, with an access expiry date",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "Video Hosting (view-only)",
+      "path": "/content/documents-and-videos/video-hosting",
+      "reachable": true,
+      "note": "No video hosting. Two ticket tiers advertise a video library that nothing serves."
+    },
+    {
+      "needId": "N77",
+      "need": "Give remote attendees the same chat, Q and A, and polls as in-room attendees",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "No remote audience. App Q&A and polls work for anyone signed in, but there is no stream to watch."
+    },
+    {
+      "needId": "N78",
+      "need": "Offer virtual sponsor booths with video, downloads, and live chat",
+      "priority": "nice",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "Not built."
+    },
+    {
+      "needId": "N79",
+      "need": "Report virtual attendance: viewers per session and watch time",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "",
+      "path": "",
+      "reachable": false,
+      "note": "No streams, so nothing to count."
+    },
+    {
+      "needId": "N80",
+      "need": "See a live dashboard of check-in counts, by ticket type and by hour, during the event",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "Check-in door dashboard",
+      "path": "/attendees/check-in-and-checkout/check-in",
+      "reachable": true,
+      "note": "A door screen shows how many people are in, split by ticket type and by hour, updating as the desk scans."
+    },
+    {
+      "needId": "N81",
+      "need": "Create staff and volunteer accounts limited to check-in only",
+      "priority": "should",
+      "verdict": "have",
+      "feature": "Admin Settings, check-in only role",
+      "path": "/attendees/admin-settings",
+      "reachable": true,
+      "note": "A team member can be given the check-in only role, which opens the door and nothing else, so a volunteer cannot download the attendee list. The invitation link is sent by hand until the event has its own sending address."
+    },
+    {
+      "needId": "N82",
+      "need": "Display digital signage for rooms showing current and next session",
+      "priority": "nice",
+      "verdict": "have",
+      "feature": "Room sign",
+      "path": "/content/logistics-center",
+      "reachable": true,
+      "note": "A screen per room shows what is on now and next, refreshes itself, and says when it last managed to."
+    },
+    {
+      "needId": "N83",
+      "need": "Send an emergency broadcast by push and email to all attendees on-site",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Emergency Manager, Announcements",
+      "path": "/virtual-and-hybrid/logistics-management/emergency-manager",
+      "reachable": false,
+      "note": "The plan shows in the app once marked ready. An announcement reaches the app home screen only. No push, no email. Filed under Virtual & Hybrid, where nobody would look during an incident."
+    },
+    {
+      "needId": "N84",
+      "need": "Export attendees, orders, payments, refunds, and form answers to CSV or Excel at any time",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Analytics & Exports, Attendee Orders export",
+      "path": "/attendees/manage-attendees/analytics-and-exports",
+      "reachable": true,
+      "note": "Nine files download and the attendee and catering files are correct. Survey answers, session feedback and registration answers download as well."
+    },
+    {
+      "needId": "N85",
+      "need": "View sales reports: revenue by ticket type, by day, by discount code, net of fees and refunds, reconcilable with processor payouts",
+      "priority": "must",
+      "verdict": "partial",
+      "feature": "Orders and Transactions > Summary, Pay > Balance",
+      "path": "/tickets/orders-and-transactions/summary",
+      "reachable": true,
+      "note": "Revenue by ticket type and day, refunds and a fee estimate. No split by discount code. Totals come from this event’s own orders and read $0 today."
+    },
+    {
+      "needId": "N86",
+      "need": "View engagement reports: app adoption, session attendance, poll and survey results, messages, meetings, sponsor views and leads",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Analytics & Exports, Attendee Activity",
+      "path": "/attendees/manage-attendees/analytics-and-exports",
+      "reachable": true,
+      "note": "App adoption, session attendance and survey results exist, ticket and company breakdowns read real numbers, and there is a report per sponsor of tracked links, clicks and orders. Sponsor profile views are not recorded anywhere."
+    },
+    {
+      "needId": "N87",
+      "need": "Send post-event thank-you and survey emails, and issue certificates of attendance",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Certificates, Email Campaign, Surveys",
+      "path": "/attendees/certificates",
+      "reachable": true,
+      "note": "Certificates print from the browser only and are not emailed. Email only reaches the account owner until the event has its own sending address."
+    },
+    {
+      "needId": "N88",
+      "need": "Keep the app and content available after the event, and produce per-sponsor ROI reports",
+      "priority": "should",
+      "verdict": "partial",
+      "feature": "Post Event Access Duration",
+      "path": "/tools/admin-control/post-event-access-duration",
+      "reachable": true,
+      "note": "The window that closes the app works once the new access settings are published to the live event, and one save afterwards is what starts it. There is now a report per sponsor."
+    },
+    {
+      "needId": "N89",
+      "need": "Invite team members with roles that limit access by area (finance, agenda, sponsors, check-in, review), with an audit log of changes",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Admin Settings",
+      "path": "/attendees/admin-settings",
+      "reachable": false,
+      "note": "Team members are invited by email with roles for finance, agenda, sponsors, check-in and review, and every change is written to the audit log. The list sits under Attendees, where an organizer would not look for it."
+    },
+    {
+      "needId": "N90",
+      "need": "Connect to outside tools: CRM, email marketing, Zapier or webhooks, a public API, single sign-on, and an embeddable agenda and ticket widget",
+      "priority": "should",
+      "verdict": "missing",
+      "feature": "Connection guides (text only)",
+      "path": "/attendees/integrations/mailchimp",
+      "reachable": true,
+      "note": "Every integration page is a manual CSV guide. No API, webhooks, SSO or embeddable widget."
+    },
+    {
+      "needId": "N91",
+      "need": "Meet data protection requirements: GDPR consent records, data export and deletion on request, and a published privacy policy",
+      "priority": "must",
+      "verdict": "have",
+      "feature": "Person data export and delete, Release & Consent Forms",
+      "path": "/attendees/manage-attendees/attendees",
+      "reachable": true,
+      "note": "Consent records, a privacy notice on the website, and a download and a delete of everything held about one person, with a plain list of what has to stay."
+    }
+  ]
 }

@@ -1,490 +1,393 @@
 {
- "features": [
-  {
-   "area": "Tools",
-   "feature": "App adoption email",
-   "path": "/tools/app-adoption/app-adoption-email",
-   "what": "See how many ticket holders have signed in to the app and copy a ready-made email telling the rest to install it.",
-   "steps": [
-    "Open Tools > App Adoption > App Adoption Email.",
-    "Read the adoption figures at the top.",
-    "Click the Subject box to select it and copy.",
-    "Click the Body box to select it and copy.",
-    "Paste both into your own mail tool and send."
-   ],
-   "status": "partial",
-   "statusNote": "Figures are live and the text copies. The dashboard does not send the email and gives no list of people without the app. \"Signed in\" counts app profiles, and the seeded data shows 100%.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/app-adoption-email/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/snippet.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "App download button",
-   "path": "/tools/app-adoption/app-download-button",
-   "what": "Copy a \"Get the KGC 2027 app\" button as HTML, Markdown, plain text or a QR code for your own website, emails and slides.",
-   "steps": [
-    "Open Tools > App Adoption > App Download Button.",
-    "Pick the HTML, Markdown, Plain text or QR block.",
-    "Click the block to select it and copy.",
-    "Paste it where you need it."
-   ],
-   "status": "partial",
-   "statusNote": "Copy only. The link goes to the website tickets page because the app is not in the app stores yet.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/app-download-button/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/snippet.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Social media posts",
-   "path": "/tools/app-adoption/social-media",
-   "what": "Copy four pre-written posts that promote the app: launch, a week out, day one, and one for speakers.",
-   "steps": [
-    "Open Tools > App Adoption > Social Media.",
-    "Click a post to select it and copy.",
-    "Paste it into your social account."
-   ],
-   "status": "partial",
-   "statusNote": "Copy only. Nothing posts or schedules from the dashboard.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/social-media/page.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Web links to share",
-   "path": "/tools/app-adoption/web-app-link",
-   "what": "Get the public agenda, speakers and tickets links, plus an agenda QR code for a sign or slide.",
-   "steps": [
-    "Open Tools > App Adoption > Web App Link.",
-    "Click a link to open it, or copy the agenda text block.",
-    "Right-click the QR code to save it."
-   ],
-   "status": "view-only",
-   "statusNote": "A list of public website links. There is no browser version of the attendee app to link to.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/web-app-link/page.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Registration desk sign",
-   "path": "/tools/app-adoption/downloadable-graphics",
-   "what": "Print an A5 \"Get the conference app\" sign with a QR code, or copy the QR as SVG.",
-   "steps": [
-    "Open Tools > App Adoption > Downloadable Graphics.",
-    "Press Cmd+P and print at A5, 100%, backgrounds off.",
-    "For the QR alone, click the SVG block, copy, and paste into a .svg file."
-   ],
-   "status": "partial",
-   "statusNote": "No download or print button. You print the whole browser page and copy SVG code by hand.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/downloadable-graphics/page.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Moderate the community board",
-   "path": "/tools/moderator-tools/community-board",
-   "what": "Hide, restore or permanently delete attendee posts and replies on the app community board.",
-   "steps": [
-    "Open Tools > Moderator Tools > Community Board.",
-    "Find the post or reply and click Hide.",
-    "To bring it back, open the Hidden tab and click Restore.",
-    "To remove it for good, hide it first, click Delete, type \"delete\" and click Delete permanently.",
-    "For a reply, always finish with Delete. Hide alone leaves it visible in the app."
-   ],
-   "status": "partial",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/community-board/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/community-board/actions.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/lib/data/community.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/community/[id].tsx"
-   ],
-   "statusNote": "Hiding a post removes it from the app board. Hiding a reply does not: the app loads replies without checking status, so a hidden reply still shows. Delete the reply to remove it."
-  },
-  {
-   "area": "Tools",
-   "feature": "Session Q&A backlog",
-   "path": "/tools/moderator-tools/moderate-session-qanda",
-   "what": "See which sessions have questions waiting for a moderator and jump to the queue.",
-   "steps": [
-    "Open Tools > Moderator Tools > Moderate Session Q&A.",
-    "Check the Waiting count.",
-    "Click a session in the backlog, or click Open Session Q&A Manager.",
-    "Hide or mark questions answered there."
-   ],
-   "status": "view-only",
-   "statusNote": "Counts and links only. The hide and answered buttons are in Engagement > Session Q&A Manager.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/moderate-session-qanda/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/moderation.ts"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Moderate photos",
-   "path": "/tools/moderator-tools/photos",
-   "what": "Review photos attendees post in the app.",
-   "steps": [
-    "Open Tools > Moderator Tools > Photos."
-   ],
-   "status": "blocked",
-   "statusNote": "The attendee app has no photo posting, so the page is always empty.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/photos/page.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Moderate session chats",
-   "path": "/tools/moderator-tools/session-chats",
-   "what": "Review live chat messages posted in sessions.",
-   "steps": [
-    "Open Tools > Moderator Tools > Session Chats."
-   ],
-   "status": "blocked",
-   "statusNote": "Sessions have no chat in the app, so the page is always empty. Direct messages cannot be moderated either.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/session-chats/page.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Post-event app access",
-   "path": "/tools/admin-control/post-event-access-duration",
-   "what": "Set how many days attendees keep app access after the event, and whether it becomes read-only.",
-   "steps": [
-    "Open Tools > Admin Control > Post Event Access Duration.",
-    "Enter Days of access after the event.",
-    "Tick Read-only afterwards if wanted.",
-    "Click Save."
-   ],
-   "status": "blocked",
-   "statusNote": "The value saves, but the app and firestore.rules never read it. Access never ends and never goes read-only.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/actions.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/post-event-access-duration/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/firestore.rules"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Event join code",
-   "path": "/tools/admin-control/code-access-control",
-   "what": "Set a shared event code and require it to join the event in the app.",
-   "steps": [
-    "Open Tools > Admin Control > Code Access Control.",
-    "Enter a code of 4 to 32 letters, digits or hyphens.",
-    "Tick Require the code to join the event.",
-    "Click Save."
-   ],
-   "status": "blocked",
-   "statusNote": "The code saves, but the app never asks for it. New attendees still need scripts/set-claims.ts run by hand before they can read anything in the app.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/actions.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/code-access-control/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/access-form.tsx"
-   ]
-  },
-  {
-   "area": "Tools",
-   "feature": "Event report",
-   "path": "/tools/report",
-   "what": "One page with registrations, app sign-ins, door check-ins, revenue, today's sessions, the audit trail of dashboard changes and recent errors.",
-   "steps": [
-    "Click Report in the event header, or open Tools > Report.",
-    "Scroll to Door throughput, Money taken, Sessions today, Audit trail or Recent errors."
-   ],
-   "status": "view-only",
-   "statusNote": "Read only. No export or print button. The error list resets whenever the server restarts.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/report/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/commerce.ts"
-   ]
-  },
-  {
-   "area": "Pay",
-   "feature": "Balance",
-   "path": "/pay/balance",
-   "what": "See gross sales, refunds, unpaid invoices and an estimate of what reaches the bank after Stripe fees.",
-   "steps": [
-    "Open Pay > Balance.",
-    "Read the tiles and the From sold to banked table.",
-    "Click Stripe balance to see the real figure in Stripe."
-   ],
-   "status": "view-only",
-   "statusNote": "Read only. Totals come from KGC orders, not Stripe, and leave out test orders. No Stripe key is set, so nothing has been charged and every figure is $0.00.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/balance/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/commerce.ts",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/stripe.ts"
-   ]
-  },
-  {
-   "area": "Pay",
-   "feature": "Order details",
-   "path": "/pay/order-details",
-   "what": "Search and filter every ticket order, and export the list as CSV.",
-   "steps": [
-    "Open Pay > Order Details. It redirects to Tickets > Orders & Transactions > Attendee Orders.",
-    "Type a name or email and click Search, or click a status filter.",
-    "Click Export CSV to download the list."
-   ],
-   "status": "partial",
-   "statusNote": "Listing, search and CSV work. Refunds are disabled because no Stripe key is set.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/order-details/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/stripe.ts"
-   ]
-  },
-  {
-   "area": "Pay",
-   "feature": "Billing information",
-   "path": "/pay/billing-information",
-   "what": "Jump to the Stripe pages for the payout bank account, business details, tax registration, invoice branding and API keys.",
-   "steps": [
-    "Open Pay > Billing Information.",
-    "Click Open next to the setting you need.",
-    "Sign in to Stripe and change it there."
-   ],
-   "status": "blocked",
-   "statusNote": "Links only, and there is no Stripe account connected yet (STRIPE_SECRET_KEY is unset), so the links open the generic test dashboard.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/billing-information/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/stripe.ts"
-   ]
-  },
-  {
-   "area": "Pay",
-   "feature": "Sales tax",
-   "path": "/pay/publish",
-   "what": "See tax collected against gross sales and which parts of sales tax setup are still to do in Stripe.",
-   "steps": [
-    "Open Pay > Publish. This is the sales tax page.",
-    "Read the tiles and the setup table.",
-    "Click Stripe Tax settings to set the event location and registration in Stripe."
-   ],
-   "status": "blocked",
-   "statusNote": "No Stripe key is set, so no tax is collected. Event location and registration must be done in Stripe.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/publish/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/nav.ts"
-   ]
-  },
-  {
-   "area": "Publish",
-   "feature": "Launch checklist",
-   "path": "/publish",
-   "what": "Check nine things before going public: tickets on sale, payments, a completed purchase, agenda clashes, draft sessions, speaker details, sponsor details and website copy.",
-   "steps": [
-    "Open Publish.",
-    "Read the Blocking and Worth fixing counts.",
-    "Click Fix on a row to open the screen that fixes it.",
-    "Reload Publish until Blocking shows 0.",
-    "Click View the live site to check the result."
-   ],
-   "status": "view-only",
-   "statusNote": "A checklist, not a switch. The site is already live and the Draft badges in the header never change. Now 2 blocking (no Stripe key, 1 agenda clash), 5 worth fixing, 2 of 9 passing.",
-   "evidence": [
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/publish/page.tsx",
-    "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/layout.tsx"
-   ]
-  }
- ],
- "uiIssues": [
-  {
-   "path": "/tools/*, /pay/*",
-   "width": 390,
-   "severity": "high",
-   "type": "overflow",
-   "issue": "On a phone the 200px sidebar stays beside the page, so every screen in Tools and Pay gets a 168px content column with text wrapping one or two words per line (all 16 leaf pages).",
-   "fix": "Add a max-width 768px rule that stacks .frame-wrapper into one column and collapses the sidebar behind a menu button.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_app_adoption_email-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/globals.css"
-  },
-  {
-   "path": "/tools/*, /pay/*, /publish",
-   "width": 390,
-   "severity": "high",
-   "type": "overflow",
-   "issue": "The event masthead breaks on a phone: the date and venue wrap one word per line down the left edge and the Registrations and Agenda cards run off the right side to 488px.",
-   "fix": "Below 768px stack .buttons-cards vertically and let .cards wrap to full width.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_app_adoption_email-390.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/layout.tsx"
-  },
-  {
-   "path": "/tools/app-adoption/app-download-button",
-   "width": 390,
-   "severity": "high",
-   "type": "excess-text",
-   "issue": "The \"QR as SVG\" block prints the whole SVG path as wrapped text, making the page 15,466px tall on a phone (also on /tools/app-adoption/downloadable-graphics, where it runs off the right edge at 1280).",
-   "fix": "Replace the raw SVG text with a Download SVG button and a Copy button, or cap the block at a few lines with overflow hidden.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_app_download_button-390-p2.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/snippet.tsx"
-  },
-  {
-   "path": "/tools/app-adoption/web-app-link",
-   "width": 390,
-   "severity": "high",
-   "type": "clipped",
-   "issue": "Tables show only their first column on a phone with the rest cut off and no scroll cue (also /tools/moderator-tools/session-chats, /pay/balance, /pay/billing-information, /pay/publish, /pay/order-details). On /publish this hides the Fix links, so the checklist cannot be acted on.",
-   "fix": "Below 768px render table rows as stacked cards, or wrap tables in a visible horizontal scroller.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_web_app_link-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/tools/app-adoption/downloadable-graphics",
-   "width": 390,
-   "severity": "high",
-   "type": "clipped",
-   "issue": "The desk sign preview is wider than the column, so only a slice of \"Get the conference app\" shows and the QR is off screen; the page title is also cut at \"Downloadab\".",
-   "fix": "Scale the sign preview to the container width with max-width 100% and let the h1 wrap.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_downloadable_graphics-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/downloadable-graphics/page.tsx"
-  },
-  {
-   "path": "/tools/moderator-tools/community-board",
-   "width": 390,
-   "severity": "high",
-   "type": "clipped",
-   "issue": "Post titles are cut off (\"Tram f Manha around 08:00?\") and reply text wraps one word per line, with the Hide link squeezed against the author name.",
-   "fix": "Let the post header wrap onto two lines and move Hide under the text on narrow screens.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_community_board-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/community-board/page.tsx"
-  },
-  {
-   "path": "/pay/publish",
-   "width": 1280,
-   "severity": "medium",
-   "type": "other",
-   "issue": "The sales tax page is named \"Publish\" in the Pay menu and in its heading, the same name as the top-level Publish tab.",
-   "fix": "Rename the nav title and h1 to \"Sales Tax\".",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/pay_publish-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/nav.ts"
-  },
-  {
-   "path": "/tools/admin-control/code-access-control",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "Engineering notes are shown to the organizer: \"firestore.rules starts allowing reads\" and \"Step 3 is a manual run of scripts/set-claims.ts today\".",
-   "fix": "Delete the \"How somebody actually gets in\" panel or cut it to one plain sentence without file names.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_admin_control_code_access_control-1280-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/code-access-control/page.tsx"
-  },
-  {
-   "path": "/tools/report",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "The report shows developer text: \"PROJECT kgc-conference-app-and-website (LIVE)\", \"The Admin SDK bypasses firestore.rules entirely, which is the correct posture...\" and \"An in-process ring buffer: it empties on restart...\". Audit times are raw ISO strings in UTC.",
-   "fix": "Remove the three notes and format times as local date and time.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_report-1280-p1.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/report/page.tsx"
-  },
-  {
-   "path": "/pay/publish",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "Long tax explainer plus a table quoting code (\"txcd_20030000\", \"automatic_tax: { enabled: true }\", \"which is why turning it on early was safe\") (similar on /pay/billing-information: \"See SETUP-PAYMENTS.md §5\").",
-   "fix": "Cut to a three-row checklist with Done or To do and one Stripe link per row.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/pay_publish-1280-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/publish/page.tsx"
-  },
-  {
-   "path": "/tools/moderator-tools/session-chats",
-   "width": 1280,
-   "severity": "medium",
-   "type": "excess-text",
-   "issue": "An empty feature page explains internals: \"Thread membership comes from participantIds and the rules deny everyone else... a much larger decision than a screen\" (the Photos page is likewise an empty shell).",
-   "fix": "Hide Photos and Session Chats from the menu until the app has those features, or reduce each to one line.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_session_chats-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/session-chats/page.tsx"
-  },
-  {
-   "path": "/tools/app-adoption/app-adoption-email",
-   "width": 1280,
-   "severity": "medium",
-   "type": "ai-voice",
-   "issue": "Helper copy reads as written by a model: \"That is the cost this email exists to reduce\", \"the conference app is where your ticket actually lives\", \"The install sentence comes from one constant shared with the public site...\" (also \"a wrong number that looks entirely reasonable\" on /pay/publish).",
-   "fix": "Delete the helper notes and rewrite the email body in plain sentences.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_app_adoption_email-1280.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/app-adoption-email/page.tsx"
-  },
-  {
-   "path": "/tools/moderator-tools/photos",
-   "width": 1280,
-   "severity": "low",
-   "type": "empty-state",
-   "issue": "Empty states read \"Not inputted yet. No attendee photos has been entered for this event\" (also \"No scans has been entered\", \"No orders has been entered\" on /tools/report, and on session-chats and moderate-session-qanda).",
-   "fix": "Change the NotInputted copy to \"No {what} yet.\"",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_photos-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/tools/moderator-tools/photos",
-   "width": 390,
-   "severity": "low",
-   "type": "spacing",
-   "issue": "The empty-state button text \"Moderate the community board\" spills out of the grey box and overlaps its border (same on /tools/moderator-tools/session-chats).",
-   "fix": "Let the NotInputted box grow with its content and give the action link normal padding.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_photos-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/ui.tsx"
-  },
-  {
-   "path": "/publish",
-   "width": 1280,
-   "severity": "low",
-   "type": "other",
-   "issue": "The checklist says \"No order has ever been fulfilled\" and Balance shows 0 orders while Order Details lists 2 paid test purchases, with nothing explaining that test orders are excluded.",
-   "fix": "Add \"excluding test orders\" to the tile subtext and the checklist detail.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/publish-1280-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/commerce.ts"
-  },
-  {
-   "path": "/tools/moderator-tools/community-board",
-   "width": 1280,
-   "severity": "low",
-   "type": "other",
-   "issue": "The \"Powered by Netlify\" badge floats over the right column and covers a Hide link.",
-   "fix": "Remove the Netlify badge snippet from the dashboard site.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_community_board-1280-p0.png"
-  },
-  {
-   "path": "/tools/moderator-tools/community-board",
-   "width": 1280,
-   "severity": "low",
-   "type": "ai-voice",
-   "issue": "Seeded demo posts use em dashes, for example after \"Happy to coordinate\" in the tram post. 7 on the page.",
-   "fix": "Replace the em dashes in the seed data with commas or full stops.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_community_board-1280-p0.png"
-  },
-  {
-   "path": "/tools/*, /pay/*",
-   "width": 390,
-   "severity": "low",
-   "type": "tap-target",
-   "issue": "Sidebar links are 25 to 28px tall and the expand arrows are 23x11px.",
-   "fix": "Raise sidebar rows to 40px and give the arrow a 32px hit area on touch screens.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_app_adoption_email-390-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/globals.css"
-  },
-  {
-   "path": "/tools/moderator-tools/community-board",
-   "width": 1280,
-   "severity": "high",
-   "type": "other",
-   "issue": "The blue note says \"Hide takes a post out of the app immediately\", and replies get the same Hide link, but the app still shows hidden replies.",
-   "fix": "Filter replies on status == visible in useReplies in the app, the same way posts are filtered.",
-   "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_community_board-1280-p0.png",
-   "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/lib/data/community.ts"
-  }
- ],
- "verified": true
+  "features": [
+    {
+      "area": "Tools",
+      "feature": "App adoption email",
+      "path": "/tools/app-adoption/app-adoption-email",
+      "what": "See how many ticket holders have signed in to the app and copy a ready-made email telling the rest to install it.",
+      "steps": [
+        "Open Tools > App Adoption > App Adoption Email.",
+        "Read the adoption figures at the top.",
+        "Click the Subject box to select it and copy.",
+        "Click the Body box to select it and copy.",
+        "Paste both into your own mail tool and send."
+      ],
+      "status": "partial",
+      "statusNote": "Figures are live and the text copies. The dashboard does not send the email and gives no list of people without the app. \"Signed in\" counts app profiles, and the seeded data shows 100%.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/app-adoption-email/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/snippet.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "App download button",
+      "path": "/tools/app-adoption/app-download-button",
+      "what": "Copy a \"Get the KGC 2027 app\" button as HTML, Markdown, plain text or a QR code for your own website, emails and slides.",
+      "steps": [
+        "Open Tools > App Adoption > App Download Button.",
+        "Pick the HTML, Markdown, Plain text or QR block.",
+        "Click the block to select it and copy.",
+        "Paste it where you need it."
+      ],
+      "status": "partial",
+      "statusNote": "Copy only. The link goes to the website tickets page because the app is not in the app stores yet.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/app-download-button/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/snippet.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Social media posts",
+      "path": "/tools/app-adoption/social-media",
+      "what": "Copy four pre-written posts that promote the app: launch, a week out, day one, and one for speakers.",
+      "steps": [
+        "Open Tools > App Adoption > Social Media.",
+        "Click a post to select it and copy.",
+        "Paste it into your social account."
+      ],
+      "status": "partial",
+      "statusNote": "Copy only. Nothing posts or schedules from the dashboard.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/social-media/page.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Web links to share",
+      "path": "/tools/app-adoption/web-app-link",
+      "what": "Get the public agenda, speakers and tickets links, plus an agenda QR code for a sign or slide.",
+      "steps": [
+        "Open Tools > App Adoption > Web App Link.",
+        "Click a link to open it, or copy the agenda text block.",
+        "Right-click the QR code to save it."
+      ],
+      "status": "view-only",
+      "statusNote": "A list of public website links. There is no browser version of the attendee app to link to.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/web-app-link/page.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Registration desk sign",
+      "path": "/tools/app-adoption/downloadable-graphics",
+      "what": "Print an A5 \"Get the conference app\" sign with a QR code, or copy the QR as SVG.",
+      "steps": [
+        "Open Tools > App Adoption > Downloadable Graphics.",
+        "Press Cmd+P and print at A5, 100%, backgrounds off.",
+        "For the QR alone, click the SVG block, copy, and paste into a .svg file."
+      ],
+      "status": "partial",
+      "statusNote": "No download or print button. You print the whole browser page and copy SVG code by hand.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/app-adoption/downloadable-graphics/page.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Moderate the community board",
+      "path": "/tools/moderator-tools/community-board",
+      "what": "Hide, restore or permanently delete attendee posts and replies on the app community board.",
+      "steps": [
+        "Open Tools > Moderator Tools > Community Board.",
+        "Find the post or reply and click Hide.",
+        "To bring it back, open the Hidden tab and click Restore.",
+        "To remove it for good, hide it first, click Delete, type \"delete\" and click Delete permanently."
+      ],
+      "status": "partial",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/community-board/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/community-board/actions.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/lib/data/community.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/community/[id].tsx"
+      ],
+      "statusNote": "Hiding a post or a reply now takes it out of the app. Waiting on the new access settings being published to the live event. Replies written before this change do not show in the app at all until they are brought up to date, so the board can read \"No replies yet\" under a post that has five."
+    },
+    {
+      "area": "Tools",
+      "feature": "Session Q&A backlog",
+      "path": "/tools/moderator-tools/moderate-session-qanda",
+      "what": "See which sessions have questions waiting for a moderator and jump to the queue.",
+      "steps": [
+        "Open Tools > Moderator Tools > Moderate Session Q&A.",
+        "Check the Waiting count.",
+        "Click a session in the backlog, or click Open Session Q&A Manager.",
+        "Hide or mark questions answered there."
+      ],
+      "status": "view-only",
+      "statusNote": "Counts and links only. The hide and answered buttons are in Engagement > Session Q&A Manager.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/moderate-session-qanda/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/moderation.ts"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Moderate photos",
+      "path": "/tools/moderator-tools/photos",
+      "what": "Review photos attendees post in the app.",
+      "steps": [
+        "Open Tools > Moderator Tools > Photos."
+      ],
+      "status": "blocked",
+      "statusNote": "The attendee app has no photo posting, so the page is always empty.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/photos/page.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Moderate session chats",
+      "path": "/tools/moderator-tools/session-chats",
+      "what": "Review live chat messages posted in sessions.",
+      "steps": [
+        "Open Tools > Moderator Tools > Session Chats."
+      ],
+      "status": "blocked",
+      "statusNote": "Sessions have no chat in the app, so the page is always empty. Direct messages cannot be moderated either.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/session-chats/page.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Post-event app access",
+      "path": "/tools/admin-control/post-event-access-duration",
+      "what": "Set how many days attendees keep app access after the event, and whether it becomes read-only.",
+      "steps": [
+        "Open Tools > Admin Control > Post Event Access Duration.",
+        "Enter Days of access after the event.",
+        "Tick Read-only afterwards if wanted.",
+        "Click Save."
+      ],
+      "status": "partial",
+      "statusNote": "The window closes the app after the chosen number of days and can make it read-only first. Waiting on the new access settings being published to the live event. Save this screen once afterwards, or the app never closes.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/actions.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/post-event-access-duration/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/firestore.rules"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Ask for a join code at sign-in",
+      "path": "/tools/admin-control/code-access-control",
+      "what": "Sets a shared event code and asks for it when somebody joins the event in the app.",
+      "steps": [
+        "Open Tools > Admin Control > Code Access Control.",
+        "Enter a code of 4 to 32 letters, digits or hyphens.",
+        "Tick Require the code to join the event.",
+        "Click Save."
+      ],
+      "status": "partial",
+      "statusNote": "The code is asked for at sign-in once the new access settings are published to the live event. Treat it as something you announce rather than a password.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/actions.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/code-access-control/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/admin-control/access-form.tsx"
+      ]
+    },
+    {
+      "area": "Tools",
+      "feature": "Turn attendee messaging off",
+      "path": "/tools/admin-control/code-access-control",
+      "what": "Stops attendees messaging each other, event wide.",
+      "steps": [
+        "Open Tools > Admin Control > Code Access Control.",
+        "Untick Attendees can message each other.",
+        "Click Save."
+      ],
+      "status": "partial",
+      "statusNote": "The switch takes effect in the app once the new access settings are published to the live event.",
+      "evidence": "round two, feature 8"
+    },
+    {
+      "area": "Tools",
+      "feature": "Event report",
+      "path": "/tools/report",
+      "what": "One page with registrations, app sign-ins, door check-ins, revenue, today's sessions, the audit trail of dashboard changes and recent errors.",
+      "steps": [
+        "Click Report in the event header, or open Tools > Report.",
+        "Scroll to Door throughput, Money taken, Sessions today, Audit trail or Recent errors."
+      ],
+      "status": "view-only",
+      "statusNote": "Read only. No export or print button. The error list resets whenever the server restarts.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/report/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/commerce.ts"
+      ]
+    },
+    {
+      "area": "Pay",
+      "feature": "Balance",
+      "path": "/pay/balance",
+      "what": "See gross sales, refunds, unpaid invoices and an estimate of what reaches the bank after Stripe fees.",
+      "steps": [
+        "Open Pay > Balance.",
+        "Read the tiles and the From sold to banked table.",
+        "Click Stripe balance to see the real figure in Stripe."
+      ],
+      "status": "view-only",
+      "statusNote": "Read only. Totals come from this event’s own orders and leave out test orders. No payment account is connected, so nothing has been charged and every figure is $0.00.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/balance/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/commerce.ts",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/stripe.ts"
+      ]
+    },
+    {
+      "area": "Pay",
+      "feature": "Order details",
+      "path": "/pay/order-details",
+      "what": "Search and filter every ticket order, and export the list as CSV.",
+      "steps": [
+        "Open Pay > Order Details. It redirects to Tickets > Orders & Transactions > Attendee Orders.",
+        "Type a name or email and click Search, or click a status filter.",
+        "Click Export CSV to download the list."
+      ],
+      "status": "partial",
+      "statusNote": "Listing, search and CSV all work. Refunds are disabled until a payment account is connected.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/order-details/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/stripe.ts"
+      ]
+    },
+    {
+      "area": "Pay",
+      "feature": "Billing information",
+      "path": "/pay/billing-information",
+      "what": "Jump to the Stripe pages for the payout bank account, business details, tax registration, invoice branding and API keys.",
+      "steps": [
+        "Open Pay > Billing Information.",
+        "Click Open next to the setting you need.",
+        "Sign in to Stripe and change it there."
+      ],
+      "status": "blocked",
+      "statusNote": "Links only, and no payment account is connected yet, so the links open the generic test dashboard.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/billing-information/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/stripe.ts"
+      ]
+    },
+    {
+      "area": "Pay",
+      "feature": "Sales tax",
+      "path": "/pay/publish",
+      "what": "See tax collected against gross sales and which parts of sales tax setup are still to do in Stripe.",
+      "steps": [
+        "Open Pay > Publish. This is the sales tax page.",
+        "Read the tiles and the setup table.",
+        "Click Stripe Tax settings to set the event location and registration in Stripe."
+      ],
+      "status": "blocked",
+      "statusNote": "No payment account is connected, so no tax is collected. The event location and tax registration are set up in the payment account.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/publish/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/nav.ts"
+      ]
+    },
+    {
+      "area": "Publish",
+      "feature": "Launch checklist",
+      "path": "/publish",
+      "what": "Check nine things before going public: tickets on sale, payments, a completed purchase, agenda clashes, draft sessions, speaker details, sponsor details and website copy.",
+      "steps": [
+        "Open Publish.",
+        "Read the Blocking and Worth fixing counts.",
+        "Click Fix on a row to open the screen that fixes it.",
+        "Reload Publish until Blocking shows 0.",
+        "Click View the live site to check the result."
+      ],
+      "status": "view-only",
+      "statusNote": "A checklist, not a switch. The site is already live and the Draft badges in the header never change. Now 2 blocking (no payment account, 1 agenda clash), 5 worth fixing, 2 of 9 passing.",
+      "evidence": [
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/publish/page.tsx",
+        "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/layout.tsx"
+      ]
+    }
+  ],
+  "uiIssues": [
+    {
+      "path": "/pay/publish",
+      "width": 1280,
+      "severity": "medium",
+      "type": "other",
+      "issue": "The sales tax page is named \"Publish\" in the Pay menu and in its heading, the same name as the top-level Publish tab.",
+      "fix": "Rename the nav title and h1 to \"Sales Tax\".",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/pay_publish-1280.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/nav.ts"
+    },
+    {
+      "path": "/tools/report",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "The report shows developer text: \"PROJECT kgc-conference-app-and-website (LIVE)\", \"The Admin SDK bypasses firestore.rules entirely, which is the correct posture...\" and \"An in-process ring buffer: it empties on restart...\". Audit times are raw ISO strings in UTC.",
+      "fix": "Remove the three notes and format times as local date and time.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_report-1280-p1.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/report/page.tsx"
+    },
+    {
+      "path": "/pay/publish",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "Long tax explainer plus a table quoting code (\"txcd_20030000\", \"automatic_tax: { enabled: true }\", \"which is why turning it on early was safe\") (similar on /pay/billing-information: \"See SETUP-PAYMENTS.md §5\").",
+      "fix": "Cut to a three-row checklist with Done or To do and one Stripe link per row.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/pay_publish-1280-p0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/pay/publish/page.tsx"
+    },
+    {
+      "path": "/tools/moderator-tools/session-chats",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "An empty feature page explains internals: \"Thread membership comes from participantIds and the rules deny everyone else... a much larger decision than a screen\" (the Photos page is likewise an empty shell).",
+      "fix": "Hide Photos and Session Chats from the menu until the app has those features, or reduce each to one line.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_session_chats-390-p0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/(dash)/tools/moderator-tools/session-chats/page.tsx"
+    },
+    {
+      "path": "/publish",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "The checklist says \"No order has ever been fulfilled\" and Balance shows 0 orders while Order Details lists 2 paid test purchases, with nothing explaining that test orders are excluded.",
+      "fix": "Add \"excluding test orders\" to the tile subtext and the checklist detail.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/publish-1280-p0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/lib/commerce.ts"
+    },
+    {
+      "path": "/tools/moderator-tools/community-board",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "The \"Powered by Netlify\" badge floats over the right column and covers a Hide link.",
+      "fix": "Remove the Netlify badge snippet from the dashboard site.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_community_board-1280-p0.png"
+    },
+    {
+      "path": "/tools/moderator-tools/community-board",
+      "width": 1280,
+      "severity": "low",
+      "type": "ai-voice",
+      "issue": "Seeded demo posts use em dashes, for example after \"Happy to coordinate\" in the tram post. 7 on the page.",
+      "fix": "Replace the em dashes in the seed data with commas or full stops.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_moderator_tools_community_board-1280-p0.png"
+    },
+    {
+      "path": "/tools/*, /pay/*",
+      "width": 390,
+      "severity": "low",
+      "type": "tap-target",
+      "issue": "Sidebar links are 25 to 28px tall and the expand arrows are 23x11px.",
+      "fix": "Raise sidebar rows to 40px and give the arrow a 32px hit area on touch screens.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tools-pay-publish/tools_app_adoption_app_adoption_email-390-p0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/apps/organizer/src/app/globals.css"
+    }
+  ],
+  "verified": true
 }
