@@ -23,14 +23,18 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { contactId, registrationId } from '../../scripts/src/lib/ids';
+import { contactId, registrationId, reviewerId } from '../../scripts/src/lib/ids';
+import { memberIdFor } from '../../apps/organizer/src/lib/team-core';
 import {
   NEVER_EXPORTED,
   PLACES,
+  PersonKeyMismatch,
   confirmationMatches,
+  erasureAuditBefore,
   erasureSummary,
   exportDocument,
   exportFilename,
+  foldedFieldMatches,
   keyNameOf,
   parsePersonRef,
   personKeys,
@@ -38,6 +42,7 @@ import {
   placesFor,
   redaction,
   skippedPlaces,
+  stampFields,
   type EraseRule,
   type PlaceOutcome,
 } from '../../apps/organizer/src/lib/person-data-core';
@@ -60,9 +65,37 @@ describe('who the person is', () => {
 
   it('keeps the registration id a caller actually read', () => {
     // A registration written before ids were derived sits at an id nothing
-    // computes. Deriving over it would walk the wrong document, or none.
-    const legacy = personKeys({ email: 'ada.nakamura@example.com', registrationId: 'reg-legacy-7' });
+    // computes. Deriving over it would walk the wrong document, or none. The
+    // address off that same document comes with it — see below for why.
+    const legacy = personKeys({
+      email: 'ada.nakamura@example.com',
+      registration: { id: 'reg-legacy-7', email: 'Ada.Nakamura@Example.com' },
+    });
     expect(legacy.registrationId).toBe('reg-legacy-7');
+  });
+
+  /**
+   * ⚠️ THE ONE WITH TEETH. The read id used to be taken on trust, so the
+   * guarantee that these keys describe one person lived in whichever call site
+   * happened to be careful rather than in the function. `parsePersonRef(
+   * 'reg:<anything>')` puts whatever is in a URL on this path, and an id and an
+   * address that disagree mean an erasure that takes one person's ticket and
+   * another person's profile, messages and posts, and reports success.
+   */
+  it('refuses a ticket and an address that belong to different people', () => {
+    expect(() =>
+      personKeys({
+        email: 'ada.nakamura@example.com',
+        registration: { id: 'reg_whoever', email: 'somebody.else@example.com' },
+      }),
+    ).toThrow(PersonKeyMismatch);
+
+    expect(() =>
+      personKeys({
+        email: 'ada.nakamura@example.com',
+        registration: { id: 'reg_whoever', email: '' },
+      }),
+    ).toThrow(PersonKeyMismatch);
   });
 });
 
@@ -276,5 +309,220 @@ describe('the row parameter', () => {
     expect(parsePersonRef('user:uid_1')).toBeNull();
     expect(parsePersonRef('reg:')).toBeNull();
     expect(parsePersonRef('')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The four holes the September 2026 review found in this walk
+// ---------------------------------------------------------------------------
+
+describe('a mixed-case address finds every place', () => {
+  /**
+   * The failure this pins.
+   *
+   * Every key is folded to lower case, and several collections store the
+   * address exactly as it was typed: `emailLog.to` is whatever the caller
+   * passed, a volunteer roster and a certificate carry the spelling on the
+   * sheet they were imported from. An equality query on the lower-cased key
+   * finds none of those documents — and finds them silently, so the erasure
+   * reports "0 found, anonymised" and the organizer is told it finished while
+   * the rows are still there with the name, the address and the template on
+   * them. The subject access file misses exactly the same documents.
+   *
+   * Two halves, and both are needed. `foldedFieldMatches` is the comparison
+   * `person-data.ts` actually runs in memory, so this is the real join and not
+   * a description of it. The declaration test below is what stops the next
+   * address-keyed place being added without `fold`, which would reopen the
+   * hole one collection at a time.
+   */
+  const TYPED = 'Ada.Okonkwo@Example.com';
+  const MIXED = personKeys({ email: TYPED, uid: 'uid_ada', qrSecret: 'qr_ada' });
+
+  it('matches an address stored exactly as it was typed', () => {
+    expect(foldedFieldMatches(MIXED.email, TYPED)).toBe(true);
+    expect(foldedFieldMatches(MIXED.email, ' ADA.OKONKWO@EXAMPLE.COM ')).toBe(true);
+    expect(foldedFieldMatches(MIXED.email, 'ada.okonkwo@example.com')).toBe(true);
+  });
+
+  it('does not match somebody else, or a field that is not an address', () => {
+    expect(foldedFieldMatches(MIXED.email, 'ada.okonkwo@example.org')).toBe(false);
+    expect(foldedFieldMatches(MIXED.email, undefined)).toBe(false);
+    expect(foldedFieldMatches(MIXED.email, 42)).toBe(false);
+    // An empty key would otherwise match every document with an empty field.
+    expect(foldedFieldMatches('', '')).toBe(false);
+  });
+
+  it('folds every place that joins on an address, naming each one', () => {
+    const folded = PLACES.filter((p) => {
+      const { where } = p;
+      if (where.at === 'doc' || where.at === 'own') return false;
+      return 'fold' in where.match && where.match.fold === true;
+    }).map((p) => p.key);
+
+    // The four the review named, plus the two that were already correct by
+    // accident because their writers happen to normalise.
+    for (const key of [
+      'emailsSent',
+      'volunteerShifts',
+      'certificates',
+      'checkoutAnswers',
+      'consentSignatures',
+      'orders',
+      'submissionAuthor',
+    ]) {
+      expect(folded, key).toContain(key);
+    }
+  });
+
+  it('leaves no address-keyed place unfolded', () => {
+    for (const place of PLACES) {
+      const { where } = place;
+      if (where.at === 'doc' || where.at === 'own') continue;
+      if ('docId' in where.match) continue;
+      if (where.match.key !== 'email') continue;
+      expect('fold' in where.match && where.match.fold, place.key).toBe(true);
+    }
+  });
+
+  it('reaches every place it would reach for a lower-case address', () => {
+    const plain = personKeys({ email: 'ada.okonkwo@example.com', uid: 'uid_ada', qrSecret: 'qr_ada' });
+    expect(placesFor(MIXED).map((p) => p.key)).toEqual(placesFor(plain).map((p) => p.key));
+  });
+});
+
+describe('the erasure keeps the unsubscribe it used to destroy', () => {
+  /**
+   * `unsubscribedAt` lives on the contact row, an import never clears it, and
+   * the row used to be deleted outright. Somebody who unsubscribed and then
+   * asked to be forgotten was therefore mailable again by the next upload of an
+   * older list — the worst recipient a conference can reach, because a
+   * complaint from them takes the ticket receipts down with the newsletter.
+   */
+  const contacts = PLACES.find((p) => p.key === 'marketingContact');
+  const rule = contacts?.erase as Extract<EraseRule, { do: 'anonymise' }>;
+
+  it('keeps the row rather than deleting it', () => {
+    expect(contacts?.erase.do).toBe('anonymise');
+  });
+
+  it('takes the name and address off it and leaves the suppression alone', () => {
+    const update = redaction(rule, {
+      email: 'ada.okonkwo@example.com',
+      name: 'Ada Okonkwo',
+      company: 'Example',
+      lists: ['KGC 2026 attendees'],
+      unsubscribedAt: { toDate: () => new Date('2026-03-01') },
+    });
+    expect(update.email).toBeNull();
+    expect(update.name).toBeNull();
+    expect(update.company).toBeNull();
+    expect(update).not.toHaveProperty('unsubscribedAt');
+    expect(update).not.toHaveProperty('lists');
+  });
+
+  it('marks somebody unsubscribed who had not asked, because asking to be erased is stronger', () => {
+    expect(stampFields(rule, { email: 'ada@example.com' })).toEqual(['unsubscribedAt']);
+  });
+
+  it('does not re-date an unsubscribe already recorded', () => {
+    const dated = { email: 'ada@example.com', unsubscribedAt: { toDate: () => new Date() } };
+    expect(stampFields(rule, dated)).toEqual([]);
+  });
+});
+
+describe('the audit entry proves the erasure without holding the address', () => {
+  /**
+   * The log survives the erasure by design, so anything written into it is
+   * written for ever. The entry used to carry the display name, and a display
+   * name falls back to the address for anybody who registered without one or
+   * signed in with a code and never filled in a profile — so the erasure left,
+   * permanently, the one field it exists to remove.
+   */
+  const NO_NAME = 'ada.okonkwo@example.com';
+
+  it('carries no address, even for somebody whose name is their address', () => {
+    const before = erasureAuditBefore({ walked: 24, signedIn: true, hasTicket: true });
+    const written = JSON.stringify(before);
+    expect(written).not.toContain(NO_NAME);
+    expect(written).not.toContain('@');
+  });
+
+  it('still says enough to show the erasure happened and how wide it went', () => {
+    expect(erasureAuditBefore({ walked: 24, signedIn: false, hasTicket: true })).toEqual({
+      walked: 24,
+      signedIn: false,
+      hadTicket: true,
+    });
+  });
+});
+
+describe('the collections the walk used to miss entirely', () => {
+  /**
+   * A speaker who also bought a ticket asked to be erased, and their name, bio,
+   * photo, company and social links stayed on the public page and in the app
+   * while the screen told the organizer it was done. Same for the draft they
+   * had sent through their own link, their place on the review committee, their
+   * name under an abstract, and their sign-in to this dashboard.
+   *
+   * The decision for each is asserted here rather than only described, because
+   * "delete or keep" on a published programme is the kind of choice that gets
+   * quietly reversed by somebody tidying up.
+   */
+  const byKey = (key: string) => PLACES.find((p) => p.key === key);
+
+  it('has an entry for each of the five', () => {
+    for (const key of [
+      'speakerProfile',
+      'speakerDraft',
+      'reviewerRecord',
+      'submissionAuthor',
+      'dashboardAccount',
+    ]) {
+      expect(byKey(key), key).toBeTruthy();
+    }
+  });
+
+  it('keeps the published programme entry and takes the contact details off it', () => {
+    const speaker = byKey('speakerProfile');
+    expect(speaker?.erase.do).toBe('anonymise');
+    const rule = speaker?.erase as Extract<EraseRule, { do: 'anonymise' }>;
+    expect([...rule.clear].sort()).toEqual(['contactEmail', 'userId']);
+    // The talk, the name and the bio are published facts about the conference
+    // and are deliberately not in that list.
+    expect(rule.clear).not.toContain('name');
+    expect(rule.clear).not.toContain('bio');
+    expect(rule.why).toBeTruthy();
+  });
+
+  it('deletes the unpublished draft, the committee record and the dashboard sign-in', () => {
+    expect(byKey('speakerDraft')?.erase.do).toBe('delete');
+    expect(byKey('reviewerRecord')?.erase.do).toBe('delete');
+    expect(byKey('dashboardAccount')?.erase.do).toBe('delete');
+  });
+
+  it('deletes the author of an abstract and leaves the abstract anonymous', () => {
+    const author = byKey('submissionAuthor');
+    expect(author?.erase.do).toBe('delete');
+    // The identity is already held apart from the work so that blind review is
+    // a read decision. Deleting it leaves exactly what a blind reviewer sees.
+    expect(author?.where.at).toBe('each');
+  });
+
+  it('derives the committee and dashboard ids from the address, so both are always reachable', () => {
+    const keys = personKeys({ email: 'Ada.Okonkwo@Example.com' });
+    expect(keys.reviewerId).toBe(reviewerId('ada.okonkwo@example.com'));
+    expect(keys.teamMemberId).toBe(memberIdFor('ada.okonkwo@example.com'));
+    const reachable = placesFor(keys).map((p) => p.key);
+    expect(reachable).toContain('reviewerRecord');
+    expect(reachable).toContain('dashboardAccount');
+  });
+
+  it('skips the two speaker places for somebody who is not on the programme', () => {
+    // A speaker id is built from a name and a company and cannot be derived
+    // from an address, so it is absent for everybody who is not a speaker — and
+    // querying on an absent key is how an erasure deletes the wrong documents.
+    const skipped = skippedPlaces(personKeys({ email: 'ada@example.com' })).map((s) => s.place.key);
+    expect(skipped).toContain('speakerProfile');
+    expect(skipped).toContain('speakerDraft');
   });
 });

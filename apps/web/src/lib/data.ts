@@ -740,23 +740,49 @@ export async function listPublicPages(): Promise<PublicPage[]> {
  * page's address must not orphan every reference to the document inside this
  * database — so this is a query, not a `get`. Case is folded because the value
  * is typed from printed material, the same reason the branded slug is compared
- * that way.
+ * that way, and because `normaliseSlug` stores only lower case anyway.
+ *
+ * ── Why it asks for the slug rather than reading the collection ─────────────
+ *
+ * `[slug]` is the root catch-all on this site, so **every** unknown URL lands
+ * here before it 404s. This used to fetch every page of the event and scan the
+ * result in memory; `generateMetadata` and the page body each call it, so one
+ * request was two whole-collection reads, and anything walking `/aaa`, `/aab`,
+ * … turned a 404 into a billed scan with nothing in front of it. Asking for
+ * the one slug reads the documents that match, which for an unknown address is
+ * none.
+ *
+ * The query is a single equality filter on `slug`, which needs no composite
+ * index — the rule at the top of this file, and here it is also what keeps
+ * `eventId` out of the query. A slug is unique within an event (`slugProblem`
+ * enforces it) but not across events, so the event check stays, in memory, on
+ * at most a handful of documents.
+ *
+ * `cache()` collapses the metadata call and the body call into one read per
+ * request. It does not survive the request, which is right: a page published a
+ * moment ago should appear on the next one.
  */
-export async function getPublicPage(slug: string): Promise<PublicPage | null> {
+export const getPublicPage = cache(async function getPublicPage(
+  slug: string,
+): Promise<PublicPage | null> {
   const wanted = slug.trim().toLowerCase();
   if (wanted === '') return null;
   return safely(
     'getPublicPage',
     async () => {
-      const snap = await db().collection(COLLECTIONS.pages).where('eventId', '==', EVENT_ID).get();
+      const snap = await db()
+        .collection(COLLECTIONS.pages)
+        .where('slug', '==', wanted)
+        .limit(5)
+        .get();
       const found = snap.docs
         .map((d) => ({ id: d.id, ...(d.data() as PageDoc) }))
-        .find((p) => servablePage(p) && (p.slug ?? '').toLowerCase() === wanted);
+        .find((p) => p.eventId === EVENT_ID && servablePage(p));
       return found ? toPublicPage(found.id, found) : null;
     },
     null,
   );
-}
+});
 
 /**
  * The host a document link points at, or `''` if it is not a URL at all.

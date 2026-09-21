@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { dayOfInstant } from '@/lib/time';
 import { SettingsReach } from '../../../settings-reach';
 import { PageHeader, Panel } from '../../../ui';
 import { PostEventForm } from '../access-form';
@@ -56,11 +57,15 @@ export default async function PostEventAccessPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>How long attendees keep the app</h2>
-        <PostEventForm postEventDays={s.postEventDays} postEventReadOnly={s.postEventReadOnly} />
+        <PostEventForm
+          postEventDays={s.postEventDays}
+          postEventReadOnly={s.postEventReadOnly}
+          version={s.updatedAt ? Date.parse(s.updatedAt) : 0}
+        />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
-            {s.updatedAt ? ` on ${s.updatedAt.slice(0, 10)}` : ''}.
+            {s.updatedAt ? ` on ${dayOfInstant(s.updatedAt)}` : ''}.
           </p>
         )}
       </Panel>

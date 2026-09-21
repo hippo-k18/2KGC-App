@@ -3,6 +3,7 @@ import { COMMUNITY_CATEGORY_LABEL as CATEGORY_LABEL } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listBoardForModeration, type ModeratedPost } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
+import { dayOfInstant } from '@/lib/time';
 import { ConfirmButton } from '../../../form';
 import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
 import {
@@ -78,7 +79,7 @@ function PostCard({ post }: { post: ModeratedPost }) {
         )}
         <span style={{ flex: 1 }} />
         <span className="muted" style={{ fontSize: 11 }}>
-          {post.authorName} · {post.createdAt.slice(0, 10)}
+          {post.authorName} · {dayOfInstant(post.createdAt)}
         </span>
 
         <form action={moderatePostAction}>
@@ -144,7 +145,7 @@ function PostCard({ post }: { post: ModeratedPost }) {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="muted" style={{ fontSize: 11 }}>
-                    {r.authorName} · {r.createdAt.slice(0, 10)}
+                    {r.authorName} · {dayOfInstant(r.createdAt)}
                     {rHidden && (
                       <>
                         {' '}

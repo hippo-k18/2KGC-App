@@ -36,6 +36,25 @@
  */
 export const APP_ACCESS_KEY = "appAccess";
 
+/**
+ * The join code's own document, under `settings`.
+ *
+ * ── Why the code is not in the projection above ─────────────────────────────
+ *
+ * `settings/appAccess` has to be readable by anybody signed in, because a
+ * closed app must be able to read the document that says it is closed and
+ * `isRegistered()` ends with `appOpen()`. That made the code readable by
+ * anybody who could create a Firebase account: sign up with any address, read
+ * one document, and you hold the string the organizer reads out from the
+ * stage.
+ *
+ * The code is a prompt and not a lock — nothing in `firestore.rules` compares
+ * it, and the gate that decides what an account may read is the ticket claim —
+ * but a prompt handed to strangers is not even that. So it lives here, behind
+ * `isRegistered()`, and the window document carries only the window.
+ */
+export const APP_JOIN_CODE_KEY = "appJoinCode";
+
 /** What the phone and the rules read. Every field is derived. */
 export interface AppAccessProjection {
   /** Epoch ms after which the app refuses to open at all. `0` never closes. */
@@ -44,20 +63,39 @@ export interface AppAccessProjection {
   readOnlyFromMs: number;
   /** Event-wide switch for attendee-to-attendee messages. */
   messagingEnabled: boolean;
-  /** The join code, upper case. `''` when none is set. */
-  joinCode: string;
-  /** Whether the app asks for the code before letting an attendee in. */
+  /**
+   * Whether the app asks for the code before letting an attendee in.
+   *
+   * Stays here rather than moving with the code, because the *question* "will
+   * this phone be asked" is not the answer. The dashboard only sets it true
+   * when a code is actually set, so it implies one exists without naming it.
+   */
   joinCodeRequired: boolean;
 }
 
-/** Open, writable, messageable, no code. What an unwritten projection means. */
+/** Open, writable, messageable, no prompt. What an unwritten projection means. */
 export const APP_ACCESS_DEFAULTS: AppAccessProjection = {
   closesAtMs: 0,
   readOnlyFromMs: 0,
   messagingEnabled: true,
-  joinCode: "",
   joinCodeRequired: false,
 };
+
+/** The code, as the second document carries it. */
+export interface AppJoinCode {
+  /** Upper case, no punctuation. `''` when none is set. */
+  joinCode: string;
+}
+
+/** No code. What an unwritten or unreadable code document means. */
+export const APP_JOIN_CODE_DEFAULTS: AppJoinCode = { joinCode: "" };
+
+/** The same shape guard `resolveAppAccess` applies, for the code document. */
+export function resolveJoinCode(values: unknown): AppJoinCode {
+  if (!values || typeof values !== "object") return { ...APP_JOIN_CODE_DEFAULTS };
+  const raw = (values as Record<string, unknown>).joinCode;
+  return { joinCode: typeof raw === "string" ? raw : "" };
+}
 
 /**
  * Stored values over the defaults, dropping anything of the wrong type.
@@ -187,7 +225,13 @@ export function joinCodeNeeded(
   access: AppAccessProjection,
   profile: { joinedAt?: unknown } | null,
 ): boolean {
-  if (!access.joinCodeRequired || normaliseJoinCode(access.joinCode).length === 0) return false;
+  /*
+   * `joinCodeRequired` alone, since the code moved to its own document. The
+   * dashboard writes this flag true only when a code is actually set, so it
+   * carries "there is one" without carrying the code — which is the point of
+   * the split, and the reason this function no longer needs to see it.
+   */
+  if (!access.joinCodeRequired) return false;
   if (!profile) return false;
   return !profile.joinedAt;
 }

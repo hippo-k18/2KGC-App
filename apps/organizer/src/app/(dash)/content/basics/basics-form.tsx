@@ -1,7 +1,13 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
-import { EVENT_TYPES, EVENT_TYPE_LABEL, type EventSettings, type EventType } from '@kgc/shared';
+import {
+  EVENT_TYPES,
+  EVENT_TYPE_LABEL,
+  formatDateRange,
+  type EventSettings,
+  type EventType,
+} from '@kgc/shared';
 import {
   CheckboxField,
   Field,
@@ -61,6 +67,13 @@ export function BasicsForm({
         />
       </FormGrid>
 
+      {/*
+        A date box cannot carry the grey placeholder the text boxes use, so the
+        date in force is spelled out underneath instead. Without it these were
+        two empty `mm/dd/yyyy` boxes with nothing on the screen saying when the
+        event is — and the one instruction after a deploy is to open this form
+        and save it.
+      */}
       <FormGrid>
         <Field
           name="startDate"
@@ -69,6 +82,7 @@ export function BasicsForm({
           defaultValue={saved.startDate}
           width="sm"
           error={state.fieldErrors?.startDate}
+          hint={dateHint(saved.startDate, shown.startDate)}
         />
         <Field
           name="endDate"
@@ -77,6 +91,7 @@ export function BasicsForm({
           defaultValue={saved.endDate}
           width="sm"
           error={state.fieldErrors?.endDate}
+          hint={dateHint(saved.endDate, shown.endDate)}
         />
       </FormGrid>
 
@@ -140,4 +155,18 @@ function zones(): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * What the box would fall back to, said in words.
+ *
+ * Empty means "use the date already in force", which is only safe advice if
+ * the screen says what that date is. When the box holds the same date there is
+ * nothing to add, so the hint stays quiet.
+ */
+function dateHint(saved: string, inForce: string): string | undefined {
+  if (!inForce || saved === inForce) return undefined;
+  const day = formatDateRange(inForce, inForce, 'short');
+  if (!day) return undefined;
+  return saved ? `Currently ${day}.` : `Leave empty to keep ${day}.`;
 }

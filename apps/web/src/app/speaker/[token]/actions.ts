@@ -1,7 +1,6 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { readSpeakerToken } from '@kgc/scripts/src/lib/speaker-token';
 import type { DraftInput } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { recordDraft } from '@/lib/speaker-portal';
 
@@ -14,9 +13,15 @@ import { recordDraft } from '@/lib/speaker-portal';
  * every speaker the moment the invitation arrived, which under the clearing
  * rules below means proposing that every bio be deleted.
  *
- * The token is re-verified here rather than trusted from the page. A server
+ * The token is re-checked here rather than trusted from the page. A server
  * action is a public endpoint like any other, and the page having verified it
  * says nothing about who invoked this.
+ *
+ * ⚠️ Re-checking means `openPortal`, inside `recordDraft`, and not a bare
+ * signature check. Verifying the HMAC alone is what this action did, and it
+ * left "Revoke link" stopping the page while the writes carried on for the
+ * rest of the token's 180 days. The token is handed straight to `recordDraft`
+ * so there is no speaker id in this file to write on behalf of.
  *
  * ── Whose profile comes from the token and never from the form ──────────────
  *
@@ -34,14 +39,6 @@ import { recordDraft } from '@/lib/speaker-portal';
  */
 export async function saveSpeakerProfileAction(formData: FormData): Promise<void> {
   const token = String(formData.get('token') ?? '');
-  const payload = readSpeakerToken(token);
-
-  /*
-   * A forged token redirects to the same page a valid one does, which then
-   * 404s on its own verification. Redirecting rather than throwing keeps the
-   * two indistinguishable from outside.
-   */
-  if (!payload) redirect(`/speaker/${encodeURIComponent(token)}`);
 
   const field = (name: string): string | undefined =>
     formData.has(name) ? String(formData.get(name) ?? '') : undefined;
@@ -63,7 +60,15 @@ export async function saveSpeakerProfileAction(formData: FormData): Promise<void
     ...(Object.keys(slides).length ? { slides } : {}),
   };
 
-  const { outcome, errors } = await recordDraft(payload.sid, input);
+  const { outcome, errors } = await recordDraft(token, input);
+
+  /*
+   * A forged, expired or revoked token redirects to the same page a valid one
+   * does, which then 404s on its own check. Redirecting rather than throwing
+   * keeps all four indistinguishable from outside — and keeps this action from
+   * answering "is this person still speaking?" to whoever holds an old URL.
+   */
+  if (outcome === 'revoked') redirect(`/speaker/${encodeURIComponent(token)}`);
 
   /*
    * The problems travel in the query string rather than in a session, because

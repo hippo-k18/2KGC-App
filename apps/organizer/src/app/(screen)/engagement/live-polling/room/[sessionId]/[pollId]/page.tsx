@@ -27,7 +27,8 @@ export const dynamic = 'force-dynamic';
  * Type scales with the viewport rather than sitting at a fixed size: the same
  * URL is a 55" panel at eight metres and a phone in somebody's hand checking
  * the projector before the talk. The bars carry their percentage inside them
- * and the count outside, because a bar with no number on it is a shape.
+ * where it fits and beside them where it does not, and the count outside,
+ * because a bar with no number on it is a shape.
  */
 export default async function PollRoomViewPage({
   params,
@@ -106,6 +107,8 @@ export default async function PollRoomViewPage({
         {poll.options.map((o) => {
           const pct = poll.actualVotes > 0 ? Math.round((o.votes / poll.actualVotes) * 100) : 0;
           const ahead = o.votes > 0 && o.votes === leader;
+          /** Below this the bar is narrower than the number, so the number goes beside it. */
+          const insideBar = pct >= 12;
           return (
             <li key={o.id}>
               <div
@@ -126,11 +129,19 @@ export default async function PollRoomViewPage({
               {/*
                 A minimum width on a bar that has scored nothing would draw a
                 sliver for zero, which from the back of a room reads as a vote.
+
+                So a narrow bar keeps its percentage and moves it outside
+                instead. It used to be dropped: the one option nobody picked was
+                the only row on the screen with no number on it, which from the
+                back of a room reads as a row with no data rather than as a
+                small share.
               */}
               <div
                 style={{
+                  alignItems: 'center',
                   background: 'rgba(255, 255, 255, 0.14)',
                   borderRadius: 4,
+                  display: 'flex',
                   height: 'clamp(24px, 5vh, 64px)',
                   overflow: 'hidden',
                 }}
@@ -141,6 +152,7 @@ export default async function PollRoomViewPage({
                     background: ahead ? 'var(--kgc-orange)' : 'rgba(255, 255, 255, 0.45)',
                     color: ahead ? '#333' : '#fff',
                     display: 'flex',
+                    flex: '0 0 auto',
                     fontSize: 'clamp(13px, 1.8vw, 28px)',
                     fontWeight: 600,
                     height: '100%',
@@ -149,8 +161,21 @@ export default async function PollRoomViewPage({
                     width: `${pct}%`,
                   }}
                 >
-                  {pct >= 12 ? `${pct}%` : ''}
+                  {insideBar ? `${pct}%` : ''}
                 </div>
+                {insideBar ? null : (
+                  <span
+                    style={{
+                      color: '#fff',
+                      fontSize: 'clamp(13px, 1.8vw, 28px)',
+                      fontWeight: 600,
+                      paddingLeft: 10,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {pct}%
+                  </span>
+                )}
               </div>
             </li>
           );

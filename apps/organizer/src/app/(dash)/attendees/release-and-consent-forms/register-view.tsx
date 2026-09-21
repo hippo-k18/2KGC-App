@@ -1,5 +1,12 @@
-import { signingLink, signingLinksAvailable, type ConsentRegister } from '@/lib/consents';
+import { requirePassphrase } from '@/lib/auth';
+import {
+  signingLink,
+  signingLinksAvailable,
+  signingSendPlan,
+  type ConsentRegister,
+} from '@/lib/consents';
 import { Banner, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
+import { SendSigningLinksForm } from './send-links-form';
 
 /**
  * The register: who is expected to sign one form, and who has.
@@ -26,13 +33,21 @@ import { Banner, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
  * authorisation, so there is no row to clean up and nothing to leak from the
  * database.
  *
- * The same link is mailed by `sendSigningLinks` when the form is published and
- * by `sendRequiredLinksTo` when an attendee is added. This column is the second
- * round: one person, chased by hand, after the send has already happened.
+ * The same link is mailed in bulk by the panel above the table, and one at a
+ * time by `sendRequiredLinksTo` when an attendee is added. This column is the
+ * third round: one person, chased by hand, after both of those.
+ *
+ * ── The send panel ──────────────────────────────────────────────────────────
+ *
+ * It sits here rather than beside the editor because this is the screen that
+ * knows who is outstanding. Publishing a form no longer mails anybody; it saves
+ * the wording and says how many people are waiting, and this is where somebody
+ * decides to write to them.
  */
-export function ConsentRegisterView({ register }: { register: ConsentRegister }) {
+export async function ConsentRegisterView({ register }: { register: ConsentRegister }) {
   const { form, rows, totals, orphans, audienceUnavailable } = register;
   const linksWork = signingLinksAvailable();
+  const plan = linksWork ? await signingSendPlan(form.id) : null;
 
   if (audienceUnavailable) {
     return (
@@ -77,6 +92,10 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
           </strong>{' '}
           They have not agreed to version {form.version}. Ask them to sign again.
         </Banner>
+      )}
+
+      {plan && form.status === 'published' && (
+        <SendSigningLinksForm plan={plan} needsPassphrase={requirePassphrase()} />
       )}
 
       <Table

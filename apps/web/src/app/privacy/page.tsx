@@ -16,7 +16,7 @@ import { SITE } from '@/lib/site';
  * personal data to. If a fifth is ever added, it belongs in the list here in
  * the same commit.
  *
- * ── The two placeholders, and why they are visible ──────────────────────────
+ * ── The two details that are not published yet ──────────────────────────────
  *
  * A privacy notice has to name the controller: the legal entity that decides
  * what happens to the data, and a postal address it can be written to. Neither
@@ -24,13 +24,18 @@ import { SITE } from '@/lib/site';
  * "Knowledge Graphs Conference LLC", which is evidence and not confirmation,
  * and no address appears anywhere.
  *
- * So they are printed as bracketed placeholders with a line above them saying
- * so. The alternative was to invent a plausible entity name and address, which
- * would make this page a false legal statement that reads as a finished one.
- * A visible gap is fixed; an invented answer is not noticed.
+ * Inventing a plausible entity and address was never an option — it would make
+ * this a false legal statement that reads as a finished one. Nor is printing
+ * `[Legal entity name], [Registered postal address]`, which is what this page
+ * did until now: a public legal page with fill-in-the-blank markers on it reads
+ * as unfinished software rather than as a missing fact, and a reader cannot
+ * tell whether anything else on the page is real.
  *
- * ⚠️ Fill both constants in and delete `MISSING_DETAILS` from the render. That
- * is the whole change.
+ * So the page says the thing plainly in a sentence, names the route that works
+ * today, and prints no markers. The sentence disappears on its own the moment
+ * both constants hold real values.
+ *
+ * ⚠️ Fill both constants in. Nothing else has to change.
  */
 
 export const metadata: Metadata = {
@@ -39,14 +44,14 @@ export const metadata: Metadata = {
     'What the Knowledge Graph Conference collects about attendees, who processes it, and how to ask for a copy or a deletion.',
 };
 
-/** ⚠️ Placeholder. The registered company or association that runs the event. */
-const LEGAL_ENTITY = '[Legal entity name]';
+/** ⚠️ Not filled in. The registered company or association that runs the event. */
+const LEGAL_ENTITY = '';
 
-/** ⚠️ Placeholder. The postal address that entity can be written to. */
-const POSTAL_ADDRESS = '[Registered postal address]';
+/** ⚠️ Not filled in. The postal address that entity can be written to. */
+const POSTAL_ADDRESS = '';
 
-/** True while either constant above is still a placeholder. */
-const MISSING_DETAILS = LEGAL_ENTITY.startsWith('[') || POSTAL_ADDRESS.startsWith('[');
+/** True while either detail above is still missing. Nothing is printed for it. */
+const MISSING_DETAILS = !LEGAL_ENTITY.trim() || !POSTAL_ADDRESS.trim();
 
 const COLLECTED = [
   {
@@ -110,16 +115,25 @@ export default function PrivacyPage() {
         </p>
 
         <h2>Who is responsible</h2>
-        {MISSING_DETAILS && (
-          <p className="muted">
-            The registered name and postal address are not filled in yet. Everything else on this
-            page is accurate.
+        {MISSING_DETAILS ? (
+          <>
+            <p>
+              The Knowledge Graph Conference decides what happens to the data described on this
+              page. For anything about your data, write to{' '}
+              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and you will reach the
+              people who can answer.
+            </p>
+            <p className="muted">
+              The registered company name and postal address are not published here yet. Ask at the
+              address above and they will be given to you. Everything else on this page is accurate.
+            </p>
+          </>
+        ) : (
+          <p>
+            {LEGAL_ENTITY}, {POSTAL_ADDRESS}. For anything about your data, write to{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
           </p>
         )}
-        <p>
-          {LEGAL_ENTITY}, {POSTAL_ADDRESS}. For anything about your data, write to{' '}
-          <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
-        </p>
 
         <h2>What we collect</h2>
         <p>
@@ -165,7 +179,9 @@ export default function PrivacyPage() {
           Your account and profile stay until you ask for them to be deleted. Records of payments
           are kept for as long as tax and accounting rules require, with your name removed once you
           ask. Signed consent and release forms are kept as the record that you agreed, with your
-          name and address removed.
+          name and address removed. If you asked us to stop emailing you, we keep a note that you
+          asked, with nothing else on it, because that is the only way to be sure a later import
+          cannot put you back on the list.
         </p>
 
         <h2>Getting a copy, or having it deleted</h2>
@@ -173,9 +189,14 @@ export default function PrivacyPage() {
           Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and say which you
           want. A copy comes back as a single file holding everything listed above. A deletion
           removes your ticket, your profile, your check-ins, your messages, your posts and your
-          survey answers. What survives is described above: the payment record and the signed
-          consent forms, with your name taken off both. After a deletion you can no longer sign into
-          the app.
+          survey answers. After a deletion you can no longer sign into the app.
+        </p>
+        <p>
+          Four things survive a deletion, each with your name and address taken off it: the payment
+          record, the signed consent forms, the note that you are not to be emailed, and our own log
+          of what the organizers did. If you spoke at the conference, your talk stays on the
+          published programme, because the programme is the record of what happened. Write to us if
+          you want to talk about that one.
         </p>
         <p>
           You can also correct anything wrong, object to how we use it, or ask us to stop emailing

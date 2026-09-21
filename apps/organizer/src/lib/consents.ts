@@ -25,6 +25,8 @@ import {
   audienceSources,
   buildRegister,
   outstandingByPerson,
+  signingCampaignId,
+  signingSendSplit,
   totalsFor,
   unmatchedSignatures,
   type ConsentSubject,
@@ -404,26 +406,121 @@ export async function requiredConsentGaps(): Promise<RequiredConsentGaps> {
 // Sending the link
 // ---------------------------------------------------------------------------
 
-export interface SendLinksResult {
-  sent: number;
-  /** People who are outstanding and have no address on file. */
+export interface SigningSendPlan {
+  formId: string;
+  formTitle: string;
+  version: number;
+  /** Everybody who has not signed this version. */
+  outstanding: number;
+  /** Of those, how many have an address to write to. */
+  reachable: number;
+  /** Of those, how many have already been written to for this version. */
+  alreadySent: number;
+  /** How many this press would actually mail. */
+  pending: number;
+  /** Outstanding people with no address on file. Nothing can reach them. */
   noAddress: number;
   /** False when no signing secret is configured, so no link could be minted. */
   available: boolean;
 }
 
-/** Sent in batches, so a form with a thousand outstanding rows is not one burst. */
+/** Sent in rounds, so a form with a thousand outstanding rows is not one burst. */
 const SEND_BATCH = 20;
+
+/**
+ * How long one press may spend sending before it stops and says so.
+ *
+ * A serverless function is killed at 26 seconds with no chance to report
+ * anything, and a send that was killed halfway looks exactly like a send that
+ * failed at the start — so the organizer presses again and the first few
+ * hundred people get a second copy of a legal release. This budget makes the
+ * stop deliberate: the work is done in rounds, the clock is checked between
+ * them, and what is left is reported as a number with a way to continue.
+ */
+const SEND_BUDGET_MS = 18_000;
+
+/**
+ * Who would be written to if the signing links were sent right now.
+ *
+ * Read before anything is sent, so the screen can say "312 people will be
+ * emailed" and ask somebody to confirm that number. It is also what makes a
+ * second press safe: `alreadySent` is counted from `emailLog`, which is written
+ * per recipient as each one goes out.
+ */
+export async function signingSendPlan(formId: string): Promise<SigningSendPlan | null> {
+  const register = await consentRegister(formId);
+  if (!register) return null;
+
+  const sentTo = await alreadyMailed(signingCampaignId(formId, register.form.version));
+  const split = signingSendSplit(register.rows, sentTo);
+
+  return {
+    formId,
+    formTitle: register.form.title,
+    version: register.form.version,
+    outstanding: split.outstanding,
+    reachable: split.todo.length + split.alreadySent,
+    alreadySent: split.alreadySent,
+    pending: split.todo.length,
+    noAddress: split.noAddress,
+    available: signingLinksAvailable(),
+  };
+}
+
+/** Every address this run has already written to, folded for comparison. */
+async function alreadyMailed(campaignId: string): Promise<Set<string>> {
+  try {
+    const snap = await db()
+      .collection(COLLECTIONS.emailLog)
+      .where('campaignId', '==', campaignId)
+      .get();
+    return new Set(snap.docs.map((d) => emailKey(d.get('to') as string | undefined)));
+  } catch (err) {
+    /*
+      ⚠️ Rethrown, unlike almost everything else in this file. An empty set here
+      does not mean "nobody has been mailed" — it means "we could not find out",
+      and carrying on would mail everybody a second time. The one case where
+      failing the send is safer than completing it.
+    */
+    recordError('consent.alreadyMailed', err);
+    throw err;
+  }
+}
+
+export interface SendLinksResult {
+  sent: number;
+  /** Still to write to after this press. Zero means the run finished. */
+  remaining: number;
+  /** People already written to for this version before this press. */
+  alreadySent: number;
+  /** People who are outstanding and have no address on file. */
+  noAddress: number;
+  /** False when no signing secret is configured, so no link could be minted. */
+  available: boolean;
+  /** True when the clock ran out and there is more to do. */
+  stoppedEarly: boolean;
+}
 
 /**
  * Mail the signing link to everybody who has not signed this form.
  *
- * ── Sent on publication, not on every save ─────────────────────────────────
+ * ── A step somebody presses, not a side effect of saving ───────────────────
  *
- * The caller decides: publishing a form, or republishing wording that moved, is
- * the moment people need to be asked. Fixing a typo in a title is not, and a
- * send on every save would mail a hundred people because somebody corrected a
- * comma.
+ * ⚠️ This used to run inside the save. Publishing a form, or fixing a sentence
+ * in one already published, mailed every outstanding person from inside the
+ * server action: no preview, no count, no confirmation, and no record of how
+ * far it got. On a thousand-attendee event that is fifty rounds of live API
+ * calls inside one request, a timeout at 26 seconds, a generic error, and an
+ * organizer pressing Save again — which sent the first three hundred people a
+ * second copy of a link that signs a legal release in their name.
+ *
+ * Three things fix it and all three are load-bearing. The send is its own
+ * action, behind a typed count and the dashboard passphrase, so nobody mails a
+ * thousand people by correcting a comma. Every recipient is written to
+ * `emailLog` under a campaign id derived from the form and its version, so a
+ * second press skips whoever the first press reached. And the work stops on a
+ * clock rather than on a timeout, so the answer to "did it finish?" is a number
+ * on the screen rather than a guess.
  *
  * Nobody who has already signed the current version is written to. Somebody who
  * signed an earlier version is, and gets the sentence explaining why — their
@@ -431,25 +528,42 @@ const SEND_BATCH = 20;
  *
  * Each send is logged whether or not it leaves the building. With no mail
  * provider configured every row lands in the log as `skipped`, which is what
- * makes "it was never sent" distinguishable from "it was sent and not read".
+ * makes "it was never sent" distinguishable from "it was sent and not read" —
+ * and, because the skipped rows carry the campaign id too, a run against a
+ * deployment with no mail provider is still not repeated.
  */
 export async function sendSigningLinks(input: {
   formId: string;
   actor: string;
+  now?: () => number;
 }): Promise<SendLinksResult> {
-  const empty: SendLinksResult = { sent: 0, noAddress: 0, available: true };
+  const empty: SendLinksResult = {
+    sent: 0,
+    remaining: 0,
+    alreadySent: 0,
+    noAddress: 0,
+    available: true,
+    stoppedEarly: false,
+  };
 
   if (!signingLinksAvailable()) return { ...empty, available: false };
 
   const register = await consentRegister(input.formId);
   if (!register) return empty;
 
-  const owed = register.rows.filter((r) => r.status !== 'signed');
-  const reachable = owed.filter((r) => r.email);
+  const campaignId = signingCampaignId(register.form.id, register.form.version);
+  const sentTo = await alreadyMailed(campaignId);
+  const { todo, alreadySent, noAddress } = signingSendSplit(register.rows, sentTo);
 
-  for (let i = 0; i < reachable.length; i += SEND_BATCH) {
+  const clock = input.now ?? (() => Date.now());
+  const startedAt = clock();
+  let sent = 0;
+
+  for (let i = 0; i < todo.length; i += SEND_BATCH) {
+    if (clock() - startedAt > SEND_BUDGET_MS) break;
+    const round = todo.slice(i, i + SEND_BATCH);
     await Promise.all(
-      reachable.slice(i, i + SEND_BATCH).map((r) =>
+      round.map((r) =>
         sendConsentRequest(db(), {
           to: r.email!,
           name: r.name,
@@ -458,12 +572,21 @@ export async function sendSigningLinks(input: {
           link: signingLink(register.form.id, r.key),
           resigning: r.status === 'outdated',
           actor: input.actor,
+          campaignId,
         }),
       ),
     );
+    sent += round.length;
   }
 
-  return { sent: reachable.length, noAddress: owed.length - reachable.length, available: true };
+  return {
+    sent,
+    remaining: todo.length - sent,
+    alreadySent,
+    noAddress,
+    available: true,
+    stoppedEarly: sent < todo.length,
+  };
 }
 
 /**

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { allowlist, requireOwner } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
+import { dayOfInstant } from '@/lib/time';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { listMembers } from '@/lib/team';
 import { ROLE_LABELS, TEAM_ROLES } from '@/lib/team-core';
@@ -120,8 +121,8 @@ export default async function AdminSettingsPage() {
                 {m.roles.map((r) => ROLE_LABELS[r].label).join(', ')}
                 <span className="muted" style={{ display: 'block', fontSize: 12 }}>
                   Invited by {m.invitedBy}
-                  {m.invitedAt ? ` on ${m.invitedAt.slice(0, 10)}` : ''}
-                  {m.lastSignInAt ? `. Last sign-in ${m.lastSignInAt.slice(0, 10)}` : ''}
+                  {m.invitedAt ? ` on ${dayOfInstant(m.invitedAt)}` : ''}
+                  {m.lastSignInAt ? `. Last sign-in ${dayOfInstant(m.lastSignInAt)}` : ''}
                 </span>
               </span>,
               m.status === 'active' ? (
@@ -170,7 +171,7 @@ export default async function AdminSettingsPage() {
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
-            {s.updatedAt ? ` on ${s.updatedAt.slice(0, 10)}` : ''}.
+            {s.updatedAt ? ` on ${dayOfInstant(s.updatedAt)}` : ''}.
           </p>
         )}
       </Panel>

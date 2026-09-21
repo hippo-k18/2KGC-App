@@ -1,7 +1,11 @@
 import 'server-only';
 
+// This app's own copy of `firebase-admin`. A sentinel built anywhere else fails
+// the whole write on an `instanceof` check — AGENTS.md gotcha 8.
+import { FieldValue } from 'firebase-admin/firestore';
 import {
   APP_ACCESS_KEY,
+  APP_JOIN_CODE_KEY,
   COLLECTIONS,
   EVENT_ID,
   accessWindowWallClocks,
@@ -77,21 +81,59 @@ export async function writeAppAccessProjection(
     const instant = (local: string | null): number =>
       local ? fromWallClock(local, basics.timeZone).toMillis() : 0;
 
+    const joinCode = normaliseJoinCode(access.eventCode);
+
     const values: AppAccessProjection = {
       closesAtMs: instant(closesAt),
       readOnlyFromMs: instant(readOnlyFrom),
       messagingEnabled: access.attendeeMessagingEnabled,
-      joinCode: normaliseJoinCode(access.eventCode),
-      joinCodeRequired: access.codeRequired && normaliseJoinCode(access.eventCode).length > 0,
+      joinCodeRequired: access.codeRequired && joinCode.length > 0,
     };
 
-    await db()
-      .collection(COLLECTIONS.settings)
-      .doc(APP_ACCESS_KEY)
-      .set(
-        { eventId: EVENT_ID, key: APP_ACCESS_KEY, values, updatedAt: new Date() },
-        { merge: true },
-      );
+    /*
+     * Two documents, because two audiences. The window has to reach anybody
+     * signed in — a closed app must be able to read the sentence that says it
+     * is closed, and `isRegistered()` ends with `appOpen()` — while the code
+     * belongs only to people who hold a ticket. One document could not be both,
+     * and while the code was in this one any account at all could read it.
+     */
+    await Promise.all([
+      db()
+        .collection(COLLECTIONS.settings)
+        .doc(APP_ACCESS_KEY)
+        .set(
+          {
+            eventId: EVENT_ID,
+            key: APP_ACCESS_KEY,
+            values: {
+              ...values,
+              /*
+               * The code used to be a key in this map, and a merge write leaves
+               * a key it does not mention exactly where it was (AGENTS.md
+               * gotcha 9, in its nested form). So every projection written
+               * before the split would keep handing the old code to anybody
+               * signed in, and the split would have changed nothing on any
+               * database that already exists. Naming it is what removes it.
+               */
+              joinCode: FieldValue.delete(),
+            },
+            updatedAt: new Date(),
+          },
+          { merge: true },
+        ),
+      db()
+        .collection(COLLECTIONS.settings)
+        .doc(APP_JOIN_CODE_KEY)
+        .set(
+          {
+            eventId: EVENT_ID,
+            key: APP_JOIN_CODE_KEY,
+            values: { joinCode },
+            updatedAt: new Date(),
+          },
+          { merge: true },
+        ),
+    ]);
 
     return { ok: true, values, window: { readOnlyFrom, closesAt } };
   } catch (err) {

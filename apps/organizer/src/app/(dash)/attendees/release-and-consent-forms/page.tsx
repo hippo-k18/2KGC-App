@@ -64,8 +64,8 @@ export default async function ReleaseAndConsentFormsPage({
             <strong>Signatures cannot be edited</strong>
             <p>
               Each signature is kept against the version of the wording that was signed. Publishing
-              a form sends everybody who has not signed it their own link. Withdrawals are handled
-              by your team.
+              a form does not email anybody. Open the form to see who is outstanding and send them
+              their links. Withdrawals are handled by your team.
             </p>
           </>
         }
@@ -174,8 +174,15 @@ export default async function ReleaseAndConsentFormsPage({
               <li>Changing the wording publishes a new version, and earlier signatures count as outstanding.</li>
               <li>People without an account, such as speakers, sign through a personal link.</li>
               <li>
-                Publishing a form sends that link to everybody who has not signed it. Anyone added
-                to the attendee list afterwards is sent one as they are added.
+                Publishing saves the wording and emails nobody. Open a form to see how many people
+                are waiting, then send them their links from there.
+              </li>
+              <li>
+                A send tells you how many it reached and how many are left, and skips anybody it
+                has already written to. Pressing Send twice does not send twice.
+              </li>
+              <li>
+                Anyone added to the attendee list afterwards is sent a link as they are added.
               </li>
               <li>
                 A required form shows as <strong>Form not signed</strong> on the badge sheet and at
@@ -192,9 +199,9 @@ export default async function ReleaseAndConsentFormsPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Chasing the unsigned.</strong> The link goes out when the form is published and
-            when somebody is added, and nothing sends a reminder after that. A second round is the
-            register, the per-row link, and a message somebody writes.
+            <strong>Chasing the unsigned.</strong> A send reaches everybody who has not been
+            written to about this wording, and nothing sends a reminder to somebody who has. A
+            second round is the register, the per-row link, and a message somebody writes.
           </li>
           <li>
             <strong>Withdrawal.</strong> No revocation record, no way to mark a signature

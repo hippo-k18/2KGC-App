@@ -33,11 +33,14 @@ export function ErasePersonForm({
   refParam,
   email,
   total,
+  needsPassphrase,
 }: {
   refParam: string;
   /** Empty once there is nobody left to delete. */
   email: string;
   total: number;
+  /** False only on a machine with no passphrase configured, i.e. localhost. */
+  needsPassphrase: boolean;
 }) {
   const [state, erase] = useActionState<FormState, FormData>(erasePersonAction, {});
   const [typed, setTyped] = useState('');
@@ -57,9 +60,15 @@ export function ErasePersonForm({
       <div style={{ marginTop: 12 }}>
         <p className="body-2">
           This removes {total} {total === 1 ? 'record' : 'records'} and cannot be undone. Their
-          ticket, profile, check-ins, messages, posts and survey answers go. What they paid stays on
-          the books and what they signed stays as a record, with their name taken off both. They can
-          no longer sign into the app.
+          ticket, profile, check-ins, messages, posts and survey answers go. They can no longer sign
+          into the app.
+        </p>
+        <p className="body-2">
+          Five things stay, with their name and address taken off each. What they paid, because it
+          is on the books. What they signed, because it is the record that they agreed. Their row on
+          the mailing list, which is marked unsubscribed so a later import cannot email them. Their
+          talk on the published programme, if they spoke. And the log of what organizers did. The
+          table above says which is which.
         </p>
         <p className="body-2">
           Download the file first if they asked for a copy. It cannot be produced afterwards.
@@ -81,6 +90,16 @@ export function ErasePersonForm({
             autoComplete="off"
             groupStyle={{ marginBottom: 12 }}
           />
+          {needsPassphrase && (
+            <Field
+              name="passphrase"
+              type="password"
+              width="lg"
+              label="Your dashboard passphrase"
+              autoComplete="off"
+              groupStyle={{ marginBottom: 12 }}
+            />
+          )}
           <SubmitButton variant="danger" disabled={!armed} pendingLabel="Deleting…">
             Delete everything
           </SubmitButton>

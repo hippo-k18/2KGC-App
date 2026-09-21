@@ -37,6 +37,29 @@ export function linkIsLive(iat: number, linksValidFrom?: number): boolean {
   return iat >= linksValidFrom;
 }
 
+/**
+ * Whether a link may act at all, as one call both apps make.
+ *
+ * Revocation used to be checked on the page and not in the write path, so
+ * "Revoke link" stopped a speaker reading their profile and did not stop
+ * anybody writing it — for the remaining 180 days of a token that carries no
+ * state of its own. This is the check; `apps/web/src/lib/speaker-portal.ts`'s
+ * `openPortal` is the single place that runs it, and every entry point goes
+ * through that.
+ */
+export function portalLinkOpens(input: {
+  /** When the token was minted. */
+  iat: number;
+  /** The organizer's revocation stamp, from `speakerProfileEdits`. */
+  linksValidFrom?: number;
+  /** The `eventId` on the speaker record, or undefined if there is no record. */
+  speakerEventId?: string;
+  eventId: string;
+}): boolean {
+  if (!linkIsLive(input.iat, input.linksValidFrom)) return false;
+  return input.speakerEventId === input.eventId;
+}
+
 // ---------------------------------------------------------------------------
 // What a speaker may send
 // ---------------------------------------------------------------------------
@@ -288,6 +311,23 @@ export interface ApprovalPlan {
   speaker: Record<string, string | null | { linkedin?: string; x?: string; website?: string }>;
   /** `sessions/{id}` → the new `slidesUrl`, or `null` to clear it. */
   sessions: Record<string, string | null>;
+  /**
+   * A photo link that was accepted into the draft and deliberately not
+   * published. `undefined` when there was none. See `isOurOwnImage`.
+   */
+  heldPhotoURL?: string;
+}
+
+/**
+ * Whether an image link is one of ours, by the host that serves it.
+ *
+ * The same test `firestore.rules`' `isFirebaseStorageUrl()` applies to an
+ * attendee editing their own `photoURL`, and `mirror-directory.ts` applies
+ * before a photo reaches the directory. Three copies of one string, because
+ * none of the three can import the others; if this changes, all three change.
+ */
+export function isOurOwnImage(url: string): boolean {
+  return /^https:\/\/firebasestorage\.googleapis\.com\//.test(url.trim());
 }
 
 export function approvalPlan(
@@ -297,6 +337,7 @@ export function approvalPlan(
 ): ApprovalPlan {
   const speaker: ApprovalPlan['speaker'] = {};
   const sessions: ApprovalPlan['sessions'] = {};
+  let heldPhotoURL: string | undefined;
 
   const set = (field: 'title' | 'company' | 'bio' | 'photoURL', value?: string) => {
     if (value === undefined) return;
@@ -308,7 +349,30 @@ export function approvalPlan(
   set('title', draft.title);
   set('company', draft.company);
   set('bio', draft.bio);
-  set('photoURL', draft.photoURL);
+
+  /**
+   * The photo is the one field a speaker cannot publish by typing it.
+   *
+   * ── Why an approval is not enough here, when it is for the bio ─────────────
+   *
+   * A bio is text, and once an organizer has read it, it is what it will stay.
+   * A photo link is an instruction to every visitor's browser to fetch
+   * something from a host we do not control: it sends them our reader's IP
+   * address and the page they were on, and whatever was approved can be
+   * swapped for anything at all afterwards, with no second decision to make.
+   * Approving a URL approves a promise, not a picture.
+   *
+   * So a link to somewhere else is held. It stays on the draft where the
+   * organizer can see it and open it, and the way it reaches the website is
+   * the same way every other image in this product does: an organizer saves
+   * the file on the speaker's own record, through the upload on Speaker
+   * Manager. Clearing a photo is not held, because there is nothing to fetch.
+   */
+  if (draft.photoURL !== undefined) {
+    const wanted = draft.photoURL.trim();
+    if (wanted === '' || isOurOwnImage(wanted)) set('photoURL', draft.photoURL);
+    else if (wanted !== (now.photoURL ?? '').trim()) heldPhotoURL = wanted;
+  }
 
   if (draft.social) {
     const merged = {
@@ -333,7 +397,7 @@ export function approvalPlan(
     sessions[sessionId] = trimmed || null;
   }
 
-  return { speaker, sessions };
+  return { speaker, sessions, ...(heldPhotoURL ? { heldPhotoURL } : {}) };
 }
 
 // ---------------------------------------------------------------------------

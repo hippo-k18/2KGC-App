@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import {
+  FieldIdScope,
   FormActions,
   FormBanner,
   Select,
@@ -44,52 +45,66 @@ export function SendLinkForm({
   speakers,
   incompleteCount,
   emailOn,
+  preselected,
 }: {
   speakers: LinkTarget[];
   incompleteCount: number;
   emailOn: boolean;
+  /**
+   * The speaker chosen from a row, already in the box.
+   *
+   * Without it, Send link off a row dropped the organizer at an empty picker
+   * and they had to find the same person again in a list of forty-five — and
+   * pressing the button first got the browser's own "Please select an item in
+   * the list", which is not our wording and says nothing about what to do.
+   */
+  preselected?: string;
 }) {
   const [state, action] = useActionState<FormState, FormData>(sendSpeakerLinkAction, {});
   const reachable = speakers.filter((s) => s.hasAddress);
 
   return (
-    <form action={action}>
-      <FormBanner state={state} />
-      <Select
-        label="Send to"
-        name="speakerId"
-        required
-        placeholder="Choose…"
-        width="xl"
-        options={[
-          { value: '__incomplete', label: `Everyone missing a bio or a photo (${incompleteCount})` },
-          { value: '__all', label: `Every speaker with an address (${reachable.length})` },
-          ...speakers.map((s) => ({
-            value: s.id,
-            label: s.hasAddress
-              ? `${s.name}${s.statusLabel ? ` · ${s.statusLabel}` : ''}`
-              : `${s.name} · no address on file`,
-            disabled: !s.hasAddress,
-          })),
-        ]}
-      />
-      <Textarea
-        label="A note from you"
-        name="note"
-        rows={3}
-        maxLength={2000}
-        placeholder="Optional. Shown above the link, for example when you need the bio by."
-      />
-      <FormActions>
-        <SubmitButton pendingLabel="Sending…">Send link</SubmitButton>
-      </FormActions>
-      {!emailOn && (
-        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-          Email is not switched on yet, so pressing this sends nothing. Copy a speaker&rsquo;s link
-          from the list and send it yourself until it is.
-        </p>
-      )}
-    </form>
+    <FieldIdScope scope="send-link">
+      <form action={action}>
+        <FormBanner state={state} />
+        <Select
+          key={`speakerId-${preselected ?? ''}`}
+          label="Send to"
+          name="speakerId"
+          required
+          defaultValue={preselected}
+          placeholder="Choose…"
+          width="xl"
+          options={[
+            { value: '__incomplete', label: `Everyone missing a bio or a photo (${incompleteCount})` },
+            { value: '__all', label: `Every speaker with an address (${reachable.length})` },
+            ...speakers.map((s) => ({
+              value: s.id,
+              label: s.hasAddress
+                ? `${s.name}${s.statusLabel ? ` · ${s.statusLabel}` : ''}`
+                : `${s.name} · no address on file`,
+              disabled: !s.hasAddress,
+            })),
+          ]}
+        />
+        <Textarea
+          label="A note from you"
+          name="note"
+          rows={3}
+          maxLength={2000}
+          placeholder="Optional. Shown above the link, for example when you need the bio by."
+        />
+        <FormActions>
+          <SubmitButton pendingLabel="Sending…">Send link</SubmitButton>
+        </FormActions>
+        {!emailOn && (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            Email is not switched on yet, so pressing this sends nothing. Copy a speaker&rsquo;s link
+            from the list and send it yourself until it is.
+          </p>
+        )}
+      </form>
+    </FieldIdScope>
   );
 }
 
@@ -105,25 +120,27 @@ export function DecisionForm({ speakerId }: { speakerId: string }) {
   const [state, action] = useActionState<FormState, FormData>(decideSpeakerProfileAction, {});
 
   return (
-    <form action={action}>
-      <input type="hidden" name="speakerId" value={speakerId} />
-      <FormBanner state={state} />
-      <Textarea
-        label="Why you turned it down"
-        name="note"
-        rows={2}
-        maxLength={500}
-        placeholder="Optional, and only for your own record. It is not sent to the speaker."
-      />
-      <FormActions>
-        <SubmitButton name="decision" value="approve" pendingLabel="Publishing…">
-          Approve and publish
-        </SubmitButton>
-        <SubmitButton name="decision" value="reject" variant="secondary" pendingLabel="Saving…">
-          Turn down
-        </SubmitButton>
-      </FormActions>
-    </form>
+    <FieldIdScope scope={`decision-${speakerId}`}>
+      <form action={action}>
+        <input type="hidden" name="speakerId" value={speakerId} />
+        <FormBanner state={state} />
+        <Textarea
+          label="Why you turned it down"
+          name="note"
+          rows={2}
+          maxLength={500}
+          placeholder="Optional, and only for your own record. It is not sent to the speaker."
+        />
+        <FormActions>
+          <SubmitButton name="decision" value="approve" pendingLabel="Publishing…">
+            Approve and publish
+          </SubmitButton>
+          <SubmitButton name="decision" value="reject" variant="secondary" pendingLabel="Saving…">
+            Turn down
+          </SubmitButton>
+        </FormActions>
+      </form>
+    </FieldIdScope>
   );
 }
 
@@ -139,28 +156,30 @@ export function RevokeLinkForm({ speakers }: { speakers: LinkTarget[] }) {
   const [state, action] = useActionState<FormState, FormData>(revokeSpeakerLinkAction, {});
 
   return (
-    <form action={action}>
-      <FormBanner state={state} />
-      <Select
-        label="Stop a link"
-        name="speakerId"
-        required
-        placeholder="Choose…"
-        width="xl"
-        options={speakers.map((s) => ({
-          value: s.id,
-          label: `${s.name}${s.statusLabel ? ` · ${s.statusLabel}` : ''}`,
-        }))}
-      />
-      <FormActions>
-        <SubmitButton variant="danger" pendingLabel="Stopping…">
-          Stop this speaker&rsquo;s links
-        </SubmitButton>
-      </FormActions>
-      <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-        Every link already sent to them stops opening. They are not told. Send a new link to let
-        them back in.
-      </p>
-    </form>
+    <FieldIdScope scope="revoke-link">
+      <form action={action}>
+        <FormBanner state={state} />
+        <Select
+          label="Stop a link"
+          name="speakerId"
+          required
+          placeholder="Choose…"
+          width="xl"
+          options={speakers.map((s) => ({
+            value: s.id,
+            label: `${s.name}${s.statusLabel ? ` · ${s.statusLabel}` : ''}`,
+          }))}
+        />
+        <FormActions>
+          <SubmitButton variant="danger" pendingLabel="Stopping…">
+            Stop this speaker&rsquo;s links
+          </SubmitButton>
+        </FormActions>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+          Every link already sent to them stops opening. They are not told. Send a new link to let
+          them back in.
+        </p>
+      </form>
+    </FieldIdScope>
   );
 }

@@ -4,6 +4,7 @@ import type { TicketAudience } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { answerSummary, getForm } from '@/lib/question-forms';
+import { dayOfInstant } from '@/lib/time';
 import {
   Banner,
   GapPanel,
@@ -318,7 +319,7 @@ export async function QuestionFormScreen({
 
         {form.updatedAt && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-            Last changed {form.updatedAt.slice(0, 10)}
+            Last changed {dayOfInstant(form.updatedAt)}
             {form.updatedBy ? ` by ${form.updatedBy}` : ''}.
           </p>
         )}

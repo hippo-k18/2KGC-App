@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
@@ -9,7 +9,7 @@ import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { logout } from '@/lib/auth/auth-provider';
-import { useAppAccess } from '@/lib/data/app-access';
+import { useJoinCode } from '@/lib/data/app-access';
 import { useEventSettings } from '@/lib/data/event-settings';
 import { getDb } from '@/lib/firebase/client';
 import { runWrite } from '@/lib/data/write';
@@ -88,32 +88,60 @@ export function EventClosedScreen() {
  * profile, which the rules let the owner set once and never move. The prompt is
  * asked again if it never lands, which is the right direction for a formality.
  *
+ * The code is compared here, on the phone, against `settings/appJoinCode` —
+ * which only a ticket holder may read, so the string is not handed to every
+ * account that exists. It is still a comparison a client makes, and that is
+ * the honest shape of a formality: the thing that actually decides what this
+ * account can read is the ticket claim on its token.
+ *
  * Somebody already using the app when the code is switched on is asked the next
  * time they open it. That is deliberate: an organizer who turns it on mid-event
  * is asking the room, not only the people who arrive afterwards.
  */
 export function JoinCodeScreen({ uid }: { uid: string }) {
   const colors = useTheme();
-  const { access } = useAppAccess();
+  const { code: expected, ready } = useJoinCode();
   const { event } = useEventSettings();
 
   const [typed, setTyped] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const recordJoined = () =>
+    runWrite('record join code', () =>
+      updateDoc(doc(getDb(), COLLECTIONS.users, uid), { joinedAt: serverTimestamp() }),
+    );
+
+  /**
+   * Nothing to ask, so nothing is asked.
+   *
+   * "Ask for the code" and the code itself are in two documents, because only
+   * one of them may be read by an account with no ticket. So there is a state
+   * where the first says yes and the second is empty — between a rules deploy
+   * and the first save of the access settings, or if the code document cannot
+   * be read at all. Standing somebody in front of a box where every answer is
+   * refused is the worst outcome available, and the prompt is a formality: the
+   * ticket claim is what decides what this account can read. So it is treated
+   * as answered and the navigator moves on.
+   */
+  useEffect(() => {
+    if (!ready || expected !== '' || busy) return;
+    setBusy(true);
+    void recordJoined();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, expected]);
+
   async function submit() {
     if (busy || typed.trim().length === 0) return;
     setError(null);
 
-    if (!joinCodeMatches(access.joinCode, typed)) {
+    if (!joinCodeMatches(expected, typed)) {
       setError('That is not the code for this event. Check with the organizers.');
       return;
     }
 
     setBusy(true);
-    const result = await runWrite('record join code', () =>
-      updateDoc(doc(getDb(), COLLECTIONS.users, uid), { joinedAt: serverTimestamp() }),
-    );
+    const result = await recordJoined();
     if (!result.ok) {
       setBusy(false);
       setError('Could not save that. Check your connection and try again.');

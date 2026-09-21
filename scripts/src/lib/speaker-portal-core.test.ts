@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   approvalPlan,
   draftChanges,
+  isOurOwnImage,
   linkIsLive,
   normaliseDraft,
+  portalLinkOpens,
   trackerCounts,
 } from './speaker-portal-core.js';
 
@@ -35,6 +37,39 @@ describe('linkIsLive', () => {
     // land inside one millisecond. A `>` here would mail a link that is already
     // dead, which reads as "the link you sent me does not work".
     expect(linkIsLive(1_000, 1_000)).toBe(true);
+  });
+});
+
+/**
+ * The check every entry point makes, reading and writing alike.
+ *
+ * It exists because revocation used to be checked on the page and nowhere
+ * else: "Revoke link" 404'd the page while the save action, which verified the
+ * signature and nothing more, kept writing that speaker's bio, company, photo
+ * link and slides links for the remaining 180 days of the token. A 180-day
+ * capability has exactly one control and it covered half the feature.
+ */
+describe('portalLinkOpens', () => {
+  const EVENT = 'kgc-2027';
+
+  it('opens a live link for a speaker on this programme', () => {
+    expect(portalLinkOpens({ iat: 1_000, speakerEventId: EVENT, eventId: EVENT })).toBe(true);
+  });
+
+  it('refuses a revoked link, which is the half the write path used to skip', () => {
+    expect(
+      portalLinkOpens({
+        iat: 999,
+        linksValidFrom: 1_000,
+        speakerEventId: EVENT,
+        eventId: EVENT,
+      }),
+    ).toBe(false);
+  });
+
+  it('refuses a speaker who is not on this event, or not there at all', () => {
+    expect(portalLinkOpens({ iat: 1_000, speakerEventId: 'kgc-2026', eventId: EVENT })).toBe(false);
+    expect(portalLinkOpens({ iat: 1_000, speakerEventId: undefined, eventId: EVENT })).toBe(false);
   });
 });
 
@@ -152,6 +187,45 @@ describe('approvalPlan', () => {
 
     expect(plan.speaker).toEqual({ title: 'Principal Engineer' });
     expect(plan.sessions).toEqual({});
+  });
+
+  /**
+   * ⚠️ The photo is the one field an approval does not publish.
+   *
+   * Approving a link to somebody else's server approves a promise rather than
+   * a picture: every visitor to the public speakers page would hand that host
+   * their IP address and the page they came from, and whatever was approved
+   * can be swapped afterwards with no second decision. So the draft holds it,
+   * the organizer sees it, and the picture reaches the website the way every
+   * other image in this product does.
+   */
+  it('does not publish a photo link pointing at somebody else', () => {
+    const plan = approvalPlan(
+      { photoURL: 'https://firebasestorage.googleapis.com/v0/b/kgc/o/speakers%2Fada.png' },
+      { photoURL: 'https://cdn.elsewhere.example/ada.jpg', title: 'Principal Engineer' },
+      sessions,
+    );
+
+    expect(plan.speaker).toEqual({ title: 'Principal Engineer' });
+    expect(plan.heldPhotoURL).toBe('https://cdn.elsewhere.example/ada.jpg');
+  });
+
+  it('publishes a photo we host ourselves, and still lets one be cleared', () => {
+    const ours = 'https://firebasestorage.googleapis.com/v0/b/kgc/o/speakers%2Fada.png';
+    expect(approvalPlan({}, { photoURL: ours }, sessions)).toMatchObject({
+      speaker: { photoURL: ours },
+    });
+    // Clearing is not held back: there is nothing for a browser to fetch.
+    const cleared = approvalPlan({ photoURL: 'https://cdn.elsewhere.example/a.jpg' }, { photoURL: '' }, sessions);
+    expect(cleared.speaker).toEqual({ photoURL: null });
+    expect(cleared.heldPhotoURL).toBeUndefined();
+  });
+
+  it('knows one of our own image links from anybody else’s', () => {
+    expect(isOurOwnImage('https://firebasestorage.googleapis.com/v0/b/kgc/o/a.png')).toBe(true);
+    expect(isOurOwnImage('https://firebasestorage.googleapis.com.evil.example/a.png')).toBe(false);
+    expect(isOurOwnImage('http://firebasestorage.googleapis.com/a.png')).toBe(false);
+    expect(isOurOwnImage('https://cdn.elsewhere.example/a.jpg')).toBe(false);
   });
 
   it('turns a cleared field into a deletion rather than an absent key', () => {

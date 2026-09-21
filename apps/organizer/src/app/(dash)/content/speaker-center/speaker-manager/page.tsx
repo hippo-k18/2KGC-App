@@ -240,6 +240,8 @@ export default async function SpeakerManagerPage({
   const filter = typeof sp.filter === 'string' ? sp.filter : undefined;
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const editId = typeof sp.edit === 'string' ? sp.edit : undefined;
+  /** Set by Send link on a speaker's row, so the picker below opens on them. */
+  const sendTo = typeof sp.send === 'string' ? sp.send : undefined;
   const creating = typeof sp.new === 'string';
   const { page, sort, baseParams } = listParams(sp);
   const [all, portal, pending] = await Promise.all([
@@ -672,6 +674,20 @@ export default async function SpeakerManagerPage({
                   ...(s.contactEmail
                     ? [{ label: 'Email speaker', href: `mailto:${s.contactEmail}` }]
                     : []),
+                  /*
+                    Jumps to the self-service panel with this speaker already
+                    chosen. Offered only where a link can actually be sent: on
+                    a speaker with no address it would take the organizer to a
+                    picker that refuses the row they came from.
+                  */
+                  ...(linksOn && s.contactEmail
+                    ? [
+                        {
+                          label: 'Send profile link',
+                          href: `?send=${encodeURIComponent(s.id)}#speaker-self-service`,
+                        },
+                      ]
+                    : []),
                 ]}
               />,
             ])}
@@ -687,7 +703,7 @@ export default async function SpeakerManagerPage({
         </Panel>
 
         <Panel>
-          <h2 className="section-header" style={{ marginTop: 0 }}>
+          <h2 className="section-header" id="speaker-self-service" style={{ marginTop: 0 }}>
             Speaker self-service
           </h2>
           <p className="body-2">
@@ -722,6 +738,7 @@ export default async function SpeakerManagerPage({
                   all.filter((s) => s.contactEmail && (!s.hasBio || !s.hasPhoto)).length
                 }
                 emailOn={emailOn}
+                preselected={sendTo}
               />
 
               {/*

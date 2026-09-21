@@ -10,8 +10,8 @@ import {
 } from '@kgc/shared';
 import { readSpeakerToken } from '@kgc/scripts/src/lib/speaker-token';
 import {
-  linkIsLive,
   normaliseDraft,
+  portalLinkOpens,
   type DraftInput,
 } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { db } from '@/lib/firestore';
@@ -74,15 +74,35 @@ const millis = (t: unknown): number | undefined => {
   return typeof v?.toMillis === 'function' ? v.toMillis() : undefined;
 };
 
+/** What a link buys, once it has been checked. */
+export interface PortalGrant {
+  speakerId: string;
+  speaker: SpeakerDoc;
+  edit?: SpeakerProfileEditDoc;
+}
+
 /**
- * Verify a link and load everything the page shows.
+ * The one door. Every read and every write on this feature comes through here.
+ *
+ * ── Why this is a function and not four lines repeated ──────────────────────
+ *
+ * It was four lines, in `loadPortal` only, and the save action re-verified the
+ * HMAC and then wrote. So "Revoke link" stopped the page and not the writes:
+ * whoever held an old token could keep replacing that speaker's bio, company,
+ * photo link and slides links for the rest of the token's 180 days, and every
+ * submission put attacker-chosen text in front of an organizer with a button
+ * that publishes it to the website and the app. Revocation is the only control
+ * a 180-day capability has, and it covered the read half.
+ *
+ * So the check is one function, and the actions take the raw token rather than
+ * a speaker id — a future action cannot forget a step it has no way to skip.
  *
  * Returns null for a bad token, an expired one, a revoked one and a speaker who
  * is no longer on the list — deliberately without distinguishing them, because
  * three of the four would otherwise answer "is this person still speaking?" to
  * anybody holding an old URL.
  */
-export async function loadPortal(rawToken: string): Promise<PortalContext | null> {
+export async function openPortal(rawToken: string): Promise<PortalGrant | null> {
   const payload = readSpeakerToken(rawToken);
   if (!payload) return null;
 
@@ -93,10 +113,24 @@ export async function loadPortal(rawToken: string): Promise<PortalContext | null
   if (!speakerSnap.exists) return null;
 
   const edit = editSnap.data() as SpeakerProfileEditDoc | undefined;
-  if (!linkIsLive(payload.iat, edit?.linksValidFrom)) return null;
-
   const speaker = speakerSnap.data() as SpeakerDoc;
-  if (speaker.eventId !== EVENT_ID) return null;
+
+  const opens = portalLinkOpens({
+    iat: payload.iat,
+    linksValidFrom: edit?.linksValidFrom,
+    speakerEventId: speaker.eventId,
+    eventId: EVENT_ID,
+  });
+  if (!opens) return null;
+
+  return { speakerId: payload.sid, speaker, edit };
+}
+
+/** Verify a link and load everything the page shows. */
+export async function loadPortal(rawToken: string): Promise<PortalContext | null> {
+  const grant = await openPortal(rawToken);
+  if (!grant) return null;
+  const { speaker, edit } = grant;
 
   const sessionIds = speaker.sessionIds ?? [];
   const docs = sessionIds.length
@@ -120,7 +154,7 @@ export async function loadPortal(rawToken: string): Promise<PortalContext | null
     .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal));
 
   return {
-    speakerId: payload.sid,
+    speakerId: grant.speakerId,
     name: speaker.name,
     title: speaker.title,
     company: speaker.company,
@@ -174,10 +208,15 @@ export async function markOpened(speakerId: string): Promise<void> {
   }
 }
 
-export type SubmitOutcome = 'saved' | 'invalid' | 'error';
+export type SubmitOutcome = 'saved' | 'invalid' | 'error' | 'revoked';
 
 /**
  * Hold what a speaker sent, for an organizer to approve.
+ *
+ * ⚠️ It takes the raw token, not a speaker id, and it opens the link itself.
+ * The action used to verify the HMAC and hand over `payload.sid`, which meant a
+ * revoked link still wrote — see `openPortal`. Passing the token is what makes
+ * that impossible to get wrong again: there is no speaker id to pass.
  *
  * ⚠️ `draft` is written as a whole map, not merged into the previous one.
  * Nested maps merge key by key under `merge: true`, so a second submission that
@@ -187,19 +226,24 @@ export type SubmitOutcome = 'saved' | 'invalid' | 'error';
  * map, is the only ordering that actually replaces it.
  */
 export async function recordDraft(
-  speakerId: string,
+  rawToken: string,
   input: DraftInput,
 ): Promise<{ outcome: SubmitOutcome; errors: string[] }> {
   try {
-    const speakerSnap = await db().collection(COLLECTIONS.speakers).doc(speakerId).get();
-    if (!speakerSnap.exists) return { outcome: 'error', errors: [] };
-    const speaker = speakerSnap.data() as SpeakerDoc;
+    const grant = await openPortal(rawToken);
+    /*
+     * One answer for a forged token, an expired one, a revoked one and a
+     * speaker who has come off the programme, the same as the page gives. The
+     * caller turns it into the 404 the page would have shown.
+     */
+    if (!grant) return { outcome: 'revoked', errors: [] };
+
+    const { speakerId, speaker, edit: existing } = grant;
 
     const { draft, errors } = normaliseDraft(input, speaker.sessionIds ?? []);
     if (errors.length) return { outcome: 'invalid', errors };
 
     const ref = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerId);
-    const existing = (await ref.get()).data() as SpeakerProfileEditDoc | undefined;
 
     if (existing?.draft) await ref.update({ draft: FieldValue.delete() });
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { requirePassphrase } from '@/lib/auth';
 import { collectPerson, heldRows, resolvePerson } from '@/lib/person-data';
 import { parsePersonRef } from '@/lib/person-data-core';
 import { ROUTES } from '@/lib/nav';
@@ -35,6 +36,7 @@ import { ErasePersonForm } from './person-data-form';
 export async function PersonDataPanel({ param }: { param: string }) {
   const ref = parsePersonRef(param);
   const identity = ref ? await resolvePerson(ref) : null;
+  const needsPassphrase = requirePassphrase();
 
   if (!identity) {
     return (
@@ -42,7 +44,7 @@ export async function PersonDataPanel({ param }: { param: string }) {
         <p className="body-2" style={{ marginBottom: 0 }}>
           Nothing is held about this person.
         </p>
-        <ErasePersonForm refParam={param} email="" total={0} />
+        <ErasePersonForm refParam={param} email="" total={0} needsPassphrase={needsPassphrase} />
       </Frame>
     );
   }
@@ -106,7 +108,12 @@ export async function PersonDataPanel({ param }: { param: string }) {
         </p>
       </div>
 
-      <ErasePersonForm refParam={param} email={identity.email} total={total} />
+      <ErasePersonForm
+        refParam={param}
+        email={identity.email}
+        total={total}
+        needsPassphrase={needsPassphrase}
+      />
     </Frame>
   );
 }

@@ -58,6 +58,15 @@ export function deriveTimes(
 export { isWallClock, toWallClockInZone };
 
 /**
+ * Reading a stored instant back in the event's zone.
+ *
+ * The arithmetic is in `time-core.ts` because this file is `server-only` and
+ * the check-in desk table, which has to agree with the panel above it, is a
+ * client component. Re-exported here so a server screen has one place to look.
+ */
+export { clockOfInstant, dayOfInstant } from './time-core';
+
+/**
  * One wall clock → the instant it names, for the single-ended cases.
  *
  * A ticket's sales window is two independent moments, either of which may be

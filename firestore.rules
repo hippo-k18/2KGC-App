@@ -437,8 +437,16 @@ service cloud.firestore {
         // Written only by functions; the owner may mark them read. `hasOnly`
         // is the whole point of the branch — "mark read" must not be a way to
         // rewrite the title and body of a notification the server sent.
-        allow read: if isSelf(uid);
-        allow update: if isSelf(uid) && changed().hasOnly(['read']);
+        //
+        // `isRegistered()` rather than `isSelf()` alone, added 2026-09-20.
+        // These were the one read in the file outside the access window: once
+        // the event had closed every other read was refused and the phone
+        // showed the "has ended" screen, while the titles and bodies of agenda
+        // changes stayed readable by that account for ever. The window is
+        // either the rule or it is not, and a notification is event content
+        // like the session it is about.
+        allow read: if isSelf(uid) && isRegistered();
+        allow update: if isSelf(uid) && isRegistered() && changed().hasOnly(['read']);
         allow create, delete: if false;
       }
       match /fcmTokens/{token} {
@@ -903,15 +911,27 @@ service cloud.firestore {
      * closed app would be unable to read the one document that tells it it is
      * closed, and an attendee would get a server error instead of a sentence.
      *
-     * It carries four derived values and the event code, and nothing else —
-     * `staffNote` stays in `settings/access`, which no client may read. The
-     * code is in here on purpose: it is read out loud from a stage to a
-     * thousand people, the rules do not gate on it, and the gate that matters
-     * is the ticket claim. Nothing is disclosed here that is not shouted
-     * across a ballroom.
+     * It carries four derived values and nothing else — `staffNote` stays in
+     * `settings/access`, which no client may read.
+     *
+     * ── And `appJoinCode`, which is the code itself, kept apart ─────────────
+     *
+     * The code used to sit in `appAccess`, where anybody who could create a
+     * Firebase account could read it: sign up with any address, read one
+     * document, and you hold the string the organizer reads out from the
+     * stage. It is a prompt rather than a lock — the gate is the ticket claim
+     * and these rules never look at the code — but handing it to an account
+     * that holds no ticket is still handing it to the one population it was
+     * meant to greet rather than admit.
+     *
+     * So it is its own document, behind `isRegistered()`, and the window
+     * document stays behind `signedIn()`. A closed app can still read the
+     * sentence that says it is closed; a stranger cannot read the code. The
+     * split is the same answer `directory/{uid}` gives for `users/{uid}`:
+     * rules filter documents, not fields.
      */
     match /settings/{key} {
-      allow read: if (isRegistered() && key == 'logistics')
+      allow read: if (isRegistered() && key in ['logistics', 'appJoinCode'])
         || (signedIn() && key == 'appAccess')
         || key in ['branding', 'event', 'sponsorTiers'];
       // Admin SDK only, like every other settings write. The dashboard's
@@ -1291,32 +1311,44 @@ service cloud.firestore {
 
       match /replies/{id} {
         /**
-         * A hidden reply is not fetchable on its own.
+         * A hidden reply is not readable, on a `get` OR on a query.
          *
-         * ⚠️ AND THAT IS ALL THIS RULE DOES. It holds on a `get`, where
-         * `resource` is the document; on a `list` — which is how the app and
-         * the count aggregation both read replies — `resource.data` is not
-         * bound per document, so `.get('status', 'visible')` returns the
-         * default and every reply comes back. That is not a guess: the
-         * emulator returns the hidden document from an unfiltered query under
-         * exactly this predicate, and `tests/rules/firestore.test.ts` pins it
-         * so nobody reads this rule as a filter it is not.
+         * ── The three branches, and why they are in this order ──────────────
          *
-         * The list is therefore filtered where the data model allows it to be:
-         * in `app/src/lib/data/community.ts`, which drops anything whose
-         * status is not `visible` while keeping a reply written before the
-         * field existed. An equality filter in the query would enforce it on
-         * the server and delete every one of those older replies from the
-         * board, because Firestore cannot ask for "this field is absent".
+         * `resource.data.keys().size()` is the whole trick, and it is the only
+         * thing in this file that tells a `get` apart from a `list`. On a
+         * single-document read `resource.data` is the document, so it has
+         * keys; on a query it is unbound and has none. So:
          *
-         * A default of `visible` rather than a bare field read, for the same
-         * reason: a reply older than the field is a visible reply, not an
-         * unreadable one.
+         *   • **On a `get`**, the first branch runs and `.get('status',
+         *     'visible')` decides — which keeps a reply written before the
+         *     field existed readable, because a reply older than the field is
+         *     a visible reply and not an unreadable one.
+         *
+         *   • **On a query**, that branch is false (no keys), and the bare
+         *     `resource.data.status == 'visible'` below it is what the query
+         *     has to satisfy. An unfiltered `getDocs` cannot: the field is not
+         *     constrained, the dereference throws, and Firestore refuses the
+         *     whole query. `where('status', '==', 'visible')` can, and that is
+         *     the query `app/src/lib/data/community.ts` now sends.
+         *
+         * This used to be `.get('status', 'visible')` alone, which returns the
+         * default on a query and therefore let an unfiltered `getDocs` pull
+         * back every hidden reply — the hide was a client-side courtesy that
+         * any other client, script or REST call walked straight past. The
+         * ordering above is load-bearing: putting the bare read first would
+         * throw on a `get` of a pre-`status` reply and deny it.
+         *
+         * An author still reaches their own hidden reply by `get`, and an
+         * organizer reaches everything, including an unfiltered list, because
+         * `isOrganizer()` short-circuits before any of it.
          */
         allow read: if isRegistered()
           && (resource == null
               || isOrganizer()
-              || resource.data.get('status', 'visible') == 'visible'
+              || (resource.data.keys().size() > 0
+                  && resource.data.get('status', 'visible') == 'visible')
+              || resource.data.status == 'visible'
               || resource.data.authorId == request.auth.uid);
         // A reply may not arrive already hidden — moderation state is not the
         // author's to set, the same rule a question's `state` follows.

@@ -184,21 +184,23 @@ export default async function LogisticsCenterPage({
           ) : (
           <Table
             cols={[
-              { key: 'n', label: 'Room', className: 'cell-lg' },
+              { key: 'n', label: 'Room', className: 'cell-md' },
               { key: 'w', label: 'Where', className: 'cell-md' },
               { key: 'c', label: 'Seats', className: 'cell-xs cell-end-align' },
-              { key: 's', label: 'Sessions', className: 'cell-xs cell-end-align' },
-              { key: 'p', label: 'Published', className: 'cell-xs cell-end-align' },
+              { key: 's', label: 'Sessions', className: 'cell-xsm cell-end-align' },
+              { key: 'p', label: 'Published', className: 'cell-xsm cell-end-align' },
               { key: 'a', label: '', className: 'cell-sm cell-end-align' },
             ]}
             empty="Nothing here yet"
             rows={rooms.map((r) => [
-              <span key="n">
-                <strong>{r.name}</strong>
-                <div className="muted" style={{ fontSize: 11 }}>
-                  <code>{r.id}</code>
-                </div>
-              </span>,
+              /*
+                The name alone. The row used to print the room's id under it in
+                a monospace face — `veec-classroom-1` — which is how this
+                dashboard addresses a room and not anything an organizer needs
+                to read. The screen link in the last column is the one place
+                the id has a job, and it is already inside the href.
+              */
+              <strong key="n">{r.name}</strong>,
               <span key="w" style={{ fontSize: 13 }}>
                 {r.building || r.floor ? (
                   <>

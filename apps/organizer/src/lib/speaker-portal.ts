@@ -427,16 +427,29 @@ export async function approveSubmission(input: {
        * overwritten by their next submission.
        */
       before: {},
-      after: { fields: Object.keys(plan.speaker), sessions: Object.keys(plan.sessions) },
+      after: {
+        fields: Object.keys(plan.speaker),
+        sessions: Object.keys(plan.sessions),
+        ...(plan.heldPhotoURL ? { heldPhotoURL: plan.heldPhotoURL } : {}),
+      },
     });
 
     const n = Object.keys(plan.speaker).length + Object.keys(plan.sessions).length;
+    /*
+     * The photo is the one thing an approval does not publish, so it is the one
+     * thing the message has to name. Approving and then finding the headshot is
+     * still the old one, with nothing having said so, is the failure this
+     * sentence exists to prevent.
+     */
+    const photo = plan.heldPhotoURL
+      ? ' The photo link was not published. Open it, save the picture, and add it on this speaker in Speaker Manager.'
+      : '';
     return {
       ok: true,
       message:
         n === 0
-          ? `Nothing in ${speaker.name}'s profile was different, so nothing changed. It is marked as done.`
-          : `Approved. ${speaker.name}'s profile is live on the website and in the app.`,
+          ? `Nothing in ${speaker.name}'s profile was different, so nothing changed. It is marked as done.${photo}`
+          : `Approved. ${speaker.name}'s profile is live on the website and in the app.${photo}`,
     };
   } catch (err) {
     recordError('speaker-portal.approve', err);

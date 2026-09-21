@@ -70,7 +70,14 @@ export function isSafeHref(href: string): boolean {
   // A bare `//host` is scheme-relative and inherits the page's scheme, which is
   // an off-site link wearing the clothes of a relative one. Checked before the
   // single slash below, which would otherwise let it through.
-  if (trimmed.startsWith("//")) return false;
+  //
+  // ⚠️ A backslash counts as a slash here, and that is not pedantry. The WHATWG
+  // URL parser treats `\` as `/` for http and https, so a browser resolves
+  // `/\evil.example` to `https://evil.example` while every `startsWith("//")`
+  // test in the world says it is relative. `rich-text.tsx` then classifies it
+  // as one of our own pages and drops `rel="noreferrer noopener"` and the new
+  // tab. Same for `\\host` and `\/host`.
+  if (/^[/\\][/\\]/.test(trimmed)) return false;
   if (trimmed.startsWith("/") || trimmed.startsWith("#")) return true;
   try {
     return SAFE_SCHEMES.includes(new URL(trimmed).protocol);

@@ -4,11 +4,13 @@ import { doc } from 'firebase/firestore';
 import {
   APP_ACCESS_DEFAULTS,
   APP_ACCESS_KEY,
+  APP_JOIN_CODE_KEY,
   COLLECTIONS,
   EVENT_ID,
   appAccessState,
   appWritesOpen,
   resolveAppAccess,
+  resolveJoinCode,
   type AppAccessProjection,
   type AppAccessState,
 } from '@kgc/shared';
@@ -22,8 +24,10 @@ import { getDb, isFirebaseConfigured } from '@/lib/firebase/client';
  * One document listener, mounted once inside `AuthProvider` because the rule
  * needs a signed-in reader. `settings/appAccess` is a projection written by the
  * dashboard — the access window resolved into two instants, the messaging
- * switch and the join code — and it carries nothing else from
+ * switch and whether the code is asked for — and it carries nothing else from
  * `settings/access`, which also holds a note written for the check-in desk.
+ * The code itself is a second document behind the ticket claim; `useJoinCode`
+ * below is the only thing that reads it.
  *
  * ── It fails open, on purpose ───────────────────────────────────────────────
  *
@@ -95,6 +99,40 @@ export function AppAccessProvider({ children }: { children: ReactNode }) {
 
 export function useAppAccess(): AppAccessValue {
   return useContext(AppAccessContext);
+}
+
+/**
+ * The event code, from its own document.
+ *
+ * ── Why this is not in the provider above ───────────────────────────────────
+ *
+ * The window document is readable by anybody signed in, because a closed app
+ * has to be able to read the sentence that says it is closed. The code is not:
+ * it sits behind the ticket claim, so that an account which holds no ticket
+ * cannot read the string an organizer reads out from a stage. Two audiences,
+ * two documents, and only the one screen that asks for the code subscribes to
+ * the second — so nothing else in the app ever fetches it.
+ *
+ * An unreadable or absent document yields `''`, and `joinCodeMatches` refuses
+ * everything against an empty code. `ready` is what stops that being a locked
+ * door: `joinCodeRequired` lives in the other document, so between a rules
+ * deploy and the first save of the settings there is a moment when the phone
+ * is told to ask for a code it cannot read, and every answer would be wrong.
+ * The screen uses `ready` to tell "there is no code" from "it has not arrived",
+ * and lets somebody through in the first case. A prompt is a formality and
+ * standing in front of an empty one is not.
+ */
+export function useJoinCode(): { code: string; ready: boolean } {
+  const { data, status } = useDocument<string>(
+    () => (isFirebaseConfigured() ? doc(getDb(), COLLECTIONS.settings, APP_JOIN_CODE_KEY) : null),
+    [],
+    (_id, d) => {
+      const raw = d as { eventId?: unknown; values?: unknown } | undefined;
+      if (!raw || raw.eventId !== EVENT_ID) return '';
+      return resolveJoinCode(raw.values).joinCode;
+    },
+  );
+  return { code: data ?? '', ready: status !== 'loading' };
 }
 
 /**

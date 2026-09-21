@@ -1137,6 +1137,14 @@ a {
 .whova-table-header {
   color: var(--muted);
   font-weight: 700;
+  /*
+   * A header never breaks inside a word. The cells above it keep
+   * `overflow-wrap: anywhere` because they hold addresses and ids that have no
+   * break in them, but a header is one or two short words we chose ourselves,
+   * and "Sessio / ns" over a column of counts reads as a rendering fault. If a
+   * header no longer fits, widen its column rather than letting it wrap here.
+   */
+  overflow-wrap: normal;
 }
 
 .whova-table-cell {
@@ -1147,6 +1155,11 @@ a {
 .cell-xs {
   max-width: 68px;
   min-width: 68px;
+}
+/* Wide enough for a one-word header over a narrow column of numbers. */
+.cell-xsm {
+  max-width: 96px;
+  min-width: 96px;
 }
 .cell-sm {
   max-width: 136px;
@@ -3251,9 +3264,44 @@ html:has(dialog[open]) {
     padding: 10px 12px !important;
   }
 
-  /* Stacked row actions keep the desktop spacing there and get a finger-sized box here. */
+  /*
+   * A tick box is 16px square and the label around it is the whole tap target,
+   * so the label carries the finger-sized box rather than the box itself —
+   * scaling the control up would leave the dashboard with two sizes of
+   * checkbox. The padding is vertical only, and `align-items: flex-start`
+   * still holds, so a label that wraps to two lines keeps its box at the top.
+   */
+  .whova-checkbox-label,
+  .whova-radio-label {
+    min-height: 32px;
+    padding: 8px 0;
+  }
+
+  /*
+   * Stacked row actions keep the desktop spacing there and get a finger-sized
+   * box here. `.row-link` is the same thing for a single action link written
+   * into a hand-built row rather than into a table or a stacked column.
+   */
   .row-actions-col a,
-  .row-actions-col button {
+  .row-actions-col button,
+  .row-link {
+    align-items: center;
+    display: inline-flex;
+    min-height: 32px;
+  }
+
+  /*
+   * Row actions written as plain text links inside a table — Edit, Manage,
+   * Screen ↗, Move up — get the same box. They were 12 to 17px tall on a
+   * phone, which is a target somebody misses and then hits the row next to it.
+   *
+   * Here rather than on each screen: two dozen tables spell their last column
+   * as a `<Link>` with a font size on it, and a rule per screen is a rule the
+   * next table will not have. `.row-actions-btn` is the ⋮ trigger and already
+   * carries its own 40px below.
+   */
+  .whova-table-cell a,
+  .whova-table-cell button:not(.row-actions-btn) {
     align-items: center;
     display: inline-flex;
     min-height: 32px;

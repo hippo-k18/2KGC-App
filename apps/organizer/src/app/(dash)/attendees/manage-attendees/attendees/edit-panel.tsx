@@ -3,7 +3,16 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import type { AttendeeCategoryDef } from '@kgc/shared';
-import { Field, FormActions, FormBanner, FormGrid, Select, SubmitButton, type FormState } from '../../../form';
+import {
+  Field,
+  FieldIdScope,
+  FormActions,
+  FormBanner,
+  FormGrid,
+  Select,
+  SubmitButton,
+  type FormState,
+} from '../../../form';
 import { assignCategoryAction } from '../../categories/actions';
 import {
   cancelAttendeeAction,
@@ -107,48 +116,51 @@ export function EditPanel({
 
   return (
     <>
-      <form action={save}>
-        {hidden(a.registrationId)}
-        <FormBanner state={restored.ok && !saved.ok && !saved.error ? restored : saved} />
-        <FormGrid>
-          <Field
-            label="Name"
-            name="name"
-            required
-            defaultValue={a.name}
-            autoComplete="off"
-            error={saved.fieldErrors?.name}
-            hint="Printed on the badge."
-          />
-          <Field
-            label="Email"
-            name="email"
-            type="email"
-            required
-            defaultValue={a.email}
-            autoComplete="off"
-            error={saved.fieldErrors?.email}
-            hint="Changing it keeps the same badge and sends the confirmation to the new address."
-          />
-          <Field
-            label="Title"
-            name="title"
-            defaultValue={a.title}
-            autoComplete="off"
-            error={saved.fieldErrors?.title}
-          />
-          <Field
-            label="Company"
-            name="company"
-            defaultValue={a.company}
-            autoComplete="off"
-            error={saved.fieldErrors?.company}
-          />
-        </FormGrid>
-        <FormActions>
-          <SubmitButton>Save</SubmitButton>
-        </FormActions>
-      </form>
+      {/* Scoped ids: the transfer form below names the same four fields. */}
+      <FieldIdScope scope="edit">
+        <form action={save}>
+          {hidden(a.registrationId)}
+          <FormBanner state={restored.ok && !saved.ok && !saved.error ? restored : saved} />
+          <FormGrid>
+            <Field
+              label="Name"
+              name="name"
+              required
+              defaultValue={a.name}
+              autoComplete="off"
+              error={saved.fieldErrors?.name}
+              hint="Printed on the badge."
+            />
+            <Field
+              label="Email"
+              name="email"
+              type="email"
+              required
+              defaultValue={a.email}
+              autoComplete="off"
+              error={saved.fieldErrors?.email}
+              hint="Changing it keeps the same badge and sends the confirmation to the new address."
+            />
+            <Field
+              label="Title"
+              name="title"
+              defaultValue={a.title}
+              autoComplete="off"
+              error={saved.fieldErrors?.title}
+            />
+            <Field
+              label="Company"
+              name="company"
+              defaultValue={a.company}
+              autoComplete="off"
+              error={saved.fieldErrors?.company}
+            />
+          </FormGrid>
+          <FormActions>
+            <SubmitButton>Save</SubmitButton>
+          </FormActions>
+        </form>
+      </FieldIdScope>
 
       <form action={changeType} style={section}>
         {hidden(a.registrationId)}
@@ -204,41 +216,43 @@ export function EditPanel({
         <summary className="linkish" style={{ cursor: 'pointer' }}>
           Transfer to someone else
         </summary>
-        <form action={transfer} style={{ marginTop: 12 }}>
-          {hidden(a.registrationId)}
-          <FormBanner state={moved} />
-          <p className="body-2">
-            The new person gets this {a.ticketType || 'ticket'}, a new badge and a confirmation
-            email. {a.name || a.email} loses the ticket and their badge stops scanning.
-          </p>
-          <FormGrid>
-            <Field
-              label="New attendee name"
-              name="name"
-              required
-              autoComplete="off"
-              error={moved.fieldErrors?.name}
-            />
-            <Field
-              label="New attendee email"
-              name="email"
-              type="email"
-              required
-              autoComplete="off"
-              error={moved.fieldErrors?.email}
-            />
-            <Field label="Title" name="title" autoComplete="off" error={moved.fieldErrors?.title} />
-            <Field
-              label="Company"
-              name="company"
-              autoComplete="off"
-              error={moved.fieldErrors?.company}
-            />
-          </FormGrid>
-          <FormActions>
-            <SubmitButton pendingLabel="Transferring…">Transfer ticket</SubmitButton>
-          </FormActions>
-        </form>
+        <FieldIdScope scope="transfer">
+          <form action={transfer} style={{ marginTop: 12 }}>
+            {hidden(a.registrationId)}
+            <FormBanner state={moved} />
+            <p className="body-2">
+              The new person gets this {a.ticketType || 'ticket'}, a new badge and a confirmation
+              email. {a.name || a.email} loses the ticket and their badge stops scanning.
+            </p>
+            <FormGrid>
+              <Field
+                label="New attendee name"
+                name="name"
+                required
+                autoComplete="off"
+                error={moved.fieldErrors?.name}
+              />
+              <Field
+                label="New attendee email"
+                name="email"
+                type="email"
+                required
+                autoComplete="off"
+                error={moved.fieldErrors?.email}
+              />
+              <Field label="Title" name="title" autoComplete="off" error={moved.fieldErrors?.title} />
+              <Field
+                label="Company"
+                name="company"
+                autoComplete="off"
+                error={moved.fieldErrors?.company}
+              />
+            </FormGrid>
+            <FormActions>
+              <SubmitButton pendingLabel="Transferring…">Transfer ticket</SubmitButton>
+            </FormActions>
+          </form>
+        </FieldIdScope>
       </details>
 
       <details id="cancel" style={section} open={jump === 'cancel' || undefined}>

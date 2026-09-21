@@ -42,10 +42,13 @@ agenda's day tabs and the app's home screen all read them. Changing the end date
 also moves the app's access window, because "30 days after the event" has to
 follow the event.
 
-Sponsor tiers are the same change for the sponsor list: name, price, order,
-what is included and how many passes come with it, editable instead of fixed.
-The tier drives the website's sponsor page and the complimentary passes a
-sponsor order issues.
+Sponsor tiers are the same change for the sponsor list: the tier names and
+their order, and how large each tier's logos are drawn, editable instead of
+fixed. That is all a tier carries. It does not hold a price, a list of what the
+package includes, or a number of passes — the screen says so, and complimentary
+passes are set per sponsorship ticket type on Tickets, not here. The tier
+drives the order and the logo size on the website's sponsor page, and the
+grouping in Sponsor Manager.
 
 **Where:** Content > Basics. Content > Sponsor Center > Sponsor Tiering.
 

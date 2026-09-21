@@ -92,7 +92,7 @@ export default async function SponsorTieringPage() {
         <Table
           cols={[
             { key: 't', label: 'Tier', className: 'cell-sm' },
-            { key: 'n', label: 'Sponsors', className: 'cell-xs' },
+            { key: 'n', label: 'Sponsors', className: 'cell-xsm' },
             { key: 'l', label: 'Who', className: 'cell-fill' },
           ]}
           rows={groups.map((g) => [

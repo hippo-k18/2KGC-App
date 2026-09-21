@@ -1246,6 +1246,15 @@ export interface ConsentRequestInput {
   resigning: boolean;
   /** Who pressed send, recorded in `emailLog`. */
   actor: string;
+  /**
+   * Groups every row of one send in `emailLog`, exactly as a campaign does.
+   *
+   * It is what makes the send resumable: one id per form and version, so the
+   * rows already written are the list of people already asked, and a second
+   * press picks up where the first stopped instead of mailing everybody twice.
+   * Absent for a link sent to one named person as they are added.
+   */
+  campaignId?: string;
 }
 
 /**
@@ -1303,5 +1312,6 @@ Knowledge Graph Conference 2027`;
     text,
     template: 'consent-request',
     actor: input.actor,
+    ...(input.campaignId ? { campaignId: input.campaignId } : {}),
   });
 }

@@ -72,7 +72,11 @@ function TierGroup({
         <Tag color="blue">{rows.length}</Tag>
         <span style={{ flex: 1 }} />
         {/* Tiers are added, renamed and reordered on Sponsor Tiering. */}
-        <Link href="/content/sponsor-center/sponsor-tiering" style={{ fontSize: 11 }}>
+        <Link
+          className="row-link"
+          href="/content/sponsor-center/sponsor-tiering"
+          style={{ fontSize: 11 }}
+        >
           Edit tiers
         </Link>
       </div>

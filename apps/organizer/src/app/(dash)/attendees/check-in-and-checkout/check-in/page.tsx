@@ -15,6 +15,7 @@ import { capacityIndex } from '@/lib/cohorts';
 import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { clockOfInstant, dayOfInstant } from '@/lib/time';
 import { Banner, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
 import { Dropdown } from '../../../menu';
 import { DeskTable, type DeskRow } from './desk-table';
@@ -409,13 +410,20 @@ export default async function CheckInPage({
             { key: 'w', label: 'When', className: 'cell-mdsm' },
             { key: 'n', label: 'Attendee', className: 'cell-md' },
             { key: 't', label: 'Ticket', className: 'cell-sm' },
-            { key: 's', label: 'Station', className: 'cell-mdsm' },
-            { key: 'r', label: 'Registration', className: 'cell-fill' },
+            /*
+              No registration id column. It printed `reg_f36950d41bacf1d0…`
+              beside every arrival, which is how the badge and this dashboard
+              address a ticket and is nothing a person at the desk reads. The
+              attendee's name and address identify the row.
+            */
+            { key: 's', label: 'Station', className: 'cell-fill' },
           ]}
           empty="Nobody has checked in yet"
           rows={checkIns.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt
+                ? `${dayOfInstant(c.checkedInAt)} ${clockOfInstant(c.checkedInAt)}`
+                : '—'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
@@ -425,9 +433,6 @@ export default async function CheckInPage({
             </span>,
             c.ticketType ?? <span className="muted">—</span>,
             c.stationLabel || <span className="muted">—</span>,
-            <code key="r" style={{ fontSize: 12 }}>
-              {c.registrationId}
-            </code>,
           ])}
         />
       </Panel>
@@ -447,7 +452,9 @@ export default async function CheckInPage({
           empty="No scans yet"
           rows={scans.map((s) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {s.scannedAt ? s.scannedAt.slice(0, 16).replace('T', ' ') : '—'}
+              {s.scannedAt
+                ? `${dayOfInstant(s.scannedAt)} ${clockOfInstant(s.scannedAt)}`
+                : '—'}
             </span>,
             <Tag key="r" color={s.result === 'ok' ? 'green' : s.result === 'duplicate' ? 'orange' : 'red'}>
               {s.result}

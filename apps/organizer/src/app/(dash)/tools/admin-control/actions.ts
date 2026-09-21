@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { accessWindowSummary, normaliseJoinCode } from '@kgc/shared';
 import { writeAppAccessProjection } from '@/lib/app-access';
 import { requireOrganizer } from '@/lib/auth';
@@ -44,6 +45,20 @@ export async function saveAccessSettingsAction(
   const actor = await requireOrganizer();
   const which = String(formData.get('which') ?? '');
 
+  /**
+   * Both screens read the same settings document, and neither was being
+   * re-rendered after a save. A server action does not refresh the route on its
+   * own, so the page carried on serving the values it was built with: the box
+   * showed the previous code next to a banner naming the new one, and pressing
+   * Save a second time posted that stale value back over what had just been
+   * stored. The `key` on each control in `access-form.tsx` is the other half of
+   * this — the refresh brings the new value down, the key puts it in the box.
+   */
+  const refresh = () => {
+    revalidatePath('/tools/admin-control/code-access-control');
+    revalidatePath('/tools/admin-control/post-event-access-duration');
+  };
+
   if (which === 'post-event') {
     const days = Number(formData.get('postEventDays') ?? 0);
     if (!Number.isInteger(days) || days < 0 || days > 3650) {
@@ -58,6 +73,7 @@ export async function saveAccessSettingsAction(
       actor,
     );
     if (!res.ok) return { error: res.error };
+    refresh();
 
     return applyToTheApp(
       days === 0
@@ -88,6 +104,7 @@ export async function saveAccessSettingsAction(
       actor,
     );
     if (!res.ok) return { error: res.error };
+    refresh();
 
     /*
      * The code is compared without its punctuation, so an attendee reading a

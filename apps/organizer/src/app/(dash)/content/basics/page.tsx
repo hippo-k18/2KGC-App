@@ -6,6 +6,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
 import { targetLabel } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
+import { dayOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
 import { BasicsForm } from './basics-form';
 
@@ -97,7 +98,7 @@ export default async function BasicsPage() {
         {saved.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {saved.updatedBy}
-            {saved.updatedAt ? ` on ${saved.updatedAt.slice(0, 10)}` : ''}.
+            {saved.updatedAt ? ` on ${dayOfInstant(saved.updatedAt)}` : ''}.
           </p>
         )}
       </Panel>

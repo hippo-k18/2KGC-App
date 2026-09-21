@@ -171,7 +171,11 @@ export default async function LivePollingPage({
                 </Tag>
               )}
               <span style={{ flex: 1 }} />
-              <Link href={`?edit=${p.sessionId}:${p.id}`} style={{ fontSize: 12 }}>
+              <Link
+                className="row-link"
+                href={`?edit=${p.sessionId}:${p.id}`}
+                style={{ fontSize: 12 }}
+              >
                 Edit
               </Link>
             </div>

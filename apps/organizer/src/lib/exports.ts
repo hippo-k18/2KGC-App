@@ -12,6 +12,7 @@ import { answerColumns, formatAnswer, surveyAnswerRows } from './answer-exports-
 import { db } from './firestore';
 import { getForm } from './question-forms';
 import { sponsorReports } from './sponsor-report';
+import { dayOfInstant } from './time-core';
 import { surveyAnswerSources } from './surveys';
 import { allCheckIns, DEFAULT_LIST_ID, listRegistrations, listStations } from './checkin';
 import type { CheckInRow } from './checkin';
@@ -436,7 +437,7 @@ export const EXPORTS: ExportDef[] = [
           { header: 'Link clicks', value: (r) => r.clicks },
           { header: 'Purchases through their links', value: (r) => r.orders },
           { header: 'Leads', value: (r) => r.leads },
-          { header: 'Last click', value: (r) => r.lastClickAt?.slice(0, 10) ?? '' },
+          { header: 'Last click', value: (r) => dayOfInstant(r.lastClickAt) },
         ]),
         rows: rows.length,
       };

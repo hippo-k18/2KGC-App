@@ -244,3 +244,64 @@ export function audienceSources(
   if (audience === 'volunteer') return ['volunteer'];
   return [];
 }
+
+// ---------------------------------------------------------------------------
+// Sending the signing links
+// ---------------------------------------------------------------------------
+
+/**
+ * One id per form *and version*, so the rows already in `emailLog` are the
+ * record of who has been asked to sign this wording.
+ *
+ * The version belongs in the id. Rewording a form makes every signature
+ * outstanding again and those people genuinely do have to be asked again, so a
+ * new version starts a new run rather than being told everybody already had it.
+ */
+export function signingCampaignId(formId: string, version: number): string {
+  return `consent_${formId}_v${version}`;
+}
+
+export interface SigningSplit {
+  /** Outstanding, has an address, and has not been written to for this version. */
+  todo: RegisterRow[];
+  /** Outstanding and already written to for this version. */
+  alreadySent: number;
+  /** Outstanding with no address on file. Nothing can reach them. */
+  noAddress: number;
+  /** Outstanding altogether, which is the three above added up. */
+  outstanding: number;
+}
+
+/**
+ * Who a send would actually write to, given who has been written to already.
+ *
+ * ── Why this is a pure function and not three filters in the sender ─────────
+ *
+ * ⚠️ It is the whole of "a retry does not send twice". The sender used to mail
+ * every outstanding row on every call, which on a request that timed out
+ * halfway meant the next press sent a second copy of a legal release to
+ * everybody the first press had already reached. The set of addresses comes
+ * from `emailLog`, written per recipient as each one goes out, and the
+ * comparison is folded because `emailLog.to` holds the address as it was typed
+ * while a register row may hold a different spelling of the same one.
+ *
+ * The screen and the sender both call this, so the number somebody is asked to
+ * confirm is the number that is then attempted. Two code paths answering "how
+ * many?" is how a confirmation stops meaning anything.
+ */
+export function signingSendSplit(
+  rows: readonly RegisterRow[],
+  alreadyMailed: ReadonlySet<string>,
+): SigningSplit {
+  const fold = (e: string | undefined) => (e ?? '').trim().toLowerCase();
+  const outstanding = rows.filter((r) => r.status !== 'signed');
+  const reachable = outstanding.filter((r) => Boolean(r.email));
+  const todo = reachable.filter((r) => !alreadyMailed.has(fold(r.email)));
+
+  return {
+    todo,
+    alreadySent: reachable.length - todo.length,
+    noAddress: outstanding.length - reachable.length,
+    outstanding: outstanding.length,
+  };
+}

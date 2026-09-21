@@ -113,6 +113,10 @@ export function useReplyCounts(posts: Post[] | null): Record<string, number> | n
   return useSubcollectionCounts(
     posts?.map((p) => p.id) ?? null,
     (id) => [COLLECTIONS.communityPosts, id, SUBCOLLECTIONS.replies],
+    [],
+    // A count is a query, and the rules refuse an unfiltered one on replies.
+    // Counting the visible ones is also the number the board should print.
+    (c) => query(c, where('status', '==', 'visible')),
   ).counts;
 }
 
@@ -149,6 +153,15 @@ export function useReplies(postId: string | undefined) {
     () =>
       query(
         collection(getDb(), COLLECTIONS.communityPosts, postId ?? '_', SUBCOLLECTIONS.replies),
+        /*
+         * The filter is on the server now, and it has to be: `firestore.rules`
+         * refuses an unfiltered list of replies outright. It used to allow one
+         * — the rule read `status` with a default, which on a query returns the
+         * default and hands back every hidden reply — so hiding a reply was a
+         * courtesy this file performed rather than a control. The rule denies
+         * that query today, and this is the query that satisfies it.
+         */
+        where('status', '==', 'visible'),
         orderBy('createdAt', 'asc'),
         // The most recent page, still in reading order — see `PAGE_SIZE`.
         limitToLast(PAGE_SIZE),
@@ -157,31 +170,19 @@ export function useReplies(postId: string | undefined) {
     (id, d) => ({ id, ...d }) as Reply,
   );
   /**
-   * Hidden replies are dropped here, and here is the only place they can be.
+   * Kept, although the query now does the same job on the server.
    *
-   * ── Why not in the query, which is where it belongs ─────────────────────
+   * Two filters rather than one because they fail differently: the query is
+   * the one that is enforced, and this is the one that still holds if a future
+   * edit loosens it. It costs a pass over at most `PAGE_SIZE` rows.
    *
-   * `useCommunityPosts` above filters `status == 'visible'` in the query, and
-   * that is the right shape: the server decides, and a hidden post is never on
-   * the wire. A reply cannot do the same, because Firestore has no way to ask
-   * for "this field is absent or equals visible" — an equality filter drops
-   * every reply written before the field existed, which is most of them,
-   * including all of the seeded conversation. Deleting old replies from the
-   * board to enforce a hide is a worse bug than the one it fixes.
-   *
-   * ── Why not in firestore.rules either ───────────────────────────────────
-   *
-   * The rule is there and it does hold on a `get`: a hidden reply cannot be
-   * fetched on its own by anybody but its author or an organizer. It cannot
-   * hold on a `list`. Rules are not filters — on a query the predicate is
-   * evaluated without a document bound to `resource`, so `.get('status',
-   * 'visible')` returns the default and every reply comes back. That is
-   * measured rather than assumed, and `tests/rules/firestore.test.ts` pins it
-   * so nobody deletes this filter believing the rule covers it.
-   *
-   * New replies now carry `status: 'visible'` from `addReply`, so the day the
-   * pre-`status` replies are gone this can move into the query and be enforced
-   * where it should be.
+   * ⚠️ One consequence of moving the filter into the query, stated plainly: a
+   * reply written before `status` existed no longer appears on the board at
+   * all, because Firestore cannot ask for "this field is absent". Every reply
+   * the seed writes and every reply `addReply` has ever written carries
+   * `status: 'visible'`, so that set is empty here — but it is the trade the
+   * rule change makes, and the alternative was leaving hidden replies readable
+   * by any client that skipped this line.
    */
   const replies = (data ?? []).filter(replyIsVisible);
   return { replies, error, retry };

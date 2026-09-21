@@ -1,5 +1,6 @@
 import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
-import { contactId, normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { contactId, normaliseEmail, registrationId, reviewerId } from '@kgc/scripts/src/lib/ids';
+import { memberIdFor } from './team-core';
 
 /**
  * Everywhere one person is held, as data — and the pure rules for reading it
@@ -21,8 +22,8 @@ import { contactId, normaliseEmail, registrationId } from '@kgc/scripts/src/lib/
  * decide anything; this file decides everything and touches no database, which
  * is why the decisions are testable.
  *
- * ⚠️ **Two things are deliberately not walked, and both are reasoned rather
- * than forgotten.**
+ * ⚠️ **One thing is deliberately not walked, and it is reasoned rather than
+ * forgotten.**
  *
  * `gatherings.attendees` is a list of *names typed by an organizer*, not uids —
  * `GatheringDoc` says so and gives the reason: half the people at a sponsor
@@ -30,10 +31,12 @@ import { contactId, normaliseEmail, registrationId } from '@kgc/scripts/src/lib/
  * against a profile would erase the wrong Chen. The attendee's own projection
  * at `users/{uid}/gatherings` is walked, because that one is keyed.
  *
- * The call for abstracts (`submissions`, `reviewers`, and the identity document
- * under each submission) is a separate population reached by capability link
- * with no account, and its own screens own its retention. When it joins this
- * walk it joins as entries below, not as a second walk somewhere else.
+ * The call for abstracts used to be the second exception, on the grounds that
+ * it is a separate population reached by capability link with no account. That
+ * was never a reason for the walk to miss it — a person who submitted an
+ * abstract and also bought a ticket was being told their erasure was complete
+ * while their name sat under a submission. `submissions`, `reviewers`,
+ * `speakers`, `speakerProfileEdits` and `teamMembers` all have entries below.
  */
 
 // ---------------------------------------------------------------------------
@@ -41,7 +44,7 @@ import { contactId, normaliseEmail, registrationId } from '@kgc/scripts/src/lib/
 // ---------------------------------------------------------------------------
 
 /**
- * The five ways this database addresses one human being.
+ * The eight ways this database addresses one human being.
  *
  * They are not interchangeable and no two collections agree on which to use,
  * which is the whole reason a place has to name the one it is keyed by.
@@ -55,6 +58,16 @@ export interface PersonKeys {
   uid?: string;
   /** `contact_…`, the marketing list's own id. Derived, so always present. */
   contactId: string;
+  /** `rev_…`, the review committee's own id. Derived, so always present. */
+  reviewerId: string;
+  /** `team_…`, the organizer dashboard's own id. Derived, so always present. */
+  teamMemberId: string;
+  /**
+   * `speakers/{id}`. Not derivable from the address — the id is built from a
+   * name and a company — so it is looked up and passed in, and is absent for
+   * everybody who is not on the programme.
+   */
+  speakerId?: string;
   /**
    * The value inside their badge QR. The raw scan log records the code that was
    * scanned and nothing else, so it is the only way to find their scans.
@@ -64,14 +77,57 @@ export interface PersonKeys {
 
 export type PersonKeyName = keyof PersonKeys;
 
+/**
+ * Thrown when the keys handed in describe two different people.
+ *
+ * It is an exception rather than a `null` because there is no safe way to carry
+ * on: the caller is about to delete or export everything these keys match, and
+ * the one thing worse than refusing is doing half of it to each person.
+ */
+export class PersonKeyMismatch extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PersonKeyMismatch';
+  }
+}
+
 /** Fill in everything derivable, so a caller supplies only what it read. */
 export function personKeys(input: {
   email: string;
   uid?: string;
-  registrationId?: string;
+  /**
+   * A registration this caller has actually read: its id and the address that
+   * is on it.
+   *
+   * ── Why both, and not the id on its own ─────────────────────────────────
+   *
+   * This used to be a bare `registrationId`, taken on trust. Nothing was
+   * exploitable, because the one caller read the id off the document it had
+   * just fetched — but the guarantee had moved out of this function and into
+   * that call site, and `parsePersonRef('reg:<anything>')` feeds whatever is
+   * in a URL into the same path. An id and an address that disagree mean the
+   * walk deletes across two people, so the pair is checked here, where a
+   * future caller cannot leave the check out by forgetting it exists.
+   *
+   * A legacy registration whose id is not `reg_` + sha256(email) is still
+   * accepted, because the addresses agree: that is the case the read id exists
+   * for in the first place.
+   */
+  registration?: { id: string; email: string };
+  speakerId?: string;
   qrSecret?: string;
 }): PersonKeys {
   const email = normaliseEmail(input.email);
+
+  if (input.registration) {
+    const onTheDocument = normaliseEmail(input.registration.email);
+    if (!email || !onTheDocument || onTheDocument !== email) {
+      throw new PersonKeyMismatch(
+        'The ticket and the account given here belong to different people, so nothing was done.',
+      );
+    }
+  }
+
   return {
     email,
     uid: input.uid,
@@ -82,8 +138,11 @@ export function personKeys(input: {
       alone; the read form is the only one that finds a registration written
       before ids were derived, which still exists in this database.
     */
-    registrationId: input.registrationId ?? (email ? registrationId(email) : undefined),
+    registrationId: input.registration?.id ?? (email ? registrationId(email) : undefined),
     contactId: contactId(email),
+    reviewerId: reviewerId(email),
+    teamMemberId: memberIdFor(email),
+    speakerId: input.speakerId,
     qrSecret: input.qrSecret,
   };
 }
@@ -121,8 +180,21 @@ export function parsePersonRef(param: string): { registrationId?: string; uid?: 
 export type PlaceMatch =
   /** The document id is the key: `surveys/{id}/responses/{uid}`. */
   | { docId: PersonKeyName }
-  /** A field equals the key: `communityPosts` where `authorId` is the uid. */
-  | { field: string; key: PersonKeyName }
+  /**
+   * A field equals the key: `communityPosts` where `authorId` is the uid.
+   *
+   * ⚠️ `fold` is required on every address field and is not decoration. The
+   * keys are normalised to lower case, and several writers store the address
+   * exactly as it was typed — `emailLog.to` is whatever the caller passed,
+   * volunteers and certificates carry a roster's own spelling. A plain `==`
+   * against the lower-cased key therefore *silently finds nothing* for anybody
+   * who registered as `Ada.Okonkwo@Example.com`, and an erasure that finds
+   * nothing reports success. So a folded match compares both sides in lower
+   * case, which Firestore cannot do in a query and `person-data.ts` does in
+   * memory. It costs a collection scan and it is the only correct answer that
+   * does not change how addresses are stored.
+   */
+  | { field: string; key: PersonKeyName; fold?: true }
   /** An array field holds the key: `threads` where `participantIds` has the uid. */
   | { field: string; key: PersonKeyName; inArray: true };
 
@@ -157,6 +229,15 @@ export type EraseRule =
       do: 'anonymise';
       clear: readonly string[];
       clearIn?: { array: string; fields: readonly string[] };
+      /**
+       * Fields to date-stamp, if they are not dated already.
+       *
+       * One use: the marketing list. Removing somebody from it is not the same
+       * as suppressing them, and the two have to happen together — see the
+       * `marketingContact` entry. The stamp is applied by the caller rather
+       * than by `redaction()`, because a timestamp is not a pure value.
+       */
+      stamp?: readonly string[];
       why: string;
     }
   /** Leave it exactly as it is. Only ever for a record about an organizer. */
@@ -378,25 +459,80 @@ export const PLACES: readonly PersonPlace[] = [
   {
     key: 'certificates',
     label: 'Attendance certificates issued to them',
-    where: { at: 'collection', collection: C.certificates, match: { field: 'email', key: 'email' } },
+    where: {
+      at: 'collection',
+      collection: C.certificates,
+      match: { field: 'email', key: 'email', fold: true },
+    },
     erase: { do: 'delete' },
   },
   {
     key: 'volunteerShifts',
     label: 'Volunteer shifts',
-    where: { at: 'collection', collection: C.volunteers, match: { field: 'email', key: 'email' } },
-    erase: { do: 'delete' },
-  },
-  {
-    key: 'marketingContact',
-    label: 'Their place on the mailing list',
-    where: { at: 'doc', collection: C.contacts, id: 'contactId' },
+    where: {
+      at: 'collection',
+      collection: C.volunteers,
+      match: { field: 'email', key: 'email', fold: true },
+    },
     erase: { do: 'delete' },
   },
   {
     key: 'checkoutAnswers',
     label: 'Answers held between checkout and payment',
-    where: { at: 'collection', collection: C.pendingAnswers, match: { field: 'email', key: 'email' } },
+    where: {
+      at: 'collection',
+      collection: C.pendingAnswers,
+      match: { field: 'email', key: 'email', fold: true },
+    },
+    erase: { do: 'delete' },
+  },
+  {
+    /**
+     * What a speaker sent through their own profile link, and the address the
+     * link was sent to. Deleted rather than kept: nothing here is published,
+     * and a draft is a person's own words about themselves waiting to be read.
+     */
+    key: 'speakerDraft',
+    label: 'A profile they sent us as a speaker',
+    where: { at: 'doc', collection: C.speakerProfileEdits, id: 'speakerId' },
+    erase: { do: 'delete' },
+  },
+  {
+    /**
+     * Their contact details and their invitation to the review committee. The
+     * scores they gave are next door, under the submissions, and stay — they
+     * are keyed by an id derived from the address rather than by the address.
+     */
+    key: 'reviewerRecord',
+    label: 'Their place on the review committee',
+    where: { at: 'doc', collection: C.reviewers, id: 'reviewerId' },
+    erase: { do: 'delete' },
+  },
+  {
+    /**
+     * The author of an abstract, held apart from the abstract so that blind
+     * review is a read decision. Deleting it leaves the submission in exactly
+     * the state a blind reviewer already sees: the work, and nobody attached.
+     */
+    key: 'submissionAuthor',
+    label: 'Their name on an abstract they submitted',
+    where: {
+      at: 'each',
+      parents: [C.submissions],
+      collection: S.identity,
+      match: { field: 'email', key: 'email', fold: true },
+    },
+    erase: { do: 'delete' },
+  },
+  {
+    /**
+     * Their sign-in to this dashboard, if they have one: roles, a hashed
+     * passphrase and a session epoch. Deleting the document signs them out
+     * everywhere, which is the right outcome of erasing an organizer.
+     */
+    key: 'dashboardAccount',
+    label: 'Their sign-in to the organizer dashboard',
+    where: { at: 'doc', collection: C.teamMembers, id: 'teamMemberId' },
     erase: { do: 'delete' },
   },
 
@@ -418,7 +554,7 @@ export const PLACES: readonly PersonPlace[] = [
       at: 'each',
       parents: [C.consentForms],
       collection: S.responses,
-      match: { field: 'email', key: 'email' },
+      match: { field: 'email', key: 'email', fold: true },
     },
     erase: {
       do: 'anonymise',
@@ -429,7 +565,11 @@ export const PLACES: readonly PersonPlace[] = [
   {
     key: 'orders',
     label: 'What they bought',
-    where: { at: 'collection', collection: C.orders, match: { field: 'email', key: 'email' } },
+    where: {
+      at: 'collection',
+      collection: C.orders,
+      match: { field: 'email', key: 'email', fold: true },
+    },
     erase: {
       do: 'anonymise',
       clear: ['email', 'buyerName', 'companyName'],
@@ -460,11 +600,67 @@ export const PLACES: readonly PersonPlace[] = [
   {
     key: 'emailsSent',
     label: 'Emails we sent them',
-    where: { at: 'collection', collection: C.emailLog, match: { field: 'to', key: 'email' } },
+    where: {
+      at: 'collection',
+      collection: C.emailLog,
+      match: { field: 'to', key: 'email', fold: true },
+    },
     erase: {
       do: 'anonymise',
       clear: ['to'],
       why: 'The log of what was sent is how a missing confirmation gets traced. The address is removed from it.',
+    },
+  },
+  {
+    /**
+     * Being on the mailing list, and having asked to come off it, are two
+     * different facts and only one of them is personal data.
+     *
+     * ⚠️ This used to delete the document, and that was a hole with a specific
+     * shape: `unsubscribedAt` lives here, an import never clears it, and
+     * deleting the row deletes the suppression. Somebody who unsubscribed and
+     * then asked to be forgotten would be mailed again by the next upload of an
+     * older list — the worst recipient a conference can reach, because a
+     * complaint from them takes the ticket receipts down with the newsletter.
+     *
+     * So the row survives with nothing personal on it. The id is a hash of the
+     * address, which is what makes it still match when the same person is
+     * imported again, and `unsubscribedAt` is stamped if it was not already:
+     * asking to be erased is at least as strong a refusal as unsubscribing.
+     */
+    key: 'marketingContact',
+    label: 'Their place on the mailing list',
+    where: { at: 'doc', collection: C.contacts, id: 'contactId' },
+    erase: {
+      do: 'anonymise',
+      clear: ['email', 'name', 'company', 'source'],
+      stamp: ['unsubscribedAt'],
+      why: 'Their name and address come off the list, and the list stays marked so a later import cannot email them again.',
+    },
+  },
+  {
+    /**
+     * A speaker on the published programme, which is a fact about the
+     * conference as well as about the person.
+     *
+     * The choice here is deliberate and it is the one place in this walk where
+     * something visible to the public survives. The name, talk, bio and photo
+     * stay, because they were published as the programme and the programme is
+     * the record of what happened; the contact address and the link to their
+     * app account go, because those were never published and are only how we
+     * reached them. The screen says exactly this before the button is pressed.
+     *
+     * Somebody who wants the programme entry itself removed is a conversation
+     * with the organizers, not a button: taking a speaker off a published
+     * agenda changes what the conference says happened.
+     */
+    key: 'speakerProfile',
+    label: 'Their entry on the published programme',
+    where: { at: 'doc', collection: C.speakers, id: 'speakerId' },
+    erase: {
+      do: 'anonymise',
+      clear: ['contactEmail', 'userId'],
+      why: 'Their talk stays on the programme, which is public. Their contact address and the link to their app account are removed.',
     },
   },
 
@@ -478,6 +674,20 @@ export const PLACES: readonly PersonPlace[] = [
      * the only answer to "who cancelled that ticket?". It is staff-only, it is
      * never shown to an attendee, and the erasure itself is appended to it.
      */
+    key: 'reviewerScores',
+    label: 'Scores they gave as a reviewer',
+    where: {
+      at: 'each',
+      parents: [C.submissions],
+      collection: S.reviews,
+      match: { docId: 'reviewerId' },
+    },
+    erase: {
+      do: 'keep',
+      why: 'A score is the committee’s record of a decision about somebody else’s work. It carries no name or address, only an id derived from one, and the reviewer record it points at is deleted.',
+    },
+  },
+  {
     key: 'organizerActions',
     label: 'Organizer actions on their ticket',
     where: { at: 'collection', collection: C.auditLog, match: { field: 'targetId', key: 'registrationId' } },
@@ -487,6 +697,19 @@ export const PLACES: readonly PersonPlace[] = [
     },
   },
 ];
+
+/**
+ * Does the value stored on a document match this person, ignoring case?
+ *
+ * The comparison `person-data.ts` runs in memory for every folded place, here
+ * rather than there so that it is the tested one. `held` is whatever Firestore
+ * returned for the field, which is why it is `unknown`: a collection scan
+ * reaches documents whose shape nobody promised, and a missing or numeric field
+ * is a non-match rather than a crash in the middle of an erasure.
+ */
+export function foldedFieldMatches(value: string, held: unknown): boolean {
+  return typeof held === 'string' && value.length > 0 && normaliseEmail(held) === value;
+}
 
 /** The key a place is matched on, whichever shape it uses. */
 export function keyNameOf(place: PersonPlace): PersonKeyName {
@@ -627,6 +850,47 @@ export function redaction(
   return update;
 }
 
+/**
+ * The fields an anonymise rule wants dated, that are not dated already.
+ *
+ * Separate from `redaction()` because these are set rather than cleared, and
+ * because the value is a server timestamp, which is not a pure value. Returning
+ * the names lets the caller supply one and lets the decision stay testable.
+ */
+export function stampFields(
+  rule: Extract<EraseRule, { do: 'anonymise' }>,
+  data: Record<string, unknown>,
+): string[] {
+  return (rule.stamp ?? []).filter(
+    (field) => data[field] === undefined || data[field] === null || data[field] === '',
+  );
+}
+
+/**
+ * What the audit log is told about an erasure.
+ *
+ * ── Why there is no name in it ──────────────────────────────────────────────
+ *
+ * The log survives the erasure by design — it is the record of what organizers
+ * did, and this deletion is appended to it — so anything written here is
+ * written for ever. The entry used to carry the person's display name, and a
+ * display name falls back to their email address for anybody who registered
+ * without one or signed in with a code and never filled in a profile. The
+ * erasure would then leave, permanently, the one field it exists to remove.
+ *
+ * What remains still proves the erasure happened and is still enough to answer
+ * "who did this, to which record, and how much of it went": the entry's own
+ * `targetPath` and `targetId` name the record, and the counts below say what
+ * the walk reached. None of it is a name or an address.
+ */
+export function erasureAuditBefore(input: {
+  walked: number;
+  signedIn: boolean;
+  hasTicket: boolean;
+}): Record<string, unknown> {
+  return { walked: input.walked, signedIn: input.signedIn, hadTicket: input.hasTicket };
+}
+
 /** What one place did, for the screen and for the audit entry. */
 export interface PlaceOutcome {
   key: string;
@@ -647,7 +911,11 @@ export function erasureSummary(outcomes: readonly PlaceOutcome[]): string {
 
   const parts = [`Deleted ${deleted} ${deleted === 1 ? 'record' : 'records'}.`];
   if (anonymised > 0) {
-    parts.push(`Took their name off ${anonymised} ${anonymised === 1 ? 'record' : 'records'} that have to stay.`);
+    parts.push(
+      anonymised === 1
+        ? 'Took their name off 1 record that has to stay.'
+        : `Took their name off ${anonymised} records that have to stay.`,
+    );
   }
   if (kept > 0) {
     parts.push(`Left ${kept} ${kept === 1 ? 'entry' : 'entries'} in the organizer log.`);

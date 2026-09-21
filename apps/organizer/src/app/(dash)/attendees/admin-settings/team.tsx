@@ -60,15 +60,37 @@ function LinkBox({ state }: { state: TeamState }) {
 export function InviteForm({ options }: { options: RoleOption[] }) {
   const [state, action] = useActionState<TeamState, FormData>(inviteMemberAction, {});
   return (
-    // Keyed on the result so a successful invitation clears the boxes.
-    <form action={action} key={state.link ?? 'invite'}>
+    /*
+     * Keyed on the attempt number, so the fields remount after every submit and
+     * take whatever the action handed back: the address and name again when the
+     * invitation was refused, nothing at all when it went through.
+     *
+     * React resets a form once its action has run, so without this a refused
+     * invitation emptied both boxes — and the commonest refusal is "pick at
+     * least one role", which is one tick away from being right.
+     */
+    <form action={action} key={`invite-${state.attempt ?? 0}`}>
       <FormBanner state={state} style={{ marginBottom: 12 }} />
       <LinkBox state={state} />
       <FormGrid>
-        <Field name="email" type="email" label="Email" required autoComplete="off" maxLength={254} />
-        <Field name="name" label="Name" autoComplete="off" maxLength={120} />
+        <Field
+          name="email"
+          type="email"
+          label="Email"
+          required
+          autoComplete="off"
+          maxLength={254}
+          defaultValue={state.typed?.email ?? ''}
+        />
+        <Field
+          name="name"
+          label="Name"
+          autoComplete="off"
+          maxLength={120}
+          defaultValue={state.typed?.name ?? ''}
+        />
       </FormGrid>
-      <RoleBoxes options={options} />
+      <RoleBoxes options={options} held={state.typed?.roles ?? []} />
       <FormActions>
         <SubmitButton pendingLabel="Inviting…">Invite</SubmitButton>
       </FormActions>

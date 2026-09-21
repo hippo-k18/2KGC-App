@@ -105,6 +105,23 @@ describe("isSafeHref", () => {
     expect(isSafeHref("data:text/html,<script>")).toBe(false);
     expect(isSafeHref("  ")).toBe(false);
   });
+
+  /**
+   * The WHATWG URL parser treats `\` as `/` for http and https, so a browser
+   * resolves `/\evil.example` to `https://evil.example` while a plain
+   * `startsWith("//")` test calls it relative. `rich-text.tsx` reads "relative"
+   * as "one of our own pages" and drops `rel="noreferrer noopener"` and the
+   * new tab, which is exactly what the `//` check two lines above exists to
+   * stop.
+   */
+  it("treats a backslash as a slash, so //host cannot be spelled around", () => {
+    expect(isSafeHref("//evil.example")).toBe(false);
+    expect(isSafeHref("/\\evil.example")).toBe(false);
+    expect(isSafeHref("\\\\evil.example")).toBe(false);
+    expect(isSafeHref("\\/evil.example")).toBe(false);
+    // Still a relative link of ours, and still allowed.
+    expect(isSafeHref("/speakers/ada-okonkwo")).toBe(true);
+  });
 });
 
 describe("richTextToPlainText", () => {

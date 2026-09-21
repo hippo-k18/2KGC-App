@@ -134,7 +134,8 @@ export default async function CustomizeResourcesPage({
               cols={[
                 { key: 't', label: 'Page', className: 'cell-fill' },
                 { key: 'u', label: 'Web address', className: 'cell-md' },
-                { key: 'l', label: 'Length', className: 'cell-xs' },
+                // "Length" of what, in what? It is the body, counted in characters.
+                { key: 'l', label: 'Characters', className: 'cell-sm' },
                 { key: 's', label: 'Status', className: 'cell-xs' },
                 { key: 'a', label: '', className: 'cell-xs cell-end-align' },
               ]}

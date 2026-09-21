@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { clockOfInstant, dayOfInstant } from '@/lib/time-core';
 import { checkInByIdAction, undoCheckInAction, type DeskState } from './actions';
 
 /**
@@ -159,7 +160,7 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
                     <div className="whova-table-cell cell-mdsm hide-sm" role="cell">
                       {r.checkedInAt ? (
                         <span style={{ fontSize: 13 }}>
-                          {r.checkedInAt.slice(11, 16)} on {r.checkedInAt.slice(0, 10)}
+                          {clockOfInstant(r.checkedInAt)} on {dayOfInstant(r.checkedInAt)}
                         </span>
                       ) : (
                         <span className="muted">—</span>

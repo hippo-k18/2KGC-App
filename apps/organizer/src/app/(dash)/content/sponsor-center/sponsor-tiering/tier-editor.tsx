@@ -48,7 +48,7 @@ export function TierEditor({
           { key: 'o', label: 'Order', className: 'cell-xs' },
           { key: 't', label: 'Tier', className: 'cell-fill' },
           { key: 'w', label: 'Logo size', className: 'cell-sm' },
-          { key: 'n', label: 'Sponsors', className: 'cell-xs' },
+          { key: 'n', label: 'Sponsors', className: 'cell-xsm' },
           { key: 'a', label: 'Actions', className: 'cell-md' },
         ]}
         rows={tiers.map((t, i) => {

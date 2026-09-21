@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { dayOfInstant } from '@/lib/time';
 import { SettingsReach } from '../../../settings-reach';
 import { PageHeader, Panel } from '../../../ui';
 import { CodeAccessForm } from '../access-form';
@@ -39,6 +40,10 @@ export default async function CodeAccessControlPage() {
               Only ticket holders can open the app. The code is asked for once, the first time
               somebody signs in, and it is a welcome step rather than a lock.
             </p>
+            <p>
+              Only people who already hold a ticket can read it in the app, and nothing else
+              checks it. Treat it as something you announce, not as a password.
+            </p>
           </>
         }
         links={[
@@ -50,11 +55,15 @@ export default async function CodeAccessControlPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Event code</h2>
-        <CodeAccessForm eventCode={s.eventCode} codeRequired={s.codeRequired} />
+        <CodeAccessForm
+          eventCode={s.eventCode}
+          codeRequired={s.codeRequired}
+          version={s.updatedAt ? Date.parse(s.updatedAt) : 0}
+        />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
-            {s.updatedAt ? ` on ${s.updatedAt.slice(0, 10)}` : ''}.
+            {s.updatedAt ? ` on ${dayOfInstant(s.updatedAt)}` : ''}.
           </p>
         )}
       </Panel>

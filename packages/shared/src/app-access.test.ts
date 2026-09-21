@@ -19,6 +19,7 @@ import {
   joinCodeNeeded,
   normaliseJoinCode,
   resolveAppAccess,
+  resolveJoinCode,
 } from "./app-access.js";
 
 const MAY_7 = "2027-05-07";
@@ -125,18 +126,33 @@ describe("the join code", () => {
     expect(joinCodeMatches("", "anything")).toBe(false);
   });
 
-  it("asks only when a code is set and required, and only once", () => {
-    const on = { ...APP_ACCESS_DEFAULTS, joinCode: "KGC2027", joinCodeRequired: true };
+  it("asks only when the prompt is switched on, and only once", () => {
+    const on = { ...APP_ACCESS_DEFAULTS, joinCodeRequired: true };
     expect(joinCodeNeeded(on, {})).toBe(true);
     expect(joinCodeNeeded(on, { joinedAt: "2027-05-03" })).toBe(false);
     expect(joinCodeNeeded({ ...on, joinCodeRequired: false }, {})).toBe(false);
-    expect(joinCodeNeeded({ ...on, joinCode: "" }, {})).toBe(false);
   });
 
   /** A code box drawn over a loading screen is one somebody answers too early. */
   it("never asks before the profile has loaded", () => {
-    const on = { ...APP_ACCESS_DEFAULTS, joinCode: "KGC2027", joinCodeRequired: true };
+    const on = { ...APP_ACCESS_DEFAULTS, joinCodeRequired: true };
     expect(joinCodeNeeded(on, null)).toBe(false);
+  });
+
+  /**
+   * The code is in its own document so that an account holding no ticket
+   * cannot read it. The window document must therefore never carry it, and
+   * `resolveAppAccess` is what would put it back if somebody re-added it.
+   */
+  it("is not part of the window projection a signed-in phone can read", () => {
+    expect("joinCode" in APP_ACCESS_DEFAULTS).toBe(false);
+    expect(resolveAppAccess({ closesAtMs: 0, joinCode: "KGC2027" })).toEqual(APP_ACCESS_DEFAULTS);
+  });
+
+  it("comes back from its own document, and empty when that is unreadable", () => {
+    expect(resolveJoinCode({ joinCode: "KGC2027" })).toEqual({ joinCode: "KGC2027" });
+    expect(resolveJoinCode(undefined)).toEqual({ joinCode: "" });
+    expect(resolveJoinCode({ joinCode: 42 })).toEqual({ joinCode: "" });
   });
 });
 

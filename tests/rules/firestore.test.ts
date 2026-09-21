@@ -308,9 +308,18 @@ beforeEach(async () => {
       authorId: A, title: 'T', body: 'B', status: 'visible', replyCount: 0, reactionCount: 0,
     });
     // Two replies with different authors, because most of what can go wrong
-    // with a reply is somebody acting on one that is not theirs.
-    await setDoc(doc(db, 'communityPosts/p1/replies/r1'), { authorId: A, body: 'mine' });
-    await setDoc(doc(db, 'communityPosts/p1/replies/r2'), { authorId: B, body: 'theirs' });
+    // with a reply is somebody acting on one that is not theirs. Both carry
+    // `status`, the way the seed and `addReply` write it, because the read
+    // rule is now satisfied by a query filtering on that field.
+    await setDoc(doc(db, 'communityPosts/p1/replies/r1'), {
+      authorId: A, body: 'mine', status: 'visible',
+    });
+    await setDoc(doc(db, 'communityPosts/p1/replies/r2'), {
+      authorId: B, body: 'theirs', status: 'visible',
+    });
+    // And one from before the field existed. It is still fetchable on its own,
+    // which is the case the read rule's first branch is there for.
+    await setDoc(doc(db, 'communityPosts/p1/replies/rOld'), { authorId: B, body: 'from before' });
     await setDoc(doc(db, 'communityPosts/p1/reactions/' + A), { uid: A, emoji: '👍' });
     await setDoc(doc(db, 'sessions/s1/questions/q1'), {
       authorId: A, body: 'Q?', upvoteCount: 0, answered: false, state: 'pending',
@@ -1110,15 +1119,34 @@ describe('server-owned counters', () => {
   // inbox once, when a predicate reading `resource.data` passed on a single
   // document and evaluated against null across a collection. The count the board
   // now depends on is therefore asserted here rather than assumed.
-  it('lets an attendee count the replies on a post', async () => {
+  //
+  // ⚠️ The count has to carry the same `status` filter the list does, because
+  // the rule refuses an unfiltered query on replies — that is what stops a
+  // hidden reply being read by anything that skips the client-side filter. An
+  // unfiltered count is denied, which is also why it is asserted here: the
+  // board's number would quietly be missing rather than wrong.
+  it('lets an attendee count the visible replies on a post', async () => {
     const snap = await assertSucceeds(
-      getCountFromServer(collection(asA(), 'communityPosts/p1/replies')),
+      getCountFromServer(
+        query(collection(asA(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
+      ),
     );
+    // Two of the three fixture replies carry `status`; the pre-`status` one is
+    // not in a filtered query and cannot be, because Firestore has no way to
+    // ask for a field that is absent.
     expect(snap.data().count).toBe(2);
   });
 
+  it('refuses an unfiltered reply count, the same as an unfiltered list', async () => {
+    await assertFails(getCountFromServer(collection(asA(), 'communityPosts/p1/replies')));
+  });
+
   it('refuses a reply count to someone without a ticket', async () => {
-    await assertFails(getCountFromServer(collection(noClaim(), 'communityPosts/p1/replies')));
+    await assertFails(
+      getCountFromServer(
+        query(collection(noClaim(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
+      ),
+    );
   });
 
   // The same argument, for the two counts `app/src/lib/data/counts.ts` added
@@ -2803,6 +2831,28 @@ describe('the app access window', () => {
   });
 
   /**
+   * `users/{uid}/notifications` was the one read outside the window. The phone
+   * showed the "has ended" screen while the titles and bodies of agenda
+   * changes stayed readable by that account for ever. A notification is event
+   * content like the session it is about.
+   */
+  it('takes the notifications with it when it closes', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) =>
+      setDoc(doc(ctx.firestore(), `users/${A}/notifications/n1`), {
+        title: 'Room change', body: 'Keynote moved to Hall B', read: false,
+      }),
+    );
+
+    await project({ closesAtMs: Date.now() + HOUR });
+    await assertSucceeds(getDoc(doc(asA(), `users/${A}/notifications/n1`)));
+    await assertSucceeds(updateDoc(doc(asA(), `users/${A}/notifications/n1`), { read: true }));
+
+    await project({ closesAtMs: Date.now() - HOUR });
+    await assertFails(getDoc(doc(asA(), `users/${A}/notifications/n1`)));
+    await assertFails(updateDoc(doc(asA(), `users/${A}/notifications/n1`), { read: true }));
+  });
+
+  /**
    * The one document a closed app must still be able to read. Without it the
    * phone cannot tell "the event is over" from "the server refused", and the
    * attendee gets an error screen with a Sign out button instead of a sentence.
@@ -2816,6 +2866,40 @@ describe('the app access window', () => {
   it('keeps the projection away from a reader with no account at all', async () => {
     await project({ closesAtMs: 0 });
     await assertFails(getDoc(doc(unauth(), 'settings/appAccess')));
+  });
+
+  /**
+   * The event code is in its own document, and that is the whole point of the
+   * second document: `appAccess` has to reach anybody signed in, so anything
+   * in it reaches anybody who can create a Firebase account. The code reaches
+   * ticket holders only.
+   */
+  describe('the event code, which is kept out of it', () => {
+    const putCode = (joinCode: string) =>
+      env.withSecurityRulesDisabled(async (ctx) =>
+        setDoc(doc(ctx.firestore(), 'settings/appJoinCode'), {
+          eventId: 'kgc-2027',
+          key: 'appJoinCode',
+          values: { joinCode },
+        }),
+      );
+
+    it('is handed to a ticket holder', async () => {
+      await putCode('KGC2027');
+      await assertSucceeds(getDoc(doc(asA(), 'settings/appJoinCode')));
+    });
+
+    it('is refused to an account that holds no ticket', async () => {
+      await putCode('KGC2027');
+      await assertFails(getDoc(doc(noClaim(), 'settings/appJoinCode')));
+      await assertFails(getDoc(doc(unauth(), 'settings/appJoinCode')));
+    });
+
+    it('is not written by any client', async () => {
+      await assertFails(
+        setDoc(doc(asOrg(), 'settings/appJoinCode'), { eventId: 'kgc-2027', values: {} }),
+      );
+    });
   });
 
   it('lets no client write the projection', async () => {
@@ -2925,7 +3009,7 @@ describe('a hidden community reply', () => {
 
   /** A reply written before `status` existed is a visible reply, not a broken one. */
   it('leaves a reply with no status field readable', async () => {
-    await assertSucceeds(getDoc(doc(asA(), 'communityPosts/p1/replies/r2')));
+    await assertSucceeds(getDoc(doc(asA(), 'communityPosts/p1/replies/rOld')));
   });
 
   it('may not be created already hidden', async () => {
@@ -2937,17 +3021,32 @@ describe('a hidden community reply', () => {
   });
 
   /**
-   * ⚠️ THE LIMIT, PINNED ON PURPOSE. Rules cannot filter a query. On a `list`
-   * the predicate above evaluates against an unbound `resource`, so
-   * `.get('status', 'visible')` returns the default and the hidden reply comes
-   * back with the rest. This test exists so that nobody reads that rule as a
-   * server-side filter — `app/src/lib/data/community.ts` is where the list is
-   * filtered, and it has to be, because Firestore cannot query for a field
-   * that is absent and an equality filter would delete every pre-`status`
-   * reply from the board.
+   * ⚠️ THE ONE THAT USED TO FAIL. The rule read `status` with a default, which
+   * on a query returns the default whatever the document says — so an
+   * unfiltered `getDocs` handed every hidden reply to every ticket holder, and
+   * "hide" was a filter one client happened to apply rather than a control.
+   * Anything that skipped it — the dashboard, a script, an older build of the
+   * app, a REST call with a signed-in token — read the text a moderator had
+   * taken down.
    */
-  it('is still returned by an unfiltered query, which is why the app filters too', async () => {
-    const snap = await getDocs(collection(asA(), 'communityPosts/p1/replies'));
+  it('is not returned by an unfiltered query, which used to be the hole', async () => {
+    await assertFails(getDocs(collection(asA(), 'communityPosts/p1/replies')));
+  });
+
+  /** The query the app sends. It is what the rule now makes it send. */
+  it('is not in the filtered query the board actually runs', async () => {
+    const snap = await getDocs(
+      query(collection(asA(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
+    );
+    expect(snap.docs.map((d) => d.id)).not.toContain('rHidden');
+  });
+
+  /**
+   * Moderation is still the organizer's, and a moderator reading the board
+   * needs the hidden rows in front of them to un-hide one.
+   */
+  it('is still listed for an organizer, unfiltered', async () => {
+    const snap = await getDocs(collection(asOrg(), 'communityPosts/p1/replies'));
     expect(snap.docs.map((d) => d.id)).toContain('rHidden');
   });
 });

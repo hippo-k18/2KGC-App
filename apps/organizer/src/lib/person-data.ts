@@ -7,18 +7,21 @@ import type {
   DocumentReference,
   DocumentSnapshot,
 } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, type RegistrationDoc, type UserDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type RegistrationDoc, type SpeakerDoc, type UserDoc } from '@kgc/shared';
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from './audit';
 import { db } from './firestore';
 import { recordError } from './errors';
 import {
   confirmationMatches,
+  erasureAuditBefore,
   erasureSummary,
   exportDocument,
+  foldedFieldMatches,
   personKeys,
   placesFor,
   redaction,
+  stampFields,
   type PersonKeys,
   type PersonPlace,
   type PlaceMatch,
@@ -123,12 +126,53 @@ export async function resolvePerson(ref: PersonRef): Promise<PersonIdentity | nu
   }
 
   return {
-    keys: personKeys({ email, uid, registrationId: regId, qrSecret: reg?.qrSecret }),
+    keys: personKeys({
+      email,
+      uid,
+      /*
+       * The id and the address off the same document, which is what
+       * `personKeys` checks against each other. A registration reached by a
+       * `reg:` parameter that named somebody else's ticket is refused there
+       * rather than walked.
+       */
+      ...(regId && reg ? { registration: { id: regId, email: reg.email ?? '' } } : {}),
+      speakerId: await speakerIdFor(email, uid),
+      qrSecret: reg?.qrSecret,
+    }),
     name: reg?.name || user?.name || email,
     email,
     signedIn: Boolean(user),
     hasTicket: Boolean(reg),
   };
+}
+
+/**
+ * Their `speakers/{id}`, if they are on the programme.
+ *
+ * Not derivable: a speaker id is built from a name and a company, so it cannot
+ * be computed from an address the way a registration or a contact can. The
+ * roster is a few hundred documents and is read whole rather than queried,
+ * because `contactEmail` is stored as the programme committee typed it and
+ * Firestore cannot compare two strings case-insensitively. Both joins are
+ * tried: the address the committee corresponds with, and the app account the
+ * speaker later claimed, which may be a different address on purpose.
+ *
+ * Returns undefined on any failure. A speaker lookup that throws must not stop
+ * somebody's export or erasure — the walk would simply skip that one place, and
+ * skipping is visible on the screen.
+ */
+async function speakerIdFor(email: string, uid?: string): Promise<string | undefined> {
+  try {
+    const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
+    const hit = snap.docs.find((d) => {
+      const s = d.data() as SpeakerDoc;
+      return normaliseEmail(s.contactEmail ?? '') === email || (uid ? s.userId === uid : false);
+    });
+    return hit?.id;
+  } catch (err) {
+    recordError('person.speakerLookup', err);
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -159,10 +203,33 @@ async function ancestors(parents: readonly string[]): Promise<DocumentReference[
   return refs;
 }
 
+/**
+ * ── The folded branch, and why it reads a whole collection ──────────────────
+ *
+ * Firestore has no case-insensitive comparison, and several collections store
+ * an address exactly as somebody typed it: `emailLog.to` is whatever the
+ * caller passed, a volunteer roster and a certificate carry the spelling on
+ * the sheet they were imported from. An equality query on the lower-cased key
+ * therefore returns nothing at all for `Ada.Okonkwo@Example.com` — and returns
+ * it *silently*, so the erasure reports "0 found" and the organizer is told it
+ * finished. That is the one failure this whole module exists to prevent.
+ *
+ * The alternatives were both worse. Writing a lower-cased copy of the address
+ * beside every stored one changes how addresses are stored and leaves every
+ * document written before today unmatched. Guessing at casings is guessing.
+ * So a folded place lists its collection and compares in memory: a document
+ * read per row of one collection, on an operation that happens a handful of
+ * times per event, against an erasure that quietly misses documents.
+ *
+ * The exact query still runs first and its results are merged in, so the
+ * common case — an address already stored in lower case — is answered by an
+ * index even when the scan is refused or capped.
+ */
 async function matching(
   coll: CollectionReference,
   match: PlaceMatch,
   keys: PersonKeys,
+  eventScoped: boolean,
 ): Promise<DocumentSnapshot[]> {
   if ('docId' in match) {
     const id = keys[match.docId];
@@ -172,11 +239,24 @@ async function matching(
   }
   const value = keys[match.key];
   if (!value) return [];
-  const q =
-    'inArray' in match && match.inArray
-      ? coll.where(match.field, 'array-contains', value)
-      : coll.where(match.field, '==', value);
-  return (await q.get()).docs;
+
+  if ('inArray' in match && match.inArray) {
+    return (await coll.where(match.field, 'array-contains', value).get()).docs;
+  }
+
+  const exact = (await coll.where(match.field, '==', value).get()).docs;
+  if (!('fold' in match && match.fold)) return exact;
+
+  // Every collection reached this way carries `eventId`; the filter keeps a
+  // scan inside this event rather than across the whole database. A
+  // subcollection under one parent is small enough to read as it stands.
+  const scan = eventScoped ? coll.where('eventId', '==', EVENT_ID) : coll;
+  const seen = new Set(exact.map((d) => d.ref.path));
+  const folded = (await scan.get()).docs.filter(
+    (d) => !seen.has(d.ref.path) && foldedFieldMatches(value, d.get(match.field)),
+  );
+
+  return [...exact, ...folded];
 }
 
 async function documentsIn(place: PersonPlace, keys: PersonKeys): Promise<DocumentSnapshot[]> {
@@ -193,12 +273,12 @@ async function documentsIn(place: PersonPlace, keys: PersonKeys): Promise<Docume
     return (await db().collection(where.parent).doc(id).collection(where.collection).get()).docs;
   }
   if (where.at === 'collection') {
-    return matching(db().collection(where.collection), where.match, keys);
+    return matching(db().collection(where.collection), where.match, keys, true);
   }
 
   const out: DocumentSnapshot[] = [];
   for (const parent of await ancestors(where.parents)) {
-    out.push(...(await matching(parent.collection(where.collection), where.match, keys)));
+    out.push(...(await matching(parent.collection(where.collection), where.match, keys, false)));
   }
   return out;
 }
@@ -330,13 +410,21 @@ export interface EraseResult {
  *
  * ── What survives, and why it is not a compromise ───────────────────────────
  *
- * Three things: a consent signature with the signatory removed, an order with
- * the buyer removed, and the organizer log. The first two are records that have
- * to exist — evidence that wording was agreed, and a payment on the books — and
- * the person is taken out of both. The third is a record of what organizers
- * did, not of what the attendee did, and this erasure is appended to it. All
- * three are named on the screen before the button is pressed, because an
- * erasure that quietly keeps things is worse than one that says what it keeps.
+ * Six things, and every one of them is named on the screen before the button is
+ * pressed, because an erasure that quietly keeps things is worse than one that
+ * says what it keeps.
+ *
+ * A consent signature, with the signatory removed: it is the evidence that
+ * wording was agreed, including wording the person may later dispute. An order,
+ * with the buyer removed: a payment has to stay on the books. A row on the
+ * mailing list, with the name and address removed and the unsubscribe stamped:
+ * the row *is* the suppression, and deleting it is how somebody who asked to be
+ * forgotten gets mailed by the next import. Their entry on the published
+ * programme if they spoke, minus the contact address — the talk is a public
+ * fact about the conference as well as a record about them. The scores they
+ * gave as a reviewer, which name nobody. And the organizer log, which records
+ * what organizers did rather than what the attendee did, and to which this
+ * erasure is appended.
  */
 export async function erasePerson(
   identity: PersonIdentity,
@@ -370,6 +458,13 @@ export async function erasePerson(
     let changed = 0;
     for (const doc of docs) {
       const update = redaction(rule, doc.data);
+      // Fields the rule wants dated rather than cleared — today only the
+      // mailing list's `unsubscribedAt`, which has to be set in the same write
+      // that takes the address off the row, or a suppression is lost between
+      // the two.
+      for (const field of stampFields(rule, doc.data)) {
+        update[field] = FieldValue.serverTimestamp();
+      }
       if (Object.keys(update).length === 0) continue;
       // The stamp is here rather than in the pure function: a server timestamp
       // is not a value, and a second erasure of the same person writes nothing
@@ -399,10 +494,17 @@ export async function erasePerson(
       ? `${COLLECTIONS.registrations}/${identity.keys.registrationId}`
       : `${COLLECTIONS.users}/${identity.keys.uid}`,
     targetId: identity.keys.registrationId ?? identity.keys.uid ?? identity.email,
-    // The address is deliberately not carried into the entry. The log survives
-    // the erasure, so writing the address into it would put back the one field
-    // the whole operation exists to remove.
-    before: { name: identity.name, walked: places.length, signedIn: identity.signedIn },
+    /*
+      No name and no address. The log survives the erasure by design, and a
+      display name falls back to the address for anybody who never filled in a
+      profile — so a name here would put back, for ever, the one field the whole
+      operation exists to remove. `erasureAuditBefore` has the argument.
+    */
+    before: erasureAuditBefore({
+      walked: places.length,
+      signedIn: identity.signedIn,
+      hasTicket: identity.hasTicket,
+    }),
     after: {
       summary: erasureSummary(outcomes),
       outcomes: outcomes.map((o) => `${o.key}:${o.did}:${o.found}`),

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { TeamRole } from '@kgc/shared';
 import { writeAppAccessProjection } from '@/lib/app-access';
 import { isAllowed, requireOrganizer, requireOwner } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
@@ -79,6 +80,22 @@ export interface TeamState {
   error?: string;
   /** The set-passphrase link, shown once so an owner can pass it on by hand. */
   link?: string;
+  /**
+   * What was typed, handed back so a refusal does not empty the form.
+   *
+   * An invitation is three fields and a set of tick boxes, and the commonest
+   * refusal — no role chosen — is the one the organizer can fix in a second if
+   * the address and the name are still there. React resets a form once its
+   * action has run, so keeping them is not the default; they have to make the
+   * round trip.
+   */
+  typed?: { email: string; name: string; roles: TeamRole[] };
+  /**
+   * Bumped on every submit. It is the form's `key`, so the fields remount and
+   * take the values above — including after a success, where `typed` is absent
+   * and the boxes come back empty, which is what an owner wants next.
+   */
+  attempt?: number;
 }
 
 const PATH = '/attendees/admin-settings';
@@ -93,17 +110,20 @@ const grantable = (formData: FormData) =>
 
 export async function inviteMemberAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
   const actor = await requireOwner();
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
-  if (isAllowed(email)) return { error: `${email} is already an owner.` };
+  const attempt = (_prev.attempt ?? 0) + 1;
+  const name = String(formData.get('name') ?? '');
+  const roles = grantable(formData);
+  // Echoed back exactly as typed, not folded to lower case like the one below.
+  const typed = { email: String(formData.get('email') ?? ''), name, roles };
 
-  const res = await inviteMember({
-    email,
-    name: String(formData.get('name') ?? ''),
-    roles: grantable(formData),
-    actor,
-  });
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  if (isAllowed(email)) return { error: `${email} is already an owner.`, typed, attempt };
+
+  const res = await inviteMember({ email, name, roles, actor });
   revalidatePath(PATH);
-  return res.ok ? { ok: true, message: res.message, link: res.link } : { error: res.error };
+  return res.ok
+    ? { ok: true, message: res.message, link: res.link, attempt }
+    : { error: res.error, typed, attempt };
 }
 
 export async function setRolesAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
