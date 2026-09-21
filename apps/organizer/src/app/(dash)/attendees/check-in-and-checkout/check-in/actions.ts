@@ -13,6 +13,7 @@ import {
 } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit } from '@/lib/audit';
+import { requiredConsentGaps } from '@/lib/consents';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
@@ -65,6 +66,16 @@ export interface ScanResult {
   ticketType?: string;
   /** Present when `outcome === 'cancelled'` — the registration's actual status. */
   registrationStatus?: string;
+  /**
+   * Required releases this person has not signed at the published wording.
+   *
+   * Reported, never enforced: the scan still checks them in. A door volunteer
+   * holding a queue cannot adjudicate a release, and turning somebody away from
+   * a conference they paid for over an outstanding photo waiver would be a
+   * larger mistake than the one it avoided. This is what tells the desk there is
+   * something to raise.
+   */
+  consentOutstanding?: string[];
   /** ISO. For `ok` this is now; for `duplicate` it is the *first* check-in. */
   checkedInAt?: string;
   stationLabel?: string;
@@ -113,12 +124,20 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
   if (!input.listId) return { ...base, error: 'Pick a check-in list first.' };
 
   try {
-    const [registrations] = await Promise.all([
+    const [registrations, consents] = await Promise.all([
       listRegistrations(),
+      requiredConsentGaps(),
       touchStation(input.deviceId, input.stationLabel),
     ]);
 
     const match = matchCode(registrations, code);
+
+    // Looked up by registration id and by address, because a signature made in
+    // the app carries a uid and one made through a link carries neither.
+    const outstanding = match
+      ? consents.outstanding.get(match.row.id) ??
+        consents.outstanding.get(match.row.email.trim().toLowerCase())
+      : undefined;
 
     let outcome: ScanOutcome;
     let result: ScanResult;
@@ -141,6 +160,7 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
         email: match.row.email,
         ticketType: match.row.ticketType,
         registrationStatus: match.row.status,
+        consentOutstanding: outstanding,
       };
     } else {
       const ref = db()
@@ -187,6 +207,7 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
           ? (existing.checkedInAt as unknown as { toDate(): Date }).toDate().toISOString()
           : at,
         stationLabel,
+        consentOutstanding: outstanding,
         checkInPath: `${COLLECTIONS.checkInLists}/${input.listId}/${SUBCOLLECTIONS.checkIns}/${match.row.id}`,
       };
 

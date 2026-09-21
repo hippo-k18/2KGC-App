@@ -15,7 +15,9 @@ import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useAnnouncements, useNowNext } from '@/lib/data/announcements';
+import { useAppAccess } from '@/lib/data/app-access';
 import { totalUnread, useThreads } from '@/lib/data/messages';
+import { unreadNotices, useNotifications } from '@/lib/data/notifications';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { useDays, useSessions } from '@/lib/data/sessions';
 
@@ -154,6 +156,11 @@ export default function HomeScreen() {
   const { isSaved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads } = useThreads(user?.uid);
   const unread = totalUnread(threads, user?.uid);
+  // Off event-wide, and the rules refuse the write as well as the app hiding
+  // the button — so this is not a curtain over something that still works.
+  const { messagingEnabled } = useAppAccess();
+  const { notices, markRead } = useNotifications();
+  const unreadNotes = unreadNotices(notices);
 
   const [expanded, setExpanded] = useState(false);
 
@@ -179,16 +186,20 @@ export default function HomeScreen() {
         userName={profile?.name ?? 'Attendee'}
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me/profile')}
-        actions={[
-          {
-            icon: 'envelope.fill',
-            // The count lives in the label because `WhovaHeader` takes icon
-            // names, not nodes, so `MessagesButton`'s drawn badge cannot come
-            // along. The Messages tile in the grid below carries the visible dot.
-            label: unread ? `Messages, ${unread} unread` : 'Messages',
-            onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
-          },
-        ]}
+        actions={
+          messagingEnabled
+            ? [
+                {
+                  icon: 'envelope.fill',
+                  // The count lives in the label because `WhovaHeader` takes icon
+                  // names, not nodes, so `MessagesButton`'s drawn badge cannot come
+                  // along. The Messages tile in the grid below carries the visible dot.
+                  label: unread ? `Messages, ${unread} unread` : 'Messages',
+                  onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
+                },
+              ]
+            : []
+        }
       />
 
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl, gap: SECTION_GAP }}>
@@ -246,6 +257,38 @@ export default function HomeScreen() {
           </SectionCard>
         ) : null}
 
+        {/*
+          What has changed on this attendee's own schedule, above the
+          organizers' broadcast to everybody.
+
+          It is above Announcements on purpose: an announcement is addressed to
+          a thousand people and this is addressed to the handful who saved the
+          session that moved, which makes it the more urgent of the two for
+          whoever is looking at it. Only the unread ones are drawn — a notice
+          about a room change is news once, and a permanent list of every
+          change of the week is a second agenda nobody asked for.
+        */}
+        {unreadNotes.length ? (
+          <SectionCard title="Changes to your schedule" inset={false} style={FULL_BLEED}>
+            {unreadNotes.slice(0, 4).map((n, i, arr) => (
+              <ListRow
+                key={n.id}
+                title={n.body ?? n.title}
+                last={i === arr.length - 1}
+                onPress={() => {
+                  markRead(n.id);
+                  // `href` is written by the server as `/agenda/{sessionId}`,
+                  // and it is the only route these carry. Parsed rather than
+                  // pushed as a bare string so a malformed one opens nothing
+                  // instead of pushing the app somewhere it has no screen for.
+                  const id = n.href?.startsWith('/agenda/') ? n.href.slice('/agenda/'.length) : '';
+                  if (id) openSession(id);
+                }}
+              />
+            ))}
+          </SectionCard>
+        ) : null}
+
         {announcements.length ? (
           <SectionCard
             title="Announcements"
@@ -262,7 +305,7 @@ export default function HomeScreen() {
           </SectionCard>
         ) : null}
 
-        <ResourceGrid unread={unread} />
+        <ResourceGrid unread={unread} messagingEnabled={messagingEnabled} />
 
         <SectionCard title="Event Description" style={FULL_BLEED}>
           <Text
@@ -467,7 +510,13 @@ interface Resource {
  * window instead, subtracting the two gutters this card sits inside, the card's
  * own padding, and the two gaps between three tiles.
  */
-function ResourceGrid({ unread }: { unread: number }) {
+function ResourceGrid({
+  unread,
+  messagingEnabled,
+}: {
+  unread: number;
+  messagingEnabled: boolean;
+}) {
   const colors = useTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -502,11 +551,18 @@ function ResourceGrid({ unread }: { unread: number }) {
     { label: 'Attendees', onPress: () => router.push('/people') },
     { label: 'Community', onPress: () => router.push('/community') },
     { label: 'My schedule', onPress: () => router.push('/me/schedule') },
-    {
-      label: 'Messages',
-      onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
-      badge: unread ? `${unread} unread` : undefined,
-    },
+    // Dropped from the grid rather than drawn disabled when the organizer has
+    // switched messaging off for the event: a tile that opens a screen saying
+    // the feature is off is the product narrating its own settings.
+    ...(messagingEnabled
+      ? [
+          {
+            label: 'Messages',
+            onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
+            badge: unread ? `${unread} unread` : undefined,
+          } as Resource,
+        ]
+      : []),
     { label: 'My profile', onPress: () => router.push('/me/profile') },
     // Was a `notBuilt` tile saying this lived "on an event document that does
     // not exist yet — there is no events collection to read it from". Both

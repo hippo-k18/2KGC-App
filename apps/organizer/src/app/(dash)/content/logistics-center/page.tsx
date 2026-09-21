@@ -4,6 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { getRoom, listRoomRows } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { publicUrl } from '@/lib/webpages';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { RoomForm, type EditableRoom } from './room-form';
 
@@ -160,6 +161,16 @@ export default async function LogisticsCenterPage({
             Attendees see the room name on each session. Renaming a room here updates every
             session in it.
           </p>
+          {/*
+            The room sign is a public page, one per room, and it belongs on this
+            list rather than on a screen of its own: the person who needs the
+            address is the one walking the building with a laptop on the morning
+            of day one, and this is the only list that names every room.
+          */}
+          <p className="body-2">
+            Each room has a screen page showing what is on now and next. Open it on the display
+            outside the door and leave it there. It keeps itself up to date.
+          </p>
 
           {rooms.length === 0 ? (
             <NotInputted
@@ -178,7 +189,7 @@ export default async function LogisticsCenterPage({
               { key: 'c', label: 'Seats', className: 'cell-xs cell-end-align' },
               { key: 's', label: 'Sessions', className: 'cell-xs cell-end-align' },
               { key: 'p', label: 'Published', className: 'cell-xs cell-end-align' },
-              { key: 'a', label: '', className: 'cell-xs cell-end-align' },
+              { key: 'a', label: '', className: 'cell-sm cell-end-align' },
             ]}
             empty="Nothing here yet"
             rows={rooms.map((r) => [
@@ -214,9 +225,19 @@ export default async function LogisticsCenterPage({
                 r.sessionCount
               ),
               r.publishedCount,
-              <Link key="a" href={`?edit=${encodeURIComponent(r.id)}`} style={{ fontSize: 12 }}>
-                Edit
-              </Link>,
+              <span key="a" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <a
+                  href={publicUrl(`/rooms/${encodeURIComponent(r.id)}`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                >
+                  Screen ↗
+                </a>
+                <Link href={`?edit=${encodeURIComponent(r.id)}`} style={{ fontSize: 12 }}>
+                  Edit
+                </Link>
+              </span>,
             ])}
           />
           )}

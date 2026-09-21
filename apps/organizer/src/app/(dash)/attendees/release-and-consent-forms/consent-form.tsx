@@ -127,7 +127,8 @@ export function ConsentForm({ existing }: { existing?: ConsentFormRow }) {
           Everyone in this audience is expected to sign
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
-          This sets who counts as outstanding. It does not block check-in or sessions.
+          An attendee who has not signed a required form shows as &ldquo;Form not signed&rdquo; on
+          the badge sheet and at check-in. Nobody is turned away.
         </p>
       </div>
 

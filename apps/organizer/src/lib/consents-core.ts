@@ -153,6 +153,61 @@ export function unmatchedSignatures(
   );
 }
 
+/** A required form, with every signature anybody has given it. */
+export interface RequiredForm {
+  id: string;
+  title: string;
+  version: number;
+  signatures: SignatureRecord[];
+}
+
+/**
+ * Which required forms each person still owes, keyed by every name they answer
+ * to.
+ *
+ * ── Why the map holds more than one key per person ─────────────────────────
+ *
+ * The screens that ask this question hold different halves of a person. The
+ * badge sheet has a registration id and no address; the scan desk has both; a
+ * signature may have been made under a uid. So every key a subject answers to —
+ * its own, its aliases, and its lower-cased address — points at the same list,
+ * and a caller looks up whichever one it happens to be holding.
+ *
+ * ⚠️ `outdated` counts as outstanding here, and that is the point rather than a
+ * rounding decision. Somebody who signed version 2 of a release has agreed to
+ * text that no longer stands; telling a door volunteer they are covered would
+ * be the one answer nobody can take back.
+ *
+ * A person who owes nothing is absent from the map rather than present with an
+ * empty array, so a caller's `?? []` and a `.has()` agree.
+ */
+export function outstandingByPerson(
+  subjects: ConsentSubject[],
+  forms: RequiredForm[],
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (forms.length === 0) return out;
+
+  // One array per person, filled form by form, then pointed at by every key
+  // that person answers to — so a caller holding any of them reads one list.
+  const owed = subjects.map<string[]>(() => []);
+
+  for (const form of forms) {
+    buildRegister(subjects, form.signatures, form.version).forEach((row, i) => {
+      if (row.status !== 'signed') owed[i].push(form.title);
+    });
+  }
+
+  subjects.forEach((subject, i) => {
+    if (owed[i].length === 0) return;
+    for (const key of [subject.key, ...(subject.aliases ?? []), emailKey(subject.email)]) {
+      if (key) out.set(key, owed[i]);
+    }
+  });
+
+  return out;
+}
+
 export interface RegisterTotals {
   expected: number;
   signed: number;

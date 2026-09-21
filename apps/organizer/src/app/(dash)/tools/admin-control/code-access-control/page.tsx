@@ -10,17 +10,19 @@ export const dynamic = 'force-dynamic';
 /**
  * Tools › Admin Control › Code Access Control.
  *
- * ── Why KGC does not actually need this ─────────────────────────────────────
+ * ── The app asks for the code. It is not what lets anybody in ───────────────
  *
  * Whova's event code is how an attendee proves they belong when the guest list
  * is loose. Ours is not loose: the gate is the `registered` custom claim, minted
  * only for people who hold a ticket, and `firestore.rules` reads it on every
- * request. A shared code would be *weaker* than what already runs — one string,
- * shared by a thousand people, that leaks the first time somebody photographs a
- * slide.
+ * request. A shared code is *weaker* than what already runs — one string, known
+ * to a thousand people, that leaks the first time somebody photographs a slide.
  *
- * So this screen stores the setting, explains that the real gate is elsewhere,
- * and does not pretend the code is doing security work.
+ * So the app prompts for it once, at first sign-in, and records the answer on
+ * the attendee's own profile; `firestore.rules` does not read the code and must
+ * not be made to. That split is the honest one: the prompt is a front door on a
+ * building whose locks are elsewhere, and it is worth having for the reason a
+ * front door is — it is the thing an organizer reads out from the stage.
  */
 export default async function CodeAccessControlPage() {
   await requireOrganizer();
@@ -34,8 +36,8 @@ export default async function CodeAccessControlPage() {
           <>
             <strong>The event code is not what lets people in</strong>
             <p>
-              Only ticket holders can open the app. The code is saved, but the app does not ask for
-              it yet.
+              Only ticket holders can open the app. The code is asked for once, the first time
+              somebody signs in, and it is a welcome step rather than a lock.
             </p>
           </>
         }

@@ -434,6 +434,24 @@ export function CheckoutForm({
           <span>{formatPrice(totalCents, selected.currency)}</span>
         </div>
 
+        {/*
+          Above the button, not under it.
+
+          This is the sentence a buyer is agreeing to by pressing pay, so it has
+          to be readable before the press rather than after it. It is a
+          statement rather than a tick box because nothing here is optional: a
+          ticket cannot be issued without holding the name and the address, and
+          a checkbox that must be ticked to continue asks for consent that is
+          not real. The two policies it names are linked, because a policy
+          somebody is told they agreed to and cannot open is not one they read.
+        */}
+        <p className="hint" style={{ marginBottom: 12 }}>
+          By registering you agree to the{' '}
+          <Link href="/code-of-conduct">code of conduct</Link> and to how your details are handled,
+          set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a copy of
+          your data or have it deleted at any time.
+        </p>
+
         <SubmitButton stripeReady={stripeReady} price={formatPrice(totalCents, selected.currency)} />
 
         {/*

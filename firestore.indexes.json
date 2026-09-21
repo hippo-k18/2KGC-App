@@ -509,6 +509,20 @@
       ]
     },
     {
+      "collectionGroup": "pages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "published",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "compPasses",
       "queryScope": "COLLECTION",
       "fields": [

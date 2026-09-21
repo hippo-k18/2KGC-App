@@ -275,6 +275,8 @@ export function SessionForm({
         defaultValue={values.description}
       />
 
+      {/* Who was told, then what the push layer did. Two different things. */}
+      {state.noticeNote ? <p className="whova-form-description">{state.noticeNote}</p> : null}
       {state.pushNote ? <p className="whova-form-description">{state.pushNote}</p> : null}
 
       <FormActions>

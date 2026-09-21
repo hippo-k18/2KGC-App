@@ -494,8 +494,18 @@ string literals.
 
 **Top-level:** `registrations`, `users`, `directory`, `sessions`, `speakers`,
 `sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`,
-`ticketTypes`, `orders`, `emailLog`, `sessionSeats`, plus the
+`ticketTypes`, `orders`, `emailLog`, `sessionSeats`, `pages`, plus the
 modelled-but-unbuilt `checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+
+`pages` is the organizer's own content pages — venue notes, travel, an FAQ.
+Authored on Content › Branding Center › Customize Resources, served by the
+website at `/{slug}` and listed in the app on Home › Documents. The body is
+Markdown in the subset `packages/shared/src/rich-text-core.ts` parses, and that
+parser returns **blocks, never markup**: the website, the phone and the
+dashboard preview each render the same array with their own leaf components, so
+there is no HTML path for a `<script>` typed into the editor to travel down. Do
+not add an `html` block kind, and do not render a span's text with
+`dangerouslySetInnerHTML`.
 
 Added by the August 2026 dashboard build-out, all **server-only** and all
 without a `firestore.rules` match block — every write is Admin-SDK, and they

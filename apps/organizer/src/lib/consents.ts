@@ -20,9 +20,11 @@ import {
   mintConsentToken,
   speakerSignatory,
 } from '@kgc/scripts/src/lib/consent-token';
+import { sendConsentRequest } from '@kgc/scripts/src/lib/email';
 import {
   audienceSources,
   buildRegister,
+  outstandingByPerson,
   totalsFor,
   unmatchedSignatures,
   type ConsentSubject,
@@ -174,6 +176,56 @@ export interface ConsentRegister {
 }
 
 /**
+ * Everybody an attendee form is put to: the union of profiles and ticket
+ * holders, one row per person.
+ *
+ * The same union `listAttendees()` builds, and for the same reason: somebody who
+ * bought a ticket this morning has no profile yet and is still somebody whose
+ * release is outstanding. Lifted out of `consentRegister` because the badge
+ * sheet and the scan desk now ask the same question of the same people without
+ * wanting a whole register built.
+ */
+async function attendeeSubjects(): Promise<ConsentSubject[]> {
+  const [userSnap, regSnap] = await Promise.all([
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const byEmail = new Map<string, ConsentSubject>();
+
+  for (const d of userSnap.docs) {
+    const u = d.data() as UserDoc;
+    byEmail.set(emailKey(u.email) || d.id, {
+      key: d.id,
+      name: u.name || u.email || d.id,
+      email: u.email,
+      kind: 'attendee',
+    });
+  }
+
+  for (const d of regSnap.docs) {
+    const r = d.data() as RegistrationDoc;
+    const k = emailKey(r.email);
+    const existing = byEmail.get(k);
+    if (existing) {
+      // The registration id is a second key the same person may have signed
+      // under, if they were sent a link before they ever opened the app.
+      existing.aliases = [...(existing.aliases ?? []), d.id];
+      continue;
+    }
+    byEmail.set(k || d.id, {
+      key: d.id,
+      name: r.name?.trim() || r.email,
+      email: r.email,
+      kind: 'attendee',
+      note: 'has not opened the app. Needs a link',
+    });
+  }
+
+  return [...byEmail.values()];
+}
+
+/**
  * The register for one form: who is expected to sign, and who has.
  *
  * ── Who is expected ─────────────────────────────────────────────────────────
@@ -195,67 +247,12 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
   const form = forms.find((f) => f.id === formId);
   if (!form) return null;
 
-  const responseSnap = await db()
-    .collection(COLLECTIONS.consentForms)
-    .doc(formId)
-    .collection(SUBCOLLECTIONS.responses)
-    .get();
-
-  const signatures: SignatureRecord[] = responseSnap.docs.map((d) => {
-    const r = d.data() as ConsentResponseDoc;
-    return {
-      signatory: r.signatory,
-      uid: r.uid,
-      email: r.email,
-      formVersion: r.formVersion,
-      signedName: r.signedName,
-      signedAt: iso(r.signedAt),
-      channel: r.channel,
-    };
-  });
+  const signatures = await signaturesFor(formId);
 
   const sources = audienceSources(form.audience);
   const subjects: ConsentSubject[] = [];
 
-  if (sources.includes('attendee')) {
-    const [userSnap, regSnap] = await Promise.all([
-      db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
-      db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
-    ]);
-
-    const byEmail = new Map<string, ConsentSubject>();
-
-    for (const d of userSnap.docs) {
-      const u = d.data() as UserDoc;
-      byEmail.set(emailKey(u.email) || d.id, {
-        key: d.id,
-        name: u.name || u.email || d.id,
-        email: u.email,
-        kind: 'attendee',
-      });
-    }
-
-    for (const d of regSnap.docs) {
-      const r = d.data() as RegistrationDoc;
-      const k = emailKey(r.email);
-      const existing = byEmail.get(k);
-      if (existing) {
-        // The registration id is a second key the same person may have signed
-        // under, if they were sent a link before they ever opened the app.
-        existing.aliases = [...(existing.aliases ?? []), d.id];
-        continue;
-      }
-      byEmail.set(k || d.id, {
-        key: d.id,
-        name: r.name?.trim() || r.email,
-        email: r.email,
-        kind: 'attendee',
-        note: 'has not opened the app. Needs a link',
-      });
-    }
-
-    subjects.push(...byEmail.values());
-  }
+  if (sources.includes('attendee')) subjects.push(...(await attendeeSubjects()));
 
   if (sources.includes('speaker')) {
     const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
@@ -320,6 +317,193 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
     orphans: unmatchedSignatures(subjects, signatures),
     audienceUnavailable: sources.length === 0,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Required forms, at the door
+// ---------------------------------------------------------------------------
+
+/** Every signature given to one form, flattened for the matcher. */
+async function signaturesFor(formId: string): Promise<SignatureRecord[]> {
+  const snap = await db()
+    .collection(COLLECTIONS.consentForms)
+    .doc(formId)
+    .collection(SUBCOLLECTIONS.responses)
+    .get();
+
+  return snap.docs.map((d) => {
+    const r = d.data() as ConsentResponseDoc;
+    return {
+      signatory: r.signatory,
+      uid: r.uid,
+      email: r.email,
+      formVersion: r.formVersion,
+      signedName: r.signedName,
+      signedAt: iso(r.signedAt),
+      channel: r.channel,
+    };
+  });
+}
+
+export interface RequiredConsentGaps {
+  /** The published attendee forms an organizer has marked required. */
+  forms: { id: string; title: string; version: number }[];
+  /**
+   * Registration id, uid or lower-cased address → the titles that person has
+   * not signed. Absent means they owe nothing.
+   */
+  outstanding: Map<string, string[]>;
+}
+
+/**
+ * Who still owes a required release, for the screens that meet people.
+ *
+ * ── Why this is a report and not a gate ────────────────────────────────────
+ *
+ * The badge sheet and the scan desk say "form not signed" and carry on. Nothing
+ * here refuses a check-in, and that is a decision rather than an unfinished
+ * half: a door volunteer holding a queue cannot adjudicate a release, and a
+ * conference that turned somebody away from a session they paid for because a
+ * photo waiver was outstanding would be making a much larger mistake than the
+ * one it avoided. The organizer standing behind the desk is the one who decides
+ * what to do about it, and this is what tells them there is something to decide.
+ *
+ * Returns empty and never throws when nothing is required, which is the state
+ * of every event that has not published a required form.
+ */
+export async function requiredConsentGaps(): Promise<RequiredConsentGaps> {
+  try {
+    const required = (await listConsentForms()).filter(
+      (f) => f.audience === 'attendee' && f.status === 'published' && f.required,
+    );
+    if (required.length === 0) return { forms: [], outstanding: new Map() };
+
+    const [subjects, withSignatures] = await Promise.all([
+      attendeeSubjects(),
+      Promise.all(
+        required.map(async (f) => ({
+          id: f.id,
+          title: f.title,
+          version: f.version,
+          signatures: await signaturesFor(f.id),
+        })),
+      ),
+    ]);
+
+    return {
+      forms: required.map((f) => ({ id: f.id, title: f.title, version: f.version })),
+      outstanding: outstandingByPerson(subjects, withSignatures),
+    };
+  } catch (err) {
+    recordError('consent.requiredGaps', err);
+    return { forms: [], outstanding: new Map() };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sending the link
+// ---------------------------------------------------------------------------
+
+export interface SendLinksResult {
+  sent: number;
+  /** People who are outstanding and have no address on file. */
+  noAddress: number;
+  /** False when no signing secret is configured, so no link could be minted. */
+  available: boolean;
+}
+
+/** Sent in batches, so a form with a thousand outstanding rows is not one burst. */
+const SEND_BATCH = 20;
+
+/**
+ * Mail the signing link to everybody who has not signed this form.
+ *
+ * ── Sent on publication, not on every save ─────────────────────────────────
+ *
+ * The caller decides: publishing a form, or republishing wording that moved, is
+ * the moment people need to be asked. Fixing a typo in a title is not, and a
+ * send on every save would mail a hundred people because somebody corrected a
+ * comma.
+ *
+ * Nobody who has already signed the current version is written to. Somebody who
+ * signed an earlier version is, and gets the sentence explaining why — their
+ * agreement still stands for what it said, and it does not cover the new text.
+ *
+ * Each send is logged whether or not it leaves the building. With no mail
+ * provider configured every row lands in the log as `skipped`, which is what
+ * makes "it was never sent" distinguishable from "it was sent and not read".
+ */
+export async function sendSigningLinks(input: {
+  formId: string;
+  actor: string;
+}): Promise<SendLinksResult> {
+  const empty: SendLinksResult = { sent: 0, noAddress: 0, available: true };
+
+  if (!signingLinksAvailable()) return { ...empty, available: false };
+
+  const register = await consentRegister(input.formId);
+  if (!register) return empty;
+
+  const owed = register.rows.filter((r) => r.status !== 'signed');
+  const reachable = owed.filter((r) => r.email);
+
+  for (let i = 0; i < reachable.length; i += SEND_BATCH) {
+    await Promise.all(
+      reachable.slice(i, i + SEND_BATCH).map((r) =>
+        sendConsentRequest(db(), {
+          to: r.email!,
+          name: r.name,
+          formTitle: register.form.title,
+          version: register.form.version,
+          link: signingLink(register.form.id, r.key),
+          resigning: r.status === 'outdated',
+          actor: input.actor,
+        }),
+      ),
+    );
+  }
+
+  return { sent: reachable.length, noAddress: owed.length - reachable.length, available: true };
+}
+
+/**
+ * Ask one person to sign every required attendee form, as they are added.
+ *
+ * The signatory is the registration id rather than a uid, because somebody an
+ * organizer has just typed in has no account yet — that is the whole reason
+ * this mail exists. If they later sign in the app and sign there instead, the
+ * register still matches the two, on the address.
+ */
+export async function sendRequiredLinksTo(input: {
+  registrationId: string;
+  email: string;
+  name?: string;
+  actor: string;
+}): Promise<number> {
+  try {
+    if (!signingLinksAvailable()) return 0;
+
+    const required = (await listConsentForms()).filter(
+      (f) => f.audience === 'attendee' && f.status === 'published' && f.required,
+    );
+
+    for (const form of required) {
+      await sendConsentRequest(db(), {
+        to: input.email,
+        name: input.name,
+        formTitle: form.title,
+        version: form.version,
+        link: signingLink(form.id, input.registrationId),
+        resigning: false,
+        actor: input.actor,
+      });
+    }
+
+    return required.length;
+  } catch (err) {
+    recordError('consent.sendRequiredLinks', err);
+    return 0;
+  }
 }
 
 /**

@@ -24,10 +24,11 @@ import { Banner, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
  * speakers, who have no account at all, and ticket holders who have not opened
  * it yet. Minted on render rather than stored: the token *is* the
  * authorisation, so there is no row to clean up and nothing to leak from the
- * database. ⚠️ Nothing here **sends** them. `scripts/src/lib/email.ts` composes
- * the transactional mail this project sends and has no consent template, so
- * today an organizer copies a link into a message they write themselves. That is
- * the honest state and the gap panel says so.
+ * database.
+ *
+ * The same link is mailed by `sendSigningLinks` when the form is published and
+ * by `sendRequiredLinksTo` when an attendee is added. This column is the second
+ * round: one person, chased by hand, after the send has already happened.
  */
 export function ConsentRegisterView({ register }: { register: ConsentRegister }) {
   const { form, rows, totals, orphans, audienceUnavailable } = register;

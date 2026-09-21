@@ -6,9 +6,11 @@ import { getSponsor, listSponsors, type SponsorRow } from '@/lib/data';
 import { sponsorTiers } from '@/lib/event';
 import { isUploadedImageUrl } from '@/lib/uploads';
 import { ROUTES } from '@/lib/nav';
+import { linksWithoutASponsor, sponsorReport } from '@/lib/sponsor-report';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, Tabs, Tag } from '../../../ui';
 import { SponsorForm } from './sponsor-form';
 import { SponsorImportForm } from './import-form';
+import { SponsorReportView } from './report-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -179,9 +181,15 @@ function TierGroup({
             <div style={{ fontSize: 14 }}>{s.offerCount}</div>
           </div>
 
-          <div style={{ width: 44 }}>
+          <div
+            className="row-actions-col"
+            style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 60 }}
+          >
             <Link href={`?edit=${s.id}`} style={{ fontSize: 12 }}>
               Edit
+            </Link>
+            <Link href={`?report=${s.id}`} style={{ fontSize: 12 }}>
+              Report
             </Link>
           </div>
         </div>
@@ -218,13 +226,17 @@ function isSelfHosted(url: string): boolean {
 export default async function SponsorManagerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; edit?: string; new?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string; new?: string; report?: string }>;
 }) {
   await requireOrganizer();
   const sp = await searchParams;
   const editId = typeof sp.edit === 'string' ? sp.edit : undefined;
+  const reportId = typeof sp.report === 'string' ? sp.report : undefined;
   const creating = typeof sp.new === 'string';
   const importing = sp.tab === 'import';
+
+  const report = reportId ? await sponsorReport(reportId) : null;
+  const strayLinks = report ? await linksWithoutASponsor() : [];
 
   const sponsors = await listSponsors();
   const editing = editId ? await getSponsor(editId) : null;
@@ -259,7 +271,7 @@ export default async function SponsorManagerPage({
         title="Sponsor Manager"
         tags={<Tag color="blue">{sponsors.length} sponsors</Tag>}
         actions={
-          showForm || importing ? (
+          showForm || importing || reportId ? (
             <Link href={ROUTES.sponsorManager} className="whova-btn-main secondary">
               Back to list
             </Link>
@@ -292,7 +304,13 @@ export default async function SponsorManagerPage({
           ]}
         />
 
-        {sp.tab === 'reminder' ? (
+        {report ? (
+          <SponsorReportView report={report} strays={strayLinks} />
+        ) : reportId ? (
+          <p className="body-2" style={{ marginTop: 12 }}>
+            That sponsor is no longer on the list. <Link href={ROUTES.sponsorManager}>Back to the list</Link>.
+          </p>
+        ) : sp.tab === 'reminder' ? (
           /*
             The reminder *is* a send, and the send exists: Message Sponsors
             resolves the two segments this tab would chase — a missing logo and

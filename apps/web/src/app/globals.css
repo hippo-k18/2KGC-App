@@ -6834,6 +6834,13 @@ a.li-icon::after {
   margin: 0 0 10px;
 }
 
+/* The wall's eyebrow carries the refresh stamp on its right. It wraps under the
+   dates on a phone rather than squeezing them, because the stamp is the least
+   important thing on the page and the only one nobody is reading on purpose. */
+.wall-refresh {
+  margin-left: 18px;
+}
+
 .wall-badge {
   background: var(--orange);
   /* `--palette-1` on orange, not white: white on `#f68621` is 2.4:1 and this
@@ -6879,6 +6886,179 @@ a.li-icon::after {
   color: var(--white);
   font-size: clamp(1.4rem, 3vw, 3rem);
   margin: 0;
+}
+
+/* ------------------------------------------------------- room signage ---- */
+
+/*
+ * `/rooms/{id}`, the sign outside a room door.
+ *
+ * It borrows `.wall`'s ground, measure and clamped type wholesale, because the
+ * reading distance is the same problem and solving it twice would let the two
+ * screens in one building drift apart. What it adds is a hierarchy the wall
+ * does not need: on an announcement wall every item is one kind of thing, and
+ * here "now" has to beat "next" from across a corridor before either is read.
+ */
+
+.sign .wrap {
+  max-width: 1000px;
+}
+
+/*
+ * A sign is the whole screen, so the site's chrome comes off it.
+ *
+ * The navigation, the Register button and the cookie notice are all addressed
+ * to somebody who might buy a ticket. Nobody buys a ticket from a panel screwed
+ * to a wall outside room 271, and every one of them is a strip of the display
+ * not saying what is on in the room.
+ *
+ * Done with `:has()` on the body rather than by splitting the layout in two:
+ * the alternative is moving every route in this app under a `(site)` group so
+ * that a second group can have a different shell, which is a large change to
+ * the one file every page depends on for the sake of two pages. A browser
+ * without `:has()` renders the header and the footer exactly as it does today,
+ * which is a complete page and not a broken one.
+ *
+ * `/announcements` deliberately keeps its chrome: it is linked in the footer
+ * and read on phones by attendees who missed a push, as well as being a wall.
+ */
+body:has(.sign-screen) > .site-header,
+body:has(.sign-screen) > .site-footer,
+body:has(.sign-screen) > .consent {
+  display: none;
+}
+
+body:has(.sign-screen) .sign-screen {
+  min-height: 100vh;
+}
+
+.sign-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.auto-refresh {
+  color: var(--palette-4);
+  font-size: clamp(0.72rem, 1vw, 1rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sign-now {
+  padding-bottom: clamp(20px, 3vw, 40px);
+}
+
+.sign-next {
+  border-top: 1px solid rgb(255 255 255 / 14%);
+  padding-top: clamp(20px, 3vw, 40px);
+}
+
+.sign-clock {
+  color: var(--white);
+  font-size: clamp(1.1rem, 2.2vw, 2.2rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.sign-title {
+  color: var(--white);
+  font-size: clamp(1.6rem, 4.4vw, 4rem);
+  line-height: 1.1;
+  margin: 0;
+  max-width: 24ch;
+}
+
+/* "Next" is a step down from "now", so which is which survives a glance. */
+.sign-next .sign-title {
+  font-size: clamp(1.25rem, 2.6vw, 2.4rem);
+}
+
+.sign-next .sign-clock {
+  font-size: clamp(0.95rem, 1.6vw, 1.5rem);
+}
+
+/* An empty room is stated, not shouted: the same slot, at the size of a
+   sentence rather than a headline. */
+.sign-quiet {
+  color: var(--palette-3);
+  font-size: clamp(1.2rem, 2.4vw, 2.2rem);
+  font-weight: 400;
+}
+
+.sign-people {
+  color: var(--palette-3);
+  font-size: clamp(1rem, 1.7vw, 1.7rem);
+  margin: 12px 0 0;
+  max-width: 40ch;
+}
+
+.sign-track {
+  color: var(--palette-4);
+  font-size: clamp(0.8rem, 1.1vw, 1.1rem);
+  letter-spacing: 0.1em;
+  margin: 10px 0 0;
+  text-transform: uppercase;
+}
+
+.sign-until {
+  color: var(--white);
+}
+
+.sign-later {
+  border-top: 1px solid rgb(255 255 255 / 14%);
+  display: grid;
+  gap: clamp(8px, 1.2vw, 16px);
+  list-style: none;
+  margin: clamp(20px, 3vw, 40px) 0 0;
+  padding: clamp(20px, 3vw, 40px) 0 0;
+}
+
+.sign-later li {
+  display: flex;
+  gap: clamp(12px, 2vw, 28px);
+  align-items: baseline;
+  color: var(--palette-3);
+  font-size: clamp(0.95rem, 1.5vw, 1.5rem);
+}
+
+.sign-later-time {
+  color: var(--palette-4);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  flex: 0 0 auto;
+  min-width: 4.5em;
+}
+
+/* The index of signs: the room is what is being chosen, so it leads, and the
+   session count trails as the fact that decides whether a screen is worth
+   hanging there at all. */
+/* No rule of its own: the page header already draws one, and two hairlines a
+   few pixels apart read as a rendering fault. */
+.room-index {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.room-index li {
+  justify-content: space-between;
+}
+
+.room-index-count {
+  color: var(--palette-4);
+  font-size: clamp(0.78rem, 1vw, 1rem);
+  flex: 0 0 auto;
+}
+
+.sign-foot {
+  color: var(--palette-4);
+  font-size: clamp(0.78rem, 1vw, 1rem);
+  margin: clamp(24px, 4vw, 56px) 0 0;
 }
 
 /* ----------------------------------------------- agenda session detail ---- */

@@ -10,6 +10,7 @@ import {
   type EventSettings,
   type SessionDoc,
 } from '@kgc/shared';
+import { writeAppAccessProjection } from '@/lib/app-access';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { recordError } from '@/lib/errors';
@@ -73,6 +74,17 @@ export async function saveBasicsAction(_prev: FormState, formData: FormData): Pr
     actor,
   );
   if (!saved.ok) return { error: saved.error };
+
+  /*
+   * The app's access window is "the end of the event plus N days", so moving
+   * the end date moves it. Rewritten here rather than only on the two access
+   * screens, because an organizer who pushes the event back a week has no
+   * reason to visit those screens and would otherwise have the app close on
+   * the old date. `eventBasics()` is per-request cached, and the projection
+   * reads it after this save, so it is handed the new dates rather than the
+   * per-request cached ones `before` already resolved.
+   */
+  await writeAppAccessProjection(after);
 
   let moved = 0;
   if (after.timeZone !== before.timeZone && formData.get('moveSessions') === 'on') {

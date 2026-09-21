@@ -17,7 +17,7 @@ import {
   ANNOUNCEMENTS, ATTENDEE_BIOS, COMMUNITY_POSTS, FIRST, LAST, ORGS, POLL_QUESTIONS, ROOMS,
   SPONSORS, TICKET_TYPES, TITLES, TRACKS, makeSessions, makeSpeakers,
   CAMPAIGN_LINKS, CONTACTS, DOCUMENTS, BOOTHS, GATHERINGS, QUESTION_FIELDS,
-  EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, TASKS,
+  EXHIBITORS, FEEDBACK_COMMENTS, FEEDBACK_QUESTIONS, PAGES, TASKS,
 } from './lib/fixtures.js';
 import { commitAll, db, pruneStale, targetDescription, type PendingWrite } from './lib/firestore.js';
 import {
@@ -423,6 +423,13 @@ async function main() {
           // like one person talking to themselves.
           authorId: `demo_${String((i * 7 + r * 3 + 1) % ATTENDEE_COUNT).padStart(3, '0')}`,
           body,
+          // Seeded explicitly, like the post above it. `status` arrived on
+          // `CommunityReplyDoc` with moderation and the seed never wrote it, so
+          // every seeded reply was one the app had to treat as "no status means
+          // visible" — the case that stops the hide ever being enforced in a
+          // query. A reply that carries the field is one the rules and the
+          // query can both reason about.
+          status: 'visible',
           // Explicit ascending times, not `serverTimestamp()`: the thread reads
           // `orderBy('createdAt')`, and a batch of server timestamps can resolve
           // close enough together to shuffle a conversation into nonsense.
@@ -623,8 +630,43 @@ async function main() {
       visibleToTicketTypes: d.restrictTo,
       status: d.status,
       order: i,
+      // The first seeded document doubles as the session-attachment example, so
+      // the session page in the app and the agenda dialog on the website both
+      // have a handout to render. Derived from the same `sessionId()` every
+      // other session reference here uses, so it cannot point at a talk that
+      // does not exist.
+      ...(i === 1 && sessions[0]
+        ? { sessionId: sessionId(sessions[0].title, sessions[0].startsAtLocal) }
+        : {}),
     });
   });
+
+  /**
+   * The example content pages, **emulator only**.
+   *
+   * `PAGES` is demo copy: an invented Wi-Fi network, an invented tram fare.
+   * Seeding it into the live project would put a plausible, wrong answer on the
+   * public website at `/wifi` and in every attendee's app, which is a queue at
+   * the registration desk rather than a broken page somebody notices. The same
+   * reasoning as the synthetic attendee list, and the same gate.
+   *
+   * Real pages are written on Content › Branding Center › Customize Resources,
+   * which is what the live event uses. `pages` is not pruned below for that
+   * reason: a seeded run must never delete a page an organizer typed.
+   */
+  if (!live) {
+    PAGES.forEach((p, i) => {
+      push(COLLECTIONS.pages, `seed-page-${p.slug}`, {
+        ...base(),
+        title: p.title,
+        slug: p.slug,
+        summary: p.summary,
+        body: p.body,
+        published: true,
+        order: i,
+      });
+    });
+  }
 
   /**
    * One feedback survey against the opening session, with real answers.
@@ -701,6 +743,7 @@ async function main() {
       `(${listed} projected into exhibitorListings for the app)`,
   );
   console.log(`  ${TASKS.length} team tasks, ${DOCUMENTS.length} documents, 1 feedback survey`);
+  console.log(live ? '  0 content pages (demo copy, emulator only)' : `  ${PAGES.length} content pages (demo copy, emulator only)`);
   console.log(`  ${ATTENDEE_COUNT} synthetic attendees (${ATTENDEE_COUNT - Math.ceil(ATTENDEE_COUNT / 7)} in directory, rest opted out)`);
   console.log(`  ${COMMUNITY_POSTS.length} community posts with ${replyTotal} replies, ${ANNOUNCEMENTS.length} announcements`);
   console.log(`  Q&A on ${keynotes.length} keynotes, a poll on all ${pollable.length} pollable sessions`);

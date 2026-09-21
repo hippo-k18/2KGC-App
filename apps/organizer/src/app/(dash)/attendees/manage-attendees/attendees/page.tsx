@@ -7,12 +7,14 @@ import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { countWhereEvent, listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
+import { personRefParam } from '@/lib/person-data-core';
 import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
 import { AssignBar, RowCheckbox } from '../../categories/assign-bar';
 import { AddAttendeeForm } from './add-form';
 import { EditPanel } from './edit-panel';
 import { ImportForm } from './import-form';
+import { PersonDataPanel } from './person-data-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +55,10 @@ export default async function AttendeesPage({
   const importing = typeof sp.import === 'string';
   const adding = typeof sp.add === 'string';
   const editId = typeof sp.edit === 'string' ? sp.edit : undefined;
+  // `reg:{id}` or `uid:{id}` — the row says which half of the union it came
+  // from, because a bare id would have to be guessed at and guessing wrong
+  // opens somebody else's file.
+  const dataRef = typeof sp.data === 'string' ? sp.data : undefined;
   const [all, registrations, catalogue, editing, { categories }] = await Promise.all([
     listAttendees(),
     countWhereEvent(COLLECTIONS.registrations),
@@ -263,6 +269,8 @@ export default async function AttendeesPage({
           </div>
         )}
 
+        {dataRef && <PersonDataPanel param={dataRef} />}
+
         <form method="get" className="toolbar">
           {role ? <input type="hidden" name="role" value={role} /> : null}
           {category ? <input type="hidden" name="category" value={category} /> : null}
@@ -414,6 +422,27 @@ export default async function AttendeesPage({
                   : []),
                 { label: 'Send announcement', href: ROUTES.announcements },
                 { label: 'Check in at the door', href: ROUTES.checkIn },
+                /*
+                  Both offered on every row, including somebody with a profile
+                  and no ticket: a data request does not depend on having bought
+                  anything, and the walk is keyed on five ids of which the
+                  address is the only one always present.
+
+                  The export is a direct link because it is the common request
+                  and the file is the answer to it. Deletion opens the panel
+                  first, which lists what is held before it offers the button.
+                */
+                {
+                  label: 'Export their data',
+                  href: a.registrationId
+                    ? `/export/person?rid=${encodeURIComponent(a.registrationId)}`
+                    : `/export/person?uid=${encodeURIComponent(a.uid ?? '')}`,
+                },
+                {
+                  label: 'Delete their data',
+                  href: `?data=${personRefParam({ registrationId: a.registrationId, uid: a.uid })}#person-data`,
+                  danger: true,
+                },
               ]}
             />,
           ])}
@@ -452,6 +481,15 @@ export default async function AttendeesPage({
             <code>releasedSeats</code> on the order and does not refund it. Still missing: a ticket
             type change moves no stock and takes no payment, and a refund of a transferred
             ticket&apos;s order cancels the original holder&apos;s registration, not the new one.
+          </li>
+          <li>
+            <strong>Export and deletion of one person, now built.</strong> Both walk the one list in{' '}
+            <code>person-data-core.ts</code>, so a new collection is reached by adding an entry
+            there and by nothing else. Still missing: the call for abstracts is a separate
+            population reached by capability link with no account, and its submissions, reviewer
+            rows and author identities are not in the walk yet. Neither is{' '}
+            <code>gatherings.attendees</code>, which holds typed names rather than ids and has no
+            join key to match on.
           </li>
           <li>
             <strong>Categories and Segments.</strong> Segments are the sharpest idea in the whole

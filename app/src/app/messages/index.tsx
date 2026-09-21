@@ -16,6 +16,7 @@ import { useEventSettings } from '@/lib/data/event-settings';
 import { AVATAR_SIZE, HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import { useDirectory } from '@/lib/data/directory';
 import { otherParticipant, totalUnread, useThreads } from '@/lib/data/messages';
 
@@ -75,6 +76,7 @@ export default function MessagesScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
   const { threads, loading, error, retry } = useThreads(user?.uid);
+  const { messagingEnabled } = useAppAccess();
   const { people, error: peopleError, retry: retryPeople } = useDirectory();
   // Session-scoped, not persisted: a preference this small is not worth a
   // storage round trip on launch, and the strip is one line of standing fact
@@ -95,17 +97,23 @@ export default function MessagesScreen() {
         backTitle={origin.title}
         backHref={origin.href}
         popsToBackTitle
-        headerRight={() => (
-          <Pressable
-            onPress={() => router.push('/people')}
-            accessibilityRole="button"
-            accessibilityLabel="New message"
-            accessibilityHint="Opens the attendee list to choose someone"
-            hitSlop={Spacing.md}
-            style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
-            <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
-          </Pressable>
-        )}
+        headerRight={() =>
+          // No compose button when nobody may start a conversation. The route
+          // is still reachable — an old notification, a back gesture — and what
+          // is already here stays readable, which is why this screen is not
+          // replaced outright.
+          messagingEnabled ? (
+            <Pressable
+              onPress={() => router.push('/people')}
+              accessibilityRole="button"
+              accessibilityLabel="New message"
+              accessibilityHint="Opens the attendee list to choose someone"
+              hitSlop={Spacing.md}
+              style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
+              <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
+            </Pressable>
+          ) : null
+        }
       />
 
       <FlatList
@@ -125,7 +133,9 @@ export default function MessagesScreen() {
                 onRetry={retryPeople}
               />
             ) : null}
-            {noticeDismissed ? null : (
+            {!messagingEnabled ? (
+              <MessagingOffNotice />
+            ) : noticeDismissed ? null : (
               <DeliveryNotice onDismiss={() => setNoticeDismissed(true)} />
             )}
           </>
@@ -159,7 +169,11 @@ export default function MessagesScreen() {
             <EmptyState
               icon="envelope"
               title="No messages"
-              message="Find someone in Attendees and say hello."
+              message={
+                messagingEnabled
+                  ? 'Find someone in Attendees and say hello.'
+                  : 'Messaging is off for this event.'
+              }
             />
           )
         }
@@ -217,6 +231,39 @@ function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
             Dismiss
           </Text>
         </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Messaging is off for the event.
+ *
+ * Not dismissible, and it replaces the delivery notice rather than sitting
+ * beside it: there is one thing worth saying on this screen while the switch is
+ * off, and a strip about push under a strip about messaging being off is two
+ * caveats stacked on an inbox somebody can no longer write to.
+ */
+function MessagingOffNotice() {
+  const colors = useTheme();
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.sm,
+        padding: Spacing.md,
+        backgroundColor: colors.banner,
+      }}>
+      <Icon name="envelope" size={20} color={colors.onBanner} style={{ marginTop: 2 }} />
+      <View style={{ flex: 1, gap: Spacing.xs }}>
+        <Text variant="heading" style={{ color: colors.onBanner }}>
+          Messaging is off for this event.
+        </Text>
+        <Text variant="subhead" style={{ color: colors.onBanner }}>
+          You can still read what has already been sent.
+        </Text>
       </View>
     </View>
   );

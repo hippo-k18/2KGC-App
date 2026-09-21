@@ -8,6 +8,7 @@ import { registrationId } from '@kgc/scripts/src/lib/ids';
 import { emailNote, sendAttendeeConfirmation } from '@/lib/attendee-admin';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit } from '@/lib/audit';
+import { sendRequiredLinksTo } from '@/lib/consents';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
@@ -114,6 +115,7 @@ export async function addAttendeeAction(
       await existing.ref.update({ transferredTo: FieldValue.delete() });
     }
 
+    let consentForms = 0;
     if (result.created || status === 'transferred') {
       await sendAttendeeConfirmation({
         registrationId: result.registrationId,
@@ -122,17 +124,30 @@ export async function addAttendeeAction(
         ticketType: ticketType || 'Added by organizer',
         claimCode: result.claimCode,
       });
+      // Somebody added by hand has no account, so the app is not a way to reach
+      // a release they are required to sign. Their own link is.
+      consentForms = await sendRequiredLinksTo({
+        registrationId: result.registrationId,
+        email: result.email,
+        name,
+        actor,
+      });
     }
 
     revalidatePath(ROUTES.attendees);
     revalidatePath(ROUTES.checkIn);
     revalidatePath(ROUTES.analyticsExports);
 
+    const consentLine =
+      consentForms > 0
+        ? ` A link to sign ${consentForms === 1 ? 'the form they have to sign' : `the ${consentForms} forms they have to sign`} went with it.`
+        : '';
+
     return {
       ok: true,
       message: result.created || status === 'transferred'
         ? `Added ${name}. They can be checked in at the door now.` +
-          (emailNote() || ` Their confirmation and claim code went to ${result.email}.`)
+          (emailNote() || ` Their confirmation and claim code went to ${result.email}.${consentLine}`)
         : `${email} was already on the list. The name and ticket type were updated rather than duplicated.`,
     };
   } catch (err) {

@@ -3,12 +3,14 @@ import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import {
   DEFAULT_LIST_ID,
+  allCheckIns,
   listCheckInLists,
   listRegistrations,
   listStations,
   recentCheckIns,
   recentScanEvents,
 } from '@/lib/checkin';
+import { doorDashboard, type DoorBar } from '@/lib/door-dashboard-core';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
@@ -94,10 +96,22 @@ export default async function CheckInPage({
   ]);
   const rows = registrations.map((r) => r.row);
 
-  const [{ rows: checkIns, total: checkedIn }, scans] = await Promise.all([
+  /*
+   * `everyCheckIn` is a second pass over the same subcollection, and it is the
+   * honest cost of the two charts below. `recentCheckIns` answers its two
+   * questions — how many, and who came through last — with a `count()` and a
+   * twenty-document query, neither of which reads the rest. Splitting people by
+   * ticket and by hour needs every document there is. The subcollection tops
+   * out at one entry per registration, which is why `allCheckIns` carries no
+   * limit in the first place.
+   */
+  const [{ rows: checkIns, total: checkedIn }, scans, everyCheckIn] = await Promise.all([
     recentCheckIns(selected.id, rows, stations),
     recentScanEvents(selected.id),
+    allCheckIns(selected.id, rows, stations),
   ]);
+
+  const door = doorDashboard(everyCheckIn, EVENT.timeZone);
 
   /**
    * The scope pickers behind the Day and Session Start buttons.
@@ -334,6 +348,60 @@ export default async function CheckInPage({
         <DeskTable listId={selected.id} rows={deskRows} />
       </Panel>
 
+      {/*
+        The live door dashboard. Two charts, because the progress bar above
+        answers "how far through the queue are we" and cannot answer either of
+        these: whether the queue is moving, and which tickets are still
+        outside. Both are read off the check-ins on this list, so switching to a
+        session door re-draws them for that room.
+      */}
+      <Panel>
+        <h2 className="section-header" style={{ marginTop: 0 }}>
+          Arrivals
+        </h2>
+        {door.total === 0 ? (
+          <p className="body-2">
+            Nobody has checked in on this list yet. The charts appear with the first arrival.
+          </p>
+        ) : (
+          <>
+            <div className="form-row" style={{ alignItems: 'flex-start', display: 'flex', gap: 24 }}>
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>By ticket type</h3>
+                <BarChart
+                  firstLabel="Ticket"
+                  barLabel="Checked in"
+                  bars={door.byTicket}
+                  empty="No tickets recorded"
+                />
+              </div>
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>By hour</h3>
+                <BarChart
+                  firstLabel="Hour"
+                  barLabel="Arrivals"
+                  bars={door.byHour}
+                  empty="No arrival times recorded"
+                />
+              </div>
+            </div>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
+              {door.busiestHour
+                ? `Busiest hour ${door.busiestHour.label} with ${door.busiestHour.count} ${door.busiestHour.count === 1 ? 'arrival' : 'arrivals'}. `
+                : ''}
+              {door.lastAt ? `Last arrival ${venueClock(door.lastAt)}. ` : ''}
+              {door.undated > 0
+                ? `${door.undated} ${door.undated === 1 ? 'check-in has' : 'check-ins have'} no time on them, so they are counted by ticket only. `
+                : ''}
+              {door.skippedGaps > 0
+                ? 'Long quiet stretches are left out, so two bars side by side are not always two hours in a row. '
+                : ''}
+              Hours are {VENUE_CITY} time.
+            </p>
+          </>
+        )}
+      </Panel>
+
       <Panel>
         <h2 className="section-header">Recent check-ins ({checkedIn})</h2>
         <Table
@@ -437,5 +505,82 @@ export default async function CheckInPage({
         </ul>
       </GapPanel>
     </>
+  );
+}
+
+/**
+ * "America/New_York" → "New York". The zone named the way somebody says it.
+ *
+ * The charts below are bucketed in the venue's zone rather than the reader's,
+ * and an organizer watching the door from another country has to be told which
+ * clock the hours are on. The zone id is the accurate way to say it and the
+ * wrong way to write it on a screen.
+ */
+const VENUE_CITY = (EVENT.timeZone.split('/').pop() ?? EVENT.timeZone).replace(/_/g, ' ');
+
+/** One instant, on the venue's clock, for a line of prose beside the charts. */
+function venueClock(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '—';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: EVENT.timeZone,
+  }).format(new Date(t));
+}
+
+/**
+ * A bar per row, and no chart library.
+ *
+ * Tools › Report draws the scan-throughput chart exactly this way, and the two
+ * screens should not carry two ideas of what a chart looks like. Widths are a
+ * share of the busiest bar, so the axis is the peak and needs no label; the
+ * count sits outside the bar because a bar with no number on it is a shape.
+ *
+ * `aria-hidden` on the bar itself: it is the number beside it, drawn. A screen
+ * reader announcing both reads every row twice.
+ */
+function BarChart({
+  bars,
+  firstLabel,
+  barLabel,
+  empty,
+}: {
+  bars: DoorBar[];
+  firstLabel: string;
+  barLabel: string;
+  empty: string;
+}) {
+  return (
+    <Table
+      cols={[
+        { key: 'l', label: firstLabel, className: 'cell-mdsm' },
+        { key: 'b', label: barLabel, className: 'cell-fill' },
+        { key: 'n', label: '', className: 'cell-xs cell-end-align' },
+      ]}
+      empty={empty}
+      rows={bars.map((b) => [
+        <span key="l" style={{ whiteSpace: 'nowrap' }}>
+          {b.label}
+        </span>,
+        <span
+          key="b"
+          aria-hidden="true"
+          style={{
+            background: 'var(--accent, #2180b2)',
+            borderRadius: 2,
+            display: 'block',
+            height: 12,
+            // A zero bar is drawn as nothing at all. A one-pixel sliver for an
+            // hour nobody arrived in reads as an arrival.
+            width: `${b.pct}%`,
+          }}
+        />,
+        <strong key="n">{b.count}</strong>,
+      ])}
+    />
   );
 }

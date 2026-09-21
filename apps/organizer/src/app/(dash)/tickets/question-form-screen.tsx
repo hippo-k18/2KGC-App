@@ -73,6 +73,30 @@ export async function QuestionFormScreen({
 
   const summary = await answerSummary(form.fields);
 
+  /**
+   * The questions a later one can be made to depend on.
+   *
+   * A choice or a tick box, at the top level, and never the question being
+   * edited — a chain of conditions is refused by the shared validator and this
+   * is the same rule, made before the organizer can pick something invalid.
+   * A tick box offers one answer, `true`, shown as "ticked".
+   */
+  const parents = form.fields
+    .filter(
+      (f) =>
+        f.id !== editing?.id &&
+        !f.showIf &&
+        (f.kind === 'choice' || f.kind === 'multi-choice' || f.kind === 'checkbox' || f.kind === 'consent'),
+    )
+    .map((f) => ({
+      id: f.id,
+      prompt: f.prompt,
+      answers: f.kind === 'checkbox' || f.kind === 'consent' ? ['true'] : (f.options ?? []),
+    }))
+    .filter((p) => p.answers.length > 0);
+
+  const promptOf = new Map(form.fields.map((f) => [f.id, f.prompt]));
+
   return (
     <>
       <PageHeader
@@ -181,6 +205,18 @@ export async function QuestionFormScreen({
                   <code>{f.id}</code>
                   {f.helpText ? ` · ${f.helpText}` : ''}
                 </div>
+                {/*
+                  A sub-question says what reveals it, on its own row. An
+                  organizer reading down the list otherwise has no way to tell
+                  that a question is asked of some people and not others.
+                */}
+                {f.showIf ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    Shown when “{promptOf.get(f.showIf.fieldId) ?? f.showIf.fieldId}” is{' '}
+                    {f.showIf.equals === 'true' ? 'ticked' : `“${f.showIf.equals}”`}
+                    {promptOf.has(f.showIf.fieldId) ? '' : ' · that question is no longer on the form'}
+                  </div>
+                ) : null}
               </div>,
 
               <span key="k" style={{ fontSize: 12 }}>
@@ -259,6 +295,27 @@ export async function QuestionFormScreen({
           empty={<NotInputted what="questions" compact />}
         />
 
+        {/*
+          The counts above answer "how many vegetarians". This answers "which
+          people", which is the one a caterer's seating plan and an accessibility
+          coordinator both need, and it is a column per question rather than a
+          row per answer for exactly that reason.
+        */}
+        {summary.answered > 0 && (
+          <p style={{ marginBottom: 0, marginTop: 12 }}>
+            <a
+              href="/export/registration-answers"
+              className="whova-btn-main secondary small"
+              download
+            >
+              Download answers
+            </a>
+            <span className="muted" style={{ fontSize: 12, marginLeft: 10 }}>
+              One row per person, one column per question.
+            </span>
+          </p>
+        )}
+
         {form.updatedAt && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
             Last changed {form.updatedAt.slice(0, 10)}
@@ -314,6 +371,7 @@ export async function QuestionFormScreen({
           audience={audience}
           editing={editing}
           tiers={tiers.map((t) => ({ id: t.id, name: t.name }))}
+          parents={parents}
         />
       </Panel>
 
@@ -321,10 +379,9 @@ export async function QuestionFormScreen({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>No conditional logic.</strong> &ldquo;If vegetarian, ask which kind&rdquo;
-            needs a dependency graph, and an open builder with one is the project Whova has been
-            iterating on for years. The closed set of types here covers what a conference actually
-            asks.
+            <strong>Conditions go one level deep.</strong> A question can depend on one earlier
+            answer. A sub-question of a sub-question is refused: a form whose author cannot see
+            what any given person will be asked is a form nobody can check.
           </li>
           <li>
             <strong>No file-upload question.</strong> An exhibitor logo is the one people always
@@ -336,11 +393,6 @@ export async function QuestionFormScreen({
             <strong>Answers are not editable after purchase.</strong> Whova&rsquo;s organizers use
             that constantly, to fix a misspelled company name before the badge prints. The data is
             on the registration and nothing on the attendee screen edits it yet.
-          </li>
-          <li>
-            <strong>Answers are not in the CSV exports.</strong> The exports emit fixed columns;
-            arbitrary answers need a dynamic header. The counts above are what this screen gives
-            instead, and for a catering headcount they are the more useful shape.
           </li>
           <li>
             <strong>Nothing prunes <code>pendingAnswers</code>.</strong> An abandoned checkout

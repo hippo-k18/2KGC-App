@@ -207,6 +207,60 @@ export async function summarise(id: string): Promise<SurveySummary | null> {
   return { survey: { ...row, responseCount: snap.size }, responses: snap.size, questions };
 }
 
+/**
+ * Every answer given, grouped by response, for the export.
+ *
+ * ── This returns more than `summarise` and still no identity ───────────────
+ *
+ * The distributions this module already builds cannot be written back out as a
+ * file: an average of 4.3 does not reconstruct the ratings, and a list of
+ * comments loses which of them came from the person who also scored the session
+ * two. So the export needs the responses, one set of answers each.
+ *
+ * What it does **not** get is the document id, which is the respondent's uid.
+ * The answer sets come out in whatever order Firestore returned them and are
+ * numbered by position, so "response 4" identifies a set and nothing else. The
+ * rule at the top of this file is unchanged by this function existing: the
+ * server can tell who said what, and nothing here hands that over.
+ *
+ * `surveyId` narrows it to one survey, which is what the Results view exports.
+ */
+export async function surveyAnswerSources(
+  surveyId?: string,
+): Promise<
+  {
+    title: string;
+    sessionTitle?: string;
+    questions: { id: string; prompt: string; kind: string }[];
+    responses: Record<string, unknown>[];
+  }[]
+> {
+  const rows = await listSurveys();
+  const wanted = surveyId ? rows.filter((r) => r.id === surveyId) : rows;
+
+  return Promise.all(
+    wanted.map(async (row) => {
+      const survey = await getSurvey(row.id);
+      const snap = await db()
+        .collection(COLLECTIONS.surveys)
+        .doc(row.id)
+        .collection(SUBCOLLECTIONS.responses)
+        .get();
+
+      return {
+        title: row.title,
+        sessionTitle: row.sessionTitle,
+        questions: (survey?.questions ?? []).map((q) => ({
+          id: q.id,
+          prompt: q.prompt,
+          kind: q.kind,
+        })),
+        responses: snap.docs.map((d) => (d.data() as SurveyResponseDoc).answers ?? {}),
+      };
+    }),
+  );
+}
+
 /** Sessions a feedback survey could be attached to, for the picker. */
 export async function feedbackTargets(): Promise<{ id: string; label: string }[]> {
   const snap = await db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get();

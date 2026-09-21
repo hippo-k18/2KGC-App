@@ -28,6 +28,7 @@ import {
 } from '@/lib/data/directory';
 import { useExhibitors, type ExhibitorListing } from '@/lib/data/exhibitors';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 
 /**
  * Four now, where the segmented control's own note says "two or three".
@@ -145,6 +146,9 @@ export default function PeopleScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
+  // The organizers' event-wide switch. Off, every Say Hi goes with it, because
+  // the rules refuse the thread it would open.
+  const { messagingEnabled } = useAppAccess();
   /**
    * Which segment to open on, from `?segment=speakers|sponsors|exhibitors`.
    *
@@ -295,14 +299,18 @@ export default function PeopleScreen() {
         userName={profile?.name ?? 'You'}
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me')}
-        actions={[
-          {
-            icon: 'envelope.fill',
-            label: 'Messages',
-            // `from` names the tab to come back to — see `messages/index.tsx`.
-            onPress: () => router.push({ pathname: '/messages', params: { from: 'people' } }),
-          },
-        ]}
+        actions={
+          messagingEnabled
+            ? [
+                {
+                  icon: 'envelope.fill',
+                  label: 'Messages',
+                  // `from` names the tab to come back to — see `messages/index.tsx`.
+                  onPress: () => router.push({ pathname: '/messages', params: { from: 'people' } }),
+                },
+              ]
+            : []
+        }
         search={{
           value: search,
           onChangeText: (next) => {
@@ -508,7 +516,7 @@ export default function PeopleScreen() {
                 tags={p.interests ?? []}
                 onPress={() => router.push({ pathname: '/people/[uid]', params: { uid: p.uid } })}
                 onSayHi={
-                  user && !isMe
+                  user && !isMe && messagingEnabled
                     ? // Pushing out of the tab group into `messages` hoists the
                       // params onto the root-level `messages` route as well as
                       // the leaf, so expo-router serialises the id twice:

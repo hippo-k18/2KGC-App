@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { googleCalendarUrl, outlookCalendarUrl, sessionCalendarPath } from '@kgc/shared';
-import type { AgendaSession, SpeakerCard } from '@/lib/data';
+import type { AgendaSession, PublicDocument, SpeakerCard } from '@/lib/data';
 import { localTime } from '@/lib/site';
 
 /**
@@ -147,6 +147,7 @@ function SessionPeople({
 export function AgendaList({
   days,
   speakers,
+  documentsBySession,
   origin,
 }: {
   days: AgendaListDay[];
@@ -156,6 +157,16 @@ export function AgendaList({
    * placeholder — so every lookup here is filtered, never defaulted.
    */
   speakers: Record<string, SpeakerCard>;
+  /**
+   * The handouts attached to each session, keyed by session id.
+   *
+   * Grouped on the server from `listPublicDocuments()`, which is the
+   * unrestricted subset and has no parameter that widens it — so there is no
+   * restricted deck to leak here, whatever this component does with the map.
+   * Sessions with nothing attached are absent rather than mapped to an empty
+   * array, so a lookup is `?? []` at the one place that reads it.
+   */
+  documentsBySession: Record<string, PublicDocument[]>;
   /**
    * The canonical site origin, passed down rather than read here.
    *
@@ -334,11 +345,59 @@ export function AgendaList({
 
             <SessionSpeakers session={open.session} speakers={speakers} />
 
+            {/*
+              The deck, when the speaker has sent one through their own profile
+              link and an organizer has approved it. Conditional like every
+              other field in this dialog: most sessions have no slides until the
+              day itself, and a "Slides coming soon" line would be a promise
+              nobody here can keep.
+            */}
+            {open.session.slidesUrl && (
+              <section className="session-dialog-speakers">
+                <h3>Slides</h3>
+                <p>
+                  <a href={open.session.slidesUrl} target="_blank" rel="noreferrer">
+                    Open the slides for this session
+                  </a>
+                </p>
+              </section>
+            )}
+
+            <SessionMaterials documents={documentsBySession[open.session.id] ?? []} />
+
             <CalendarActions session={open.session} origin={origin} />
           </div>
         )}
       </dialog>
     </>
+  );
+}
+
+/**
+ * The handouts an organizer attached to this session.
+ *
+ * Conditional like every other section in this dialog: most sessions have
+ * nothing attached, and a "Materials coming soon" line is a promise somebody
+ * would have to keep. The host is printed under each title for the reason
+ * `/documents` prints it — every one of these is a link to a file somebody else
+ * is hosting, and a reader about to open a 40MB PDF on conference Wi-Fi is
+ * entitled to know whose server they are about to reach.
+ */
+function SessionMaterials({ documents }: { documents: PublicDocument[] }) {
+  if (documents.length === 0) return null;
+
+  return (
+    <section className="session-dialog-speakers">
+      <h3>Materials</h3>
+      {documents.map((d) => (
+        <p key={d.id}>
+          <a href={d.url} target="_blank" rel="noreferrer noopener">
+            {d.title}
+          </a>
+          {d.host && <span className="doc-host"> · {d.host}</span>}
+        </p>
+      ))}
+    </section>
   );
 }
 

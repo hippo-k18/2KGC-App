@@ -105,21 +105,37 @@ export async function saveField(input: {
   required: boolean;
   helpText?: string;
   ticketTypeIds: string[];
+  /**
+   * Set to make this a sub-question: the earlier answer that reveals it.
+   *
+   * Checked against the rest of the form rather than on its own, which is why
+   * `validateField` is called with the siblings below — a trigger naming a
+   * question that is not there, or a parent that is itself a sub-question, is a
+   * question nobody would ever be shown.
+   */
+  showIf?: { fieldId: string; equals: string };
   actor: string;
 }): Promise<FormResult> {
-  const problem = validateField({
-    prompt: input.prompt,
-    kind: input.kind,
-    options: input.options,
-    required: input.required,
-  });
-  if (problem) return { ok: false, error: problem };
-
   try {
     const ref = db().collection(COLLECTIONS.questionForms).doc(input.audience);
     const snap = await ref.get();
     const existing = snap.exists ? (snap.data() as QuestionFormDoc) : undefined;
     const fields = [...(existing?.fields ?? [])];
+
+    const problem = validateField(
+      {
+        id: input.id,
+        prompt: input.prompt,
+        kind: input.kind,
+        options: input.options,
+        required: input.required,
+        ...(input.showIf ? { showIf: input.showIf } : {}),
+      },
+      // Everything except the field being edited, so a question is never
+      // offered as its own parent and a reworded parent still resolves.
+      fields.filter((f) => f.id !== input.id),
+    );
+    if (problem) return { ok: false, error: problem };
 
     const index = input.id ? fields.findIndex((f) => f.id === input.id) : -1;
 
@@ -149,6 +165,7 @@ export async function saveField(input: {
         : {}),
       ...(input.helpText?.trim() ? { helpText: input.helpText.trim() } : {}),
       ...(input.ticketTypeIds.length > 0 ? { ticketTypeIds: input.ticketTypeIds } : {}),
+      ...(input.showIf ? { showIf: input.showIf } : {}),
     };
 
     if (index >= 0) fields[index] = field;
@@ -214,6 +231,16 @@ export async function deleteField(input: {
     const gone = (data.fields ?? []).find((f) => f.id === input.id);
     if (!gone) return { ok: false, error: 'That question is not on this form.' };
 
+    /*
+     * Sub-questions of the question being removed.
+     *
+     * They are left on the form rather than deleted with it, for the same
+     * reason the answers are: removing them is a second, explicit decision. But
+     * nothing reveals them any more, so the buyer stops being asked and the
+     * organizer has to be told that rather than discovering it in a report.
+     */
+    const stranded = (data.fields ?? []).filter((f) => f.showIf?.fieldId === input.id);
+
     await ref.update({
       fields: (data.fields ?? []).filter((f) => f.id !== input.id),
       updatedBy: input.actor,
@@ -231,7 +258,11 @@ export async function deleteField(input: {
 
     return {
       ok: true,
-      message: `Removed “${gone.prompt}”. Answers already given to it stay on the registrations. Nothing was destroyed.`,
+      message:
+        `Removed “${gone.prompt}”. Answers already given to it stay on the registrations. Nothing was destroyed.` +
+        (stranded.length > 0
+          ? ` ${stranded.length === 1 ? 'One question was' : `${stranded.length} questions were`} shown only after this one, so ${stranded.length === 1 ? 'it is' : 'they are'} no longer asked. Give ${stranded.length === 1 ? 'it' : 'them'} a new trigger or remove ${stranded.length === 1 ? 'it' : 'them'}.`
+          : ''),
     };
   } catch (err) {
     recordError('questionForms.deleteField', err);

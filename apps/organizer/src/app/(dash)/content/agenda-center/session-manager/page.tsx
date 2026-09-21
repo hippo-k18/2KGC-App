@@ -625,14 +625,14 @@ export default async function SessionManagerPage({
             room, so they are described here instead of being shown.
           </li>
           <li>
-            <strong>Telling attendees a session moved.</strong> No versioning, no diff, no
-            automatic notice — only a manual announcement. Editing a session below writes one
-            document that every phone watching it picks up within about a second.
-            The people who saved it are notified by the <code>onSessionAgendaChange</code> Cloud
-            Function, which fires on that write whoever made it — the CSV importer included — and
-            targets savers rather than broadcasting. <code>roomChangePush()</code> in{' '}
-            <code>src/lib/push.ts</code> reports the audience here and deliberately sends nothing,
-            so one room change cannot produce two notifications.
+            <strong>Versioning and a diff of what changed.</strong> Editing a session below writes
+            one document that every phone watching it picks up within about a second, and anyone
+            who has it on their schedule gets a notice on their home screen naming what moved.
+            What is missing is the history: there is no record on this screen of what the session
+            said before, only the audit log. A push alert as well as the in-app notice needs the
+            Cloud Functions deploy in <code>OWNER-ACTIONS.md</code> §3 and a development build of
+            the app; <code>saveSessionAction</code> writes the in-app half today, under an id
+            derived from where the session ended up, so the two writers cannot double up.
           </li>
         </ul>
       </GapPanel>

@@ -17,10 +17,12 @@ function SaveButton() {
 export function AdminSettingsForm({
   attendeeListVisible,
   contactSharingEnabled,
+  attendeeMessagingEnabled,
   staffNote,
 }: {
   attendeeListVisible: boolean;
   contactSharingEnabled: boolean;
+  attendeeMessagingEnabled: boolean;
   staffNote: string;
 }) {
   const [state, action] = useActionState<AdminSettingsState, FormData>(saveAdminSettingsAction, {});
@@ -52,8 +54,25 @@ export function AdminSettingsForm({
           />{' '}
           Attendees can share contact details with each other
         </label>
+        <label style={{ display: 'block' }}>
+          <input
+            type="checkbox"
+            name="attendeeMessagingEnabled"
+            defaultChecked={attendeeMessagingEnabled}
+          />{' '}
+          Attendees can message each other
+        </label>
+        {/*
+          The third box is the only one of the three with an effect, and the
+          note says which is which rather than covering all three with one
+          sentence. Hiding the attendee list would have to overrule each
+          attendee's own directory choice, which is a decision nobody has
+          taken; refusing a message is a rule about one collection, so it is
+          one the rules can hold.
+        */}
         <p className="muted" style={{ fontSize: 12 }}>
-          Saved, but these do not change what attendees see in the app yet.
+          Messaging takes effect in the app straight away. The first two are saved and do not
+          change what attendees see yet.
         </p>
       </div>
 

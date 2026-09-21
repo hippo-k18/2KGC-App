@@ -1,6 +1,7 @@
 import { ANNOUNCEMENT_WALL_LIMIT } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { AutoRefresh } from '@/components/auto-refresh';
 import { listAnnouncements, siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
@@ -41,11 +42,15 @@ export const dynamic = 'force-dynamic';
  * also what an attendee opens on a phone when they missed the push, and a wall
  * that drops the detail sends them to the app for it.
  *
- * ⚠️ **It does not refresh itself.** Every page in `apps/web` is server-rendered
- * per request, so a browser parked on this URL shows whatever was true when it
- * loaded. On a lobby screen that matters, and the honest fix is a kiosk browser
- * set to reload — not a comment here claiming otherwise. The dashboard's gap
- * note still lists auto-refresh for that reason.
+ * ── It refreshes itself now ────────────────────────────────────────────────
+ *
+ * This page used to say, here and on the dashboard screen that links to it,
+ * that a kiosk browser set to reload was the answer. It is not: nobody
+ * configures the reload interval of a screen they hung on a wall in a hurry,
+ * and a stale wall is indistinguishable from a current one. `AutoRefresh` runs
+ * `router.refresh()` on a timer, which re-runs this server component — the
+ * route is `force-dynamic`, so that is a genuine re-read — and the head of the
+ * page says when it last managed it.
  */
 
 /**
@@ -72,6 +77,15 @@ function announcedAt(ms: number, timeZone: string): string {
     .replace(', ', ' · ');
 }
 
+/**
+ * A minute, which is slower than the room sign and deliberately so.
+ *
+ * An announcement is typed by a person and read for as long as it stays up; a
+ * sign outside a room is counting down to a talk. Re-reading forty documents
+ * more often than anybody writes one buys nothing.
+ */
+const WALL_REFRESH_SECONDS = 60;
+
 export default async function AnnouncementsPage() {
   const ev = await siteEvent();
   /*
@@ -89,6 +103,9 @@ export default async function AnnouncementsPage() {
         <header className="wall-head">
           <p className="wall-eyebrow">
             {ev.shortName} {ev.year} · {ev.datesLong}
+            <span className="wall-refresh">
+              <AutoRefresh seconds={WALL_REFRESH_SECONDS} />
+            </span>
           </p>
           <h1>Announcements</h1>
           <p className="wall-sub">

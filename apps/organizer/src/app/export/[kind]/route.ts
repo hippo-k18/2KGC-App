@@ -53,8 +53,10 @@ export async function GET(
     });
   }
 
-  // `?category=` is the attendee list's filter, carried into the file.
+  // `?category=` is the attendee list's filter, carried into the file, and
+  // `?survey=` is the Results view narrowing the answer file to one survey.
   const category = req.nextUrl.searchParams.get('category') ?? undefined;
-  const { csv } = await def.build({ category });
+  const surveyId = req.nextUrl.searchParams.get('survey') ?? undefined;
+  const { csv } = await def.build({ category, surveyId });
   return csvResponse(csv, exportFilename(def.kind, new Date()));
 }

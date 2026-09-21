@@ -27,18 +27,27 @@ export function QuestionEditor({
   audience,
   editing,
   tiers,
+  parents,
 }: {
   audience: TicketAudience;
   /** Present when editing. Its id is passed through untouched. */
   editing?: QuestionFieldDef;
   tiers: { id: string; name: string }[];
+  /**
+   * Questions on this form that could reveal another one: a choice or a tick
+   * box, at the top level, and never the question being edited. The screen
+   * works that list out, because it is the one that holds the whole form.
+   */
+  parents: { id: string; prompt: string; answers: string[] }[];
 }) {
   const [state, action] = useActionState<QuestionState, FormData>(saveQuestionAction, {});
   const [kind, setKind] = useState<QuestionFieldDef['kind']>(editing?.kind ?? 'short-text');
   const [required, setRequired] = useState(editing?.required ?? false);
+  const [parentId, setParentId] = useState(editing?.showIf?.fieldId ?? '');
 
   const needsOptions = kind === 'choice' || kind === 'multi-choice';
   const isConsent = kind === 'consent';
+  const parent = parents.find((p) => p.id === parentId);
 
   return (
     <form action={action}>
@@ -152,7 +161,13 @@ export function QuestionEditor({
         </label>
         {isConsent && (
           <p className="muted" style={{ fontSize: 12 }}>
-            If this is a condition of attending, use a <strong>Checkbox</strong> instead.
+            {parentId
+              ? 'Shown only after the answer below, so it has to be ticked by whoever reaches it. Declining is still one question earlier.'
+              : (
+                  <>
+                    If this is a condition of attending, use a <strong>Checkbox</strong> instead.
+                  </>
+                )}
           </p>
         )}
       </div>
@@ -179,6 +194,73 @@ export function QuestionEditor({
         <p className="muted" style={{ fontSize: 12 }}>
           Select nothing to ask everybody.
         </p>
+      </div>
+
+      {/*
+        Conditional logic, one level deep.
+
+        Two selects rather than a rule builder: one earlier question, one of its
+        answers. That covers "if vegetarian, which kind" and "if you need a visa
+        letter, what is your passport name", which is what a registration form
+        actually asks. A chain of conditions is a form whose author cannot see
+        what any given person will be shown.
+      */}
+      <div className="whova-form-row">
+        <label className="whova-form-label" htmlFor="showIfFieldId">
+          Show only when
+        </label>
+        {parents.length === 0 ? (
+          <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+            Add a &ldquo;choose one&rdquo;, &ldquo;choose any&rdquo; or tick box question first.
+            Those are the answers a later question can depend on.
+          </p>
+        ) : (
+          <>
+            <select
+              id="showIfFieldId"
+              name="showIfFieldId"
+              className="whova-text-input"
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              style={{ maxWidth: 340 }}
+            >
+              <option value="">Always ask this</option>
+              {parents.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.prompt}
+                </option>
+              ))}
+            </select>
+
+            {parent && (
+              <div style={{ marginTop: 8 }}>
+                <label className="whova-form-label" htmlFor="showIfEquals">
+                  is answered
+                </label>
+                <select
+                  id="showIfEquals"
+                  name="showIfEquals"
+                  className="whova-text-input"
+                  defaultValue={editing?.showIf?.equals ?? ''}
+                  style={{ maxWidth: 340 }}
+                >
+                  <option value="">Choose an answer…</option>
+                  {parent.answers.map((a) => (
+                    <option key={a} value={a}>
+                      {a === 'true' ? 'ticked' : a}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <p className="muted" style={{ fontSize: 12 }}>
+              {parent
+                ? 'The buyer sees this only after that answer. It is dropped if they change their mind.'
+                : 'Pick an earlier question to ask this one only sometimes.'}
+            </p>
+          </>
+        )}
       </div>
 
       <Submit editing={Boolean(editing)} />

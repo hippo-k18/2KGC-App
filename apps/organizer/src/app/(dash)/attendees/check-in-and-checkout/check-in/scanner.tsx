@@ -439,6 +439,28 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       ) : null}
 
       {/*
+        A required release this person has not signed.
+
+        The check-in already happened — the verdict above says so — and this sits
+        under it as something for the desk to raise, not as a refusal. On a kiosk
+        it names no document and asks the person to come to the desk: an
+        unattended screen telling somebody which release they have not signed is
+        a screen telling the queue behind them too.
+      */}
+      {result.consentOutstanding?.length ? (
+        <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
+          {kiosk ? (
+            <>Form not signed. Please see the registration desk before you go in.</>
+          ) : (
+            <>
+              Form not signed: <strong>{result.consentOutstanding.join(', ')}</strong>. They are
+              checked in. Ask them to sign.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {/*
         The provenance line is diagnostics for whoever is running the desk — a
         scan id is pasteable into the Firebase console, which is exactly why it
         does not belong on an unattended screen.

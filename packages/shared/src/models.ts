@@ -152,6 +152,21 @@ export interface UserDoc extends BaseDoc {
    * two situations the attendee is in. Cleared together with it.
    */
   mustSetPassword?: boolean;
+  /**
+   * When this attendee answered the event code prompt.
+   *
+   * Its presence is the whole of it: the prompt is asked once, and this is how
+   * the app remembers it was. It is not a credential and nothing gates on it —
+   * `firestore.rules` lets the owner write it once and never move it, so a
+   * client can record its own answer and cannot un-join anybody, itself
+   * included.
+   *
+   * Absent on every account that signed in before a code was set, and on every
+   * account while no code is required. An organizer who switches the code on
+   * mid-event is asking the whole room, not only the people who arrive after —
+   * so absent means "ask", and that is the intended direction.
+   */
+  joinedAt?: Timestamp;
 }
 
 /**
@@ -271,10 +286,17 @@ export interface RegistrationDoc extends BaseDoc {
 /**
  * One question on a registration form.
  *
- * A closed set of kinds, deliberately. An open builder with conditional logic
- * is the project Whova has been iterating on for years; a fixed set covers
- * dietary requirements, t-shirt size, job function and a consent box, which is
- * what a conference actually asks.
+ * A closed set of kinds, deliberately. An open builder is the project Whova has
+ * been iterating on for years; a fixed set covers dietary requirements, t-shirt
+ * size, job function and a consent box, which is what a conference actually
+ * asks.
+ *
+ * The one piece of logic it does carry is `showIf`, one level deep: a question
+ * revealed by a particular answer to an earlier choice or tick box. The shared
+ * builder in `@kgc/scripts/src/lib/question-forms.ts` has held the rules for it
+ * since the call for abstracts was built, and both forms use the same ones — a
+ * second notion of "is this question being asked?" is how a checkout comes to
+ * reject an answer its own page never showed a field for.
  */
 export interface QuestionFieldDef {
   /**
@@ -308,6 +330,14 @@ export interface QuestionFieldDef {
    * form's audience — which is what most questions want.
    */
   ticketTypeIds?: string[];
+  /**
+   * Present on a sub-question: the earlier answer that reveals it.
+   *
+   * Sub-questions live in the same flat `fields` array as everything else rather
+   * than nested inside their parent, because answers are a flat map keyed by
+   * field id at every depth. One level deep, and the validator enforces that.
+   */
+  showIf?: FieldTrigger;
   order: number;
 }
 
@@ -368,7 +398,7 @@ export interface FieldTrigger {
  * is a valid `FormFieldDef`, so `questionForms/{audience}` documents flow
  * through the shared builder untouched and every existing caller keeps its own
  * narrower type. Nothing changes for registration until somebody defines a field
- * that uses one of the three properties below.
+ * that uses one of the two properties below.
  *
  * The builder, the validator and the version planner that operate on this shape
  * live in `@kgc/scripts/src/lib/question-forms.ts` rather than here, for the
@@ -391,15 +421,12 @@ export interface FormFieldDef extends Omit<QuestionFieldDef, "kind"> {
   maxLength?: number;
   /** Who may see the answer. Absent means `organizers`. */
   visibility?: FieldVisibility;
-  /**
-   * Present on a sub-question: the parent answer that reveals it.
-   *
-   * Sub-questions live in the same flat `fields` array as everything else rather
-   * than nested inside their parent, because answers are a flat map keyed by
-   * field id at every depth. The nesting is one level deep and the validator
-   * enforces that.
+  /*
+   * `showIf` is inherited from `QuestionFieldDef` rather than declared here.
+   * It started on this type, for the call for abstracts, and moved up when the
+   * registration form began using it too — one declaration, so the two forms
+   * cannot drift into two shapes of the same idea.
    */
-  showIf?: FieldTrigger;
 }
 
 /**
@@ -670,6 +697,94 @@ export interface SpeakerDoc extends BaseDoc {
    * whichever address they later bought a ticket with.
    */
   contactEmail?: string;
+}
+
+/**
+ * What a speaker typed into their own profile link, before an organizer has
+ * looked at it.
+ *
+ * Every key is optional and an absent key means "they left it alone", which is
+ * not the same as "they cleared it" — an empty string is how the form says
+ * cleared, and the approval writes that through as a deletion. The two have to
+ * stay distinguishable or a speaker who only fixed their job title would wipe
+ * their own bio.
+ */
+export interface SpeakerProfileDraft {
+  title?: string;
+  company?: string;
+  bio?: string;
+  /**
+   * A link to a headshot, as typed.
+   *
+   * Not an upload. Files enter this project through one path only
+   * (`apps/organizer/src/lib/uploads.ts`), which holds the Admin SDK credential
+   * and lives in the dashboard; the public website has no writer for the bucket
+   * and must not grow one just for this form. So a speaker sends a link and the
+   * organizer, who already has the file picker on Speaker Manager, uploads the
+   * file if one is sent instead. The portal page says so rather than offering a
+   * control that cannot work.
+   */
+  photoURL?: string;
+  social?: { linkedin?: string; x?: string; website?: string };
+  /**
+   * `sessions/{id}` → the slides link for that one session.
+   *
+   * Keyed by session rather than a single field on the speaker because a
+   * speaker with a keynote and a workshop has two decks, and the field the
+   * agenda reads is `SessionDoc.slidesUrl`. Only sessions that already name
+   * this speaker are accepted; the approval re-checks that rather than trusting
+   * whatever keys arrived.
+   */
+  slides?: Record<string, string>;
+}
+
+/**
+ * Where one speaker's self-service link has got to.
+ *
+ * Deliberately linear, because it is a chase list and the only question an
+ * organizer asks is "who is still holding me up". `sent` is set when a link
+ * goes out, `opened` the first time the page is loaded, `submitted` when they
+ * press the button, and the last two when an organizer decides.
+ */
+export type SpeakerProfileEditStatus =
+  | "sent"
+  | "opened"
+  | "submitted"
+  | "approved"
+  | "rejected";
+
+/**
+ * `speakerProfileEdits/{speakerId}` — the self-service link for one speaker,
+ * what they sent back, and where it stands.
+ *
+ * Server-only, and `collections.ts` says why it is not a field on the speaker.
+ * Keyed by the speaker id so there is exactly one of these per speaker: a
+ * second submission replaces the first, which is what "I sent the wrong bio"
+ * should do.
+ */
+export interface SpeakerProfileEditDoc extends BaseDoc {
+  speakerId: string;
+  status: SpeakerProfileEditStatus;
+  /** When a link was last mailed, and to which address. */
+  linkSentAt?: Timestamp;
+  linkSentTo?: string;
+  openedAt?: Timestamp;
+  submittedAt?: Timestamp;
+  decidedAt?: Timestamp;
+  /** The organizer who approved or turned it down. */
+  decidedBy?: string;
+  /** An organizer's note on why it was turned down. Their record, not a reply. */
+  note?: string;
+  /**
+   * Epoch milliseconds. A link minted before this instant no longer opens.
+   *
+   * Milliseconds rather than a `Timestamp` because it is compared against the
+   * token's own `iat`, which is epoch ms — `scripts/src/lib/speaker-token.ts`
+   * has the argument for keeping revocation out of the token and here instead.
+   */
+  linksValidFrom?: number;
+  /** The last thing they sent. Kept after a decision, as the record of it. */
+  draft?: SpeakerProfileDraft;
 }
 
 /** `sessions/{sessionId}/materials/{id}` */
@@ -1361,7 +1476,27 @@ export interface EmailLogDoc {
     /** A reviewer's invitation, carrying the link to their review page. */
     | "reviewer-invitation"
     /** A dashboard team member's link to choose their passphrase. */
-    | "team-invitation";
+    | "team-invitation"
+    /**
+     * One person's link to sign one consent form, at one version.
+     *
+     * Written once per recipient, like `bulk-message` and for the same reason:
+     * the question asked afterwards is "was Ada ever sent this?", and a single
+     * row saying "sent to 137 people" cannot answer it. The version is in the
+     * subject, because a second request after the wording moved is a different
+     * mail about a different document.
+     */
+    | "consent-request"
+    /**
+     * One speaker's link to fill in their own profile, and every reminder.
+     *
+     * Written once per recipient, like `consent-request`, because the question
+     * afterwards is "was Ada ever asked?" and a row saying "sent to 137
+     * speakers" cannot answer it. Transactional and not governed by the
+     * suppression list: a speaker who unsubscribed from the newsletter still
+     * has to be asked for the bio their own talk is published with.
+     */
+    | "speaker-profile-request";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */

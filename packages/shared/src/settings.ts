@@ -112,6 +112,8 @@ export interface SponsorTierSettings {
 export interface AccessSettings {
   attendeeListVisible: boolean;
   contactSharingEnabled: boolean;
+  /** Event-wide. Off hides messaging in the app and refuses the writes. */
+  attendeeMessagingEnabled: boolean;
   /** Shown to whoever is running the check-in desk. Under 300 characters. */
   staffNote: string;
   /** 4–32 letters, digits or hyphens, upper case. Read out loud, so no punctuation. */
@@ -189,6 +191,7 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
   access: {
     attendeeListVisible: true,
     contactSharingEnabled: true,
+    attendeeMessagingEnabled: true,
     staffNote: "",
     eventCode: "",
     codeRequired: false,
@@ -263,11 +266,12 @@ type Register = { [K in SettingsKey]: { [F in keyof SettingsValues[K]]: Settings
  * posture and a `pending` app read was blocked on a rules change plus a deploy,
  * not just on a hook.
  *
- * ⚠️ That block now exists and it names **one key**:
- * `allow read: if isRegistered() && key == 'logistics'`. Adding an app reader
- * for `branding` or `access` is therefore still a rules change — and for
- * `access` it is a change that should not be made, because `eventCode` and
- * `staffNote` are in it and rules filter documents, not fields.
+ * ⚠️ That block now exists and it names the keys one at a time. Adding an app
+ * reader for `branding` or `access` is therefore still a rules change — and for
+ * `access` it is a change that must not be made, because `staffNote` is in it
+ * and rules filter documents, not fields. The four access fields marked `live`
+ * below reach the phone through `settings/appAccess`, a derived projection
+ * carrying only those four; `app-access.ts` has the argument.
  */
 export const SETTINGS_REGISTER: Register = {
   branding: {
@@ -354,6 +358,23 @@ export const SETTINGS_REGISTER: Register = {
       readers: [],
       why: "Same as attendeeListVisible — enforceable only in firestore.rules.",
     },
+    attendeeMessagingEnabled: {
+      status: "live",
+      readers: ["app"],
+      /*
+       * The one switch in this bag that is enforceable without deciding a
+       * policy question first, which is why it is `live` while the two above
+       * it are not. Messaging is one collection with one write path, so
+       * "nobody may start a conversation" is a rule about `threads` and
+       * `threads/{id}/messages` and nothing else. Hiding the attendee list,
+       * by contrast, would have to overrule each attendee's own
+       * `visibleInDirectory`, and that is a decision rather than a rule.
+       */
+      why:
+        "Off hides Messages everywhere in the app and firestore.rules refuses a new " +
+        "thread or message, so the switch is a lock and not a curtain. Conversations " +
+        "already held stay readable.",
+    },
     staffNote: {
       status: "live",
       readers: ["organizer"],
@@ -366,30 +387,41 @@ export const SETTINGS_REGISTER: Register = {
       why: "Attendees › Check-in renders it above the desk, which is who it is written for.",
     },
     eventCode: {
-      status: "recorded",
-      readers: [],
+      status: "live",
+      readers: ["app"],
+      /*
+       * ⚠️ `live` here means "the app asks for it", NOT "it keeps anyone out".
+       * The real gate is still the `registered` claim, minted only for ticket
+       * holders and checked on every request; one string a thousand people know
+       * is weaker than what already runs, so firestore.rules does not look at
+       * this field and must not be made to. The prompt is a front door on a
+       * building whose locks are elsewhere, and it is worth having for the
+       * reason a front door is: it is what an organizer reads out from a stage.
+       */
       why:
-        "The real gate is the `registered` custom claim, minted only for ticket holders " +
-        "and checked by firestore.rules on every request. One string a thousand people " +
-        "know is weaker than what already runs, so nothing enforces this and nothing should.",
+        "The app asks for the code once, at first sign-in, when one is set. It is a " +
+        "prompt rather than a lock: the ticket claim is the gate, and the rules do not " +
+        "read this field.",
     },
     codeRequired: {
-      status: "recorded",
-      readers: [],
-      why: "Same as eventCode.",
+      status: "live",
+      readers: ["app"],
+      why: "Whether the app asks. Untick it and nobody is prompted again.",
     },
     postEventDays: {
-      status: "recorded",
-      readers: [],
+      status: "live",
+      readers: ["app"],
       why:
-        "Closing access for real means expiring the `registered` claim or adding a date " +
-        "check to firestore.rules. A client that reads a number and hides a screen leaves " +
-        "the data open, which is the failure this field looks like it prevents.",
+        "The last day of the event plus this many days is when the app stops opening. " +
+        "The app shows one plain screen and firestore.rules refuses every read, so the " +
+        "data closes rather than the screens hiding.",
     },
     postEventReadOnly: {
-      status: "recorded",
-      readers: [],
-      why: "Same as postEventDays — a write ban belongs in the rules or nowhere.",
+      status: "live",
+      readers: ["app"],
+      why:
+        "From the end of the event the app still opens and takes no new posts, replies, " +
+        "messages or questions. Refused in firestore.rules as well as hidden in the app.",
     },
   },
   logistics: {

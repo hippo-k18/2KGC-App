@@ -268,9 +268,9 @@ export default async function ModerateCommunityBoardPage({
         between hide and delete is the whole decision.
       */}
       <Banner kind="info">
-        <strong>Hide takes a post out of the app immediately and keeps it.</strong> Restore is one
-        click and the replies survive. <strong>Delete</strong> appears once a post is hidden and is
-        irreversible. The text stays only in the audit log.
+        <strong>Hide takes a post or a reply out of the app immediately and keeps it.</strong>{' '}
+        Restore is one click and the replies survive. <strong>Delete</strong> appears once a post
+        is hidden and is irreversible. The text stays only in the audit log.
       </Banner>
 
       <Tabs

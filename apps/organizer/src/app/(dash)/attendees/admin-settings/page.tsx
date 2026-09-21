@@ -164,6 +164,7 @@ export default async function AdminSettingsPage() {
         <AdminSettingsForm
           attendeeListVisible={s.attendeeListVisible}
           contactSharingEnabled={s.contactSharingEnabled}
+          attendeeMessagingEnabled={s.attendeeMessagingEnabled}
           staffNote={s.staffNote}
         />
         {s.updatedBy && (
@@ -176,23 +177,26 @@ export default async function AdminSettingsPage() {
 
       <SettingsReach
         bag={SETTINGS_KEYS.access}
-        fields={['attendeeListVisible', 'contactSharingEnabled', 'staffNote']}
+        fields={['attendeeListVisible', 'contactSharingEnabled', 'attendeeMessagingEnabled', 'staffNote']}
       />
 
       <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Enforcing the attendee switches.</strong> The People tab is unconditional in the
-            app, and directory visibility is the attendee&rsquo;s own choice via{' '}
-            <code>UserDoc.visibleInDirectory</code> — an organizer-level override would have to beat
-            an attendee&rsquo;s privacy setting, which is a decision rather than a checkbox.
+            <strong>Enforcing the first two attendee switches.</strong> The People tab is
+            unconditional in the app, and directory visibility is the attendee&rsquo;s own choice
+            via <code>UserDoc.visibleInDirectory</code> — an organizer-level override would have to
+            beat an attendee&rsquo;s privacy setting, which is a decision rather than a checkbox.
+            The messaging switch beside them is enforced: it is projected into{' '}
+            <code>settings/appAccess</code> and <code>firestore.rules</code> refuses a new thread
+            or message while it is off.
           </li>
           <li>
             <strong>The event invitation code</strong> lives at{' '}
             <Link href="/tools/admin-control/code-access-control">Code Access Control</Link>, in
-            this same settings document. It is stored and not enforced there either, and that screen
-            says so.
+            this same settings document. The app asks for it once at first sign-in; it is a welcome
+            step and not a gate, and that screen says so.
           </li>
         </ul>
       </GapPanel>

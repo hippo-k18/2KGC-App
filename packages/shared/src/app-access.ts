@@ -27,6 +27,15 @@
  * safe direction for a conference whose app is the schedule.
  */
 
+/**
+ * The document id, under `settings`. Named once, like every collection name.
+ *
+ * It is deliberately NOT in `SETTINGS_KEYS`: that map is the bags an organizer
+ * types into, and every one of them is a `SettingsValues` shape written by a
+ * form. Nothing writes this one by hand.
+ */
+export const APP_ACCESS_KEY = "appAccess";
+
 /** What the phone and the rules read. Every field is derived. */
 export interface AppAccessProjection {
   /** Epoch ms after which the app refuses to open at all. `0` never closes. */
@@ -49,6 +58,32 @@ export const APP_ACCESS_DEFAULTS: AppAccessProjection = {
   joinCode: "",
   joinCodeRequired: false,
 };
+
+/**
+ * Stored values over the defaults, dropping anything of the wrong type.
+ *
+ * The same guard `settings.ts`'s `usable()` applies, and for the same reason:
+ * a field cleared by an older save is stored as `null`, and a raw spread puts
+ * `null` where a `number` is declared — here that is a cutoff that compares
+ * false against every clock and an app that never closes.
+ *
+ * ⚠️ It takes the `values` map, not the document. The document is checked for
+ * `eventId` by its reader, because a projection belonging to a different event
+ * is not a partial answer to fall back from.
+ */
+export function resolveAppAccess(values: unknown): AppAccessProjection {
+  const defaults = APP_ACCESS_DEFAULTS;
+  if (!values || typeof values !== "object") return { ...defaults };
+
+  const shape = defaults as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...shape };
+  for (const [k, v] of Object.entries(values as Record<string, unknown>)) {
+    if (!(k in shape)) continue;
+    if (typeof v !== typeof shape[k]) continue;
+    out[k] = v;
+  }
+  return out as unknown as AppAccessProjection;
+}
 
 /**
  * `open` — everything works.
@@ -155,4 +190,28 @@ export function joinCodeNeeded(
   if (!access.joinCodeRequired || normaliseJoinCode(access.joinCode).length === 0) return false;
   if (!profile) return false;
   return !profile.joinedAt;
+}
+
+/**
+ * One line for the organizer about what the app will do, in their own terms.
+ *
+ * Built from the wall clocks rather than from the stored instants. `23:59` on
+ * the last day in New York is 03:59 the *next* day in UTC, so printing
+ * `new Date(closesAtMs).toISOString()` tells an organizer the app closes a day
+ * later than they typed — the same mistake `fromWallClock` exists to stop on
+ * the agenda, showing up in a sentence instead of in a schedule.
+ *
+ * Here rather than in the dashboard because the dashboard's copy of this file
+ * is `server-only`, and a sentence with a date in it is exactly the kind of
+ * thing that should be pinned by a test.
+ */
+export function accessWindowSummary(window: {
+  readOnlyFrom: string | null;
+  closesAt: string | null;
+}): string {
+  const day = (local: string) => local.slice(0, 10);
+  const parts: string[] = [];
+  if (window.readOnlyFrom) parts.push(`read-only from the end of ${day(window.readOnlyFrom)}`);
+  parts.push(window.closesAt ? `closes after ${day(window.closesAt)}` : "stays open");
+  return `The app ${parts.join(", ")}.`;
 }

@@ -947,6 +947,86 @@ export const DOCUMENTS: {
     url: 'https://example.invalid/kgc-2028-prospectus.pdf', kind: 'pdf', restrictTo: [], status: 'draft' },
 ];
 
+/**
+ * Three example content pages, so the editor, `/{slug}` and the app's page list
+ * all have something real to draw.
+ *
+ * ⚠️ **Demo copy, written to look plausible, and none of it is true.** There is
+ * no `KGC-Guest` network and the tram fare is invented. `seed-demo.ts` writes
+ * these only against the emulator, for the same reason it says every attendee
+ * is synthetic: an invented Wi-Fi password on a live event is a queue at the
+ * registration desk.
+ *
+ * Between them they exercise every block the renderer knows — headings, both
+ * kinds of list, links, bold and inline code — so a change to the parser shows
+ * up on a seeded page rather than only in the unit test.
+ */
+export const PAGES: { title: string; slug: string; summary: string; body: string }[] = [
+  {
+    title: 'Wi-Fi',
+    slug: 'wifi',
+    summary: 'How to get online at the Bloomberg Center.',
+    body: [
+      '## Conference network',
+      '',
+      'Join **KGC-Guest**. There is no password. Open a browser and accept the terms on the page that appears.',
+      '',
+      '## If it will not connect',
+      '',
+      '1. Forget the network and rejoin it.',
+      '2. Turn private Wi-Fi address off for this network.',
+      '3. Come to the registration desk on the ground floor.',
+      '',
+      'The venue also runs `eduroam`. If your institution is on it, that is the faster option.',
+    ].join('\n'),
+  },
+  {
+    title: 'Getting here',
+    slug: 'getting-here',
+    summary: 'Tram, subway and where not to park.',
+    body: [
+      'The Bloomberg Center is on Roosevelt Island. Allow half an hour from midtown.',
+      '',
+      '## By tram',
+      '',
+      'The Roosevelt Island Tramway leaves from 59th Street and 2nd Avenue every 15 minutes. It takes a MetroCard or OMNY, and the ride is about four minutes.',
+      '',
+      '## By subway',
+      '',
+      '- The F train stops at Roosevelt Island.',
+      '- The station is a ten minute walk from the venue.',
+      '',
+      '## Parking',
+      '',
+      'There is no visitor parking at the venue. The Motorgate garage is the only public option on the island and it fills early.',
+      '',
+      'The full programme is on the [agenda](/agenda).',
+    ].join('\n'),
+  },
+  {
+    title: 'FAQ',
+    slug: 'faq',
+    summary: 'The questions the desk is asked most.',
+    body: [
+      '## Is lunch included?',
+      '',
+      'Yes, on all five days, for every ticket type.',
+      '',
+      '## Are talks recorded?',
+      '',
+      'Keynotes and main-track talks are recorded. Workshops are not.',
+      '',
+      '## Can I change which workshop I am in?',
+      '',
+      'Come to the registration desk. Places are limited and some workshops fill on the first morning.',
+      '',
+      '## What should I wear?',
+      '',
+      'Whatever you like. The rooms run cold, so bring a layer.',
+    ].join('\n'),
+  },
+];
+
 /** One published feedback survey, so the results view has something to render. */
 export const FEEDBACK_QUESTIONS = [
   { id: 'q1', prompt: 'How useful was this session?', kind: 'rating' as const, required: false },

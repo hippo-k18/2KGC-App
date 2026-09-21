@@ -25,6 +25,7 @@ import { WhovaHeader } from '@/components/whova-header';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import { useAnnouncements } from '@/lib/data/announcements';
 import {
   CATEGORIES,
@@ -136,6 +137,7 @@ export default function CommunityScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { messagingEnabled, writesOpen } = useAppAccess();
   const [category, setCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortId>('newest');
@@ -176,15 +178,19 @@ export default function CommunityScreen() {
         userName={profile?.name ?? 'You'}
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me')}
-        actions={[
-          {
-            icon: 'envelope.fill',
-            label: 'Messages',
-            // `from` names the tab to come back to — see `messages/index.tsx`.
-            onPress: () =>
-              router.push({ pathname: '/messages', params: { from: 'community' } }),
-          },
-        ]}
+        actions={
+          messagingEnabled
+            ? [
+                {
+                  icon: 'envelope.fill',
+                  label: 'Messages',
+                  // `from` names the tab to come back to — see `messages/index.tsx`.
+                  onPress: () =>
+                    router.push({ pathname: '/messages', params: { from: 'community' } }),
+                },
+              ]
+            : []
+        }
         search={{
           value: search,
           onChangeText: (next) => {
@@ -383,8 +389,12 @@ export default function CommunityScreen() {
       />
 
       {/* Whova's blue CTA, pinned above the tab bar. Its left-hand trophy square
-          opens a gamification leaderboard that does not exist here. */}
-      {user ? (
+          opens a gamification leaderboard that does not exist here.
+
+          Gone once the event goes read-only: the rules refuse the post, and a
+          composer that collects a topic nobody can publish is worse than no
+          button. The board itself stays readable. */}
+      {user && writesOpen ? (
         <View
           style={{
             padding: Spacing.md,

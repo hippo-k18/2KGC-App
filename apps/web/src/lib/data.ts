@@ -14,6 +14,7 @@ import {
   type PageContentDoc,
   type PageContentKey,
   type PageContentValues,
+  type PageDoc,
   type SessionDoc,
   type SpeakerDoc,
   type SponsorDoc,
@@ -27,6 +28,7 @@ import {
   resolveEventBasics,
   resolveSponsorTiers,
   servableLogoURL,
+  sortPages,
   tierRank,
   tierSize,
   usable,
@@ -419,6 +421,17 @@ export interface AgendaSession {
    * denormalised caches. Never decide anything from it, and never join on it.
    */
   speakerNames: string[];
+  /**
+   * The speaker's deck, once there is one.
+   *
+   * `SessionDoc.slidesUrl` had no reader anywhere in this project until the
+   * speaker portal started collecting it — an organizer could import one and
+   * nothing would ever show it, which is the defect class AGENTS.md counts. It
+   * is rendered in the session dialog rather than on the card because a talk
+   * with slides is not more important than one without, and a link on every row
+   * would say otherwise.
+   */
+  slidesUrl?: string;
 }
 
 export interface AgendaDay {
@@ -459,6 +472,7 @@ export async function listAgenda(): Promise<AgendaDay[]> {
         skillLevel: s.skillLevel,
         speakerIds: s.speakerIds ?? [],
         speakerNames: s.speakerNames ?? [],
+        slidesUrl: s.slidesUrl,
       }),
     );
 
@@ -585,6 +599,14 @@ export interface PublicDocument {
   kind: DocumentDoc['kind'];
   /** The link's host, printed on the card — see the note below about off-site links. */
   host: string;
+  /**
+   * The session this handout belongs to, if the organizer attached it to one.
+   *
+   * Carried rather than filtered on, so that `/documents` still lists every
+   * public handout and the agenda can pick out the ones for a given talk. A
+   * deck is not less public for being about a session.
+   */
+  sessionId?: string;
 }
 
 /**
@@ -648,9 +670,92 @@ export async function listPublicDocuments(): Promise<PublicDocument[]> {
           url: d.url,
           kind: d.kind ?? 'link',
           host: linkHost(d.url),
+          ...(d.sessionId ? { sessionId: d.sessionId } : {}),
         }),
       );
   }, []);
+}
+
+// ---------------------------------------------------------------------------
+// Custom pages
+// ---------------------------------------------------------------------------
+
+export interface PublicPage {
+  id: string;
+  title: string;
+  slug: string;
+  /** Markdown, in the subset `@kgc/shared`'s `parseRichText` understands. */
+  body: string;
+  summary?: string;
+}
+
+function toPublicPage(id: string, p: PageDoc): PublicPage {
+  return {
+    id,
+    title: p.title,
+    slug: p.slug,
+    body: p.body ?? '',
+    ...(p.summary ? { summary: p.summary } : {}),
+  };
+}
+
+/**
+ * Whether a stored page is fit to serve.
+ *
+ * `published === true` rather than truthiness, for the reason
+ * `listPublicDocuments` demands a real empty array: a page written before the
+ * field existed carries `undefined`, and the wrong direction for that to fail
+ * is "visible to the internet". A title and a body are the other two, because
+ * there is nothing to render without them.
+ */
+function servablePage(p: PageDoc): boolean {
+  return p.published === true && Boolean(p.title) && typeof p.body === 'string' && p.body.trim() !== '';
+}
+
+/**
+ * The published pages, in the organizer's order.
+ *
+ * Filtered and sorted in memory for the reason at the top of this file: a
+ * `where('eventId') + where('published')` pair needs a composite index, and the
+ * emulator enforces neither its presence nor its absence, so an indexed query
+ * passes every local run and fails in production with `failed-precondition`.
+ */
+export async function listPublicPages(): Promise<PublicPage[]> {
+  return safely('listPublicPages', async () => {
+    const snap = await db().collection(COLLECTIONS.pages).where('eventId', '==', EVENT_ID).get();
+
+    return sortPages(
+      snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as PageDoc) }))
+        .filter(servablePage)
+        .map((p) => ({ ...toPublicPage(p.id, p), order: p.order ?? 0 })),
+    ).map(({ order: _order, ...page }) => page);
+  }, []);
+}
+
+/**
+ * One published page by its address, or `null`.
+ *
+ * The slug is a field rather than the document id — an organizer renaming a
+ * page's address must not orphan every reference to the document inside this
+ * database — so this is a query, not a `get`. Case is folded because the value
+ * is typed from printed material, the same reason the branded slug is compared
+ * that way.
+ */
+export async function getPublicPage(slug: string): Promise<PublicPage | null> {
+  const wanted = slug.trim().toLowerCase();
+  if (wanted === '') return null;
+  return safely(
+    'getPublicPage',
+    async () => {
+      const snap = await db().collection(COLLECTIONS.pages).where('eventId', '==', EVENT_ID).get();
+      const found = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as PageDoc) }))
+        .find((p) => servablePage(p) && (p.slug ?? '').toLowerCase() === wanted);
+      return found ? toPublicPage(found.id, found) : null;
+    },
+    null,
+  );
 }
 
 /**

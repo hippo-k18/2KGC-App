@@ -17,6 +17,7 @@ import { useBadge } from '@/lib/data/badge';
 import { useEventSettings } from '@/lib/data/event-settings';
 import { logout, useAuth } from '@/lib/auth/auth-provider';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
+import { useAppAccess } from '@/lib/data/app-access';
 import { totalUnread, useThreads } from '@/lib/data/messages';
 import { getDb } from '@/lib/firebase/client';
 
@@ -36,6 +37,7 @@ export default function MeScreen() {
   const { saved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads, error: threadsError, retry: retryThreads } = useThreads(user?.uid);
   const unread = totalUnread(threads, user?.uid);
+  const { messagingEnabled } = useAppAccess();
   // The category an organizer gave this attendee. It lives on their registration.
   const { badge } = useBadge();
 
@@ -223,12 +225,14 @@ export default function MeScreen() {
               onPress={() => router.push('/me/schedule')}
               trailing={<Chevron />}
             />
-            <ListRow
-              title="Messages"
-              meta={unread ? `${unread} unread` : undefined}
-              onPress={() => router.push({ pathname: '/messages', params: { from: 'me' } })}
-              trailing={<Chevron />}
-            />
+            {messagingEnabled ? (
+              <ListRow
+                title="Messages"
+                meta={unread ? `${unread} unread` : undefined}
+                onPress={() => router.push({ pathname: '/messages', params: { from: 'me' } })}
+                trailing={<Chevron />}
+              />
+            ) : null}
             <ListRow title="Venue" subtitle={event.venue} last />
           </View>
 
@@ -238,6 +242,10 @@ export default function MeScreen() {
               title="Show me in the directory"
               subtitle="Other attendees can find your profile"
               first
+              // The only row in the group when the messaging switch below is
+              // hidden, and a group whose last row still draws a separator
+              // reads as one with something missing.
+              last={!messagingEnabled}
               trailing={
                 <Switch
                   value={profile?.visibleInDirectory ?? false}
@@ -247,27 +255,35 @@ export default function MeScreen() {
                 />
               }
             />
-            <ListRow
-              title="Allow direct messages"
-              // Says what the switch does, not where to read about it. Turning
-              // it off records the preference on the profile and stops the
-              // dashboard's broadcasts reaching you; nothing stops another
-              // attendee writing to you, because that would take a rule on
-              // `threads` and there is none. The paragraph under the section
-              // says the same thing at length — this line has to be true on its
-              // own, because a subtitle reading "see note below" is a pointer
-              // rather than an answer and the switch is thrown from here.
-              subtitle="Does not block other attendees yet"
-              last
-              trailing={
-                <Switch
-                  value={profile?.messagingEnabled ?? false}
-                  disabled={saving}
-                  onValueChange={(v) => setFlag('messagingEnabled', v)}
-                  accessibilityLabel="Allow direct messages"
-                />
-              }
-            />
+            {/*
+              Hidden, not disabled, while the organizers have messaging off for
+              the whole event: a personal switch over something nobody can do is
+              a control with no effect either way, and a greyed one still reads
+              as a setting somebody has chosen.
+            */}
+            {messagingEnabled ? (
+              <ListRow
+                title="Allow direct messages"
+                // Says what the switch does, not where to read about it. Turning
+                // it off records the preference on the profile and stops the
+                // dashboard's broadcasts reaching you; nothing stops another
+                // attendee writing to you, because that would take a rule on
+                // `threads` and there is none. The paragraph under the section
+                // says the same thing at length — this line has to be true on its
+                // own, because a subtitle reading "see note below" is a pointer
+                // rather than an answer and the switch is thrown from here.
+                subtitle="Does not block other attendees yet"
+                last
+                trailing={
+                  <Switch
+                    value={profile?.messagingEnabled ?? false}
+                    disabled={saving}
+                    onValueChange={(v) => setFlag('messagingEnabled', v)}
+                    accessibilityLabel="Allow direct messages"
+                  />
+                }
+              />
+            ) : null}
           </View>
           {error ? (
             <Text
@@ -282,9 +298,15 @@ export default function MeScreen() {
             variant="caption"
             tone="tertiary"
             style={{ paddingHorizontal: Spacing.xs, paddingTop: Spacing.sm }}>
-            Turning off directory visibility removes your profile from the attendee list.{'\n\n'}
-            Turning off direct messages stops messages from the organizers. Blocking messages
-            from other attendees is not available yet.
+            Turning off directory visibility removes your profile from the attendee list.
+            {messagingEnabled ? (
+              <>
+                {'\n\n'}Turning off direct messages stops messages from the organizers. Blocking
+                messages from other attendees is not available yet.
+              </>
+            ) : (
+              <>{'\n\n'}The organizers have turned messaging off for this event.</>
+            )}
           </Text>
 
           <SectionHeader>Account</SectionHeader>

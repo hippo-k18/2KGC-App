@@ -163,6 +163,8 @@ export interface AuditEntry {
     | 'poll.publishTally'
     | 'document.create'
     | 'document.update'
+    | 'page.create'
+    | 'page.update'
     /**
      * Floor-plan allocation. `booth.assign` is here for the same reason
      * `order.refund` is: two exhibitors sent to one space is discovered on the
@@ -223,6 +225,27 @@ export interface AuditEntry {
      */
     | 'speaker.create'
     | 'speaker.update'
+    /**
+     * Speaker self-service: the link, and what an organizer did with what came
+     * back.
+     *
+     * `speaker.portalApprove` is the one that matters, and it is separate from
+     * `speaker.update` on purpose. Every other edit to a speaker was typed by
+     * the organizer whose address is in `actor`; this one is text a speaker
+     * wrote, published by an organizer who pressed a button, and "who agreed
+     * this bio could go on the website" is a different question from "who typed
+     * it". `after` carries which fields and which sessions moved rather than
+     * the text, because the draft it came from is overwritten by the speaker's
+     * next submission and the field list is what makes the entry findable.
+     *
+     * `portalRevoke` is here because it takes something away from a person
+     * outside the organization with no notice to them, and `portalSend` because
+     * it puts a bearer link to a named person's profile into an inbox.
+     */
+    | 'speaker.portalSend'
+    | 'speaker.portalApprove'
+    | 'speaker.portalReject'
+    | 'speaker.portalRevoke'
     | 'track.create'
     | 'track.update'
     | 'room.create'
@@ -279,6 +302,21 @@ export interface AuditEntry {
     | 'attendee.transfer'
     | 'attendee.ticketType'
     | 'attendee.confirmation'
+    /**
+     * Everything held about one person, destroyed on request.
+     *
+     * The most consequential entry in this list, and the only one whose subject
+     * no longer exists when it is read. `attendee.cancel` can be reinstated and
+     * `order.refund` can at least be explained; this removes the documents that
+     * would evidence either. So the entry carries the walk's own outcome — how
+     * many records each part of the walk deleted, anonymised or kept — because
+     * afterwards there is nothing else left to count.
+     *
+     * ⚠️ It carries no email address, deliberately. This log survives the
+     * erasure, so an entry naming the person would restore the field the
+     * operation existed to remove.
+     */
+    | 'attendee.erase'
     /** A category set or cleared, for one person or a selection. */
     | 'attendee.category'
     /**

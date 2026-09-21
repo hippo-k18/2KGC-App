@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { writeAppAccessProjection } from '@/lib/app-access';
 import { isAllowed, requireOrganizer, requireOwner } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
 import { inviteMember, removeMember, sendNewLink, setMemberRoles } from '@/lib/team';
@@ -33,11 +34,14 @@ export async function saveAdminSettingsAction(
     return { error: 'Keep the check-in staff note under 300 characters.' };
   }
 
+  const messaging = formData.get('attendeeMessagingEnabled') === 'on';
+
   const res = await saveSettings(
     SETTINGS_KEYS.access,
     {
       attendeeListVisible: formData.get('attendeeListVisible') === 'on',
       contactSharingEnabled: formData.get('contactSharingEnabled') === 'on',
+      attendeeMessagingEnabled: messaging,
       staffNote: staffNote || null,
     },
     actor,
@@ -45,13 +49,23 @@ export async function saveAdminSettingsAction(
 
   if (!res.ok) return { error: res.error };
 
+  /*
+   * Only the messaging switch reaches a phone, and it reaches it through the
+   * projection rather than through this document — so the save is not finished
+   * until the projection is rewritten. The other two are still recorded and
+   * nothing more, which is what the sentence below has to keep saying.
+   */
+  const projected = await writeAppAccessProjection();
+
   revalidatePath('/attendees/admin-settings');
+  if (!projected.ok) {
+    return { ok: true, message: 'Saved. The app has not picked up the messaging switch yet. Save again in a moment.' };
+  }
   return {
     ok: true,
-    // Deliberately not "applied". The document is written and audited; nothing
-    // reads it but this screen, and claiming otherwise is the defect class
-    // AGENTS.md says this codebase keeps repeating.
-    message: 'Saved. Recorded and audited, no client enforces these yet.',
+    message: messaging
+      ? 'Saved. Attendees can message each other.'
+      : 'Saved. Messaging is off: nobody can start a conversation or send a message, and what people have already said stays readable.',
   };
 }
 

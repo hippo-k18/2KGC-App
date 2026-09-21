@@ -21,6 +21,7 @@ import {
   EVENT_ID,
   SUBCOLLECTIONS,
   communityCategoryLabel,
+  replyIsVisible,
   type CommunityPostDoc,
   type CommunityReplyDoc,
   type WithId,
@@ -155,9 +156,34 @@ export function useReplies(postId: string | undefined) {
     [postId],
     (id, d) => ({ id, ...d }) as Reply,
   );
-  // Filtered here rather than in the query: replies written before `status`
-  // existed carry no such field, and an equality filter would drop them all.
-  const replies = (data ?? []).filter((r) => !r.status || r.status === 'visible');
+  /**
+   * Hidden replies are dropped here, and here is the only place they can be.
+   *
+   * ── Why not in the query, which is where it belongs ─────────────────────
+   *
+   * `useCommunityPosts` above filters `status == 'visible'` in the query, and
+   * that is the right shape: the server decides, and a hidden post is never on
+   * the wire. A reply cannot do the same, because Firestore has no way to ask
+   * for "this field is absent or equals visible" — an equality filter drops
+   * every reply written before the field existed, which is most of them,
+   * including all of the seeded conversation. Deleting old replies from the
+   * board to enforce a hide is a worse bug than the one it fixes.
+   *
+   * ── Why not in firestore.rules either ───────────────────────────────────
+   *
+   * The rule is there and it does hold on a `get`: a hidden reply cannot be
+   * fetched on its own by anybody but its author or an organizer. It cannot
+   * hold on a `list`. Rules are not filters — on a query the predicate is
+   * evaluated without a document bound to `resource`, so `.get('status',
+   * 'visible')` returns the default and every reply comes back. That is
+   * measured rather than assumed, and `tests/rules/firestore.test.ts` pins it
+   * so nobody deletes this filter believing the rule covers it.
+   *
+   * New replies now carry `status: 'visible'` from `addReply`, so the day the
+   * pre-`status` replies are gone this can move into the query and be enforced
+   * where it should be.
+   */
+  const replies = (data ?? []).filter(replyIsVisible);
   return { replies, error, retry };
 }
 
@@ -199,6 +225,17 @@ export async function editPost(
   );
 }
 
+/**
+ * `status` is written here, and it is written as `visible`.
+ *
+ * The field arrived on `CommunityReplyDoc` with moderation, after the first
+ * replies were already in the database, and nothing in the app set it — so
+ * every reply an attendee wrote was one more document `useReplies` had to treat
+ * as "no status means visible". A reply that carries the field is a reply the
+ * rules can reason about: `firestore.rules` refuses a create that arrives
+ * already hidden, the same way it refuses a question that arrives approved,
+ * because moderation state is not the author's to set.
+ */
 export async function addReply(
   postId: string,
   authorId: string,
@@ -208,6 +245,7 @@ export async function addReply(
     addDoc(collection(getDb(), COLLECTIONS.communityPosts, postId, SUBCOLLECTIONS.replies), {
       authorId,
       body,
+      status: 'visible',
       createdAt: serverTimestamp(),
     }),
   );

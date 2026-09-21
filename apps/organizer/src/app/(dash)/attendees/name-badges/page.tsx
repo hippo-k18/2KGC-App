@@ -4,6 +4,7 @@ import { attendeeCategories } from '@/lib/attendee-categories';
 import { UNCATEGORISED, categoryLabel, inCategory } from '@/lib/attendee-categories-core';
 import { requireOrganizer } from '@/lib/auth';
 import { QR_QUIET_ZONE, badgeQr, listBadgeRows } from '@/lib/badges';
+import { requiredConsentGaps } from '@/lib/consents';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Tag, listParams, paginate } from '../../ui';
 import { PrintButton } from './print-button';
@@ -60,7 +61,11 @@ export default async function NameBadgesPage({
   const category = typeof sp.category === 'string' ? sp.category : undefined;
   const { page, baseParams } = listParams(sp);
 
-  const [all, { categories }] = await Promise.all([listBadgeRows(), attendeeCategories()]);
+  const [all, { categories }, consents] = await Promise.all([
+    listBadgeRows(),
+    attendeeCategories(),
+    requiredConsentGaps(),
+  ]);
 
   /**
    * Cancelled and transferred registrations are excluded outright rather than
@@ -83,6 +88,18 @@ export default async function NameBadgesPage({
   const pageRows = paginate(matched, page, PER_PAGE);
   const tickets = [...new Set(printable.map((r) => r.ticketType).filter(Boolean))].sort() as string[];
   const withoutCompany = printable.filter((r) => !r.company).length;
+  /*
+    A required release nobody has signed, said on the row it belongs to.
+
+    Printed badges are handed over at a desk, and the desk is where somebody can
+    still ask. The note is screen-only — `@media print` hides it — because a
+    badge worn all day must not announce what its wearer has not signed.
+  */
+  const unsignedNote = (registrationId: string): string | undefined => {
+    const owed = consents.outstanding.get(registrationId);
+    return owed?.length ? owed.join(', ') : undefined;
+  };
+  const unsigned = printable.filter((r) => unsignedNote(r.registrationId)).length;
 
   const href = (next: { q?: string; ticket?: string; category?: string }) => {
     const p = new URLSearchParams();
@@ -149,12 +166,23 @@ export default async function NameBadgesPage({
           text-transform: uppercase;
         }
         .badge-qr { flex: 0 0 1.1in; margin-left: 0.12in; }
+        .badge-unsigned {
+          color: var(--kgc-orange, #f68621);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: .5px;
+          margin-top: 3px;
+          text-transform: uppercase;
+        }
         @media screen and (max-width: 767px) {
           .badge-sheet { grid-template-columns: minmax(0, 3.5in); }
           .badge { max-width: 100%; }
         }
         @media print {
           @page { margin: 0.4in; }
+          /* Screen-only: a badge worn all day must not say what its wearer has
+             not signed. The desk has the same note on the sheet it prints from. */
+          .badge-unsigned { display: none; }
           body * { visibility: hidden; }
           .badge-sheet, .badge-sheet * { visibility: visible; }
           .badge-sheet { left: 0; position: absolute; top: 0; }
@@ -198,6 +226,15 @@ export default async function NameBadgesPage({
             value: withoutCompany,
             sub: withoutCompany > 0 ? 'badge prints name only' : 'every badge has one',
           },
+          ...(consents.forms.length > 0
+            ? [
+                {
+                  label: 'Form not signed',
+                  value: unsigned,
+                  sub: unsigned > 0 ? 'marked on the badge below' : 'everybody has signed',
+                },
+              ]
+            : []),
         ]}
       />
 
@@ -277,6 +314,11 @@ export default async function NameBadgesPage({
                   {r.company ? <div className="badge-company">{r.company}</div> : null}
                   {r.title ? <div className="badge-title">{r.title}</div> : null}
                   <div className="badge-ticket">{r.ticketType ?? 'Attendee'}</div>
+                  {unsignedNote(r.registrationId) ? (
+                    <div className="badge-unsigned" title={unsignedNote(r.registrationId)}>
+                      Form not signed
+                    </div>
+                  ) : null}
                 </div>
                 {/*
                   `shape-rendering: crispEdges` matters on screen, where a

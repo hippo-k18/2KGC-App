@@ -63,8 +63,9 @@ export default async function ReleaseAndConsentFormsPage({
           <>
             <strong>Signatures cannot be edited</strong>
             <p>
-              Each signature is kept against the version of the wording that was signed. Signing
-              links are not emailed for you, and withdrawals are handled by your team.
+              Each signature is kept against the version of the wording that was signed. Publishing
+              a form sends everybody who has not signed it their own link. Withdrawals are handled
+              by your team.
             </p>
           </>
         }
@@ -172,6 +173,14 @@ export default async function ReleaseAndConsentFormsPage({
             <ul className="body-2" style={{ marginBottom: 0, paddingLeft: 18 }}>
               <li>Changing the wording publishes a new version, and earlier signatures count as outstanding.</li>
               <li>People without an account, such as speakers, sign through a personal link.</li>
+              <li>
+                Publishing a form sends that link to everybody who has not signed it. Anyone added
+                to the attendee list afterwards is sent one as they are added.
+              </li>
+              <li>
+                A required form shows as <strong>Form not signed</strong> on the badge sheet and at
+                check-in until it is signed. Nobody is turned away.
+              </li>
               <li>To withdraw consent, a person writes to the address on the signing page.</li>
               <li>Hiding a profile from the directory is not a consent record.</li>
             </ul>
@@ -183,11 +192,9 @@ export default async function ReleaseAndConsentFormsPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Sending the links.</strong> The register mints a per-person signing link and
-            nothing mails it. <code>scripts/src/lib/email.ts</code> composes every transactional
-            mail this project sends and has no consent template, so today an organizer copies a
-            link into a message they write themselves. Chasing the unsigned is then manual, and for
-            a thousand attendees that is not a workaround, it is a wall.
+            <strong>Chasing the unsigned.</strong> The link goes out when the form is published and
+            when somebody is added, and nothing sends a reminder after that. A second round is the
+            register, the per-row link, and a message somebody writes.
           </li>
           <li>
             <strong>Withdrawal.</strong> No revocation record, no way to mark a signature
@@ -196,19 +203,11 @@ export default async function ReleaseAndConsentFormsPage({
             system cannot see.
           </li>
           <li>
-            <strong>Signature notifications, not the audit trail.</strong> Publishing or revising a
-            release now writes <code>consentForm.publish</code> or{' '}
-            <code>consentForm.update</code> to the audit log, recording the actor, the version and
-            the body hash before and after — so &ldquo;who published the wording this signature
-            names&rdquo; survives the next edit, which <code>updatedBy</code> alone did not. What is
-            still absent is anything that <em>tells</em> somebody: nothing emails a signing link and
-            nothing chases an outstanding one. The links are minted here and copied by hand.
-          </li>
-          <li>
-            <strong>Anything gated on a signature.</strong> Check-in does not look at it, the app
-            does not look at it, and no session is marked recordable or not. A release recorded
-            here changes nothing that happens at the door — see{' '}
-            <code>SessionDoc</code>, which still has no &ldquo;may be recorded&rdquo; field.
+            <strong>Blocking on a signature.</strong> A required form is reported at the badge sheet
+            and at the scan desk and stops nothing. That is deliberate: a door volunteer holding a
+            queue cannot adjudicate a release. The app does not look at it either, and no session
+            is marked recordable or not — see <code>SessionDoc</code>, which still has no
+            &ldquo;may be recorded&rdquo; field.
           </li>
           <li>
             <strong>A signed PDF, or anything a signing service would give you.</strong> There is

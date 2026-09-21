@@ -1,6 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { agendaSpeakers, brandingSettings, listAgenda, listTracks, type AgendaDay, siteEvent } from '@/lib/data';
+import {
+  agendaSpeakers,
+  brandingSettings,
+  listAgenda,
+  listPublicDocuments,
+  listTracks,
+  type AgendaDay,
+  type PublicDocument,
+  siteEvent,
+} from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { formatDayHeading, SITE } from '@/lib/site';
@@ -70,7 +79,7 @@ export default async function AgendaPage({
   const dayParam = firstValue(params.day);
   const trackParam = firstValue(params.track);
 
-  const [allDays, tracks, tiers, branding, speakers] = await Promise.all([
+  const [allDays, tracks, tiers, branding, speakers, sessionDocuments] = await Promise.all([
     listAgenda(),
     listTracks(),
     tiersOrNull(),
@@ -82,7 +91,23 @@ export default async function AgendaPage({
      * with nothing else on this page.
      */
     agendaSpeakers(),
+    /*
+     * The handouts an organizer attached to a session — slides, a paper, the
+     * dataset. `listPublicDocuments()` is already the unrestricted subset, so
+     * grouping its rows here cannot leak a restricted one onto a session: a
+     * restricted handout never reaches this page at all. See that function's
+     * header for why that gate is upstream and has no parameter.
+     */
+    listPublicDocuments(),
   ]);
+
+  const documentsBySession = new Map<string, PublicDocument[]>();
+  for (const d of sessionDocuments) {
+    if (!d.sessionId) continue;
+    const list = documentsBySession.get(d.sessionId);
+    if (list) list.push(d);
+    else documentsBySession.set(d.sessionId, [d]);
+  }
 
   const total = allDays.reduce((n, d) => n + d.sessions.length, 0);
 
@@ -269,6 +294,7 @@ export default async function AgendaPage({
                     sessions: d.sessions,
                   }))}
                   speakers={speakers}
+                  documentsBySession={Object.fromEntries(documentsBySession)}
                   origin={canonicalOrigin()}
                 />
               </>

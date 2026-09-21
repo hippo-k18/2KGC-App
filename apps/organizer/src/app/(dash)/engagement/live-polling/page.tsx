@@ -15,7 +15,7 @@ import {
   Tag,
 } from '../../ui';
 import { PollForm } from '../poll-form';
-import { publishTallyAction, setPollOpenAction } from '../poll-actions';
+import { publishTallyAction, setLiveResultsAction, setPollOpenAction } from '../poll-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,7 +72,10 @@ export default async function LivePollingPage({
               The counts on this screen are always current. Attendees see the result from the last
               time you pressed <em>Publish the count</em>.
             </p>
-            <p>A result that updates by itself in the app is not available yet.</p>
+            <p>
+              Turn on live results and open the room view, and the number attendees see is
+              republished every few seconds for as long as that page stays open.
+            </p>
           </>
         }
         actions={
@@ -224,11 +227,39 @@ export default async function LivePollingPage({
                 </button>
               </form>
 
+              {/*
+                Live results and the room view are one control in two halves.
+                The switch decides whether attendees' phones follow the room,
+                and the room view is the page that does the following — so they
+                sit together, and the sentence below says which of the two is
+                doing the work.
+              */}
+              <form action={setLiveResultsAction}>
+                <input type="hidden" name="sessionId" value={p.sessionId} />
+                <input type="hidden" name="id" value={p.id} />
+                <input type="hidden" name="liveResults" value={p.liveResults ? 'false' : 'true'} />
+                <button type="submit" className="whova-btn-main secondary small">
+                  {p.liveResults ? 'Turn off live results' : 'Turn on live results'}
+                </button>
+              </form>
+
+              <a
+                href={`/engagement/live-polling/room/${encodeURIComponent(p.sessionId)}/${encodeURIComponent(p.id)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="whova-btn-main secondary small"
+              >
+                Room view ↗
+              </a>
+
               <span className="muted" style={{ fontSize: 12 }}>
                 {p.actualVotes} {p.actualVotes === 1 ? 'vote' : 'votes'} counted.{' '}
                 {p.talliesUpdatedAt
                   ? `The app shows ${p.storedTotal}, published ${p.talliesUpdatedAt.slice(0, 10)} ${p.talliesUpdatedAt.slice(11, 16)}.`
-                  : `The app shows ${p.storedTotal}; nothing has been published yet.`}
+                  : `The app shows ${p.storedTotal}; nothing has been published yet.`}{' '}
+                {p.liveResults
+                  ? 'Live results are on, so the room view keeps that number moving while it is open.'
+                  : ''}
               </span>
             </div>
           </Panel>
@@ -239,17 +270,14 @@ export default async function LivePollingPage({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>A tally that moves on its own.</strong> The one thing on this screen that
-            genuinely needs <code>tallyPoll</code> deployed. Publishing the count is a snapshot; a
-            vote arriving a second later is not in it.
+            <strong>A tally that moves with nobody watching it.</strong> Live results are
+            republished by the room view, so they stop when that page is closed. A poll nobody is
+            projecting still needs <em>Publish the count</em>, and that is the one thing here that
+            genuinely needs <code>tallyPoll</code> deployed.
           </li>
           <li>
             <strong>Opening and closing from a phone.</strong> The moment to close a poll is on
             stage. These are forms on a desktop dashboard, which is the wrong device for it.
-          </li>
-          <li>
-            <strong>A results display for a projector.</strong> The per-option split is computed
-            here; a full-screen public page for it is not built.
           </li>
           <li>
             <strong>Multi-select polls.</strong> <code>PollVoteDoc.optionIds</code> is an array and

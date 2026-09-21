@@ -1,12 +1,22 @@
 import Link from 'next/link';
+import { STATUS_LABEL } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { requireOrganizer } from '@/lib/auth';
 import { getSpeaker, imageSrc, listSpeakers, type SpeakerRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
+import {
+  listPortalRows,
+  pendingSubmissions,
+  speakerEmailAvailable,
+  speakerLinksAvailable,
+  speakerPortalLink,
+  trackerCounts,
+} from '@/lib/speaker-portal';
 import { DetailList, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, Portrait, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { DetailDisclosure } from '../../../form';
 import { Dropdown, RowActions } from '../../../menu';
 import { CsvImportPanel } from '../../csv-import-panel';
 import { commitSpeakerImportAction, previewSpeakerImportAction } from './actions';
+import { DecisionForm, RevokeLinkForm, SendLinkForm, type LinkTarget } from './portal-forms';
 import { SpeakerForm, type EditableSpeaker } from './speaker-form';
 
 export const dynamic = 'force-dynamic';
@@ -20,9 +30,25 @@ export const dynamic = 'force-dynamic';
  * resolves the audience and already refuses to pretend it reached the people
  * with no address on file.
  *
- * The third stat tile counts profiles with no contact address rather than
- * invitations sent, because no invitation is minted per speaker; the tile says
- * so rather than leaving the substitution to be guessed.
+ * ── Self-service, and where it sits on this screen ──────────────────────────
+ *
+ * Each speaker has a link of their own (`lib/speaker-portal.ts`) that opens a
+ * page on the website where they fill in their own profile. Three things are
+ * deliberate about how it appears here:
+ *
+ *   1. **Waiting submissions are above the list**, and the panel is absent when
+ *      there are none. It is the only thing on this screen that is work on this
+ *      desk rather than work somebody else owes.
+ *   2. **The status column is blank for a speaker who was never sent a link.**
+ *      A hundred and thirty-seven grey "not sent" tags is a column that hides
+ *      the five rows worth looking at.
+ *   3. **Sending is one form with a "Send to" list**, the shape the reviewers
+ *      screen already uses, rather than a checkbox on every row. The two groups
+ *      an organizer actually sends to are "everyone missing something" and
+ *      "everyone", and a selection UI is a lot of table state for that.
+ *
+ * The third stat tile is Whova's count of invitations sent, which this screen
+ * could not give until the links existed.
  *
  * ── There is no delete, and that is the design ──────────────────────────────
  *
@@ -72,7 +98,7 @@ export const dynamic = 'force-dynamic';
  * and says which of the two it is, and the sentence is a statement about the
  * record rather than a promise about the future.
  */
-function SpeakerDetail({ s }: { s: SpeakerRow }) {
+function SpeakerDetail({ s, portalLink }: { s: SpeakerRow; portalLink?: string }) {
   const links = [
     ['LinkedIn', s.social?.linkedin],
     ['X', s.social?.x],
@@ -124,6 +150,23 @@ function SpeakerDetail({ s }: { s: SpeakerRow }) {
               <span className="muted">No address. Cannot be sent a reminder.</span>
             ),
           },
+          /*
+           * The link itself, spelled out rather than hidden behind the send
+           * button. Email is the normal way it reaches somebody, but an
+           * organizer who is already in a thread with a speaker wants to paste
+           * it there — and on a deployment with no mail provider that is the
+           * only way it can be delivered at all.
+           */
+          ...(portalLink
+            ? [
+                {
+                  label: 'Profile link',
+                  value: (
+                    <code style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{portalLink}</code>
+                  ),
+                },
+              ]
+            : []),
           {
             label: 'Links',
             value: links.length ? (
@@ -199,7 +242,13 @@ export default async function SpeakerManagerPage({
   const editId = typeof sp.edit === 'string' ? sp.edit : undefined;
   const creating = typeof sp.new === 'string';
   const { page, sort, baseParams } = listParams(sp);
-  const all = await listSpeakers();
+  const [all, portal, pending] = await Promise.all([
+    listSpeakers(),
+    listPortalRows(),
+    pendingSubmissions(),
+  ]);
+  const linksOn = speakerLinksAvailable();
+  const emailOn = speakerEmailAvailable();
 
   const doc = editId ? await getSpeaker(editId) : null;
   /**
@@ -239,6 +288,26 @@ export default async function SpeakerManagerPage({
   const noSession = all.filter((s) => s.sessionCount === 0);
   const complete = all.filter((s) => s.hasBio && s.hasPhoto);
   const noEmail = all.filter((s) => !s.contactEmail);
+
+  /*
+   * The self-service tracker, counted once so the tiles, the chips and the
+   * status column cannot disagree about who is where.
+   */
+  const tracker = trackerCounts(
+    all.map((s) => ({ status: portal.get(s.id)?.status, canBeSent: Boolean(s.contactEmail) })),
+  );
+  const linkTargets: LinkTarget[] = all.map((s) => {
+    const status = portal.get(s.id)?.status;
+    return {
+      id: s.id,
+      name: s.name,
+      hasAddress: Boolean(s.contactEmail),
+      statusLabel: status ? STATUS_LABEL[status] : undefined,
+    };
+  });
+  const linksSent = [...portal.values()].filter((r) => r.linkSentAtMs).length;
+  const sessionTitleFor = (field: string, titles: Record<string, string>) =>
+    field.startsWith('slides:') ? titles[field.slice('slides:'.length)] : undefined;
 
   const base =
     filter === 'no-bio'
@@ -313,6 +382,86 @@ export default async function SpeakerManagerPage({
           <SpeakerForm existing={editing} />
         </Panel>
       ) : (
+        <>
+        {/*
+          Above the list, and only when there is something in it. This is the
+          one thing on this screen that is somebody's to do today: a speaker has
+          written their own bio and it is not on the website until an organizer
+          reads it.
+        */}
+        {pending.length > 0 && (
+          <Panel>
+            <h2 className="section-header" style={{ marginTop: 0 }}>
+              Profile updates waiting ({pending.length})
+            </h2>
+            <p className="body-2">
+              Sent in by speakers through their own link. Nothing here is on the website or in the
+              app until you approve it. Once you decide, the speaker leaves this list and the
+              answer shows against their name below.
+            </p>
+            {pending.map((p) => (
+              <div
+                key={p.speakerId}
+                style={{ borderTop: '1px solid var(--hairline)', padding: '16px 0' }}
+              >
+                <h3 className="section-header" style={{ marginTop: 0 }}>
+                  {p.speakerName}
+                </h3>
+                {p.changes.length === 0 ? (
+                  <p className="muted" style={{ marginTop: 0 }}>
+                    Nothing they sent is different from what is on the record. Approving marks it
+                    as done and changes nothing.
+                  </p>
+                ) : (
+                  <DetailList
+                    items={p.changes.map((c) => ({
+                      label: c.label,
+                      value: (
+                        <>
+                          {/*
+                            The talk a slides link belongs to sits in the value
+                            rather than beside the label: `.detail-list dt` is
+                            small and upper-cased, which is right for "Slides"
+                            and unreadable for a sentence-length session title.
+                          */}
+                          {sessionTitleFor(c.field, p.sessionTitles) ? (
+                            <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                              {sessionTitleFor(c.field, p.sessionTitles)}
+                            </div>
+                          ) : null}
+                          {c.before ? (
+                            <div
+                              className="muted"
+                              style={{
+                                marginBottom: 4,
+                                overflowWrap: 'anywhere',
+                                textDecoration: 'line-through',
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            >
+                              {c.before}
+                            </div>
+                          ) : null}
+                          {c.after ? (
+                            <div style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                              {c.after}
+                            </div>
+                          ) : (
+                            <Tag color="red" small>
+                              asks to remove this
+                            </Tag>
+                          )}
+                        </>
+                      ),
+                    }))}
+                  />
+                )}
+                <DecisionForm speakerId={p.speakerId} />
+              </div>
+            ))}
+          </Panel>
+        )}
+
         <Panel>
           <StatTiles
             tiles={[
@@ -323,12 +472,28 @@ export default async function SpeakerManagerPage({
                 sub: `${all.length - complete.length} missing a bio or a photo`,
               },
               {
+                // Whova's third tile counts sent invite links, and this is now
+                // that number. The sub-line is the one an organizer acts on:
+                // a submission waiting for a decision is work on this desk,
+                // not work somebody else owes.
+                label: 'Profile links sent',
+                /*
+                 * Counted from the send itself, not from the status. A link an
+                 * organizer pasted into their own message moves a speaker
+                 * through the tracker without this dashboard ever mailing
+                 * anything, and a tile saying "sent" about a mail that does not
+                 * exist is the defect class AGENTS.md counts.
+                 */
+                value: linksSent,
+                sub:
+                  tracker.submitted > 0
+                    ? `${tracker.submitted} waiting for you`
+                    : `${tracker.notSent} not sent yet`,
+              },
+              {
                 label: 'No contact address',
                 value: noEmail.length,
-                // Whova's third tile counts sent invite links. We do not mint
-                // per-speaker links, so this is the number that actually blocks
-                // the same job: nobody in this count can be chased at all.
-                sub: 'cannot be emailed a reminder',
+                sub: 'cannot be sent a link',
               },
             ]}
           />
@@ -403,6 +568,7 @@ export default async function SpeakerManagerPage({
               { key: 's', label: 'Speaker', className: 'cell-md', sortKey: 'speaker' },
               { key: 'a', label: 'Affiliation', className: 'cell-mdsm', sortKey: 'affiliation' },
               { key: 'p', label: 'Profile', className: 'cell-sm', sortKey: 'profile' },
+              { key: 'ss', label: 'Self-service', className: 'cell-sm' },
               { key: 'x', label: 'Session(s)', className: 'cell-fill', sortKey: 'sessions' },
               { key: 'act', label: '', className: 'cell-xs cell-end-align' },
             ]}
@@ -444,7 +610,10 @@ export default async function SpeakerManagerPage({
                   </Link>
                 }
               >
-                <SpeakerDetail s={s} />
+                <SpeakerDetail
+                  s={s}
+                  portalLink={linksOn ? speakerPortalLink(s.id) : undefined}
+                />
               </DetailDisclosure>,
               s.company ?? <span className="muted">not set</span>,
               <span key="p" style={{ display: 'flex', gap: 4 }}>
@@ -455,6 +624,33 @@ export default async function SpeakerManagerPage({
                   photo
                 </Tag>
               </span>,
+              /*
+               * One of five words, or nothing at all. A speaker who has never
+               * been sent a link is blank rather than tagged "not sent": 137
+               * grey tags saying the same thing is a column that hides the five
+               * rows worth looking at.
+               */
+              (() => {
+                const status = portal.get(s.id)?.status;
+                if (!status) return <span key="ss" className="muted" style={{ fontSize: 12 }}>—</span>;
+                return (
+                  <Tag
+                    key="ss"
+                    small
+                    color={
+                      status === 'submitted'
+                        ? 'orange'
+                        : status === 'approved'
+                          ? 'green'
+                          : status === 'rejected'
+                            ? 'red'
+                            : 'grey'
+                    }
+                  >
+                    {STATUS_LABEL[status]}
+                  </Tag>
+                );
+              })(),
               s.sessionCount === 0 ? (
                 <Tag key="x" color="red">
                   no session
@@ -489,6 +685,69 @@ export default async function SpeakerManagerPage({
             their sessions in <Link href={ROUTES.sessionManager}>Session Manager</Link> instead.
           </p>
         </Panel>
+
+        <Panel>
+          <h2 className="section-header" style={{ marginTop: 0 }}>
+            Speaker self-service
+          </h2>
+          <p className="body-2">
+            Each speaker gets their own link to fill in their bio, job title, company, photo, links
+            and a link to their slides. What they send waits here until you approve it. A link
+            lasts six months and works without an account or a password.
+          </p>
+
+          {linksOn ? (
+            <>
+              <div className="toolbar" style={{ gap: 16 }}>
+                {(
+                  [
+                    ['Not sent', tracker.notSent],
+                    ['Link sent', tracker.sent],
+                    ['Opened', tracker.opened],
+                    ['Waiting for you', tracker.submitted],
+                    ['Approved', tracker.approved],
+                    ['Turned down', tracker.rejected],
+                    ['No address', tracker.noAddress],
+                  ] as [string, number][]
+                ).map(([label, n]) => (
+                  <span key={label} style={{ fontSize: 13 }}>
+                    <strong>{n}</strong> <span className="muted">{label.toLowerCase()}</span>
+                  </span>
+                ))}
+              </div>
+
+              <SendLinkForm
+                speakers={linkTargets}
+                incompleteCount={
+                  all.filter((s) => s.contactEmail && (!s.hasBio || !s.hasPhoto)).length
+                }
+                emailOn={emailOn}
+              />
+
+              {/*
+                Every speaker, not only the ones this dashboard has mailed. A
+                link is just as often pasted into an organizer's own message —
+                which is the only way to deliver one while email is off — and a
+                revoke list built from what we sent would have no entry for the
+                speaker whose link actually leaked.
+              */}
+              <div style={{ borderTop: '1px solid var(--hairline)', marginTop: 20, paddingTop: 16 }}>
+                <RevokeLinkForm speakers={linkTargets} />
+              </div>
+            </>
+          ) : (
+            /*
+             * One sentence, and it names the thing an owner has to supply. The
+             * alternative is a Send button that throws inside the action with a
+             * stack trace nobody on this screen can read.
+             */
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Speaker links are not switched on yet. They start working as soon as a signing key is
+              set for this event.
+            </p>
+          )}
+        </Panel>
+        </>
       )}
 
       <Panel>
@@ -529,10 +788,10 @@ export default async function SpeakerManagerPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>The speaker self-service form.</strong> A personal link letting each speaker
-            fill in their own profile, so organizers never collect bios by email. The mechanism to
-            generalise is the capability token behind <code>/order/{'{token}'}</code>, which the
-            consent register already reuses.
+            <strong>A reply to a speaker whose profile was turned down.</strong> The note an
+            organizer types is their own record and reaches nobody. There is no channel from this
+            dashboard to one speaker&rsquo;s inbox that is not a bulk send, so the honest answer
+            today is that somebody writes to them.
           </li>
         </ul>
       </GapPanel>

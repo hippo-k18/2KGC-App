@@ -181,6 +181,7 @@ const EXPORT_ROLE: Record<string, Exclude<TeamRole, 'owner'>> = {
   speakers: 'agenda',
   sessions: 'agenda',
   sponsors: 'sponsors',
+  'sponsor-report': 'sponsors',
   'checked-in': 'checkin',
 };
 

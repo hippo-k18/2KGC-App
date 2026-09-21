@@ -1084,6 +1084,99 @@ Knowledge Graph Conference 2027`;
   });
 }
 
+export interface SpeakerProfileRequestInput {
+  to: string;
+  name?: string;
+  /** `/speaker/{token}`, freshly minted for this send. */
+  link: string;
+  /** The titles of the talks they are on, so the mail is obviously about them. */
+  sessionTitles: string[];
+  /** What is missing today: "a bio and a photo". Empty when nothing is. */
+  missingLabel?: string;
+  /** A paragraph from the organizer, shown above the button. Plain text. */
+  note?: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The request for a speaker's own bio, photo and slides, and every reminder.
+ *
+ * One template for both, because a reminder is the same mail sent again: each
+ * send carries a newly minted link (`speaker-token.ts`), so the practical life
+ * of any one URL is "since the last nudge".
+ *
+ * No unsubscribe link, for the reason the reviewer invitation has none — one
+ * named person, one organizer pressing a button, and a speaker who opted out of
+ * the newsletter still has to be asked for the bio their talk is published with.
+ *
+ * ⚠️ It says what the link is and what it is not: a way into one profile, where
+ * nothing appears anywhere until an organizer has read it. That second half
+ * matters, because a speaker who thinks the page publishes straight to the
+ * website writes differently on it.
+ */
+export async function sendSpeakerProfileRequest(
+  store: Firestore,
+  input: SpeakerProfileRequestInput,
+): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const talks =
+    input.sessionTitles.length === 0
+      ? 'You are on the speaker list for Knowledge Graph Conference 2027.'
+      : input.sessionTitles.length === 1
+        ? `You are speaking at Knowledge Graph Conference 2027, on "${input.sessionTitles[0]}".`
+        : `You are speaking at Knowledge Graph Conference 2027, on ${input.sessionTitles.length} sessions.`;
+  const missing = input.missingLabel
+    ? `We are missing ${input.missingLabel} for you.`
+    : 'You can check what we hold and change anything that is out of date.';
+
+  const noteParas = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    'Your speaker profile',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${esc(talks)}</p>
+     ${noteParas
+       .map(
+         (para) =>
+           `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+       )
+       .join('')}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(missing)} Your bio, job title, company, links and a link to your slides all go on the same page.</p>
+     ${button(input.link, 'Fill in your profile')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       There is no account and no password. The link is your access, so please do not forward it.
+       Nothing you send appears anywhere until one of the organizers has read it. The link stops
+       working after six months.
+     </p>`,
+  );
+
+  const text = `${greeting} ${talks}
+${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
+${missing} Your bio, job title, company, links and a link to your slides all go
+on the same page.
+
+Fill in your profile:
+${input.link}
+
+There is no account and no password. The link is your access, so please do not
+forward it. Nothing you send appears anywhere until one of the organizers has
+read it. The link stops working after six months.
+
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: 'Your speaker profile for KGC 2027',
+    html,
+    text,
+    template: 'speaker-profile-request',
+    actor: input.actor,
+  });
+}
+
 export interface TeamInvitationInput {
   to: string;
   name?: string;
@@ -1136,6 +1229,79 @@ Knowledge Graph Conference 2027`;
     html,
     text,
     template: 'team-invitation',
+    actor: input.actor,
+  });
+}
+
+export interface ConsentRequestInput {
+  to: string;
+  name?: string;
+  /** The form's title, as published: "Photo and video release". */
+  formTitle: string;
+  /** The version being asked for. Recorded in the subject, see `EmailLogDoc`. */
+  version: number;
+  /** The personal signing link. It identifies one signatory and one form. */
+  link: string;
+  /** True when this person has already signed an earlier wording. */
+  resigning: boolean;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The request to sign a release, carrying that person's own signing link.
+ *
+ * ── One template, two situations ───────────────────────────────────────────
+ *
+ * A first request and a request after the wording changed are the same mail
+ * with a different first sentence, and `resigning` chooses it. Splitting them
+ * is how the second one quietly loses the sentence that matters most: an
+ * earlier signature still stands for what it said, and it does not cover the
+ * new text.
+ *
+ * No unsubscribe link. The suppression list governs marketing, and a release
+ * somebody is being asked to sign is a document about them, not a campaign —
+ * the same reason the reviewer and team invitations carry none.
+ */
+export async function sendConsentRequest(
+  store: Firestore,
+  input: ConsentRequestInput,
+): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const opening = input.resigning
+    ? `the wording of ${esc(input.formTitle)} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
+    : `please read and sign ${esc(input.formTitle)} for Knowledge Graph Conference 2027.`;
+
+  const html = shell(
+    input.resigning ? `Please sign ${esc(input.formTitle)} again` : `Please sign ${esc(input.formTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${opening}</p>
+     ${button(input.link, 'Read it and sign')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       The link is yours alone, so please do not forward it. You can read the whole text before you
+       agree to anything.
+     </p>`,
+  );
+
+  const text = `${greeting} ${input.resigning
+    ? `the wording of ${input.formTitle} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
+    : `please read and sign ${input.formTitle} for Knowledge Graph Conference 2027.`}
+
+Read it and sign:
+${input.link}
+
+The link is yours alone, so please do not forward it. You can read the whole text
+before you agree to anything.
+
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: input.resigning
+      ? `Please sign ${input.formTitle} again (version ${input.version})`
+      : `Please sign ${input.formTitle}`,
+    html,
+    text,
+    template: 'consent-request',
     actor: input.actor,
   });
 }

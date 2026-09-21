@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import type { ConsentAudience } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { getConsentForm, saveConsentForm } from '@/lib/consents';
+import { getConsentForm, saveConsentForm, sendSigningLinks } from '@/lib/consents';
 import { recordError } from '@/lib/errors';
 
 export interface ConsentFormState {
@@ -31,14 +31,14 @@ const STATUSES = ['draft', 'published', 'cancelled'] as const;
  * a typo and now forty speakers are unsigned" is a surprise worth spending a
  * paragraph to avoid.
  *
- * ── Not in the audit log, and that is a real gap ────────────────────────────
+ * ── Publishing is also the send ─────────────────────────────────────────────
  *
- * ⚠️ `lib/audit.ts` has no `consent.*` action, so publishing a release writes no
- * audit entry — the only record of who changed the wording is `updatedBy` and
- * `updatedAt` on the form itself, which is one name and one date rather than a
- * before-and-after. For the collection in this project that is most likely to be
- * asked about after the fact, that is the wrong way round. It is listed on the
- * screen's gap panel rather than quietly left out.
+ * First publication, and any republication whose wording moved, mails the
+ * signing link to everybody who has not signed. A save that changes neither
+ * sends nothing, which is why the condition below is not simply "status is
+ * published": correcting a comma in a title must not write to a hundred people.
+ * `saveConsentForm` writes the audit entry that records who published which
+ * wording.
  */
 export async function saveConsentFormAction(
   _prev: ConsentFormState,
@@ -85,9 +85,36 @@ export async function saveConsentFormAction(
     revalidatePath('/attendees/release-and-consent-forms');
     revalidatePath('/content/speaker-center/release-and-consent-forms');
     revalidatePath('/attendees/call-for-volunteers/release-and-consent-forms');
+    revalidatePath('/attendees/name-badges');
+    revalidatePath('/attendees/check-in-and-checkout/check-in');
+
+    /*
+     * Publication is the moment people are asked, so it is the moment the links
+     * go out — first publication, and any republication whose wording moved.
+     * Saving a typo in a title sends nothing, which is why this is not simply
+     * "status is published".
+     */
+    const firstPublication = status === 'published' && existing?.status !== 'published';
+    const sending = status === 'published' && (firstPublication || saved.versionBumped);
+    const sends = sending ? await sendSigningLinks({ formId: saved.id, actor }) : null;
+
+    const sendLine = (() => {
+      if (!sends) return '';
+      if (!sends.available) return ' Signing links could not be sent: the link setup is not finished.';
+      if (sends.sent === 0 && sends.noAddress === 0) return ' Everybody has already signed it.';
+      const note = process.env.RESEND_API_KEY
+        ? ` Signing links went to ${sends.sent} ${sends.sent === 1 ? 'person' : 'people'}.`
+        : ` ${sends.sent} signing ${sends.sent === 1 ? 'link is' : 'links are'} ready to send. Email is not set up yet, so nothing went out.`;
+      return (
+        note +
+        (sends.noAddress > 0
+          ? ` ${sends.noAddress} ${sends.noAddress === 1 ? 'person has' : 'people have'} no address on file.`
+          : '')
+      );
+    })();
 
     if (!existing) {
-      return { ok: true, message: `Created “${title}” at version 1.` };
+      return { ok: true, message: `Created “${title}” at version 1.${sendLine}` };
     }
     if (saved.versionBumped) {
       return {
@@ -95,12 +122,13 @@ export async function saveConsentFormAction(
         message:
           `The wording changed, so this is now version ${saved.version}. Everybody who signed ` +
           `version ${saved.version - 1} is outstanding against the new text. Their earlier ` +
-          'agreement still stands for what it said, and it does not cover this.',
+          'agreement still stands for what it said, and it does not cover this.' +
+          sendLine,
       };
     }
     return {
       ok: true,
-      message: `Saved “${title}”. The wording is unchanged, so version ${saved.version} still stands and nobody has to sign again.`,
+      message: `Saved “${title}”. The wording is unchanged, so version ${saved.version} still stands and nobody has to sign again.${sendLine}`,
     };
   } catch (err) {
     recordError('consent.save', err);

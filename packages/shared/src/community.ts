@@ -65,3 +65,29 @@ export const COMMUNITY_CATEGORY_LABEL: Record<CommunityCategory, string> =
 export function communityCategoryLabel(id: string): string {
   return COMMUNITY_CATEGORY_LABEL[id as CommunityCategory] ?? id;
 }
+
+/**
+ * Whether a reply should be shown to an attendee.
+ *
+ * ── Why this is a function and not a `where` clause ─────────────────────────
+ *
+ * A post is filtered in the query — `where('status', '==', 'visible')` — and a
+ * reply cannot be, because `status` arrived on `CommunityReplyDoc` after the
+ * first replies were already written and Firestore has no way to ask for "this
+ * field is absent or equals visible". An equality filter would take every
+ * pre-`status` reply off the board, which is a worse bug than the one it fixes:
+ * hiding one reply would silently delete a conversation.
+ *
+ * `firestore.rules` holds the same predicate on a `get`, so a hidden reply
+ * cannot be fetched on its own. It cannot hold it on a `list`: rules are not
+ * filters, and on a query `resource.data` is not bound per document, so every
+ * reply comes back whatever the rule says. `tests/rules/firestore.test.ts`
+ * pins that, and this is where the list is actually filtered.
+ *
+ * It lives here rather than in the app so there is one sentence deciding it —
+ * the dashboard's moderation screen reasons about the same field, and a second
+ * copy that read `status === 'visible'` would quietly drop the older replies.
+ */
+export function replyIsVisible(reply: { status?: string }): boolean {
+  return !reply.status || reply.status === "visible";
+}

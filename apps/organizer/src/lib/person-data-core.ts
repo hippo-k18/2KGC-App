@@ -75,12 +75,42 @@ export function personKeys(input: {
   return {
     email,
     uid: input.uid,
-    // Derived rather than trusted: the id *is* the hash of the address, so a
-    // caller passing a stale one would walk somebody else's ticket.
+    /*
+      The id a caller actually read, and `reg_` + sha256(email) when it read
+      none. Both are needed. The derived form is what every other writer in the
+      repo computes, so it is the right guess for somebody reached by address
+      alone; the read form is the only one that finds a registration written
+      before ids were derived, which still exists in this database.
+    */
     registrationId: input.registrationId ?? (email ? registrationId(email) : undefined),
     contactId: contactId(email),
     qrSecret: input.qrSecret,
   };
+}
+
+/**
+ * Which half of the attendee list a row came from, as one query parameter.
+ *
+ * The list is a union of ticket holders and app accounts, and a row can be
+ * either — so a bare id in the URL would have to be guessed at. Guessing by
+ * prefix works for every registration this repo writes and not for the ones
+ * written before ids were derived, and the cost of guessing wrong is opening
+ * somebody else's file. So the row says which it is.
+ */
+export function personRefParam(ref: { registrationId?: string; uid?: string }): string {
+  return ref.registrationId ? `reg:${ref.registrationId}` : `uid:${ref.uid ?? ''}`;
+}
+
+/** The other half. Null for anything this function did not write. */
+export function parsePersonRef(param: string): { registrationId?: string; uid?: string } | null {
+  const at = param.indexOf(':');
+  if (at < 1) return null;
+  const kind = param.slice(0, at);
+  const id = param.slice(at + 1);
+  if (!id) return null;
+  if (kind === 'reg') return { registrationId: id };
+  if (kind === 'uid') return { uid: id };
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -461,7 +491,8 @@ export const PLACES: readonly PersonPlace[] = [
 /** The key a place is matched on, whichever shape it uses. */
 export function keyNameOf(place: PersonPlace): PersonKeyName {
   const { where } = place;
-  return where.at === 'doc' ? where.id : where.at === 'own' ? where.id : where.match.key ?? where.match.docId;
+  if (where.at === 'doc' || where.at === 'own') return where.id;
+  return 'docId' in where.match ? where.match.docId : where.match.key;
 }
 
 /**

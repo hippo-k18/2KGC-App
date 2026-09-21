@@ -13,6 +13,7 @@ import { Text } from '@/components/text';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import {
   addReply,
   categoryLabel,
@@ -32,6 +33,7 @@ export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
   const { user } = useAuth();
+  const { writesOpen } = useAppAccess();
 
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
@@ -246,6 +248,12 @@ export default function PostScreen() {
           ))}
         </ScrollView>
 
+        {/*
+          The reply box goes when the event does. `firestore.rules` refuses the
+          write past the read-only boundary, so a box that still accepted a
+          reply here would take what somebody typed and drop it.
+        */}
+        {writesOpen ? (
         <View
           style={{
             flexDirection: 'row',
@@ -287,6 +295,19 @@ export default function PostScreen() {
             </Text>
           </Pressable>
         </View>
+        ) : (
+          <View
+            style={{
+              padding: Spacing.md,
+              borderTopWidth: HAIRLINE,
+              borderTopColor: colors.border,
+              backgroundColor: colors.background,
+            }}>
+            <Text variant="subhead" tone="secondary">
+              The event is over. The board is still here to read.
+            </Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </>
   );

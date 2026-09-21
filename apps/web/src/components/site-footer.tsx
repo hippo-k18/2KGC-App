@@ -68,6 +68,10 @@ export function SiteFooter({
                 people are asked to agree to, and the live site gives it a page
                 of its own rather than a fragment on another one. */}
             <Link href="/code-of-conduct">Code of conduct</Link>
+            {/* Beside the code of conduct for the same reason: both are things
+                people are told they have agreed to, and a privacy notice
+                nobody can find is one nobody read. */}
+            <Link href="/privacy">Privacy</Link>
           </div>
 
           <div>

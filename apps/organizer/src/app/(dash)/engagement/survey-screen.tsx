@@ -148,8 +148,25 @@ export async function SurveyScreen({
               </div>
             ))
           )}
+          {/*
+            The file carries a response number and no identity, the same as the
+            panel above it: one person's three answers can be read as one set,
+            and nothing says whose. See `answer-exports-core.ts`.
+          */}
+          {summary.responses > 0 && (
+            <p style={{ marginTop: 14, marginBottom: 0 }}>
+              <a
+                href={`/export/survey-answers?survey=${summary.survey.id}`}
+                className="whova-btn-main secondary small"
+                download
+              >
+                Download answers
+              </a>
+            </p>
+          )}
           <p className="muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>
-            Answers are anonymous. Each attendee can answer once.
+            Answers are anonymous. Each attendee can answer once. The file has a response number
+            and no names.
           </p>
         </Panel>
       ) : showForm ? (

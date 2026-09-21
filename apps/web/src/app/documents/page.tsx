@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listPublicDocuments, type PublicDocument } from '@/lib/data';
+import { listPublicDocuments, listPublicPages, type PublicDocument } from '@/lib/data';
 import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -61,7 +61,13 @@ const KIND_LABEL: Record<PublicDocument['kind'], string> = {
 };
 
 export default async function DocumentsPage() {
-  const documents = await listPublicDocuments();
+  /*
+   * The pages an organizer wrote themselves, listed beside the handouts because
+   * a visitor looking for "where do I park" does not know whether the answer is
+   * a PDF somebody uploaded or a page somebody typed. Each has its own address
+   * at `/{slug}` and this is the index of them.
+   */
+  const [documents, pages] = await Promise.all([listPublicDocuments(), listPublicPages()]);
 
   return (
     <>
@@ -76,6 +82,27 @@ export default async function DocumentsPage() {
           </p>
         </div>
       </section>
+
+      {pages.length > 0 && (
+        <section>
+          <div className="wrap">
+            <h2>Event information</h2>
+            <ul className="doc-list">
+              {pages.map((p) => (
+                <li className="doc-card" key={p.id}>
+                  <span className="tag">Page</span>
+                  <div className="doc-body">
+                    <h3>
+                      <Link href={`/${p.slug}`}>{p.title}</Link>
+                    </h3>
+                    {p.summary && <p className="doc-desc">{p.summary}</p>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <section className="tint">
         <div className="wrap">

@@ -32,6 +32,7 @@ import { Text } from '@/components/text';
 import { SITE_ORIGIN } from '@/config/event';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { kindLabel, linkHost, openable, useDocuments } from '@/lib/data/documents';
 import { formatDayTab, formatTime } from '@/lib/data/sessions';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { useSessionSeat } from '@/lib/data/session-seats';
@@ -294,6 +295,11 @@ export default function SessionDetailScreen() {
   const seat = useSessionSeat(session);
   const [seatMessage, setSeatMessage] = useState<string | null>(null);
   const [seatBusy, setSeatBusy] = useState(false);
+  // The handouts on this talk. A failure here is deliberately not surfaced —
+  // the section simply does not appear, and the session's own detail, which is
+  // what the reader came for, is unaffected.
+  const { documents } = useDocuments();
+  const sessionMaterials = (documents ?? []).filter((d) => d.sessionId === id && openable(d));
 
   useEffect(() => {
     if (!id) return;
@@ -572,6 +578,43 @@ export default function SessionDetailScreen() {
           <View style={{ gap: Spacing.sm }}>
             <Text variant="heading">About</Text>
             <Text>{session.description}</Text>
+          </View>
+        ) : null}
+
+        {/*
+          The handouts an organizer attached to this talk — slides, the paper,
+          the dataset.
+
+          Read from the same `useDocuments` list the Documents screen uses, and
+          filtered here rather than queried: `firestore.rules` serves only
+          published, unrestricted handouts and judges a `list` on its filters,
+          so a third equality on `sessionId` would need its own rule predicate
+          and its own composite index to return what is already on the device.
+          A handout restricted to a ticket type is absent from that list, so it
+          is absent here too — the dashboard says so beside the field, and this
+          screen does not narrate a file the reader cannot have.
+        */}
+        {sessionMaterials.length ? (
+          <View style={{ gap: Spacing.sm }}>
+            <Text variant="heading">Materials</Text>
+            <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
+              {sessionMaterials.map((d, i, arr) => (
+                <ListRow
+                  key={d.id}
+                  title={d.title}
+                  subtitle={d.description}
+                  meta={[kindLabel(d.kind), linkHost(d.url)].filter(Boolean).join(' · ')}
+                  trailing={<Chevron />}
+                  first={i === 0}
+                  last={i === arr.length - 1}
+                  onPress={() => {
+                    Linking.openURL(d.url).catch((e: unknown) => {
+                      console.warn('[session] could not open', d.url, e);
+                    });
+                  }}
+                />
+              ))}
+            </View>
           </View>
         ) : null}
 

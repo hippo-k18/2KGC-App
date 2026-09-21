@@ -55,8 +55,8 @@ export default async function AnnouncementWallStreamPage() {
           <>
             <strong>A screen for the foyer</strong>
             <p>
-              Every announcement you send appears on the wall. The page does not refresh by itself,
-              so set the screen&rsquo;s browser to reload every minute or so.
+              Every announcement you send appears on the wall, and the page brings itself up to
+              date every minute. Open it on the screen and leave it there.
             </p>
             <p>The wall shows the newest {ANNOUNCEMENT_WALL_LIMIT}.</p>
           </>
@@ -139,14 +139,6 @@ export default async function AnnouncementWallStreamPage() {
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>Auto-refresh.</strong> ⚠️ The one thing standing between the wall and a screen
-            you can leave running. Every page in <code>apps/web</code> is server-rendered per
-            request, so a browser parked on <code>/announcements</code> shows whatever was true when
-            it loaded — a room change posted at 11:00 does not appear on a panel opened at 09:00.
-            Fixing it properly means a client component with a timer, and <code>apps/web</code> has
-            none; until then a kiosk browser set to reload is the answer, and the page says so.
-          </li>
           <li>
             <strong>The archive cut-off.</strong> The wall renders the newest{' '}
             {ANNOUNCEMENT_WALL_LIMIT}. That is not a paging control, it is a ceiling so one runaway

@@ -1,5 +1,7 @@
 'use server';
 
+import { accessWindowSummary, normaliseJoinCode } from '@kgc/shared';
+import { writeAppAccessProjection } from '@/lib/app-access';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
 
@@ -7,6 +9,25 @@ export interface AccessState {
   ok?: boolean;
   message?: string;
   error?: string;
+}
+
+/**
+ * The line an organizer reads after a save, built from what the phone will
+ * actually do rather than from what the form said.
+ *
+ * `writeAppAccessProjection` is what the app and `firestore.rules` read, so a
+ * save that stored the setting and failed to project it has to say so: the
+ * document is the record and the projection is the thing with the effect.
+ */
+async function applyToTheApp(saved: string): Promise<AccessState> {
+  const projected = await writeAppAccessProjection();
+  if (!projected.ok) {
+    return {
+      ok: true,
+      message: `${saved} The app has not picked it up yet. Save again in a moment.`,
+    };
+  }
+  return { ok: true, message: `${saved} ${accessWindowSummary(projected.window)}` };
 }
 
 /**
@@ -36,15 +57,13 @@ export async function saveAccessSettingsAction(
       },
       actor,
     );
-    return res.ok
-      ? {
-          ok: true,
-          message:
-            days === 0
-              ? 'Saved. Access ends when the event does.'
-              : `Saved: attendees keep access for ${days} days after the event.`,
-        }
-      : { error: res.error };
+    if (!res.ok) return { error: res.error };
+
+    return applyToTheApp(
+      days === 0
+        ? 'Saved. Access ends when the event does.'
+        : `Saved: attendees keep access for ${days} days after the event.`,
+    );
   }
 
   if (which === 'code') {
@@ -68,7 +87,23 @@ export async function saveAccessSettingsAction(
       { eventCode: code.toUpperCase() || null, codeRequired: required },
       actor,
     );
-    return res.ok ? { ok: true, message: 'Saved.' } : { error: res.error };
+    if (!res.ok) return { error: res.error };
+
+    /*
+     * The code is compared without its punctuation, so an attendee reading a
+     * hyphen off a slide and typing it is not refused. Saying so here is the
+     * only place an organizer finds out before a thousand people try it.
+     */
+    const projected = await writeAppAccessProjection();
+    if (!projected.ok) {
+      return { ok: true, message: 'Saved. The app has not picked it up yet. Save again in a moment.' };
+    }
+    return {
+      ok: true,
+      message: required
+        ? `Saved. Attendees are asked for ${normaliseJoinCode(code)} once, the first time they sign in. Spaces and hyphens do not matter.`
+        : 'Saved. Nobody is asked for a code.',
+    };
   }
 
   return { error: 'Unknown form.' };

@@ -86,6 +86,7 @@ writes are:
 | Whova path | What it does here |
 |---|---|
 | Content → Basics | **Writes.** Name, dates, time zone, venue and event type in `settings/event`; the masthead, the website and the app read them and fall back to the constants in `@kgc/shared`. |
+| Content → Branding Center → Customize Resources | **Writes.** Custom content pages in `pages` — a title, a slug, Markdown and a published switch. The website serves `/{slug}` (the branded slug still wins that route) and the app lists them above the handouts on Home → Documents. Markdown is parsed to blocks by `@kgc/shared`, never to HTML; all three renderers put the author's text in text nodes. The app tabs above it are still fixed. |
 | Content → Agenda Center → Session Manager | Whova's hour-bucket layout, day tabs, search; edit one session. |
 | Content → Agenda Center → Track Manager | Read-only, with cross-listing counts. |
 | Content → Speaker Center → Speaker Manager | Completeness filters — the thing this list is actually for. |

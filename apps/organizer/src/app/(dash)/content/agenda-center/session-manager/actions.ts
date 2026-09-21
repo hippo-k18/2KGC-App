@@ -2,8 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, type SessionDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type AgendaChange, type SessionDoc } from '@kgc/shared';
 import { sessionId as deriveSessionId, stableGuid } from '@kgc/scripts/src/lib/ids';
+import { notifySessionMoved } from '@/lib/agenda-notices';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit, diff } from '@/lib/audit';
 import { db } from '@/lib/firestore';
@@ -31,6 +32,8 @@ export interface SessionState {
   error?: string;
   fieldErrors?: Record<string, string>;
   changed?: string[];
+  /** Set when a move was announced to the attendees who saved the session. */
+  noticeNote?: string;
   /** Set when the seam would have sent a push, so the demo can point at it. */
   pushNote?: string;
   /** Set by a successful create, so the form can offer the new session's page. */
@@ -461,7 +464,33 @@ export async function saveSessionAction(
         },
       );
 
-      return { readable, roomChanged: (before.roomId ?? '') !== (room?.id ?? ''), title: input.title };
+      /**
+       * What an attendee would have to be told about, decided here where both
+       * sides of the write are in hand.
+       *
+       * Only the three facts that change where, when or whether the session
+       * happens. A retitled description or a swapped speaker is display text:
+       * notifying every saver about it is how an app teaches people to ignore
+       * it. The same three, in the same order, as the trigger's list.
+       */
+      const agendaChanges: AgendaChange[] = [];
+      if ((before.roomId ?? '') !== (room?.id ?? '')) agendaChanges.push('room');
+      if (rescheduled) agendaChanges.push('time');
+      if (before.day !== times.day) agendaChanges.push('day');
+
+      return {
+        readable,
+        roomChanged: (before.roomId ?? '') !== (room?.id ?? ''),
+        title: input.title,
+        agendaChanges,
+        // A draft nobody could see cannot have moved for anybody: `before`
+        // rather than `after`, so publishing is not itself a room change and a
+        // published session being cancelled still gets its last notice.
+        wasPublished: before.status === 'published',
+        startsAtLocal: times.startsAtLocal,
+        roomId: room?.id ?? null,
+        cancelled: input.status === 'cancelled' && before.status !== 'cancelled',
+      };
     });
 
     if (outcome.readable.changed.length === 0) {
@@ -483,6 +512,29 @@ export async function saveSessionAction(
       await setSessionCap(sessionDocId, input.capacity ?? null, actor);
     }
 
+    /**
+     * The notice on the phone, written by this action.
+     *
+     * Before today an organizer moved a keynote and nobody who had saved it was
+     * told; the screen's own note said "announce it yourself". The notice goes
+     * to everyone with the session on their schedule, and the id it is written
+     * under is derived from where the session ended up — so when
+     * `onSessionAgendaChange` is finally deployed the two writers produce one
+     * notification rather than two. `lib/agenda-notices.ts` has the argument.
+     */
+    let noticeNote: string | undefined;
+    if (outcome.wasPublished && (outcome.agendaChanges.length > 0 || outcome.cancelled)) {
+      const notice = await notifySessionMoved({
+        sessionId: sessionDocId,
+        title: outcome.title,
+        startsAtLocal: outcome.startsAtLocal,
+        roomId: outcome.roomId,
+        changed: outcome.agendaChanges,
+        cancelled: outcome.cancelled,
+      });
+      noticeNote = notice.detail;
+    }
+
     let pushNote: string | undefined;
     if (outcome.roomChanged) {
       const result = await roomChangePush({
@@ -499,6 +551,7 @@ export async function saveSessionAction(
       ok: true,
       message: `Saved. Changed: ${outcome.readable.changed.join(', ')}.`,
       changed: outcome.readable.changed,
+      noticeNote,
       pushNote,
     };
   } catch (err) {

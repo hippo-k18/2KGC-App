@@ -79,6 +79,15 @@ export const COLLECTIONS = {
   surveys: "surveys",
   documents: "documents",
   /**
+   * Organizer-authored content pages — the venue note, travel, the FAQ.
+   *
+   * Not `pageContent`: that is editable copy slotted into website pages whose
+   * layout is code, one document per existing page. These are whole pages that
+   * exist only because somebody wrote them, addressed by their own `slug`, and
+   * they appear on the phone as well as the site. See `custom-pages-core.ts`.
+   */
+  pages: "pages",
+  /**
    * Photo, video and recording releases — the published wording, with the
    * signatures underneath at `consentForms/{id}/responses/{responseId}`.
    *
@@ -143,6 +152,18 @@ export const COLLECTIONS = {
    * not get one — a client that could read this could read who holds the keys.
    */
   teamMembers: "teamMembers",
+  /**
+   * What a speaker sent back through their own profile link, waiting for an
+   * organizer to approve it. One document per speaker, at the speaker's own id.
+   *
+   * Server-only, with no `match` block in `firestore.rules`, and it must not get
+   * one. The obvious alternative — holding the draft on `speakers/{id}` — puts
+   * unapproved text about a person inside a document every ticket holder may
+   * read, which is the opposite of what "waiting for approval" means. Here the
+   * only readers are the dashboard and the website's own server, both of which
+   * hold the Admin SDK.
+   */
+  speakerProfileEdits: "speakerProfileEdits",
 } as const;
 
 export const SUBCOLLECTIONS = {
