@@ -69,20 +69,26 @@ export function communityCategoryLabel(id: string): string {
 /**
  * Whether a reply should be shown to an attendee.
  *
- * ── Why this is a function and not a `where` clause ─────────────────────────
+ * ── What enforces this, and what this function is for ───────────────────────
  *
- * A post is filtered in the query — `where('status', '==', 'visible')` — and a
- * reply cannot be, because `status` arrived on `CommunityReplyDoc` after the
- * first replies were already written and Firestore has no way to ask for "this
- * field is absent or equals visible". An equality filter would take every
- * pre-`status` reply off the board, which is a worse bug than the one it fixes:
- * hiding one reply would silently delete a conversation.
+ * ⚠️ This block used to say a `list` could not be constrained by rules and that
+ * this function was the only thing taking a hidden reply off the board. Both
+ * halves were wrong, and while they stood the hide was a courtesy. A rules
+ * `list` is evaluated against the fields the QUERY constrains, so
+ * `firestore.rules` can require — and does require — that a reply query carry
+ * `where('status', '==', 'visible')`. A hidden reply is not returned to an
+ * attendee by any query, and `allow get` keeps it from being fetched on its
+ * own. `tests/rules/firestore.test.ts` pins both verbs.
  *
- * `firestore.rules` holds the same predicate on a `get`, so a hidden reply
- * cannot be fetched on its own. It cannot hold it on a `list`: rules are not
- * filters, and on a query `resource.data` is not bound per document, so every
- * reply comes back whatever the rule says. `tests/rules/firestore.test.ts`
- * pins that, and this is where the list is actually filtered.
+ * So this is the second filter, not the only one. It still earns its place:
+ * the dashboard reads the board with the Admin SDK, which bypasses rules
+ * entirely, and a reader that widens its query one day should not start
+ * printing moderated text.
+ *
+ * It tolerates an absent `status` because a reply written before the field
+ * existed is a visible reply, not a hidden one. Such a reply is in no filtered
+ * query at all — Firestore cannot ask for a field that is absent — which is
+ * what `scripts/ops/backfill-reply-status.ts` is for.
  *
  * It lives here rather than in the app so there is one sentence deciding it —
  * the dashboard's moderation screen reasons about the same field, and a second

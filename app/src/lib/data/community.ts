@@ -154,12 +154,18 @@ export function useReplies(postId: string | undefined) {
       query(
         collection(getDb(), COLLECTIONS.communityPosts, postId ?? '_', SUBCOLLECTIONS.replies),
         /*
-         * The filter is on the server now, and it has to be: `firestore.rules`
-         * refuses an unfiltered list of replies outright. It used to allow one
-         * — the rule read `status` with a default, which on a query returns the
-         * default and hands back every hidden reply — so hiding a reply was a
-         * courtesy this file performed rather than a control. The rule denies
-         * that query today, and this is the query that satisfies it.
+         * This filter is not a courtesy — it is the only query the server will
+         * answer. `firestore.rules` has a separate `allow list` on replies that
+         * reads `resource.data.status`, and a query is measured against the
+         * fields it constrains: name `status` and it passes, leave it out and
+         * the whole query is refused. Hiding a reply is therefore enforced for
+         * every reader, not only for this file.
+         *
+         * Two earlier versions were not. The rule read `status` with a default
+         * of 'visible', which on a query returns the default whatever the
+         * documents say, so any client that skipped this line read every
+         * hidden reply. Do not replace this with a filter applied after the
+         * fetch; there would be nothing to fetch.
          */
         where('status', '==', 'visible'),
         orderBy('createdAt', 'asc'),
@@ -176,13 +182,14 @@ export function useReplies(postId: string | undefined) {
    * the one that is enforced, and this is the one that still holds if a future
    * edit loosens it. It costs a pass over at most `PAGE_SIZE` rows.
    *
-   * ⚠️ One consequence of moving the filter into the query, stated plainly: a
-   * reply written before `status` existed no longer appears on the board at
-   * all, because Firestore cannot ask for "this field is absent". Every reply
-   * the seed writes and every reply `addReply` has ever written carries
-   * `status: 'visible'`, so that set is empty here — but it is the trade the
-   * rule change makes, and the alternative was leaving hidden replies readable
-   * by any client that skipped this line.
+   * ⚠️ One consequence of filtering in the query, stated plainly: a reply
+   * written before `status` existed cannot appear on the board, because
+   * Firestore has no way to ask for a field that is absent. Every reply the
+   * seed writes and every reply `addReply` writes carries `status: 'visible'`,
+   * the rules now refuse a create without it, and
+   * `scripts/ops/backfill-reply-status.ts` fills in anything older. That set is
+   * empty in this database; it would not be in one restored from an old backup,
+   * which is what the script is for.
    */
   const replies = (data ?? []).filter(replyIsVisible);
   return { replies, error, retry };
@@ -232,10 +239,12 @@ export async function editPost(
  * The field arrived on `CommunityReplyDoc` with moderation, after the first
  * replies were already in the database, and nothing in the app set it — so
  * every reply an attendee wrote was one more document `useReplies` had to treat
- * as "no status means visible". A reply that carries the field is a reply the
- * rules can reason about: `firestore.rules` refuses a create that arrives
- * already hidden, the same way it refuses a question that arrives approved,
- * because moderation state is not the author's to set.
+ * as "no status means visible". `firestore.rules` now requires the field on
+ * create and requires it to say `visible`, so a reply can neither arrive
+ * already hidden — moderation state is not the author's to set, the same as a
+ * question's `state` — nor arrive with no state at all, which would put it in
+ * no list and no count while leaving it readable one at a time: a reply that is
+ * neither on the board nor off it.
  */
 export async function addReply(
   postId: string,

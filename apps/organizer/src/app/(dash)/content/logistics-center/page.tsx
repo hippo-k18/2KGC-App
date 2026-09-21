@@ -183,6 +183,7 @@ export default async function LogisticsCenterPage({
             />
           ) : (
           <Table
+            stackSm
             cols={[
               { key: 'n', label: 'Room', className: 'cell-md' },
               { key: 'w', label: 'Where', className: 'cell-md' },

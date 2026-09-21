@@ -76,7 +76,11 @@ export function CategoryEditor({
                 </option>
               ))}
             </select>,
-            <Link key="n" href={`?category=${c.id}#members`}>
+            <Link
+              key="n"
+              href={`?category=${c.id}#members`}
+              aria-label={`${inUse} in ${c.name}`}
+            >
               {inUse}
             </Link>,
             rules[c.id]?.length ? (
@@ -101,7 +105,7 @@ export function CategoryEditor({
                   if (!window.confirm(ask)) return e.preventDefault();
                   setOp('remove')(e);
                 }}
-                className="whova-btn-main small danger"
+                className="whova-btn-main small danger quiet"
                 disabled={categories.length === 1}
                 aria-label={`Delete ${c.name}`}
               >

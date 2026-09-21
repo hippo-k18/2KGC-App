@@ -143,21 +143,27 @@ export function QuestionEditor({
       </div>
 
       <div className="whova-form-row">
-        <label className="whova-form-label" htmlFor="required">
-          Required
-        </label>
-        <label style={{ fontSize: 13 }}>
+        {/*
+          The group heading is a `div`, not a `label`: the tick box already has
+          one wrapped round it, and two labels for one control is the defect
+          round two cleared off the other editors.
+        */}
+        <div className="whova-form-label">Required</div>
+        <label className="whova-checkbox-label">
           <input
             id="required"
+            className="whova-checkbox-input"
             type="checkbox"
             name="required"
             checked={required && !isConsent}
             disabled={isConsent}
             onChange={(e) => setRequired(e.target.checked)}
-          />{' '}
-          {isConsent
-            ? 'A consent box cannot be required'
-            : 'The buyer cannot complete checkout without answering'}
+          />
+          <span>
+            {isConsent
+              ? 'A consent box cannot be required'
+              : 'The buyer cannot complete checkout without answering'}
+          </span>
         </label>
         {isConsent && (
           <p className="muted" style={{ fontSize: 12 }}>

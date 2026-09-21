@@ -261,6 +261,38 @@ export function signingCampaignId(formId: string, version: number): string {
   return `consent_${formId}_v${version}`;
 }
 
+/**
+ * How long a send may hold its campaign before another press may take it over.
+ *
+ * A server action is killed at 26 seconds and the send stops itself at 18, so a
+ * lock older than this belongs to a process that is not running any more. It is
+ * a ceiling on how long one crash can block a campaign, not a timeout on the
+ * work.
+ */
+export const SEND_LOCK_STALE_MS = 30_000;
+
+/**
+ * Whether a send may take the campaign, given when the last one took it.
+ *
+ * ⚠️ `emailLog` cannot answer this. It is the guard on the NEXT press: two
+ * organizers pressing in the same second both read the log before either has
+ * written to it, both see nobody, and both mail the same people a link that
+ * signs a legal release in their name. So a send holds the campaign while it
+ * runs, and this is the one decision in that mechanism worth testing on its
+ * own.
+ *
+ * Abandoned rather than held for ever: a process that died holding the lock
+ * must not take the campaign down with it, and after `SEND_LOCK_STALE_MS` it
+ * cannot still be sending.
+ */
+export function sendLockIsFree(
+  heldAtMs: number | undefined,
+  nowMs: number,
+  staleMs: number = SEND_LOCK_STALE_MS,
+): boolean {
+  return heldAtMs === undefined || nowMs - heldAtMs >= staleMs;
+}
+
 export interface SigningSplit {
   /** Outstanding, has an address, and has not been written to for this version. */
   todo: RegisterRow[];

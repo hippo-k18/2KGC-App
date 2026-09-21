@@ -37,30 +37,38 @@ export function AdminSettingsForm({
       {state.ok && <p className="ok">{state.message}</p>}
 
       <div className="whova-form-row">
-        <label className="whova-form-label">Attendee-facing</label>
-        <label style={{ display: 'block' }}>
+        <div className="whova-form-label">Attendee-facing</div>
+        {/*
+          The dashboard's own tick box rather than a bare `input`, which renders
+          13px square and carries no tap box on a phone. Same change the access
+          forms took.
+        */}
+        <label className="whova-checkbox-label">
           <input
+            className="whova-checkbox-input"
             type="checkbox"
             name="attendeeListVisible"
             defaultChecked={attendeeListVisible}
-          />{' '}
-          Attendees can browse the attendee list
+          />
+          <span>Attendees can browse the attendee list</span>
         </label>
-        <label style={{ display: 'block' }}>
+        <label className="whova-checkbox-label">
           <input
+            className="whova-checkbox-input"
             type="checkbox"
             name="contactSharingEnabled"
             defaultChecked={contactSharingEnabled}
-          />{' '}
-          Attendees can share contact details with each other
+          />
+          <span>Attendees can share contact details with each other</span>
         </label>
-        <label style={{ display: 'block' }}>
+        <label className="whova-checkbox-label">
           <input
+            className="whova-checkbox-input"
             type="checkbox"
             name="attendeeMessagingEnabled"
             defaultChecked={attendeeMessagingEnabled}
-          />{' '}
-          Attendees can message each other
+          />
+          <span>Attendees can message each other</span>
         </label>
         {/*
           The third box is the only one of the three with an effect, and the

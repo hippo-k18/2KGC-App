@@ -1077,6 +1077,26 @@ a {
   filter: brightness(0.92);
 }
 
+/*
+ * The quiet destructive variant, for a row that also carries a Save.
+ *
+ * A solid red Delete beside a solid blue Save gives the two the same weight, so
+ * the card's heaviest pair of buttons is half safe and half irreversible and
+ * the eye has no reason to prefer either. This keeps the red, which is what
+ * says the button destroys something, and drops the fill, which is what says
+ * the button is the thing to press.
+ */
+.whova-btn-main.danger.quiet {
+  background-color: #fff;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.whova-btn-main.danger.quiet:hover {
+  background-color: #fdeceb;
+  filter: none;
+}
+
 .whova-btn-main:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -3299,12 +3319,61 @@ html:has(dialog[open]) {
    * as a `<Link>` with a font size on it, and a rule per screen is a rule the
    * next table will not have. `.row-actions-btn` is the ⋮ trigger and already
    * carries its own 40px below.
+   *
+   * `min-width` is here for the same reason: a count printed as a link is one
+   * or two characters, which was an 8px target on Categories. The text stays
+   * where it was — only the box around it grows — so a column of actions all
+   * still line up on the left.
    */
   .whova-table-cell a,
   .whova-table-cell button:not(.row-actions-btn) {
     align-items: center;
     display: inline-flex;
     min-height: 32px;
+    min-width: 32px;
+  }
+
+  /*
+   * A row action is written three ways in this dashboard, not two: a link, a
+   * one-button form, and a `<details>` whose summary is the action. The rule
+   * above missed the third, leaving Edit, Review link, Change roles and New
+   * passphrase link at 16px — and on Reviewers a 16px Edit sat in the same row
+   * as a 32px Move up, so the row read as misaligned as well as being hard to
+   * hit.
+   *
+   * Padding rather than `display: inline-flex`, the way the tick box above
+   * does it: a `<summary>` is a list item, and changing its display takes the
+   * disclosure triangle with it. Most of ours hide the triangle by hand, but
+   * Transaction History's "Details" does not, and it should keep it.
+   */
+  .whova-table-cell summary {
+    min-height: 32px;
+    min-width: 32px;
+    padding: 8px 0;
+  }
+
+  /*
+   * A form opened inside a row is sized by the row, not by its own width class.
+   *
+   * The criterion editor on Reviewers is `<details>` in the actions cell, and
+   * Whova's boxes are 172 / 394 / 680px wide. `max-width: 100%` does not shrink
+   * a box whose parent is itself sized by its contents — a percentage maximum
+   * is ignored while the browser works out that intrinsic width — so the whole
+   * editor laid out 394px wide from x=44 and ran off the right of a 390 screen,
+   * with no scroller to bring it back. Asking for `width: 100%` instead makes
+   * each box contribute its own intrinsic width, and the row can then clamp the
+   * form to the space it has.
+   *
+   * Scoped to a stacked table, because that is the one where the row is as wide
+   * as the screen and nothing scrolls sideways to reach what spills out.
+   */
+  .whova-table.stack-rows-sm .whova-table-cell details {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell details .whova-text-input {
+    width: 100%;
   }
 
   .pager-btn,

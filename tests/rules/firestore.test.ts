@@ -26,6 +26,8 @@ import {
   getDoc,
   getDocs,
   increment,
+  limitToLast,
+  orderBy,
   query,
   setDoc,
   updateDoc,
@@ -1234,8 +1236,12 @@ describe('the community board', () => {
   });
 
   it('refuses a reply signed with someone else’s name', async () => {
+    // Otherwise valid — `status` is present and visible — so the only thing
+    // left to refuse it is the name on it.
     await assertFails(
-      setDoc(doc(asB(), 'communityPosts/p1/replies/r3'), { authorId: A, body: 'forged' }),
+      setDoc(doc(asB(), 'communityPosts/p1/replies/r3'), {
+        authorId: A, body: 'forged', status: 'visible',
+      }),
     );
   });
 
@@ -2917,7 +2923,10 @@ describe('the app access window', () => {
       }),
     );
     await assertFails(
-      setDoc(doc(asA(), 'communityPosts/p1/replies/rLate'), { authorId: A, body: 'late' }),
+      // Valid in every other respect, so read-only is the only thing refusing it.
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rLate'), {
+        authorId: A, body: 'late', status: 'visible',
+      }),
     );
     await assertFails(setDoc(doc(asA(), `communityPosts/p1/reactions/${A}`), { uid: A, emoji: '👍' }));
     await assertFails(
@@ -3021,6 +3030,28 @@ describe('a hidden community reply', () => {
   });
 
   /**
+   * ⚠️ The create rule read `status` with a default too, so a reply could be
+   * written with no `status` at all. The only query an attendee may run filters
+   * on that field, and Firestore cannot ask for one that is absent — so such a
+   * reply is in no list and no count, while still being readable one at a time
+   * by anyone holding its id. Neither shown nor hidden, and no moderator action
+   * moves it either way for the people reading the board.
+   */
+  it('may not be created without a status at all', async () => {
+    await assertFails(
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rNoStatus'), { authorId: A, body: 'unmoderatable' }),
+    );
+  });
+
+  it('is created normally when it carries the field', async () => {
+    await assertSucceeds(
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rNew'), {
+        authorId: A, body: 'hello', status: 'visible',
+      }),
+    );
+  });
+
+  /**
    * ⚠️ THE ONE THAT USED TO FAIL. The rule read `status` with a default, which
    * on a query returns the default whatever the document says — so an
    * unfiltered `getDocs` handed every hidden reply to every ticket holder, and
@@ -3029,8 +3060,53 @@ describe('a hidden community reply', () => {
    * app, a REST call with a signed-in token — read the text a moderator had
    * taken down.
    */
-  it('is not returned by an unfiltered query, which used to be the hole', async () => {
+  it('is not returned by an unfiltered query', async () => {
     await assertFails(getDocs(collection(asA(), 'communityPosts/p1/replies')));
+  });
+
+  /**
+   * ⚠️ THE SECOND ONE THAT USED TO FAIL, and the reason `get` and `list` are
+   * now separate rules.
+   *
+   * The first repair guarded the default with `resource.data.keys().size() > 0`
+   * on the stated grounds that a query binds no keys. A query binds the fields
+   * it CONSTRAINS — so one equality filter on any field at all was enough to
+   * make the size test pass, return the default, and hand back every hidden
+   * reply. `authorId` here stands for the `eventId` filter that proved it;
+   * neither names `status`, which is the only filter a `list` may carry.
+   *
+   * Asserted on the query rather than on its rows: a rules `list` is decided
+   * once, against the query, so "denied" is the whole result.
+   */
+  it('is not returned by a query filtered on some other field', async () => {
+    await assertFails(
+      getDocs(query(collection(asA(), 'communityPosts/p1/replies'), where('authorId', '==', B))),
+    );
+    await assertFails(
+      getDocs(
+        query(collection(asA(), 'communityPosts/p1/replies'), where('body', '==', 'moderated')),
+      ),
+    );
+  });
+
+  /** Counting is a query too, and it was the other half of the same hole. */
+  it('is not counted by a query filtered on some other field', async () => {
+    await assertFails(
+      getCountFromServer(
+        query(collection(asA(), 'communityPosts/p1/replies'), where('authorId', '==', B)),
+      ),
+    );
+  });
+
+  /**
+   * The author's own hidden reply, stated as what it is: reachable one at a
+   * time, not by query. `get` is decided by the document and `list` by the
+   * query, and there is no screen that asks for "my hidden replies".
+   */
+  it('is not returned to its own author by a query naming them', async () => {
+    await assertFails(
+      getDocs(query(collection(asB(), 'communityPosts/p1/replies'), where('authorId', '==', B))),
+    );
   });
 
   /** The query the app sends. It is what the rule now makes it send. */
@@ -3039,6 +3115,25 @@ describe('a hidden community reply', () => {
       query(collection(asA(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
     );
     expect(snap.docs.map((d) => d.id)).not.toContain('rHidden');
+  });
+
+  /**
+   * The same query with the ordering and the page bound `useReplies` really
+   * puts on it. A rule that only tolerated the bare filter would leave the
+   * board empty and the reason would be a `permission-denied` on a line nobody
+   * had tested.
+   */
+  it('still allows that query with the ordering and page bound the board uses', async () => {
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(asA(), 'communityPosts/p1/replies'),
+          where('status', '==', 'visible'),
+          orderBy('createdAt', 'asc'),
+          limitToLast(50),
+        ),
+      ),
+    );
   });
 
   /**

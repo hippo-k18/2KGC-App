@@ -160,11 +160,15 @@ export async function saveConsentFormAction(
  * The **passphrase**, for the same reason a refund asks for it. A session lasts
  * eight hours and an unattended dashboard is the normal state of a conference.
  *
- * And **the log**, which is not a guard on this press but on the next one.
- * Every recipient is written to `emailLog` under one campaign id per form and
- * version, so a press after a timeout picks up where the last one stopped. The
- * count is re-read here rather than trusted from the form, so two organizers
- * pressing at once cannot both be told they are sending to the same people.
+ * And **the log**, which is exactly what its name says and nothing more: a
+ * guard on the NEXT press, not on this one. Every recipient is written to
+ * `emailLog` under one campaign id per form and version, so a press after a
+ * timeout picks up where the last one stopped.
+ *
+ * ⚠️ Two presses in the same second are a different problem, and this comment
+ * used to claim the re-read covered it. It cannot — both presses read the log
+ * before either writes to it. `sendSigningLinks` holds a lock on the campaign
+ * for that, and the press that does not get it mails nobody and says so below.
  */
 export async function sendSigningLinksAction(
   _prev: ConsentFormState,
@@ -204,6 +208,12 @@ export async function sendSigningLinksAction(
     }
 
     const result = await sendSigningLinks({ formId, actor });
+
+    if (result.busy) {
+      return {
+        error: 'Somebody else is sending this form right now. Nothing was sent. Wait for it to finish, then check the count again.',
+      };
+    }
 
     revalidatePath('/attendees/release-and-consent-forms');
     revalidatePath('/content/speaker-center/release-and-consent-forms');

@@ -128,6 +128,7 @@ export default async function ReleaseAndConsentFormsPage({
             </Panel>
           ) : (
             <Table
+              stackSm
               cols={[
                 { key: 'title', label: 'Form', className: 'cell-fill' },
                 { key: 'audience', label: 'Audience', className: 'cell-sm' },

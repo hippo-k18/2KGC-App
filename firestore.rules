@@ -1196,6 +1196,15 @@ service cloud.firestore {
        * response has no `uid` field and dereferencing an absent field throws,
        * which Firestore reports as permission-denied. The signer would see their
        * own signature refused with an error naming nothing.
+       *
+       * ⚠️ A default inside a rule that also covers `list` is the mistake that
+       * kept hidden community replies readable, so this one is stated rather
+       * than assumed safe. On a query `resource.data` holds only the fields the
+       * query constrains, so a query that does not name `uid` reads the default
+       * — and the default here is `''`, which is not a uid and matches nobody.
+       * The only query that passes is `where('uid', '==', <your own uid>)`. It
+       * is safe *because* the default cannot satisfy the comparison; the reply
+       * rule's default was `'visible'`, which could.
        */
       match /responses/{responseId} {
         function form() {
@@ -1313,48 +1322,71 @@ service cloud.firestore {
         /**
          * A hidden reply is not readable, on a `get` OR on a query.
          *
-         * ── The three branches, and why they are in this order ──────────────
+         * ── Two verbs, two rules, because `resource.data` means two things ──
          *
-         * `resource.data.keys().size()` is the whole trick, and it is the only
-         * thing in this file that tells a `get` apart from a `list`. On a
-         * single-document read `resource.data` is the document, so it has
-         * keys; on a query it is unbound and has none. So:
+         * On a `get` the whole document is bound, so a predicate over it is a
+         * statement about that document. On a `list` Firestore binds
+         * `resource.data` to **the fields the query constrains** and evaluates
+         * the rule once against the query, so a predicate over it is a
+         * statement about the query — and a field the query does not name is
+         * not there to read.
          *
-         *   • **On a `get`**, the first branch runs and `.get('status',
-         *     'visible')` decides — which keeps a reply written before the
-         *     field existed readable, because a reply older than the field is
-         *     a visible reply and not an unreadable one.
+         * So the two verbs are written separately. Nothing here tries to tell
+         * them apart at evaluation time; `allow get` and `allow list` are how
+         * Firestore already does that.
          *
-         *   • **On a query**, that branch is false (no keys), and the bare
-         *     `resource.data.status == 'visible'` below it is what the query
-         *     has to satisfy. An unfiltered `getDocs` cannot: the field is not
-         *     constrained, the dereference throws, and Firestore refuses the
-         *     whole query. `where('status', '==', 'visible')` can, and that is
-         *     the query `app/src/lib/data/community.ts` now sends.
+         *   • `get` — decided by the document. `.get('status', 'visible')`
+         *     because a reply written before the field existed is a visible
+         *     reply and not an unreadable one. An author reaches their own
+         *     hidden reply here.
          *
-         * This used to be `.get('status', 'visible')` alone, which returns the
-         * default on a query and therefore let an unfiltered `getDocs` pull
-         * back every hidden reply — the hide was a client-side courtesy that
-         * any other client, script or REST call walked straight past. The
-         * ordering above is load-bearing: putting the bare read first would
-         * throw on a `get` of a pre-`status` reply and deny it.
+         *   • `list` — decided by the query. A bare `resource.data.status`, so
+         *     the only query that passes is one carrying
+         *     `where('status', '==', 'visible')`. Anything else refuses the
+         *     whole query, which is the intent. That is the query
+         *     `app/src/lib/data/community.ts` sends, and the one its count
+         *     sends too.
          *
-         * An author still reaches their own hidden reply by `get`, and an
-         * organizer reaches everything, including an unfiltered list, because
-         * `isOrganizer()` short-circuits before any of it.
+         * ⚠️ Two earlier versions of this rule were wrong in the same place, so
+         * the trap is worth naming. `.get('status', 'visible')` under a single
+         * `allow read` returns the **default** on a query, so an unfiltered
+         * `getDocs` pulled back every hidden reply. Guarding it with
+         * `resource.data.keys().size() > 0` looked like it separated the verbs
+         * and did not: any query with one equality filter on any field — say
+         * `where('eventId', '==', …)` — binds a key, so the size test passed,
+         * the default was returned again and the whole hidden set came back.
+         * A default that is the permissive value can never be safe inside a
+         * `list`.
+         *
+         * An organizer reaches everything, including an unfiltered list,
+         * because `isOrganizer()` short-circuits before any of it. An author's
+         * own hidden reply is reachable one at a time and not by query; the
+         * board has no screen that asks for it, and a `list` branch on
+         * `authorId` would be a second way to read this collection to keep
+         * correct.
          */
-        allow read: if isRegistered()
+        allow get: if isRegistered()
           && (resource == null
               || isOrganizer()
-              || (resource.data.keys().size() > 0
-                  && resource.data.get('status', 'visible') == 'visible')
-              || resource.data.status == 'visible'
+              || resource.data.get('status', 'visible') == 'visible'
               || resource.data.authorId == request.auth.uid);
+
+        allow list: if isRegistered()
+          && (isOrganizer() || resource.data.status == 'visible');
+
         // A reply may not arrive already hidden — moderation state is not the
         // author's to set, the same rule a question's `state` follows.
+        //
+        // The field is REQUIRED rather than defaulted. The only reply query an
+        // attendee may run filters on `status`, and Firestore cannot ask for a
+        // field that is absent — so a reply created without one is in no list
+        // and in no count, while still being readable one at a time by anyone
+        // holding its id. That is a reply which is neither shown nor hidden,
+        // and no moderator action can move it either way for the people
+        // reading the board. Requiring the field leaves exactly two states.
         allow create: if isRegistered() && appTakesWrites()
           && request.resource.data.authorId == request.auth.uid
-          && request.resource.data.get('status', 'visible') == 'visible';
+          && request.resource.data.status == 'visible';
         // A reply was the one piece of user-generated text on the board that no
         // organizer could touch: not hide, not redact, not remove. An abusive
         // reply under a legitimate post had no answer short of the Admin SDK.

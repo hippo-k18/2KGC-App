@@ -180,6 +180,7 @@ export async function QuestionFormScreen({
         </div>
 
         <Table
+          stackSm
           cols={[
             { key: 'q', label: 'Question', className: 'cell-fill' },
             { key: 'k', label: 'Type', className: 'cell-sm' },
@@ -202,10 +203,17 @@ export async function QuestionFormScreen({
                     </>
                   ) : null}
                 </div>
-                <div className="muted" style={{ fontSize: 11 }}>
-                  <code>{f.id}</code>
-                  {f.helpText ? ` · ${f.helpText}` : ''}
-                </div>
+                {/*
+                  The field's own id used to print here. It is the key answers
+                  are stored under and it never changes, which makes it useful
+                  to us and meaningless to an organizer — who reads the question
+                  by its wording, one line up.
+                */}
+                {f.helpText ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {f.helpText}
+                  </div>
+                ) : null}
                 {/*
                   A sub-question says what reveals it, on its own row. An
                   organizer reading down the list otherwise has no way to tell

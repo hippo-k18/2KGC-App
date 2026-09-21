@@ -25,6 +25,7 @@ import {
   audienceSources,
   buildRegister,
   outstandingByPerson,
+  sendLockIsFree,
   signingCampaignId,
   signingSendSplit,
   totalsFor,
@@ -487,6 +488,62 @@ async function alreadyMailed(campaignId: string): Promise<Set<string>> {
   }
 }
 
+/**
+ * Run a send with the campaign held, or report that somebody else holds it.
+ *
+ * ── The race this closes ───────────────────────────────────────────────────
+ *
+ * `alreadyMailed` is read once per press. Two organizers pressing Send in the
+ * same second both read the log before either has written to it, both see an
+ * empty set, and both mail the same people a link that signs a legal release in
+ * their name. The log makes a second press an hour later safe; it cannot make
+ * two presses in the same second safe, because neither has written yet.
+ *
+ * The lock is a `create` on a document named after the campaign, so Firestore
+ * decides who wins rather than a read followed by a write. The loser sends
+ * nothing at all and is told to wait — there is no queue here, and a second
+ * copy of the mail is exactly what a queue would produce.
+ *
+ * It is released in a `finally`, and abandoned after `SEND_LOCK_STALE_MS` so a
+ * process that died holding it blocks the campaign for half a minute rather
+ * than for ever.
+ */
+async function withSendLock<T>(
+  campaignId: string,
+  actor: string,
+  run: () => Promise<T>,
+): Promise<T | 'busy'> {
+  const ref = db().collection(COLLECTIONS.sendLocks).doc(campaignId);
+
+  const took = await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const heldAt = snap.exists
+      ? (snap.get('heldAt') as { toMillis?: () => number } | undefined)
+      : undefined;
+    // A lock document with no readable `heldAt` is treated as held right now
+    // rather than as free, so a malformed row refuses a send instead of
+    // authorising a second one.
+    const heldAtMs = snap.exists
+      ? typeof heldAt?.toMillis === 'function'
+        ? heldAt.toMillis()
+        : Date.now()
+      : undefined;
+    if (!sendLockIsFree(heldAtMs, Date.now())) return false;
+    tx.set(ref, { campaignId, actor, heldAt: new Date() });
+    return true;
+  });
+
+  if (!took) return 'busy';
+
+  try {
+    return await run();
+  } finally {
+    // Best effort. A lock nobody released is taken over on its staleness, so
+    // failing to delete it costs half a minute and not a campaign.
+    await ref.delete().catch(() => undefined);
+  }
+}
+
 export interface SendLinksResult {
   sent: number;
   /** Still to write to after this press. Zero means the run finished. */
@@ -499,6 +556,11 @@ export interface SendLinksResult {
   available: boolean;
   /** True when the clock ran out and there is more to do. */
   stoppedEarly: boolean;
+  /**
+   * True when another send for this same form and version was already running,
+   * so this press did nothing at all. Nothing was read and nothing was mailed.
+   */
+  busy: boolean;
 }
 
 /**
@@ -531,6 +593,14 @@ export interface SendLinksResult {
  * makes "it was never sent" distinguishable from "it was sent and not read" —
  * and, because the skipped rows carry the campaign id too, a run against a
  * deployment with no mail provider is still not repeated.
+ *
+ * ── The log is the guard for the NEXT press, not for this one ──────────────
+ *
+ * ⚠️ This block used to claim the log covered two organizers pressing at the
+ * same moment. It does not and cannot: both presses read it before either has
+ * written to it, so both see an empty set and both send. A lock on the campaign
+ * is what covers that, and `withSendLock` holds it — the second press mails
+ * nobody and says so.
  */
 export async function sendSigningLinks(input: {
   formId: string;
@@ -544,6 +614,7 @@ export async function sendSigningLinks(input: {
     noAddress: 0,
     available: true,
     stoppedEarly: false,
+    busy: false,
   };
 
   if (!signingLinksAvailable()) return { ...empty, available: false };
@@ -552,41 +623,50 @@ export async function sendSigningLinks(input: {
   if (!register) return empty;
 
   const campaignId = signingCampaignId(register.form.id, register.form.version);
-  const sentTo = await alreadyMailed(campaignId);
-  const { todo, alreadySent, noAddress } = signingSendSplit(register.rows, sentTo);
 
-  const clock = input.now ?? (() => Date.now());
-  const startedAt = clock();
-  let sent = 0;
+  // Everything that reads the log or writes a mail happens inside the lock,
+  // including the read: a set of addresses gathered outside it is the stale
+  // read this exists to prevent.
+  const held = await withSendLock(campaignId, input.actor, async (): Promise<SendLinksResult> => {
+    const sentTo = await alreadyMailed(campaignId);
+    const { todo, alreadySent, noAddress } = signingSendSplit(register.rows, sentTo);
 
-  for (let i = 0; i < todo.length; i += SEND_BATCH) {
-    if (clock() - startedAt > SEND_BUDGET_MS) break;
-    const round = todo.slice(i, i + SEND_BATCH);
-    await Promise.all(
-      round.map((r) =>
-        sendConsentRequest(db(), {
-          to: r.email!,
-          name: r.name,
-          formTitle: register.form.title,
-          version: register.form.version,
-          link: signingLink(register.form.id, r.key),
-          resigning: r.status === 'outdated',
-          actor: input.actor,
-          campaignId,
-        }),
-      ),
-    );
-    sent += round.length;
-  }
+    const clock = input.now ?? (() => Date.now());
+    const startedAt = clock();
+    let sent = 0;
 
-  return {
-    sent,
-    remaining: todo.length - sent,
-    alreadySent,
-    noAddress,
-    available: true,
-    stoppedEarly: sent < todo.length,
-  };
+    for (let i = 0; i < todo.length; i += SEND_BATCH) {
+      if (clock() - startedAt > SEND_BUDGET_MS) break;
+      const round = todo.slice(i, i + SEND_BATCH);
+      await Promise.all(
+        round.map((r) =>
+          sendConsentRequest(db(), {
+            to: r.email!,
+            name: r.name,
+            formTitle: register.form.title,
+            version: register.form.version,
+            link: signingLink(register.form.id, r.key),
+            resigning: r.status === 'outdated',
+            actor: input.actor,
+            campaignId,
+          }),
+        ),
+      );
+      sent += round.length;
+    }
+
+    return {
+      sent,
+      remaining: todo.length - sent,
+      alreadySent,
+      noAddress,
+      available: true,
+      stoppedEarly: sent < todo.length,
+      busy: false,
+    };
+  });
+
+  return held === 'busy' ? { ...empty, busy: true } : held;
 }
 
 /**

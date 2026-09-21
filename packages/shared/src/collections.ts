@@ -164,6 +164,27 @@ export const COLLECTIONS = {
    * hold the Admin SDK.
    */
   speakerProfileEdits: "speakerProfileEdits",
+  /**
+   * Server-only. One document per bulk send that is running right now, so that
+   * two organizers pressing the same button at the same moment do not both mail
+   * the same people.
+   *
+   * It exists because the guard underneath it is not enough on its own. A send
+   * skips whoever is already in `emailLog` under its campaign id, which makes a
+   * second press an hour later safe — but two presses in the same second both
+   * read that log before either has written to it, and both see nobody. The
+   * document id is the campaign id, so taking the lock is a `create` that fails
+   * rather than a check that races, the same shape `booths` and `compPasses`
+   * use.
+   *
+   * A lock is abandoned rather than held: it carries the time it was taken, and
+   * one older than the longest a send can live is taken over. Nothing here is a
+   * queue, and a caller that cannot have the lock is told to wait rather than
+   * made to.
+   *
+   * No `match` block in `firestore.rules`, and it must not get one.
+   */
+  sendLocks: "sendLocks",
 } as const;
 
 export const SUBCOLLECTIONS = {

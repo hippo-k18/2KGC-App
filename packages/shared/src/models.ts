@@ -1515,6 +1515,21 @@ export interface EmailLogDoc {
 }
 
 /**
+ * `sendLocks/{campaignId}` — a bulk send that is running right now.
+ *
+ * Written and deleted by the dashboard with the Admin SDK; no client path.
+ * `heldAt` is what makes it safe to abandon: a send is killed at 26 seconds, so
+ * a lock older than that is nobody's and may be taken over. Without the field
+ * one crashed send would block that campaign for ever.
+ */
+export interface SendLockDoc {
+  campaignId: string;
+  /** The organizer who took it, so the next press can be told who is sending. */
+  actor: string;
+  heldAt: Timestamp;
+}
+
+/**
  * `users/{uid}/entitlements/{id}` — what a ticket actually unlocks.
  *
  * Separate from the order so that a comp, a speaker grant and a purchase all

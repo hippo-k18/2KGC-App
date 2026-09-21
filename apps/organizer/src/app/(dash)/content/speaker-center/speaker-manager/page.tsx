@@ -566,6 +566,7 @@ export default async function SpeakerManagerPage({
           ) : (
             <>
           <Table
+            stackSm
             cols={[
               { key: 's', label: 'Speaker', className: 'cell-md', sortKey: 'speaker' },
               { key: 'a', label: 'Affiliation', className: 'cell-mdsm', sortKey: 'affiliation' },

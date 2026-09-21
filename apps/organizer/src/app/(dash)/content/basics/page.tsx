@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { COLLECTIONS, EVENT, EVENT_ID } from '@kgc/shared';
+import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { eventBasics } from '@/lib/event';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { requireOrganizer } from '@/lib/auth';
@@ -106,9 +106,6 @@ export default async function BasicsPage() {
       <Panel style={{ marginTop: 16 }}>
         <Row label="Shown as">
           {basics.name}. {basics.datesLong}. {basics.venue}
-        </Row>
-        <Row label="Event ID">
-          <code>{EVENT_ID}</code>
         </Row>
         <Row label="Signed in to">
           {basics.name}. {targetLabel()}.

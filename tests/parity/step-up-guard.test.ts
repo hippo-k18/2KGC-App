@@ -35,6 +35,27 @@ import { describe, expect, it } from 'vitest';
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(`../../${relative}`, import.meta.url)), 'utf8');
 
+/**
+ * One exported function's own source, from its signature to the next top-level
+ * `export`.
+ *
+ * ⚠️ This test used to search the whole FILE for `await reauthenticate(`, which
+ * is not what any of its names claim. `release-and-consent-forms/actions.ts`
+ * holds two exported actions and only one of them mails anybody, so the guard
+ * could move to the wrong one and every assertion here would still pass. A
+ * test that names an action has to read that action.
+ *
+ * Crude on purpose: these files are flat modules of `export async function`
+ * declarations, so the next line beginning `export` is the end of this one.
+ * `bodyIsolated` below fails loudly if that ever stops being true.
+ */
+function bodyOf(source: string, action: string): string {
+  const start = source.indexOf(`export async function ${action}`);
+  if (start === -1) return '';
+  const next = source.indexOf('\nexport ', start + 1);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
 const GUARDED: { what: string; file: string; action: string }[] = [
   {
     what: 'deleting everything held about one person',
@@ -63,11 +84,26 @@ describe('irreversible actions ask for the passphrase again', () => {
     it(`asks before ${what}`, () => {
       const source = read(file);
       expect(source, `${file} no longer defines ${action}`).toContain(`export async function ${action}`);
-      expect(source, `${action} is no longer behind reauthenticate()`).toMatch(
+      // The action's own body, not the file it lives in.
+      expect(bodyOf(source, action), `${action} is no longer behind reauthenticate()`).toMatch(
         /await reauthenticate\(/,
       );
     });
   }
+
+  /**
+   * The slice above is what makes the four tests mean anything, so it is
+   * checked against the file that motivated it. Saving a consent form counts
+   * the recipients and mails nobody, which is why it is not on the list — and
+   * why finding the guard in `sendSigningLinksAction` is a statement about
+   * that action rather than about the module.
+   */
+  it('reads one action rather than the file around it', () => {
+    const source = read('apps/organizer/src/app/(dash)/attendees/release-and-consent-forms/actions.ts');
+    expect(bodyOf(source, 'sendSigningLinksAction')).toMatch(/await reauthenticate\(/);
+    expect(bodyOf(source, 'saveConsentFormAction')).not.toMatch(/await reauthenticate\(/);
+    expect(bodyOf(source, 'saveConsentFormAction')).not.toMatch(/sendSigningLinksAction/);
+  });
 
   it('reads the passphrase from the form rather than from anywhere a link could set it', () => {
     // A value carried in the URL would be a passphrase in a browser history, a
@@ -77,9 +113,9 @@ describe('irreversible actions ask for the passphrase again', () => {
   });
 
   it('refuses the erasure before it resolves anybody, so a wrong passphrase reads nothing', () => {
-    const source = read(GUARDED[0].file);
-    const guard = source.indexOf('await reauthenticate(');
-    const resolve = source.indexOf('await resolvePerson(');
+    const body = bodyOf(read(GUARDED[0].file), GUARDED[0].action);
+    const guard = body.indexOf('await reauthenticate(');
+    const resolve = body.indexOf('await resolvePerson(');
     expect(guard).toBeGreaterThan(-1);
     expect(resolve).toBeGreaterThan(guard);
   });

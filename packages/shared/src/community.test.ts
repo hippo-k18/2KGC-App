@@ -1,11 +1,12 @@
 /**
  * The community board's shared vocabulary.
  *
- * `replyIsVisible` is the one with teeth: it is the only place a hidden reply
- * is actually taken off the board, because Firestore cannot express the query
- * and `firestore.rules` cannot filter a list. The cases below are the ones that
- * matter — a reply written before the field existed, and a reply an organizer
- * has hidden.
+ * `replyIsVisible` is the second filter over a hidden reply, not the only one:
+ * `firestore.rules` refuses an attendee any reply query that does not carry
+ * `where('status', '==', 'visible')`, and refuses a `get` of a hidden reply.
+ * This one still runs for readers that bypass the rules, the dashboard's
+ * Admin SDK among them. The cases below are the ones that matter — a reply
+ * written before the field existed, and a reply an organizer has hidden.
  */
 import { describe, expect, it } from "vitest";
 
