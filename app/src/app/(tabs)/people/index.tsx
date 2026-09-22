@@ -865,7 +865,6 @@ function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter:
         right: 0,
         width: RAIL_WIDTH,
         alignItems: 'center',
-        justifyContent: 'space-evenly',
       }}>
       {letters.map((letter) => (
         <Pressable
@@ -878,6 +877,15 @@ function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter:
             // `border-box` on web, so the width has to grow with `webSlop`'s padding.
             width: Platform.OS === 'web' ? HIT_TARGET : RAIL_WIDTH,
             ...webSlop({}, { left: HIT_TARGET - RAIL_WIDTH }),
+            /*
+             * The letters share edges rather than being spread with
+             * `space-evenly`, which is what the paragraph above always claimed
+             * and what the rail never did: with 20 letters over 430pt each got
+             * 21pt of space and 13pt of target, and the 8pt between them
+             * pressed nothing at all. `flex: 1` hands each letter its share of
+             * the rail, so the target is the strip.
+             */
+            flex: 1,
             minHeight: RAIL_LETTER_HEIGHT,
             alignItems: 'center',
             justifyContent: 'center',

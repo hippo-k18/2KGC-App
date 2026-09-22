@@ -126,9 +126,14 @@ export function EmergencyForm({ plan }: { plan: EmergencyPlan }) {
       </div>
 
       <div className="whova-form-group">
-        <label style={{ display: 'block' }}>
-          <input type="checkbox" name="planReady" defaultChecked={plan.planReady} /> This plan has
-          been reviewed and is ready for the event
+        <label className="whova-checkbox-label">
+          <input
+            className="whova-checkbox-input"
+            type="checkbox"
+            name="planReady"
+            defaultChecked={plan.planReady}
+          />
+          <span>This plan has been reviewed and is ready for the event</span>
         </label>
       </div>
 

@@ -251,6 +251,12 @@ function CancelledTicket({ status }: { status: string }) {
  * its own component below, and confusing the two would tell a paying attendee at
  * a door that their registration does not exist. It says what is true: we could
  * not read it, here is what to do instead.
+ *
+ * ⚠️ It also does not say the ticket is fine, which it said until this screen was
+ * driven against a cancelled registration. A cancelled ticket is refused by the
+ * rules and lands here, so "your ticket is fine" was the first thing the app told
+ * somebody whose ticket had just been withdrawn. The read failing is all this
+ * screen knows; the desk is where the reason is.
  */
 function BadgeUnavailable({ onRetry }: { onRetry: () => void }) {
   const colors = useTheme();
@@ -264,8 +270,8 @@ function BadgeUnavailable({ onRetry }: { onRetry: () => void }) {
       }}>
       <Text variant="heading">Could not load your badge</Text>
       <Text tone="secondary">
-        Your ticket is fine; this device could not reach it. At the door, the registration desk
-        can find you by name or by the claim code on your order confirmation page.
+        This device could not read your ticket. At the door, the registration desk can find you by
+        name or by the claim code on your order confirmation page.
       </Text>
       <Pressable
         onPress={onRetry}

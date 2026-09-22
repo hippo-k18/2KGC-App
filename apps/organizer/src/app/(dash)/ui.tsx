@@ -124,7 +124,9 @@ export function StatTiles({ tiles }: { tiles: { label: string; value: ReactNode;
           <div
             style={{
               color: 'var(--muted)',
-              fontSize: 11,
+              // 12px, not 11: uppercase and letter-spaced, 11 was the smallest
+              // thing on most screens and the label is what names the number.
+              fontSize: 12,
               fontWeight: 700,
               letterSpacing: '0.8px',
               textTransform: 'uppercase',

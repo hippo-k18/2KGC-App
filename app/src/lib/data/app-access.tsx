@@ -15,6 +15,7 @@ import {
   type AppAccessState,
 } from '@kgc/shared';
 
+import { useAuth } from '@/lib/auth/auth-provider';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb, isFirebaseConfigured } from '@/lib/firebase/client';
 
@@ -66,11 +67,31 @@ const AppAccessContext = createContext<AppAccessValue>(FALLBACK);
 const TICK_MS = 60_000;
 
 export function AppAccessProvider({ children }: { children: ReactNode }) {
+  /*
+   * Keyed on the uid, and that is the whole feature working or not working.
+   *
+   * The rule on `settings/appAccess` asks for a signed-in reader, and this
+   * provider is mounted above the sign-in screen — so on a cold launch the
+   * listener was created signed out, refused, and, with `[]` for deps, never
+   * built again. It came back only on a full reload with a session already in
+   * place. Every attendee signs in at least once, and on that session the
+   * projection stayed at the defaults: no join code was asked for, the
+   * messaging switch read as on however it was set, and the access window never
+   * closed. All three round-two settings were invisible on the one session that
+   * matters, and each looked like a dashboard that had not saved.
+   *
+   * `user` rather than `uid`: signing out has to tear the listener down too,
+   * or it takes a `permission-denied` the moment the credential dies.
+   */
+  const { user } = useAuth();
   const { data } = useDocument<AppAccessProjection>(
-    // Mounted above the sign-in screen, so a build with no Firebase config has
-    // to fall through to the open state rather than throw out of the root.
-    () => (isFirebaseConfigured() ? doc(getDb(), COLLECTIONS.settings, APP_ACCESS_KEY) : null),
-    [],
+    // A build with no Firebase config falls through to the open state rather
+    // than throwing out of the root.
+    () =>
+      isFirebaseConfigured() && user
+        ? doc(getDb(), COLLECTIONS.settings, APP_ACCESS_KEY)
+        : null,
+    [user?.uid],
     (_id, d) => merge(d),
   );
 
@@ -123,9 +144,16 @@ export function useAppAccess(): AppAccessValue {
  * standing in front of an empty one is not.
  */
 export function useJoinCode(): { code: string; ready: boolean } {
+  // Keyed on the uid for the same reason the provider above is: this document
+  // is behind the ticket claim, and a listener built before there is a token is
+  // a listener that is refused once and never retried.
+  const { user } = useAuth();
   const { data, status } = useDocument<string>(
-    () => (isFirebaseConfigured() ? doc(getDb(), COLLECTIONS.settings, APP_JOIN_CODE_KEY) : null),
-    [],
+    () =>
+      isFirebaseConfigured() && user
+        ? doc(getDb(), COLLECTIONS.settings, APP_JOIN_CODE_KEY)
+        : null,
+    [user?.uid],
     (_id, d) => {
       const raw = d as { eventId?: unknown; values?: unknown } | undefined;
       if (!raw || raw.eventId !== EVENT_ID) return '';

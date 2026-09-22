@@ -188,3 +188,50 @@ export async function ensureRegistration(
     created: result.created,
   };
 }
+
+/**
+ * Who holds the seat an order paid for, now.
+ *
+ * The order names the buyer, and `registrationId(order.email)` is the document
+ * that address maps to. After a transfer that document is `status:
+ * 'transferred'` and the ticket is somebody else's — so refunding the order and
+ * cancelling the id derived from the buyer's address withdraws a ticket that
+ * was already dead and leaves the new holder's badge scanning. The money goes
+ * back and the person walks in.
+ *
+ * So the forward link is followed to the end of the chain. A ticket can move
+ * more than once, and `transferredTo` on each step is written in the same batch
+ * that marks the step transferred, so the chain is never half-written.
+ *
+ * Returns `null` when nothing is there to cancel: no registration at that id at
+ * all, or a chain that points at a document which has since been deleted. The
+ * caller must treat that as "no ticket to withdraw" rather than cancelling the
+ * id it started with.
+ *
+ * `limit` is a cycle guard, not a policy. A chain longer than this is a repair
+ * job, and looping forever inside a Stripe webhook is the one outcome that
+ * makes it worse.
+ */
+export async function currentHolder(
+  store: Firestore,
+  startId: string,
+  limit = 10,
+): Promise<{ id: string; email: string; status: RegistrationDoc["status"] } | null> {
+  const seen = new Set<string>();
+  let id = startId;
+
+  for (let hop = 0; hop < limit; hop += 1) {
+    if (seen.has(id)) return null;
+    seen.add(id);
+
+    const snap = await store.collection(COLLECTIONS.registrations).doc(id).get();
+    const reg = snap.data() as RegistrationDoc | undefined;
+    if (!reg || reg.eventId !== EVENT_ID) return null;
+
+    const next = reg.status === "transferred" ? reg.transferredTo : undefined;
+    if (!next) return { id, email: reg.email, status: reg.status };
+    id = next;
+  }
+
+  return null;
+}

@@ -3353,6 +3353,29 @@ html:has(dialog[open]) {
   }
 
   /*
+   * The two controls above a table: the filter chips and the column sort links.
+   *
+   * A chip is a tag with a link round it, so it inherited the tag's fixed 20px
+   * height, and a sort link is a header cell with an anchor in it, which was
+   * 16px. Both sit directly above the 32px row actions, so the whole screen
+   * read as a column of targets that shrink as you go up.
+   *
+   * A tag that is only a label keeps its 20px: the rule names the anchor and
+   * the button, never the `<span>` the `Tag` component renders. `height: auto`
+   * has to go with the minimum, because the fixed height would otherwise win.
+   */
+  a.whova-tag-main,
+  button.whova-tag-main {
+    height: auto;
+    min-height: 32px;
+  }
+
+  .whova-table-header.sortable-header a {
+    align-items: center;
+    min-height: 32px;
+  }
+
+  /*
    * A form opened inside a row is sized by the row, not by its own width class.
    *
    * The criterion editor on Reviewers is `<details>` in the actions cell, and

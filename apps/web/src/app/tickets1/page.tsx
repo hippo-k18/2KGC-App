@@ -5,10 +5,20 @@ import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
 import s from './tickets1.module.css';
 
+/*
+ * `noindex`, unlike `/tickets`.
+ *
+ * This route sells the same four tickets as `/tickets` from the same
+ * catalogue, so left indexable it is a second page competing with the real one
+ * for the same search — and the one a buyer would land on is decided by a
+ * search engine rather than by us. Nothing links to it; it is kept as the
+ * alternative layout, and it stays reachable to anyone holding the address.
+ */
 export const metadata: Metadata = {
   title: 'Tickets',
   description:
     'All Access, Main Conference, Workshops and Virtual tickets for the Knowledge Graph Conference 2027.',
+  robots: { index: false, follow: false },
 };
 
 export const dynamic = 'force-dynamic';

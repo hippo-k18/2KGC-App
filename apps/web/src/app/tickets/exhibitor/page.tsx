@@ -23,11 +23,17 @@ export default async function ExhibitorTicketsPage({
         audience: 'exhibitor',
         noun: 'exhibitor',
         heading: `Exhibit at ${SITE.shortName} ${SITE.year}`,
+        /*
+          No dates or venue in the lede. `AudienceTicketsPage` prints them on
+          their own line directly above this paragraph, so putting them here too
+          gives the page "3–7 May 2027" twice in three lines. The round-one
+          review asked for one such line; it is that one.
+        */
         lede: (
           <>
-            {SITE.datesLong} at {SITE.venue}. The people walking your booth are the ones deciding
-            what their organisation&rsquo;s graph runs on next year: practitioners and the
-            architects who sign for them.
+            The people walking your booth are the ones deciding what their
+            organisation&rsquo;s graph runs on next year: practitioners and the architects who sign
+            for them.
           </>
         ),
         points: [

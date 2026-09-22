@@ -13,7 +13,9 @@ export default function NotFoundScreen() {
           icon="exclamationmark.triangle"
           title="Page not found"
         />
-        <Link href="/home" style={{ textAlign: 'center' }}>
+        {/* Padded to `HIT_TARGET`: drawn as bare text this is a 22pt line, and
+            it is the only way off the screen. */}
+        <Link href="/home" style={{ textAlign: 'center', paddingVertical: 11 }}>
           <Text tone="tint" variant="heading">
             Go to Home
           </Text>

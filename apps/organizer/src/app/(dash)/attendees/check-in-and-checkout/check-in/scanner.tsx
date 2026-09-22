@@ -441,11 +441,15 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       {/*
         A required release this person has not signed.
 
-        The check-in already happened — the verdict above says so — and this sits
-        under it as something for the desk to raise, not as a refusal. On a kiosk
-        it names no document and asks the person to come to the desk: an
-        unattended screen telling somebody which release they have not signed is
-        a screen telling the queue behind them too.
+        It sits under the verdict as something for the desk to raise, not as a
+        refusal. On a kiosk it names no document and asks the person to come to
+        the desk: an unattended screen telling somebody which release they have
+        not signed is a screen telling the queue behind them too.
+
+        ⚠️ "They are checked in" only where they are. A cancelled or transferred
+        ticket is not checked in, and this line used to say it was — directly
+        under a verdict saying the opposite, which is the one moment a desk
+        volunteer is reading fast and deciding whether to let somebody past.
       */}
       {result.consentOutstanding?.length ? (
         <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
@@ -453,8 +457,10 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
             <>Form not signed. Please see the registration desk before you go in.</>
           ) : (
             <>
-              Form not signed: <strong>{result.consentOutstanding.join(', ')}</strong>. They are
-              checked in. Ask them to sign.
+              Form not signed: <strong>{result.consentOutstanding.join(', ')}</strong>.{' '}
+              {result.outcome === 'ok' || result.outcome === 'duplicate'
+                ? 'They are checked in. Ask them to sign.'
+                : 'Ask them to sign.'}
             </>
           )}
         </div>

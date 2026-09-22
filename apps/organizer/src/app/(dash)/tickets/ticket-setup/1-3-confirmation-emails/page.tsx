@@ -99,6 +99,7 @@ export default async function ConfirmationEmailsPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>The three emails</h2>
         <Table
+          stackSm
           cols={[
             { key: 't', label: 'Email', className: 'cell-md' },
             { key: 'w', label: 'Sent when', className: 'cell-sm' },

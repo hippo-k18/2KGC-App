@@ -5,7 +5,7 @@ import { differenceInCalendarDays, format } from 'date-fns';
 
 import type { Timestamp } from '@kgc/shared';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -109,7 +109,14 @@ export default function MessagesScreen() {
               accessibilityLabel="New message"
               accessibilityHint="Opens the attendee list to choose someone"
               hitSlop={Spacing.md}
-              style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.4 : 1,
+                // 22pt glyph. Without this the browser target is the glyph.
+                // All of the sideways slop goes left: this is the last control
+                // on the bar, and padding on its right edge paints past the
+                // viewport and gives the whole screen a sideways scroll.
+                ...webSlop({}, { top: 11, bottom: 11, left: 22, right: 0 }),
+              })}>
               <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
             </Pressable>
           ) : null
@@ -224,7 +231,8 @@ function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
           style={({ pressed }) => ({
             alignSelf: 'flex-start',
             justifyContent: 'center',
-            minHeight: HIT_TARGET - Spacing.sm,
+            minHeight: HIT_TARGET,
+            paddingRight: Spacing.sm,
             opacity: pressed ? 0.5 : 1,
           })}>
           <Text variant="heading" style={{ color: colors.onBanner }}>

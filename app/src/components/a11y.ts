@@ -58,6 +58,14 @@ interface Edges {
  * padding. `FilterChip` draws its pill on an inner view for that reason.
  *
  * Empty on iOS and Android, where `hitSlop` does the job properly.
+ *
+ * ⚠️ **Every `hitSlop` in this app has to be paired with a call to this.** The
+ * rule is not a style preference: a browser walk of all five tabs on 2026-09-21
+ * found fourteen controls between 20 and 36px — "See more", "Full agenda",
+ * "Filter by tracks", "Sort by", the reaction thumb, the composer's Cancel and
+ * Post, the inbox's compose icon — each of which carried a `hitSlop` that reads
+ * as correct and does nothing in a phone browser. If you write `hitSlop=` and
+ * no `webSlop`, the target is whatever the box happens to be drawn at.
  */
 export function webSlop(padding: Edges, slop: Edges): ViewStyle {
   if (Platform.OS !== 'web') return {};

@@ -15,6 +15,13 @@ const PILL_AVATAR = 28;
 const PILL_PADDING = 2;
 /** Drawn height of the pill at 1×. `hitSlop` makes up the rest of HIT_TARGET. */
 const PILL_HEIGHT = PILL_AVATAR + PILL_PADDING * 2;
+/** The invisible part of the pill's target, restated for the browser. */
+const PILL_SLOP = {
+  top: (HIT_TARGET - PILL_HEIGHT) / 2,
+  bottom: (HIT_TARGET - PILL_HEIGHT) / 2,
+  left: Spacing.xs,
+  right: Spacing.xs,
+};
 /** Chevron on the profile pill — deliberately smaller than a list chevron. */
 const PILL_CHEVRON = 13;
 /** Header action glyph, matching `MessagesButton`. */
@@ -23,14 +30,41 @@ const ACTION_GLYPH = 22;
 const ACTION_PADDING = Spacing.xs;
 /** Each side's share of that `hitSlop`. */
 const ACTION_SLOP = (HIT_TARGET - ACTION_GLYPH - ACTION_PADDING * 2) / 2;
-/** Search field height at 1× Dynamic Type. A `minHeight`, never a `height`. */
-const FIELD_HEIGHT = 38;
+/**
+ * The invisible part of the title button's target.
+ *
+ * The button draws a 22pt glyph and a 22pt line of text inside a row that
+ * centres it, so 11 each side is what takes it to `HIT_TARGET` — `minHeight`
+ * cannot, because the row's `alignItems: 'center'` sizes it to its content.
+ * Sideways is zero: it already spans the bar between the two other controls.
+ */
+const TITLE_SLOP = { top: 11, bottom: 11, left: 0, right: 0 };
+/**
+ * Search field height at 1× Dynamic Type. A `minHeight`, never a `height`.
+ *
+ * 44, not 38. A text field is a tap target like any other, and at 38 it was the
+ * one control on Agenda, People and Community that a browser walk measured
+ * under the floor on every screen at once.
+ */
+const FIELD_HEIGHT = HIT_TARGET;
 /** Body size, so the field's text matches everything else at every font scale. */
 const FIELD_FONT = 17;
 /** Drawn height of one segment at 1×. */
 const SEGMENT_HEIGHT = 34;
 /** Inset of the segments from the track that holds them. */
 const SEGMENT_INSET = 3;
+/**
+ * The invisible part of a segment's target.
+ *
+ * Vertical only: adjacent segments share an edge, so any horizontal slop would
+ * overlap the neighbour's target.
+ */
+const SEGMENT_SLOP = {
+  top: (HIT_TARGET - SEGMENT_HEIGHT) / 2,
+  bottom: (HIT_TARGET - SEGMENT_HEIGHT) / 2,
+  left: 0,
+  right: 0,
+};
 
 /** An icon button in the header's right slot. */
 export interface HeaderAction {
@@ -235,7 +269,7 @@ function HeaderTitleButton({
       accessibilityRole="button"
       accessibilityLabel={badge ? `${title}, ${badge}` : title}
       accessibilityHint={hint}
-      hitSlop={Spacing.sm}
+      hitSlop={TITLE_SLOP}
       style={({ pressed }) => ({
         flex: 1,
         flexDirection: 'row',
@@ -244,6 +278,7 @@ function HeaderTitleButton({
         gap: Spacing.sm,
         minHeight: PILL_HEIGHT,
         opacity: pressed ? 0.6 : 1,
+        ...webSlop({}, TITLE_SLOP),
       })}>
       <Icon name={icon} size={ACTION_GLYPH} color={colors.onHeader} />
       <Text
@@ -300,24 +335,24 @@ function ProfilePill({
       accessibilityRole="button"
       accessibilityLabel={`${name}, profile`}
       accessibilityHint="Opens your profile"
-      hitSlop={{
-        top: (HIT_TARGET - PILL_HEIGHT) / 2,
-        bottom: (HIT_TARGET - PILL_HEIGHT) / 2,
-        left: Spacing.xs,
-        right: Spacing.xs,
-      }}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 1,
-        padding: PILL_PADDING,
-        paddingRight: Spacing.xs,
-        borderRadius: Radius.pill,
-        backgroundColor: colors.headerDeep,
-        opacity: pressed ? 0.7 : 1,
-      })}>
-      <Avatar name={name} photoURL={photoURL} size={PILL_AVATAR} />
-      <Icon name="chevron.right" size={PILL_CHEVRON} color={colors.onHeader} />
+      hitSlop={PILL_SLOP}
+      // The fill is on the inner view, the target on the outer one — the same
+      // split `FilterChip` makes, and for the same reason: `webSlop` pads the
+      // pressable, and a background on the padded element would grow with it.
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, ...webSlop({}, PILL_SLOP) })}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 1,
+          padding: PILL_PADDING,
+          paddingRight: Spacing.xs,
+          borderRadius: Radius.pill,
+          backgroundColor: colors.headerDeep,
+        }}>
+        <Avatar name={name} photoURL={photoURL} size={PILL_AVATAR} />
+        <Icon name="chevron.right" size={PILL_CHEVRON} color={colors.onHeader} />
+      </View>
     </Pressable>
   );
 }
@@ -366,6 +401,10 @@ function HeaderSearchField({ value, onChangeText, placeholder, onSubmit }: Heade
         accessibilityLabel={placeholder}
         style={{
           flex: 1,
+          // Stretched, not centred: the row is FIELD_HEIGHT tall and the input
+          // was 36 of it, so the top and bottom 4pt of a field that looks
+          // tappable did nothing when tapped.
+          alignSelf: 'stretch',
           paddingVertical: Spacing.sm,
           fontSize: FIELD_FONT,
           color: colors.text,
@@ -391,6 +430,15 @@ function HeaderSearchField({ value, onChangeText, placeholder, onSubmit }: Heade
  */
 function HeaderSegmentedControl({ options, value, onChange }: HeaderSegments) {
   const colors = useTheme();
+  /*
+   * Four segments or more is the People control, and at 390pt it is the case
+   * that breaks: "Attendees" and "Exhibitors" are ten characters in an 88pt
+   * box, so at callout size they wrapped and the tab read "Attendee / s". One
+   * size down and a smaller gutter fits both on one line at 1×, and
+   * `numberOfLines={2}` is still there for the accessibility sizes it was
+   * added for.
+   */
+  const tight = options.length > 3;
 
   return (
     <View
@@ -412,42 +460,50 @@ function HeaderSegmentedControl({ options, value, onChange }: HeaderSegments) {
             accessibilityRole="tab"
             accessibilityLabel={option}
             accessibilityState={{ selected }}
-            hitSlop={{
-              top: (HIT_TARGET - SEGMENT_HEIGHT) / 2,
-              bottom: (HIT_TARGET - SEGMENT_HEIGHT) / 2,
-            }}
-            style={({ pressed }) => ({
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: Spacing.sm,
-              paddingVertical: Spacing.sm - 1,
-              minHeight: SEGMENT_HEIGHT,
-              borderRadius: Radius.sm,
-              backgroundColor: selected
-                ? colors.accent
-                : pressed
-                  ? colors.surfacePressed
-                  : 'transparent',
-            })}>
-            {/*
-              Two lines, not one. Three segments across a 393pt bar give each
-              about 120pt, and at 2× Dynamic Type a one-line cap rendered the
-              People control as "Atten… / Spea… / Spon…" — three ellipses where
-              the labels are the only thing telling you what the control does.
-              Wrapping costs the header some height at those sizes, which is
-              exactly the trade the platform makes.
-            */}
-            <Text
-              variant="callout"
-              numberOfLines={2}
-              style={{
-                fontWeight: selected ? '600' : '400',
-                textAlign: 'center',
-                color: selected ? colors.onAccent : colors.tint,
-              }}>
-              {option}
-            </Text>
+            hitSlop={SEGMENT_SLOP}
+            // Target outside, fill inside — the split `FilterChip` and
+            // `ProfilePill` make, so `webSlop` can reach 44 in the browser
+            // without the selected pill growing with it.
+            style={{ flex: 1, ...webSlop({}, SEGMENT_SLOP) }}>
+            {({ pressed }) => (
+              <View
+                style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  // Four segments across 390pt leave each one 88pt, and 16pt of
+                  // gutter out of that turned "Attendees" and "Exhibitors" into
+                  // two lines in a 34pt pill. The gutter is optical; the label
+                  // is not.
+                  paddingHorizontal: tight ? Spacing.xs : Spacing.sm,
+                  paddingVertical: Spacing.sm - 1,
+                  minHeight: SEGMENT_HEIGHT,
+                  borderRadius: Radius.sm,
+                  backgroundColor: selected
+                    ? colors.accent
+                    : pressed
+                      ? colors.surfacePressed
+                      : 'transparent',
+                }}>
+                {/*
+                  Two lines, not one. Three segments across a 393pt bar give each
+                  about 120pt, and at 2× Dynamic Type a one-line cap rendered the
+                  People control as "Atten… / Spea… / Spon…" — three ellipses
+                  where the labels are the only thing telling you what the
+                  control does. Wrapping costs the header some height at those
+                  sizes, which is exactly the trade the platform makes.
+                */}
+                <Text
+                  variant={tight ? 'subhead' : 'callout'}
+                  numberOfLines={2}
+                  style={{
+                    fontWeight: selected ? '600' : '400',
+                    textAlign: 'center',
+                    color: selected ? colors.onAccent : colors.tint,
+                  }}>
+                  {option}
+                </Text>
+              </View>
+            )}
           </Pressable>
         );
       })}

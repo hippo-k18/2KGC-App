@@ -139,14 +139,14 @@ export function ImportForm() {
           <form action={commitAction} style={{ marginTop: 14 }}>
             <input type="hidden" name="csv" value={state.csv ?? ''} />
             {state.errors && state.errors.length > 0 && (
-              <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
-                <input type="checkbox" name="allowPartial" /> Import the {state.validCount} good
-                rows anyway and leave the rest
+              <label className="whova-checkbox-label" style={{ marginBottom: 10 }}>
+                <input className="whova-checkbox-input" type="checkbox" name="allowPartial" />
+                <span>Import the {state.validCount} good rows anyway and leave the rest</span>
               </label>
             )}
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
-              <input type="checkbox" name="sendEmails" defaultChecked /> Email each new attendee
-              their confirmation and claim code
+            <label className="whova-checkbox-label" style={{ marginBottom: 10 }}>
+              <input className="whova-checkbox-input" type="checkbox" name="sendEmails" defaultChecked />
+              <span>Email each new attendee their confirmation and claim code</span>
             </label>
             <SubmitButton idle={`Import ${state.validCount} attendees`} busy="Importing…" />
           </form>

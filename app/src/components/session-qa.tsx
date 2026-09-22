@@ -103,7 +103,15 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
           disabled={busy || !draft.trim()}
           accessibilityRole="button"
           accessibilityLabel="Send question"
-          style={{ justifyContent: 'center', opacity: draft.trim() && !busy ? 1 : 0.4 }}>
+          // "Ask" is three characters, so the drawn box is 29pt wide. A target
+          // is 44 in both directions, not only the one the text happens to fill.
+          style={{
+            justifyContent: 'center',
+            alignItems: 'center',
+            minWidth: HIT_TARGET,
+            paddingHorizontal: Spacing.xs,
+            opacity: draft.trim() && !busy ? 1 : 0.4,
+          }}>
           <Text variant="heading" tone="tint">
             Ask
           </Text>

@@ -115,14 +115,17 @@ export function CampaignForm({
           padding: 14,
         }}
       >
-        <label style={{ display: 'block', marginBottom: 10 }}>
+        <label className="whova-checkbox-label" style={{ marginBottom: 10 }}>
           <input
+            className="whova-checkbox-input"
             type="checkbox"
             name="testOnly"
             checked={testOnly}
             onChange={(e) => setTestOnly(e.target.checked)}
-          />{' '}
-          <strong>Send me a test first</strong>. Nothing goes to the list
+          />
+          <span>
+            <strong>Send me a test first</strong>. Nothing goes to the list
+          </span>
         </label>
 
         {testOnly ? (
@@ -156,7 +159,7 @@ export function CampaignForm({
             <div className="whova-form-group" style={{ marginBottom: 10 }}>
               <label className="whova-form-label" htmlFor="confirmCount">
                 <span>
-                  Type <code>{recipientCount}</code> to confirm
+                  Type <strong>{recipientCount}</strong> to confirm
                 </span>
               </label>
               <input

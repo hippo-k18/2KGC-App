@@ -641,7 +641,10 @@ export const ANNOUNCEMENTS = [
   // renders nothing. Promising a room full of attendees that their app works
   // offline, on the one day the venue wifi is saturated, is how this turns into
   // a queue at the registration desk.
-  { title: 'Wifi', body: 'Network: CornellTech-Guest. No password required. It saturates around the keynotes, so room numbers are on the printed programme too.' },
+  // "Wi-Fi", the way the brand spells it and the way the `wifi` custom page and
+  // `/documents` already spell it. This announcement is on the public site and
+  // in the app, beside both of them.
+  { title: 'Wi-Fi', body: 'Network: CornellTech-Guest. No password required. It saturates around the keynotes, so room numbers are on the printed programme too.' },
 ];
 
 export { FIRST, LAST, ORGS, TITLES };
@@ -924,7 +927,10 @@ export const TASKS: {
   { project: 'Registration', title: 'Print badges', assignee: 'Ana', status: 'todo', dueOn: '2027-04-28' },
   { project: 'Registration', title: 'Brief the desk volunteers on the scanner', status: 'todo', dueOn: '2027-05-02' },
   { project: 'Registration', title: 'Run one live-mode Stripe transaction end to end', assignee: 'Tom', status: 'todo', dueOn: '2027-03-15',
-    notes: 'The webhook has never received a real event. SETUP-PAYMENTS.md section 4.' },
+    // No file name in a note an organizer reads. This one is the only place in
+    // the seed that named a document in the repo, and it rendered on Projects
+    // and Checklists as a task somebody is expected to act on.
+    notes: 'The webhook has never received a real event. Ask the developer for the payment setup steps.' },
 ];
 
 export const DOCUMENTS: {

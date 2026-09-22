@@ -114,12 +114,11 @@ export function AssignBoothForm({
       </div>
 
       <div className="whova-form-row">
-        <label className="whova-form-label" htmlFor="hold">
-          Hold only
-        </label>
-        <label style={{ fontSize: 13 }}>
-          <input id="hold" type="checkbox" name="hold" /> Promised, not paid: keeps it off the
-          available list without counting it as sold
+        {/* The group heading is a `div`: the tick box already has a label round it. */}
+        <div className="whova-form-label">Hold only</div>
+        <label className="whova-checkbox-label">
+          <input id="hold" className="whova-checkbox-input" type="checkbox" name="hold" />
+          <span>Promised, not paid: keeps it off the available list without counting it as sold</span>
         </label>
       </div>
 

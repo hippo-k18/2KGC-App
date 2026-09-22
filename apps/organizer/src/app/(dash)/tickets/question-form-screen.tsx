@@ -342,12 +342,13 @@ export async function QuestionFormScreen({
           </p>
           <Table
             cols={[
-              { key: 'i', label: 'Question id', className: 'cell-md' },
+              { key: 'i', label: 'Removed question', className: 'cell-md' },
               { key: 'c', label: 'Registrations', className: 'cell-sm' },
               { key: 'n', label: '', className: 'cell-fill' },
             ]}
             rows={summary.orphaned.map((o) => [
-              <code key="i">{o.id}</code>,
+              // The wording went with the question; its key is all that is left to name it by.
+              <span key="i">{o.id}</span>,
               o.count,
               <span key="n" className="muted" style={{ fontSize: 12 }}>
                 Add the question again with the same wording to reconnect these answers.

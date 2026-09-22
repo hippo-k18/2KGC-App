@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 
 import type { Timestamp } from '@kgc/shared';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { CategoryTile, type CategoryTint } from '@/components/category-tile';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -61,6 +61,16 @@ const CATEGORY_STYLE: Record<string, { icon: IconName; tint: CategoryTint }> = {
 
 /** Fallback for a category id that predates or postdates this table. */
 const DEFAULT_STYLE = { icon: 'bubble.left' as IconName, tint: 'blue' as CategoryTint };
+
+/**
+ * Slop around a bare text control, restated for the browser by `webSlop`.
+ *
+ * 12 rather than 8 above and below: the row is a 20pt subhead, and `webSlop`
+ * has to reach `HIT_TARGET` on its own.
+ */
+const SORT_SLOP = { top: 12, bottom: 12, left: Spacing.sm, right: Spacing.sm };
+/** The same, for the composer's Cancel and Post, which are drawn at 22pt. */
+const SHEET_ACTION_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 
 /**
  * How the board is ordered.
@@ -251,12 +261,13 @@ export default function CommunityScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Sort by ${sortLabel}`}
             accessibilityHint="Opens the sort options"
-            hitSlop={{ top: Spacing.sm, bottom: Spacing.sm, left: Spacing.sm, right: Spacing.sm }}
+            hitSlop={SORT_SLOP}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
               gap: Spacing.xs,
               opacity: pressed ? 0.4 : 1,
+              ...webSlop({}, SORT_SLOP),
             })}>
             <Text variant="subhead" tone="secondary">
               Sort by:
@@ -646,7 +657,12 @@ function Composer({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md, gap: Spacing.md }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cancel" hitSlop={12}>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            hitSlop={12}
+            style={{ justifyContent: 'center', ...webSlop({}, SHEET_ACTION_SLOP) }}>
             <Text tone="tint">Cancel</Text>
           </Pressable>
           <Text variant="heading">New topic</Text>
@@ -665,7 +681,8 @@ function Composer({
             accessibilityRole="button"
             accessibilityLabel="Post topic"
             accessibilityState={{ disabled: busy || !title.trim() || !body.trim() }}
-            hitSlop={12}>
+            hitSlop={12}
+            style={{ justifyContent: 'center', ...webSlop({}, SHEET_ACTION_SLOP) }}>
             <Text tone="tint" style={{ opacity: title.trim() && body.trim() ? 1 : 0.4 }}>
               Post
             </Text>
@@ -675,8 +692,15 @@ function Composer({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          // Room for the chips' web tap target, which a scroller would clip.
-          style={{ marginVertical: -Spacing.xs - 1 }}
+          /*
+           * `flexGrow: 0` is not tidiness. A `ScrollView` defaults to `flex: 1`,
+           * and a horizontal one inside this column took every pixel the sheet
+           * had left: at 390x844 the chips sat under the header and the Title
+           * and body boxes were pushed 520pt down to the bottom edge, with the
+           * body box running off the screen. `flexShrink: 0` keeps the row at
+           * its own height when the keyboard takes the space back.
+           */
+          style={{ flexGrow: 0, flexShrink: 0, marginVertical: -Spacing.xs - 1 }}
           contentContainerStyle={{ gap: Spacing.sm, paddingVertical: Spacing.xs + 1 }}>
           {CATEGORIES.map((c) => (
             <FilterChip

@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { COLLECTIONS, EVENT_ID, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { currentHolder } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
 import { splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
@@ -204,13 +205,18 @@ export async function POST(req: NextRequest) {
        * `withdrawOrderEntitlements` removes only `source: 'order'` grants, so a
        * speaker's or a staff member's access survives a refund of something
        * they also bought.
+       *
+       * `holderEmail`, not `email`: after a transfer the buyer paid and somebody
+       * else holds the seat, and it is the holder's access that goes with the
+       * ticket. It is the buyer's own address on every order nobody transferred.
        */
       let entitlementsWithdrawn = 0;
-      if (outcome.newlyRefunded && outcome.registrationId && outcome.email) {
+      const cancelledEmail = outcome.holderEmail ?? outcome.email;
+      if (outcome.newlyRefunded && outcome.registrationId && cancelledEmail) {
         try {
           entitlementsWithdrawn = await withdrawOrderEntitlements(
             db(),
-            uidForEmail(outcome.email),
+            uidForEmail(cancelledEmail),
           );
         } catch (err) {
           await recordError('entitlement.withdraw', err, {
@@ -680,10 +686,19 @@ async function cancelExtraSeats(
     if (!seatEmail || seatEmail === buyer) continue;
 
     try {
+      /**
+       * A seat can have been handed on since it was bought, and then the seat's
+       * own address names a registration that is already dead while the ticket
+       * belongs to somebody else. Follow it, for the same reason the buyer's
+       * seat is followed in `cancelRegistrationByOrder`.
+       */
+      const holder = await currentHolder(db(), registrationId(seatEmail));
+      if (!holder) continue;
+
       const sameEmail = await db()
         .collection(COLLECTIONS.orders)
         .where('eventId', '==', EVENT_ID)
-        .where('email', '==', seatEmail)
+        .where('email', '==', holder.email)
         .get();
 
       const stillPaidElsewhere = sameEmail.docs.some((d) => {
@@ -692,7 +707,7 @@ async function cancelExtraSeats(
       });
       if (stillPaidElsewhere) continue;
 
-      const rid = registrationId(seatEmail);
+      const rid = holder.id;
       await db()
         .collection(COLLECTIONS.registrations)
         .doc(rid)
@@ -704,7 +719,7 @@ async function cancelExtraSeats(
        * removes only `source: 'order'` grants, so a speaker's or a staff
        * member's access survives the refund of something they also sat on.
        */
-      await withdrawOrderEntitlements(db(), uidForEmail(seatEmail));
+      await withdrawOrderEntitlements(db(), uidForEmail(holder.email));
     } catch (err) {
       await recordError('order.seatCancel', err, {
         path: 'registrations',

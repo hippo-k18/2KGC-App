@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
+import { SITE } from '@/lib/site';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
@@ -230,7 +231,25 @@ export function CheckoutForm({
           rather than after it. The variable name goes to the server log, not
           to the buyer.
         */}
-        {!stripeReady ? <p className="notice">Ticket sales are not open yet.</p> : null}
+        {/*
+          And a way out. The round-one review's complaint about `/tickets/
+          invoice` was that a page could say "not open yet" and then leave the
+          reader with nowhere to go; the same sentence was doing the same thing
+          here, above a form the buyer is about to fill in for nothing.
+        */}
+        {/*
+          "Email us", not the address itself. This form is 299px wide in the
+          exhibitor and sponsor pages' two-column band, and
+          `contact@knowledgegraph.tech` has no break opportunity in it — spelled
+          out here it ran 291px inside a 245px paragraph and pushed the whole
+          document 14px wider than the window.
+        */}
+        {!stripeReady ? (
+          <p className="notice">
+            Ticket sales are not open yet.{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>Email us</a> and we will hold a place for you.
+          </p>
+        ) : null}
 
         {/*
           How many, and then who — in that order.
@@ -640,11 +659,16 @@ function DemoButton({
       >
         {pending ? 'Working…' : `Skip payment and register (demo)`}
       </button>
+      {/*
+        No file path here. This block cannot render off localhost, but it is
+        still copy on a page that takes money, and naming a maintenance script
+        on it is the same defect the audit found on a dozen dashboard screens.
+        Anyone who needs the undo already knows where it lives.
+      */}
       <p className="hint" style={{ marginTop: 8 }}>
         Localhost only. Issues a real ticket for {price} without charging: registration, order,
         app account, entitlements, sold count and confirmation email, exactly as a paid purchase
-        does. The order is marked <code>demo</code>, so{' '}
-        <code>scripts/ops/reset-demo-sales.mjs</code> undoes it.
+        does. The order is marked <code>demo</code> so it can be undone.
       </p>
     </>
   );

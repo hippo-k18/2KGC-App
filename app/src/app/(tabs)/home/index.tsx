@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { combineFailures, DataErrorBanner } from '@/components/data-error';
 import { Icon } from '@/components/icon';
 import { ListRow } from '@/components/list-row';
@@ -77,6 +77,13 @@ const BADGE_DOT = 14;
 const DESCRIPTION_COLLAPSED_LINES = 4;
 /** Drawn height of the "See more" link; `hitSlop` takes it to 44. */
 const LINK_HEIGHT = 28;
+/** The invisible part of that target. `webSlop` repeats it for the browser. */
+const LINK_SLOP = {
+  top: (HIT_TARGET - LINK_HEIGHT) / 2,
+  bottom: (HIT_TARGET - LINK_HEIGHT) / 2,
+  left: Spacing.sm,
+  right: Spacing.sm,
+};
 
 /**
  * The event blurb.
@@ -326,18 +333,14 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={expanded ? 'See less of the event description' : 'See more of the event description'}
             accessibilityState={{ expanded }}
-            hitSlop={{
-              top: (HIT_TARGET - LINK_HEIGHT) / 2,
-              bottom: (HIT_TARGET - LINK_HEIGHT) / 2,
-              left: Spacing.sm,
-              right: Spacing.sm,
-            }}
+            hitSlop={LINK_SLOP}
             style={({ pressed }) => ({
               alignSelf: 'flex-start',
               justifyContent: 'center',
               paddingVertical: Spacing.xs,
               minHeight: LINK_HEIGHT,
               opacity: pressed ? 0.4 : 1,
+              ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, LINK_SLOP),
             })}>
             <Text
               variant="subhead"

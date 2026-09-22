@@ -69,9 +69,16 @@ function Poll({
 
   return (
     <View style={{ gap: Spacing.sm }}>
+      {/*
+        Every other block on a session names itself — About, Materials,
+        Questions, Speaker — and this one arrived as a bare sentence between two
+        of them. Read at 390 it looks like part of the description rather than
+        something to tap, and the only hint that a tap does anything is the line
+        under the options saying results appear after you vote.
+      */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-        <Text variant="heading" style={{ flex: 1 }}>
-          {poll.question}
+        <Text variant="label" tone="secondary" style={{ flex: 1 }}>
+          POLL
         </Text>
         {!poll.open ? (
           <Text variant="label" tone="tertiary">
@@ -79,6 +86,7 @@ function Poll({
           </Text>
         ) : null}
       </View>
+      <Text variant="heading">{poll.question}</Text>
 
       <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
         {poll.options.map((opt, i) => {

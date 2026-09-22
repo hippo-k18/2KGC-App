@@ -5,12 +5,13 @@ import { doc } from 'firebase/firestore';
 
 import { COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
 
+import { webSlop } from '@/components/a11y';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppAccess } from '@/lib/data/app-access';
@@ -27,6 +28,14 @@ import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
 type Post = WithId<CommunityPostDoc>;
+
+/**
+ * Slop around the thumb and Edit, which are drawn as bare text at 22pt.
+ *
+ * 11 each side rather than 8: `webSlop` has to take the browser target to 44
+ * on its own, and 22 + 8 + 8 is 38.
+ */
+const REACTION_SLOP = { top: 11, bottom: 11, left: 11, right: 11 };
 
 /** A thread: the post, its replies, and a composer pinned to the keyboard. */
 export default function PostScreen() {
@@ -192,7 +201,8 @@ export default function PostScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={iReacted ? 'Remove your reaction' : 'React to this post'}
                 accessibilityState={{ selected: iReacted }}
-                hitSlop={8}>
+                hitSlop={REACTION_SLOP}
+                style={{ justifyContent: 'center', ...webSlop({}, REACTION_SLOP) }}>
                 <Text tone={iReacted ? 'tint' : 'secondary'}>
                   {/* A dash until the count arrives — see `useSubcollectionCounts`. */}
                   👍 {likes?.[post.id] ?? '—'}
@@ -208,7 +218,8 @@ export default function PostScreen() {
                     setEditing(true);
                   }}
                   accessibilityRole="button"
-                  hitSlop={8}>
+                  hitSlop={REACTION_SLOP}
+                  style={{ justifyContent: 'center', ...webSlop({}, REACTION_SLOP) }}>
                   <Text tone="tint">Edit</Text>
                 </Pressable>
               ) : null}
@@ -228,6 +239,19 @@ export default function PostScreen() {
               {replies.length} {replies.length === 1 ? 'REPLY' : 'REPLIES'}
             </Text>
           )}
+
+          {/*
+            A heading with nothing under it. "0 REPLIES" over 500pt of empty
+            grey said only that the screen had finished loading; it did not say
+            that the thread is open and that a reply is the next thing to do.
+            Suppressed when the read failed, because the banner above already
+            holds the floor.
+          */}
+          {!repliesError && replies.length === 0 ? (
+            <Text tone="secondary">
+              {writesOpen ? 'No replies yet. Be the first.' : 'No replies.'}
+            </Text>
+          ) : null}
 
           {replies.map((r) => (
             <View
@@ -274,7 +298,7 @@ export default function PostScreen() {
               backgroundColor: colors.surface,
               borderRadius: Radius.pill,
               paddingHorizontal: 14,
-              height: 40,
+              height: HIT_TARGET,
               fontSize: 17,
               color: colors.text,
             }}
@@ -289,7 +313,12 @@ export default function PostScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel="Send reply"
-            style={{ justifyContent: 'center', opacity: draft.trim() ? 1 : 0.4 }}>
+            style={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: HIT_TARGET,
+              opacity: draft.trim() ? 1 : 0.4,
+            }}>
             <Text variant="heading" tone="tint">
               Send
             </Text>

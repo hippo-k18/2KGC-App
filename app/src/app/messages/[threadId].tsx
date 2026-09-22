@@ -13,7 +13,7 @@ import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useDirectory } from '@/lib/data/directory';
@@ -206,7 +206,13 @@ export default function ThreadScreen() {
             onPress={send}
             accessibilityRole="button"
             accessibilityLabel="Send"
-            style={{ justifyContent: 'center', opacity: draft.trim() ? 1 : 0.4 }}>
+            // 39pt of text. A target is 44 across as well as down.
+            style={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: HIT_TARGET,
+              opacity: draft.trim() ? 1 : 0.4,
+            }}>
             <Text variant="heading" tone="tint">
               Send
             </Text>

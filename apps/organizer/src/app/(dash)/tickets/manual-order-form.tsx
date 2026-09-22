@@ -168,12 +168,11 @@ export function ManualOrderForm({
       </div>
 
       <div className="whova-form-row">
-        <label className="whova-form-label" htmlFor="silent">
-          Email
-        </label>
-        <label style={{ fontSize: 13 }}>
-          <input id="silent" type="checkbox" name="silent" /> Do not send a confirmation. They have
-          already been told
+        {/* The group heading is a `div`: the tick box already has a label round it. */}
+        <div className="whova-form-label">Email</div>
+        <label className="whova-checkbox-label">
+          <input id="silent" className="whova-checkbox-input" type="checkbox" name="silent" />
+          <span>Do not send a confirmation. They have already been told</span>
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
           The confirmation carries the claim code they need to get into the app.
