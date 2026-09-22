@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { collection, doc, limit, query, where } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 
 import {
   COLLECTIONS,
@@ -19,7 +19,18 @@ import {
 
 import { useAuth } from '@/lib/auth/auth-provider';
 import { getDb } from '@/lib/firebase/client';
-import { mySeatLine, seatButtonLabel, seatLine, type MySeat } from '@/lib/data/session-seats-core';
+import {
+  mySeatLine,
+  seatButtonLabel,
+  seatLine,
+  ticketAnswer,
+  type MySeat,
+} from '@/lib/data/session-seats-core';
+import {
+  myAddress,
+  registrationByAltEmail,
+  registrationByEmail,
+} from '@/lib/data/registrations';
 import { claimSeat } from '@/lib/data/session-seats-tx';
 import { useCollection } from '@/lib/data/use-collection';
 import { useDocument } from '@/lib/data/use-document';
@@ -50,7 +61,11 @@ import { detachWrite } from '@/lib/data/write';
 export function useSessionSeat(session: ({ id: string } & SeatGate) | null) {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
-  const email = user?.email ?? null;
+  // Folded, because the account carries whatever address it was created with
+  // and registrations store a lowercased one. Comparing the two verbatim found
+  // nothing for anybody who signed in with a capital letter, and the screen
+  // read that empty result as "your ticket does not cover this session".
+  const address = myAddress(user?.email);
   const id = session?.id ?? null;
   const gated = session ? isGated(session) : false;
   const restricted = session ? eligibleTypes(session).length > 0 : false;
@@ -69,21 +84,31 @@ export function useSessionSeat(session: ({ id: string } & SeatGate) | null) {
     (_id, d: SessionSeatDoc) => d.status,
   );
 
+  const toTicketType = (_id: string, d: RegistrationDoc) => d.ticketType ?? null;
+
   /**
    * The reader's own ticket type, by their address — the same lookup
-   * `findTicket` makes before a seat transaction, and compared the same way.
+   * `findTicket` makes before a seat transaction, built from the same helpers
+   * and compared the same way.
    */
-  const ticket = useCollection<string | null>(
-    () =>
-      restricted && email
-        ? query(
-            collection(getDb(), COLLECTIONS.registrations),
-            where('email', '==', email),
-            limit(1),
-          )
-        : null,
-    [restricted, email],
-    (_id, d: RegistrationDoc) => d.ticketType ?? null,
+  const primary = useCollection<string | null>(
+    () => (restricted && address ? registrationByEmail(getDb(), address) : null),
+    [restricted, address],
+    toTicketType,
+  );
+
+  /**
+   * The same address as an alternate. A ticket bought on a work address and
+   * signed in on a personal one is the ordinary case, and `firestore.rules`
+   * and the sign-in callable both look in both places. Opened only once the
+   * primary has come back empty, so nobody pays for two reads to learn one
+   * thing.
+   */
+  const primaryEmpty = !primary.loading && !primary.error && primary.data?.length === 0;
+  const alternate = useCollection<string | null>(
+    () => (restricted && address && primaryEmpty ? registrationByAltEmail(getDb(), address) : null),
+    [restricted, address, primaryEmpty],
+    toTicketType,
   );
 
   const state = counter.data ?? EMPTY_SEATS;
@@ -92,9 +117,17 @@ export function useSessionSeat(session: ({ id: string } & SeatGate) | null) {
   // A refused or failed registration read leaves the button alone: the
   // transaction and the rules still answer, and a screen that locks somebody
   // out because its own lookup broke is worse than one that asks and is told no.
-  const ticketKnown = restricted && !ticket.loading && !ticket.error;
-  const ticketType = ticket.data?.[0] ?? null;
-  const eligible = !restricted || !ticketKnown || ticketEligible(session ?? {}, ticketType);
+  // The same goes for an account carrying no address, which cannot be looked up
+  // at all.
+  const ticket = restricted
+    ? ticketAnswer(
+        address,
+        { rows: primary.data, loading: primary.loading, error: primary.error },
+        { rows: alternate.data, loading: alternate.loading, error: alternate.error },
+      )
+    : { ticketType: null, known: false, pending: false };
+  const ticketType = ticket.ticketType;
+  const eligible = !restricted || !ticket.known || ticketEligible(session ?? {}, ticketType);
 
   // One attempt per opening. A failed claim is retried when the counter next
   // changes, not in a loop.
@@ -110,17 +143,21 @@ export function useSessionSeat(session: ({ id: string } & SeatGate) | null) {
   // Somebody who already holds a place keeps it, whatever their ticket says
   // now. Taking it away on screen would not take it away in the database.
   const barred = !eligible && mine === null;
+  // Restricted, and the ticket could not be checked. The reader still gets to
+  // see who the session is for; the button stays live because nothing has
+  // actually refused them yet.
+  const unchecked = restricted && !ticket.known && !ticket.pending;
 
   return {
     gated,
     /** False until every listener has answered, so the button does not flicker. */
-    ready: gated && !counter.loading && !seat.loading && (!restricted || !ticket.loading),
+    ready: gated && !counter.loading && !seat.loading && !ticket.pending,
     state,
     mine,
     /** True when this session is for ticket types the reader does not hold. */
     barred,
     /** Who the session is for, and what the reader holds. Null when they may come. */
-    ticketLine: barred && session ? ineligibleMessage(session, ticketType) : null,
+    ticketLine: session && (barred || unchecked) ? ineligibleMessage(session, ticketType) : null,
     seatLine: session && gated ? seatLine(state, session) : null,
     mySeatLine: mySeatLine(state, uid, mine),
     buttonLabel: barred

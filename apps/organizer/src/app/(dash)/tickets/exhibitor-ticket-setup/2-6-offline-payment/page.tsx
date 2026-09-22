@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { ManualOrderForm } from '../../manual-order-form';
 
 export const dynamic = 'force-dynamic';
@@ -112,7 +112,7 @@ export default async function OfflinePaymentPage() {
             <div key="b">
               <div>{o.buyerName || o.email}</div>
               <div className="muted" style={{ fontSize: 11 }}>
-                {o.email}
+                <Email address={o.email} />
                 {o.companyName ? ` · ${o.companyName}` : ''}
               </div>
             </div>,
@@ -132,7 +132,8 @@ export default async function OfflinePaymentPage() {
             </strong>,
 
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {o.markedPaidBy ?? 'unknown'} · {o.purchasedAt.slice(0, 10)}
+              {o.markedPaidBy ? <Email address={o.markedPaidBy} /> : 'unknown'} ·{' '}
+              {o.purchasedAt.slice(0, 10)}
               {o.poNumber ? ` · PO ${o.poNumber}` : ''}
             </span>,
           ])}

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
 /**
  * Exhibitor Orders and Sponsor Orders.
@@ -171,7 +171,7 @@ export async function AudienceOrders({
               </div>,
 
               <div key="b">
-                <div>{m.order.buyerName || m.order.email}</div>
+                <div>{m.order.buyerName || <Email address={m.order.email} />}</div>
                 {m.order.companyName ? (
                   <div className="muted" style={{ fontSize: 11 }}>
                     {m.order.companyName}

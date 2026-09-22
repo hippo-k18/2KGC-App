@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { allocationFor } from '@/lib/comp-passes';
 import { ROUTES } from '@/lib/nav';
-import { Banner, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
+import { Banner, Email, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
 import { IssuePassForm, RenamePassForm } from '../pass-forms';
 
 export const dynamic = 'force-dynamic';
@@ -133,7 +133,7 @@ export default async function SponsorPassSeatsPage({
             <div key="w">
               <RenamePassForm orderId={allocation.orderId} seat={p.seat} name={p.name} />
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                {p.email}
+                <Email address={p.email} />
                 {p.issuedAt ? ` · named ${p.issuedAt.slice(0, 10)} by ${p.issuedBy}` : null}
               </div>
             </div>,

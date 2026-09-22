@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { clockOfInstant, dayOfInstant } from '@/lib/time-core';
+import { Email } from '../../../ui';
 import { checkInByIdAction, undoCheckInAction, type DeskState } from './actions';
 
 /**
@@ -143,7 +144,7 @@ export function DeskTable({ listId, rows }: { listId: string; rows: DeskRow[] })
                       <span>
                         <strong>{r.name}</strong>
                         <div className="muted" style={{ fontSize: 12 }}>
-                          {r.email}
+                          <Email address={r.email} />
                         </div>
                         {s?.error ? (
                           <div style={{ color: 'var(--danger)', fontSize: 12 }}>{s.error}</div>

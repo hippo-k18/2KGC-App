@@ -7,7 +7,7 @@ import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { listMembers } from '@/lib/team';
 import { ROLE_LABELS, TEAM_ROLES } from '@/lib/team-core';
 import { SettingsReach } from '../../settings-reach';
-import { GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
+import { Email, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
 import { InviteForm, MemberActions, type RoleOption } from './team';
 
@@ -110,7 +110,7 @@ export default async function AdminSettingsPage() {
             ]),
             ...team.map((m) => [
               <span key="e">
-                <strong>{m.email}</strong>
+                <strong><Email address={m.email} /></strong>
                 {m.name ? (
                   <span className="muted" style={{ display: 'block', fontSize: 12 }}>
                     {m.name}

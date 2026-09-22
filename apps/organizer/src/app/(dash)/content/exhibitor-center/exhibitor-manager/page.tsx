@@ -188,7 +188,7 @@ export default async function ExhibitorManagerPage({
                   <span key="c" style={{ fontSize: 12 }}>
                     {e.contactEmail ? (
                       <>
-                        {e.contactName || e.contactEmail}
+                        {e.contactName || <Email address={e.contactEmail} />}
                         <div className="muted" style={{ fontSize: 11 }}>
                           <Email address={e.contactEmail} />
                         </div>

@@ -7,7 +7,7 @@ import { sponsorTiers } from '@/lib/event';
 import { isUploadedImageUrl } from '@/lib/uploads';
 import { ROUTES } from '@/lib/nav';
 import { linksWithoutASponsor, sponsorReport } from '@/lib/sponsor-report';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, Tabs, Tag } from '../../../ui';
+import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, Tabs, Tag } from '../../../ui';
 import { SponsorForm } from './sponsor-form';
 import { SponsorImportForm } from './import-form';
 import { SponsorReportView } from './report-view';
@@ -156,9 +156,9 @@ function TierGroup({
             <div style={{ fontSize: 13 }}>
               {s.contactEmail ? (
                 <>
-                  {s.contactName || s.contactEmail}
+                  {s.contactName || <Email address={s.contactEmail} />}
                   <div className="muted" style={{ fontSize: 11 }}>
-                    {s.contactEmail}
+                    <Email address={s.contactEmail} />
                   </div>
                 </>
               ) : (

@@ -108,6 +108,7 @@ export default async function AnalyticsAndExportsPage({
             { key: 'n', label: 'People', className: 'cell-sm' },
           ]}
           rows={a.bySignup.map((r) => [r.label, r.count])}
+          stackSm={false}
         />
       </Panel>
 
@@ -123,6 +124,7 @@ export default async function AnalyticsAndExportsPage({
               ]}
               rows={a.byTicket.map((r) => [r.label, r.count])}
               empty="No tickets issued yet."
+              stackSm={false}
             />
           </div>
           <div style={{ flex: '1 1 300px', minWidth: 0 }}>
@@ -134,6 +136,7 @@ export default async function AnalyticsAndExportsPage({
               ]}
               rows={a.byCompanyTop.map((r) => [r.label, r.count])}
               empty="Nobody has filled in a company yet."
+              stackSm={false}
             />
           </div>
         </div>

@@ -588,6 +588,7 @@ function BarChart({
         />,
         <strong key="n">{b.count}</strong>,
       ])}
+      stackSm={false}
     />
   );
 }

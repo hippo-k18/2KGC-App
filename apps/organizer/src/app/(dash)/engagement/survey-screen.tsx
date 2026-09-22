@@ -135,6 +135,7 @@ export async function SurveyScreen({
                       { key: 'n', label: 'Chose it', className: 'cell-sm' },
                     ]}
                     rows={q.distribution.map((d) => [d.label, d.count])}
+                    stackSm={false}
                   />
                 )}
 

@@ -277,7 +277,7 @@ export default async function AttendeesPage({
           <SearchInput
             defaultValue={q}
             width={460}
-            placeholder="Name, email, company or title"
+            placeholder="Name, email, company, title, ticket, category or interest"
           />
           <button type="submit" className="btn btn-default">
             Search

@@ -208,6 +208,7 @@ export default async function LivePollingPage({
                 ),
               ])}
               empty={<NotInputted what="options on this poll" compact />}
+              stackSm={false}
             />
 
             <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>

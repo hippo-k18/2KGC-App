@@ -11,6 +11,7 @@ import {
   type PublicDocument,
   siteEvent,
 } from '@/lib/data';
+import { FocusOnHash } from '@/components/focus-on-hash';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { formatDayHeading, SITE } from '@/lib/site';
@@ -252,6 +253,8 @@ export default async function AgendaPage({
                 Search
               </button>
             </form>
+            {/* The caret, for somebody who arrived here by pressing a magnifier. */}
+            <FocusOnHash id="agenda-search" />
 
             <div className="agenda-filters">
               <div className="filter-row">

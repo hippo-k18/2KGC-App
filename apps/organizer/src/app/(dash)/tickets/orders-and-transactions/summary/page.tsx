@@ -206,6 +206,7 @@ export default async function OrdersSummaryPage() {
             ],
             [<strong key="k">Net</strong>, <strong key="v">{money(s.netCents, s.currency)}</strong>],
           ]}
+          stackSm={false}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
           Stripe&rsquo;s processing fees are not deducted here. Expect roughly 2.9% + $0.30 per

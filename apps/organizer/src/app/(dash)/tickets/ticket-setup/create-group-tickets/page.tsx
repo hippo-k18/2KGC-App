@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,7 +131,7 @@ export default async function CreateGroupTicketsPage() {
           ]}
           rows={groups.slice(0, 25).map((o) => [
             <span key="c">
-              {o.companyName || o.buyerName || o.email}
+              {o.companyName || o.buyerName || <Email address={o.email} />}
               {o.poNumber ? <span className="muted"> · PO {o.poNumber}</span> : null}
             </span>,
             o.seatCount,

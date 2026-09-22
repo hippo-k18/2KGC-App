@@ -1,12 +1,8 @@
 import {
-  collection,
   doc,
   getDocs,
-  limit,
-  query,
   runTransaction,
   serverTimestamp,
-  where,
   type Firestore,
 } from 'firebase/firestore';
 
@@ -25,6 +21,12 @@ import {
   type SessionDoc,
   type SessionSeatDoc,
 } from '@kgc/shared';
+
+import {
+  myAddress,
+  registrationByAltEmail,
+  registrationByEmail,
+} from '@/lib/data/registrations';
 
 /**
  * The seat transactions: join, leave, and claim a seat from the front of the
@@ -90,12 +92,19 @@ interface Ticket {
  * for the reason `badge.ts` gives: the id is a hash this client cannot compute.
  * Fetched when a seat is asked for rather than listened to, so the agenda does
  * not hold a second registrations listener open for a button most never press.
+ *
+ * Folded and then looked for under both addresses, the same two steps
+ * `useSessionSeat` takes on the screen — the button and the transaction behind
+ * it must not be able to reach different answers about one person's ticket.
  */
 export async function findTicket(db: Firestore, email: string | null): Promise<Ticket | null> {
-  if (!email) return null;
-  const snap = await getDocs(
-    query(collection(db, COLLECTIONS.registrations), where('email', '==', email), limit(1)),
-  );
+  const address = myAddress(email);
+  if (!address) return null;
+  let snap = await getDocs(registrationByEmail(db, address));
+  // Their ticket may be held under a different primary address with this one
+  // listed as an alternate, which is what a work purchase and a personal
+  // sign-in look like together.
+  if (snap.empty) snap = await getDocs(registrationByAltEmail(db, address));
   const d = snap.docs[0];
   if (!d) return null;
   const reg = d.data() as RegistrationDoc;

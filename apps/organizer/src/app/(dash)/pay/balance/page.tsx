@@ -126,6 +126,7 @@ export default async function BalancePage() {
               <strong key="v">{money(estimatedNet, s.currency)}</strong>,
             ],
           ]}
+          stackSm={false}
         />
         {/*
           Labelled an estimate three times on one screen, deliberately. A fee

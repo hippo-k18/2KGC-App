@@ -19,6 +19,7 @@ import {
 } from '@kgc/shared';
 
 import { useAuth } from '@/lib/auth/auth-provider';
+import { myAddress } from '@/lib/data/registrations';
 import { useCollection } from '@/lib/data/use-collection';
 import { useDocument } from '@/lib/data/use-document';
 import { detachWrite } from '@/lib/data/write';
@@ -229,7 +230,9 @@ export interface BadgeResult {
 export function useBadge(): BadgeResult {
   const { user, loading: authLoading } = useAuth();
   const uid = user?.uid;
-  const email = user?.email?.trim().toLowerCase() ?? null;
+  // Folded by the shared helper rather than by hand here, so there is one
+  // answer in this app to "what address is this reader's".
+  const email = myAddress(user?.email);
 
   const [cached, setCached] = useState<Badge | null>(null);
   const [cacheChecked, setCacheChecked] = useState(false);

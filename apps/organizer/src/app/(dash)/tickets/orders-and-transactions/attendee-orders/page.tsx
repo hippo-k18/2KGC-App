@@ -291,7 +291,7 @@ export default async function AttendeeOrdersPage({
               {statusTag(o)}
               {o.markedPaidBy && (
                 <div className="muted" style={{ fontSize: 11 }}>
-                  by {o.markedPaidBy}
+                  by <Email address={o.markedPaidBy} />
                 </div>
               )}
             </div>,

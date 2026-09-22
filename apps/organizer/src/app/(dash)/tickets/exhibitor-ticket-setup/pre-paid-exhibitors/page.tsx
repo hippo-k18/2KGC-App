@@ -5,6 +5,7 @@ import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { listExhibitors } from '@/lib/exhibitors';
 import {
   Banner,
+  Email,
   GapPanel,
   NotInputted,
   PageHeader,
@@ -155,7 +156,12 @@ export default async function PrePaidExhibitorsPage() {
                   {r.exhibitor.name}
                 </Link>
                 <div className="muted" style={{ fontSize: 11 }}>
-                  {r.exhibitor.contactEmail || <em>no contact email</em>} · {r.exhibitor.status}
+                  {r.exhibitor.contactEmail ? (
+                    <Email address={r.exhibitor.contactEmail} />
+                  ) : (
+                    <em>no contact email</em>
+                  )}{' '}
+                  · {r.exhibitor.status}
                 </div>
               </div>,
 
@@ -170,7 +176,12 @@ export default async function PrePaidExhibitorsPage() {
                   )}
                   <div className="muted" style={{ fontSize: 11 }}>
                     {r.order.channel}
-                    {r.order.markedPaidBy ? ` · ${r.order.markedPaidBy}` : ''}
+                    {r.order.markedPaidBy ? (
+                      <>
+                        {' · '}
+                        <Email address={r.order.markedPaidBy} />
+                      </>
+                    ) : null}
                   </div>
                 </span>
               ) : (

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
 import { AUDIENCES, listCampaigns, resolveAudience, type AudienceId } from '@/lib/messaging';
-import { Banner, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
+import { Banner, Email, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
 import { MessageForm } from './message-form';
 
 /**
@@ -126,7 +126,7 @@ export async function MessageScreen({
           rows={recipients.map((r) => [
             r.name,
             <span key="e" style={{ fontSize: 13 }}>
-              {r.email}
+              <Email address={r.email} />
             </span>,
             <span key="d" className="muted" style={{ fontSize: 12 }}>
               {r.detail ?? ''}
@@ -164,7 +164,7 @@ export async function MessageScreen({
               {c.subject}
             </span>,
             <span key="b" className="muted" style={{ fontSize: 12 }}>
-              {c.actor ?? '—'}
+              {c.actor ? <Email address={c.actor} /> : '—'}
             </span>,
             <span key="r" style={{ fontSize: 12 }}>
               {c.sent > 0 && (

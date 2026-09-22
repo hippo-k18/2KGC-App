@@ -166,8 +166,19 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
                     accessibilityLabel={
                       mine ? `Remove your upvote${total}` : `Upvote${total}`
                     }
-                    hitSlop={8}
-                    style={{ alignItems: 'center', minWidth: HIT_TARGET, gap: Spacing.xs }}>
+                    // Drawn at the full target rather than drawn small and made
+                    // up with `hitSlop`: the star and its count are 39pt tall
+                    // between them, and `hitSlop` is dropped by
+                    // react-native-web, so in a phone browser this was the one
+                    // control on the screen under 44. A `minHeight` is true
+                    // everywhere and needs no `webSlop` to go with it.
+                    style={{
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: HIT_TARGET,
+                      minHeight: HIT_TARGET,
+                      gap: Spacing.xs,
+                    }}>
                     <Icon
                       name={mine ? 'star.fill' : 'star'}
                       color={mine ? colors.tint : colors.textTertiary}

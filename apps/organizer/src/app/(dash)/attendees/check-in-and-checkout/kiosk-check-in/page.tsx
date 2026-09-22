@@ -166,6 +166,7 @@ export default async function KioskCheckInPage({
             <strong key="l">{label}</strong>,
             <span key="d">{count}</span>,
           ])}
+          stackSm={false}
         />
       </Panel>
     </>

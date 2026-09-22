@@ -16,7 +16,9 @@ import {
   publicSiteOrigin,
   tierRank,
 } from '@kgc/shared';
+import { auditPlace, auditSubject, namesARecord } from './audit-subject';
 import { emailKey, mergeAttendees, type AttendeeRow } from './attendees-core';
+import { recordError } from './errors';
 import { sponsorTiers } from './event';
 import { db } from './firestore';
 
@@ -679,51 +681,20 @@ export interface AuditRow {
    * What the row is about, in words: the person's name, the session's title.
    *
    * `targetPath` is a Firestore path and `targetId` is a hash, so the table
-   * used to say `registrations/reg_01e1621469460b03d253854f` and leave the
-   * organizer to guess who that was. The name is already in the entry's own
-   * before/after maps; this lifts it out. Null when the entry carries no name,
-   * and then the table says what kind of thing it was instead.
+   * used to say `registrations/reg_01e1621469460b03d253854f` and left the
+   * organizer to guess who that was. Never null: `audit-subject.ts` has the
+   * four places it comes from and the order they are tried in.
    */
-  subject: string | null;
+  subject: string;
   at: string | null;
   changed: string[];
-}
-
-/**
- * The fields an audit entry may carry a human-readable name under, best first.
- *
- * Order matters: a session edit has both `title` and `roomName`, and the title
- * is what the row is about. An email address is last, because it is the one
- * that identifies a person without naming them.
- */
-const AUDIT_NAME_FIELDS = [
-  'name',
-  'title',
-  'question',
-  'prompt',
-  'label',
-  'buyerName',
-  'sessionTitle',
-  'code',
-  'slug',
-  'email',
-];
-
-function auditSubject(...maps: (Record<string, unknown> | undefined)[]): string | null {
-  for (const key of AUDIT_NAME_FIELDS) {
-    for (const map of maps) {
-      const v = map?.[key];
-      if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 80);
-    }
-  }
-  return null;
 }
 
 export async function recentAudit(limit = 15): Promise<AuditRow[]> {
   // No `where(eventId)` here: ordering by `at` alongside it would need a
   // composite index this repo does not declare, and there is exactly one event.
   const snap = await db().collection(COLLECTIONS.auditLog).orderBy('at', 'desc').limit(limit).get();
-  return snap.docs.map((d) => {
+  const entries = snap.docs.map((d) => {
     const e = d.data() as {
       actor: string;
       action: string;
@@ -737,12 +708,63 @@ export async function recentAudit(limit = 15): Promise<AuditRow[]> {
       id: d.id,
       actor: e.actor,
       action: e.action,
-      targetPath: e.targetPath,
+      targetPath: e.targetPath ?? '',
       // The entry's own `subject` if it has one, then `after` before `before`:
       // on a rename the new name is the one to show.
-      subject: (e.subject ?? '').trim() || auditSubject(e.after, e.before),
+      named: (e.subject ?? '').trim() || auditSubject(e.after, e.before) || '',
       at: e.at ? e.at.toDate().toISOString() : null,
       changed: Object.keys(e.after ?? {}),
     };
   });
+
+  const fromRecord = await namesOfChangedRecords(entries);
+
+  return entries.map((e) => ({
+    id: e.id,
+    actor: e.actor,
+    action: e.action,
+    targetPath: e.targetPath,
+    subject: e.named || fromRecord.get(e.targetPath) || auditPlace(e.targetPath),
+    at: e.at,
+    changed: e.changed,
+  }));
+}
+
+/**
+ * Reads back the records the entries without a name of their own point at.
+ *
+ * A cancel and a reinstate record `status` and nothing else, so there is no
+ * name anywhere in the entry — but the registration still exists and still
+ * knows whose it is. One `getAll` for the whole page, deduplicated, and at most
+ * fifteen rows to begin with, so this is one round trip on a screen that
+ * already makes nine.
+ *
+ * Failure is not surfaced. The names are the nicety here; the log is the point,
+ * and a report screen that will not open because one lookup timed out is worse
+ * than a row that says "A ticket holder".
+ */
+async function namesOfChangedRecords(
+  entries: { action: string; targetPath: string; named: string }[],
+): Promise<Map<string, string>> {
+  const paths = [
+    ...new Set(
+      entries
+        .filter((e) => !e.named && namesARecord(e.action, e.targetPath))
+        .map((e) => e.targetPath),
+    ),
+  ];
+  if (paths.length === 0) return new Map();
+
+  try {
+    const docs = await db().getAll(...paths.map((p) => db().doc(p)));
+    const names = new Map<string, string>();
+    for (const doc of docs) {
+      const name = doc.exists ? auditSubject(doc.data()) : null;
+      if (name) names.set(doc.ref.path, name);
+    }
+    return names;
+  } catch (err) {
+    recordError('audit subject lookup failed', err);
+    return new Map();
+  }
 }

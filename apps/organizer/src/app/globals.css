@@ -3778,6 +3778,44 @@ html:has(dialog[open]) {
   }
 
   /*
+   * `Table stackSm={false}`: a grid that reads across, kept reading across.
+   *
+   * A ledger of two columns and a poll of four options say everything in one
+   * line per row, and a card per row turns four lines into twenty for no gain.
+   * The columns keep their order and shrink to the frame instead — the minimums
+   * come off, so flex distributes what there is, and text wraps inside a cell
+   * rather than running past the right edge. The fixed widths stay as ceilings,
+   * which is what holds the shape on a wide phone.
+   */
+  .whova-table-wrapper > .whova-table.read-across-sm {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .whova-table.read-across-sm .whova-table-header,
+  .whova-table.read-across-sm .whova-table-cell {
+    min-width: 0;
+  }
+
+  .whova-table.read-across-sm .cell-fill {
+    max-width: none;
+  }
+
+  /*
+   * A tag long enough to be a sentence takes two lines rather than the row.
+   *
+   * `.whova-tag-main` is `white-space: nowrap` and a fixed 20px tall, which is
+   * right for "Active" and wrong for "Recorded a payment on order" in a 143px
+   * column: it was 184px wide and put the audit trail 24px past the frame.
+   * Only inside a table cell, so a tag beside a heading keeps its pill shape.
+   */
+  .whova-table-cell .whova-tag-main {
+    height: auto;
+    min-height: 20px;
+    white-space: normal;
+  }
+
+  /*
    * `Table stackSm`: each row becomes a card, one cell per line under its
    * column name, so nothing in the row waits behind a sideways swipe.
    */

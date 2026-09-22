@@ -89,8 +89,9 @@ const ROW_AVATAR = 44;
  * right of a directory row.
  *
  * The star is a 20pt glyph, so it needs 12 on every side to reach 44; "Say Hi"
- * is 28 tall, so it needs 8. Nothing on its left, because it sits inside the
- * row's own `Pressable` and slop there would swallow taps meant for the row.
+ * is 28 tall, so it needs 8. Nothing on its left: the row's own target ends
+ * where this column begins, and slop reaching back over it would swallow taps
+ * meant for the name beside it.
  *
  * The two sums also set `ROW_ACTION_GAP` below: 12 under the star and 8 over
  * "Say Hi" is 20, and any gap smaller than that has one target lying on the
@@ -607,10 +608,10 @@ export default function PeopleScreen() {
  * "+N more" tail, because a data scientist with nine interests would otherwise
  * push the next attendee off the screen.
  *
- * "Say Hi" is a `Pressable` inside the row's own `Pressable`. That nests two
- * targets, so the inner one gets no `hitSlop` on its left edge — slop there
- * would extend the message affordance under the company name, and tapping a
- * name is meant to open a profile.
+ * "Say Hi" and the star are `Pressable`s *beside* the row's own `Pressable`,
+ * not inside it. Inside, they were a button within a button, which the browser
+ * rejects; beside, the two areas do not overlap and neither control takes
+ * `hitSlop` on its left edge, where the name is.
  *
  * ## The row does not make room for the A–Z rail
  *
@@ -658,18 +659,11 @@ function DirectoryRow({
   const extra = tags.length - shown.length;
   const detail = lines.filter(Boolean) as string[];
 
-  const body = (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: Spacing.sm + Spacing.xs,
-        paddingLeft: Spacing.md,
-        paddingRight: Spacing.md,
-        // 12 with a 44pt avatar gives a 68pt row; it was 16 with 52, which is
-        // 84 — half again as tall as the directory row Whova draws.
-        paddingVertical: Spacing.md - Spacing.xs,
-      }}>
+  const [pressed, setPressed] = useState(false);
+
+  /** The part the row's own tap covers: the face, the name and the detail. */
+  const main = (
+    <>
       {logoURL === undefined ? (
         <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
       ) : (
@@ -729,72 +723,78 @@ function DirectoryRow({
           </View>
         ) : null}
       </View>
+    </>
+  );
 
-      <View
-        style={{
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: ROW_ACTION_GAP,
-        }}>
-        {onPress ? (
-          <View {...DECORATIVE}>
-            <Chevron />
-          </View>
-        ) : (
-          <View style={{ width: 16 }} {...DECORATIVE} />
-        )}
+  /** The chevron, the star and "Say Hi", stacked at the right-hand end. */
+  const actions = (
+    <View
+      style={{
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        gap: ROW_ACTION_GAP,
+        paddingLeft: Spacing.sm + Spacing.xs,
+        paddingRight: Spacing.md,
+        paddingVertical: Spacing.md - Spacing.xs,
+      }}>
+      {onPress ? (
+        <View {...DECORATIVE}>
+          <Chevron />
+        </View>
+      ) : (
+        <View style={{ width: 16 }} {...DECORATIVE} />
+      )}
 
-        {onBookmark ? (
-          <Pressable
-            onPress={onBookmark}
-            accessibilityRole="button"
-            accessibilityState={{ selected: bookmarked }}
-            accessibilityLabel={
-              bookmarked
-                ? `Remove ${sayHiName ?? 'this attendee'} from your bookmarks`
-                : `Bookmark ${sayHiName ?? 'this attendee'}`
-            }
-            // A 20pt glyph repeated down the whole list, and the smallest
-            // control in the app. 12 each side takes it to 44, and `webSlop`
-            // is what makes that true in a phone browser as well.
-            hitSlop={STAR_SLOP}
-            style={({ pressed }) => ({
-              opacity: pressed ? 0.4 : 1,
-              ...webSlop({}, STAR_SLOP),
-            })}>
-            <Icon
-              name={bookmarked ? 'star.fill' : 'star'}
-              size={20}
-              color={bookmarked ? colors.tint : colors.textTertiary}
-            />
-          </Pressable>
-        ) : null}
+      {onBookmark ? (
+        <Pressable
+          onPress={onBookmark}
+          accessibilityRole="button"
+          accessibilityState={{ selected: bookmarked }}
+          accessibilityLabel={
+            bookmarked
+              ? `Remove ${sayHiName ?? 'this attendee'} from your bookmarks`
+              : `Bookmark ${sayHiName ?? 'this attendee'}`
+          }
+          // A 20pt glyph repeated down the whole list, and the smallest
+          // control in the app. 12 each side takes it to 44, and `webSlop`
+          // is what makes that true in a phone browser as well.
+          hitSlop={STAR_SLOP}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.4 : 1,
+            ...webSlop({}, STAR_SLOP),
+          })}>
+          <Icon
+            name={bookmarked ? 'star.fill' : 'star'}
+            size={20}
+            color={bookmarked ? colors.tint : colors.textTertiary}
+          />
+        </Pressable>
+      ) : null}
 
-        {onSayHi ? (
-          <Pressable
-            onPress={onSayHi}
-            accessibilityRole="button"
-            accessibilityLabel={sayHiName ? `Say hi to ${sayHiName}` : 'Say hi'}
-            accessibilityHint="Opens a message thread"
-            hitSlop={SAY_HI_SLOP}
-            style={({ pressed }) => ({
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: Spacing.xs + 2,
-              paddingVertical: Spacing.xs,
-              minHeight: HIT_TARGET - Spacing.md,
-              opacity: pressed ? 0.4 : 1,
-              // 64x28 in a phone browser without this, because
-              // react-native-web drops `hitSlop`. See `webSlop`.
-              ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, SAY_HI_SLOP),
-            })}>
-            <Icon name="bubble.left" size={16} color={colors.tint} />
-            <Text variant="subhead" tone="tint" numberOfLines={1}>
-              Say Hi
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      {onSayHi ? (
+        <Pressable
+          onPress={onSayHi}
+          accessibilityRole="button"
+          accessibilityLabel={sayHiName ? `Say hi to ${sayHiName}` : 'Say hi'}
+          accessibilityHint="Opens a message thread"
+          hitSlop={SAY_HI_SLOP}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: Spacing.xs + 2,
+            paddingVertical: Spacing.xs,
+            minHeight: HIT_TARGET - Spacing.md,
+            opacity: pressed ? 0.4 : 1,
+            // 64x28 in a phone browser without this, because
+            // react-native-web drops `hitSlop`. See `webSlop`.
+            ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, SAY_HI_SLOP),
+          })}>
+          <Icon name="bubble.left" size={16} color={colors.tint} />
+          <Text variant="subhead" tone="tint" numberOfLines={1}>
+            Say Hi
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -815,26 +815,50 @@ function DirectoryRow({
     />
   );
 
-  if (!onPress) {
-    return (
-      <View style={{ backgroundColor: colors.surface }}>
-        {body}
-        {rule}
-      </View>
-    );
-  }
+  /*
+    Avatar, name and detail. 12 above and below with a 44pt avatar gives a 68pt
+    row; it was 16 with 52, which is 84 — half again as tall as the directory
+    row Whova draws.
+  */
+  const mainStyle = {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm + Spacing.xs,
+    paddingLeft: Spacing.md,
+    paddingVertical: Spacing.md - Spacing.xs,
+  } as const;
 
+  /*
+    The row and its two controls are siblings, not one inside the other.
+
+    "Say Hi" and the bookmark star used to sit inside the row's own `Pressable`.
+    In the browser that is a real button inside a real button, which is invalid
+    and which React reports as a hydration error on every screen the directory
+    stays mounted behind — nine of the ten. Side by side, each control owns its
+    own strip and the row owns the rest, and the press tint is held here so that
+    pressing the row still lights the whole row rather than two thirds of it.
+  */
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={[name, ...detail, ...tags].join(', ')}
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? colors.surfacePressed : colors.surface,
-      })}>
-      {body}
+    <View style={{ backgroundColor: pressed ? colors.surfacePressed : colors.surface }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        {onPress ? (
+          <Pressable
+            onPress={onPress}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
+            accessibilityRole="button"
+            accessibilityLabel={[name, ...detail, ...tags].join(', ')}
+            style={mainStyle}>
+            {main}
+          </Pressable>
+        ) : (
+          <View style={mainStyle}>{main}</View>
+        )}
+        {actions}
+      </View>
       {rule}
-    </Pressable>
+    </View>
   );
 }
 

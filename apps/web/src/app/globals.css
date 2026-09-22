@@ -6707,8 +6707,50 @@ a.li-icon::after {
    * cut by a hard edge looks like a clipped layout rather than like something
    * to swipe. Fading the last few millimetres is the whole cue. Nothing fades
    * when the chips already fit, because the right edge is then empty.
+   *
+   * The width is a variable so the rule below can take it to zero once there is
+   * nothing left to the right: a permanent fade says "more this way" at the end
+   * of the row, where there is no more, and softens the last chip for no reason.
    */
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--filter-fade)), transparent 100%);
+}
+
+/*
+ * Registered so it can be animated. An unregistered custom property is not an
+ * interpolable value — it would jump between the two keyframes rather than
+ * easing — and the initial value is what every browser without the rule below
+ * gets, which is exactly today's fixed fade.
+ */
+@property --filter-fade {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 24px;
+}
+
+/*
+ * The fade is driven by the row's own scroll position, so it is there while
+ * there is more to see and gone at the end.
+ *
+ * `scroll(self inline)` gives no timeline at all when the chips already fit, so
+ * the animation falls back to its first keyframe — which is the same 24px, over
+ * an empty right edge. Behind `@supports` because a browser without scroll
+ * timelines must keep the plain fade rather than none.
+ */
+@keyframes filter-edge-fade {
+  0%,
+  88% {
+    --filter-fade: 24px;
+  }
+  100% {
+    --filter-fade: 0px;
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  .filter-options {
+    animation: filter-edge-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
 }
 
 .filter-chip {

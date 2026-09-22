@@ -6,6 +6,7 @@ import { listCampaigns } from '@/lib/messaging';
 import { stampOfInstant } from '@/lib/time';
 import {
   Banner,
+  Email,
   GapPanel,
   NotInputted,
   PageHeader,
@@ -201,7 +202,7 @@ export default async function EmailCampaignPage({
                 {stampOfInstant(c.at)}
               </span>,
               <span key="b" className="muted" style={{ fontSize: 12 }}>
-                {c.actor ?? '—'}
+                {c.actor ? <Email address={c.actor} /> : '—'}
               </span>,
               <span key="r" style={{ fontSize: 12 }}>
                 {c.sent} sent

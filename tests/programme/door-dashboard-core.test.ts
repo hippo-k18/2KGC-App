@@ -120,6 +120,17 @@ describe('doorDashboard', () => {
     expect(d.byHour.map((b) => b.count)).toEqual([1, 1]);
   });
 
+  it('draws every hour of a conference day that opens at 08:00 and closes at 20:00', () => {
+    // The case the limit has to clear. One arrival as the doors open, nothing
+    // all day, one as they close: eleven empty hours, which is what a quiet
+    // day looks like and must not be hidden. This is why 12 and not 8.
+    const d = doorDashboard([at('2027-05-03T12:00:00Z'), at('2027-05-04T00:00:00Z')], TZ);
+    expect(d.byHour[0].label).toBe('08:00');
+    expect(d.byHour[d.byHour.length - 1].label).toBe('20:00');
+    expect(d.byHour).toHaveLength(13);
+    expect(d.skippedGaps).toBe(0);
+  });
+
   it('draws a gap that is exactly as long as it is allowed to be', () => {
     const start = Date.parse('2027-05-03T13:00:00Z');
     const later = new Date(start + (MAX_EMPTY_HOURS + 1) * 3_600_000).toISOString();

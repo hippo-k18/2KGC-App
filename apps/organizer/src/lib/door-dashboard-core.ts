@@ -70,10 +70,16 @@ export const NO_TICKET_LABEL = 'No ticket type';
  *
  * Thirty-six was a day and a half, which kept a whole night of nothing between
  * two mornings: 33 of 38 rows read zero, and the five that meant something were
- * spread over three screens. Half a day holds the case the rule exists for — a
- * quiet afternoon between a busy morning and a busy evening — and drops the
- * overnight, which nobody reads as continuous anyway. Past it the empty hours
- * go and the page says they went.
+ * spread over three screens.
+ *
+ * Twelve is set against the conference day, not against the seed. A day that
+ * opens at 08:00 and closes at 20:00 is thirteen hours, so the longest quiet
+ * stretch it can contain — somebody at the door as it opens, nobody again until
+ * it shuts — is eleven empty hours. Twelve draws that whole day and has an hour
+ * in hand, which means no hour the event was actually running can be dropped.
+ * What it drops is the long one: a night between a late finish and a late start,
+ * or a test scan months before the door opened. And it is not a silent drop —
+ * `skippedGaps` is on the screen beside the chart.
  */
 export const MAX_EMPTY_HOURS = 12;
 

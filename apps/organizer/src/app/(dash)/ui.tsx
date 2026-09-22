@@ -171,6 +171,18 @@ export type Col = {
 };
 
 /**
+ * A cell whose whole content is one address, and nothing else.
+ *
+ * Deliberately strict. `Email` inserts break points, which is right for an
+ * address on its own and wrong inside a sentence, so a cell reading "Sent to
+ * ada@example.com on Tuesday" is left alone. No spaces, one `@`, a dot after
+ * it: that is the shape that pushes a stacked card off the screen.
+ */
+function looksLikeAddress(cell: ReactNode): cell is string {
+  return typeof cell === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cell);
+}
+
+/**
  * Whova's table is flexbox, not `<table>` — `.whova-table-row` is a flex row and
  * the width classes (`cell-sm` 136px, `cell-md` 272px, `cell-fill` grow) are
  * fixed pixel min/max pairs rather than percentages. Reproduced literally,
@@ -207,6 +219,10 @@ export function Table({
    *
    * Pass `stackSm={false}` for a table that is genuinely a grid — a few short
    * numeric columns that read across — where a card per row is the worse shape.
+   * A ledger of four lines becomes twenty, and a poll with four options becomes
+   * a 700px block that says no more than the 120px one did. Those tables get
+   * `read-across-sm` instead, which shrinks the columns to the frame rather
+   * than letting them run off the right edge.
    */
   stackSm?: boolean;
   /** Current sort state plus the query string to build header links from. */
@@ -215,7 +231,7 @@ export function Table({
   return (
     <div className="whova-table-wrapper">
       <div
-        className={`whova-table${rows.length === 0 ? ' is-empty' : ''}${stackSm ? ' stack-rows-sm' : ''}`}
+        className={`whova-table${rows.length === 0 ? ' is-empty' : ''}${stackSm ? ' stack-rows-sm' : ' read-across-sm'}`}
         role="table"
       >
         <div className="whova-table-head" role="rowgroup">
@@ -275,7 +291,16 @@ export function Table({
                     role="cell"
                     data-label={typeof cols[j]?.label === 'string' ? cols[j].label : undefined}
                   >
-                    {cell}
+                    {/*
+                      A cell that is nothing but an address is wrapped here
+                      rather than at the call site. `Email` was added as an
+                      opt-in and reached ten of the places that needed it; the
+                      ones it missed are the ones nobody thought of as an email
+                      column — an actor, a buyer, a contact. A plain string is
+                      unambiguous and costs one test per cell, so the table
+                      does it and no author has to remember.
+                    */}
+                    {looksLikeAddress(cell) ? <Email address={cell} /> : cell}
                   </div>
                 ))}
               </div>

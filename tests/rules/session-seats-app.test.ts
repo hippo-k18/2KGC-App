@@ -146,3 +146,56 @@ describe('the app joining and leaving', () => {
     expect(await seatOf('capped', 'u3')).toBe('seated');
   });
 });
+
+/**
+ * Finding the right registration is half the seat decision, and it is the half
+ * that can fail with no error at all: a query that matches nothing looks
+ * exactly like a ticket that does not cover the session, and the attendee is
+ * told "Not on your ticket" for a session they paid for.
+ */
+describe('finding the reader\'s own ticket', () => {
+  const signedInAs = (uid: string, address: string) =>
+    env
+      .authenticatedContext(uid, {
+        registered: true,
+        roles: ['attendee'],
+        email: address,
+        email_verified: true,
+      })
+      .firestore() as unknown as Firestore;
+
+  it('finds a ticket bought under the address the account spells in capitals', async () => {
+    await admin((db) =>
+      setDoc(doc(db, 'registrations/reg_u6'), {
+        email: 'u6@kgc.test', altEmails: [], status: 'active', ticketType: 'Full Pass',
+      }),
+    );
+    const db = signedInAs('u6', 'U6@KGC.test');
+
+    expect((await joinSession(db, 'u6', 'U6@KGC.test', 'workshop')).outcome).toBe('seated');
+  });
+
+  it('finds a ticket that holds the signed-in address as an alternate', async () => {
+    await admin((db) =>
+      setDoc(doc(db, 'registrations/reg_assistant'), {
+        email: 'assistant@kgc.test',
+        // Stored folded, which is what `normaliseEmail` guarantees and what the
+        // rules rely on: they cannot map over a list to fold it themselves.
+        altEmails: ['u7@kgc.test'],
+        status: 'active',
+        ticketType: 'Workshop Pass',
+      }),
+    );
+    const db = signedInAs('u7', 'u7@kgc.test');
+
+    expect((await joinSession(db, 'u7', 'u7@kgc.test', 'workshop')).outcome).toBe('seated');
+  });
+
+  it('still says no when there is genuinely no ticket', async () => {
+    const db = signedInAs('u8', 'u8@kgc.test');
+    const result = await joinSession(db, 'u8', 'u8@kgc.test', 'workshop');
+
+    expect(result.outcome).toBe('no-ticket');
+    expect(await seatOf('workshop', 'u8')).toBeUndefined();
+  });
+});

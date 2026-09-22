@@ -5,7 +5,7 @@ import {
   signingSendPlan,
   type ConsentRegister,
 } from '@/lib/consents';
-import { Banner, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, Email, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
 import { SendSigningLinksForm } from './send-links-form';
 
 /**
@@ -115,7 +115,7 @@ export async function ConsentRegisterView({ register }: { register: ConsentRegis
               </div>
             ) : null}
           </span>,
-          r.email ? <span key="e" style={{ fontSize: 12 }}>{r.email}</span> : <span key="e" className="muted">—</span>,
+          r.email ? <span key="e" style={{ fontSize: 12 }}><Email address={r.email} /></span> : <span key="e" className="muted">—</span>,
           r.status === 'signed' ? (
             <Tag key="s" color="green">signed v{r.signedVersion}</Tag>
           ) : r.status === 'outdated' ? (

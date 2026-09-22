@@ -4,7 +4,7 @@ import { requirePassphrase } from '@/lib/auth';
 import { collectPerson, heldRows, resolvePerson } from '@/lib/person-data';
 import { parsePersonRef } from '@/lib/person-data-core';
 import { ROUTES } from '@/lib/nav';
-import { Table, Tag } from '../../../ui';
+import { Email, Table, Tag } from '../../../ui';
 import { ErasePersonForm } from './person-data-form';
 
 /**
@@ -59,7 +59,7 @@ export async function PersonDataPanel({ param }: { param: string }) {
     <Frame title={`Data held for ${identity.name}`}>
       <div>
         <p className="body-2">
-          {identity.email}
+          <Email address={identity.email} />
           {identity.hasTicket ? ' holds a ticket.' : ' has no ticket.'}
           {identity.signedIn
             ? ' They have signed into the app.'

@@ -263,6 +263,7 @@ export default async function ReportPage() {
                 />,
                 <strong key="n">{b.count}</strong>,
               ])}
+              stackSm={false}
             />
             <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
               Peak {scans.peakPerQuarterHour} scans in a quarter hour. Last scan{' '}
@@ -398,7 +399,7 @@ export default async function ReportPage() {
             <Tag key="x" color={a.action === 'checkin.undo' ? 'orange' : 'blue'}>
               {describeAction(a.action)}
             </Tag>,
-            a.subject ?? <span className="muted">not named</span>,
+            a.subject,
           ])}
         />
       </Panel>

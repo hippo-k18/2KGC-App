@@ -4,6 +4,7 @@ import { listContacts, summariseContacts } from '@/lib/campaigns';
 import { GapPanel, PER_PAGE, listParams, paginate } from '../../../ui';
 import {
   Banner,
+  Email,
   NotInputted,
   PageHeader,
   Pagination,
@@ -186,7 +187,7 @@ export default async function CampaignContactListPage({
           ]}
           rows={rows.map((c) => [
             <div key="e">
-              <div>{c.email}</div>
+              <div><Email address={c.email} /></div>
               {c.name ? (
                 <div className="muted" style={{ fontSize: 11 }}>
                   {c.name}

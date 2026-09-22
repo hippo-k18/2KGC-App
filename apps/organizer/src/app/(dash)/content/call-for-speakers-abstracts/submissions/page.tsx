@@ -6,6 +6,7 @@ import { listTrackOptions } from '@/lib/data';
 import { countSubmissions, listSubmissions, type SubmissionRow } from '@/lib/submissions';
 import {
   Banner,
+  Email,
   NotInputted,
   PageHeader,
   Pagination,
@@ -448,7 +449,7 @@ function AuthorCell({ row }: { row: SubmissionRow }) {
     <span>
       {row.author.name}
       <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-        {row.author.affiliation ?? row.author.email}
+        {row.author.affiliation ?? <Email address={row.author.email} />}
       </span>
     </span>
   );

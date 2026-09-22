@@ -128,7 +128,7 @@ export default async function CategoriesPage({
 
         <form method="get" action="#members" className="toolbar">
           {filter ? <input type="hidden" name="category" value={filter} /> : null}
-          <SearchInput defaultValue={q} width={420} placeholder="Name, email, company or ticket" />
+          <SearchInput defaultValue={q} width={420} placeholder="Name, email, company, ticket or category" />
           <button type="submit" className="btn btn-default">
             Search
           </button>
