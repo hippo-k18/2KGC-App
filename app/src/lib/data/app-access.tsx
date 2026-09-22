@@ -144,9 +144,29 @@ export function useAppAccess(): AppAccessValue {
  * standing in front of an empty one is not.
  */
 export function useJoinCode(): { code: string; ready: boolean } {
-  // Keyed on the uid for the same reason the provider above is: this document
-  // is behind the ticket claim, and a listener built before there is a token is
-  // a listener that is refused once and never retried.
+  /*
+   * Keyed on the uid for the same reason the provider above is: this document
+   * is behind the ticket claim, and a listener built before there is a token is
+   * a listener that is refused once and never retried.
+   *
+   * ── Why the claim is not in the deps, although it can move ──────────────────
+   *
+   * The ticket claim is minted on an account that already exists — the
+   * dashboard does it when a ticket is transferred in, or an attendee is
+   * reinstated — and a new token carrying it does not change the uid, so
+   * nothing here resubscribes. That would matter if this listener could be
+   * standing when the claim arrives, and it cannot: the screen that calls this
+   * hook is rendered only when `joinCodeNeeded` sees a `users/{uid}` profile,
+   * and the rules let only a ticket holder create one. The claim is on the
+   * server before this listener exists. Losing the claim revokes the refresh
+   * tokens with it, so that session ends rather than sitting here refused.
+   *
+   * And a refusal would not strand the screen in any case. A denied stream
+   * settles as an error rather than staying in `loading`, so `ready` is true
+   * with an empty code, which is the "nothing to ask" path the screen already
+   * documents. `ready` is false only while the document has genuinely not
+   * answered yet, which is the one thing it is there to say.
+   */
   const { user } = useAuth();
   const { data, status } = useDocument<string>(
     () =>

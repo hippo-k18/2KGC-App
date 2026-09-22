@@ -1438,6 +1438,13 @@ export interface EmailLogDoc {
     | "invoice-raised"
     | "refund-confirmation"
     /**
+     * The other half of a refund, when the ticket had been transferred: the
+     * receipt goes to whoever paid, and this goes to whoever was holding the
+     * badge that just stopped scanning. Two readers, two rows, because "was the
+     * new holder ever told?" is a question the buyer's row cannot answer.
+     */
+    | "ticket-cancelled"
+    /**
      * The six-digit sign-in code from `requestOtp`. The only row in this log
      * that records the delivery of a **credential**, which is why nothing about
      * it — not the subject, not `reason`, not `error` — may ever carry the code

@@ -6,6 +6,7 @@ import {
   categoryFromRule,
   resolveAttendeeCategories,
   resolveTicketRules,
+  type OrderDoc,
   type RegistrationDoc,
 } from "@kgc/shared";
 import { claimCode, emailHash, normaliseEmail, qrSecret, registrationId } from "./ids.js";
@@ -216,7 +217,13 @@ export async function currentHolder(
   store: Firestore,
   startId: string,
   limit = 10,
-): Promise<{ id: string; email: string; status: RegistrationDoc["status"] } | null> {
+): Promise<{
+  id: string;
+  email: string;
+  /** For greeting them in a mail. Absent on a registration nobody named. */
+  name?: string;
+  status: RegistrationDoc["status"];
+} | null> {
   const seen = new Set<string>();
   let id = startId;
 
@@ -229,9 +236,66 @@ export async function currentHolder(
     if (!reg || reg.eventId !== EVENT_ID) return null;
 
     const next = reg.status === "transferred" ? reg.transferredTo : undefined;
-    if (!next) return { id, email: reg.email, status: reg.status };
+    if (!next) return { id, email: reg.email, name: reg.name, status: reg.status };
     id = next;
   }
 
   return null;
+}
+
+/**
+ * Is some *other* order still paying for this seat?
+ *
+ * The question a refund has to ask before it withdraws a ticket. Someone who
+ * bought twice — a workshop upgrade on top of a main-conference ticket — has
+ * one registration backed by two orders, and refunding the first must not
+ * revoke what the second still pays for.
+ *
+ * ── Why two addresses rather than one ───────────────────────────────────────
+ *
+ * After a transfer the buyer paid and somebody else holds the seat, and either
+ * of them can be the reason it stays alive. The buyer's second order still
+ * covers the registration they passed on; a colleague who was handed the seat
+ * and also bought one of their own keeps the one they paid for. Asking only the
+ * holder cancels a ticket the buyer is still paying for, and asking only the
+ * buyer is what made a refund miss the holder in the first place. So the caller
+ * passes both and this answers about the pair.
+ *
+ * `excludeOrderId` is the order being refunded. Its status has usually already
+ * been moved to `refunded` by the time this runs, so the filter below would
+ * drop it anyway — but that is an ordering accident, and a rule that means "no
+ * *other* order" has to say so itself.
+ *
+ * Status is filtered in memory rather than in the query. `partially_refunded`
+ * still paid for a ticket, so the set that keeps a registration alive is two
+ * statuses rather than one, and `where('status', 'in', [...])` would be a third
+ * filter shape to keep matched in `firestore.indexes.json`. One person has a
+ * handful of orders; filtering after the read costs nothing and cannot fail
+ * with `failed-precondition`.
+ */
+export async function stillPaidElsewhere(
+  store: Firestore,
+  emails: (string | null | undefined)[],
+  excludeOrderId: string,
+): Promise<boolean> {
+  const addresses = [
+    ...new Set(emails.filter((e): e is string => Boolean(e)).map((e) => normaliseEmail(e))),
+  ];
+
+  for (const email of addresses) {
+    const snap = await store
+      .collection(COLLECTIONS.orders)
+      .where("eventId", "==", EVENT_ID)
+      .where("email", "==", email)
+      .get();
+
+    const paying = snap.docs.some((d) => {
+      if (d.id === excludeOrderId) return false;
+      const order = d.data() as OrderDoc;
+      return order.status === "paid" || order.status === "partially_refunded";
+    });
+    if (paying) return true;
+  }
+
+  return false;
 }

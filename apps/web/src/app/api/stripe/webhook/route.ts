@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
-import { COLLECTIONS, EVENT_ID, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
+import { COLLECTIONS, type EntitlementDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { currentHolder } from '@kgc/scripts/src/lib/fulfilment';
+import { currentHolder, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
 import { splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
@@ -13,7 +13,11 @@ import {
   withdrawOrderEntitlements,
 } from '@/lib/app-account-core';
 import { incrementSold, tierFulfilment } from '@/lib/catalogue';
-import { sendPurchaseConfirmation, sendRefundConfirmation } from '@/lib/email';
+import {
+  sendPurchaseConfirmation,
+  sendRefundConfirmation,
+  sendTicketWithdrawn,
+} from '@/lib/email';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 import { fulfilOrder } from '@/lib/fulfil-order';
@@ -238,10 +242,32 @@ export async function POST(req: NextRequest) {
        * again for exactly the purchases with the most money on them.
        */
       const seatsCancelled = outcome.newlyRefunded
-        ? await cancelExtraSeats(sessionId, outcome.email)
+        ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
 
-      // Only tell someone their ticket is void when it actually is.
+      /**
+       * Who is told what.
+       *
+       * The buyer always gets the receipt: they paid, and the money is theirs.
+       * What it may say about a badge depends on what the refund actually did,
+       * which is why both flags are passed rather than assumed — a ticket that
+       * a second paid order still covers has not stopped scanning, and after a
+       * transfer the badge that stopped is not the buyer's.
+       *
+       * The holder gets their own mail, and only when there is one: a refund
+       * that cancelled a ticket somebody else was holding. They are owed the
+       * sentence the buyer's receipt used to carry on their behalf, since the
+       * alternative is finding out at the door.
+       *
+       * Each row in the mail log is stamped with the registration belonging to
+       * the person it went to. The buyer's receipt files under the buyer, which
+       * is where their purchase confirmation already sits; the holder's under
+       * the holder. Stamping both with the cancelled registration filed the
+       * buyer's receipt in a stranger's history.
+       */
+      const buyerRegistrationId = outcome.email ? registrationId(outcome.email) : undefined;
+      const transferred = Boolean(outcome.holderEmail && outcome.holderEmail !== outcome.email);
+
       if (outcome.fullyRefunded && outcome.email) {
         await sendRefundConfirmation({
           to: outcome.email,
@@ -250,7 +276,19 @@ export async function POST(req: NextRequest) {
           amountCents: outcome.refundedCents,
           currency: outcome.currency,
           orderId: outcome.orderId,
-          registrationId: outcome.registrationId ?? undefined,
+          registrationId: buyerRegistrationId,
+          ticketCancelled: Boolean(outcome.registrationId),
+          transferred,
+        });
+      }
+
+      if (outcome.fullyRefunded && outcome.registrationId && transferred && outcome.holderEmail) {
+        await sendTicketWithdrawn({
+          to: outcome.holderEmail,
+          name: outcome.holderName,
+          ticketType: outcome.ticketType,
+          orderId: outcome.orderId,
+          registrationId: outcome.registrationId,
         });
       }
 
@@ -290,7 +328,7 @@ export async function POST(req: NextRequest) {
       // A disputed group purchase is the same problem as a refunded one: the
       // buyer's ticket is withdrawn and their three colleagues' are not.
       const seatsCancelled = outcome.newlyRefunded
-        ? await cancelExtraSeats(sessionId, outcome.email)
+        ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
       return NextResponse.json({
         received: true,
@@ -654,18 +692,21 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
  * because that file is owned elsewhere, and leaving three tickets valid after a
  * full refund was not an acceptable thing to leave for later.
  *
- * ── The rule it copies, and why the copy is deliberate ──────────────────────
+ * ── The rule it applies ─────────────────────────────────────────────────────
  *
  * "Cancel only when no other **paid** order covers this person." A colleague
  * who was seat three on a refunded group purchase *and* separately bought their
- * own ticket keeps the ticket they paid for. This is the same test
- * `cancelRegistrationByOrder` applies to the buyer, filtered in memory rather
- * than with a `status` clause for the same reason it gives: one person has a
- * handful of orders, and a third filter shape is a `failed-precondition`
- * waiting for a missing composite index.
+ * own ticket keeps the ticket they paid for. It is the same test
+ * `cancelRegistrationByOrder` applies to the buyer, and it is now the same
+ * code: `stillPaidElsewhere` in `@kgc/scripts`, asked about the seat's own
+ * address and the address of whoever holds it now, with the order being
+ * refunded left out.
  *
- * The order being refunded cannot appear in that query — it is keyed on the
- * buyer's address, not the seat's — so there is nothing to exclude.
+ * Leaving that order out is not decoration. A seat handed back to the buyer's
+ * own address resolves to a registration the buyer's orders cover, and this
+ * order is one of them — so it can appear in the result set. It does not today
+ * only because `cancelRegistrationByOrder` has already stamped it `refunded`
+ * before this runs, which is an ordering accident rather than a guarantee.
  *
  * Best-effort per seat: a registration that has since been deleted must not
  * stop the other two being withdrawn, and no failure here may reach Stripe as a
@@ -674,6 +715,7 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
 async function cancelExtraSeats(
   sessionId: string,
   buyerEmail: string | null,
+  refundedOrderId: string,
 ): Promise<string[]> {
   const cart = await cartLines(sessionId);
   if (cart.length < 2) return [];
@@ -695,17 +737,7 @@ async function cancelExtraSeats(
       const holder = await currentHolder(db(), registrationId(seatEmail));
       if (!holder) continue;
 
-      const sameEmail = await db()
-        .collection(COLLECTIONS.orders)
-        .where('eventId', '==', EVENT_ID)
-        .where('email', '==', holder.email)
-        .get();
-
-      const stillPaidElsewhere = sameEmail.docs.some((d) => {
-        const o = d.data() as OrderDoc;
-        return o.status === 'paid' || o.status === 'partially_refunded';
-      });
-      if (stillPaidElsewhere) continue;
+      if (await stillPaidElsewhere(db(), [seatEmail, holder.email], refundedOrderId)) continue;
 
       const rid = holder.id;
       await db()

@@ -3544,6 +3544,18 @@ html:has(dialog[open]) {
     margin-top: 10px;
   }
 
+  /*
+   * The label over a stat tile, one point larger here and nowhere else.
+   *
+   * Uppercase and letter-spaced at 11px it was the smallest text on a phone,
+   * and it is the word that says what the number underneath means. `!important`
+   * because `StatTiles` sets the size inline, and the desktop size stays there:
+   * that component is on 99 screens and none of them move for this.
+   */
+  .stat-tiles .stat-tile-label {
+    font-size: 12px !important;
+  }
+
   .form-row > .whova-form-group,
   .form-row > .whova-form-row {
     flex-basis: 100%;

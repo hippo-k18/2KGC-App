@@ -122,11 +122,15 @@ export function StatTiles({ tiles }: { tiles: { label: string; value: ReactNode;
           }}
         >
           <div
+            className="stat-tile-label"
             style={{
               color: 'var(--muted)',
-              // 12px, not 11: uppercase and letter-spaced, 11 was the smallest
-              // thing on most screens and the label is what names the number.
-              fontSize: 12,
+              // 11px here and 12 on a phone, where uppercase and letter-spaced
+              // at 11 was the smallest thing on the screen. The phone size is
+              // in `globals.css`, inside the `max-width: 767px` block: this
+              // component is on 99 screens and the desktop dashboard does not
+              // move for a legibility problem that only exists on a phone.
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.8px',
               textTransform: 'uppercase',

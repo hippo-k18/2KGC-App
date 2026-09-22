@@ -26,6 +26,14 @@ import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestor
 import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { ensureRegistration } from '../../scripts/src/lib/fulfilment.js';
 import { registrationId } from '../../scripts/src/lib/ids.js';
+/**
+ * The website's own refund path, not a copy of it. `registrations.ts` imports
+ * `server-only`, which Vitest resolves to the package's empty file through the
+ * alias in `vitest.config.mts` — see the note there. Its `db()` finds
+ * `FIRESTORE_EMULATOR_HOST` and initialises against the same emulator this file
+ * writes to.
+ */
+import { cancelRegistrationByOrder, fulfilPurchase } from '../../apps/web/src/lib/registrations.js';
 
 /**
  * Refuse to run against anything real.
@@ -61,6 +69,43 @@ beforeEach(async () => {
 });
 
 const buyer = { email: 'Ada.Nakamura@Example.com', name: 'Ada Nakamura', ticketType: 'Main Conference' };
+const ben = { email: 'Ben.Olsen@Example.com', name: 'Ben Olsen' };
+const cara = { email: 'cara.diaz@example.com', name: 'Cara Diaz' };
+
+/** One paid Checkout purchase for the buyer, written by the website's own path. */
+function purchase(over: { externalId: string; amountCents?: number }) {
+  return fulfilPurchase({
+    email: buyer.email,
+    name: buyer.name,
+    ticketType: buyer.ticketType,
+    amountCents: 79_900,
+    currency: 'usd',
+    paid: true,
+    ...over,
+  });
+}
+
+/**
+ * Hand the ticket on, leaving behind exactly what a transfer leaves behind: the
+ * old registration marked `transferred` with a forward link, and a live one for
+ * the person now carrying it.
+ */
+async function transferTo(
+  fromEmail: string,
+  to: { email: string; name: string },
+): Promise<string> {
+  const holder = await ensureRegistration(db, { ...to, ticketType: buyer.ticketType });
+  await db
+    .collection(COLLECTIONS.registrations)
+    .doc(registrationId(fromEmail))
+    .update({ status: 'transferred', transferredTo: holder.registrationId });
+  return holder.registrationId;
+}
+
+async function statusOf(rid: string): Promise<RegistrationDoc['status'] | undefined> {
+  const snap = await db.collection(COLLECTIONS.registrations).doc(rid).get();
+  return (snap.data() as RegistrationDoc | undefined)?.status;
+}
 
 describe('ensureRegistration', () => {
   it('keys the registration by email, so the same person is never registered twice', async () => {
@@ -269,87 +314,160 @@ describe('refund decisions', () => {
   });
 });
 
+/**
+ * The refund, driven through the function the webhook calls.
+ *
+ * These two used to build order documents by hand and then re-run the "is
+ * anything else still paying for this?" query inline, asserting on their own
+ * copy of it. The copy stayed green through a change that moved the real query
+ * onto a different address, which is the whole failure mode a test is there to
+ * catch. They now call `cancelRegistrationByOrder` and read the registration
+ * back, so the only way to keep them passing is for the production code to
+ * behave.
+ */
 describe('a registration backed by two orders', () => {
   it('survives one of them being refunded', async () => {
-    const { registrationId: rid } = await ensureRegistration(db, buyer);
-    const email = 'ada.nakamura@example.com';
-
     // A main-conference ticket and a workshop upgrade, same person.
-    await db.collection(COLLECTIONS.orders).doc('ord_main').set({
-      eventId: EVENT_ID,
-      externalId: 'cs_main',
-      provider: 'stripe',
-      email,
-      status: 'paid',
-      totalCents: 79_900,
-      currency: 'usd',
-      purchasedAt: Timestamp.now(),
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    });
-    await db.collection(COLLECTIONS.orders).doc('ord_upgrade').set({
-      eventId: EVENT_ID,
+    const { registrationId: rid } = await purchase({ externalId: 'cs_main' });
+    await purchase({ externalId: 'cs_upgrade', amountCents: 69_900 });
+
+    const outcome = await cancelRegistrationByOrder({
       externalId: 'cs_upgrade',
-      provider: 'stripe',
-      email,
-      status: 'refunded',
-      totalCents: 69_900,
-      currency: 'usd',
-      purchasedAt: Timestamp.now(),
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+      reason: 'refunded',
+      refundedCents: 69_900,
     });
 
-    // The rule under test: cancel only when no other order still pays for it.
-    const sameEmail = await db
-      .collection(COLLECTIONS.orders)
-      .where('eventId', '==', EVENT_ID)
-      .where('email', '==', email)
-      .get();
-
-    const stillPaidElsewhere = sameEmail.docs
-      .filter((d) => d.id !== 'ord_upgrade')
-      .some((d) => {
-        const o = d.data() as OrderDoc;
-        return o.status === 'paid' || o.status === 'partially_refunded';
-      });
-
-    expect(stillPaidElsewhere).toBe(true);
-
-    const reg = (
-      await db.collection(COLLECTIONS.registrations).doc(rid).get()
-    ).data() as RegistrationDoc;
-    expect(reg.status).toBe('active');
+    // Nothing was withdrawn, and the ticket the other order pays for still works.
+    expect(outcome.registrationId).toBeNull();
+    expect(await statusOf(rid)).toBe('active');
   });
 
   it('counts a partially-refunded order as still paying for the ticket', async () => {
-    const email = 'partial@example.com';
-    await db.collection(COLLECTIONS.orders).doc('ord_partial').set({
-      eventId: EVENT_ID,
-      externalId: 'cs_partial',
-      provider: 'stripe',
-      email,
-      status: 'partially_refunded',
-      totalCents: 79_900,
+    const { registrationId: rid } = await purchase({ externalId: 'cs_main' });
+    await purchase({ externalId: 'cs_upgrade', amountCents: 69_900 });
+
+    // $200 back on the main ticket: money moved, the ticket did not.
+    const partial = await cancelRegistrationByOrder({
+      externalId: 'cs_main',
+      reason: 'refunded',
       refundedCents: 20_000,
-      currency: 'usd',
-      purchasedAt: Timestamp.now(),
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+    });
+    expect(partial.fullyRefunded).toBe(false);
+
+    const outcome = await cancelRegistrationByOrder({
+      externalId: 'cs_upgrade',
+      reason: 'refunded',
+      refundedCents: 69_900,
     });
 
-    const snap = await db
-      .collection(COLLECTIONS.orders)
-      .where('eventId', '==', EVENT_ID)
-      .where('email', '==', email)
-      .get();
+    expect(outcome.registrationId).toBeNull();
+    expect(await statusOf(rid)).toBe('active');
+  });
+});
 
-    const stillPaid = snap.docs.some((d) => {
-      const o = d.data() as OrderDoc;
-      return o.status === 'paid' || o.status === 'partially_refunded';
+/**
+ * A refund after the ticket has been handed on.
+ *
+ * `registrationId(order.email)` is the buyer's document, and a transfer leaves
+ * it `transferred` while somebody else carries the ticket. Cancelling the id
+ * derived from the buyer's address took the money back and left the new
+ * holder's badge scanning at the door, which is the one outcome a refund exists
+ * to prevent.
+ *
+ * The transfer itself is written here rather than driven through the dashboard:
+ * these tests own the refund, and what it consumes is two fields on a document.
+ */
+describe('a refund after a transfer', () => {
+  it("cancels the ticket the new holder carries, not the buyer's dead document", async () => {
+    await purchase({ externalId: 'cs_transfer' });
+    const benId = await transferTo(buyer.email, ben);
+
+    const outcome = await cancelRegistrationByOrder({
+      externalId: 'cs_transfer',
+      reason: 'refunded',
+      refundedCents: 79_900,
     });
 
-    expect(stillPaid).toBe(true);
+    expect(outcome.registrationId).toBe(benId);
+    expect(outcome.holderEmail).toBe(ben.email.toLowerCase());
+    // The receipt still goes to whoever paid.
+    expect(outcome.email).toBe(buyer.email.toLowerCase());
+
+    expect(await statusOf(benId)).toBe('cancelled');
+    // The buyer's document was already dead and is not touched again.
+    expect(await statusOf(registrationId(buyer.email))).toBe('transferred');
+  });
+
+  it("leaves the holder's ticket alone while another order of the buyer's still pays for it", async () => {
+    // Ada bought twice and gave one ticket to Ben, who has no orders of his
+    // own. Asking only the holder finds nothing paying for the seat and
+    // cancels a ticket the buyer is still paying for.
+    await purchase({ externalId: 'cs_main' });
+    await purchase({ externalId: 'cs_upgrade', amountCents: 69_900 });
+    const benId = await transferTo(buyer.email, ben);
+
+    const outcome = await cancelRegistrationByOrder({
+      externalId: 'cs_upgrade',
+      reason: 'refunded',
+      refundedCents: 69_900,
+    });
+
+    expect(outcome.registrationId).toBeNull();
+    expect(await statusOf(benId)).toBe('active');
+  });
+
+  it('follows a chain of two transfers to the end', async () => {
+    await purchase({ externalId: 'cs_chain' });
+    const benId = await transferTo(buyer.email, ben);
+    const caraId = await transferTo(ben.email, cara);
+
+    const outcome = await cancelRegistrationByOrder({
+      externalId: 'cs_chain',
+      reason: 'refunded',
+      refundedCents: 79_900,
+    });
+
+    expect(outcome.registrationId).toBe(caraId);
+    expect(await statusOf(caraId)).toBe('cancelled');
+    expect(await statusOf(benId)).toBe('transferred');
+  });
+
+  it('cancels nothing when the chain loops back on itself', async () => {
+    // A repair gone wrong. The money still goes back; what must not happen is a
+    // webhook that never returns, because Stripe retries it for three days.
+    await purchase({ externalId: 'cs_cycle' });
+    const benId = await transferTo(buyer.email, ben);
+    await db
+      .collection(COLLECTIONS.registrations)
+      .doc(benId)
+      .update({ status: 'transferred', transferredTo: registrationId(buyer.email) });
+
+    const outcome = await cancelRegistrationByOrder({
+      externalId: 'cs_cycle',
+      reason: 'refunded',
+      refundedCents: 79_900,
+    });
+
+    expect(outcome.registrationId).toBeNull();
+    expect(outcome.fullyRefunded).toBe(true);
+    expect(await statusOf(benId)).toBe('transferred');
+  });
+
+  it('skips a registration that is no longer there rather than throwing', async () => {
+    // An abandoned multi-seat cart leaves an order with the buyer's address and
+    // no registration. An `update()` on a missing document throws NOT_FOUND out
+    // of the webhook, Stripe reads the 500 and retries for three days.
+    await purchase({ externalId: 'cs_gone' });
+    await db.collection(COLLECTIONS.registrations).doc(registrationId(buyer.email)).delete();
+
+    const outcome = await cancelRegistrationByOrder({
+      externalId: 'cs_gone',
+      reason: 'refunded',
+      refundedCents: 79_900,
+    });
+
+    expect(outcome.registrationId).toBeNull();
+    expect(outcome.fullyRefunded).toBe(true);
   });
 });
 

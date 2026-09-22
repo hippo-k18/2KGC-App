@@ -420,33 +420,72 @@ export interface RefundEmailInput {
   currency: string;
   orderId?: string;
   registrationId?: string;
+  /**
+   * Whether this refund actually took a ticket away. False when a second,
+   * still-paid order covers the same person and their badge keeps working.
+   * Defaults to true, which is what a single-order refund does.
+   */
+  ticketCancelled?: boolean;
+  /**
+   * Whether the ticket had been passed to somebody else before the refund. The
+   * buyer's own badge stopped working at the transfer, not now, so the sentence
+   * about a badge that no longer scans is about a ticket they no longer hold.
+   */
+  transferred?: boolean;
 }
 
 /**
- * Confirms the money went back and, more usefully, that the ticket did not
- * survive it.
+ * Confirms the money went back and, more usefully, what happened to the ticket.
  *
  * The second half is the point. Someone who refunds and still has a
  * confirmation email in their inbox will otherwise turn up at the door — and
  * finding out there is that the badge does not scan is a worse conversation
  * than an email that said so in April.
+ *
+ * ── Three readings, because the buyer is not always the ticket holder ───────
+ *
+ * This goes to whoever paid, always: they are owed the receipt. What it can say
+ * about a badge depends on what the refund did.
+ *
+ * A plain refund cancels the buyer's own ticket, which is the original mail. A
+ * refund of an order whose ticket was **transferred** cancels somebody else's
+ * badge and not the buyer's, so the buyer is told about the ticket they passed
+ * on and `sendTicketWithdrawn` tells the person now holding it. And a refund
+ * that cancelled nothing, because another paid order still covers the seat,
+ * must not claim a badge has stopped working when it has not.
  */
 export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<void> {
   const amount = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const cancelled = input.ticketCancelled ?? true;
+
+  const ticketHtml = !cancelled
+    ? `<strong>The ticket is not affected.</strong> Another order still covers it, so it scans at the door as before. If this was a mistake, reply to this email and we'll sort it out.`
+    : input.transferred
+      ? `<strong>The ticket you passed on is now cancelled</strong>, so it will no longer scan at the door. We have told the person who was holding it. If this was a mistake, reply to this email and we'll sort it out.`
+      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, reply to this email and we'll sort it out.`;
+
+  const ticketText = !cancelled
+    ? `The ticket is not affected. Another order still covers it, so it scans at the
+door as before. If this was a mistake, reply to this email.`
+    : input.transferred
+      ? `The ticket you passed on is now cancelled, so it will no longer scan at the
+door. We have told the person who was holding it. If this was a mistake, reply
+to this email.`
+      : `Your registration is now cancelled, so the badge QR in the app will no longer
+scan at the door. If this was a mistake, reply to this email.`;
 
   const html = shell(
     'Your KGC 2027 ticket has been refunded',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} we've refunded ${amount}${input.ticketType ? ` for your ${esc(input.ticketType)} ticket` : ''}. It usually reaches your account in five to ten working days, depending on your bank.</p>
-     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, reply to this email and we'll sort it out.</p>`,
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;">${ticketHtml}</p>`,
   );
 
   const text = `${greeting} we've refunded ${amount}${input.ticketType ? ` for your ${input.ticketType} ticket` : ''}.
 
 It usually reaches your account in 5-10 working days.
 
-Your registration is now cancelled, so the badge QR in the app will no longer
-scan at the door. If this was a mistake, reply to this email.`;
+${ticketText}`;
 
   await send(store, {
     to: input.to,
@@ -454,6 +493,53 @@ scan at the door. If this was a mistake, reply to this email.`;
     html,
     text,
     template: 'refund-confirmation',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+export interface TicketWithdrawnInput {
+  to: string;
+  name?: string;
+  ticketType?: string;
+  orderId?: string;
+  /** The holder's own registration, never the buyer's. */
+  registrationId?: string;
+}
+
+/**
+ * Tells the person holding a transferred ticket that it has stopped working.
+ *
+ * The refund receipt goes to whoever paid, and after a transfer that is not the
+ * person whose badge just died. Without this mail the holder learns at the
+ * door, from a scanner, which is the exact conversation the refund receipt
+ * exists to prevent for the buyer.
+ *
+ * It carries no amount. No money moved for this reader, and a figure in front
+ * of them would read as a refund they are owed, which it is not.
+ */
+export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdrawnInput): Promise<void> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  const html = shell(
+    'Your KGC 2027 ticket has been cancelled',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} the ticket that was passed to you${input.ticketType ? ` for ${esc(input.ticketType)}` : ''} has been cancelled, because the person who bought it has been refunded.</p>
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your badge will no longer scan at the door.</strong> The money went back to whoever paid for the ticket, so there is nothing for you to claim. If you think this is wrong, reply to this email and we'll sort it out.</p>`,
+  );
+
+  const text = `${greeting} the ticket that was passed to you${input.ticketType ? ` for ${input.ticketType}` : ''} has been
+cancelled, because the person who bought it has been refunded.
+
+Your badge will no longer scan at the door. The money went back to whoever paid
+for the ticket, so there is nothing for you to claim. If you think this is
+wrong, reply to this email.`;
+
+  await send(store, {
+    to: input.to,
+    subject: 'Your KGC 2027 ticket has been cancelled',
+    html,
+    text,
+    template: 'ticket-cancelled',
     orderId: input.orderId,
     registrationId: input.registrationId,
   });

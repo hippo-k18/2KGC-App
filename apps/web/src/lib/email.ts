@@ -5,9 +5,11 @@ import {
   sendInvoiceRaised as sharedSendInvoiceRaised,
   sendPurchaseConfirmation as sharedSendPurchaseConfirmation,
   sendRefundConfirmation as sharedSendRefundConfirmation,
+  sendTicketWithdrawn as sharedSendTicketWithdrawn,
   type InvoiceEmailInput,
   type PurchaseEmailInput,
   type RefundEmailInput,
+  type TicketWithdrawnInput,
 } from '@kgc/scripts/src/lib/email';
 import { db } from './firestore';
 
@@ -29,7 +31,7 @@ import { db } from './firestore';
  * would take *fulfilment* down because a receipt bounced.
  */
 
-export type { InvoiceEmailInput, PurchaseEmailInput, RefundEmailInput };
+export type { InvoiceEmailInput, PurchaseEmailInput, RefundEmailInput, TicketWithdrawnInput };
 
 export function emailEnabled(): boolean {
   return sharedEmailEnabled();
@@ -45,4 +47,8 @@ export function sendInvoiceRaised(input: InvoiceEmailInput): Promise<void> {
 
 export function sendRefundConfirmation(input: RefundEmailInput): Promise<void> {
   return sharedSendRefundConfirmation(db(), input);
+}
+
+export function sendTicketWithdrawn(input: TicketWithdrawnInput): Promise<void> {
+  return sharedSendTicketWithdrawn(db(), input);
 }
