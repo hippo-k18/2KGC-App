@@ -256,7 +256,7 @@ export function Sidebar({
             <span>{active.title}</span>
             {active.slug === 'tickets' && can('/tickets/ticket-setup') ? (
               <Link className="btn btn-primary sidebar-header-btn" href="/tickets/ticket-setup">
-                Step-by-step guide ›
+                Setup guide ›
               </Link>
             ) : null}
           </div>

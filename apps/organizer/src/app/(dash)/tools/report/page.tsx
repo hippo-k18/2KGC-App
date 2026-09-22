@@ -43,6 +43,83 @@ function stamp(iso: string): string {
   }).format(d);
 }
 
+/**
+ * `attendee.reinstate` → "Reinstated an attendee".
+ *
+ * The log is written in the vocabulary the code uses, which is right for the
+ * documents and wrong for the one screen a person reads them on: the column
+ * said `questionForm.update` beside a Firestore path, and an organizer looking
+ * for who cancelled somebody's ticket could not find it.
+ *
+ * Built from the two halves of the action rather than from a table of all
+ * hundred-odd verbs, so an action added later reads sensibly without anybody
+ * remembering to come back here. Only the verbs whose past tense is not "+d"
+ * are listed.
+ */
+const AUDIT_VERB: Record<string, string> = {
+  add: 'Added',
+  adjustSold: 'Corrected the sold count for',
+  assign: 'Assigned',
+  block: 'Blocked',
+  cancel: 'Cancelled',
+  category: 'Set the category on',
+  complimentaryPasses: 'Set the complimentary passes on',
+  confirmation: 'Resent the confirmation for',
+  decide: 'Decided on',
+  erase: 'Erased everything held about',
+  exclude: 'Kept a reviewer away from',
+  form: 'Changed the questions on',
+  hold: 'Held',
+  import: 'Imported',
+  invite: 'Invited',
+  manual: 'Recorded a payment on',
+  markPaid: 'Marked paid',
+  newLink: 'Issued a new link for',
+  portalApprove: 'Approved what a speaker sent for',
+  portalReject: 'Rejected what a speaker sent for',
+  portalRevoke: 'Revoked the portal link for',
+  portalSend: 'Sent a portal link for',
+  promote: 'Put on the agenda',
+  qaSettings: 'Changed the Q&A settings on',
+  publish: 'Published',
+  publishTally: 'Published the tally for',
+  reconcile: 'Rebuilt',
+  refund: 'Refunded',
+  release: 'Released',
+  remove: 'Removed',
+  rename: 'Renamed',
+  roles: 'Changed the roles on',
+  rubric: 'Changed the scoring criteria on',
+  send: 'Sent',
+  sendInvitation: 'Sent an invitation for',
+  setPassphrase: 'Set a passphrase for',
+  setStatus: 'Changed the status of',
+  setSold: 'Corrected the sold count for',
+  ticketType: 'Changed the ticket on',
+  transfer: 'Transferred',
+  unblock: 'Unblocked',
+  undo: 'Undid',
+  undoDecision: 'Took back the decision on',
+};
+
+/** `questionForm` → `question form`, for the end of the sentence. */
+function nounWords(part: string): string {
+  return part
+    .replace(/\./g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\bcheckin\b/gi, 'check-in')
+    .toLowerCase();
+}
+
+function describeAction(action: string): string {
+  const parts = action.split('.');
+  // The verb is the last segment, not the second: `desk.message.send` has three.
+  const verb = parts.length > 1 ? parts[parts.length - 1] : '';
+  if (!verb) return action;
+  const said = AUDIT_VERB[verb] ?? `${verb.charAt(0).toUpperCase()}${verb.slice(1)}d`;
+  return `${said} ${nounWords(parts.slice(0, -1).join(' '))}`;
+}
+
 export default async function ReportPage() {
   await requireOrganizer();
 
@@ -309,8 +386,8 @@ export default async function ReportPage() {
           cols={[
             { key: 'w', label: 'When', className: 'cell-mdsm' },
             { key: 'a', label: 'Actor', className: 'cell-mdsm' },
-            { key: 'x', label: 'Action', className: 'cell-sm' },
-            { key: 't', label: 'Target', className: 'cell-fill' },
+            { key: 'x', label: 'Action', className: 'cell-md' },
+            { key: 't', label: 'What', className: 'cell-fill' },
           ]}
           empty="No writes yet"
           rows={audit.map((a) => [
@@ -319,11 +396,9 @@ export default async function ReportPage() {
             </span>,
             a.actor,
             <Tag key="x" color={a.action === 'checkin.undo' ? 'orange' : 'blue'}>
-              {a.action}
+              {describeAction(a.action)}
             </Tag>,
-            <code key="t" style={{ fontSize: 12 }}>
-              {a.targetPath}
-            </code>,
+            a.subject ?? <span className="muted">not named</span>,
           ])}
         />
       </Panel>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { SITE } from '@/lib/site';
+import { formatDeadline, SITE } from '@/lib/site';
 import { loadOwnSubmission } from '@/lib/submissions';
 import { SubmissionForm } from '../../submission-form';
 import { withdrawAction } from '../../actions';
@@ -76,7 +76,8 @@ export default async function SubmissionTokenPage({
           <p className="notice" role="status">
             <strong>Saved as a draft.</strong> This has <strong>not</strong> been submitted and
             nobody will read it. Come back through the link we have emailed you and press{' '}
-            <em>Submit</em> before {own.call.closesAtLocal.replace('T', ' ')}.
+            <em>Submit</em> before{' '}
+            {formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal}.
           </p>
         )}
         {r === 'withdrawn' && (
@@ -126,7 +127,7 @@ export default async function SubmissionTokenPage({
           <p className="notice warn" role="status">
             <strong>This is still a draft.</strong> It has not been submitted and nobody is reading
             it. Press <em>Submit</em> at the bottom before{' '}
-            {own.call.closesAtLocal.replace('T', ' ')}.
+            {formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal}.
           </p>
         )}
 

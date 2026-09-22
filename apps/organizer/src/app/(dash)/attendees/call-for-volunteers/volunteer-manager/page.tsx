@@ -4,7 +4,7 @@ import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { listVolunteers, overlappingShifts, summariseRoster, withRegistrations } from '@/lib/volunteers';
 import { ConfirmButton } from '../../../form';
-import { Banner, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, StatTiles, Table, Tag, listParams, paginate } from '../../../ui';
+import { Banner, Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, StatTiles, Table, Tag, listParams, paginate } from '../../../ui';
 import { deleteVolunteerAction, setVolunteerStatusAction } from './actions';
 import { VolunteerForm } from './form';
 
@@ -167,7 +167,7 @@ export default async function VolunteerManagerPage({
                 <span key="n">
                   <strong>{v.name}</strong>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {v.email}
+                    <Email address={v.email} />
                     {v.phone ? ` · ${v.phone}` : ''}
                   </div>
                   {v.registrationId ? (

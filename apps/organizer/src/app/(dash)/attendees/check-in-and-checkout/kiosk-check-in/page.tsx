@@ -60,7 +60,17 @@ export default async function KioskCheckInPage({
     lists[0];
 
   const stationName = (station ?? '').trim() || 'Kiosk 1';
-  const known = [...stations.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  /*
+   * One station document per *browser*, not per station: the scanner registers
+   * the device it is running on, and a station name is what the person at the
+   * desk typed. So a desk that has been opened on nine browsers listed "Console
+   * desk 1" nine times, which reads as nine desks. Counted by name instead, and
+   * the count is the useful number anyway — it is how many devices are pointed
+   * at that desk.
+   */
+  const byName = new Map<string, number>();
+  for (const label of stations.values()) byName.set(label, (byName.get(label) ?? 0) + 1);
+  const known = [...byName.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
     <>
@@ -149,9 +159,13 @@ export default async function KioskCheckInPage({
         <Table
           cols={[
             { key: 'l', label: 'Station', className: 'cell-fill' },
+            { key: 'd', label: 'Devices', className: 'cell-xsm' },
           ]}
           empty="No device has opened the scanner yet"
-          rows={known.map(([id, label]) => [<strong key={id}>{label}</strong>])}
+          rows={known.map(([label, count]) => [
+            <strong key="l">{label}</strong>,
+            <span key="d">{count}</span>,
+          ])}
         />
       </Panel>
     </>

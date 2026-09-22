@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PageHeader, Panel, StatTiles, Table } from '../../../ui';
+import { stampOfInstant } from '@/lib/time';
+import { Email, GapPanel, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,12 +92,12 @@ export default async function CheckoutPage() {
           empty="Nobody has checked in yet"
           rows={recent.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt ? stampOfInstant(c.checkedInAt) : '—'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {c.email}
+                <Email address={c.email} />
               </div>
             </span>,
             c.ticketType ?? <span className="muted">—</span>,

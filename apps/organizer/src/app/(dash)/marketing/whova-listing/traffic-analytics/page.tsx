@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
+import { stampOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -136,7 +137,7 @@ export default async function WhovaListingTrafficPage() {
             l.orders,
             l.revenueCents > 0 ? money(l.revenueCents, l.currency) : <span className="muted">—</span>,
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {l.lastClickedAt ? l.lastClickedAt.slice(0, 16).replace('T', ' ') : <span className="muted">never</span>}
+              {l.lastClickedAt ? stampOfInstant(l.lastClickedAt) : <span className="muted">never</span>}
             </span>,
           ])}
         />

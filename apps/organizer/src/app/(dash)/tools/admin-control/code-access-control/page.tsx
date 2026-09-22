@@ -54,7 +54,11 @@ export default async function CodeAccessControlPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Event code</h2>
+        {/*
+          No panel heading. It said "Event code" directly above a field
+          labelled "Event code", and the field label is the one that has to
+          stay: it names the input for anybody reading with a screen reader.
+        */}
         <CodeAccessForm
           eventCode={s.eventCode}
           codeRequired={s.codeRequired}

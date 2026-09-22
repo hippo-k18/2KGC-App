@@ -65,11 +65,17 @@ export const NO_TICKET_LABEL = 'No ticket type';
  *
  * Zero-height bars for the quiet hours are the point of an hourly chart — a
  * chart that lists only the hours somebody arrived draws a flat, busy morning
- * out of two arrivals nine hours apart. But the gap between a test scan in
- * September and the real door in May is eight months of empty bars, so beyond
- * a day and a half the empty hours are dropped and the page says they were.
+ * out of two arrivals nine hours apart. But every empty hour is also a row in
+ * the table beside the chart, and the page has to be scrolled past at the door.
+ *
+ * Thirty-six was a day and a half, which kept a whole night of nothing between
+ * two mornings: 33 of 38 rows read zero, and the five that meant something were
+ * spread over three screens. Half a day holds the case the rule exists for — a
+ * quiet afternoon between a busy morning and a busy evening — and drops the
+ * overnight, which nobody reads as continuous anyway. Past it the empty hours
+ * go and the page says they went.
  */
-export const MAX_EMPTY_HOURS = 36;
+export const MAX_EMPTY_HOURS = 12;
 
 /**
  * The hour a moment falls in, in the venue's zone, as `YYYY-MM-DD HH`.

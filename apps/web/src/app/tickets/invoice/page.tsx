@@ -29,6 +29,16 @@ export const metadata: Metadata = {
 
 export default async function InvoicePage() {
   const tiers = (await tiersOrNull()) ?? [];
+  /*
+   * The form and the column beside it have to agree.
+   *
+   * With invoicing closed the form is replaced by an email notice, and the
+   * how-it-works list carried on describing a form that was not on the page:
+   * "You list who is coming and who pays", "This form handles up to ten
+   * people". Two steps change wording; the rest of the sequence is the same
+   * either way.
+   */
+  const open = stripeEnabled();
 
   return (
     <>
@@ -51,7 +61,7 @@ export default async function InvoicePage() {
                 Fail closed, and before the typing rather than after it: a form
                 whose submit can only refuse is twelve fields of wasted effort.
               */}
-              {stripeEnabled() ? (
+              {open ? (
                 <InvoiceForm tiers={tiers} />
               ) : (
                 <p className="notice">
@@ -66,8 +76,10 @@ export default async function InvoicePage() {
               <h2 style={{ fontSize: '1.25rem' }}>How it works</h2>
               <ol style={{ lineHeight: 1.7, paddingLeft: '1.1rem' }}>
                 <li>
-                  You list who&rsquo;s coming and who pays. Nothing is charged and nobody is
-                  registered yet.
+                  {open
+                    ? 'You list who\u2019s coming and who pays.'
+                    : 'You email us who\u2019s coming and who pays.'}{' '}
+                  Nothing is charged and nobody is registered yet.
                 </li>
                 <li>
                   We raise the invoice through Stripe and email it to your billing contact, with the
@@ -100,8 +112,17 @@ export default async function InvoicePage() {
 
               <h3 style={{ fontSize: '1.05rem', marginTop: 26 }}>Larger groups</h3>
               <p>
-                This form handles up to ten people. For more than that, or for a sponsor allocation,
-                email us and we&rsquo;ll set it up directly.
+                {open ? (
+                  <>
+                    This form handles up to ten people. For more than that, or for a sponsor
+                    allocation, email us and we&rsquo;ll set it up directly.
+                  </>
+                ) : (
+                  <>
+                    Ten people or a hundred, put the names in the same email. Sponsor allocations
+                    go the same way.
+                  </>
+                )}
               </p>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { ROUTES } from '@/lib/nav';
 import { seatCounts, sessionSeats, type SeatHolder } from '@/lib/session-seats';
 import { joinNames, seatFill } from '@/lib/session-seats-core';
 import { ConfirmButton } from '../../form';
-import { Banner, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { Banner, Email, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 import { removeSeatAction } from './actions';
 import { CapForm } from './cap-form';
 
@@ -213,7 +213,7 @@ export default async function SessionCapPage({
         <strong>{h.name}</strong>
         {h.email && h.email !== h.name ? (
           <div className="muted" style={{ fontSize: 12 }}>
-            {h.email}
+            <Email address={h.email} />
           </div>
         ) : null}
       </span>,

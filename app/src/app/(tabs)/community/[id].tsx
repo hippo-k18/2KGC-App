@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { doc } from 'firebase/firestore';
@@ -24,8 +24,11 @@ import {
   useReactionCounts,
   useReplies,
 } from '@/lib/data/community';
+import { useDirectory } from '@/lib/data/directory';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
+
+import { relative } from './index';
 
 type Post = WithId<CommunityPostDoc>;
 
@@ -69,6 +72,26 @@ export default function PostScreen() {
   const missing = postStatus === 'ready' && !post;
 
   const { replies, error: repliesError, retry: retryReplies } = useReplies(id);
+  /*
+   * Names for the bylines, from the same projection the People list reads.
+   *
+   * Three people answering a question all arrived as the same anonymous voice,
+   * and only your own reply carried a label. An attendee who has opted out of
+   * the directory has no document here at all, which is the whole point of that
+   * projection, so their reply stays unnamed rather than being named from some
+   * other collection.
+   */
+  const { people } = useDirectory();
+  const names = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of people ?? []) map.set(p.uid, p.name);
+    return map;
+  }, [people]);
+  const byline = (authorId: string | undefined, at: Parameters<typeof relative>[0]) => {
+    const who =
+      authorId && authorId === user?.uid ? 'You' : (names.get(authorId ?? '') ?? 'Attendee');
+    return `${who} · ${relative(at)}`;
+  };
   const reacted = useMyReactions(user?.uid, id ? [id] : []);
   // `post.reactionCount` is trigger-owned and nothing has ever incremented it,
   // so this screen printed "👍 0" however many people had reacted. Counted
@@ -178,6 +201,9 @@ export default function PostScreen() {
             ) : (
               <>
                 <Text variant="title3">{post.title}</Text>
+                <Text variant="caption" tone="tertiary">
+                  {byline(post.authorId, post.createdAt)}
+                </Text>
                 <Text>{post.body}</Text>
                 {post.editedAt ? (
                   <Text variant="caption" tone="tertiary">
@@ -263,11 +289,9 @@ export default function PostScreen() {
                 gap: 4,
               }}>
               <Text>{r.body}</Text>
-              {r.authorId === user?.uid ? (
-                <Text variant="caption" tone="tertiary">
-                  You
-                </Text>
-              ) : null}
+              <Text variant="caption" tone="tertiary">
+                {byline(r.authorId, r.createdAt)}
+              </Text>
             </View>
           ))}
         </ScrollView>

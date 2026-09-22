@@ -170,7 +170,10 @@ export default function EditProfileScreen() {
               value={title}
               onChangeText={setTitle}
               style={field}
-              placeholder="Principal Ontologist"
+              // A prompt, not a specimen. "Principal Ontologist" is a real job
+              // title, so an empty box read as one somebody had already filled
+              // in, while Company and About below asked a question.
+              placeholder="What you do"
               placeholderTextColor={colors.textTertiary}
               accessibilityLabel="Job title"
               maxLength={120}

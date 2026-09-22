@@ -182,6 +182,7 @@ export async function resendConfirmation(rid: string, actor: string): Promise<At
     action: 'attendee.confirmation',
     targetPath: `${COLLECTIONS.registrations}/${rid}`,
     targetId: rid,
+    subject: reg.name ?? reg.email,
     before: {},
     after: { email: reg.email },
   });
@@ -256,6 +257,7 @@ export async function updateAttendee(
     action: 'attendee.update',
     targetPath: `${COLLECTIONS.registrations}/${rid}`,
     targetId: rid,
+    subject: details.name || reg.name || reg.email,
     before: { name: reg.name ?? null, title: reg.title ?? null, company: reg.company ?? null },
     after: { name: details.name, title: details.title || null, company: details.company || null },
   });
@@ -385,6 +387,7 @@ async function moveRegistration(
     action: kind === 'correct' ? 'attendee.update' : 'attendee.transfer',
     targetPath: `${COLLECTIONS.registrations}/${fromId}`,
     targetId: fromId,
+    subject: from.name ?? from.email,
     before: { email: from.email, name: from.name ?? null, status: from.status },
     after: { email: details.email, name: details.name, registrationId: toId, ticketType },
   });
@@ -496,6 +499,7 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
     action: 'attendee.cancel',
     targetPath: `${COLLECTIONS.registrations}/${rid}`,
     targetId: rid,
+    subject: reg.name ?? reg.email,
     before: { status: 'active' },
     after: { status: 'cancelled', seatReleased: seat ?? null, appAccess: access },
   });
@@ -574,6 +578,7 @@ export async function reinstateAttendee(rid: string, actor: string): Promise<Att
     action: 'attendee.reinstate',
     targetPath: `${COLLECTIONS.registrations}/${rid}`,
     targetId: rid,
+    subject: reg.name ?? reg.email,
     before: { status: reg.status },
     after: { status: 'active' },
   });
@@ -610,6 +615,7 @@ export async function changeTicketType(
     action: 'attendee.ticketType',
     targetPath: `${COLLECTIONS.registrations}/${rid}`,
     targetId: rid,
+    subject: reg.name ?? reg.email,
     before: { ticketType: reg.ticketType ?? null },
     after: { ticketType: next },
   });

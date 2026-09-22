@@ -1,4 +1,4 @@
-import { Linking, View } from 'react-native';
+import { Linking, Text as RNText, View } from 'react-native';
 
 import { parseRichText, type InlineSpan, type RichBlock } from '@kgc/shared';
 
@@ -26,6 +26,16 @@ import { useTheme } from '@/hooks/use-theme';
  * parser has already refused every scheme but http, https, mailto and tel, so
  * what arrives here is openable — the `catch` is the belt to that braces, and
  * matches what `lib/data/documents.ts` does for the same reason.
+ *
+ * ## A span carries only its own difference
+ *
+ * The spans below are react-native's plain `Text`, not this app's, and an
+ * unstyled run is the string itself rather than a wrapper. The app's `Text`
+ * defaults to the body variant, so a run nested inside a heading reset it from
+ * 20pt semibold back to 17pt regular — which set every heading on an organizer
+ * page exactly like the paragraphs around it and left the FAQ with nothing to
+ * scan. A span says bold, italic, code or link, and inherits the rest from its
+ * block.
  */
 function Spans({ spans }: { spans: InlineSpan[] }) {
   const colors = useTheme();
@@ -36,25 +46,25 @@ function Spans({ spans }: { spans: InlineSpan[] }) {
         switch (s.kind) {
           case 'strong':
             return (
-              <Text key={i} style={{ fontWeight: '600' }}>
+              <RNText key={i} style={{ fontWeight: '600' }}>
                 {s.text}
-              </Text>
+              </RNText>
             );
           case 'em':
             return (
-              <Text key={i} style={{ fontStyle: 'italic' }}>
+              <RNText key={i} style={{ fontStyle: 'italic' }}>
                 {s.text}
-              </Text>
+              </RNText>
             );
           case 'code':
             return (
-              <Text key={i} style={{ fontFamily: 'Courier', fontSize: 15 }}>
+              <RNText key={i} style={{ fontFamily: 'Courier' }}>
                 {s.text}
-              </Text>
+              </RNText>
             );
           case 'link':
             return (
-              <Text
+              <RNText
                 key={i}
                 style={{ color: colors.tint, textDecorationLine: 'underline' }}
                 accessibilityRole="link"
@@ -62,10 +72,10 @@ function Spans({ spans }: { spans: InlineSpan[] }) {
                   void Linking.openURL(s.href).catch(() => {});
                 }}>
                 {s.text}
-              </Text>
+              </RNText>
             );
           default:
-            return <Text key={i}>{s.text}</Text>;
+            return s.text;
         }
       })}
     </>

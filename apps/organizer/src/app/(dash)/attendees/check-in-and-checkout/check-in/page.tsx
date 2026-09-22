@@ -16,7 +16,7 @@ import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { clockOfInstant, dayOfInstant } from '@/lib/time';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
+import { Banner, Email, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
 import { Dropdown } from '../../../menu';
 import { DeskTable, type DeskRow } from './desk-table';
 import { CreateListForm } from './list-form';
@@ -428,7 +428,7 @@ export default async function CheckInPage({
             <span key="n">
               <strong>{c.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {c.email}
+                <Email address={c.email} />
               </div>
             </span>,
             c.ticketType ?? <span className="muted">—</span>,

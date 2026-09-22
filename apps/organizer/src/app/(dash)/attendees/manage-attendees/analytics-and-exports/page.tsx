@@ -146,8 +146,8 @@ export default async function AnalyticsAndExportsPage({
           have had check-in opened.{' '}
           {attendance.tracked === 0 ? (
             <>
-              None yet. Open one from{' '}
-              <Link href={ROUTES.checkIn}>Check-in</Link> with Start under Check-in for the session.
+              Open one from <Link href={ROUTES.checkIn}>Check-in</Link> with Start under Check-in
+              for the session.
             </>
           ) : (
             <>

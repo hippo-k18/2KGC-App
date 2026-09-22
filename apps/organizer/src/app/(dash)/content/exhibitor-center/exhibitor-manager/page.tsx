@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { exhibitorSummary, getExhibitor, listExhibitors } from '@/lib/exhibitors';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { Banner, Email, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { setExhibitorStatusAction } from './actions';
 import { ExhibitorForm } from './exhibitor-form';
 
@@ -190,7 +190,7 @@ export default async function ExhibitorManagerPage({
                       <>
                         {e.contactName || e.contactEmail}
                         <div className="muted" style={{ fontSize: 11 }}>
-                          {e.contactEmail}
+                          <Email address={e.contactEmail} />
                         </div>
                       </>
                     ) : (

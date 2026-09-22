@@ -115,7 +115,7 @@ function PostRow({ post }: { post: CommunityPostRow }) {
         padding: '12px 0',
       }}
     >
-      <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+      <div className="card-head" style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
         <Tag color="blue" small>
           {CATEGORY_LABEL[post.category]}
         </Tag>

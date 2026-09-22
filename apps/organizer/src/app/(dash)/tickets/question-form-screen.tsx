@@ -278,7 +278,14 @@ export async function QuestionFormScreen({
                 className="row-actions-col"
                 style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
               >
-                <Link href={`?edit=${f.id}`} style={{ fontSize: 12 }}>
+                {/*
+                  The hash is the fix, not decoration. The editor is the last
+                  panel on the screen, under the whole question list and its
+                  answer summaries, so a plain `?edit=` reloaded the page at the
+                  top and opened the form 3,200px below the fold on a phone.
+                  Tapping Edit looked like it had done nothing at all.
+                */}
+                <Link href={`?edit=${f.id}#question-editor`} style={{ fontSize: 12 }}>
                   Edit
                 </Link>
                 {i > 0 && (
@@ -358,7 +365,7 @@ export async function QuestionFormScreen({
         </Panel>
       )}
 
-      <Panel style={{ marginTop: 16 }}>
+      <Panel id="question-editor" style={{ marginTop: 16, scrollMarginTop: 12 }}>
         <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
           <h2 style={{ fontSize: 15, margin: 0 }}>
             {editing ? `Edit “${editing.prompt}”` : 'Add a question'}

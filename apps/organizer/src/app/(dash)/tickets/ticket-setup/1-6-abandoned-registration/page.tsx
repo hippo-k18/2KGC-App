@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { stampOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -102,7 +103,7 @@ export default async function AbandonedRegistrationPage() {
             o.channel,
             o.totalCents === 0 ? <span key="a" className="muted">none</span> : money(o.totalCents, o.currency),
             <span key="w">
-              {o.refundedAt ? o.refundedAt.slice(0, 16).replace('T', ' ') : ''}
+              {o.refundedAt ? stampOfInstant(o.refundedAt) : ''}
               {o.externalId ? (
                 <div className="muted" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
                   Stripe reference {o.externalId}

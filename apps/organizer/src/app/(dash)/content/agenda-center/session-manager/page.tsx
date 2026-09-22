@@ -309,7 +309,11 @@ function SessionCard({
           </span>
         ) : null}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 13 }}>
-          <Link href={`${ROUTES.sessionManager}/${s.id}`} style={{ color: '#fff' }}>
+          <Link
+            className="row-link"
+            href={`${ROUTES.sessionManager}/${s.id}`}
+            style={{ color: '#fff' }}
+          >
             Edit
           </Link>
         </span>

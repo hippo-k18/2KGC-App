@@ -56,6 +56,18 @@
   /* Design-system era */
   --interactive: #2069bc;
   --interactive-dark: #184f8d;
+  /*
+   * The colour of anything that reads as a link but is not an `<a>`: a row
+   * action that has to POST, the `.linkish` submit buttons, the bars on the
+   * sales chart. It is the same blue an `<a>` gets, so a "Hide" button beside
+   * an "Edit" link cannot look like dead text next to a live one.
+   *
+   * It has to be declared here. Several call sites write `color: var(--link)`
+   * with no fallback, and an undefined custom property there is not an error —
+   * it silently resolves to the inherited colour, so the control renders as
+   * plain black body text and the chart bars render as nothing at all.
+   */
+  --link: #2069bc;
   --surface: #fff;
   --surface-alt: #f4f6f8;
   --hairline: rgba(0, 0, 0, 0.12);
@@ -1218,16 +1230,24 @@ a {
   text-align: center;
 }
 
+/*
+ * Whova's empty table is a fixed 400px. That is a third of a laptop screen
+ * given over to one sentence saying there is nothing, and on Payout it sits
+ * under column headings with 400px of white between them and the next panel.
+ * A minimum instead: the box keeps its grey and its centred message, and an
+ * `empty` that is a whole illustrated state still grows to fit.
+ */
 .whova-empty-table {
   align-items: center;
   background-color: var(--surface-alt);
   border-bottom: 1px solid var(--hairline);
   display: flex;
-  height: 400px;
+  min-height: 180px;
   justify-content: center;
   color: var(--faint);
   flex-direction: column;
   gap: 8px;
+  padding: 32px 16px;
 }
 
 .whova-empty-table .description {
@@ -2689,11 +2709,26 @@ html:has(dialog[open]) {
   text-align: right;
 }
 
-/* The button Whova puts in a sidebar box header, e.g. "Step-by-step guide ›". */
+/*
+ * The button Whova puts in a sidebar box header, e.g. "Setup guide ›".
+ *
+ * The rail is 200px and the header is `nowrap` with `overflow: hidden`, so
+ * whatever does not fit is simply cut: the button used to read "STEP-BY-STEP
+ * GUID" with its arrow gone, on every Tickets screen at every width. The label
+ * is shorter now, and `flex: none` here with a shrinkable title beside it means
+ * a longer section name takes the ellipsis rather than eating the button.
+ */
 .sidebar-header-btn {
+  flex: none;
   font-size: 12px;
   padding: 2px 8px;
   line-height: 18px;
+}
+
+.sidebar .sidebar-header > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ─────────────────────── the loading skeleton (ours) ───────────────────── */
@@ -3308,6 +3343,36 @@ html:has(dialog[open]) {
     align-items: center;
     display: inline-flex;
     min-height: 32px;
+    /* "Edit" is four characters, which was a 21px-wide target on a 32px row. */
+    min-width: 32px;
+  }
+
+  /*
+   * `.linkish` gets the same box wherever it is written, not only inside a
+   * table cell. The rule below names `.whova-table-cell button`, which is where
+   * most of them are — but the one under the certificate logo sits in a form
+   * field, and it was 14px next to a 34px button, so the pair read as a control
+   * and a caption rather than two things you can press.
+   */
+  .linkish {
+    align-items: center;
+    display: inline-flex;
+    min-height: 32px;
+  }
+
+  /*
+   * A tick box that is a column of its own, with no words beside it.
+   *
+   * The label rule above hands every checkbox a 32px-tall box, which is the
+   * whole target when there is text to press. In the Select column of the
+   * attendee, category and session-mapping lists there is none, so that box was
+   * 24px wide: a 16px square with 8px of margin, and nothing else to aim at.
+   * Widening the label leaves the drawn square exactly where and what it was.
+   */
+  .whova-table-cell > .whova-checkbox-label {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 12px 0;
   }
 
   /*
@@ -3370,6 +3435,31 @@ html:has(dialog[open]) {
     min-height: 32px;
   }
 
+  /*
+   * The older `.whova-tag` has the same split, and the same answer: a pill that
+   * is only a label keeps its 24px, a pill you can press does not. The check-in
+   * desk's list link is one of these.
+   */
+  a.whova-tag,
+  button.whova-tag {
+    height: auto;
+    min-height: 32px;
+  }
+
+  /*
+   * "Event website", in the line under the event name.
+   *
+   * It is on all 129 screens in three sections and it was 88 by 16, sitting
+   * between a 44px tag and a 44px button. Vertical padding only, and the line
+   * it shares already stands 16px tall for the text around it, so the box grows
+   * without the line moving.
+   */
+  #top-event-name .additional-info .tutorial-video {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+  }
+
   .whova-table-header.sortable-header a {
     align-items: center;
     min-height: 32px;
@@ -3421,6 +3511,39 @@ html:has(dialog[open]) {
 
   .frame-right-side a {
     overflow-wrap: anywhere;
+  }
+
+  /*
+   * The head of a card in a list: a status chip, a title, and an action at the
+   * far end.
+   *
+   * Wrapping it is right — the rule above does that to every inline flex row —
+   * but wrapping alone makes the shape depend on the length of the title. A
+   * short question kept chip, title and Edit on one line; the next card's
+   * longer question pushed the chip to the line above and Edit to the line
+   * below, so a list of five read as five different layouts. Each part gets its
+   * own line here, chip first, and every card is the same shape whatever it
+   * says.
+   */
+  .card-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  /*
+   * The chip keeps its own width and is pulled to the front; the title is told
+   * to take a whole line, which is what pushes it under the chip. Asking the
+   * chip for the full line instead would stretch the pill across the card.
+   */
+  .card-head > .whova-tag,
+  .card-head > .whova-tag-main {
+    order: -1;
+  }
+
+  .card-head > h2,
+  .card-head > strong {
+    width: 100%;
   }
 
   .panel {

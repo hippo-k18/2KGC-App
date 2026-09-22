@@ -43,7 +43,7 @@ export default function PreviousEventsPage() {
         <h1>Previous events</h1>
         <p className="lede">
           Every edition of the Knowledge Graph Conference since 2019. Each one keeps its own site,
-          with that year&apos;s speakers, programme and sponsors.
+          with that year&rsquo;s speakers, programme and sponsors.
         </p>
 
         <ul style={{ marginTop: 28, paddingLeft: 0, listStyle: 'none' }}>

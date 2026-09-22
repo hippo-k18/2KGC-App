@@ -10,7 +10,6 @@ export default async function Page() {
     <IntegrationGuide
       title="Mailchimp"
       vendor="Mailchimp"
-      whatItIs="An email marketing platform."
       whovaDoes="Syncs attendees into a Mailchimp audience so the mailing list and the attendee list stay in step."
       ourAnswer={<>There is no automatic sync. Export a CSV here and import it into Mailchimp.</>}
       effort="One audience-sync call per import. The subtlety is consent, not code. An address that unsubscribed from the newsletter must not be re-added by a ticket export."

@@ -24,7 +24,8 @@ function SeatNote({ session }: { session: Session }) {
   const colors = useTheme();
   const seat = useSessionSeat(session);
   if (!seat.gated || !seat.ready) return null;
-  const line = seat.mySeatLine ?? 'No seat reserved. Open the session to reserve one.';
+  const line =
+    seat.ticketLine ?? seat.mySeatLine ?? 'No seat reserved. Open the session to reserve one.';
   return (
     <View style={{ backgroundColor: colors.surface, paddingHorizontal: Spacing.md, paddingBottom: 8 }}>
       <Text variant="caption" tone={seat.mine === 'seated' ? 'secondary' : 'danger'}>

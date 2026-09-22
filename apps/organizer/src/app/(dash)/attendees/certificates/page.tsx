@@ -5,7 +5,7 @@ import { attendeeAttendance, formatHours } from '@/lib/attendance';
 import { lastWording, listCertificates } from '@/lib/certificates';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { PrintButton } from '../name-badges/print-button';
 import { IssueForm } from './issue-form';
 
@@ -196,7 +196,7 @@ export default async function CertificatesPage() {
                 <span key="n">
                   <strong>{r.registration.name}</strong>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {r.registration.email}
+                    <Email address={r.registration.email} />
                   </div>
                 </span>,
                 r.registration.ticketType ?? <span className="muted">—</span>,

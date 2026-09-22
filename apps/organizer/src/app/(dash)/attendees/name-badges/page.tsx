@@ -242,7 +242,7 @@ export default async function NameBadgesPage({
         <form method="get" className="toolbar">
           {ticket ? <input type="hidden" name="ticket" value={ticket} /> : null}
           {category ? <input type="hidden" name="category" value={category} /> : null}
-          <SearchInput defaultValue={q} placeholder="Enter name, company, job title or category" />
+          <SearchInput defaultValue={q} placeholder="Name, company or job title" />
           <button type="submit" className="btn btn-default">
             Search
           </button>

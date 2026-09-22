@@ -254,6 +254,7 @@ export default async function TransactionHistoryPage({
             return (
               <Link
                 key={value || 'all'}
+                className="row-link"
                 href={`?${p.toString()}`}
                 style={{
                   fontSize: 12,

@@ -8,7 +8,7 @@ import { listTicketTypes } from '@/lib/commerce';
 import { countWhereEvent, listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { personRefParam } from '@/lib/person-data-core';
-import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { Email, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
 import { AssignBar, RowCheckbox } from '../../categories/assign-bar';
 import { AddAttendeeForm } from './add-form';
@@ -277,7 +277,7 @@ export default async function AttendeesPage({
           <SearchInput
             defaultValue={q}
             width={460}
-            placeholder="Enter name, email, company, titles, location or category"
+            placeholder="Name, email, company or title"
           />
           <button type="submit" className="btn btn-default">
             Search
@@ -338,12 +338,15 @@ export default async function AttendeesPage({
             a.registrationId && a.registrationStatus === 'active' ? (
               <RowCheckbox key="sel" formId={ASSIGN_FORM} rid={a.registrationId} name={a.name} />
             ) : (
-              <span key="sel" />
+              // Nothing, not an empty span: a stacked card hides a cell that is
+              // truly empty, and an empty element left a SELECT heading with a
+              // gap under it that reads as a tick box which failed to draw.
+              null
             ),
             <span key="n">
               <strong>{a.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {a.email}
+                <Email address={a.email} />
               </div>
             </span>,
             a.title ?? <span className="muted">—</span>,

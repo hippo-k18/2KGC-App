@@ -4,6 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { getSession, listRooms, listSpeakerOptions, listTrackOptions } from '@/lib/data';
 import { findConflicts } from '@/lib/conflicts';
 import { ROUTES } from '@/lib/nav';
+import { stampOfInstant } from '@/lib/time';
 import { Banner, PageHeader, Panel, StatusTag } from '../../../../ui';
 import { SessionForm } from '../session-form';
 import { conflictsForSession } from '../session-core';
@@ -56,7 +57,7 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
           <span key="u" className="muted">
             last saved{' '}
             {session.updatedAt
-              ? session.updatedAt.toDate().toISOString().slice(0, 16).replace('T', ' ')
+              ? stampOfInstant(session.updatedAt.toDate().toISOString())
               : 'never'}
           </span>,
         ]}

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { gapNotesVisible } from '@/lib/gap-notes';
 
 /**
@@ -98,9 +98,18 @@ export function PageHeader({
   );
 }
 
-export function Panel({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
+export function Panel({
+  children,
+  id,
+  style,
+}: {
+  children: ReactNode;
+  /** An anchor target, for a link that has to land on this panel rather than the page. */
+  id?: string;
+  style?: React.CSSProperties;
+}) {
   return (
-    <div className="panel" style={style}>
+    <div className="panel" id={id} style={style}>
       {children}
     </div>
   );
@@ -178,15 +187,26 @@ export function Table({
   rows,
   empty,
   sort,
-  stackSm,
+  stackSm = true,
 }: {
   cols: Col[];
   rows: ReactNode[][];
   empty?: ReactNode;
   /**
    * Under 768px, lay each row out as a card: one cell per line with its column
-   * name above it. For tables whose row actions would otherwise sit behind a
-   * sideways swipe. Wider screens are untouched.
+   * name above it, so nothing in the row waits behind a sideways swipe. Wider
+   * screens are untouched.
+   *
+   * On by default, and that default is the fix rather than a convenience. It
+   * was opt-in for its first three rounds and roughly a third of the tables
+   * opted in, which is the wrong third: the tables nobody remembered were the
+   * ones whose last column is a sentence or whose row actions are the only way
+   * to act on the row, and on a phone both sat off the right edge with nothing
+   * on screen to say so. An author cannot be relied on to notice, because the
+   * screen looks right on the laptop they are building it on.
+   *
+   * Pass `stackSm={false}` for a table that is genuinely a grid — a few short
+   * numeric columns that read across — where a card per row is the worse shape.
    */
   stackSm?: boolean;
   /** Current sort state plus the query string to build header links from. */
@@ -767,6 +787,34 @@ export function ProgressBar({ pct }: { pct: number }) {
     >
       <div className="progress-bar-estimated" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
     </div>
+  );
+}
+
+/**
+ * An email address that breaks where a reader expects it to.
+ *
+ * Table cells carry `overflow-wrap: anywhere`, which they need — an address or
+ * an id has no space in it and would otherwise push the column off the screen.
+ * The cost is that on a phone, where a cell is half a card wide, the break
+ * lands mid-word: one line ends `example.t` and the next starts `est`, which
+ * reads as a truncation rather than a wrap.
+ *
+ * A `<wbr>` after the `@` and each dot gives the line breaker somewhere sane to
+ * go. It only falls back to breaking mid-word when even one segment will not
+ * fit, which is the case the rule was there for. Nothing is added to the text
+ * itself: a copy of the element yields the address unchanged.
+ */
+export function Email({ address }: { address: string }) {
+  const parts = address.split(/(?<=[@.])/);
+  return (
+    <>
+      {parts.map((part, i) => (
+        <Fragment key={i}>
+          {part}
+          {i < parts.length - 1 ? <wbr /> : null}
+        </Fragment>
+      ))}
+    </>
   );
 }
 

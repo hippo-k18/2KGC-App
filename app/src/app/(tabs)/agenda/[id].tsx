@@ -495,6 +495,9 @@ export default function SessionDetailScreen() {
               This session has been cancelled.
             </Text>
           ) : null}
+          {/* Who the session is for, next to the room and the time, because it
+              is a fact about the session and not the verdict on a tap. */}
+          {seat.ticketLine ? <Text tone="secondary">{seat.ticketLine}</Text> : null}
         </View>
 
         {/*
@@ -502,39 +505,49 @@ export default function SessionDetailScreen() {
           same calendar-plus glyph. It was "Add to my schedule" with a star here
           and "Add to Agenda" with a calendar in the list, which reads as two
           different features to anyone who has not written the code.
+
+          Dimmed and inert when the reader's ticket does not cover the session.
+          It used to be drawn as a live Join Waitlist, and pressing it was the
+          only way to learn otherwise.
         */}
         <Pressable
           onPress={onToggle}
-          disabled={seatBusy || (seat.gated && !seat.ready)}
+          disabled={seatBusy || seat.barred || (seat.gated && !seat.ready)}
           accessibilityRole="button"
-          accessibilityState={{ selected: saved, busy: seatBusy }}
+          accessibilityState={{ selected: saved, busy: seatBusy, disabled: seat.barred }}
           accessibilityLabel={
             seat.gated ? seat.buttonLabel : saved ? 'Remove from my agenda' : 'Add to my agenda'
           }
           style={({ pressed }) => ({
-            backgroundColor: saved ? colors.surface : colors.accent,
+            backgroundColor: saved || seat.barred ? colors.surface : colors.accent,
             borderWidth: 1,
-            borderColor: colors.tint,
+            borderColor: seat.barred ? colors.border : colors.tint,
             borderRadius: Radius.md,
             paddingVertical: Spacing.md,
             alignItems: 'center',
             minHeight: HIT_TARGET,
             justifyContent: 'center',
-            opacity: pressed || seatBusy ? 0.8 : 1,
+            opacity: (pressed && !seat.barred) || seatBusy ? 0.8 : 1,
           })}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-            <Icon
-              name={seated ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
-              size={20}
-              color={saved ? colors.tint : colors.onAccent}
-            />
-            <Text variant="heading" tone={saved ? 'tint' : 'onAccent'}>
+            {seat.barred ? null : (
+              <Icon
+                name={seated ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
+                size={20}
+                color={saved ? colors.tint : colors.onAccent}
+              />
+            )}
+            <Text
+              variant="heading"
+              tone={seat.barred ? 'tertiary' : saved ? 'tint' : 'onAccent'}>
               {seat.gated ? seat.buttonLabel : saved ? 'In My Agenda' : 'Add to Agenda'}
             </Text>
           </View>
         </Pressable>
 
-        {seat.gated && (seat.seatLine || seat.mySeatLine || seatMessage) ? (
+        {/* The seat count says nothing useful to somebody who cannot take one,
+            so it goes with the button. */}
+        {seat.gated && !seat.barred && (seat.seatLine || seat.mySeatLine || seatMessage) ? (
           <View style={{ gap: Spacing.xs }}>
             {seatMessage ? <Text tone="danger">{seatMessage}</Text> : null}
             {seat.mySeatLine ? <Text>{seat.mySeatLine}</Text> : null}

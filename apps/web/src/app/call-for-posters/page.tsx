@@ -2,7 +2,7 @@ import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { callMilestones, pageContent } from '@/lib/data';
-import { SITE } from '@/lib/site';
+import { formatDeadline, SITE } from '@/lib/site';
 import { openCallFor, type OpenCall } from '@/lib/submissions';
 
 /**
@@ -67,40 +67,6 @@ const EXTERNAL_CALL: CallPageContent = {
   dates: [],
 };
 
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-/**
- * A call's `closesAtLocal` as a printed deadline, or null if it cannot be read.
- *
- * String surgery rather than `Date`, deliberately. `closesAtLocal` is wall time
- * in the call's own zone — the authoring truth, exactly as on `SessionDoc` —
- * and putting it through a `Date` on a server that runs in UTC on Netlify and
- * in something else on a laptop is how "23:59 in New York" becomes 03:59 the
- * next morning on the public page. The zone is printed beside it because a
- * deadline without one is not a deadline.
- */
-function printedDeadline(closesAtLocal: string, timeZone: string): string | null {
-  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(closesAtLocal);
-  if (!parts) return null;
-  const [, year, month, day, hour, minute] = parts;
-  const name = MONTHS[Number(month) - 1];
-  if (!name) return null;
-  return `${name} ${Number(day)}, ${year}, ${hour}:${minute} (${timeZone})`;
-}
-
 /**
  * What the page says before an organizer has edited a word of it.
  *
@@ -125,7 +91,7 @@ function printedDeadline(closesAtLocal: string, timeZone: string): string | null
 function defaults(open: OpenCall | null): CallPageContent {
   if (!open) return EXTERNAL_CALL;
 
-  const deadline = printedDeadline(open.closesAtLocal, open.timeZone);
+  const deadline = formatDeadline(open.closesAtLocal, open.timeZone);
   return {
     submitUrl: `/submit/${open.id}`,
     submitLabel: 'Submit a poster',

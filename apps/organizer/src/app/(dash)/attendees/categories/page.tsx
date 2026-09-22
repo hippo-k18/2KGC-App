@@ -4,7 +4,7 @@ import { UNCATEGORISED, categoryCounts, categoryLabel, inCategory } from '@/lib/
 import { requireOrganizer } from '@/lib/auth';
 import { listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { Email, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 import { AssignBar, RowCheckbox } from './assign-bar';
 import { CategoryEditor } from './category-editor';
 
@@ -128,7 +128,7 @@ export default async function CategoriesPage({
 
         <form method="get" action="#members" className="toolbar">
           {filter ? <input type="hidden" name="category" value={filter} /> : null}
-          <SearchInput defaultValue={q} width={420} placeholder="Enter name, email, company, ticket or category" />
+          <SearchInput defaultValue={q} width={420} placeholder="Name, email, company or ticket" />
           <button type="submit" className="btn btn-default">
             Search
           </button>
@@ -182,7 +182,7 @@ export default async function CategoriesPage({
               <span key="n">
                 <strong>{a.name}</strong>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  {a.email}
+                  <Email address={a.email} />
                 </div>
               </span>,
               a.company ?? <span className="muted">—</span>,

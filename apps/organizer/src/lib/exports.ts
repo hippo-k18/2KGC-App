@@ -373,7 +373,7 @@ export const EXPORTS: ExportDef[] = [
   {
     kind: 'registration-answers',
     title: 'Registration form answers',
-    purpose: 'Catering, accessibility, t-shirt sizes — everything the form asked for.',
+    purpose: 'Catering, accessibility and t-shirt sizes, everything the form asked for.',
     contains: 'Name, email, ticket, status, and a column for every question on the form.',
     build: async () => {
       const [forms, snap] = await Promise.all([

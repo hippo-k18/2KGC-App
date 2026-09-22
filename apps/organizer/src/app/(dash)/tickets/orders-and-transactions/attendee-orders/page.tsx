@@ -3,19 +3,7 @@ import { requirePassphrase, requireOrganizer } from '@/lib/auth';
 import { listOrders, money, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
-import {
-  listParams,
-  PageHeader,
-  paginate,
-  Pagination,
-  NotInputted,
-  Panel,
-  PER_PAGE,
-  SearchInput,
-  sortRows,
-  Table,
-  Tag,
-} from '../../../ui';
+import { Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { MarkPaidButton, RefundButton } from './order-actions';
 
 export const dynamic = 'force-dynamic';
@@ -219,6 +207,7 @@ export default async function AttendeeOrdersPage({
             return (
               <Link
                 key={value || 'all'}
+                className="row-link"
                 href={`?${p.toString()}`}
                 style={{
                   fontSize: 12,
@@ -247,7 +236,7 @@ export default async function AttendeeOrdersPage({
             <div key="b">
               <div>{o.buyerName || <span className="muted">(no name)</span>}</div>
               <div className="muted" style={{ fontSize: 11 }}>
-                {o.email}
+                <Email address={o.email} />
               </div>
               {o.companyName && (
                 <div className="muted" style={{ fontSize: 11 }}>

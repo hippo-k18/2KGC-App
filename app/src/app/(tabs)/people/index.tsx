@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { groupSponsorsByTier, threadIdFor, tierName } from '@kgc/shared';
+import { groupSponsorsByTier, threadIdFor } from '@kgc/shared';
 
 import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
@@ -84,6 +84,21 @@ const EMPTY = [
  * this value now contradicts.)
  */
 const ROW_AVATAR = 44;
+/**
+ * Slop around the bookmark star and "Say Hi", the two controls stacked at the
+ * right of a directory row.
+ *
+ * The star is a 20pt glyph, so it needs 12 on every side to reach 44; "Say Hi"
+ * is 28 tall, so it needs 8. Nothing on its left, because it sits inside the
+ * row's own `Pressable` and slop there would swallow taps meant for the row.
+ *
+ * The two sums also set `ROW_ACTION_GAP` below: 12 under the star and 8 over
+ * "Say Hi" is 20, and any gap smaller than that has one target lying on the
+ * other.
+ */
+const STAR_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
+const SAY_HI_SLOP = { top: Spacing.sm, bottom: Spacing.sm, left: 0, right: Spacing.sm };
+const ROW_ACTION_GAP = STAR_SLOP.bottom + SAY_HI_SLOP.top;
 /**
  * Drawn width of the A–Z rail.
  *
@@ -435,8 +450,12 @@ export default function PeopleScreen() {
               60,
             );
           }}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             if (item.kind === 'index') return <IndexHeader letter={item.letter} />;
+
+            // Last of its band, so the hairline does not hang below the group
+            // into the grey with nothing after it.
+            const last = index === rows.length - 1 || rows[index + 1]?.kind === 'index';
 
             if (item.kind === 'speaker') {
               const s = item.speaker;
@@ -462,6 +481,7 @@ export default function PeopleScreen() {
                       ? () => router.push({ pathname: '/people/[uid]', params: { uid: s.userId! } })
                       : () => router.push({ pathname: '/people/speaker/[id]', params: { id: s.id } })
                   }
+                  last={last}
                 />
               );
             }
@@ -484,6 +504,7 @@ export default function PeopleScreen() {
                   onPress={() =>
                     router.push({ pathname: '/people/exhibitor/[id]', params: { id: e.id } })
                   }
+                  last={last}
                 />
               );
             }
@@ -494,14 +515,15 @@ export default function PeopleScreen() {
                 <DirectoryRow
                   name={s.name}
                   logoURL={s.logoURL}
-                  lines={[
-                    tierName(tiers, s.tier),
-                    s.boothLocation ? `Booth ${s.boothLocation}` : undefined,
-                  ]}
+                  // No tier here: the band above the row is the tier, under the
+                  // organizer's own name for it, and printing it again put
+                  // "Platinum" three times in the first six centimetres.
+                  lines={[s.boothLocation ? `Booth ${s.boothLocation}` : undefined]}
                   tags={s.offers?.slice(0, 2) ?? []}
                   onPress={() =>
                     router.push({ pathname: '/people/sponsor/[id]', params: { id: s.id } })
                   }
+                  last={last}
                 />
               );
             }
@@ -535,6 +557,7 @@ export default function PeopleScreen() {
                 sayHiName={p.name}
                 bookmarked={isSaved(p.uid)}
                 onBookmark={user && p.uid !== user.uid ? () => toggleBookmark(p.uid) : undefined}
+                last={last}
               />
             );
           }}
@@ -610,6 +633,7 @@ function DirectoryRow({
   sayHiName,
   onBookmark,
   bookmarked,
+  last,
 }: {
   name: string;
   photoURL?: string;
@@ -626,6 +650,8 @@ function DirectoryRow({
   sayHiName?: string;
   onBookmark?: () => void;
   bookmarked?: boolean;
+  /** Last row of its band: no rule, so none hangs under the group. */
+  last?: boolean;
 }) {
   const colors = useTheme();
   const shown = tags.slice(0, 2);
@@ -704,7 +730,12 @@ function DirectoryRow({
         ) : null}
       </View>
 
-      <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', gap: Spacing.md }}>
+      <View
+        style={{
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: ROW_ACTION_GAP,
+        }}>
         {onPress ? (
           <View {...DECORATIVE}>
             <Chevron />
@@ -723,8 +754,14 @@ function DirectoryRow({
                 ? `Remove ${sayHiName ?? 'this attendee'} from your bookmarks`
                 : `Bookmark ${sayHiName ?? 'this attendee'}`
             }
-            hitSlop={Spacing.sm}
-            style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
+            // A 20pt glyph repeated down the whole list, and the smallest
+            // control in the app. 12 each side takes it to 44, and `webSlop`
+            // is what makes that true in a phone browser as well.
+            hitSlop={STAR_SLOP}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.4 : 1,
+              ...webSlop({}, STAR_SLOP),
+            })}>
             <Icon
               name={bookmarked ? 'star.fill' : 'star'}
               size={20}
@@ -739,7 +776,7 @@ function DirectoryRow({
             accessibilityRole="button"
             accessibilityLabel={sayHiName ? `Say hi to ${sayHiName}` : 'Say hi'}
             accessibilityHint="Opens a message thread"
-            hitSlop={{ top: Spacing.sm, bottom: Spacing.sm, left: 0, right: Spacing.sm }}
+            hitSlop={SAY_HI_SLOP}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
@@ -747,6 +784,9 @@ function DirectoryRow({
               paddingVertical: Spacing.xs,
               minHeight: HIT_TARGET - Spacing.md,
               opacity: pressed ? 0.4 : 1,
+              // 64x28 in a phone browser without this, because
+              // react-native-web drops `hitSlop`. See `webSlop`.
+              ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, SAY_HI_SLOP),
             })}>
             <Icon name="bubble.left" size={16} color={colors.tint} />
             <Text variant="subhead" tone="tint" numberOfLines={1}>
@@ -763,7 +803,7 @@ function DirectoryRow({
     one separator rule. A `borderBottomWidth` on the row itself cannot be inset,
     which is why this is a drawn hairline rather than a border.
   */
-  const rule = (
+  const rule = last ? null : (
     <View
       style={{
         height: HAIRLINE,

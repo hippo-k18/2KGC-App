@@ -1,0 +1,104 @@
+{
+  "uiIssues": [
+    {
+      "path": "/agenda/building-a-clinical-terminology-service-5bd8fa3c",
+      "width": 390,
+      "severity": "high",
+      "type": "broken",
+      "issue": "On a capped session your ticket does not cover, the screen still offers a full-width blue Join Waitlist button, and tapping it does nothing except print a red line saying the session is for other ticket types, which disappears again the moment you leave the screen or reload.",
+      "fix": "Decide eligibility before the button is drawn: show the ticket line under the title on arrival and render the button disabled or absent instead of letting a tap be the only way to find out.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app3/w-after-0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/lib/data/session-seats-core.ts (seatButtonLabel) with /Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/agenda/[id].tsx (setSeatMessage)"
+    },
+    {
+      "path": "/home/page/faq, /home/page/wifi, /home/page/getting-here",
+      "width": 390,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "Headings inside an organizer page render at exactly the same size, weight and colour as the paragraphs, so the FAQ and the Wi-Fi page read as one undifferentiated run of sentences with no way to scan for the question you want.",
+      "fix": "Stop wrapping a plain inline run in a nested Text, which resets the heading's 20px/600 back to body 17px/400; return the string itself.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app3/pg-faq.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/components/rich-text.tsx (Spans, default branch)"
+    },
+    {
+      "path": "/community/seed-post-0, /community/seed-post-1, /community/seed-post-4",
+      "width": 390,
+      "severity": "medium",
+      "type": "empty-state",
+      "issue": "Replies on a topic carry no name, no avatar and no time, so three people answering a question all look like the same anonymous voice, and only your own reply is labelled, with the word You.",
+      "fix": "Put the author's name and a relative time on every reply, resolved the same way the People list resolves a name.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app/52-topic.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/community/[id].tsx"
+    },
+    {
+      "path": "/people",
+      "width": 390,
+      "severity": "medium",
+      "type": "tap-target",
+      "issue": "The bookmark star on every attendee row is a 20pt square, the smallest control in the app and repeated 44 times down the list, and the Say Hi button beside it measures 64 by 28 in a phone browser.",
+      "fix": "Pair both hitSlop calls with webSlop, as the rest of the app does, and raise the star's slop so it reaches 44pt on the phone too.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app/40-people-attendees-0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/people/index.tsx (bookmark Pressable, Say Hi Pressable)"
+    },
+    {
+      "path": "/agenda/keynote-modelling-provenance-without-drowning-in-reification-04153849",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "After voting in a session poll every option gains a dash on its right where a percentage would sit, four of them in a column, and the sentence underneath already says results are not available.",
+      "fix": "When the poll will never be counted, drop the per-row dash and let the one sentence carry it.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app2/a-poll-voted-1.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/components/session-poll.tsx"
+    },
+    {
+      "path": "/community/announcements, /people (speakers, sponsors, exhibitors)",
+      "width": 390,
+      "severity": "low",
+      "type": "spacing",
+      "issue": "A divider is drawn under the last row of these lists, so a hairline hangs below the final announcement in the grey area with nothing after it.",
+      "fix": "Skip the rule on the last item, the way the session and Q&A lists already do with their last prop.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app/51-announcements.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/community/announcements.tsx and /Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/people/index.tsx (rule)"
+    },
+    {
+      "path": "/me/profile",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "The empty Job title box shows Principal Ontologist as its placeholder, a plausible real job title, so the field reads as already filled in while Company and About show instructions instead.",
+      "fix": "Use a prompt rather than a specimen, matching Where you work and What you work on.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app/62-me-profile-0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/me/profile.tsx"
+    },
+    {
+      "path": "/people (Sponsors)",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "Each sponsor row repeats its tier under the name while a grey tier header sits directly above the group, so Platinum is printed three times in the first six centimetres of the list.",
+      "fix": "Drop the tier from the row and leave the booth number, since the section header already says it.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app2/p-sponsors-0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/people/index.tsx"
+    },
+    {
+      "path": "/home/session-feature",
+      "width": 390,
+      "severity": "low",
+      "type": "hierarchy",
+      "issue": "Session Q&A opens a single flat list of 71 sessions running to about seven and a half screens, with no day headers and nothing to jump with, although the agenda beside it groups the same sessions by day.",
+      "fix": "Group the rows by day with sticky day headers, or default to today.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app/15-session-feature-0.png",
+      "source": "/Users/hartigan/Documents/Claude/Projects/KGC/2KGC-App/app/src/app/(tabs)/home/session-feature.tsx"
+    },
+    {
+      "path": "/home, /community, /community/announcements, /home/documents, /me/badge",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "Test data is on the phone: the top announcement is titled Room 271 has moved to Classroom 4 (19:17:05), two handouts are hosted at example.invalid, and the badge says you checked in on Sunday for an event that runs Monday to Friday.",
+      "fix": "Clean these rows out of the seeded event; this is data, not code.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/app/10-home-1.png",
+      "source": null
+    }
+  ]
+}

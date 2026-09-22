@@ -67,7 +67,7 @@ export function MessageForm({
           required
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          placeholder="Your KGC 2027 slides are due 20 April"
+          placeholder={audience.example.subject}
           maxLength={120}
         />
       </div>
@@ -84,9 +84,7 @@ export function MessageForm({
           required
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder={
-            'Thanks again for speaking at KGC 2027.\n\nWe need your slides by 20 April so the AV team can load them.\n\nUpload here: …'
-          }
+          placeholder={audience.example.body}
         />
         {/*
           Said plainly because organizers paste from Word and expect formatting

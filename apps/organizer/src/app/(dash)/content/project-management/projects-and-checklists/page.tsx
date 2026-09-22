@@ -56,6 +56,7 @@ function TaskLine({ task }: { task: TaskRow }) {
         <input type="hidden" name="next" value={nextStatus(task.status)} />
         <button
           type="submit"
+          className="row-link"
           title={`Mark ${nextStatus(task.status)}`}
           style={{
             background: 'none',
@@ -112,6 +113,7 @@ function TaskLine({ task }: { task: TaskRow }) {
         <input type="hidden" name="id" value={task.id} />
         <button
           type="submit"
+          className="row-link"
           style={{
             background: 'none',
             border: 0,
@@ -126,7 +128,7 @@ function TaskLine({ task }: { task: TaskRow }) {
         </button>
       </form>
 
-      <Link href={`?edit=${task.id}`} style={{ fontSize: 12 }}>
+      <Link className="row-link" href={`?edit=${task.id}`} style={{ fontSize: 12 }}>
         Edit
       </Link>
     </div>

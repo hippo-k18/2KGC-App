@@ -10,7 +10,6 @@ export default async function Page() {
     <IntegrationGuide
       title="Constant Contact"
       vendor="Constant Contact"
-      whatItIs="An email marketing platform."
       whovaDoes="The same audience sync."
       ourAnswer={<>There is no automatic sync. Export a CSV here and import it into Constant Contact.</>}
       effort="The same audience sync as Mailchimp, against a second API. Nothing here is novel once one of them exists."

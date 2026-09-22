@@ -419,6 +419,21 @@ export interface AuditEntry {
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;
+  /**
+   * Who or what the entry is about, in words. "Ada Silva", not `reg_01e162…`.
+   *
+   * Optional, and it is the only field here written purely to be read. Tools ›
+   * Report is the one screen this collection has, and it printed `targetPath`
+   * — so a cancelled ticket read `registrations/reg_01e1621469460b03d253854f`
+   * and an organizer asking who had been cancelled could not tell. The name
+   * cannot go in `after`, because that map is a diff and a name appearing there
+   * says the name changed.
+   *
+   * ⚠️ Never set it on `attendee.erase`. That entry survives the erasure by
+   * design and carries no address for the same reason it would carry no name:
+   * the record would restore what the operation existed to remove.
+   */
+  subject?: string;
   /** Only the fields that actually changed, so a diff is readable at a glance. */
   before: Record<string, unknown>;
   after: Record<string, unknown>;

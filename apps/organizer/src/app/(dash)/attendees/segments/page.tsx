@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { directoryUids } from '@/lib/cohorts';
 import { listAttendees, type AttendeeRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { Email, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -298,7 +298,9 @@ export default async function SegmentsPage({
           <Table
             cols={[
               { key: 's', label: 'Segment', className: 'cell-mdsm' },
-              { key: 'n', label: 'Attendees', className: 'cell-xs' },
+              // `cell-xs` is 68px and "Attendees" needs 86, so the header ran
+              // straight into the one beside it and the two read as one word.
+              { key: 'n', label: 'Attendees', className: 'cell-xsm' },
               { key: 'p', label: 'Share', className: 'cell-xs' },
               { key: 'w', label: 'What it means', className: 'cell-fill' },
               { key: 'v', label: '', className: 'cell-xs cell-end-align' },
@@ -348,7 +350,7 @@ export default async function SegmentsPage({
 
         <form method="get" className="toolbar">
           {seg ? <input type="hidden" name="seg" value={seg} /> : null}
-          <SearchInput defaultValue={q} width={420} placeholder="Enter name, email or company" />
+          <SearchInput defaultValue={q} width={420} placeholder="Name, email or company" />
           <button type="submit" className="btn btn-default">
             Search
           </button>
@@ -373,7 +375,7 @@ export default async function SegmentsPage({
             <span key="n">
               <strong>{a.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {a.email}
+                <Email address={a.email} />
               </div>
             </span>,
             a.company ?? <span className="muted">—</span>,

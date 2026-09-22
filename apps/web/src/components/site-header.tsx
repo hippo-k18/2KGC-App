@@ -190,12 +190,13 @@ export function SiteHeader({
             them. Grouping them is also what lets the hamburger keep its place at
             the very end of the row on a phone while staying hidden on desktop.
 
-            Search is present and orange on the live site. It routes to a real
-            page rather than opening a box that does nothing: a search field that
-            swallows a query is worse than an honest link.
+            Search is present and orange on the live site. It lands on the
+            programme search box rather than on the top of the agenda: for a
+            while it loaded that page with nothing focused and nothing to type
+            in, which is a magnifier that does not search.
           */}
           <div className="header-actions">
-            <Link href="/agenda" className="search" aria-label="Search the agenda">
+            <Link href="/agenda#agenda-search" className="search" aria-label="Search the agenda">
               <SearchIcon />
             </Link>
 

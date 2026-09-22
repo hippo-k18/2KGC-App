@@ -675,8 +675,48 @@ export interface AuditRow {
   actor: string;
   action: string;
   targetPath: string;
+  /**
+   * What the row is about, in words: the person's name, the session's title.
+   *
+   * `targetPath` is a Firestore path and `targetId` is a hash, so the table
+   * used to say `registrations/reg_01e1621469460b03d253854f` and leave the
+   * organizer to guess who that was. The name is already in the entry's own
+   * before/after maps; this lifts it out. Null when the entry carries no name,
+   * and then the table says what kind of thing it was instead.
+   */
+  subject: string | null;
   at: string | null;
   changed: string[];
+}
+
+/**
+ * The fields an audit entry may carry a human-readable name under, best first.
+ *
+ * Order matters: a session edit has both `title` and `roomName`, and the title
+ * is what the row is about. An email address is last, because it is the one
+ * that identifies a person without naming them.
+ */
+const AUDIT_NAME_FIELDS = [
+  'name',
+  'title',
+  'question',
+  'prompt',
+  'label',
+  'buyerName',
+  'sessionTitle',
+  'code',
+  'slug',
+  'email',
+];
+
+function auditSubject(...maps: (Record<string, unknown> | undefined)[]): string | null {
+  for (const key of AUDIT_NAME_FIELDS) {
+    for (const map of maps) {
+      const v = map?.[key];
+      if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 80);
+    }
+  }
+  return null;
 }
 
 export async function recentAudit(limit = 15): Promise<AuditRow[]> {
@@ -689,6 +729,8 @@ export async function recentAudit(limit = 15): Promise<AuditRow[]> {
       action: string;
       targetPath: string;
       at?: { toDate(): Date };
+      subject?: string;
+      before?: Record<string, unknown>;
       after?: Record<string, unknown>;
     };
     return {
@@ -696,6 +738,9 @@ export async function recentAudit(limit = 15): Promise<AuditRow[]> {
       actor: e.actor,
       action: e.action,
       targetPath: e.targetPath,
+      // The entry's own `subject` if it has one, then `after` before `before`:
+      // on a rename the new name is the one to show.
+      subject: (e.subject ?? '').trim() || auditSubject(e.after, e.before),
       at: e.at ? e.at.toDate().toISOString() : null,
       changed: Object.keys(e.after ?? {}),
     };

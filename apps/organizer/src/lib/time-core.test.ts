@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clockOfInstant, dayOfInstant } from './time-core';
+import { clockOfInstant, dayOfInstant, stampOfInstant } from './time-core';
 
 /**
  * The evening-scan case, pinned.
@@ -38,6 +38,30 @@ describe('dayOfInstant', () => {
     for (const bad of [undefined, null, '', 'not a date']) {
       expect(dayOfInstant(bad)).toBe('');
       expect(clockOfInstant(bad)).toBe('');
+    }
+  });
+});
+
+/**
+ * The same evening-scan case for the joined form, because the joined form is
+ * what the door tables print and `iso.slice(0, 16).replace('T', ' ')` is what
+ * they printed before. That expression puts a 22:39 arrival at 02:39 the next
+ * day, so the arrivals panel and the table under it disagreed about which day
+ * somebody walked in.
+ */
+describe('stampOfInstant', () => {
+  it('reads both halves off the venue clock, not off the UTC string', () => {
+    expect(stampOfInstant('2026-09-22T02:39:00.000Z')).toBe('2026-09-21 22:39');
+    expect('2026-09-22T02:39:00.000Z'.slice(0, 16).replace('T', ' ')).toBe('2026-09-22 02:39');
+  });
+
+  it('honours an explicit zone', () => {
+    expect(stampOfInstant('2026-09-22T02:39:00.000Z', 'Europe/Dublin')).toBe('2026-09-22 03:39');
+  });
+
+  it('gives back nothing at all for a missing or unreadable value', () => {
+    for (const bad of [undefined, null, '', 'not a date']) {
+      expect(stampOfInstant(bad)).toBe('');
     }
   });
 });

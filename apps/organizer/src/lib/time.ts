@@ -64,7 +64,7 @@ export { isWallClock, toWallClockInZone };
  * the check-in desk table, which has to agree with the panel above it, is a
  * client component. Re-exported here so a server screen has one place to look.
  */
-export { clockOfInstant, dayOfInstant } from './time-core';
+export { clockOfInstant, dayOfInstant, stampOfInstant } from './time-core';
 
 /**
  * One wall clock → the instant it names, for the single-ended cases.

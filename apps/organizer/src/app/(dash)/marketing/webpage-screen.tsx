@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { pageReadiness, publicUrl, type PageReadiness } from '@/lib/webpages';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
 /**
  * One screen, rendered for each public page: Agenda, Speakers, Sponsors.
@@ -182,7 +182,15 @@ export async function WebpageScreen({
           </p>
         ) : (
           <>
-            {pct === null ? null : <ProgressBar pct={pct} />}
+            {/*
+              No bar here. It drew `published / total` directly under a heading
+              reading "Missing details", so a page whose entries are all
+              published showed a solid bar end to end above "45 speakers have no
+              photo", and one measuring nothing showed an empty grey track that
+              read as a failed load. The same number is already on the
+              Completeness tile above, where it is labelled, and each row below
+              carries its own count.
+            */}
             <Table
               cols={[
                 { key: 'p', label: 'Problem', className: 'cell-fill' },

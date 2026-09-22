@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { stampOfInstant } from '@/lib/time';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 import { PUBLIC_PAGE } from './audience-catalogue';
 import { wrapCol } from './wrap-col';
@@ -508,7 +509,7 @@ export async function AudienceConfirmationEmails({
                 {e.status}
               </Tag>,
               <span key="w" className="muted" style={{ fontSize: 12 }}>
-                {e.at.slice(0, 16).replace('T', ' ')}
+                {stampOfInstant(e.at)}
                 {e.error ? <span style={{ color: '#c0392b' }}> · {e.error}</span> : null}
                 {e.reason ? <span> · {e.reason}</span> : null}
               </span>,

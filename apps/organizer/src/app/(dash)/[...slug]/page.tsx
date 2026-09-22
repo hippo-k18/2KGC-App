@@ -95,7 +95,8 @@ export default async function CatchAll({ params }: { params: Promise<{ slug: str
         {node.children ? (
           <>
             <p className="body-2" style={{ marginTop: 0 }}>
-              {node.children.length} screens under {node.title}.
+              {node.children.length} {node.children.length === 1 ? 'screen' : 'screens'} under{' '}
+              {node.title}.
             </p>
             <Index node={node} base={base} />
           </>

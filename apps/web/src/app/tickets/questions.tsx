@@ -158,10 +158,11 @@ function Field({ field: f, error }: { field: QuestionFieldDef; error?: string })
       return (
         <>
           {label}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+          <div className="checks">
             {(f.options ?? []).map((o) => (
-              <label key={o} style={{ fontWeight: 400 }}>
-                <input type="checkbox" name={name} value={o} /> {o}
+              <label key={o} className="check" style={{ fontWeight: 400 }}>
+                <input type="checkbox" name={name} value={o} />
+                <span>{o}</span>
               </label>
             ))}
           </div>
@@ -174,14 +175,17 @@ function Field({ field: f, error }: { field: QuestionFieldDef; error?: string })
     case 'consent':
       return (
         <>
-          <label htmlFor={name} style={{ fontWeight: 400 }}>
+          <label htmlFor={name} className="check" style={{ fontWeight: 400 }}>
             {/*
               Never `defaultChecked`. For a consent box that is the difference
               between a record of a decision and a record of a default, and only
               one of those is consent.
             */}
-            <input id={name} name={name} type="checkbox" required={f.required} /> {f.prompt}
-            {f.required ? ' *' : ''}
+            <input id={name} name={name} type="checkbox" required={f.required} />
+            <span>
+              {f.prompt}
+              {f.required ? ' *' : ''}
+            </span>
           </label>
           {hint}
           {problem}

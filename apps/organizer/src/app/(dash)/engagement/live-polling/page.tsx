@@ -159,7 +159,7 @@ export default async function LivePollingPage({
       ) : (
         polls.map((p) => (
           <Panel key={`${p.sessionId}:${p.id}`} style={{ marginBottom: 16 }}>
-            <div style={{ alignItems: 'baseline', display: 'flex', gap: 10 }}>
+            <div className="card-head" style={{ alignItems: 'baseline', display: 'flex', gap: 10 }}>
               <h2 style={{ fontSize: 15, margin: 0 }}>{p.question}</h2>
               {p.open ? (
                 <Tag color="green" fill="outline" small>

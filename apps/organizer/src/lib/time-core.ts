@@ -57,6 +57,25 @@ export function clockOfInstant(
 }
 
 /**
+ * `YYYY-MM-DD HH:mm`, both halves on the venue's clock.
+ *
+ * The two functions above existed and the screens that wanted a date *and* a
+ * time still reached for `iso.slice(0, 16).replace('T', ' ')`, which is the
+ * exact bug in the header: it prints the UTC instant in a shape that looks
+ * local. Seven tables did it, and two of them sat beside a panel formatting the
+ * same arrival properly, so one screen showed a 22:39 arrival and the next
+ * showed 02:39 the following day. Having a correct helper is not enough if the
+ * wrong thing is shorter to type, so this is the short thing.
+ */
+export function stampOfInstant(
+  iso: string | null | undefined,
+  timeZone: string = TIME_ZONE,
+): string {
+  const day = dayOfInstant(iso, timeZone);
+  return day ? `${day} ${clockOfInstant(iso, timeZone)}` : '';
+}
+
+/**
  * An unreadable value comes back as an empty string rather than "Invalid Date".
  *
  * Every caller is a footnote under a panel — "Last changed by Ada on …" — and a

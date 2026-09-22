@@ -1,0 +1,124 @@
+{
+  "uiIssues": [
+    {
+      "path": "/tickets/orders-and-transactions/summary",
+      "width": 390,
+      "severity": "high",
+      "type": "broken",
+      "issue": "The panel headed \"Net sales by day\" is an empty white box with two dates under it and no bars at all, on a screen that reports $2,798.00 of revenue across 3 orders; the same blank box shows at 1280.",
+      "fix": "Give the bars a real colour: the dashboard has no --link token, so background: var(--link) computes to transparent, and the two bars measure 499x120 and 499x90 with no fill.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/slices/summary-chart.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/summary/page.tsx:159"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-2-question-forms",
+      "width": 390,
+      "severity": "high",
+      "type": "broken",
+      "issue": "Tapping Edit on a question leaves the screen looking exactly as it did, because the page reloads scrolled to the top and the editor opens 3,227px below the fold (1,419px at 1280); the same happens on the exhibitor and sponsor copies of this screen.",
+      "fix": "Send the edit link to an anchor on the editor, or move the editor above the question list, so the form is on screen when it opens.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/open390/qf-after-tap-390.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/question-form-screen.tsx"
+    },
+    {
+      "path": "/tickets/payout",
+      "width": 390,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "The last column of these tables is a sentence explaining each row, and on a phone it is cut in half down the right edge, so every line reads like \"Taken out of the payout, n\", \"Roughly 2.9% + 30c per c\", \"Sold by d... link can b... Create Tic\": /tickets/payout, /tickets/publish-tickets, /tickets/ticket-setup/member-and-invite-only-ticketing, /tickets/ticket-setup/1-5-registration-widgets, /tickets/exhibitor-ticket-setup/2-5-ticket-add-ons, /tickets/exhibitor-ticket-setup/2-8-registration-widget, /tickets/exhibitor-ticket-setup/2-2-question-forms, /tickets/ticket-marketing/social-sharing, /tickets/ticket-marketing/event-listing, /marketing/whova-listing/my-event-listing, /marketing/social-wall/activity-stream-webpage, /marketing/event-webpages/agenda-webpage/special-purpose (where the link column is squeezed to a 15px sliver and shredded into two and three line fragments).",
+      "fix": "Pass stackSm to these tables so each row becomes a card on a phone, the way Create Tickets and Logistics Center already do.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/slices/widgets.png",
+      "source": "apps/organizer/src/app/(dash)/ui.tsx"
+    },
+    {
+      "path": "/content/exhibitor-center/exhibitor-manager",
+      "width": 390,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "On a phone the row actions sit entirely off the right edge of the table, so there is nothing on screen to act on a row with and no sign that anything is missing: Edit and Cancel are 490px past the edge on /content/exhibitor-center/exhibitor-manager, 490px on /content/documents-and-videos/documents, 514px on /tickets/exhibitor-ticket-setup/2-3-booth-selection, 458px on /content/call-for-speakers-abstracts, 434px on /content/agenda-center/session-qanda-manager, 397px on /tickets/exhibitor-ticket-setup/2-1-exhibitor-tickets and /tickets/sponsor-ticket-setup/sponsor-tickets, 354px on /marketing/social-media-center/content-library, 329px on /marketing/organizer-co-promo, 286px on /content/agenda-center/track-manager.",
+      "fix": "Stack these tables under 768px so the action links land under each row.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/da390/content_exhibitor_center_exhibitor_manager-390.png",
+      "source": "apps/organizer/src/app/(dash)/ui.tsx"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "width": 390,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "Some row actions are drawn in plain black body text beside a blue link, so they do not look clickable: Hide next to Edit on /tickets/ticket-setup/1-1-create-tickets, Reinstate next to Edit on /content/exhibitor-center/exhibitor-manager, Hide on /content/agenda-center/session-qanda-manager and Turn off on /tickets/ticket-setup/discount-codes.",
+      "fix": "Define the missing --link colour once at the top of the stylesheet, or give each of these buttons the same colour the neighbouring link uses.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/slices/hide-link.png",
+      "source": "apps/organizer/src/app/globals.css:46"
+    },
+    {
+      "path": "/content/project-management/projects-and-checklists",
+      "width": 390,
+      "severity": "medium",
+      "type": "tap-target",
+      "issue": "Row controls written outside a table are only 14 to 16px tall on a phone, so they are easy to miss and easy to hit the wrong one: Mark todo, Mark doing and Edit on /content/project-management/projects-and-checklists, Edit on every session row of /content/agenda-center/session-manager, and the filter row (All 4, Paid 4, Unpaid 0, Part refunded 0) on /tickets/orders-and-transactions/attendee-orders and /tickets/orders-and-transactions/transaction-history.",
+      "fix": "Give these the same 32px minimum height the table row actions already get under 768px.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/da390/content_project_management_projects_and_checklists-390.png",
+      "source": "apps/organizer/src/app/globals.css:3322"
+    },
+    {
+      "path": "/content/exhibitor-center/message-exhibitors",
+      "width": 390,
+      "severity": "medium",
+      "type": "other",
+      "issue": "The compose box on /content/exhibitor-center/message-exhibitors and /content/sponsor-center/message-sponsors is pre-filled with speaker wording, so an organizer writing to exhibitors sees the suggested subject \"Your KGC 2027 slides are due 20 April\" over \"Thanks again for speaking at KGC 2027. We need your slides by 20 April so the AV team can load them.\"",
+      "fix": "Take the placeholder subject and body from the audience, so exhibitors and sponsors get an example written for them.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/da390/content_exhibitor_center_message_exhibitors-390.png",
+      "source": "apps/organizer/src/app/(dash)/messaging/message-form.tsx:70"
+    },
+    {
+      "path": "/tickets/payout",
+      "width": 1280,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "On every Tickets screen at desktop width the blue button in the side menu header is cut off mid-word and reads \"STEP-BY-STEP GUID\", with its arrow lost past the edge of the box.",
+      "fix": "Let the menu header wrap to two lines, or shorten the button to \"Setup guide\".",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/slices/rail-step.png",
+      "source": "apps/organizer/src/app/(dash)/dash-nav.tsx:255"
+    },
+    {
+      "path": "/content/sponsor-center/sponsor-manager",
+      "width": 390,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "\"Import from a spreadsheet\" appears twice within about 60px, once as a tab and again as the blue main button directly under it, and \"Add sponsor\" appears in the page header and again beside it, so it is not clear whether the pairs do the same thing.",
+      "fix": "Keep the tab and drop the duplicate buttons under it, leaving Add sponsor only in the header.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/slices/spon-top.png",
+      "source": "apps/organizer/src/app/(dash)/content/sponsor-center/sponsor-manager/page.tsx:299"
+    },
+    {
+      "path": "/marketing/event-webpages/speaker-webpage",
+      "width": 390,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "An unlabelled bar sits between the heading \"Missing details\" and the list of problems, and it reads as the opposite of what it measures: on /marketing/event-webpages/speaker-webpage it is solid blue end to end above a row saying 45 speakers have no photo, and on /marketing/event-webpages/exhibitor-webpage it is an empty grey track that looks like something failed to load.",
+      "fix": "Label the bar or drop it, since the number beside each problem already says how much is left.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/slices/speaker-bar.png",
+      "source": "apps/organizer/src/app/(dash)/marketing/webpage-screen.tsx"
+    },
+    {
+      "path": "/content",
+      "width": 390,
+      "severity": "low",
+      "type": "tap-target",
+      "issue": "The \"Event website\" link in the event heading is 88 by 16px on all 129 screens in these three sections, which is a small thing to hit on a phone next to the 44px controls around it.",
+      "fix": "Give it vertical padding so its box is at least 32px tall without moving the line it sits on.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/da390/content-390.png",
+      "source": "apps/organizer/src/app/(dash)/layout.tsx"
+    },
+    {
+      "path": "/tickets/payout",
+      "width": 1280,
+      "severity": "low",
+      "type": "spacing",
+      "issue": "The Payouts panel holds about 400px of empty white under its column headings for the single line \"No payouts to list yet.\", which is a third of the screen saying nothing.",
+      "fix": "Let an empty table shrink to the height of its message on wide screens.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/da1280/tickets_payout-1280.png",
+      "source": "apps/organizer/src/app/globals.css"
+    }
+  ]
+}

@@ -1733,6 +1733,45 @@ body.nav-open {
 }
 
 /*
+ * A tick box is not a text field.
+ *
+ * The rule above sizes every `input` inside a field to the full column width
+ * with 11px of padding, which on a check box means a 13px-tall strip stretched
+ * across the whole column: the box floats alone in the middle of a blank line
+ * with its words on the line below, and there is almost nothing to hit. That is
+ * how the two consent boxes on the checkout form rendered, at every width.
+ *
+ * So: a fixed square, and `.check` puts it beside its label on one line. Both
+ * the checkout questions and the abstract portal draw their boxes this way.
+ */
+.field input[type='checkbox'],
+.field input[type='radio'] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  flex: none;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--navy, #1b2a4a);
+}
+
+.field .check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* The whole line is the target, and 44px is the smallest one worth offering
+     on a phone. */
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.field .checks {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+/*
  * The submit button matches the fields above it. `.btn`'s `12px 22px` against
  * `.field input`'s `11px 12px` plus a smaller font left the CTA 44.8px under
  * three 49.6px controls — the one button in the form that had to look deliberate.
@@ -2834,9 +2873,20 @@ a.logo-card:hover {
   margin: 0 0 0.8em;
 }
 
+/*
+ * The list needs the same gap under it that a paragraph has.
+ *
+ * At `margin: 0` the sentence after the hotel list butted straight onto the
+ * last bullet and read as one more item. `:last-child` keeps the old value
+ * where the list ends the answer, so nothing gains a trailing gap.
+ */
 .kgc-faq .answer ul {
-  margin: 0;
+  margin: 0 0 0.8em;
   padding-left: 20px;
+}
+
+.kgc-faq .answer ul:last-child {
+  margin-bottom: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3985,6 +4035,17 @@ section.tint {
   color: var(--palette-6);
 }
 
+/*
+ * Running text reads from a straight left edge, headings can be centred.
+ *
+ * The band centres everything inside it, which is right for a heading and wrong
+ * for the eighteen-line call for contributions: on a phone every line started
+ * somewhere different and there was nothing for the eye to return to.
+ */
+.hcls-cfp .narrow p {
+  text-align: left;
+}
+
 /* --------------------------------------------------------- split heroes -- */
 
 /*
@@ -4484,6 +4545,17 @@ section.tint {
   font-size: 0.95rem;
   color: var(--highlight);
   max-width: none;
+}
+
+/*
+ * One column on a phone, and a centred paragraph across the full width is four
+ * ragged left edges stacked. Four short columns side by side are not, so the
+ * centring stays wherever the grid still has columns.
+ */
+@media (width < 620px) {
+  .pillars {
+    text-align: left;
+  }
 }
 
 /* ----------------------------------------------------------- stat cards -- */
@@ -5166,6 +5238,52 @@ section.tint {
 @media (width < 760px) {
   .speakers-head { font-size: 34px; line-height: 42px; }
   .speaker-name { font-size: 20px; line-height: 28px; }
+}
+
+/*
+ * Two across on a phone, not one.
+ *
+ * The full roster is 45 cards. At one per row, each about 285px tall around a
+ * 150px initials circle, "View all speakers" opened roughly eleven thousand
+ * pixels of near-identical circles with nothing to steer by. The featured five
+ * already go two-up from 620px; below that the grid was the only block on the
+ * site still stacking. Halving the portrait keeps the card legible in half the
+ * width, and the pair together is close to what one card used to cost.
+ */
+@media (width < 620px) {
+  .speaker-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .speaker-grid .speaker-tile {
+    padding: 20px 10px 14px;
+  }
+
+  .speaker-grid .speaker-portrait {
+    width: 86px;
+    height: 86px;
+  }
+
+  .speaker-grid .speaker-portrait.is-fallback {
+    font-size: 1.5rem;
+  }
+
+  .speaker-grid .speaker-name {
+    margin-top: 14px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .speaker-grid .speaker-org {
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .speaker-grid .speaker-role {
+    font-size: 13px;
+    line-height: 18px;
+  }
 }
 
 /* ------------------------------------------------------- About KGC menu -- */
@@ -6480,6 +6598,41 @@ a.li-icon::after {
  * programme" instead of two.
  */
 
+/*
+ * The programme search, above the two filter rows.
+ *
+ * The header magnifier points at this box, so it has to be findable on arrival
+ * rather than something a reader scrolls past: full width, and the button
+ * beside it so nothing depends on pressing Enter.
+ */
+.agenda-search {
+  display: flex;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.agenda-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.agenda-search input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.agenda-search .btn {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 11px 22px;
+}
+
 .agenda-filters {
   /* Was an inline `style={{ marginTop: 28 }}` on the element, which no
      stylesheet rule could override without `!important`. */
@@ -6546,6 +6699,16 @@ a.li-icon::after {
    * widths, where the chips happen to fit.
    */
   min-width: 0;
+  /*
+   * A soft right edge, so the row reads as continuing.
+   *
+   * Twelve track chips are about 1,965px on a 375px screen. Eleven of them were
+   * off to the right behind a chip sliced in half at the boundary, and a chip
+   * cut by a hard edge looks like a clipped layout rather than like something
+   * to swipe. Fading the last few millimetres is the whole cue. Nothing fades
+   * when the chips already fit, because the right edge is then empty.
+   */
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
 }
 
 .filter-chip {

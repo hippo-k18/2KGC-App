@@ -104,7 +104,11 @@ describe('doorDashboard', () => {
     const d = doorDashboard([at('2027-05-03T13:00:00Z'), at('2027-05-04T13:00:00Z')], TZ);
     expect(d.byHour[0].label).toBe('Mon 09:00');
     expect(d.byHour[d.byHour.length - 1].label).toBe('Tue 09:00');
-    expect(d.skippedGaps).toBe(0);
+    // The day labels are what this test is for. The night between the two
+    // arrivals is 23 empty hours, which is past `MAX_EMPTY_HOURS`, so it is
+    // left out and reported rather than drawn — that is the rule two tests
+    // below, and it changed when the limit came down from a day and a half.
+    expect(d.skippedGaps).toBe(1);
   });
 
   it('leaves out a gap too long to draw, and says it did', () => {

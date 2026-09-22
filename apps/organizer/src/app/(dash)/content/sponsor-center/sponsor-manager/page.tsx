@@ -356,14 +356,14 @@ export default async function SponsorManagerPage({
               <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link>.
             </p>
 
+            {/*
+              No Import and no Add sponsor here. Both were a second copy of a
+              control already on screen: the tab strip directly above carries
+              "Import from a spreadsheet", about sixty pixels up, and the page
+              header carries "+ Add sponsor". Two ways to reach one screen,
+              side by side, read as two different screens.
+            */}
             <div className="toolbar">
-              <Link href="?tab=import" className="btn btn-primary">
-                Import from a spreadsheet
-              </Link>
-              <Link href="?new=1" className="btn btn-default">
-                Add sponsor
-              </Link>
-              <span className="spacer" />
               {/*
                 A plain anchor with `download`, not a `Link` and not a menu.
 

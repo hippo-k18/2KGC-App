@@ -3,6 +3,7 @@ import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requireOrganizer, requirePassphrase } from '@/lib/auth';
 import { audienceFor, listContacts, summariseContacts } from '@/lib/campaigns';
 import { listCampaigns } from '@/lib/messaging';
+import { stampOfInstant } from '@/lib/time';
 import {
   Banner,
   GapPanel,
@@ -197,7 +198,7 @@ export default async function EmailCampaignPage({
             rows={campaigns.map((c) => [
               c.subject,
               <span key="w" className="muted" style={{ fontSize: 12 }}>
-                {c.at.slice(0, 16).replace('T', ' ')}
+                {stampOfInstant(c.at)}
               </span>,
               <span key="b" className="muted" style={{ fontSize: 12 }}>
                 {c.actor ?? '—'}

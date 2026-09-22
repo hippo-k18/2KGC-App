@@ -140,7 +140,11 @@ function Poll({
                     {chosen ? '✓ ' : ''}
                     {opt.label}
                   </Text>
-                  {voted ? (
+                  {/* The dash is a share that has not arrived yet. On a poll
+                      nothing will ever count there is no share coming, and a
+                      column of four dashes under a sentence already saying so
+                      reads as a broken tally. */}
+                  {voted && (tallied || counted !== 'never-counted') ? (
                     <Text variant="subhead" tone="secondary">
                       {tallied ? `${Math.round(share * 100)}%` : '—'}
                     </Text>

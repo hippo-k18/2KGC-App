@@ -36,7 +36,15 @@ export async function IntegrationGuide({
 }: {
   title: string;
   vendor: string;
-  whatItIs: string;
+  /**
+   * One line on what the vendor is, for a product an organizer may not know.
+   *
+   * Optional, because for a household name it was a line that answered its own
+   * heading and said nothing: "What Mailchimp is" over "An email marketing
+   * platform." Leave it out and the panel opens on what this dashboard can
+   * actually send, which is the reason the screen exists.
+   */
+  whatItIs?: string;
   whovaDoes: string;
   ourAnswer: ReactNode;
   /** The workaround that actually works today, in order. */
@@ -63,8 +71,12 @@ export async function IntegrationGuide({
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What {vendor} is</h2>
-        <p className="body-2">{whatItIs}</p>
+        {whatItIs ? (
+          <>
+            <h2 style={{ fontSize: 15, marginTop: 0 }}>What {vendor} is</h2>
+            <p className="body-2">{whatItIs}</p>
+          </>
+        ) : null}
 
         {gapNotesVisible() ? (
           <>
@@ -73,7 +85,9 @@ export async function IntegrationGuide({
           </>
         ) : null}
 
-        <h2 className="section-header">How {vendor} data gets in and out</h2>
+        <h2 className="section-header" style={whatItIs ? undefined : { marginTop: 0 }}>
+          How {vendor} data gets in and out
+        </h2>
         <div className="body-2">{ourAnswer}</div>
       </Panel>
 

@@ -7,6 +7,7 @@ import {
   listPublicDocuments,
   listTracks,
   type AgendaDay,
+  type AgendaSession,
   type PublicDocument,
   siteEvent,
 } from '@/lib/data';
@@ -57,16 +58,42 @@ function firstValue(v: string | string[] | undefined): string | undefined {
 }
 
 /** Rebuild the query string with one parameter changed or cleared. */
-function filterHref(current: { day?: string; track?: string }, patch: { day?: string | null; track?: string | null }) {
+function filterHref(
+  current: { day?: string; track?: string; q?: string },
+  patch: { day?: string | null; track?: string | null; q?: string | null },
+) {
   const next = {
     day: patch.day === null ? undefined : (patch.day ?? current.day),
     track: patch.track === null ? undefined : (patch.track ?? current.track),
+    // Carried through every chip. A search that is silently dropped the moment
+    // somebody picks a day is a filter row that undoes the box above it.
+    q: patch.q === null ? undefined : (patch.q ?? current.q),
   };
   const params = new URLSearchParams();
   if (next.day) params.set('day', next.day);
   if (next.track) params.set('track', next.track);
+  if (next.q) params.set('q', next.q);
   const qs = params.toString();
   return qs ? `/agenda?${qs}` : '/agenda';
+}
+
+/**
+ * Title, speaker, room and track, folded and case-insensitive.
+ *
+ * Searched on the server with the rest of the filtering, so a search is a real
+ * address in the same way `?day=` and `?track=` are. The abstract is
+ * deliberately not searched: a common word appears in most of them and the
+ * result is a page that matches everything.
+ */
+function matchesQuery(session: AgendaSession, needle: string): boolean {
+  if (!needle) return true;
+  const hay = [session.title, session.roomName, session.trackName, ...session.speakerNames]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return hay.includes(needle);
 }
 
 export default async function AgendaPage({
@@ -78,6 +105,11 @@ export default async function AgendaPage({
   const params = await searchParams;
   const dayParam = firstValue(params.day);
   const trackParam = firstValue(params.track);
+  const qParam = firstValue(params.q);
+  const needle = (qParam ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '');
 
   const [allDays, tracks, tiers, branding, speakers, sessionDocuments] = await Promise.all([
     listAgenda(),
@@ -122,12 +154,14 @@ export default async function AgendaPage({
     .filter((d) => !dayParam || d.day === dayParam)
     .map((d) => ({
       day: d.day,
-      sessions: trackParam ? d.sessions.filter((s) => s.trackIds.includes(trackParam)) : d.sessions,
+      sessions: d.sessions
+        .filter((s) => !trackParam || s.trackIds.includes(trackParam))
+        .filter((s) => matchesQuery(s, needle)),
     }))
     .filter((d) => d.sessions.length > 0);
 
   const shown = days.reduce((n, d) => n + d.sessions.length, 0);
-  const filtered = Boolean(dayParam || trackParam);
+  const filtered = Boolean(dayParam || trackParam || qParam);
 
   /*
    * The names for the filters actually in force.
@@ -189,6 +223,36 @@ export default async function AgendaPage({
             {/* Spacing lives in `.agenda-filters`, not here. An inline style
                 beats any stylesheet rule, so a `marginTop: 28` on this element
                 could only be overridden at a phone width with `!important`. */}
+            {/*
+              A real box, because the magnifier in the header points here.
+              It used to land on the top of this page with nothing to type in,
+              so the one control on the site that looks like a search did
+              nothing but reload the agenda.
+
+              A plain GET form: no script, and the result is an address that
+              survives a paste. Outside `.agenda-filters` because on a phone
+              that element is `display: contents` and the Day row sticks to the
+              header as its first child.
+            */}
+            <form className="agenda-search" role="search" action="/agenda" method="get">
+              <label className="sr-only" htmlFor="agenda-search">
+                Search the programme
+              </label>
+              <input
+                id="agenda-search"
+                type="search"
+                name="q"
+                defaultValue={qParam ?? ''}
+                placeholder="Search sessions, speakers and rooms"
+                autoComplete="off"
+              />
+              {dayParam ? <input type="hidden" name="day" value={dayParam} /> : null}
+              {trackParam ? <input type="hidden" name="track" value={trackParam} /> : null}
+              <button type="submit" className="btn btn-primary">
+                Search
+              </button>
+            </form>
+
             <div className="agenda-filters">
               <div className="filter-row">
                 <span className="filter-label" id="filter-day">
@@ -196,7 +260,7 @@ export default async function AgendaPage({
                 </span>
                 <div className="filter-options" role="group" aria-labelledby="filter-day">
                   <Link
-                    href={filterHref({ day: dayParam, track: trackParam }, { day: null })}
+                    href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { day: null })}
                     className="filter-chip"
                     aria-current={!dayParam ? 'true' : undefined}
                   >
@@ -205,7 +269,7 @@ export default async function AgendaPage({
                   {allDays.map((d) => (
                     <Link
                       key={d.day}
-                      href={filterHref({ day: dayParam, track: trackParam }, { day: d.day })}
+                      href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { day: d.day })}
                       className="filter-chip"
                       aria-current={dayParam === d.day ? 'true' : undefined}
                     >
@@ -217,12 +281,15 @@ export default async function AgendaPage({
 
               {tracks.length > 0 && (
                 <div className="filter-row">
+                  {/* The count is the second half of the cue the fade on the
+                      row gives: twelve tracks and one chip in view says the
+                      rest are off to the right. */}
                   <span className="filter-label" id="filter-track">
-                    Track
+                    Track ({tracks.length})
                   </span>
                   <div className="filter-options" role="group" aria-labelledby="filter-track">
                     <Link
-                      href={filterHref({ day: dayParam, track: trackParam }, { track: null })}
+                      href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { track: null })}
                       className="filter-chip"
                       aria-current={!trackParam ? 'true' : undefined}
                     >
@@ -231,7 +298,7 @@ export default async function AgendaPage({
                     {tracks.map((t) => (
                       <Link
                         key={t.id}
-                        href={filterHref({ day: dayParam, track: trackParam }, { track: t.id })}
+                        href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { track: t.id })}
                         className="filter-chip"
                         aria-current={trackParam === t.id ? 'true' : undefined}
                         style={t.color ? ({ '--track': t.color } as React.CSSProperties) : undefined}
@@ -252,14 +319,16 @@ export default async function AgendaPage({
                     debugging a link can see which value the page was given. */}
                 {dayParam && !dayName ? ` for day “${dayParam}”` : ''}
                 {trackName ? ` in ${trackName}` : ''}
-                {trackParam && !trackName ? ` in track “${trackParam}”` : ''}.{' '}
+                {trackParam && !trackName ? ` in track “${trackParam}”` : ''}
+                {qParam ? ` matching “${qParam}”` : ''}.{' '}
                 <Link href="/agenda">Show the whole programme</Link>
               </p>
             )}
 
             {days.length === 0 ? (
               <p className="notice" style={{ marginTop: 12 }}>
-                Nothing in the published programme matches that filter.{' '}
+                Nothing in the published programme matches
+                {qParam ? ` “${qParam}”` : ' that filter'}.{' '}
                 <Link href="/agenda">See all {total} sessions</Link>.
               </p>
             ) : (
