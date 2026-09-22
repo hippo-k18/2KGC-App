@@ -112,8 +112,14 @@ export function personKeys(input: {
    * A legacy registration whose id is not `reg_` + sha256(email) is still
    * accepted, because the addresses agree: that is the case the read id exists
    * for in the first place.
+   *
+   * `altEmails` is the second way the two can legitimately differ. A ticket
+   * bought on a work address and signed in on a personal one carries the
+   * personal one as an alternate, and that is the same person by the same
+   * definition `firestore.rules` and the sign-in code use. Without it the pair
+   * is refused and the person's own ticket is neither exported nor erased.
    */
-  registration?: { id: string; email: string };
+  registration?: { id: string; email: string; altEmails?: readonly string[] };
   speakerId?: string;
   qrSecret?: string;
 }): PersonKeys {
@@ -121,7 +127,9 @@ export function personKeys(input: {
 
   if (input.registration) {
     const onTheDocument = normaliseEmail(input.registration.email);
-    if (!email || !onTheDocument || onTheDocument !== email) {
+    const alternates = (input.registration.altEmails ?? []).map(normaliseEmail);
+    const samePerson = onTheDocument === email || alternates.includes(email);
+    if (!email || !onTheDocument || !samePerson) {
       throw new PersonKeyMismatch(
         'The ticket and the account given here belong to different people, so nothing was done.',
       );
@@ -186,7 +194,11 @@ export type PlaceMatch =
    * ⚠️ `fold` is required on every address field and is not decoration. The
    * keys are normalised to lower case, and several writers store the address
    * exactly as it was typed — `emailLog.to` is whatever the caller passed,
-   * volunteers and certificates carry a roster's own spelling. A plain `==`
+   * `pendingAnswers` carries the checkout form's spelling, and a signature
+   * taken by a speaker carries the one the programme committee typed into the
+   * speaker manager. (The volunteer and certificate writers named here until
+   * 2026-09-22 both fold now; the flag stays on those places because the list
+   * of who folds changes and the cost of being wrong does not.) A plain `==`
    * against the lower-cased key therefore *silently finds nothing* for anybody
    * who registered as `Ada.Okonkwo@Example.com`, and an erasure that finds
    * nothing reports success. So a folded match compares both sides in lower

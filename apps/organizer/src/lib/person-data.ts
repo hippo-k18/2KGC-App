@@ -114,14 +114,10 @@ export async function resolvePerson(ref: PersonRef): Promise<PersonIdentity | nu
     }
   }
   if (!reg) {
-    const found = await db()
-      .collection(COLLECTIONS.registrations)
-      .where('email', '==', email)
-      .limit(1)
-      .get();
-    if (!found.empty) {
-      reg = found.docs[0].data() as RegistrationDoc;
-      regId = found.docs[0].id;
+    const found = await registrationFor(email);
+    if (found) {
+      reg = found.data() as RegistrationDoc;
+      regId = found.id;
     }
   }
 
@@ -135,7 +131,9 @@ export async function resolvePerson(ref: PersonRef): Promise<PersonIdentity | nu
        * `reg:` parameter that named somebody else's ticket is refused there
        * rather than walked.
        */
-      ...(regId && reg ? { registration: { id: regId, email: reg.email ?? '' } } : {}),
+      ...(regId && reg
+        ? { registration: { id: regId, email: reg.email ?? '', altEmails: reg.altEmails } }
+        : {}),
       speakerId: await speakerIdFor(email, uid),
       qrSecret: reg?.qrSecret,
     }),
@@ -144,6 +142,29 @@ export async function resolvePerson(ref: PersonRef): Promise<PersonIdentity | nu
     signedIn: Boolean(user),
     hasTicket: Boolean(reg),
   };
+}
+
+/**
+ * Their ticket, found by address.
+ *
+ * Both addresses, in the order `findActiveRegistration` and `firestore.rules`
+ * use: the one the ticket was bought under, then the alternates a ticket bought
+ * on somebody else's address carries. A work purchase with a personal sign-in
+ * is the ordinary case, and the primary query finds nothing for those people —
+ * so this page said "no ticket", the subject access file left their
+ * registration out, and the erasure deleted everything except the one document
+ * that holds their name, their address and their badge secret, then reported
+ * that it had finished.
+ *
+ * `altEmails` entries are stored already folded, the same guarantee the rules
+ * rely on, so `array-contains` on the folded address is the whole match.
+ */
+async function registrationFor(email: string): Promise<DocumentSnapshot | undefined> {
+  const coll = db().collection(COLLECTIONS.registrations);
+  const primary = await coll.where('email', '==', email).limit(1).get();
+  if (!primary.empty) return primary.docs[0];
+  const alternate = await coll.where('altEmails', 'array-contains', email).limit(1).get();
+  return alternate.docs[0];
 }
 
 /**

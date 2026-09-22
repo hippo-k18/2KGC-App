@@ -250,7 +250,11 @@ export async function updateAttendee(
     company: details.company || FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
   });
-  await mirrorToProfile(reg.email, details);
+  // Folded, like the comparison three lines above. `users.email` is written
+  // lower case, so a registration imported with a capital letter matched no
+  // profile and the corrected name never reached the app, with "Saved" on
+  // screen either way.
+  await mirrorToProfile(emailKey(reg.email), details);
 
   await appendAudit({
     actor,

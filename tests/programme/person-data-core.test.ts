@@ -75,6 +75,29 @@ describe('who the person is', () => {
   });
 
   /**
+   * A ticket bought on a work address and signed in on a personal one. The two
+   * addresses differ on purpose, and the alternate is what says they are one
+   * person — the same test `firestore.rules` and `findActiveRegistration` make.
+   * Refusing the pair here left the person's own ticket out of their subject
+   * access file and standing after their erasure.
+   */
+  it('accepts a ticket that lists the address as an alternate', () => {
+    const assistantBought = personKeys({
+      email: 'ada.nakamura@example.com',
+      registration: {
+        id: 'reg_bookings',
+        email: 'bookings@acme.example',
+        altEmails: ['Ada.Nakamura@Example.com'],
+      },
+    });
+    expect(assistantBought.registrationId).toBe('reg_bookings');
+    // The keys still describe the person, not the buyer: everything else on the
+    // walk is derived from the address that was asked about.
+    expect(assistantBought.email).toBe('ada.nakamura@example.com');
+    expect(assistantBought.contactId).toBe(contactId('ada.nakamura@example.com'));
+  });
+
+  /**
    * ⚠️ THE ONE WITH TEETH. The read id used to be taken on trust, so the
    * guarantee that these keys describe one person lived in whichever call site
    * happened to be careful rather than in the function. `parsePersonRef(
