@@ -432,6 +432,23 @@ export interface AgendaSession {
    * would say otherwise.
    */
   slidesUrl?: string;
+  /**
+   * That there is something to watch, and whether it needs a particular ticket.
+   *
+   * The three display-only flags off `SessionDoc`, carried so an agenda row can
+   * say "Live now" without a read per session — which is the whole reason they
+   * are denormalised onto the session at all (see `SessionDoc.streamState`).
+   *
+   * ⚠️ They say a talk is live. They do not say **where**, and nothing derived
+   * from them may. The stream and recording URLs live in
+   * `sessions/{id}/watch/{stream|recording}`, are gated by ticket type, and are
+   * read on the session page alone. If a field ever appears here holding a URL,
+   * that is the gate being undone: every visitor to `/agenda` receives this
+   * object.
+   */
+  streamState?: 'scheduled' | 'live' | 'ended';
+  hasRecording?: boolean;
+  watchRestricted?: boolean;
 }
 
 export interface AgendaDay {
@@ -473,6 +490,9 @@ export async function listAgenda(): Promise<AgendaDay[]> {
         speakerIds: s.speakerIds ?? [],
         speakerNames: s.speakerNames ?? [],
         slidesUrl: s.slidesUrl,
+        streamState: s.streamState,
+        hasRecording: s.hasRecording,
+        watchRestricted: s.watchRestricted,
       }),
     );
 

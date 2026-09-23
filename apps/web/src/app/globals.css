@@ -7688,3 +7688,460 @@ body:has(.sign-screen) .sign-screen {
     min-height: 36px;
   }
 }
+
+/* ------------------------------------------------------ watching ------ */
+
+/*
+ * The session page's video, and the sentence that stands where one cannot.
+ *
+ * Both states are the same panel deliberately. A blocked viewer sees a box the
+ * size and weight of the player they would have had, saying which ticket
+ * includes it — rather than a line of small print under a hole in the page,
+ * which is what "unavailable" usually looks like.
+ */
+.watch-panels {
+  display: grid;
+  gap: 20px;
+  margin: 28px 0 8px;
+}
+
+.watch-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+  padding: 18px;
+}
+
+.watch-panel > h2 {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 1.05rem;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.watch-live-dot {
+  align-items: center;
+  background: #b91c1c;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 6px;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  text-transform: uppercase;
+}
+
+.watch-live-dot::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: '';
+  height: 7px;
+  width: 7px;
+}
+
+.watch-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+/*
+ * 16:9 without a wrapper hack. `aspect-ratio` on the box and the iframe filling
+ * it keeps the player the right shape at 390px and at 1280 with no JavaScript
+ * and no padding-top trick.
+ */
+.watch-frame {
+  aspect-ratio: 16 / 9;
+  background: #0b1220;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.watch-frame iframe {
+  border: 0;
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.watch-blocked {
+  background: var(--wash);
+  border-radius: 8px;
+  padding: 22px 18px;
+}
+
+.watch-need {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.watch-sub {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 8px 0 0;
+}
+
+.watch-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.watch-actions form {
+  margin: 0;
+}
+
+/* Which ticket this browser is carrying, and the one button that undoes it. */
+.watch-whose {
+  align-items: baseline;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.watch-whose form {
+  display: inline;
+  margin: 0;
+}
+
+/* A button that has to read as the link it replaces, because the action behind
+   it is a write and a GET would be prefetched. */
+.linkish {
+  background: none;
+  border: 0;
+  color: var(--blue);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.watch-device {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 26px 0 0;
+  padding: 20px;
+}
+
+.watch-device h2 {
+  font-size: 1.1rem;
+  margin: 0 0 10px;
+}
+
+.watch-device p {
+  margin: 0;
+}
+
+/* The agenda row's cue that a talk is streamed or recorded. */
+.session-live,
+.session-recorded {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-left: 8px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.session-live {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.session-recorded {
+  background: var(--wash);
+  color: var(--muted);
+}
+
+.session-dialog-link {
+  margin: 0 0 18px;
+}
+
+@media (width <= 620px) {
+  .watch-panel {
+    padding: 14px;
+  }
+
+  .watch-blocked {
+    padding: 16px 14px;
+  }
+
+  /* One per line at a phone width: two buttons side by side here are each
+     narrower than the words on them. */
+  .watch-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .watch-actions .btn,
+  .watch-actions form,
+  .watch-actions form .btn {
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------- exhibitor leads ---- */
+
+/*
+ * The stand's lead desk.
+ *
+ * Sized for a phone held in one hand at a booth, so every control is at least
+ * 44px tall and the consent panel is the largest thing on the screen when it is
+ * up. At a desk width it stays the same single column: this page is never read
+ * on a monitor, and a second column would only push the attendee-facing panel
+ * off to one side.
+ */
+.lead-desk {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 24px 0;
+  padding: 18px;
+}
+
+.lead-scan-form label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.lead-scan-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lead-scan-row input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  flex: 1 1 160px;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  min-height: 46px;
+  padding: 10px 12px;
+  text-transform: uppercase;
+  min-width: 0;
+}
+
+.lead-scan-row .btn {
+  min-height: 46px;
+}
+
+/*
+ * `display` is only set when the element is shown.
+ *
+ * `hidden` is an attribute, and any `display` rule beats it — so `display:
+ * block` here left a black rectangle on the page with the camera off, which
+ * reads as a player that failed to load rather than as a camera nobody has
+ * started.
+ */
+.lead-video:not([hidden]) {
+  background: #0b1220;
+  border-radius: 8px;
+  display: block;
+  margin-top: 12px;
+  max-height: 320px;
+  width: 100%;
+}
+
+/*
+ * The half of the screen that faces the attendee.
+ *
+ * Their name is the largest thing on it and the sentence they are agreeing to
+ * is directly under it — because this is the one moment the page is being read
+ * by somebody who did not open it, over the shoulder of somebody who did.
+ */
+.lead-consent {
+  background: var(--wash);
+  border-radius: 10px;
+  margin-top: 16px;
+  padding: 18px;
+}
+
+.lead-consent.is-problem {
+  background: #fef2f2;
+}
+
+.lead-consent-kicker {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.lead-consent-name {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.lead-consent-org {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 4px 0 0;
+}
+
+.lead-consent-wording {
+  font-size: 1rem;
+  line-height: 1.55;
+  margin: 12px 0 14px;
+}
+
+.lead-consent label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.lead-consent textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.lead-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+
+.lead-consent-actions .btn {
+  flex: 1 1 160px;
+  min-height: 48px;
+}
+
+.lead-muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 10px 0 0;
+}
+
+.lead-error {
+  color: #991b1b;
+  font-size: 0.9rem;
+  margin: 10px 0 0;
+}
+
+.lead-done {
+  color: var(--good);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 10px 0 0;
+}
+
+.lead-list-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.lead-list-head h2 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.lead-count {
+  background: var(--wash);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-left: 6px;
+  padding: 2px 10px;
+}
+
+.lead-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lead-rows > li {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.lead-who {
+  display: grid;
+  gap: 2px;
+}
+
+.lead-who b {
+  font-size: 1rem;
+}
+
+.lead-who span,
+.lead-who em {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: normal;
+}
+
+.lead-who a {
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.lead-note-form {
+  display: flex;
+  gap: 8px;
+}
+
+.lead-note-form input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  flex: 1 1 auto;
+  font: inherit;
+  min-height: 40px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.lead-fine {
+  border-top: 1px solid var(--line);
+  margin-top: 28px;
+  padding-top: 16px;
+}
+
+@media (width >= 760px) {
+  /* At a desk the list reads better as a row: who on the left, the note beside
+     it, rather than a note box the full width of the page under each name. */
+  .lead-rows > li {
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+  }
+}
+
+@media (width <= 620px) {
+  .lead-desk {
+    padding: 14px;
+  }
+
+  .lead-scan-row .btn {
+    flex: 1 1 140px;
+  }
+}

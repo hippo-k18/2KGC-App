@@ -143,6 +143,63 @@ export default async function OrdersSummaryPage() {
         )}
       </Panel>
 
+      {/*
+        The third split of the same settled orders, beside ticket type and day.
+        It reads empty on this event and will keep reading empty until codes can
+        be created, which is why the empty state says which of the two reasons
+        it is rather than showing a table with no rows in it.
+      */}
+      <Panel style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Sales by discount code</h2>
+        {s.byCode.codes.length === 0 ? (
+          <>
+            <p className="body-2" style={{ marginBottom: 0 }}>
+              No discount code has been used yet.
+              {s.byCode.ordersWithoutCode > 0
+                ? ` All ${s.byCode.ordersWithoutCode} ${s.byCode.ordersWithoutCode === 1 ? 'order was' : 'orders were'} at full price.`
+                : ''}
+            </p>
+            {!stripeEnabled() && (
+              <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 8 }}>
+                Codes are created and checked in Stripe, so none can exist until Stripe is
+                connected.
+              </p>
+            )}
+          </>
+        ) : (
+          <Table
+            cols={[
+              { key: 'code', label: 'Code', className: 'cell-fill' },
+              { key: 'orders', label: 'Orders', className: 'cell-sm' },
+              { key: 'tickets', label: 'Tickets', className: 'cell-sm' },
+              { key: 'discount', label: 'Discount', className: 'cell-sm' },
+              { key: 'gross', label: 'Gross', className: 'cell-sm' },
+              { key: 'net', label: 'Net', className: 'cell-sm' },
+            ]}
+            rows={s.byCode.codes.map((c) => [
+              <strong key="c">{c.code}</strong>,
+              c.refunded === 0 ? c.orders : `${c.orders} (${c.refunded} refunded)`,
+              c.tickets,
+              c.discountCents === 0 ? (
+                <span className="muted">—</span>
+              ) : (
+                `−${money(c.discountCents, s.currency)}`
+              ),
+              <span key="g" className="muted">
+                {money(c.grossCents, s.currency)}
+              </span>,
+              <strong key="n">{money(c.netCents, s.currency)}</strong>,
+            ])}
+          />
+        )}
+        {s.byCode.discountWithoutCodeCents > 0 && (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
+            A further {money(s.byCode.discountWithoutCodeCents, s.currency)} came off orders that
+            carried no code, so the rows above add up to less than the discount total below.
+          </p>
+        )}
+      </Panel>
+
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Net sales by day</h2>
         {s.daily.length === 0 ? (

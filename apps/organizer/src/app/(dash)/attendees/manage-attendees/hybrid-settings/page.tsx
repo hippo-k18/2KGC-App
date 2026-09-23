@@ -15,11 +15,15 @@ export const dynamic = 'force-dynamic';
  * event.
  *
  * This screen exists to say that once, properly, rather than to offer switches
- * that would silently do nothing. The interesting part is *how far* the absence
- * goes: it is not that hybrid is turned off, it is that the schema has no
- * notion of remote at all — `SessionDoc` has no stream URL and no virtual flag,
- * `RegistrationDoc` has no audience field, and the app has no player. Turning
- * hybrid "on" would be a data-model change, not a setting.
+ * that would silently do nothing. What is absent is the *audience* split:
+ * `RegistrationDoc` has no audience field, so nobody is marked remote and no
+ * setting could be applied to them.
+ *
+ * ⚠️ This docblock said "`SessionDoc` has no stream URL" until 2026-09-23. It
+ * has one now — `sessions/{id}/watch/stream`, set up on Session Manager — so
+ * the Streamed count below is read rather than hard-coded to zero. Whether an
+ * *attendee* is remote is still not modelled, and that is what this screen is
+ * about.
  */
 export default async function HybridSettingsPage() {
   await requireOrganizer();
@@ -28,6 +32,10 @@ export default async function HybridSettingsPage() {
   // would need a composite index this repo does not declare, and the emulator
   // does not enforce indexes, so the failure would first appear in production.
   const sessions = await listSessions();
+  // Read rather than assumed zero: a session carries `streamState` once a
+  // stream is attached, and that flag is on the session document precisely so a
+  // count like this needs no second read per row.
+  const streamed = sessions.filter((s) => Boolean(s.streamState)).length;
 
   return (
     <>
@@ -52,15 +60,17 @@ export default async function HybridSettingsPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Sessions', value: sessions.length, sub: 'all in person' },
-          { label: 'Streamed', value: 0 },
+          { label: 'Sessions', value: sessions.length, sub: 'all in the room' },
+          { label: 'Streamed', value: streamed, sub: 'a link is set up' },
           { label: 'Remote attendees', value: 0 },
         ]}
       />
 
       <Panel>
         <p className="body-2" style={{ margin: 0 }}>
-          This event is in-person only. Hybrid settings are not available yet.
+          Nobody is marked as a remote attendee, so there is no second audience to set rules for.
+          Streams and recordings are set up per session on{' '}
+          <Link href={ROUTES.sessionManager}>Session Manager</Link>.
         </p>
       </Panel>
 

@@ -123,6 +123,16 @@ export interface AuditEntry {
     | 'exhibitor.create'
     | 'exhibitor.update'
     /**
+     * A stand's lead desk link, sent and stopped.
+     *
+     * Audited for the reason the speaker portal's two are: the link is a
+     * bearer credential for one company's own contact list, so "who gave
+     * Graphwise a live link, and when did somebody stop it" has to be
+     * answerable months later from something other than memory.
+     */
+    | 'exhibitor.leadLinkSend'
+    | 'exhibitor.leadLinkRevoke'
+    /**
      * Sponsors. Recorded with the weight of a commercial record rather than a
      * content one: `tier` is what a sponsor paid for, and it decides their logo
      * size on the public site and their position in the app's directory. "Who
@@ -415,7 +425,19 @@ export interface AuditEntry {
     | 'team.remove'
     | 'team.setPassphrase'
     /** An organizer took somebody out of a capped session, from Session Cap. */
-    | 'sessionSeat.remove';
+    | 'sessionSeat.remove'
+    /**
+     * A session's stream or recording. Worth a trail of its own rather than
+     * folding into `session.update`: the field that changes most often here is
+     * the ticket restriction, and "who could watch the closing keynote, and
+     * when did that change" is a question that gets asked after the fact.
+     */
+    | 'session.stream.create'
+    | 'session.stream.update'
+    | 'session.stream.delete'
+    | 'session.recording.create'
+    | 'session.recording.update'
+    | 'session.recording.delete';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

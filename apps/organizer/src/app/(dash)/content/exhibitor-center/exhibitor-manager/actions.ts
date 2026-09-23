@@ -6,6 +6,7 @@ import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getExhibitor } from '@/lib/exhibitors';
+import { revokeLeadLinks, sendLeadLink } from '@/lib/exhibitor-leads';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { removeImage, uploadImage, UploadRejected, UploadUnavailable } from '@/lib/uploads';
@@ -212,4 +213,43 @@ export async function setExhibitorStatusAction(formData: FormData): Promise<void
     recordError('exhibitor.setStatus', err);
   }
   revalidatePath(ROUTE);
+}
+
+// ---------------------------------------------------------------------------
+// Lead capture links
+//
+// Exhibitors have no login here and are not getting one in this pass — see the
+// note on the screen. What they get is the same signed capability link the
+// speaker portal uses, opening one page that scans badges and lists the leads
+// that stand has taken. These two actions are the organizer's whole half of it:
+// send a link, and stop every link.
+// ---------------------------------------------------------------------------
+
+export async function sendLeadLinkAction(
+  _prev: ExhibitorState,
+  formData: FormData,
+): Promise<ExhibitorState> {
+  const actor = await requireOrganizer();
+
+  const exhibitorId = String(formData.get('exhibitorId') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim();
+  if (!exhibitorId) return { error: 'Choose which stand to send it to.' };
+
+  const result = await sendLeadLink({ exhibitorId, note, actor });
+  revalidatePath(ROUTE);
+  return result.ok ? { ok: true, message: result.message } : { error: result.error };
+}
+
+export async function revokeLeadLinkAction(
+  _prev: ExhibitorState,
+  formData: FormData,
+): Promise<ExhibitorState> {
+  const actor = await requireOrganizer();
+
+  const exhibitorId = String(formData.get('exhibitorId') ?? '').trim();
+  if (!exhibitorId) return { error: 'Choose a stand.' };
+
+  const result = await revokeLeadLinks({ exhibitorId, actor });
+  revalidatePath(ROUTE);
+  return result.ok ? { ok: true, message: result.message } : { error: result.error };
 }

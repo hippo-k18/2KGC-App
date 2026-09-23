@@ -1401,3 +1401,92 @@ Knowledge Graph Conference 2027`;
     ...(input.campaignId ? { campaignId: input.campaignId } : {}),
   });
 }
+
+export interface ExhibitorLeadLinkInput {
+  to: string;
+  /** The exhibiting company, not a person: the mail is read by whoever runs the stand. */
+  companyName: string;
+  contactName?: string;
+  /** `/exhibitor/{token}`, freshly minted for this send. */
+  link: string;
+  boothNumber?: string;
+  /** A paragraph from the organizer, shown above the button. Plain text. */
+  note?: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The link a stand scans badges with, and every re-send.
+ *
+ * One template for both, because a re-send is the same mail again: each press
+ * mints a fresh link (`exhibitor-token.ts`), so the practical life of any one
+ * URL is "since the last send".
+ *
+ * ⚠️ It says three things that the page also says, deliberately, because the
+ * person who reads this mail is usually not the person who will hold the phone:
+ * the link is the access and must not be posted publicly, every attendee agrees
+ * on screen before anything is stored, and the leads are theirs to download.
+ * A stand that does not know the second one asks attendees to "just scan", and
+ * the agreement stops being one.
+ */
+export async function sendExhibitorLeadLink(
+  store: Firestore,
+  input: ExhibitorLeadLinkInput,
+): Promise<void> {
+  const greeting = input.contactName ? `Hi ${esc(input.contactName.split(' ')[0])},` : 'Hi,';
+  const booth = input.boothNumber
+    ? `${esc(input.companyName)} is on stand ${esc(input.boothNumber)} at Knowledge Graph Conference 2027.`
+    : `${esc(input.companyName)} is exhibiting at Knowledge Graph Conference 2027.`;
+
+  const noteParas = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    'Scan badges at your stand',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${booth}</p>
+     ${noteParas
+       .map(
+         (para) =>
+           `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+       )
+       .join('')}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Open this on the phone or tablet you will have on the stand. Point it at an attendee's badge, they agree on screen to share their details, and you can add a note and download the whole list as a spreadsheet whenever you like.</p>
+     ${button(input.link, 'Open your lead desk')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       There is no account and no password. The link is your access, so share it with your stand
+       team and nowhere else. Nobody is added to your list unless they are standing in front of you
+       and tap to agree. You see only the people your stand has scanned. The link stops working
+       after four months.
+     </p>`,
+  );
+
+  const text = `${greeting} ${input.companyName}${
+    input.boothNumber ? ` is on stand ${input.boothNumber}` : ' is exhibiting'
+  } at Knowledge Graph Conference 2027.
+${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
+Open this on the phone or tablet you will have on the stand. Point it at an
+attendee's badge, they agree on screen to share their details, and you can add
+a note and download the whole list as a spreadsheet whenever you like.
+
+Open your lead desk:
+${input.link}
+
+There is no account and no password. The link is your access, so share it with
+your stand team and nowhere else. Nobody is added to your list unless they are
+standing in front of you and tap to agree. You see only the people your stand
+has scanned. The link stops working after four months.
+
+Knowledge Graph Conference 2027`;
+
+  await send(store, {
+    to: input.to,
+    subject: `Scanning badges at KGC 2027: ${input.companyName}`,
+    html,
+    text,
+    template: 'exhibitor-lead-link',
+    actor: input.actor,
+  });
+}

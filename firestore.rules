@@ -383,11 +383,21 @@ service cloud.firestore {
       // writing its own is writing a note to itself. What the rule does stop
       // is a later write moving it, which would be a client deciding it had
       // never joined.
+      //
+      // `registrationId` is on the allowlist and is deliberately NOT verified
+      // here. It is the pointer the watch rules follow to find out which ticket
+      // this account holds, and the check is made where it is read, not where
+      // it is written: `mayWatch()` loads the registration it names and then
+      // requires `registrationIsMine()`. So the worst a client can do by
+      // writing somebody else's id is refuse itself a video. Verifying it here
+      // instead would mean a `get()` on every profile edit — a read cost, and
+      // an access call, paid on the wrong path.
       allow update: if isSelf(uid)
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
           'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
-          'notificationPrefs', 'mustChangePassword', 'joinedAt', 'updatedAt',
+          'notificationPrefs', 'mustChangePassword', 'joinedAt',
+          'registrationId', 'updatedAt',
         ])
         && (!('mustChangePassword' in changed())
             || request.resource.data.mustChangePassword == false)
@@ -649,6 +659,85 @@ service cloud.firestore {
             && validBallot(get(/databases/$(database)/documents/sessions/$(sessionId)/polls/$(pollId)).data);
           allow delete: if false;
         }
+      }
+
+      // ---------------------------------------------------------------------
+      // Where to watch this session, and who may. Two fixed ids: `stream` and
+      // `recording`.
+      //
+      // Its own documents rather than fields on the session, because rules
+      // filter documents and not fields. Every registered attendee may read a
+      // published session, so a stream URL stored on one is a stream URL every
+      // attendee has, whatever tier it was sold with. The session keeps only
+      // `streamState`, `hasRecording` and `watchRestricted` — enough for an
+      // agenda row to say a talk is live, not enough to watch it.
+      //
+      // Written by the dashboard with the Admin SDK, which bypasses all of
+      // this, so every client write is refused outright rather than validated.
+      // ---------------------------------------------------------------------
+      match /watch/{watchId} {
+        /**
+         * The caller's ticket type, or '' when it cannot be established.
+         *
+         * Nothing in the token carries the ticket type, and the registration
+         * cannot be addressed from the token either: its id is
+         * `reg_` + sha256(email) and this language has no hash function. The
+         * seat rules solve the same problem by having the client name the
+         * registration in the write; a read has no such field, only the path,
+         * so the app stores the pointer on its own profile instead.
+         *
+         * That pointer is untrusted, and does not need to be trusted:
+         * `registrationIsMine()` requires the registration it names to carry
+         * the caller's own address. Naming somebody else's gets a refusal, not
+         * their ticket.
+         *
+         * ⚠️ The address is folded to lower case on BOTH sides, which is the
+         * part to keep. This project has been bitten twice by comparing one
+         * folded side against one verbatim side — a badge that refused at the
+         * door, and a ticket that could not be found in an export. Here it
+         * would be a video that plays for most people and is refused for
+         * whoever signed up with a capital letter, reported as "streaming is
+         * broken" by one attendee out of forty.
+         */
+        function myTicketType() {
+          let profile = /databases/$(database)/documents/users/$(request.auth.uid);
+          let rid = exists(profile) ? get(profile).data.get('registrationId', '-') : '-';
+          let regPath = /databases/$(database)/documents/registrations/$(rid);
+          let reg = exists(regPath)
+            ? get(regPath).data
+            : {'email': '', 'altEmails': [], 'status': 'none', 'ticketType': ''};
+          return (registrationIsMine(reg) && reg.get('status', '') == 'active')
+            ? reg.get('ticketType', '')
+            : '';
+        }
+
+        /**
+         * Empty means every ticket type, exactly as `mayWatch()` in
+         * `stream-core.ts` reads it — and the writer always stores the array,
+         * so an empty list is a decision and not a missing field.
+         *
+         * `||` short-circuits, so an unrestricted stream costs no access calls
+         * at all and only a gated one pays for the two lookups above.
+         */
+        function mayWatchThis() {
+          let allowed = resource.data.get('allowedTicketTypes', []);
+          return allowed.size() == 0 || myTicketType() in allowed;
+        }
+
+        /** An unpublished session's stream is not on the agenda yet either. */
+        function sessionIsPublished() {
+          let path = /databases/$(database)/documents/sessions/$(sessionId);
+          return exists(path) && get(path).data.status == 'published';
+        }
+
+        allow get: if isOrganizer()
+          || (isRegistered() && sessionIsPublished() && mayWatchThis());
+        // No `list`. Both ids are fixed, so a reader fetches the one it wants.
+        // A collection-group query over these would be refused outright the
+        // moment one session in range is restricted — a video library that
+        // fails for exactly the people it was sold to.
+        allow list: if false;
+        allow write: if false;
       }
     }
 

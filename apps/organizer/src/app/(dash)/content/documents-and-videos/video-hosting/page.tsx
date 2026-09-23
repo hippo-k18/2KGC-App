@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
-import { NotInputted, PageHeader, Panel, StatTiles } from '../../../ui';
+import { listWatchOverview } from '@/lib/streaming';
+import { ROUTES } from '@/lib/nav';
+import { EmptyState, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,19 +16,21 @@ export const dynamic = 'force-dynamic';
  * trusted server to sign them.
  *
  * The realistic answer is a hosting provider (Mux, Cloudflare Stream, or an
- * unlisted Vimeo) with this screen holding the ids, rather than anything run
- * here. That is an account and a credential the owner has to open, which is why
- * this screen counts the entitlement rather than the recordings: the
- * *entitlement* is real and sold — `TicketTypeDoc.includesVideoLibrary` is set
- * on the All Access and Main Conference tiers — and nothing serves it.
+ * unlisted Vimeo) holding the file, with this product holding the link.
  *
- * Until there is a provider, the honest path is the Documents screen: a titled
- * link to wherever the recording already lives.
+ * ⚠️ **That link now exists, as of 2026-09-23.** A recording is attached to its
+ * session on Content › Agenda Center › Session Manager, restricted by ticket
+ * type, and `firestore.rules` refuses the document to anyone holding the wrong
+ * ticket. So this screen counts recordings, which it could not do before, and
+ * says plainly what is still true: the file is hosted somewhere else, and
+ * uploading one here would need a bucket, a transcode and a signed URL.
  */
 export default async function VideoHostingPage() {
   await requireOrganizer();
-  const tickets = await listTicketTypes();
+  const [tickets, watch] = await Promise.all([listTicketTypes(), listWatchOverview()]);
   const entitled = tickets.filter((t) => t.includes.some((i) => /video library/i.test(i)));
+  const recorded = watch.filter((r) => r.recording);
+  const restricted = recorded.filter((r) => (r.recording?.allowedTicketTypes.length ?? 0) > 0);
 
   return (
     <>
@@ -34,16 +38,19 @@ export default async function VideoHostingPage() {
         title="Video Hosting"
         info={
           <>
-            <strong>Not available yet</strong>
+            <strong>Where the videos live</strong>
             <p>
-              Recordings cannot be hosted here yet. Host them elsewhere and add the link as a
-              document.
+              The file is hosted wherever you already host video. What is kept here is the link,
+              attached to the session it belongs to, and who may watch it.
             </p>
           </>
         }
         links={[
-          <Link key="d" href="/content/documents-and-videos/documents">
-            Documents
+          <Link key="s" href={ROUTES.sessionManager}>
+            Session Manager
+          </Link>,
+          <Link key="ss" href={ROUTES.streamingSetup}>
+            Streaming Setup
           </Link>,
           <Link key="a" href="/content/documents-and-videos/attendee-video-access">
             Attendee Video Access
@@ -53,7 +60,12 @@ export default async function VideoHostingPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Recordings hosted', value: 0, sub: 'none yet' },
+          { label: 'Recordings', value: recorded.length, sub: `of ${watch.length} sessions` },
+          {
+            label: 'Restricted by ticket',
+            value: restricted.length,
+            sub: restricted.length ? 'not everybody can watch' : 'open to every ticket',
+          },
           {
             label: 'Tiers that include video',
             value: entitled.length,
@@ -63,14 +75,54 @@ export default async function VideoHostingPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="recordings"
-          action={
-            <Link className="whova-btn-main primary" href="/content/documents-and-videos/documents?new=1">
-              Link one as a document
-            </Link>
-          }
-        />
+        {recorded.length === 0 ? (
+          <NotInputted
+            what="recordings"
+            action={
+              <Link className="whova-btn-main primary" href={ROUTES.sessionManager}>
+                Attach one to a session
+              </Link>
+            }
+          />
+        ) : (
+          <Table
+            cols={[
+              { key: 'title', label: 'Recording', className: 'cell-fill' },
+              { key: 'session', label: 'Session', className: 'cell-md' },
+              { key: 'length', label: 'Length', className: 'cell-sm' },
+              { key: 'who', label: 'Who can watch', className: 'cell-md' },
+            ]}
+            rows={recorded.map((r) => [
+              <Link key="t" href={`${ROUTES.sessionManager}/${r.id}`}>
+                {r.recording?.title || r.title}
+              </Link>,
+              <span key="s" className="muted">
+                {r.title}
+              </span>,
+              <span key="l" className="muted">
+                {r.recording?.duration || 'not given'}
+              </span>,
+              <span key="w">
+                {r.recording?.allowedTicketTypes.length
+                  ? r.recording.allowedTicketTypes.join(', ')
+                  : 'Everybody with a ticket'}
+              </span>,
+            ])}
+            empty={
+              <EmptyState>
+                <p className="empty-title">No recordings</p>
+              </EmptyState>
+            }
+          />
+        )}
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">What is not here</h2>
+        <p className="body-2">
+          You cannot upload a video file. Storing and transcoding a five-day conference is a
+          hosting bill, so the file stays with your video provider and this keeps the link.
+        </p>
       </Panel>
     </>
   );

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money, salesSummary } from '@/lib/commerce';
+import { listWatchOverview } from '@/lib/streaming';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../ui';
 
@@ -18,15 +19,22 @@ export const dynamic = 'force-dynamic';
  *
  * It does not cover the one thing that actually matters here. KGC sells a
  * `virtual` ticket at $349 whose bullet list opens with "Live streams of every
- * conference and workshop session", and there is no streaming anywhere in this
- * repo — no player in the app, no stream field on `SessionDoc`, no provider
- * account. That is not a missing feature; it is a paid ticket promising a
- * thing that does not exist, and it is worth a number on a screen rather than
- * a line in a backlog.
+ * conference and workshop session", and for a year nothing in this repo could
+ * hold a stream at all. That was not a missing feature; it was a paid ticket
+ * promising a thing that did not exist, and it was worth a number on a screen
+ * rather than a line in a backlog.
  *
- * So this page reads the tier out of `ticketTypes` and the sales out of
- * `orders`, and puts the two side by side. That is its whole job: it is an
- * entitlement report, not an essay about streaming.
+ * ⚠️ **Half of that is fixed as of 2026-09-23.** Sessions carry a stream and a
+ * recording, gated by ticket type, set up on Session Manager and listed on
+ * Streaming Setup. So the number this page reports changed: it is no longer
+ * "streaming does not exist", it is how many sessions actually have something
+ * against how many remote tickets have been sold. What is still not software
+ * is the production — a camera, sound and an operator per room.
+ *
+ * So this page reads the tiers out of `ticketTypes`, the sales out of `orders`
+ * and the setup out of the two `watch` documents per session, and puts the
+ * three side by side. That is its whole job: it is an entitlement report, not
+ * an essay about streaming.
  *
  * ── The three options, kept here rather than on screen ──────────────────────
  *
@@ -50,7 +58,13 @@ export const dynamic = 'force-dynamic';
  */
 export default async function VirtualAndHybridSetupPage() {
   await requireOrganizer();
-  const [tiers, sales] = await Promise.all([listTicketTypes(), salesSummary()]);
+  const [tiers, sales, watch] = await Promise.all([
+    listTicketTypes(),
+    salesSummary(),
+    listWatchOverview(),
+  ]);
+
+  const setUp = watch.filter((r) => r.stream || r.recording).length;
 
   // `inPerson: false` is the entitlement field, not the marketing copy — the
   // same field `attendees/ticket-session-mapping` refuses to guess at.
@@ -71,21 +85,24 @@ export default async function VirtualAndHybridSetupPage() {
           <>
             <strong>Remote ticket report</strong>
             <p>
-              This event runs in person only. This page lists the remote ticket tiers, what they
-              include and how many have been sold. Streaming is not available yet.
+              This page lists the remote ticket tiers, what they include and how many have been
+              sold, beside how many sessions have a stream or a recording set up.
             </p>
           </>
         }
         tags={
-          remoteSold > 0 ? (
+          remoteSold > 0 && setUp === 0 ? (
             <Tag color="red" fill="solid">
-              Streaming not set up
+              Nothing set up to watch
             </Tag>
           ) : undefined
         }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
             Create Tickets
+          </Link>,
+          <Link key="ss" href={ROUTES.streamingSetup}>
+            Streaming Setup
           </Link>,
           <Link key="v" href="/content/documents-and-videos/video-hosting">
             Video Hosting
@@ -102,13 +119,14 @@ export default async function VirtualAndHybridSetupPage() {
         nothing keeps, and every day it stays on sale adds a refund
         conversation. It changes what the organizer does in the next minute.
       */}
-      {remoteSold > 0 && (
+      {remoteSold > 0 && setUp === 0 && (
         <Banner kind="danger">
           <strong>
-            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold and
-            streaming is not set up.
+            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold and no
+            session has a stream or a recording.
           </strong>{' '}
-          These buyers have nothing to watch yet. To stop selling a remote tier, hide it in{' '}
+          These buyers have nothing to watch yet. Add a link on{' '}
+          <Link href={ROUTES.streamingSetup}>Streaming Setup</Link>, or hide the tier in{' '}
           <Link href={ROUTES.createTickets}>Create Tickets</Link>.
         </Banner>
       )}
@@ -118,6 +136,11 @@ export default async function VirtualAndHybridSetupPage() {
           { label: 'Remote tiers on sale', value: remote.filter((t) => t.visible).length, sub: `${remote.length} defined` },
           { label: 'Remote tickets sold', value: remoteSold, sub: 'settled orders' },
           { label: 'Revenue', value: money(remoteNet, sales.currency), sub: 'net of refunds' },
+          {
+            label: 'Sessions to watch',
+            value: setUp,
+            sub: `of ${watch.length} on the agenda`,
+          },
         ]}
       />
 
@@ -174,14 +197,14 @@ export default async function VirtualAndHybridSetupPage() {
             project has one mode, in person, and no switch to flip.
           </li>
           <li>
-            <strong>Per-session stream configuration.</strong> <code>SessionDoc</code> has no
-            stream field at all, so there is nowhere to put a URL even as a placeholder. Adding one
-            is easy; the thing it points at is not.
+            <strong>Nothing produces a feed.</strong> Per-session stream and recording links are
+            built and gated by ticket type; a camera, sound and an operator per room are not
+            software and are not here.
           </li>
           <li>
             <strong>A virtual-attendee experience.</strong> The app is built for someone in the
             building — the badge QR, check-in, the room names. A remote attendee opening it today
-            gets an agenda and a community board and nothing to watch.
+            gets an agenda, a community board and whatever links have been added.
           </li>
         </ul>
       </GapPanel>

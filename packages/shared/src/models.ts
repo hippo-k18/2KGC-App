@@ -1,5 +1,6 @@
 import type { CommunityCategory } from "./community.js";
 import type { SettingsKey, SettingsValues } from "./settings.js";
+import type { StreamProvider, StreamState } from "./stream-core.js";
 
 /**
  * A structural stand-in for `firebase/firestore`'s `Timestamp` (and the
@@ -118,6 +119,31 @@ export interface UserDoc extends BaseDoc {
   };
   /** Written only by Cloud Functions; mirrored into the custom claim. */
   roles: Role[];
+  /**
+   * This account's own registration, as an id — the pointer `firestore.rules`
+   * needs to find out which ticket the caller holds.
+   *
+   * ── Why a pointer the client writes, and why that is safe ──────────────────
+   *
+   * Gating a stream by ticket type means a rule has to answer "what ticket does
+   * this token hold", and nothing in the token says. The ticket is on
+   * `registrations/{id}`, whose id is `reg_` + sha256(email) — and the rules
+   * language has no hash function, so a rule cannot address the caller's own
+   * registration from their address. The seat rules get around it by having the
+   * client name the registration *in the write*; a read has no such field, only
+   * the document path, so the pointer has to be stored.
+   *
+   * It is written by the app, so it is not trusted, and it does not need to be:
+   * the rule reads the registration this points at and then checks that it
+   * belongs to the caller with `registrationIsMine()` — the same address fold
+   * the badge uses. Pointing it at somebody else's registration gets a denial,
+   * not their ticket.
+   *
+   * Absent on every profile written before 2026-09-23, and absent reads as "no
+   * ticket type known", which passes an unrestricted stream and is refused by a
+   * restricted one. That is the safe direction.
+   */
+  registrationId?: string;
   /**
    * True while this account still holds the temporary password it was
    * provisioned with, and the app must not let the attendee past the change
@@ -602,6 +628,141 @@ export interface SessionDoc extends BaseDoc {
    * two directly. Edited on Attendees, Ticket Session Mapping.
    */
   eligibleTicketTypes?: string[];
+  /**
+   * That this session has a stream, and how it is running. Display only.
+   *
+   * ── Why a flag here and the link in a subcollection ─────────────────────────
+   *
+   * `firestore.rules` filters documents, not fields (see the security model in
+   * `AGENTS.md`), so a stream URL restricted to one ticket tier cannot live on
+   * the session document — every attendee may read a published session, and a
+   * field on it is a field they have. The URL lives in
+   * `sessions/{id}/watch/{stream|recording}`, which is gated on its own.
+   *
+   * What is left here is the part that is not a secret: that something is on,
+   * and whether it needs a particular ticket. That is what an agenda row needs
+   * to draw a "Live now" pill without a second read per session, and what the
+   * dashboard's Streaming Setup counts. Absent means no stream has been set up.
+   *
+   * Written only by the dashboard, alongside the watch document, and cleared
+   * with `FieldValue.delete()` rather than by omission — under `merge` an
+   * `undefined` writes no key at all (AGENTS.md gotcha 9), so a removed stream
+   * would leave a "Live now" pill on the agenda for ever.
+   */
+  streamState?: "scheduled" | "live" | "ended";
+  /** A recording exists for this session. The link itself is gated. */
+  hasRecording?: boolean;
+  /**
+   * The stream or the recording names ticket types. The agenda says "included
+   * with your ticket" or does not, without anybody having to be refused first.
+   */
+  watchRestricted?: boolean;
+  /**
+   * The ticket type **names** that may watch this session live, and the ones
+   * that may watch the recording. Empty or absent means every ticket type.
+   *
+   * ── Why the names are out here and the links are not ────────────────────────
+   *
+   * The link is the thing that is sold; the tier that bought it is on the
+   * website's pricing page. So the names are not a secret, and a reader who is
+   * about to be refused needs them: "this is for All Access and Gold tickets"
+   * is something a person can act on, and "you are not allowed to watch this"
+   * is not. They cannot be read out of the watch document itself, because the
+   * whole point of that document is that the reader who needs this sentence is
+   * the one being denied it.
+   *
+   * Two lists rather than one union, and that distinction is load-bearing: a
+   * free live stream with a recording sold to the video-library tiers is the
+   * ordinary arrangement here, and a union would put "not on your ticket" on a
+   * stream anybody may watch. `watchRestricted` stays as the one-bit summary
+   * the dashboard already counts.
+   *
+   * Written by the dashboard beside the watch documents, always either written
+   * or `FieldValue.delete()`d (AGENTS.md gotcha 9), so lifting a restriction
+   * really lifts it.
+   */
+  streamTicketTypes?: string[];
+  recordingTicketTypes?: string[];
+  /**
+   * When the recording stops being available, if it ever does.
+   *
+   * Out here for the same reason as the names: a list of recordings has to be
+   * able to say "available until 31 December" without one gated read per row,
+   * and a reader whose library has closed is owed the date rather than a
+   * refusal. The authoritative window is still the one on the recording
+   * document, which is what the player checks.
+   */
+  recordingUntil?: Timestamp;
+}
+
+/**
+ * `sessions/{sessionId}/watch/{WATCH_STREAM_DOC}` — where to watch this session
+ * live, and who may.
+ *
+ * A subcollection document rather than fields on the session, because rules
+ * filter documents and not fields, and this is the one thing about a session
+ * that is not for everybody. The session carries `streamState` so the agenda
+ * can say a talk is live without being allowed to say where.
+ *
+ * Server-written. Every write is the dashboard with the Admin SDK; the client
+ * rule is read-only, and the read is the ticket check.
+ */
+export interface SessionStreamDoc {
+  eventId: string;
+  sessionId: string;
+  provider: StreamProvider;
+  /**
+   * What the organizer pasted, kept verbatim so the editor round-trips and so
+   * a mis-parse can be diagnosed from the document rather than from memory.
+   * Nothing renders it.
+   */
+  source: string;
+  /** Normalised by `parseStreamSource`. Where a person watches it. */
+  watchUrl: string;
+  /** Normalised. Equal to `watchUrl` when the provider refuses to be framed. */
+  embedUrl: string;
+  /** The provider's own id, where it has one. */
+  videoId?: string;
+  /** False for Zoom, which sends `X-Frame-Options` and cannot be embedded. */
+  embeddable: boolean;
+  state: StreamState;
+  /**
+   * Ticket type **names** that may watch, as `RegistrationDoc.ticketType`
+   * holds them. Empty means every ticket type, and the writer always stores the
+   * array so that "I removed the restriction" cannot silently keep it.
+   */
+  allowedTicketTypes: string[];
+  updatedAt: Timestamp;
+}
+
+/**
+ * `sessions/{sessionId}/watch/{WATCH_RECORDING_DOC}` — the recording, once
+ * there is one.
+ *
+ * Same document-level gating as the stream, and independent of it: a session
+ * may have a stream, a recording, both or neither, and the two are separate
+ * documents so an organizer can take the stream down without taking the
+ * recording with it.
+ */
+export interface SessionRecordingDoc {
+  eventId: string;
+  sessionId: string;
+  provider: StreamProvider;
+  source: string;
+  watchUrl: string;
+  embedUrl: string;
+  videoId?: string;
+  embeddable: boolean;
+  /** What the library lists it as. Defaults to the session title. */
+  title: string;
+  /** Absent when nobody typed one. Never 0 — 0 would read as an empty talk. */
+  durationSeconds?: number;
+  /** Absent means it is up as soon as it is saved. */
+  availableFrom?: Timestamp;
+  /** Absent means it stays up. The expiry a video library is usually sold with. */
+  availableUntil?: Timestamp;
+  allowedTicketTypes: string[];
+  updatedAt: Timestamp;
 }
 
 /**
@@ -1503,7 +1664,18 @@ export interface EmailLogDoc {
      * suppression list: a speaker who unsubscribed from the newsletter still
      * has to be asked for the bio their own talk is published with.
      */
-    | "speaker-profile-request";
+    | "speaker-profile-request"
+    /**
+     * One exhibitor's link to the lead desk their booth staff scan badges on,
+     * and every re-send.
+     *
+     * Written once per recipient, like `speaker-profile-request`, because the
+     * question afterwards is "does that stand have a working link?" and a row
+     * counting a batch cannot answer it. Transactional: an exhibitor who
+     * unsubscribed from the newsletter has still paid for the booth this link
+     * is the tooling for.
+     */
+    | "exhibitor-lead-link";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */
@@ -1661,6 +1833,94 @@ export interface ExhibitorDoc extends BaseDoc {
   passesAllocated?: number;
   passesUsed?: number;
   status: "confirmed" | "provisional" | "cancelled";
+
+  /**
+   * Lead capture: the state of the capability link this exhibitor's booth staff
+   * open to scan badges. `exhibitor-token.ts` holds no state, so all three of
+   * these live here.
+   *
+   * `leadLinksValidFrom` is epoch milliseconds and is the revocation: the token
+   * carries `iat`, and refusing every link minted before an instant is one
+   * comparison the store makes per request. It stops one exhibitor's links and
+   * nobody else's, which rotating the signing secret could not do. The speaker
+   * portal does the same thing with `SpeakerProfileEditDoc.linksValidFrom`.
+   *
+   * ⚠️ Plain numbers and a `Timestamp`, not a nested map. Under `merge: true` a
+   * map merges key by key, so a partial write would keep a stale half — see
+   * AGENTS.md gotcha 9 and the nested case found live in `submissions.ts`.
+   */
+  leadLinksValidFrom?: number;
+  leadLinkSentAt?: Timestamp;
+  /** The address the last link went to, so the screen can say where it went. */
+  leadLinkSentTo?: string;
+}
+
+/**
+ * `exhibitors/{exhibitorId}/leads/{registrationId}` — one attendee who agreed
+ * to be contacted by one exhibitor.
+ *
+ * ── Keyed by registration, for the reason `checkIns` is ─────────────────────
+ *
+ * A booth scans the same badge twice — the attendee came back, or the phone
+ * fired twice at one badge held up. The id makes that land on the same
+ * document, so a second scan is a repeat rather than a duplicate row, and the
+ * page can say "you already have them, scanned at 11:04" instead of quietly
+ * counting them twice in an export somebody is billed against.
+ *
+ * ── Why it is under the exhibitor and not under the attendee ────────────────
+ *
+ * The containment *is* the access rule. An exhibitor's link opens exactly
+ * `exhibitors/{their id}/leads`, so there is no query that could return
+ * somebody they did not scan, and no filter to get wrong. A top-level `leads`
+ * collection filtered by exhibitor id would be one missing `where` away from
+ * handing one company the whole floor's contacts.
+ *
+ * ── What is copied in, and what is not ──────────────────────────────────────
+ *
+ * Name, company, job title and email, copied at scan time — the four things
+ * the consent sentence names and nothing else. Not the uid, not `qrSecret`, not
+ * the ticket type, not the check-in history. Copied rather than joined because
+ * a lead is a record of a conversation on a particular day: an attendee who
+ * later changes employer has not retrospectively met this booth on behalf of
+ * the new one, and an attendee who deletes their account has still been
+ * lawfully given this exhibitor their card.
+ *
+ * Server-written, from the website's Admin SDK, through the capability link.
+ * There is no `firestore.rules` block for it and there must not be one: no
+ * client anywhere in this project may read or write a lead.
+ */
+export interface ExhibitorLeadDoc {
+  eventId: string;
+  exhibitorId: string;
+  /** Matches the document id. Duplicated so an export row is self-describing. */
+  registrationId: string;
+  name: string;
+  email: string;
+  company?: string;
+  title?: string;
+  /** What the booth typed about the conversation. Capped at 500 characters. */
+  note?: string;
+  scannedAt: Timestamp;
+  /**
+   * The agreement, recorded with the record it authorises.
+   *
+   * `wording` is the exact sentence the attendee was shown, stored for the same
+   * reason `ConsentFormDoc` stores its body: "they consented" is worth nothing
+   * without what they consented to, and a sentence that lives only in a
+   * component is a sentence a tidy-up can silently rewrite under every lead
+   * already taken. Built by `leadConsentWording()`.
+   */
+  consent: {
+    grantedAt: Timestamp;
+    wording: string;
+    /**
+     * How the agreement was obtained. One value today — the attendee tapped
+     * agree on the booth's screen straight after the scan — and it is stored
+     * rather than assumed so that a second channel later cannot be mistaken for
+     * this one after the fact.
+     */
+    source: "badge-scan";
+  };
 }
 
 /**

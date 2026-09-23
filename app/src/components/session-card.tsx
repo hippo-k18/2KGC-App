@@ -90,6 +90,7 @@ export function SessionCard({
         `${session.title}, ${formatTime(session.startsAtLocal)} to ` +
         `${formatTime(session.endsAtLocal)}` +
         (session.roomName ? `, ${session.roomName}` : '') +
+        (session.streamState === 'live' ? ', streaming live' : '') +
         (saved ? ', in your schedule' : '')
       }
       style={({ pressed }) => ({
@@ -160,6 +161,29 @@ export function SessionCard({
             <Text variant="subhead" tone="secondary" numberOfLines={lines}>
               {session.speakerNames.join(', ')}
             </Text>
+          ) : null}
+
+          {/* The one thing on an agenda row that is time-critical. It comes
+              from `streamState` on the session itself, which is why no row
+              pays for a read: the link is in a gated subcollection and this
+              flag is the part of it that is not a secret. The dot is
+              decoration and the words carry the meaning, so it is never
+              colour-only. */}
+          {session.streamState === 'live' ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: INLINE_GAP }}>
+              <View
+                style={{
+                  width: TRACK_DOT,
+                  height: TRACK_DOT,
+                  borderRadius: TRACK_DOT / 2,
+                  backgroundColor: colors.danger,
+                }}
+                {...DECORATIVE}
+              />
+              <Text variant="subhead" tone="danger">
+                Streaming live
+              </Text>
+            </View>
           ) : null}
 
           <Text variant="subhead" tone="tertiary" numberOfLines={lines}>

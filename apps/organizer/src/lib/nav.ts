@@ -565,6 +565,7 @@ export const ROUTES = {
   analyticsExports: '/attendees/manage-attendees/analytics-and-exports',
   moderateBoard: '/tools/moderator-tools/community-board',
   qaManager: '/content/agenda-center/session-qanda-manager',
+  streamingSetup: '/virtual-and-hybrid/online-session-manager/streaming-setup',
 } as const;
 
 /**

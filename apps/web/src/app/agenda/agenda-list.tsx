@@ -243,7 +243,21 @@ export function AgendaList({
                     {/* The track, as a rule down the edge rather than a chip. */}
                     <span className="session-edge" aria-hidden="true" />
                     <span className="session-main">
-                      <span className="session-title">{s.title}</span>
+                      <span className="session-title">
+                        {s.title}
+                        {/*
+                          A cue that there is something to watch, from the
+                          denormalised flag on the session — no read per row,
+                          and no URL in this payload. Tapping the row opens the
+                          dialog, which links to the page where the ticket check
+                          actually happens.
+                        */}
+                        {s.streamState === 'live' ? (
+                          <span className="session-live">Live now</span>
+                        ) : s.hasRecording ? (
+                          <span className="session-recorded">Recorded</span>
+                        ) : null}
+                      </span>
                       <span className="session-meta">
                         {s.trackName && <span className="session-track">{s.trackName}</span>}
                         {s.roomName && <span>{s.roomName}</span>}
@@ -324,6 +338,33 @@ export function AgendaList({
                 {open.session.skillLevel && <span className="tag">{open.session.skillLevel}</span>}
               </div>
             </div>
+
+            {/*
+              The session's own address.
+
+              Always offered, because a session is the thing people paste into a
+              message and this dialog cannot be pasted anywhere. It leads with
+              watching when there is something to watch: the ticket check runs
+              on the server over there, which is exactly why the video is not in
+              here — a dialog is drawn from data this page already shipped to
+              every visitor.
+            */}
+            <p className="session-dialog-link">
+              <a
+                className={
+                  open.session.streamState || open.session.hasRecording
+                    ? 'btn btn-primary btn-sm'
+                    : undefined
+                }
+                href={`/agenda/${encodeURIComponent(open.session.id)}`}
+              >
+                {open.session.streamState === 'live'
+                  ? 'Watch this session live'
+                  : open.session.hasRecording || open.session.streamState
+                    ? 'Watch this session'
+                    : 'Open the session page'}
+              </a>
+            </p>
 
             {open.session.description && (
               <div className="session-dialog-body">

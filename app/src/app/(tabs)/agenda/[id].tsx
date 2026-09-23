@@ -26,6 +26,7 @@ import { ListRow } from '@/components/list-row';
 import { PushedHeader } from '@/components/pushed-header';
 import { SessionPoll } from '@/components/session-poll';
 import { SessionQA } from '@/components/session-qa';
+import { SessionWatch } from '@/components/session-watch';
 import { Screen } from '@/components/screen';
 import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
@@ -586,6 +587,15 @@ export default function SessionDetailScreen() {
             </View>
           </Pressable>
         ) : null}
+
+        {/*
+          Above the description, because for anybody not in the building it is
+          the reason they opened the screen — and because a player found below
+          three paragraphs and a speaker card is a player nobody finds while a
+          talk is still running. It draws nothing at all for a session that is
+          only happening in a room, which is most of them.
+        */}
+        <SessionWatch session={session} />
 
         {session.description ? (
           <View style={{ gap: Spacing.sm }}>

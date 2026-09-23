@@ -826,6 +826,7 @@ function AgendaRow({
             `${formatTime(session.endsAtLocal)}` +
             (session.roomName ? `, ${session.roomName}` : '') +
             (session.speakerNames?.length ? `, ${session.speakerNames.join(', ')}` : '') +
+            (session.streamState === 'live' ? ', streaming live' : '') +
             (saved ? ', in your agenda' : '')
           }
           style={{
@@ -873,6 +874,28 @@ function AgendaRow({
                 {session.title}
               </Text>
             </View>
+
+            {/* The one thing on an agenda row that is time-critical. It reads
+                `streamState` on the session itself, so no row pays for a read:
+                the link lives in a gated subcollection and this flag is the
+                part of it that is not a secret. The dot is decoration and the
+                words carry the meaning, so it is never colour-only. */}
+            {session.streamState === 'live' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
+                  style={{
+                    width: TRACK_DOT,
+                    height: TRACK_DOT,
+                    borderRadius: TRACK_DOT / 2,
+                    backgroundColor: colors.danger,
+                  }}
+                  {...DECORATIVE}
+                />
+                <Text variant="subhead" tone="danger">
+                  Streaming live
+                </Text>
+              </View>
+            ) : null}
 
             {session.roomName ? (
               <Text variant="subhead" tone="secondary">

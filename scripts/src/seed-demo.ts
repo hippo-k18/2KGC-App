@@ -260,6 +260,15 @@ async function main() {
 
     push(COLLECTIONS.users, uid, {
       ...base(), email, name, title, company, interests,
+      /**
+       * The pointer `firestore.rules` follows to find out which ticket this
+       * account holds, which is how a stream or a recording restricted to one
+       * tier is gated. In the real app it is written by the client on the first
+       * badge lookup; seeded here so the gate has something to read on a fresh
+       * emulator, because otherwise every restricted video is refused to all 50
+       * demo attendees and streaming looks broken rather than closed.
+       */
+      registrationId: registrationId(email),
       // Attendee bios, not speaker bios: one line, in the register people
       // actually write in. "Placeholder profile for demo purposes." sat on all 50
       // profile cards and on every People row that showed a bio.

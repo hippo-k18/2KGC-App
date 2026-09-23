@@ -5,8 +5,11 @@ import { getSession, listRooms, listSpeakerOptions, listTrackOptions } from '@/l
 import { findConflicts } from '@/lib/conflicts';
 import { ROUTES } from '@/lib/nav';
 import { stampOfInstant } from '@/lib/time';
+import { listTicketTypes } from '@/lib/commerce';
+import { getSessionWatch, videoLibraryTicketNames } from '@/lib/streaming';
 import { Banner, PageHeader, Panel, StatusTag } from '../../../../ui';
 import { SessionForm } from '../session-form';
+import { RecordingForm, StreamForm } from '../watch-form';
 import { conflictsForSession } from '../session-core';
 
 export const dynamic = 'force-dynamic';
@@ -15,11 +18,14 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
   await requireOrganizer();
 
   const { id } = await params;
-  const [session, rooms, tracks, speakers, report] = await Promise.all([
+  const [session, rooms, tracks, speakers, watch, ticketTypes, videoLibraryNames, report] = await Promise.all([
     getSession(id),
     listRooms(),
     listTrackOptions(),
     listSpeakerOptions(),
+    getSessionWatch(id),
+    listTicketTypes(),
+    videoLibraryTicketNames(),
     /**
      * The programme-wide conflict pass, narrowed to this session.
      *
@@ -36,6 +42,13 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
   if (!session) notFound();
 
   const mine = conflictsForSession(report.conflicts, session.id);
+  /**
+   * Names, not ids. `RegistrationDoc.ticketType` carries the name and
+   * `firestore.rules` compares the two strings directly, so the restriction has
+   * to be expressed in names — the same convention the documents feature and
+   * session eligibility already use.
+   */
+  const ticketTypeNames = ticketTypes.map((t) => t.name);
 
   return (
     <>
@@ -99,6 +112,40 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
             timeZone: session.timeZone,
             version: session.updatedAt ? session.updatedAt.toMillis() : 0,
           }}
+        />
+      </Panel>
+
+      {/*
+        Streaming sits on this page rather than on a screen of its own because
+        a stream belongs to a session the way a room does — the organizer who
+        knows the link is the one editing the talk. The overview of every
+        session's state is where `nav.ts` already files it, under Virtual &
+        Hybrid > Online Session Manager > Streaming Setup.
+      */}
+      <Panel>
+        <h2 className="section-header">Stream</h2>
+        <p className="body-2">
+          Where people watch this session while it is happening. Leave it empty if the session is
+          only in the room.
+        </p>
+        <StreamForm
+          sessionId={session.id}
+          existing={watch.stream}
+          ticketTypeNames={ticketTypeNames}
+        />
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Recording</h2>
+        <p className="body-2">
+          The video after the session. A session can have a stream, a recording, both or neither.
+        </p>
+        <RecordingForm
+          sessionId={session.id}
+          sessionTitle={session.title}
+          existing={watch.recording}
+          ticketTypeNames={ticketTypeNames}
+          videoLibraryNames={videoLibraryNames}
         />
       </Panel>
 

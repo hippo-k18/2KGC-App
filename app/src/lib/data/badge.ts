@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 import {
   COLLECTIONS,
@@ -361,7 +361,8 @@ export function useBadge(): BadgeResult {
 }
 
 /**
- * Records that this account has picked up this registration.
+ * Records that this account has picked up this registration — in both
+ * directions.
  *
  * The console's attendee list shows who has actually reached the app, which is
  * the number an organizer wants in the week before the doors open, and nothing
@@ -369,9 +370,23 @@ export function useBadge(): BadgeResult {
  * Spark. The rules permit exactly this one field and require the uid to be the
  * caller's own.
  *
- * Detached rather than awaited. It is bookkeeping — the badge is already on
- * screen and does not depend on it — and awaiting a Firestore write on
- * conference wifi blocks for seconds, or forever with no network at all.
+ * ── The second write, and why it is here ────────────────────────────────────
+ *
+ * `users/{uid}.registrationId` is the pointer `firestore.rules` follows to find
+ * out which ticket this account holds, which is what gates a stream or a
+ * recording sold with one tier. The rules cannot find it themselves: the
+ * registration's id is `reg_` + sha256(email) and the rules language has no
+ * hash function, so the pointer has to be stored, and this is the one place in
+ * the app that has both halves of it.
+ *
+ * It is written by the client and the rules do not trust it — they read the
+ * registration it names and then require it to carry the caller's own address.
+ * Pointing it somewhere else refuses you a video; it does not get you one.
+ *
+ * Both are detached rather than awaited. They are bookkeeping — the badge is
+ * already on screen and does not depend on either — and awaiting a Firestore
+ * write on conference wifi blocks for seconds, or forever with no network at
+ * all.
  */
 function useClaimRegistration(
   uid: string | undefined,
@@ -395,6 +410,18 @@ function useClaimRegistration(
         claimedByUid: uid,
         updatedAt: serverTimestamp(),
       }),
+    );
+
+    // `setDoc(..., {merge: true})` rather than `updateDoc`, because an attendee
+    // whose profile has not been created yet would otherwise get `not-found`
+    // and never acquire the pointer at all.
+    detachWrite(
+      'point profile at registration',
+      setDoc(
+        doc(getDb(), COLLECTIONS.users, uid),
+        { registrationId, updatedAt: serverTimestamp() },
+        { merge: true },
+      ),
     );
   }, [uid, registrationId, settled]);
 }

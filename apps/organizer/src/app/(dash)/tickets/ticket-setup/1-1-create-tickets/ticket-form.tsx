@@ -285,12 +285,21 @@ export function TicketForm({
           label="Admits the workshop sessions"
           defaultChecked={existing?.includesWorkshops ?? false}
         />
+        {/*
+          Both boxes are entitlements, and this one is now read twice: at
+          fulfilment, where it grants the video-library entitlement, and when a
+          recording is restricted to particular tiers — every tier with this
+          ticked is added back to that restriction, so a tier sold a library
+          cannot be locked out of one. Session Manager is where the links go.
+        */}
         <CheckboxField
           name="includesVideoLibrary"
           label={
             <>
               Includes the video library
-              <span className="muted">. The library itself is not available yet</span>
+              <span className="muted">
+                . Recordings restricted to other tiers still admit this one
+              </span>
             </>
           }
           defaultChecked={existing?.includesVideoLibrary ?? false}

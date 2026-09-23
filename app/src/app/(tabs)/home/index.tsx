@@ -582,6 +582,10 @@ function ResourceGrid({
     // header, and the only one of them that needed a decision rather than a
     // capability nobody has.
     { label: 'Documents', onPress: () => router.push('/home/documents') },
+    // Always drawn, even on a day when nothing is online: the screen behind it
+    // says so in a sentence, and a tile that appears and disappears with the
+    // programme is a tile nobody learns where to find.
+    { label: 'Watch', onPress: () => router.push('/home/watch') },
   ];
 
   return (

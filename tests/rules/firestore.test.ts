@@ -2082,6 +2082,39 @@ describe('the exhibitor hall', () => {
     await assertFails(setDoc(doc(asOrg(), 'exhibitors/ex2'), { eventId: 'kgc-2027', name: 'X' }));
   });
 
+  it('keeps one exhibitor’s leads closed to every client, including that exhibitor', async () => {
+    /*
+     * `exhibitors/{id}/leads/{registrationId}` is written by the website's
+     * Admin SDK, through the signed link a stand holds, and by nothing else. It
+     * has no match block and must not get one.
+     *
+     * The guarantee is worth a test rather than being left to default-deny for
+     * two reasons. It holds a named attendee's email address beside a note
+     * somebody typed about them, which is the most directly personal record in
+     * this project; and the collection sits *under* a document
+     * (`exhibitors/{id}`) that is itself closed, so a future rule opening the
+     * parent — say, to let a sponsor read their own record — would open this
+     * with it unless somebody is looking. A collection-group query is the
+     * shape that would hurt most: every lead taken in the hall.
+     */
+    await assertFails(getDoc(doc(asA(), 'exhibitors/ex1/leads/reg_x')));
+    await assertFails(getDocs(collection(asA(), 'exhibitors/ex1/leads')));
+    await assertFails(getDocs(collectionGroup(asA(), 'leads')));
+    await assertFails(getDoc(doc(asOrg(), 'exhibitors/ex1/leads/reg_x')));
+    await assertFails(getDocs(collection(asOrg(), 'exhibitors/ex1/leads')));
+    await assertFails(getDocs(collectionGroup(asOrg(), 'leads')));
+    await assertFails(
+      setDoc(doc(asA(), 'exhibitors/ex1/leads/reg_x'), {
+        eventId: 'kgc-2027',
+        exhibitorId: 'ex1',
+        registrationId: 'reg_x',
+        name: 'Ada',
+        email: 'ada@example.test',
+      }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), 'exhibitors/ex1/leads/reg_x')));
+  });
+
   it('keeps the floor plan closed to every client', async () => {
     // Not opened, and deliberately so: a booth holds an order id, the ticket
     // type it was sold as, who assigned it and whether it is `held` — promised

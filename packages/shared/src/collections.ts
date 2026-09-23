@@ -221,7 +221,18 @@ export const SUBCOLLECTIONS = {
   gatherings: "gatherings",
   /** `sessionSeats/{sessionId}/seats/{uid}` — one attendee's seat or waitlist place. */
   seats: "seats",
+  /**
+   * `sessions/{id}/watch/{stream|recording}` — where to watch this session, and
+   * who may. Two fixed ids, never a generated one, so a reader fetches the
+   * document it wants instead of listing a collection it may not be allowed to
+   * list. Gated by ticket type in `firestore.rules`; see `SessionStreamDoc`.
+   */
+  watch: "watch",
 } as const;
+
+/** The two documents inside `sessions/{id}/watch`. */
+export const WATCH_STREAM_DOC = "stream";
+export const WATCH_RECORDING_DOC = "recording";
 
 /** The single document inside `sessions/{id}/qaBoard`. */
 export const QA_BOARD_DOC = "current";

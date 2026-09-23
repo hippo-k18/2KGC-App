@@ -82,6 +82,18 @@ export interface SessionRow {
   skillLevel?: SessionDoc['skillLevel'];
   speakerIds: string[];
   timeZone: string;
+  /**
+   * That a stream or a recording is set up, and whether either names ticket
+   * types. Display only — the links themselves are in `sessions/{id}/watch`
+   * and are gated there, because rules filter documents and not fields.
+   *
+   * On the row so a list can draw a "live" pill without one extra read per
+   * session, which is the whole reason the flags are denormalised onto the
+   * session document in the first place.
+   */
+  streamState?: SessionDoc['streamState'];
+  hasRecording?: boolean;
+  watchRestricted?: boolean;
 }
 
 function toRow(id: string, s: SessionDoc): SessionRow {
@@ -102,6 +114,9 @@ function toRow(id: string, s: SessionDoc): SessionRow {
     skillLevel: s.skillLevel,
     speakerIds: s.speakerIds ?? [],
     timeZone: s.timeZone,
+    streamState: s.streamState,
+    hasRecording: s.hasRecording,
+    watchRestricted: s.watchRestricted,
   };
 }
 

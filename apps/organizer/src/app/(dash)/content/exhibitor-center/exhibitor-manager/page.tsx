@@ -1,10 +1,18 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { exhibitorSummary, getExhibitor, listExhibitors } from '@/lib/exhibitors';
+import {
+  leadDeskLink,
+  leadEmailAvailable,
+  leadLinkRows,
+  leadLinksAvailable,
+  totalLeads,
+} from '@/lib/exhibitor-leads';
 import { ROUTES } from '@/lib/nav';
 import { Banner, Email, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { setExhibitorStatusAction } from './actions';
 import { ExhibitorForm } from './exhibitor-form';
+import { RevokeLeadLinkForm, SendLeadLinkForm, type LeadLinkTarget } from './lead-forms';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +36,35 @@ export default async function ExhibitorManagerPage({
   const creating = typeof sp.new === 'string';
 
   const [all, summary] = await Promise.all([listExhibitors(), exhibitorSummary()]);
+
+  /*
+   * The state of each stand's lead desk link, and how many people have agreed
+   * to be on their list. One read per exhibitor plus one `count()` each — six
+   * of them here — on a screen an organizer opens a handful of times before the
+   * hall opens. The alternative is a denormalised total with two writers and no
+   * transaction between them; see `exhibitor-leads.ts`.
+   */
+  const links = await leadLinkRows(all.map((e) => e.id));
+  const linksOn = leadLinksAvailable();
+  const emailOn = leadEmailAvailable();
+
+  const linkTargets: LeadLinkTarget[] = all.map((e) => {
+    const row = links[e.id];
+    const revoked =
+      typeof row?.validFrom === 'number' && (!row.sentAtMs || row.sentAtMs < row.validFrom);
+    return {
+      id: e.id,
+      name: e.name,
+      hasAddress: Boolean(e.contactEmail),
+      cancelled: e.status === 'cancelled',
+      statusLabel: revoked
+        ? 'stopped'
+        : row?.sentAtMs
+          ? `sent, ${row.leadCount} lead${row.leadCount === 1 ? '' : 's'}`
+          : 'not sent',
+    };
+  });
+
   const editingDoc = editId ? await getExhibitor(editId) : null;
   const editing = editingDoc ? all.find((e) => e.id === editingDoc.id) : undefined;
   const showForm = creating || Boolean(editing);
@@ -97,7 +134,12 @@ export default async function ExhibitorManagerPage({
           {
             label: 'No contact',
             value: summary.withoutContact,
-            sub: 'cannot be messaged',
+            sub: 'cannot be messaged or sent a lead link',
+          },
+          {
+            label: 'Leads scanned',
+            value: totalLeads(links),
+            sub: 'attendees who agreed at a stand',
           },
         ]}
       />
@@ -260,13 +302,102 @@ export default async function ExhibitorManagerPage({
         </Panel>
       )}
 
+      {!showForm && (
+        <Panel style={{ marginTop: 16 }}>
+          <h2 style={{ fontSize: 15, marginTop: 0 }}>Lead capture</h2>
+          <p className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
+            Each stand gets its own link. Their staff open it on a phone, scan an attendee&rsquo;s
+            badge, the attendee agrees on screen to share their name, company, job title and email,
+            and the stand can add a note and download their own list as a spreadsheet. A stand sees
+            only the people it has scanned. There is no exhibitor login: the link is the access, so
+            treat it the way you would treat a password.
+          </p>
+
+          {!linksOn ? (
+            <Banner kind="warning">
+              Links cannot be created on this server yet, so nothing here will open. That is one
+              setting on the server, not a change to this screen.
+            </Banner>
+          ) : (
+            <>
+              <div className="form-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 32 }}>
+                <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                  <SendLeadLinkForm exhibitors={linkTargets} emailOn={emailOn} />
+                </div>
+                <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                  <RevokeLeadLinkForm exhibitors={linkTargets} />
+                </div>
+              </div>
+
+              <Table
+                stackSm
+                cols={[
+                  { key: 'n', label: 'Company', className: 'cell-fill' },
+                  { key: 'l', label: 'Leads', className: 'cell-xs' },
+                  { key: 's', label: 'Link', className: 'cell-md' },
+                  { key: 'u', label: 'Their address', className: 'cell-fill' },
+                ]}
+                rows={all
+                  .filter((e) => e.status !== 'cancelled')
+                  .map((e) => {
+                    const row = links[e.id];
+                    const revoked =
+                      typeof row?.validFrom === 'number' &&
+                      (!row.sentAtMs || row.sentAtMs < row.validFrom);
+                    return [
+                      <span key="n">
+                        {e.name}
+                        {e.boothNumber ? (
+                          <div className="muted" style={{ fontSize: 11 }}>
+                            Stand {e.boothNumber}
+                          </div>
+                        ) : null}
+                      </span>,
+                      <strong key="l">{row?.leadCount ?? 0}</strong>,
+                      <span key="s" style={{ fontSize: 12 }}>
+                        {revoked ? (
+                          <Tag color="red" fill="outline" small>
+                            stopped
+                          </Tag>
+                        ) : row?.sentAtMs ? (
+                          <>
+                            <Tag color="green" fill="outline" small>
+                              sent
+                            </Tag>
+                            <div className="muted" style={{ fontSize: 11 }}>
+                              {new Date(row.sentAtMs).toLocaleDateString()}
+                              {row.sentTo ? ` to ${row.sentTo}` : ''}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="muted">not sent</span>
+                        )}
+                      </span>,
+                      /*
+                        The live link, printed so it can be sent by hand while
+                        email is off — the same thing Speaker Manager does, for
+                        the same reason. Each render mints a fresh one, so what
+                        is on screen is always the one that works.
+                      */
+                      <code key="u" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>
+                        {leadDeskLink(e.id)}
+                      </code>,
+                    ];
+                  })}
+              />
+            </>
+          )}
+        </Panel>
+      )}
+
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Lead scanning.</strong> The commercial reason a company buys a booth. Sponsors
-            have a <code>leads</code> subcollection modelled; exhibitors have nothing, and the app
-            has no scanner for either.
+            <strong>An exhibitor portal.</strong> Lead scanning is built, above. What is still
+            missing around it is everything else a stand might sign in for: editing their own
+            profile, managing staff passes, seeing who visited their page. There is no exhibitor
+            login, only the one link per stand.
           </li>
           <li>
             <strong>Exhibitor tickets.</strong> Staff passes would be sold through a parallel

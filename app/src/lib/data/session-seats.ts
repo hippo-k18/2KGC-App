@@ -11,7 +11,6 @@ import {
   isGated,
   seatStateOf,
   ticketEligible,
-  type RegistrationDoc,
   type SeatGate,
   type SeatState,
   type SessionSeatDoc,
@@ -23,16 +22,10 @@ import {
   mySeatLine,
   seatButtonLabel,
   seatLine,
-  ticketAnswer,
   type MySeat,
 } from '@/lib/data/session-seats-core';
-import {
-  myAddress,
-  registrationByAltEmail,
-  registrationByEmail,
-} from '@/lib/data/registrations';
 import { claimSeat } from '@/lib/data/session-seats-tx';
-import { useCollection } from '@/lib/data/use-collection';
+import { useMyTicket } from '@/lib/data/my-ticket';
 import { useDocument } from '@/lib/data/use-document';
 import { detachWrite } from '@/lib/data/write';
 
@@ -61,11 +54,6 @@ import { detachWrite } from '@/lib/data/write';
 export function useSessionSeat(session: ({ id: string } & SeatGate) | null) {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
-  // Folded, because the account carries whatever address it was created with
-  // and registrations store a lowercased one. Comparing the two verbatim found
-  // nothing for anybody who signed in with a capital letter, and the screen
-  // read that empty result as "your ticket does not cover this session".
-  const address = myAddress(user?.email);
   const id = session?.id ?? null;
   const gated = session ? isGated(session) : false;
   const restricted = session ? eligibleTypes(session).length > 0 : false;
@@ -84,48 +72,21 @@ export function useSessionSeat(session: ({ id: string } & SeatGate) | null) {
     (_id, d: SessionSeatDoc) => d.status,
   );
 
-  const toTicketType = (_id: string, d: RegistrationDoc) => d.ticketType ?? null;
-
-  /**
-   * The reader's own ticket type, by their address — the same lookup
-   * `findTicket` makes before a seat transaction, built from the same helpers
-   * and compared the same way.
-   */
-  const primary = useCollection<string | null>(
-    () => (restricted && address ? registrationByEmail(getDb(), address) : null),
-    [restricted, address],
-    toTicketType,
-  );
-
-  /**
-   * The same address as an alternate. A ticket bought on a work address and
-   * signed in on a personal one is the ordinary case, and `firestore.rules`
-   * and the sign-in callable both look in both places. Opened only once the
-   * primary has come back empty, so nobody pays for two reads to learn one
-   * thing.
-   */
-  const primaryEmpty = !primary.loading && !primary.error && primary.data?.length === 0;
-  const alternate = useCollection<string | null>(
-    () => (restricted && address && primaryEmpty ? registrationByAltEmail(getDb(), address) : null),
-    [restricted, address, primaryEmpty],
-    toTicketType,
-  );
-
   const state = counter.data ?? EMPTY_SEATS;
   const mine: MySeat = seat.data ?? null;
 
-  // A refused or failed registration read leaves the button alone: the
-  // transaction and the rules still answer, and a screen that locks somebody
-  // out because its own lookup broke is worse than one that asks and is told no.
-  // The same goes for an account carrying no address, which cannot be looked up
-  // at all.
-  const ticket = restricted
-    ? ticketAnswer(
-        address,
-        { rows: primary.data, loading: primary.loading, error: primary.error },
-        { rows: alternate.data, loading: alternate.loading, error: alternate.error },
-      )
-    : { ticketType: null, known: false, pending: false };
+  /**
+   * The reader's own ticket type — the same lookup `findTicket` makes before a
+   * seat transaction, and now the same one the watch panels make, because it
+   * moved into `useMyTicket` the day a second feature needed it.
+   *
+   * A refused or failed registration read leaves the button alone: the
+   * transaction and the rules still answer, and a screen that locks somebody
+   * out because its own lookup broke is worse than one that asks and is told
+   * no. The same goes for an account carrying no address, which cannot be
+   * looked up at all.
+   */
+  const ticket = useMyTicket(restricted);
   const ticketType = ticket.ticketType;
   const eligible = !restricted || !ticket.known || ticketEligible(session ?? {}, ticketType);
 
