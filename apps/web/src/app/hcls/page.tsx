@@ -89,7 +89,21 @@ function stats(counts: { speakers: number; sponsors: number }) {
  * because every number on it was typed; two of them are now measurements, and a
  * measurement cached at build time is a measurement that goes stale silently.
  */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. Two of the numbers on this page are measurements of what is in Firestore.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 export default async function HclsPage() {
   const ev = await siteEvent();

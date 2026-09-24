@@ -27,8 +27,21 @@ export interface LeadLinkTarget {
   name: string;
   hasAddress: boolean;
   cancelled: boolean;
-  /** "Sent 12 Mar", "Stopped", "Not sent". Always something. */
+  /** "sent, 2 leads", "stopped", "not sent". Always something. */
   statusLabel: string;
+}
+
+/**
+ * How one stand reads in a dropdown.
+ *
+ * Shared by both lists so they cannot disagree. A cancelled stand is cancelled
+ * in both, and a stand with nowhere to send to says so rather than repeating
+ * its link state, because that is the thing an organizer has to fix.
+ */
+function leadTargetLabel(e: LeadLinkTarget): string {
+  if (e.cancelled) return 'cancelled';
+  if (!e.hasAddress) return 'no address on file';
+  return e.statusLabel;
 }
 
 /**
@@ -62,11 +75,7 @@ export function SendLeadLinkForm({
           width="xl"
           options={exhibitors.map((e) => ({
             value: e.id,
-            label: e.cancelled
-              ? `${e.name} · cancelled`
-              : e.hasAddress
-                ? `${e.name} · ${e.statusLabel}`
-                : `${e.name} · no address on file`,
+            label: `${e.name} · ${leadTargetLabel(e)}`,
             // Greyed out with the reason in the row, never greyed out silently:
             // "why can I not email Graphwise?" has to be answerable from here.
             disabled: !e.hasAddress || e.cancelled,
@@ -123,7 +132,7 @@ export function RevokeLeadLinkForm({ exhibitors }: { exhibitors: LeadLinkTarget[
           width="xl"
           options={exhibitors.map((e) => ({
             value: e.id,
-            label: `${e.name} · ${e.statusLabel}`,
+            label: `${e.name} · ${leadTargetLabel(e)}`,
           }))}
         />
         <FormActions>

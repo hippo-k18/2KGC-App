@@ -19,6 +19,7 @@ import { InvoiceForm } from './invoice-form';
  * every other Firestore-backed page here. Without this the build tries to reach
  * the database and fails with `ECONNREFUSED` on a machine with no emulator.
  */
+/** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. */
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {

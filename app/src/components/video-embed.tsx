@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { Linking, Platform, Pressable, View } from 'react-native';
 
-import { Icon } from '@/components/icon';
+import { Icon, type IconName } from '@/components/icon';
 import { Text } from '@/components/text';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -106,7 +106,16 @@ export function VideoEmbed({
  * press handler that is an unhandled rejection: a red box in development and
  * silence here.
  */
-export function WatchElsewhereButton({ url, label }: { url: string; label: string }) {
+export function WatchElsewhereButton({
+  url,
+  label,
+  icon = 'video.fill',
+}: {
+  url: string;
+  label: string;
+  /** Defaults to the player glyph; a link that is not a player passes its own. */
+  icon?: IconName;
+}) {
   const colors = useTheme();
 
   return (
@@ -131,7 +140,7 @@ export function WatchElsewhereButton({ url, label }: { url: string; label: strin
         flexDirection: 'row',
         gap: Spacing.sm,
       })}>
-      <Icon name="video.fill" size={20} color={colors.tint} />
+      <Icon name={icon} size={20} color={colors.tint} />
       <Text variant="heading" tone="tint" style={{ flexShrink: 1 }}>
         {label}
       </Text>

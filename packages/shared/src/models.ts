@@ -1850,6 +1850,19 @@ export interface ExhibitorDoc extends BaseDoc {
    * AGENTS.md gotcha 9 and the nested case found live in `submissions.ts`.
    */
   leadLinksValidFrom?: number;
+  /**
+   * Epoch milliseconds: when a link was last handed to this stand.
+   *
+   * ⚠️ Separate from `leadLinkSentAt` because they answer different questions
+   * and the screen needs both. *Issued* means an organizer pressed Send, a
+   * fresh token was minted, and this stand is meant to have a working link —
+   * true whether or not the mail left. *Sent* means the mail provider accepted
+   * it. Collapsing the two is what let the dashboard show "stopped" beside a
+   * link that opened: revocation is `iat < leadLinksValidFrom`, so whether a
+   * stand is locked out depends on when a link was last **minted**, and the
+   * only stamp the screen had moved when a mail left instead.
+   */
+  leadLinkIssuedAt?: number;
   leadLinkSentAt?: Timestamp;
   /** The address the last link went to, so the screen can say where it went. */
   leadLinkSentTo?: string;

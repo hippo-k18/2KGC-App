@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { leadTimestamp } from '@kgc/shared';
 import { agreeAction, scanAction } from './actions';
 import type { ScanOutcome } from '@/lib/exhibitor-leads';
 
@@ -49,12 +50,29 @@ function barcodeDetector(): BarcodeDetectorCtor | null {
 /** The camera fires ~4x a second at a badge that is still being held up. */
 const SAME_CODE_COOLDOWN_MS = 4000;
 
-function timeOf(ms: number | undefined): string {
-  if (!ms) return '';
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+/**
+ * `2027-05-06 11:04`, the same shape the list below and the spreadsheet use.
+ *
+ * ⚠️ It used to be `toLocaleTimeString`, which produced `07:12 PM` about two
+ * hundred pixels from a row reading `2026-09-23 19:12` — one screen writing
+ * the same kind of thing two ways, and one of them on the reader's own clock
+ * rather than the venue's. `leadTimestamp` is what the lead list and the
+ * exported file already use, so all three now agree.
+ */
+function timeOf(ms: number | undefined, timeZone: string): string {
+  return leadTimestamp(ms, timeZone);
 }
 
-export function ScanDesk({ token, exhibitorName }: { token: string; exhibitorName: string }) {
+export function ScanDesk({
+  token,
+  exhibitorName,
+  timeZone,
+}: {
+  token: string;
+  exhibitorName: string;
+  /** The event's zone, so a stand in Berlin and the organizer read one clock. */
+  timeZone: string;
+}) {
   const router = useRouter();
 
   const [code, setCode] = useState('');
@@ -279,7 +297,7 @@ export function ScanDesk({ token, exhibitorName }: { token: string; exhibitorNam
           <p className="lead-consent-name">{scan.attendee.name}</p>
           <p className="lead-consent-wording">
             Already on your list
-            {scan.scannedAtMs ? `, scanned at ${timeOf(scan.scannedAtMs)}` : ''}.
+            {scan.scannedAtMs ? `, scanned at ${timeOf(scan.scannedAtMs, timeZone)}` : ''}.
             {scan.note ? ` Your note: ${scan.note}` : ''}
           </p>
           <div className="lead-consent-actions">

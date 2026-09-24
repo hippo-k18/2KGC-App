@@ -8,7 +8,21 @@ export const metadata: Metadata = {
     'Who is exhibiting at the Knowledge Graph Conference 2027, and where to find them in the hall at Cornell Tech, Roosevelt Island.',
 };
 
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. The hall changes when an organizer edits it, not per visitor.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 /**
  * `/exhibitors` — the exhibition hall, publicly.

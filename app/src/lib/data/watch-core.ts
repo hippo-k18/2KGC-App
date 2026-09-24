@@ -164,12 +164,34 @@ export function formatWatchDate(ms: number | null | undefined): string {
  * answer is two taps away in a screen they are not currently on. When the names
  * are not known either — an older session document written before the dashboard
  * started stamping them — it says only what it can stand behind.
+ *
+ * ── It must never argue with the refusal ────────────────────────────────────
+ *
+ * The two halves of this sentence come from two different places. The list of
+ * tickets and the reader's own ticket come from a query on their email address,
+ * which always works. The refusal comes from `firestore.rules`, which finds the
+ * ticket through the pointer on the profile, which for a while was written on
+ * one screen only. An attendee who had never opened that screen got "included
+ * with All Access tickets. Your ticket is All Access." over a video they had
+ * just been refused — the app telling somebody they are wrong about something
+ * they can see.
+ *
+ * The refusal is the one that decides, so when the two disagree this says so
+ * and gives the reader something to do, rather than repeating a claim the
+ * screen has already disproved.
  */
 export function ticketSentence(
   what: 'stream' | 'recording',
   allowed: string[],
   myTicketType: string | null | undefined,
 ): string {
+  // The reader holds one of the tickets this was sold with, and has been
+  // refused anyway. Saying it is included would be the app disagreeing with
+  // itself in two consecutive sentences.
+  if (myTicketType && allowed.includes(myTicketType)) {
+    return 'Your ticket could not be checked on this device, so this is locked. Check your ticket on the Me tab, then try again.';
+  }
+
   const subject = what === 'stream' ? 'Watching this session live is' : 'This recording is';
   const names = andList(allowed);
   const forWhom = names
@@ -295,10 +317,20 @@ export function recordingPanel(input: {
   /** `SessionDoc.recordingTicketTypes`. */
   allowed: string[];
   myTicketType: string | null | undefined;
+  /**
+   * `SessionDoc.recordingUntil`, which every reader of the session may see.
+   *
+   * ⚠️ Needed because `firestore.rules` now enforces the availability window
+   * as well as the ticket, so a closed library refuses the document — and a
+   * refusal on its own reads as "not on your ticket", which is both the wrong
+   * sentence and an insulting one to somebody whose ticket did include it. The
+   * closing date is not a secret; it is on the session for this.
+   */
+  closesAtMs?: number | null;
   nowMs: number;
 }): WatchPanel | null {
-  const { outcome, recording, exists, allowed, myTicketType, nowMs } = input;
-  if (outcome === 'none' || !exists) return null;
+  const { outcome, recording, exists, allowed, myTicketType, closesAtMs, nowMs } = input;
+  if (!exists) return null;
 
   const bare = (message: string, barred = false): WatchPanel => ({
     title: 'Recording',
@@ -310,6 +342,25 @@ export function recordingPanel(input: {
     barred,
   });
 
+  /*
+   * Ahead of both `none` and `denied`, on purpose.
+   *
+   * A closed library and a wrong ticket both come back from the rules as a
+   * refusal, and only one of them has an honest sentence to offer. The caller
+   * does not even ask for a document it knows is closed, so the outcome it
+   * passes is `none` — which without this branch draws no block at all, and a
+   * recording that silently disappears is the worse of the two wrong answers.
+   */
+  if (typeof closesAtMs === 'number' && closesAtMs <= nowMs) {
+    const closed = formatWatchDate(closesAtMs);
+    return bare(
+      closed
+        ? `This recording closed on ${closed} and is no longer available.`
+        : 'This recording is no longer available.',
+    );
+  }
+
+  if (outcome === 'none') return null;
   if (outcome === 'denied') {
     return bare(ticketSentence('recording', allowed, myTicketType), true);
   }

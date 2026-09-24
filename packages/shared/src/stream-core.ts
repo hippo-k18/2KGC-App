@@ -268,6 +268,43 @@ export function mayWatch(
 }
 
 /**
+ * Who may watch a session, as one line per thing there is to watch.
+ *
+ * ── Why this is not one merged list ─────────────────────────────────────────
+ *
+ * A stream and a recording carry **separate** `allowedTicketTypes`, and the
+ * common case is that they differ: the talk goes out live to everybody and the
+ * recording is the thing sold with a video library. A column that unioned the
+ * two answered the question "is the live stream gated?" with the recording's
+ * restriction, so an organizer checking before opening a keynote to the public
+ * read four tier names and gated a stream that was already open to all.
+ *
+ * Collapsed to one unlabelled line only when both exist and say the same
+ * thing, because that is the case where a label is noise. Everything else is
+ * labelled, including a session that has only one of the two, so a reader
+ * never has to guess which one a list of tiers belongs to.
+ */
+export function watchAudienceLines(input: {
+  stream?: { allowedTicketTypes?: string[] } | null;
+  recording?: { allowedTicketTypes?: string[] } | null;
+}): { label: string; who: string }[] {
+  const EVERYBODY = "Everybody with a ticket";
+  const who = (g: { allowedTicketTypes?: string[] }) => {
+    const names = (g.allowedTicketTypes ?? []).filter(Boolean);
+    return names.length === 0 ? EVERYBODY : names.join(", ");
+  };
+
+  const lines: { label: string; who: string }[] = [];
+  if (input.stream) lines.push({ label: "Stream", who: who(input.stream) });
+  if (input.recording) lines.push({ label: "Recording", who: who(input.recording) });
+
+  if (lines.length === 2 && lines[0]!.who === lines[1]!.who) {
+    return [{ label: "", who: lines[0]!.who }];
+  }
+  return lines;
+}
+
+/**
  * Where a recording sits in its availability window.
  *
  * Both ends are optional and independent: no `availableFrom` means it is up as

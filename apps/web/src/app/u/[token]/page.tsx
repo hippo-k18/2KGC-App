@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token identifying one address on the mailing list. */
 export const dynamic = 'force-dynamic';
 
 /**

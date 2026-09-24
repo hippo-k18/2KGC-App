@@ -1,13 +1,5 @@
 import Link from 'next/link';
-import {
-  formatDuration,
-  recordingView,
-  streamView,
-  ticketList,
-  type WatchView,
-} from '@kgc/shared';
-import type { SessionWatchData } from '@/lib/watch';
-import type { TicketPass } from '@/lib/ticket-pass';
+import { formatDuration, ticketList, type SessionWatchView, type WatchView } from '@kgc/shared';
 
 /**
  * Where the video goes, and what stands there when it cannot.
@@ -17,9 +9,15 @@ import type { TicketPass } from '@/lib/ticket-pass';
  * A reader who may not watch is shown a sentence, never a player. The failure
  * this replaces is the one `stream-core.ts` and `AGENTS.md` both name: a page
  * that renders a frame first and finds out afterwards, leaving an empty grey
- * rectangle that says nothing about why. So the decision is made before any
- * markup — `streamView` / `recordingView` in `@kgc/shared` — and the blocked
- * shape they return carries no URL for this file to render even by accident.
+ * rectangle that says nothing about why.
+ *
+ * ⚠️ **The decision is not made here any more, and must not move back.** This
+ * file used to take the two records and call `streamView` / `recordingView`
+ * itself. It behaved, and the gated link still reached the browser: a server
+ * component's props are serialised into the response whether the markup uses
+ * them or not, so the page was sending every visitor a link it then declined to
+ * draw. `page.tsx` decides, this takes `SessionWatchView`, and the blocked
+ * shape inside it carries no URL for anything here to leak.
  *
  * ── Why a signed-out visitor is told about tickets and not about signing in ─
  *
@@ -64,14 +62,14 @@ function Frame({ src, title }: { src: string; title: string }) {
 function Blocked({
   view,
   kind,
-  pass,
+  passTicketType,
   startsAtLocal,
   availableFrom,
   availableUntil,
 }: {
   view: Extract<WatchView, { kind: 'blocked' }>;
   kind: 'stream' | 'recording';
-  pass: TicketPass | null;
+  passTicketType: string | null;
   startsAtLocal?: string;
   availableFrom?: string;
   availableUntil?: string;
@@ -87,9 +85,9 @@ function Blocked({
             ? `${thing} is included with the ${needed} ticket.`
             : `${thing} is included with every ticket.`}
         </p>
-        {view.block === 'wrong-ticket' && pass ? (
+        {view.block === 'wrong-ticket' && passTicketType ? (
           <p className="watch-sub">
-            Your ticket on this device is {pass.ticketType}, which does not include it.
+            Your ticket on this device is {passTicketType}, which does not include it.
           </p>
         ) : null}
         <p className="watch-actions">
@@ -161,30 +159,24 @@ function dateLabel(ms: number | null | undefined): string | undefined {
 
 export function WatchPanel({
   watch,
-  pass,
+  passTicketType,
   sessionTitle,
   startsAtLocal,
-  nowMs,
 }: {
-  watch: SessionWatchData;
-  pass: TicketPass | null;
+  watch: SessionWatchView;
+  passTicketType: string | null;
   sessionTitle: string;
   startsAtLocal: string;
-  nowMs: number;
 }) {
-  const viewer = { ticketType: pass?.ticketType ?? null };
-  const live = streamView(watch.stream, viewer);
-  const recorded = recordingView(watch.recording, viewer, nowMs);
+  const { live, recorded } = watch;
 
   // Nothing set up for this session. No panel at all, rather than a box
   // announcing the absence of a video for a talk that was never streamed.
   if (live.kind === 'none' && recorded.kind === 'none') return null;
 
-  const availableFrom = dateLabel(watch.recording?.availableFromMs);
-  const availableUntil = dateLabel(watch.recording?.availableUntilMs);
-  const duration = watch.recording?.durationSeconds
-    ? formatDuration(watch.recording.durationSeconds)
-    : '';
+  const availableFrom = dateLabel(watch.availableFromMs);
+  const availableUntil = dateLabel(watch.availableUntilMs);
+  const duration = watch.durationSeconds ? formatDuration(watch.durationSeconds) : '';
 
   return (
     <div className="watch-panels">
@@ -192,7 +184,7 @@ export function WatchPanel({
         <section className="watch-panel" aria-labelledby="watch-live">
           <h2 id="watch-live">
             Watch live
-            {watch.stream?.state === 'live' ? <span className="watch-live-dot">Live now</span> : null}
+            {watch.streamState === 'live' ? <span className="watch-live-dot">Live now</span> : null}
           </h2>
 
           {live.kind === 'play' ? (
@@ -213,7 +205,12 @@ export function WatchPanel({
               </p>
             </div>
           ) : (
-            <Blocked view={live} kind="stream" pass={pass} startsAtLocal={startsAtLocal} />
+            <Blocked
+              view={live}
+              kind="stream"
+              passTicketType={passTicketType}
+              startsAtLocal={startsAtLocal}
+            />
           )}
         </section>
       )}
@@ -251,7 +248,7 @@ export function WatchPanel({
             <Blocked
               view={recorded}
               kind="recording"
-              pass={pass}
+              passTicketType={passTicketType}
               availableFrom={availableFrom}
               availableUntil={availableUntil}
             />

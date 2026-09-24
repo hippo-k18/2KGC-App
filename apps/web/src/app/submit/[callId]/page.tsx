@@ -5,6 +5,7 @@ import { formatDeadline, SITE } from '@/lib/site';
 import { loadCall } from '@/lib/submissions';
 import { SubmissionForm } from '../submission-form';
 
+/** Per-request, and it has to be. Whether a call is still open, against a deadline that can pass while somebody is on the page. */
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({

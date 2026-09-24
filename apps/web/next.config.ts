@@ -12,6 +12,31 @@ const nextConfig: NextConfig = {
   /** Own lockfile: Next's root heuristic would otherwise pick the repo root. */
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
 
+  /**
+   * The development tools indicator, off.
+   *
+   * It is the dark circle in the corner of every page on localhost. It never
+   * ships — it is a development-only overlay and the deployed sites have never
+   * carried it — but it looks exactly like a hosting badge stamped on the
+   * corner of the site, and it was read as one. Nothing about the build
+   * changes; the overlay is simply not drawn.
+   */
+  devIndicators: false,
+
+  /**
+   * Where the build output goes, overridable.
+   *
+   * `npm run build` here overwrites the `.next` a dev server on :3200 is
+   * serving from, and the symptom is not an error: the build succeeds, the dev
+   * server keeps answering 200, and every page renders as unstyled HTML
+   * because the CSS chunk it links to no longer exists. AGENTS.md documents it
+   * as costing half an hour every time somebody rediscovers it. Setting
+   * `WEB_DIST_DIR` builds somewhere else instead, so a production build can be
+   * made and served beside a running dev server rather than on top of it.
+   * Unset, which is every deploy, this is exactly what it always was.
+   */
+  distDir: process.env.WEB_DIST_DIR || '.next',
+
   /** The workspace packages ship raw `.ts`, so webpack has to compile them. */
   transpilePackages: ['@kgc/shared', '@kgc/scripts'],
 

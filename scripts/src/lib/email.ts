@@ -30,12 +30,22 @@ function formatPrice(cents: number, currency = 'usd'): string {
  *
  * ── The one rule that governs this whole file ───────────────────────────────
  *
- * **A failed send must never fail its caller.** Every function here is
- * `Promise<void>` and every one of them swallows its own errors. The callers
- * are the Stripe webhook and the invoice action; a throw in the webhook becomes
- * a non-2xx, a non-2xx makes Stripe retry the event for ever, and Stripe
- * eventually disables the endpoint — which takes *fulfilment* down because a
- * receipt did not send. The ticket matters; the receipt is a courtesy.
+ * **A failed send must never fail its caller.** Every function here swallows
+ * its own errors and none of them rejects. The callers are the Stripe webhook
+ * and the invoice action; a throw in the webhook becomes a non-2xx, a non-2xx
+ * makes Stripe retry the event for ever, and Stripe eventually disables the
+ * endpoint — which takes *fulfilment* down because a receipt did not send. The
+ * ticket matters; the receipt is a courtesy.
+ *
+ * ⚠️ They return `SendOutcome` rather than nothing, and that is a correction,
+ * not a relaxation. The old signature was `Promise<void>` with a comment
+ * saying "there is no caller that should branch on whether a receipt went out,
+ * and offering a boolean invites one to". True of a receipt; false of every
+ * screen with a Send button on it. The dashboard was telling organizers "Link
+ * sent to marek@…" for mail the provider had refused seconds earlier, because
+ * the only thing the caller could check was whether an API key existed. A
+ * caller may now *report* what happened. It still must not *fail* on it: the
+ * webhook and the invoice action ignore the value and are right to.
  *
  * ── Why there is a log ──────────────────────────────────────────────────────
  *
@@ -136,12 +146,60 @@ async function log(
 }
 
 /**
+ * What happened to one send. The same three words the log stores, so a screen
+ * and the log can never disagree about a single attempt.
+ *
+ * `skipped` — this deployment cannot send at all.
+ * `failed`  — the provider was asked and refused, or the call threw.
+ * `sent`    — the provider accepted it.
+ *
+ * ⚠️ `sent` is the provider accepting it for delivery, which is the strongest
+ * thing any sender can honestly claim. It is not "it arrived" and it is not
+ * "they read it".
+ */
+export type SendOutcome = 'sent' | 'skipped' | 'failed';
+
+/**
+ * One line for a screen, saying what actually happened to a send.
+ *
+ * ⚠️ This exists because the dashboard was reporting intent as fact. Every Send
+ * button branched on `emailEnabled()`, which only asks whether an API key is
+ * configured, so a key plus a provider that refused the address produced a
+ * green "Link sent to marek@…" beside a log row reading `failed`. An organizer
+ * then tells a stand to check an inbox nothing was ever delivered to.
+ *
+ * The `skipped` wording is the sentence this project already uses on the
+ * screens where sending is switched off, and `failed` is deliberately shaped
+ * the same way: something did not happen, and here is the thing to do instead.
+ * A reader should not have to know which of the two it was to know what to do.
+ *
+ * `fallback` is the by-hand path for this particular screen, so it is the
+ * caller's to supply. It should be a whole sentence.
+ */
+export function sendOutcomeMessage(input: {
+  outcome: SendOutcome;
+  to: string;
+  /** The whole sentence to show when the provider accepted it. */
+  sent: string;
+  /** What to do instead, when it did not go. */
+  fallback: string;
+}): string {
+  if (input.outcome === 'sent') return input.sent;
+  if (input.outcome === 'skipped') {
+    return `Email is not switched on yet, so nothing was sent to ${input.to}. ${input.fallback}`;
+  }
+  return `The email to ${input.to} was refused, so nothing arrived. ${input.fallback}`;
+}
+
+/**
  * Send one email. Never throws, never rejects.
  *
- * Returns nothing on purpose: there is no caller that should branch on whether
- * a receipt went out, and offering a boolean invites one to.
+ * Returns what happened. Every `return` below is paired with the `log()` call
+ * that records the same word, and they are written together on purpose: an
+ * outcome the screen reports and a log row support reads have to come from one
+ * branch, or the two answers to "did it go?" drift apart.
  */
-async function send(store: Firestore, input: SendInput): Promise<void> {
+async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
   const base = {
     to: input.to,
     subject: input.subject,
@@ -158,7 +216,7 @@ async function send(store: Firestore, input: SendInput): Promise<void> {
       status: 'skipped',
       reason: 'RESEND_API_KEY is not set on this deployment',
     });
-    return;
+    return 'skipped';
   }
 
   try {
@@ -203,15 +261,17 @@ async function send(store: Firestore, input: SendInput): Promise<void> {
       const body = await res.text().catch(() => '');
       await log(store, { ...base, status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
       console.error('[email] Resend rejected', input.template, res.status, body);
-      return;
+      return 'failed';
     }
 
     const json = (await res.json().catch(() => ({}))) as { id?: string };
     await log(store, { ...base, status: 'sent', providerId: json.id });
+    return 'sent';
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await log(store, { ...base, status: 'failed', error: message.slice(0, 500) });
     console.error('[email] send threw', input.template, err);
+    return 'failed';
   }
 }
 
@@ -298,7 +358,7 @@ export interface PurchaseEmailInput {
  * there is a ticket, and only this says which address to sign in with — the
  * single most common support question after "where is my confirmation".
  */
-export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<void> {
+export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
   const price = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
@@ -340,7 +400,7 @@ Keep that link private — it shows the badge QR that gets scanned at the door.
 
 3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: `Your KGC 2027 ticket: ${input.ticketType}`,
     html,
@@ -371,7 +431,7 @@ export interface InvoiceEmailInput {
  * answer ("nothing until it's paid") is the part that causes phone calls if it
  * is left implicit.
  */
-export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInput): Promise<void> {
+export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInput): Promise<SendOutcome> {
   const total = formatPrice(input.totalCents, input.currency);
   const seats = `${input.seatCount} ${input.seatCount === 1 ? 'seat' : 'seats'}`;
 
@@ -402,7 +462,7 @@ What happens next: tickets are issued when the invoice is paid, not when it is
 raised, so nobody is registered yet. When payment clears, each attendee gets
 their own confirmation with a claim code.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: `KGC 2027 invoice: ${input.companyName} (${seats})`,
     html,
@@ -454,7 +514,7 @@ export interface RefundEmailInput {
  * that cancelled nothing, because another paid order still covers the seat,
  * must not claim a badge has stopped working when it has not.
  */
-export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<void> {
+export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<SendOutcome> {
   const amount = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const cancelled = input.ticketCancelled ?? true;
@@ -487,7 +547,7 @@ It usually reaches your account in 5-10 working days.
 
 ${ticketText}`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: 'Your KGC 2027 ticket has been refunded',
     html,
@@ -518,7 +578,7 @@ export interface TicketWithdrawnInput {
  * It carries no amount. No money moved for this reader, and a figure in front
  * of them would read as a refund they are owed, which it is not.
  */
-export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdrawnInput): Promise<void> {
+export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdrawnInput): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
@@ -534,7 +594,7 @@ Your badge will no longer scan at the door. The money went back to whoever paid
 for the ticket, so there is nothing for you to claim. If you think this is
 wrong, reply to this email.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: 'Your KGC 2027 ticket has been cancelled',
     html,
@@ -591,7 +651,7 @@ export interface SignInCodeEmailInput {
  * something was attempted, including the `skipped` row written when no
  * `RESEND_API_KEY` is configured.
  */
-export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<void> {
+export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<SendOutcome> {
   const html = shell(
     'Your KGC 2027 sign-in code',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
@@ -612,7 +672,7 @@ code without it, and no one has been given access to your account.
 
 3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     // Deliberately does not contain the code, and deliberately does not name
     // the recipient or their ticket: this mail goes to any syntactically valid
@@ -744,7 +804,7 @@ async function unsubscribeUrlFor(
  * `unsubscribeUrlFor()` for why offering it otherwise would be a promise this
  * code cannot keep.
  */
-export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<void> {
+export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const unsubscribe = await unsubscribeUrlFor(store, input.to);
 
@@ -785,7 +845,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
 
   const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Cornell Tech, Roosevelt Island, New York City${unsubscribeText}`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.subject,
     html,
@@ -850,7 +910,7 @@ export interface SubmissionReceiptInput {
 export async function sendSubmissionReceipt(
   store: Firestore,
   input: SubmissionReceiptInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const heading = input.draft
     ? 'Your abstract has been saved as a draft'
@@ -896,7 +956,7 @@ It stops working after twelve months.
 —
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.draft
       ? `Your draft for ${input.callTitle}`
@@ -956,7 +1016,7 @@ export interface SubmissionDecisionInput {
 export async function sendSubmissionDecision(
   store: Firestore,
   input: SubmissionDecisionInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   if (input.waitlisted) return sendWaitlisted(store, input);
@@ -1010,7 +1070,7 @@ ${input.link}
 —
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.accepted
       ? `Accepted — ${input.title}`
@@ -1030,7 +1090,7 @@ Knowledge Graph Conference 2027`;
  * It promises nothing. A place may open or it may not, and the one thing it has
  * to say clearly is that the author will hear either way.
  */
-async function sendWaitlisted(store: Firestore, input: SubmissionDecisionInput): Promise<void> {
+async function sendWaitlisted(store: Firestore, input: SubmissionDecisionInput): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const opening = `thank you for submitting “${input.title}” to ${input.callTitle}. It is on our waiting list.`;
   const next =
@@ -1069,7 +1129,7 @@ ${input.link}
 
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: `Your submission to ${input.callTitle}`,
     html,
@@ -1113,7 +1173,7 @@ export interface ReviewerInvitationInput {
 export async function sendReviewerInvitation(
   store: Firestore,
   input: ReviewerInvitationInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const waiting =
     input.assigned === 0
@@ -1160,7 +1220,7 @@ six months.
 
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: `Reviewing for ${input.callTitle}`,
     html,
@@ -1204,7 +1264,7 @@ export interface SpeakerProfileRequestInput {
 export async function sendSpeakerProfileRequest(
   store: Firestore,
   input: SpeakerProfileRequestInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const talks =
     input.sessionTitles.length === 0
@@ -1253,7 +1313,7 @@ read it. The link stops working after six months.
 
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: 'Your speaker profile for KGC 2027',
     html,
@@ -1283,7 +1343,7 @@ export interface TeamInvitationInput {
  * same mail: a link that sets a passphrase once. No unsubscribe link, for the
  * reason the reviewer invitation has none — one named person, one button press.
  */
-export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<void> {
+export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
@@ -1309,7 +1369,7 @@ with this email address and the passphrase you chose. Please do not forward it.
 
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: 'Your organizer dashboard access',
     html,
@@ -1361,7 +1421,7 @@ export interface ConsentRequestInput {
 export async function sendConsentRequest(
   store: Firestore,
   input: ConsentRequestInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const opening = input.resigning
     ? `the wording of ${esc(input.formTitle)} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
@@ -1389,7 +1449,7 @@ before you agree to anything.
 
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.resigning
       ? `Please sign ${input.formTitle} again (version ${input.version})`
@@ -1433,7 +1493,7 @@ export interface ExhibitorLeadLinkInput {
 export async function sendExhibitorLeadLink(
   store: Firestore,
   input: ExhibitorLeadLinkInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.contactName ? `Hi ${esc(input.contactName.split(' ')[0])},` : 'Hi,';
   const booth = input.boothNumber
     ? `${esc(input.companyName)} is on stand ${esc(input.boothNumber)} at Knowledge Graph Conference 2027.`
@@ -1481,7 +1541,7 @@ has scanned. The link stops working after four months.
 
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: `Scanning badges at KGC 2027: ${input.companyName}`,
     html,

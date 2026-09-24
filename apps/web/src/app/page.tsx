@@ -13,6 +13,7 @@ import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { formatPrice } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
 import { Ticker } from '@/components/ticker';
+import { stripeEnabled } from '@/lib/stripe';
 import { SponsorTiers } from '@/components/sponsor-tiers';
 import { GraphField } from '@/components/graph-field';
 import { HighlightPair } from '@/components/home/highlight-pair';
@@ -26,7 +27,21 @@ import { Testimonials } from '@/components/home/testimonials';
  * whatever is actually in Firestore, not numbers typed into JSX — so the day a
  * speaker is added in the organizer console, this page says so.
  */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. The home page counts what is in Firestore. Those counts change when an organizer adds a speaker or a session, which is not something that happens between two visitors a second apart.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 /**
  * The five testimonial cards, transcribed from the images they are baked into.
@@ -143,7 +158,7 @@ export default async function HomePage() {
   // The homepage shows a price teaser. If the catalogue cannot be read the
   // strip is simply absent — a homepage is not the place to explain an outage.
   const tiers = (await tiersOrNull()) ?? [];
-  const { counts, sponsorBands, agenda, announcements } = await programmeOrNothing();
+  const { counts, sponsorBands, agenda } = await programmeOrNothing();
   const branding = await brandingSettings();
 
   /*
@@ -190,11 +205,7 @@ export default async function HomePage() {
         what the organizer actually announced, and `SiteHeader` is a client
         component. See the note in that file.
       */}
-      <Ticker
-        announcements={announcements.map((a) => a.title)}
-        dates={ev.datesSaved ? ev.datesLong : undefined}
-        venue={ev.venueShort !== SITE.venueShort ? ev.venueShort : undefined}
-      />
+      <Ticker salesOpen={stripeEnabled()} />
 
       {/*
         A banner saved on App Branding replaces the campus photograph. Set as an

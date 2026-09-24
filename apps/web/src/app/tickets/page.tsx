@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     'All Access, Main Conference, Workshops and Virtual tickets for the Knowledge Graph Conference 2027.',
 };
 
+/** Per-request, and it has to be. Prices and how many of each tier are left. `catalogue.ts` refuses to degrade quietly for exactly this reason: a stale price is indistinguishable from a correct one at the moment a card is charged, and a tier that sold out a minute ago must not still be on sale. */
 export const dynamic = 'force-dynamic';
 
 /**

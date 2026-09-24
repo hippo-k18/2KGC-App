@@ -23,6 +23,10 @@ import {
 import { doc, getDoc, getDocs, collection, setDoc, deleteDoc, type Firestore } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
+// The write the app makes, run against the rules it has to pass. Imported so
+// that a change to it is a change to these tests rather than to a copy of it.
+import { claimRegistrationPointer } from '../../app/src/lib/data/registrations';
+
 // Unique per process, for the reason given at length in `firestore.test.ts`.
 const PROJECT_ID = `kgc-watch-rules-test-${process.pid}`;
 
@@ -261,6 +265,79 @@ describe('a recording', () => {
   });
 });
 
+/**
+ * ── Finding 6 ──────────────────────────────────────────────────────────────
+ *
+ * "Three months of the KGC Video Library" was a caption. The window lived in
+ * `stream-core.ts` on three clients and nowhere in this file, so a ticket that
+ * covered a recording could read the URL for ever — the app simply declined to
+ * draw the player. These cases make the window a boundary.
+ *
+ * The open case below is what stops this being a test that cannot fail: a rule
+ * that refused everything would pass every closed case here and fail that one.
+ */
+describe('the availability window on a recording', () => {
+  const WINDOW = 'window-session';
+
+  /** Writes an unrestricted recording with the window given, on its own session. */
+  const withWindow = async (window: Record<string, Date>) => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `sessions/${WINDOW}`), {
+        eventId: 'kgc-2027',
+        status: 'published',
+        title: 'x',
+      });
+      await setDoc(doc(db, recordingPath(WINDOW)), {
+        eventId: 'kgc-2027',
+        sessionId: WINDOW,
+        provider: 'youtube',
+        source: 'https://youtu.be/dQw4w9WgXcQ',
+        watchUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+        embeddable: true,
+        title: 'Library talk',
+        allowedTicketTypes: [],
+        ...window,
+      });
+    });
+  };
+
+  const DAY = 86_400_000;
+  const ago = (days: number) => new Date(Date.now() - days * DAY);
+  const ahead = (days: number) => new Date(Date.now() + days * DAY);
+
+  it('is readable while the library is open', async () => {
+    await withWindow({ availableFrom: ago(7), availableUntil: ahead(7) });
+    await assertSucceeds(getDoc(doc(as(MAIN), recordingPath(WINDOW))));
+  });
+
+  it('is refused the day after the library closed, ticket or no ticket', async () => {
+    await withWindow({ availableUntil: ago(1) });
+    await assertFails(getDoc(doc(as(MAIN), recordingPath(WINDOW))));
+    await assertFails(getDoc(doc(as(ALL), recordingPath(WINDOW))));
+  });
+
+  it('is refused before it opens, so an embargoed recording really is embargoed', async () => {
+    await withWindow({ availableFrom: ahead(1) });
+    await assertFails(getDoc(doc(as(MAIN), recordingPath(WINDOW))));
+  });
+
+  it('is still readable by the organizer who has to check it', async () => {
+    await withWindow({ availableUntil: ago(1) });
+    await assertSucceeds(getDoc(doc(as(ORG), recordingPath(WINDOW))));
+  });
+
+  it('treats a recording with no window at all as open, which is what absent means', async () => {
+    await withWindow({});
+    await assertSucceeds(getDoc(doc(as(MAIN), recordingPath(WINDOW))));
+  });
+
+  it('leaves the stream alone, which carries no window', async () => {
+    await assertSucceeds(getDoc(doc(as(MAIN), streamPath(OPEN_SESSION))));
+  });
+});
+
 describe('the session around it', () => {
   it("hides an unpublished session's stream from attendees", async () => {
     await assertFails(getDoc(doc(as(ALL), streamPath(DRAFT_SESSION))));
@@ -340,5 +417,46 @@ describe('the pointer on the profile', () => {
         { merge: true },
       ),
     );
+  });
+});
+
+/**
+ * A fresh account: installed the app, signed in, went straight to a gated
+ * session without ever opening the Me tab.
+ *
+ * The pointer was written by one hook on one screen, so this person had none,
+ * was refused a video their ticket covered, and was told by the same screen
+ * that their ticket includes it. The app now acquires the pointer above every
+ * screen, and these run the exact write it makes — `claimRegistrationPointer`,
+ * imported rather than re-spelled, so a change to that write is a change to
+ * this test.
+ */
+describe('an account that has never opened its badge', () => {
+  it('is refused the gated stream before the app has stored the pointer', async () => {
+    await assertFails(getDoc(doc(as(NOPOINTER), streamPath(GATED_SESSION))));
+  });
+
+  it('gets in once the app stores it, with no other change', async () => {
+    await assertSucceeds(
+      claimRegistrationPointer(as(NOPOINTER), NOPOINTER, 'reg_nopointer'),
+    );
+    await assertSucceeds(getDoc(doc(as(NOPOINTER), streamPath(GATED_SESSION))));
+  });
+
+  it('is allowed to make that write on a profile it has never written before', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), `users/${NOPOINTER}`));
+    });
+    await assertSucceeds(
+      claimRegistrationPointer(as(NOPOINTER), NOPOINTER, 'reg_nopointer'),
+    );
+    await assertSucceeds(getDoc(doc(as(NOPOINTER), streamPath(GATED_SESSION))));
+  });
+
+  it('gains nothing by pointing at somebody else, so a retry cannot be abused', async () => {
+    // `reg_all` is a real registration under another address. The write is
+    // allowed; the read it was made for is not.
+    await assertSucceeds(claimRegistrationPointer(as(NOPOINTER), NOPOINTER, 'reg_all'));
+    await assertFails(getDoc(doc(as(NOPOINTER), streamPath(GATED_SESSION))));
   });
 });

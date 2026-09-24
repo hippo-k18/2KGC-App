@@ -21,6 +21,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. */
 export const dynamic = 'force-dynamic';
 
 /**

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
-import { CookieConsent } from '@/components/cookie-consent';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { brandPalette, isHexColor, mixHex } from '@kgc/shared';
@@ -157,7 +156,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           datesShort={ev.datesShort}
           venue={ev.venue}
         />
-        <CookieConsent />
         <ReferenceOverlay />
       </body>
     </html>

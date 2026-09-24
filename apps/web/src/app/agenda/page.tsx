@@ -11,6 +11,7 @@ import {
   type PublicDocument,
   siteEvent,
 } from '@/lib/data';
+import { AgendaSearch } from '@/components/agenda-search';
 import { FocusOnHash } from '@/components/focus-on-hash';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
@@ -45,6 +46,7 @@ export const metadata: Metadata = {
  * printed QR code and a crawler, and it needs no JavaScript at all. A client
  * component with state would give the same visible result and none of that.
  */
+/** Per-request, and it has to be. Reads `?day=` and `?track=`, so every filtered agenda is a different response. The programme behind it is cached by `shared()` in `lib/data.ts`, so the query cost is paid once a minute rather than once a visit. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -235,24 +237,7 @@ export default async function AgendaPage({
               that element is `display: contents` and the Day row sticks to the
               header as its first child.
             */}
-            <form className="agenda-search" role="search" action="/agenda" method="get">
-              <label className="sr-only" htmlFor="agenda-search">
-                Search the programme
-              </label>
-              <input
-                id="agenda-search"
-                type="search"
-                name="q"
-                defaultValue={qParam ?? ''}
-                placeholder="Search sessions, speakers and rooms"
-                autoComplete="off"
-              />
-              {dayParam ? <input type="hidden" name="day" value={dayParam} /> : null}
-              {trackParam ? <input type="hidden" name="track" value={trackParam} /> : null}
-              <button type="submit" className="btn btn-primary">
-                Search
-              </button>
-            </form>
+            <AgendaSearch initialQuery={qParam ?? ''} day={dayParam} track={trackParam} />
             {/* The caret, for somebody who arrived here by pressing a magnifier. */}
             <FocusOnHash id="agenda-search" />
 

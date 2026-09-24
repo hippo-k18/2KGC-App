@@ -1,7 +1,13 @@
 import Link from 'next/link';
+import { andList, watchAudienceLines } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { listWatchOverview, type WatchOverviewRow } from '@/lib/streaming';
+import { clockOf, dayLabel } from '@/lib/time';
+import {
+  listWatchOverview,
+  watchPromiseTicketNames,
+  type WatchOverviewRow,
+} from '@/lib/streaming';
 import { EmptyState, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +42,8 @@ export default async function StreamingSetupPage({
   const sp = await searchParams;
   const show = typeof sp.show === 'string' ? sp.show : 'all';
 
-  const all = await listWatchOverview();
+  const [all, promised] = await Promise.all([listWatchOverview(), watchPromiseTicketNames()]);
+  const promisedAny = [...promised.stream, ...promised.recording];
   const rows = all.filter((r) => {
     if (show === 'missing') return !r.stream && !r.recording;
     if (show === 'live') return r.stream?.state === 'live';
@@ -124,7 +131,12 @@ export default async function StreamingSetupPage({
               {r.title}
             </Link>,
             <span key="w" className="muted">
-              {r.startsAtLocal.replace('T', ' ')}
+              {/*
+                "Mon, May 3 · 08:30", the way every other date in the dashboard
+                is written. It read `2027-05-03T08:30` with the T swapped for a
+                space, which is a stored value shown raw.
+              */}
+              {`${dayLabel(r.startsAtLocal.slice(0, 10))} · ${clockOf(r.startsAtLocal)}`}
             </span>,
             <StreamCell key="s" row={r} />,
             <RecordingCell key="r" row={r} />,
@@ -138,6 +150,31 @@ export default async function StreamingSetupPage({
           }
         />
       </Panel>
+
+      {/*
+        Named here as well as on the two forms. This is the screen an organizer
+        reads across all seventy-two sessions, so it is where "why does that row
+        list a tier I never ticked" gets asked.
+      */}
+      {promisedAny.length > 0 && (
+        <Panel>
+          <h2 className="section-header">Tickets that always get in</h2>
+          <p className="body-2">
+            {promised.stream.length > 0
+              ? `${andList(promised.stream)} ${promised.stream.length === 1 ? 'is' : 'are'} sold live streams, so ${promised.stream.length === 1 ? 'it stays' : 'they stay'} on every stream you restrict.`
+              : 'No ticket is sold a live stream, so any stream can be restricted freely.'}
+          </p>
+          <p className="body-2">
+            {promised.recording.length > 0
+              ? `${andList(promised.recording)} ${promised.recording.length === 1 ? 'is' : 'are'} sold recordings, so ${promised.recording.length === 1 ? 'it stays' : 'they stay'} on every recording you restrict.`
+              : 'No ticket is sold recordings, so any recording can be restricted freely.'}
+          </p>
+          <p className="body-2">
+            This comes from what each ticket says it includes on the tickets page. Change the ticket
+            and this changes with it.
+          </p>
+        </Panel>
+      )}
 
       <Panel>
         <h2 className="section-header">Before the event</h2>
@@ -168,7 +205,10 @@ function StreamCell({ row }: { row: WatchOverviewRow }) {
 }
 
 function RecordingCell({ row }: { row: WatchOverviewRow }) {
-  if (!row.recording) return <span className="muted">None</span>;
+  // "Not set up", the same words the Stream column uses. Two columns beside
+  // each other saying "Not set up" and "None" about the same absence reads as
+  // two different states.
+  if (!row.recording) return <span className="muted">Not set up</span>;
   const { window: win, duration } = row.recording;
   return (
     <span>
@@ -187,12 +227,24 @@ function RecordingCell({ row }: { row: WatchOverviewRow }) {
  * warning an organizer cannot act on — and the mistake this is watching for is
  * a tier that was renamed on Tickets and left behind here, which hides the
  * video from everybody and looks exactly like one that works.
+ *
+ * ⚠️ One line per thing there is to watch, never a merged list. This column
+ * used to union the stream's restriction with the recording's, so a keynote
+ * streaming openly with a gated recording read as though the live stream were
+ * gated to four tiers. `watchAudienceLines` keeps them apart and collapses
+ * them only when they genuinely agree.
  */
 function AudienceCell({ row }: { row: WatchOverviewRow }) {
-  const names = Array.from(
-    new Set([...(row.stream?.allowedTicketTypes ?? []), ...(row.recording?.allowedTicketTypes ?? [])]),
-  );
   if (!row.stream && !row.recording) return <span className="muted">—</span>;
-  if (names.length === 0) return <span>Everybody with a ticket</span>;
-  return <span>{names.join(', ')}</span>;
+  const lines = watchAudienceLines({ stream: row.stream, recording: row.recording });
+  return (
+    <span>
+      {lines.map((l) => (
+        <span key={l.label} style={{ display: 'block' }}>
+          {l.label ? <span className="muted">{l.label}: </span> : null}
+          {l.who}
+        </span>
+      ))}
+    </span>
+  );
 }

@@ -70,6 +70,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "community",
   "consent",
   "documents",
+  "exhibitor",
   "exhibitors",
   "favicon.ico",
   "hcls",
@@ -83,6 +84,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "robots.txt",
   "rooms",
   "sitemap.xml",
+  "speaker",
   "speakers",
   "sponsor",
   "startup-pitch",
@@ -91,6 +93,132 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "tickets",
   "tickets1",
   "u",
+];
+
+/**
+ * Addresses the site redirects away before Next ever sees them.
+ *
+ * `apps/web/public/_redirects` carries the move off WordPress: 926 old
+ * addresses, of which these are the ones that are a single segment and would
+ * therefore collide with the `[slug]` route a custom page is served at. A
+ * redirect is evaluated by the host before any route, so a page published at
+ * one of these saves successfully, reports its address back to the organizer,
+ * and sends every visitor somewhere else. The branded event slug is printed on
+ * badges, which makes it the expensive one to get wrong.
+ *
+ * Kept separate from the list above because the two are wrong in different
+ * ways and the organizer needs to be told which: one is a part of the site,
+ * the other is an old address still being honoured.
+ *
+ * ⚠️ **Maintained by hand against `apps/web/public/_redirects`**, which the
+ * dashboard cannot import — the two are separate installs. Nothing here checks
+ * it for you at runtime; `tests/parity/reserved-slugs.test.ts` checks it at
+ * test time, and is the reason this list cannot quietly fall behind.
+ */
+export const REDIRECTED_PAGE_SLUGS: readonly string[] = [
+  "2022-home",
+  "2026-draft",
+  "2026-speakers",
+  "about-2",
+  "about-kgc",
+  "ama-with-the-authors-of-the-practitioners-guide-to-graph-data",
+  "call-for-speakers",
+  "code-of-conduct-2023",
+  "come-work-with-us",
+  "community-code-of-conduct",
+  "conference-2019",
+  "conference-2020",
+  "conference-2022",
+  "conference-2024",
+  "conference-2025",
+  "conference-terms-and-conditions",
+  "data-architecture-catalogs-and-cocktails",
+  "feed",
+  "finance",
+  "from-vision-to-reality",
+  "general-admission",
+  "get-newsletters",
+  "instructor-profile-michael-atkin",
+  "join",
+  "kgc-2022",
+  "kgc-2022-call-for-presentations",
+  "kgc-2022-call-for-tool-demonstrations",
+  "kgc-2022-call-for-workshops-and-tutorials",
+  "kgc-2022-faq",
+  "kgc-2022-home",
+  "kgc-2022-partner",
+  "kgc-2022-program",
+  "kgc-2022-tutorial-a-beginners-guide-to-reasoning-how-to-reason-your-way-to-better-data",
+  "kgc-2022-tutorial-advancing-un-city-resilience-efforts-using-relational-knowledge-graphs-for-risk-modeling",
+  "kgc-2022-tutorial-analysis-of-the-impact-of-covid-19-ontologies",
+  "kgc-2022-tutorial-bridging-the-gap-between-business-domains-and-knowledge-graphs",
+  "kgc-2022-tutorial-build-on-synergies-and-share-standards-and-technologies-to-boost-your-knowledge-organisation-systems-and-language-resources",
+  "kgc-2022-tutorial-dbpedia-knowledge-graph-tech-tutorial-2-0",
+  "kgc-2022-tutorial-demystify-graph-and-graph-technologies",
+  "kgc-2022-tutorial-detect-fraud-and-recommend-products-with-graphs",
+  "kgc-2022-tutorial-developing-and-refining-schemas-for-knowledge-graphs",
+  "kgc-2022-tutorial-foundation-for-a-knowledge-graph-taxonomy-design-best-practices",
+  "kgc-2022-tutorial-hands-on-automatic-quality-assessment-of-knowledge-graphs",
+  "kgc-2022-tutorial-hands-on-experience-defining-and-cataloging-data",
+  "kgc-2022-tutorial-knowledge-democratization-a-business-user-tutorial-to-knowledge-graph-modeling",
+  "kgc-2022-tutorial-knowledge-graph-data-modelling",
+  "kgc-2022-tutorial-knowledge-graph-primer-creating-a-digital-twin-model",
+  "kgc-2022-tutorial-knowledge-graph-toolkit",
+  "kgc-2022-tutorial-knowledge-infused-reinforcement-learning",
+  "kgc-2022-tutorial-low-code-meets-knowledge-graphs",
+  "kgc-2022-tutorial-ml-model-with-the-vector-database-weaviate",
+  "kgc-2022-tutorial-presentation-of-cellar-eu-publications-office-central-digital-repository",
+  "kgc-2022-tutorial-tutorial-in-reasonable-ontology-templates-ottr",
+  "kgc-2022-tutorial-validating-semantic-knowledge-graphs-using-shacl",
+  "kgc-2022-workshop-agile-practices-for-knowledge-graph-engineering",
+  "kgc-2022-workshop-agile-practices-for-knowledge-graph-engineering-2",
+  "kgc-2022-workshop-application-of-reasoning-on-complex-and-evolving-data-methods-and-use-cases",
+  "kgc-2022-workshop-building-ontologies-and-knowledge-graphs",
+  "kgc-2022-workshop-geospatial-knowledge-graphs",
+  "kgc-2022-workshop-graph-systems-thinking",
+  "kgc-2022-workshop-healthcare-and-life-sciences-symposium",
+  "kgc-2022-workshop-kgc-community-education",
+  "kgc-2022-workshop-knowledge-graphs-for-interoperability-in-the-transportation-domain",
+  "kgc-2022-workshop-network-effects-in-web3",
+  "kgc-2022-workshop-representing-and-reasoning-with-imperfect-knowledge",
+  "kgc-2023",
+  "kgc-2023-conference-policy-terms-and-conditions",
+  "kgc-2023-faq",
+  "kgc-2023-home",
+  "kgc-2023-speakers",
+  "kgc-2024-conference-policy-terms-and-conditions",
+  "kgc-2024-startup-pitch-event",
+  "kgc-2025-conference-policy-terms-and-conditions",
+  "kgc-23-registration-fees",
+  "kgc-bookclub-demystifying-owl-for-the-enterprise-with-michael-uschold",
+  "kgc-home",
+  "kgc2021",
+  "kgc2022-tutorial-dbpedia-knowledge-graph-tech-tutorial-2-0",
+  "kgc2025",
+  "knowledge-graph-industry-survey-2022",
+  "knowledge-graph-learning-program",
+  "knowledge-graph-learning-program-individual",
+  "knowledge-graph-learning-program-organization",
+  "learning-material",
+  "life-sciences",
+  "modeling-sustainability",
+  "nlp-for-kgs",
+  "nsfs-okn-innovation-sprint",
+  "partner",
+  "partner-with-us",
+  "privacy-policy",
+  "privacy-policy-2023",
+  "program",
+  "schedule-at-a-glance",
+  "services",
+  "session-by-track",
+  "speakers-2021",
+  "speakers-2022-page",
+  "standardization-efforts-for-knowledge-graphs",
+  "the-business-case-for-semantic-data-management",
+  "the-knowledge-graph-conference-kgc",
+  "the-knowledge-graph-learning-program-pending-approval",
+  "transactions",
 ];
 
 /**
@@ -131,6 +259,9 @@ export function slugProblem(slug: string, taken: readonly string[] = []): string
   }
   if (RESERVED_PAGE_SLUGS.includes(slug)) {
     return `The website already uses /${slug}. Pick another address.`;
+  }
+  if (REDIRECTED_PAGE_SLUGS.includes(slug)) {
+    return `/${slug} already sends visitors to an older page, so nobody would reach this one. Pick another address.`;
   }
   if (taken.includes(slug)) return "Another page already has that address.";
   return null;

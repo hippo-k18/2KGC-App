@@ -56,8 +56,17 @@ service cloud.firestore {
      *
      * It is ONE call for the whole request whatever uses it: access calls are
      * cached per request and path, so `isRegistered()` on a fifty-document
-     * query costs one, not fifty. The heaviest path in this file is a seat
-     * write at five; with this it is six, against a limit of ten.
+     * query costs one, not fifty.
+     *
+     * ⚠️ The budget, re-counted 2026-09-23. This used to read "the heaviest
+     * path in this file is a seat write at five; with this it is six" and it
+     * had stopped being true: the heaviest path is now a `get` on a **gated
+     * `watch` document**, at seven of the ten a single-document request is
+     * allowed. This call is one of them, the ticket pointer costs an `exists`
+     * and a `get` on the profile and the same pair on the registration, and
+     * the published check costs a pair on the session. Nothing on that path
+     * may grow by two. `windowIsOpen()` reads `request.time` for exactly that
+     * reason and costs nothing.
      *
      * ⚠️ It fails OPEN, deliberately, in three ways: an absent document, an
      * absent field and a `0` all mean "never closes". The app is the schedule,
@@ -724,6 +733,37 @@ service cloud.firestore {
           return allowed.size() == 0 || myTicketType() in allowed;
         }
 
+        /**
+         * The availability window, as a boundary rather than a caption.
+         *
+         * `availableFrom` / `availableUntil` are what "three months of the KGC
+         * Video Library" is sold as, and until this function existed they were
+         * enforced in `stream-core.ts` on three clients and nowhere else. An
+         * attendee whose ticket covered a recording could `get()` the document
+         * the day after the library closed and read the URL; the app merely
+         * declined to draw it. A purchased entitlement that expires has to
+         * expire in the one place that is the security boundary.
+         *
+         * Absent means open, in both directions, which is the reading
+         * `recordingWindow()` and the dashboard's own field hints already take:
+         * no start means it is up as soon as it is saved, no end means it
+         * stays up. The stream document carries neither, so it is unaffected.
+         *
+         * `request.time` and not a client value: this is the one clock in the
+         * request a caller cannot choose. It costs no access call.
+         *
+         * ⚠️ A reader who is inside the window when the page loads keeps the
+         * URL they were given. This closes the library, it does not reach into
+         * a player that is already running, and no scheme short of signed media
+         * URLs would.
+         */
+        function windowIsOpen() {
+          let from = resource.data.get('availableFrom', null);
+          let until = resource.data.get('availableUntil', null);
+          return (from == null || request.time >= from)
+            && (until == null || request.time < until);
+        }
+
         /** An unpublished session's stream is not on the agenda yet either. */
         function sessionIsPublished() {
           let path = /databases/$(database)/documents/sessions/$(sessionId);
@@ -731,7 +771,7 @@ service cloud.firestore {
         }
 
         allow get: if isOrganizer()
-          || (isRegistered() && sessionIsPublished() && mayWatchThis());
+          || (isRegistered() && sessionIsPublished() && windowIsOpen() && mayWatchThis());
         // No `list`. Both ids are fixed, so a reader fetches the one it wants.
         // A collection-group query over these would be refused outright the
         // moment one session in range is restricted — a video library that

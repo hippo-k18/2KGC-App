@@ -76,6 +76,23 @@ export function stampOfInstant(
 }
 
 /**
+ * The same stamp from epoch milliseconds.
+ *
+ * Several screens hold a time as a number rather than an ISO string, and each
+ * of them reached for `new Date(ms).toLocaleDateString()` — which formats on
+ * the *server's* zone, so a row read in New York and the same row read by a
+ * machine in Frankfurt disagree about which day a link was sent. One character
+ * shorter than the wrong thing, for the reason the docblock above gives.
+ */
+export function stampOfMillis(
+  ms: number | null | undefined,
+  timeZone: string = TIME_ZONE,
+): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+  return stampOfInstant(new Date(ms).toISOString(), timeZone);
+}
+
+/**
  * An unreadable value comes back as an empty string rather than "Invalid Date".
  *
  * Every caller is a footnote under a panel — "Last changed by Ada on …" — and a

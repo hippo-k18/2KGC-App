@@ -8,14 +8,16 @@ import {
   SUBCOLLECTIONS,
   WATCH_RECORDING_DOC,
   WATCH_STREAM_DOC,
+  andList,
   isStreamState,
   parseDuration,
   parseStreamSource,
+  withPromisedTiers,
 } from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getSession } from '@/lib/data';
-import { videoLibraryTicketNames } from '@/lib/streaming';
+import { watchPromiseTicketNames } from '@/lib/streaming';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
@@ -65,12 +67,6 @@ export interface WatchState {
   fieldErrors?: Record<string, string>;
 }
 
-/** "A, B and C". A list in a sentence an organizer reads, not a join. */
-function andList(names: string[]): string {
-  if (names.length <= 1) return names[0] ?? '';
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
 function ticketTypesFrom(formData: FormData): string[] {
   return formData
     .getAll('allowedTicketTypes')
@@ -113,11 +109,25 @@ export async function saveStreamAction(
   const provider = String(formData.get('provider') ?? '').trim();
   const source = String(formData.get('source') ?? '').trim();
   const stateRaw = String(formData.get('state') ?? 'scheduled').trim();
-  const allowedTicketTypes = ticketTypesFrom(formData);
+  const picked = ticketTypesFrom(formData);
 
   const parsed = parseStreamSource(provider, source);
   if (!parsed.ok) return { error: 'Some fields need attention.', fieldErrors: { source: parsed.error } };
   if (!isStreamState(stateRaw)) return { error: 'Pick whether it is on now, coming up or over.' };
+
+  /**
+   * Tiers sold a live stream are added back into whatever was ticked.
+   *
+   * This used to restore nothing, on the reasoning that a live stream is a seat
+   * in the room and no tier's bullets promise one. The `Virtual` tier's first
+   * bullet is "Live streams of every conference and workshop session", it is
+   * not in the room at all, and it was being told to buy an exhibitor table to
+   * watch the thing it had already paid for. `watch-promise-core.ts` reads what
+   * each tier sells rather than one flag, and `saveRecordingAction` does the
+   * same with the tiers sold replays.
+   */
+  const promised = picked.length > 0 ? (await watchPromiseTicketNames()).stream : [];
+  const { allowed: allowedTicketTypes, restored } = withPromisedTiers(picked, promised);
 
   try {
     const ref = watchDoc(sessionId, WATCH_STREAM_DOC);
@@ -173,14 +183,18 @@ export async function saveStreamAction(
     revalidatePath(`${PATH}/${sessionId}`);
     revalidatePath(OVERVIEW);
 
+    const shown =
+      stateRaw === 'live'
+        ? 'Saved. The session shows as live now.'
+        : stateRaw === 'scheduled'
+          ? 'Saved. The session shows as streaming later.'
+          : 'Saved. The stream is marked as finished.';
+
     return {
       ok: true,
-      message:
-        stateRaw === 'live'
-          ? 'Saved. The session shows as live now.'
-          : stateRaw === 'scheduled'
-            ? 'Saved. The session shows as streaming later.'
-            : 'Saved. The stream is marked as finished.',
+      message: restored.length
+        ? `${shown} ${andList(restored)} ${restored.length === 1 ? 'was' : 'were'} added back, because ${restored.length === 1 ? 'that ticket is' : 'those tickets are'} sold live streams.`
+        : shown,
     };
   } catch (err) {
     recordError('session.stream.save', err);
@@ -234,24 +248,20 @@ export async function saveRecordingAction(
   const picked = ticketTypesFrom(formData);
 
   /**
-   * Two tiers were sold a video library, and this is where that promise is
-   * kept.
+   * Tiers sold something to watch back are added back into whatever was ticked.
    *
-   * `includesVideoLibrary` is the machine-readable half of the bullet that says
-   * "Three months of the KGC Video Library" — the same flag the website already
-   * turns into an entitlement at fulfilment. Restricting a recording to one
-   * tier and leaving out another that was sold the library is a refund
-   * conversation, and it is not a mistake anybody would see: the organizer ticks
-   * the box they were thinking about and nothing on screen objects.
+   * Restricting a recording to one tier and leaving out another that was sold
+   * replays is a refund conversation, and it is not a mistake anybody would
+   * see: the organizer ticks the box they were thinking about and nothing on
+   * screen objects. So the tiers that promised it are added back, and the save
+   * message says which.
    *
-   * So the tiers that promised it are added back. An empty list already means
-   * everybody, so this only ever touches a restriction, and only ever widens it.
-   * It applies to recordings and not to streams: a live stream is a seat in the
-   * room, and no tier's bullets promise one.
+   * It used to read `includesVideoLibrary` alone, which missed `Virtual` — flag
+   * off, bullet three "On-demand replays for at least a month afterwards".
+   * `tierPromisesWatching()` reads the bullets as well as the flag.
    */
-  const promised = picked.length > 0 ? await videoLibraryTicketNames() : [];
-  const restored = promised.filter((n) => !picked.includes(n));
-  const allowedTicketTypes = [...picked, ...restored];
+  const promised = picked.length > 0 ? (await watchPromiseTicketNames()).recording : [];
+  const { allowed: allowedTicketTypes, restored } = withPromisedTiers(picked, promised);
 
   const fieldErrors: Record<string, string> = {};
 
@@ -335,7 +345,7 @@ export async function saveRecordingAction(
       message: allowedTicketTypes.length
         ? `Saved. Only ${andList(allowedTicketTypes)} can watch it.` +
           (restored.length
-            ? ` ${andList(restored)} ${restored.length === 1 ? 'was' : 'were'} added back, because ${restored.length === 1 ? 'that ticket includes' : 'those tickets include'} the video library.`
+            ? ` ${andList(restored)} ${restored.length === 1 ? 'was' : 'were'} added back, because ${restored.length === 1 ? 'that ticket is' : 'those tickets are'} sold recordings.`
             : '')
         : 'Saved. Everybody with a ticket can watch it.',
     };

@@ -1,87 +1,30 @@
-import { ANNOUNCEMENT, TICKER } from '@/lib/site';
+import { ANNOUNCEMENT } from '@/lib/site';
 
 /**
- * The scrolling strip under the header.
+ * The orange strip under the header.
  *
- * It replaces a static one-sentence bar. This is the widest, most persistent
- * element on every page of the site, and it was spending all of that on six
- * words — so it now carries the handful of facts a visitor is actually deciding
- * on, and moves, which is what makes a strip this thin worth reading.
+ * It used to scroll seven facts past. A visitor deciding whether to come reads
+ * the hero for the what and the when; this strip is worth one thing, and the
+ * one thing is whether they can buy a ticket yet. So it holds still and says
+ * that, and nothing else.
  *
- * ## How it scrolls without JavaScript
+ * `salesOpen` comes from the page, which knows whether a payment processor is
+ * connected. That is deliberately not a constant: a bar promising tickets are
+ * available while the buy button refuses is the defect this site has already
+ * shipped once.
  *
- * The list is rendered twice, side by side, and the pair is translated left by
- * exactly half its own width before looping. At the moment the animation
- * restarts, the second copy is sitting precisely where the first one started, so
- * the seam is invisible and there is no measuring, no `requestAnimationFrame`
- * and no client component — this is a server component that ships no JS at all.
- *
- * The duplicate is `aria-hidden`, so a screen reader hears the facts once.
- *
- * ## Two things it deliberately does
- *
- * **Stops on hover and on focus.** A moving target you cannot read is worse than
- * a static one, and this is the only place on the site where the content moves
- * on its own.
- *
- * **Stops completely under `prefers-reduced-motion`.** The rule is in
- * `globals.css`: the animation is removed rather than slowed, and the strip
- * becomes an ordinary horizontally scrollable row — the facts are all still
- * reachable, they simply hold still.
- *
- * ## Where the leading lines come from
- *
- * `announcements` is what the organizer actually posted, read from Firestore by
- * whoever renders this — see `listAnnouncements()` in `lib/data.ts`. It leads
- * the loop, newest first, because a room change is the only thing on this strip
- * that is urgent.
- *
- * `ANNOUNCEMENT` in `lib/site.ts` is the fallback and not dead weight: for most
- * of the year the collection is legitimately empty, and a strip that opens on
- * the standing line ("Tickets for KGC 2027 open soon") is better than one that
- * opens on the venue. The two are never shown together — a live announcement
- * displaces the standing line rather than queueing behind it, because the point
- * of the announcement is that it is the news.
+ * Announcements do not appear here. They have their own page and they reach
+ * attendees on their phones; a room change borrowing the one strip that tells a
+ * visitor whether they can buy a ticket is a bad trade.
  */
-export function Ticker({
-  announcements = [],
-  dates,
-  venue,
-}: {
-  announcements?: string[];
-  /**
-   * The dates and venue saved on the dashboard's Basics screen, when there are
-   * any. Each replaces the constant line that states the same fact.
-   */
-  dates?: string;
-  venue?: string;
-}) {
-  // The organizer's own words lead when there are any; otherwise the one line
-  // the owner edits by hand does.
-  const lead = announcements.length > 0 ? announcements : ANNOUNCEMENT ? [ANNOUNCEMENT] : [];
+export function Ticker({ salesOpen = false }: { salesOpen?: boolean }) {
+  const line = salesOpen ? 'Tickets are available now' : ANNOUNCEMENT;
 
-  if (lead.length === 0 && TICKER.length === 0) return null;
-
-  const facts = [dates ?? TICKER[0], venue ?? TICKER[1], ...TICKER.slice(2)];
-  const items = [...lead, ...facts];
-
-  const run = (hidden: boolean) => (
-    <ul className="ticker-run" aria-hidden={hidden || undefined}>
-      {items.map((item, i) => (
-        <li key={`${item}-${i}`}>
-          <span className="ticker-dot" aria-hidden="true" />
-          {item}
-        </li>
-      ))}
-    </ul>
-  );
+  if (!line) return null;
 
   return (
     <div className="ticker" role="complementary" aria-label="Conference at a glance">
-      <div className="ticker-track">
-        {run(false)}
-        {run(true)}
-      </div>
+      <div className="ticker-line">{line}</div>
     </div>
   );
 }

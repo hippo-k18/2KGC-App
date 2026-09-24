@@ -6,10 +6,13 @@ import {
   SUBCOLLECTIONS,
   WATCH_RECORDING_DOC,
   WATCH_STREAM_DOC,
+  sessionWatchView,
   type RecordingLike,
   type SessionRecordingDoc,
   type SessionStreamDoc,
+  type SessionWatchView,
   type StreamLike,
+  type Viewer,
 } from '@kgc/shared';
 import { db } from '@/lib/firestore';
 
@@ -31,12 +34,19 @@ import { db } from '@/lib/firestore';
  * the wrong ticket never receives the URL. Here it does not: this process holds
  * a credential that reads everything. So the document comes back whole, and
  * `watch-view-core.ts` is what decides whether any of it reaches the page.
- * Nothing in this file may be rendered directly — the page takes a `WatchView`,
- * and the blocked shape carries no URL at all.
+ *
+ * ⚠️ **The documents stop here.** `sessionWatchView()` is the only export, and
+ * it hands back decisions rather than records. That is deliberate and it is the
+ * fix for a real leak: the page used to fetch the whole thing and hand it to a
+ * component that decided correctly, and the gated URL still went down the wire,
+ * because a server component's props are serialised into the response whether
+ * or not the markup renders them. A page that never holds the record cannot
+ * send it, whatever the component does and whoever later marks it `'use
+ * client'`.
  */
 
-/** What the page needs, with the timestamps already reduced to epoch ms. */
-export interface SessionWatchData {
+/** The two documents, with the timestamps reduced to epoch ms. Never exported. */
+interface SessionWatchData {
   stream: (StreamLike & { provider: string }) | null;
   recording:
     | (RecordingLike & {
@@ -53,7 +63,7 @@ const millis = (t: unknown): number | null => {
   return typeof v?.toMillis === 'function' ? v.toMillis() : null;
 };
 
-export async function sessionWatch(sessionId: string): Promise<SessionWatchData> {
+async function sessionWatch(sessionId: string): Promise<SessionWatchData> {
   const empty: SessionWatchData = { stream: null, recording: null };
   try {
     const watch = db()
@@ -106,4 +116,20 @@ export async function sessionWatch(sessionId: string): Promise<SessionWatchData>
     console.error('[watch] could not read what is set up for this session', err);
     return empty;
   }
+}
+
+/**
+ * What one session page is given: two decisions and the dates beside them.
+ *
+ * The ticket comes in as a `Viewer` rather than being read here, because the
+ * page already holds the pass for the line that lets somebody forget it, and a
+ * second read is a second chance for the sentence and the gate to disagree.
+ */
+export async function sessionWatchPanel(
+  sessionId: string,
+  viewer: Viewer,
+  nowMs: number,
+): Promise<SessionWatchView> {
+  const data = await sessionWatch(sessionId);
+  return sessionWatchView(data.stream, data.recording, viewer, nowMs);
 }

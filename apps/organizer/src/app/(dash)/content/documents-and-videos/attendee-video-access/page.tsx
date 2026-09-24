@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
-import { listWatchOverview } from '@/lib/streaming';
+import { listWatchOverview, ticketHolderCounts } from '@/lib/streaming';
+import { strandedHolders, ticketAudienceRows } from '@/lib/ticket-audience-core';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 
@@ -20,9 +21,28 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AttendeeVideoAccessPage() {
   await requireOrganizer();
-  const [tickets, watch] = await Promise.all([listTicketTypes(), listWatchOverview()]);
+  const [tickets, watch, held] = await Promise.all([
+    listTicketTypes(),
+    listWatchOverview(),
+    ticketHolderCounts(),
+  ]);
   const recorded = watch.filter((r) => r.recording).length;
   const entitled = tickets.filter((t) => t.includes.some((i) => /video library/i.test(i)));
+
+  /*
+    Who actually holds each tier, from the registrations. This screen used to
+    print `quantitySold`, which counts orders placed through this system — four
+    of them — while sixty-three registrations hold tickets. See
+    `ticket-audience-core.ts`.
+  */
+  const audience = ticketAudienceRows(
+    tickets.map((t) => ({
+      name: t.name,
+      videoLibrary: t.includes.some((i) => /video library/i.test(i)),
+    })),
+    held,
+  );
+  const stranded = strandedHolders(audience);
 
   return (
     <>
@@ -72,27 +92,48 @@ export default async function AttendeeVideoAccessPage() {
         </Banner>
       ) : null}
 
+      {stranded > 0 ? (
+        <Banner kind="warning">
+          <strong>
+            {stranded} {stranded === 1 ? 'person holds' : 'people hold'} a ticket type you do not
+            sell.
+          </strong>{' '}
+          It is listed below. Every &ldquo;who can watch&rdquo; control is built from your ticket
+          types, so nothing you can tick includes them: the moment you restrict a video they are
+          shut out and there is no box that would let them in. Move them onto a ticket type you
+          sell on <Link href={ROUTES.attendees}>Attendees</Link>, or leave those videos open.
+        </Banner>
+      ) : null}
+
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Who would get access</h2>
         {tickets.length === 0 ? (
           <NotInputted what="ticket types" />
         ) : (
         <Table
+          stackSm
           cols={[
             { key: 't', label: 'Ticket type', className: 'cell-fill' },
-            { key: 's', label: 'Sold', className: 'cell-sm' },
+            { key: 's', label: 'People holding it', className: 'cell-sm' },
             { key: 'v', label: 'Video library', className: 'cell-sm' },
           ]}
-          rows={tickets.map((t) => [
-            t.name,
-            t.quantitySold,
+          rows={audience.map((row) => [
+            <span key="t">
+              {row.name}
+              {!row.inCatalogue ? (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  not a ticket type you sell
+                </div>
+              ) : null}
+            </span>,
+            row.holders,
             /*
               Read straight off the ticket type rather than recomputed, because
               this is the same field Checkout charges against and the app would
               read. A second source here would eventually disagree with the
               thing the buyer actually paid for.
             */
-            t.includes.some((i) => /video library/i.test(i)) ? (
+            row.videoLibrary ? (
               <Tag key="v" color="green" fill="outline" small>
                 included
               </Tag>

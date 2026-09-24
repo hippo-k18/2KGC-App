@@ -6,6 +6,7 @@ import { siteEvent } from '@/lib/data';
 import { roomSignage } from '@/lib/room-signage';
 import { clockOf, signageView, untilLabel } from '@/lib/room-signage-core';
 
+/** Per-request, and it has to be. This is the sign outside a room. Same reason as `/announcements`: it refreshes itself, and a cache would stack staleness on top of staleness. */
 export const dynamic = 'force-dynamic';
 
 /**

@@ -1,5 +1,7 @@
 import { Platform, View } from 'react-native';
 
+import { publicSiteOrigin } from '@kgc/shared';
+
 import { Text } from '@/components/text';
 import { VideoEmbed, WatchElsewhereButton } from '@/components/video-embed';
 import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
@@ -90,6 +92,25 @@ export function WatchBlock({ panel, title }: { panel: WatchPanel; title: string 
 
       {panel.openUrl && panel.openLabel ? (
         <WatchElsewhereButton url={panel.openUrl} label={panel.openLabel} />
+      ) : null}
+
+      {/*
+        Somewhere to go, for a reader who has just been refused.
+        ⚠️ Being told which ticket you would need and then given nothing to
+        press is the half of this that was missing: the sentence above names
+        the tickets that include the video and the reader is left holding a
+        phone with no next step. The website already does this — the same
+        refusal there carries a See tickets button — so the two surfaces now
+        end the same sentence the same way. It is shown only on a refusal, not
+        on a closed library or a stream that has not started, because neither
+        of those is fixed by buying anything.
+      */}
+      {panel.barred ? (
+        <WatchElsewhereButton
+          url={`${publicSiteOrigin()}/tickets`}
+          label="See tickets"
+          icon="ticket"
+        />
       ) : null}
     </View>
   );

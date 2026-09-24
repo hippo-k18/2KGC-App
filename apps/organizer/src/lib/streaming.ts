@@ -8,7 +8,9 @@ import {
   WATCH_STREAM_DOC,
   formatDuration,
   recordingWindow,
+  tiersPromisedWatching,
   type RecordingWindow,
+  type WatchPromiseTier,
   type SessionDoc,
   type SessionRecordingDoc,
   type SessionStreamDoc,
@@ -135,29 +137,70 @@ function toRecordingRow(d: SessionRecordingDoc, nowMs: number): RecordingRow {
   };
 }
 
+/** The tiers that cannot be excluded from a stream, and from a recording. */
+export interface WatchPromises {
+  stream: string[];
+  recording: string[];
+}
+
 /**
- * The tiers that were sold a video library, by name.
+ * The tiers that were sold watching, by name and by kind.
  *
- * Two tiers say "Three months of the KGC Video Library" in their bullet list,
- * and `includesVideoLibrary` is the machine-readable half of that sentence —
- * the flag `entitlementKinds()` on the website already turns into a
- * `video-library` entitlement at fulfilment. It is read here so that restricting
- * a recording cannot quietly exclude somebody who paid for one: see
- * `saveRecordingAction`, which unions these names back in.
+ * This used to be one list read off `includesVideoLibrary`, and it got the one
+ * tier that is sold on nothing but watching wrong: `Virtual` is $349, is not in
+ * the room, carries that flag as false, and its first two bullets promise live
+ * streams and on-demand replays. So the question is asked of what each tier
+ * actually sells — `tierPromisesWatching()` in `@kgc/shared`, which reads the
+ * bullet list the tickets page renders as well as the flag. Both save actions
+ * union these back into any restriction an organizer sets, and both forms name
+ * them on screen so it is not a surprise.
  *
  * Names rather than ids, because the restriction is expressed in the names
  * `RegistrationDoc.ticketType` carries and `firestore.rules` compares.
  */
-export async function videoLibraryTicketNames(): Promise<string[]> {
+export async function watchPromiseTicketNames(): Promise<WatchPromises> {
   const snap = await db()
     .collection(COLLECTIONS.ticketTypes)
     .where('eventId', '==', EVENT_ID)
     .get();
-  return snap.docs
-    .map((d) => d.data() as { name?: string; includesVideoLibrary?: boolean })
-    .filter((t) => t.includesVideoLibrary === true && typeof t.name === 'string')
-    .map((t) => t.name as string)
-    .sort((a, b) => a.localeCompare(b));
+  const tiers = snap.docs.map((d) => d.data() as WatchPromiseTier);
+  return {
+    stream: tiersPromisedWatching(tiers, 'stream'),
+    recording: tiersPromisedWatching(tiers, 'recording'),
+  };
+}
+
+/**
+ * How many active registrations carry each ticket type name.
+ *
+ * ⚠️ Registrations, not `TicketTypeDoc.quantitySold`. `quantitySold` counts
+ * what this system has sold; the gate compares `RegistrationDoc.ticketType`,
+ * and on this event those two numbers differ by an order of magnitude because
+ * imported attendees, comped speakers and organizer-added guests hold tickets
+ * nobody bought here. A screen that asks "who would get access" and answers
+ * with orders tells an organizer a tier is empty when twelve people hold it.
+ *
+ * Cancelled registrations are left out: they do not get in, and counting them
+ * would overstate who a restriction admits.
+ *
+ * One `where('eventId')` query, which is what every read in this app does, and
+ * the grouping happens in memory — no composite index, for the reason the
+ * header of `apps/web/src/lib/data.ts` gives at length.
+ */
+export async function ticketHolderCounts(): Promise<Record<string, number>> {
+  const snap = await db()
+    .collection(COLLECTIONS.registrations)
+    .where('eventId', '==', EVENT_ID)
+    .get();
+  const out: Record<string, number> = {};
+  for (const d of snap.docs) {
+    const reg = d.data() as { status?: string; ticketType?: string };
+    if (reg.status === 'cancelled') continue;
+    const name = (reg.ticketType ?? '').trim();
+    if (!name) continue;
+    out[name] = (out[name] ?? 0) + 1;
+  }
+  return out;
 }
 
 function watchRef(sessionId: string) {

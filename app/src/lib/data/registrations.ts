@@ -1,4 +1,14 @@
-import { collection, limit, query, where, type Firestore, type Query } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  limit,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  type Firestore,
+  type Query,
+} from 'firebase/firestore';
 
 import { COLLECTIONS } from '@kgc/shared';
 
@@ -79,5 +89,46 @@ export function registrationByAltEmail(db: Firestore, address: string): Query {
     collection(db, COLLECTIONS.registrations),
     where('altEmails', 'array-contains', address),
     limit(1),
+  );
+}
+
+/**
+ * Point this account's profile at its registration.
+ *
+ * ── What depends on it ──────────────────────────────────────────────────────
+ *
+ * `users/{uid}.registrationId` is the pointer `firestore.rules` follows to find
+ * out which ticket the caller holds, and it gates every restricted stream and
+ * recording. The rules cannot find it themselves: a registration's id is
+ * `reg_` + sha256(email) and the rules language has no hash function, so the
+ * pointer has to be stored by whoever can do the lookup, which is this client.
+ *
+ * It is written by the client and the rules do not trust it — they read the
+ * registration it names and then require that registration to carry the
+ * caller's own address. Pointing it at somebody else refuses you a video; it
+ * does not get you theirs.
+ *
+ * ⚠️ **An account with no pointer is refused everything restricted**, and the
+ * refusal looks exactly like the wrong ticket. So this must be written wherever
+ * the app can write it, not only on the screen that happens to have looked the
+ * registration up — it lived on the badge hook alone for a fortnight, and
+ * anyone who installed the app, signed in and went straight to a gated session
+ * was locked out of a video their ticket covered. `useRegistrationPointer`
+ * mounts it once, above every screen.
+ *
+ * `setDoc(..., {merge: true})` rather than `updateDoc`, because an attendee
+ * whose profile has not been created yet would get `not-found` and never
+ * acquire the pointer at all. Takes the store as an argument so the rules suite
+ * can make exactly this write against exactly these rules.
+ */
+export async function claimRegistrationPointer(
+  db: Firestore,
+  uid: string,
+  registrationId: string,
+): Promise<void> {
+  await setDoc(
+    doc(db, COLLECTIONS.users, uid),
+    { registrationId, updatedAt: serverTimestamp() },
+    { merge: true },
   );
 }

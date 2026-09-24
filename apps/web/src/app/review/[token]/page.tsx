@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token. One reviewer's queue must never be served to another from a cache. */
 export const dynamic = 'force-dynamic';
 
 /**

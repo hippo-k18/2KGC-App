@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     'Sponsorship packages for the Knowledge Graph Conference 2027 at Cornell Tech, Roosevelt Island.',
 };
 
+/** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. */
 export const dynamic = 'force-dynamic';
 
 /**

@@ -30,6 +30,7 @@ export * from "./brand-theme.js";
 export * from "./session-seats.js";
 export * from "./stream-core.js";
 export * from "./watch-view-core.js";
+export * from "./watch-promise-core.js";
 export * from "./csv-core.js";
 export * from "./leads-core.js";
 export * from "./app-access.js";

@@ -6,7 +6,7 @@ import { findConflicts } from '@/lib/conflicts';
 import { ROUTES } from '@/lib/nav';
 import { stampOfInstant } from '@/lib/time';
 import { listTicketTypes } from '@/lib/commerce';
-import { getSessionWatch, videoLibraryTicketNames } from '@/lib/streaming';
+import { getSessionWatch, watchPromiseTicketNames } from '@/lib/streaming';
 import { Banner, PageHeader, Panel, StatusTag } from '../../../../ui';
 import { SessionForm } from '../session-form';
 import { RecordingForm, StreamForm } from '../watch-form';
@@ -18,14 +18,14 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
   await requireOrganizer();
 
   const { id } = await params;
-  const [session, rooms, tracks, speakers, watch, ticketTypes, videoLibraryNames, report] = await Promise.all([
+  const [session, rooms, tracks, speakers, watch, ticketTypes, promised, report] = await Promise.all([
     getSession(id),
     listRooms(),
     listTrackOptions(),
     listSpeakerOptions(),
     getSessionWatch(id),
     listTicketTypes(),
-    videoLibraryTicketNames(),
+    watchPromiseTicketNames(),
     /**
      * The programme-wide conflict pass, narrowed to this session.
      *
@@ -48,7 +48,21 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
    * to be expressed in names — the same convention the documents feature and
    * session eligibility already use.
    */
-  const ticketTypeNames = ticketTypes.map((t) => t.name);
+  const AUDIENCE_ORDER: Record<string, number> = { attendee: 0, sponsor: 1, exhibitor: 2 };
+  /*
+    Grouped by who buys them, then by the order they sell in. Eleven tick boxes
+    in no order, with sponsor and exhibitor tiers scattered among the attendee
+    ones, is a list an organizer has to read twice to answer "have I included
+    everybody who bought a seat".
+  */
+  const ticketTypeNames = [...ticketTypes]
+    .sort(
+      (a, b) =>
+        (AUDIENCE_ORDER[a.audience] ?? 9) - (AUDIENCE_ORDER[b.audience] ?? 9) ||
+        a.sortOrder - b.sortOrder ||
+        a.name.localeCompare(b.name),
+    )
+    .map((t) => t.name);
 
   return (
     <>
@@ -132,6 +146,7 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
           sessionId={session.id}
           existing={watch.stream}
           ticketTypeNames={ticketTypeNames}
+          promisedNames={promised.stream}
         />
       </Panel>
 
@@ -145,7 +160,7 @@ export default async function SessionEditPage({ params }: { params: Promise<{ id
           sessionTitle={session.title}
           existing={watch.recording}
           ticketTypeNames={ticketTypeNames}
-          videoLibraryNames={videoLibraryNames}
+          promisedNames={promised.recording}
         />
       </Panel>
 

@@ -124,7 +124,7 @@ export function normaliseLeadNote(raw: string): string | null {
  * ⚠️ `claimCode` is folded up and `qrSecret` is not. `qrSecret` is compared
  * exactly — it is random and case-carrying, and folding it would throw away a
  * bit per character for no benefit. The check-in desk makes the same
- * distinction, in `matchRegistration`.
+ * distinction, in `matchCode`.
  */
 export function readScannedCode(raw: string): { kind: "badge" | "claim"; code: string } | null {
   const code = raw.trim();
@@ -133,3 +133,54 @@ export function readScannedCode(raw: string): { kind: "badge" | "claim"; code: s
   if (/^[A-Za-z0-9]{6}$/.test(code)) return { kind: "claim", code: code.toUpperCase() };
   return null;
 }
+
+/**
+ * Where one stand's lead link stands, for the row that reports it.
+ *
+ * `stopped`   — every link this stand holds has been revoked, and nothing has
+ *               been issued since. There is no link in circulation.
+ * `emailed`   — a link was issued and the mail provider accepted it.
+ * `issued`    — a link was issued and no mail left, because sending is off or
+ *               the provider refused. The organizer has to pass it on by hand.
+ * `none`      — nothing has ever been issued.
+ */
+export type LeadLinkState = "stopped" | "emailed" | "issued" | "none";
+
+/**
+ * ── Why a screen must not print a link for a stopped stand ──────────────────
+ *
+ * Revocation here is `iat < leadLinksValidFrom`: it kills the tokens that
+ * already exist and cannot kill one that does not exist yet. A dashboard row
+ * that mints a token as it renders therefore always prints a working link,
+ * including on the row it has just tagged "stopped" — so an organizer who
+ * revokes a leaked link and then copies the link beside the tag hands out a
+ * fresh live one, and has undone the revocation without being told.
+ *
+ * The fix is not to make the token cleverer. It is that "stopped" and "here is
+ * the link" are contradictory claims, and the row may only make one of them.
+ * `showLink` is false for exactly the stopped state, and pressing Send is what
+ * issues a new link and moves the stand out of it.
+ *
+ * All times are epoch milliseconds. `sentAtMs` is only believed when it is at
+ * or after `issuedAt`: a stand issued a link today whose last accepted mail was
+ * a fortnight ago has not had this one emailed to them.
+ */
+export function leadLinkState(input: {
+  issuedAtMs?: number;
+  sentAtMs?: number;
+  validFromMs?: number;
+}): { state: LeadLinkState; showLink: boolean } {
+  const issued = num(input.issuedAtMs);
+  const sent = num(input.sentAtMs);
+  const validFrom = num(input.validFromMs);
+
+  if (validFrom !== undefined && (issued === undefined || issued < validFrom)) {
+    return { state: "stopped", showLink: false };
+  }
+  if (issued === undefined) return { state: "none", showLink: true };
+  if (sent !== undefined && sent >= issued) return { state: "emailed", showLink: true };
+  return { state: "issued", showLink: true };
+}
+
+const num = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;

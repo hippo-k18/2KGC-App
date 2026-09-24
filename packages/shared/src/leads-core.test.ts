@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   leadConsentWording,
+  leadLinkState,
   leadTimestamp,
   leadsCsv,
   normaliseLeadNote,
@@ -119,5 +120,56 @@ describe("leadsCsv", () => {
 
   it("writes a header even with no leads, so the download is not an empty file", () => {
     expect(leadsCsv([], "UTC").trim()).toContain("Name,Company");
+  });
+});
+
+/**
+ * ── Finding 4, and why each case has to be able to fail ────────────────────
+ *
+ * The dashboard tagged a stand "stopped" and printed a working link beside it.
+ * Revocation is `iat < validFrom`, which can only refuse tokens that already
+ * exist, so a row that mints one as it renders always prints a live link. The
+ * property under test is therefore not "revocation works" but "a stopped row
+ * makes exactly one claim": `showLink` is false for that state and true for
+ * every other.
+ */
+describe("leadLinkState", () => {
+  const HOUR = 3_600_000;
+  const t = (h: number) => Date.parse("2027-05-03T00:00:00Z") + h * HOUR;
+
+  it("shows no link at all once a stand's links are stopped", () => {
+    expect(leadLinkState({ issuedAtMs: t(1), sentAtMs: t(1), validFromMs: t(2) })).toEqual({
+      state: "stopped",
+      showLink: false,
+    });
+  });
+
+  it("is stopped for a stand that was revoked before it was ever issued one", () => {
+    expect(leadLinkState({ validFromMs: t(2) })).toEqual({ state: "stopped", showLink: false });
+  });
+
+  it("brings the stand back the moment a new link is issued after the revoke", () => {
+    const after = leadLinkState({ issuedAtMs: t(3), validFromMs: t(2) });
+    expect(after.state).toBe("issued");
+    expect(after.showLink).toBe(true);
+  });
+
+  it("says emailed only when the accepted mail is not older than the link", () => {
+    expect(leadLinkState({ issuedAtMs: t(3), sentAtMs: t(3) }).state).toBe("emailed");
+    // A fortnight-old delivery says nothing about the link minted this morning.
+    expect(leadLinkState({ issuedAtMs: t(3), sentAtMs: t(1) }).state).toBe("issued");
+  });
+
+  it("separates a link that exists from a mail that left", () => {
+    expect(leadLinkState({ issuedAtMs: t(1) })).toEqual({ state: "issued", showLink: true });
+  });
+
+  it("is none, and still printable, for a stand nothing has been done to", () => {
+    expect(leadLinkState({})).toEqual({ state: "none", showLink: true });
+  });
+
+  it("ignores a stamp that is not a finite number", () => {
+    expect(leadLinkState({ issuedAtMs: Number.NaN, validFromMs: t(2) }).state).toBe("stopped");
+    expect(leadLinkState({ issuedAtMs: t(3), validFromMs: Number.NaN }).state).toBe("issued");
   });
 });

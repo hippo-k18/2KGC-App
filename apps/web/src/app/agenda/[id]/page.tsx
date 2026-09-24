@@ -12,7 +12,7 @@ import {
 import { sessionCalendarPath } from '@kgc/shared';
 import { forgetTicketAction } from '@/app/ticket-actions';
 import { readTicketPass } from '@/lib/ticket-pass';
-import { sessionWatch } from '@/lib/watch';
+import { sessionWatchPanel } from '@/lib/watch';
 import { formatDayHeading, localTime } from '@/lib/site';
 import { WatchPanel } from './watch-panel';
 
@@ -41,7 +41,18 @@ import { WatchPanel } from './watch-panel';
  * place a draft can escape from. A draft session 404s like a missing one, so a
  * session id cannot be used to learn what the programme committee is
  * considering.
+ *
+ * ── The watch decision is made here, not in the panel ───────────────────────
+ *
+ * `sessionWatchPanel()` returns the two decisions and nothing else. This page
+ * never holds the stream or recording record, which is the only reliable way to
+ * keep a gated URL out of the response: a server component's props are
+ * serialised into the response body whether or not the markup renders them, so
+ * handing the whole record to a component that decides correctly still ships
+ * the link to everybody who opens the page. It did, for a fortnight, and a
+ * visitor with no ticket at all could read the stream id out of the HTML.
  */
+/** Per-request, and it has to be. Reads the ticket-pass cookie to decide whether this visitor may be handed a stream or recording link. A cached response is a response served to somebody else, and the somebody else here is a visitor with a different ticket or none. */
 export const dynamic = 'force-dynamic';
 
 async function findSession(id: string): Promise<{ session: AgendaSession; heading: string } | null> {
@@ -76,16 +87,18 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
   if (!found) notFound();
   const { session, heading } = found;
 
-  const [ev, speakers, documents, watch, pass] = await Promise.all([
+  /*
+   * Which ticket this device is carrying, if any. Null is the ordinary case:
+   * most people reading a session page are deciding whether to come. Read
+   * before the rest, because the watch decision is made from it on the server.
+   */
+  const pass = await readTicketPass();
+
+  const [ev, speakers, documents, watch] = await Promise.all([
     siteEvent(),
     agendaSpeakers(),
     listPublicDocuments(),
-    sessionWatch(sessionId),
-    /*
-     * Which ticket this device is carrying, if any. Null is the ordinary case:
-     * most people reading a session page are deciding whether to come.
-     */
-    readTicketPass(),
+    sessionWatchPanel(sessionId, { ticketType: pass?.ticketType ?? null }, Date.now()),
   ]);
 
   const people = session.speakerIds
@@ -124,10 +137,9 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
         */}
         <WatchPanel
           watch={watch}
-          pass={pass}
+          passTicketType={pass?.ticketType ?? null}
           sessionTitle={session.title}
           startsAtLocal={session.startsAtLocal}
-          nowMs={Date.now()}
         />
 
         {pass && (

@@ -9,6 +9,8 @@ import {
   totalLeads,
 } from '@/lib/exhibitor-leads';
 import { ROUTES } from '@/lib/nav';
+import { stampOfMillis } from '@/lib/time';
+import { leadLinkState } from '@kgc/shared';
 import { Banner, Email, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { setExhibitorStatusAction } from './actions';
 import { ExhibitorForm } from './exhibitor-form';
@@ -50,18 +52,31 @@ export default async function ExhibitorManagerPage({
 
   const linkTargets: LeadLinkTarget[] = all.map((e) => {
     const row = links[e.id];
-    const revoked =
-      typeof row?.validFrom === 'number' && (!row.sentAtMs || row.sentAtMs < row.validFrom);
+    const { state } = leadLinkState({
+      issuedAtMs: row?.issuedAtMs,
+      sentAtMs: row?.sentAtMs,
+      validFromMs: row?.validFrom,
+    });
+    const leads = `${row?.leadCount ?? 0} lead${(row?.leadCount ?? 0) === 1 ? '' : 's'}`;
     return {
       id: e.id,
       name: e.name,
       hasAddress: Boolean(e.contactEmail),
       cancelled: e.status === 'cancelled',
-      statusLabel: revoked
-        ? 'stopped'
-        : row?.sentAtMs
-          ? `sent, ${row.leadCount} lead${row.leadCount === 1 ? '' : 's'}`
-          : 'not sent',
+      /*
+       * One label, so the Send list and the Stop list cannot describe the same
+       * stand two ways. They used to: Send said "cancelled" where Stop said
+       * "not sent", which reads as two screens disagreeing about the same
+       * company.
+       */
+      statusLabel:
+        state === 'stopped'
+          ? 'stopped'
+          : state === 'emailed'
+            ? `sent, ${leads}`
+            : state === 'issued'
+              ? `link ready, not emailed`
+              : 'not sent',
     };
   });
 
@@ -341,9 +356,11 @@ export default async function ExhibitorManagerPage({
                   .filter((e) => e.status !== 'cancelled')
                   .map((e) => {
                     const row = links[e.id];
-                    const revoked =
-                      typeof row?.validFrom === 'number' &&
-                      (!row.sentAtMs || row.sentAtMs < row.validFrom);
+                    const { state, showLink } = leadLinkState({
+                      issuedAtMs: row?.issuedAtMs,
+                      sentAtMs: row?.sentAtMs,
+                      validFromMs: row?.validFrom,
+                    });
                     return [
                       <span key="n">
                         {e.name}
@@ -355,18 +372,27 @@ export default async function ExhibitorManagerPage({
                       </span>,
                       <strong key="l">{row?.leadCount ?? 0}</strong>,
                       <span key="s" style={{ fontSize: 12 }}>
-                        {revoked ? (
+                        {state === 'stopped' ? (
                           <Tag color="red" fill="outline" small>
                             stopped
                           </Tag>
-                        ) : row?.sentAtMs ? (
+                        ) : state === 'emailed' ? (
                           <>
                             <Tag color="green" fill="outline" small>
                               sent
                             </Tag>
                             <div className="muted" style={{ fontSize: 11 }}>
-                              {new Date(row.sentAtMs).toLocaleDateString()}
-                              {row.sentTo ? ` to ${row.sentTo}` : ''}
+                              {stampOfMillis(row?.sentAtMs)}
+                              {row?.sentTo ? ` to ${row.sentTo}` : ''}
+                            </div>
+                          </>
+                        ) : state === 'issued' ? (
+                          <>
+                            <Tag color="grey" fill="outline" small>
+                              ready
+                            </Tag>
+                            <div className="muted" style={{ fontSize: 11 }}>
+                              {stampOfMillis(row?.issuedAtMs)}, not emailed
                             </div>
                           </>
                         ) : (
@@ -376,12 +402,25 @@ export default async function ExhibitorManagerPage({
                       /*
                         The live link, printed so it can be sent by hand while
                         email is off — the same thing Speaker Manager does, for
-                        the same reason. Each render mints a fresh one, so what
-                        is on screen is always the one that works.
+                        the same reason.
+
+                        ⚠️ Not printed for a stopped stand, and that is the whole
+                        point of `leadLinkState`. Each render mints a fresh
+                        token, and revocation can only refuse tokens minted
+                        before it, so a link printed here always opens — beside
+                        a "stopped" tag it quietly undoes the revocation for
+                        whoever copies it. Sending issues a new link and brings
+                        the row back.
                       */
-                      <code key="u" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>
-                        {leadDeskLink(e.id)}
-                      </code>,
+                      showLink ? (
+                        <code key="u" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>
+                          {leadDeskLink(e.id)}
+                        </code>
+                      ) : (
+                        <span key="u" className="muted" style={{ fontSize: 12 }}>
+                          No link works for this stand. Send them one to start again.
+                        </span>
+                      ),
                     ];
                   })}
               />

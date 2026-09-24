@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token and the live state of the ticket behind it. A refunded or cancelled order has to stop showing a claim code on the next load, not a minute later, and two visitors never hold the same token. */
 export const dynamic = 'force-dynamic';
 
 /** `https://kgc27-app.netlify.app` → `kgc27-app.netlify.app`. */

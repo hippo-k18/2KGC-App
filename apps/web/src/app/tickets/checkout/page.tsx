@@ -45,6 +45,7 @@ export const metadata: Metadata = {
  * statically prerendered — a build-time snapshot would bake in whichever mode
  * the build machine happened to be in.
  */
+/** Per-request, and it has to be. Prices and the buyer's own selection. */
 export const dynamic = 'force-dynamic';
 
 export default async function CheckoutPage({

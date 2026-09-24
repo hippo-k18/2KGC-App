@@ -6,6 +6,7 @@ import {
   parseStreamSource,
   providerLabel,
   recordingWindow,
+  watchAudienceLines,
 } from "./stream-core.js";
 
 const ok = (provider: string, raw: string) => {
@@ -207,5 +208,51 @@ describe("parseDuration", () => {
     expect(parseDuration("about an hour")).toBe(null);
     expect(parseDuration("1:2:3:4")).toBe(null);
     expect(parseDuration("12:99")).toBe(null);
+  });
+});
+
+/**
+ * ── Finding 9 ──────────────────────────────────────────────────────────────
+ *
+ * The Streaming Setup column unioned the stream's restriction with the
+ * recording's, so an open live stream beside a gated recording read as though
+ * the stream were gated too. The property: a restriction on one never appears
+ * as a claim about the other.
+ */
+describe("watchAudienceLines", () => {
+  const open = { allowedTicketTypes: [] };
+  const gated = { allowedTicketTypes: ["All Access (VIP)", "Gold"] };
+
+  it("never lets a gated recording make an open stream look gated", () => {
+    expect(watchAudienceLines({ stream: open, recording: gated })).toEqual([
+      { label: "Stream", who: "Everybody with a ticket" },
+      { label: "Recording", who: "All Access (VIP), Gold" },
+    ]);
+  });
+
+  it("collapses to one unlabelled line when the two genuinely agree", () => {
+    expect(watchAudienceLines({ stream: gated, recording: gated })).toEqual([
+      { label: "", who: "All Access (VIP), Gold" },
+    ]);
+  });
+
+  it("labels a session that has only one of the two, so no tier list is orphaned", () => {
+    expect(watchAudienceLines({ recording: gated })).toEqual([
+      { label: "Recording", who: "All Access (VIP), Gold" },
+    ]);
+    expect(watchAudienceLines({ stream: open })).toEqual([
+      { label: "Stream", who: "Everybody with a ticket" },
+    ]);
+  });
+
+  it("says nothing about a session with nothing to watch", () => {
+    expect(watchAudienceLines({})).toEqual([]);
+    expect(watchAudienceLines({ stream: null, recording: null })).toEqual([]);
+  });
+
+  it("reads an absent list as no restriction, the way mayWatch does", () => {
+    expect(watchAudienceLines({ stream: {} })).toEqual([
+      { label: "Stream", who: "Everybody with a ticket" },
+    ]);
   });
 });

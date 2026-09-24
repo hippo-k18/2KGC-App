@@ -8,7 +8,11 @@ import {
   type ExhibitorDoc,
 } from '@kgc/shared';
 import { mintExhibitorToken } from '@kgc/scripts/src/lib/exhibitor-token';
-import { emailEnabled, sendExhibitorLeadLink } from '@kgc/scripts/src/lib/email';
+import {
+  emailEnabled,
+  sendExhibitorLeadLink,
+  sendOutcomeMessage,
+} from '@kgc/scripts/src/lib/email';
 import { appendAudit } from './audit';
 import { db } from './firestore';
 import { recordError } from './errors';
@@ -35,7 +39,13 @@ import { recordError } from './errors';
 
 export interface LeadLinkRow {
   exhibitorId: string;
-  /** Epoch ms of the last send, absent when nothing has been sent. */
+  /**
+   * Epoch ms of the last link handed to this stand, absent when none ever was.
+   * Set whether or not a mail left, because it is what revocation is measured
+   * against — see `ExhibitorDoc.leadLinkIssuedAt`.
+   */
+  issuedAtMs?: number;
+  /** Epoch ms of the last mail the provider accepted. */
   sentAtMs?: number;
   sentTo?: string;
   /** Epoch ms. Every link minted before this is refused. */
@@ -102,6 +112,7 @@ export async function leadLinkRows(exhibitorIds: string[]): Promise<Record<strin
       }
       out[d.id] = {
         exhibitorId: d.id,
+        issuedAtMs: e.leadLinkIssuedAt,
         sentAtMs: millis(e.leadLinkSentAt),
         sentTo: e.leadLinkSentTo,
         validFrom: e.leadLinksValidFrom,
@@ -156,7 +167,7 @@ export async function sendLeadLink(input: {
       };
     }
 
-    await sendExhibitorLeadLink(db(), {
+    const outcome = await sendExhibitorLeadLink(db(), {
       to,
       companyName: exhibitor.name,
       contactName: exhibitor.contactName,
@@ -167,17 +178,28 @@ export async function sendLeadLink(input: {
     });
 
     /*
-     * Stamped only when a mail actually left. "Link sent" on this screen must
-     * not be true of a stand that was never written to — that is the difference
-     * between a list of what has happened and a list of what was intended.
+     * Two stamps, because they are two different facts.
+     *
+     * `leadLinkIssuedAt` is always written: a fresh token was minted a moment
+     * ago and this stand is meant to have a working link. It is what revocation
+     * is compared against, so writing it is also what lifts a stand back out of
+     * the stopped state, whether the link travels by mail or by the organizer
+     * copying it off the row.
+     *
+     * `leadLinkSentAt` is written only when the provider accepted the mail.
+     * ⚠️ The check used to be `emailEnabled()`, which asks whether a key is
+     * configured and nothing about whether anything left. With an unverified
+     * sending domain every real address is refused, so the row was stamped
+     * "sent" for mail that never existed.
      */
-    if (emailEnabled()) {
-      await ref.update({
-        leadLinkSentAt: FieldValue.serverTimestamp(),
-        leadLinkSentTo: to,
-        updatedAt: new Date(),
-      });
-    }
+    const at = Date.now();
+    await ref.update({
+      leadLinkIssuedAt: at,
+      ...(outcome === 'sent'
+        ? { leadLinkSentAt: FieldValue.serverTimestamp(), leadLinkSentTo: to }
+        : {}),
+      updatedAt: new Date(),
+    });
 
     await appendAudit({
       actor: input.actor,
@@ -185,14 +207,17 @@ export async function sendLeadLink(input: {
       targetPath: `${COLLECTIONS.exhibitors}/${input.exhibitorId}`,
       targetId: input.exhibitorId,
       before: {},
-      after: { to, emailed: emailEnabled() },
+      after: { to, delivery: outcome },
     });
 
     return {
       ok: true,
-      message: emailEnabled()
-        ? `Link sent to ${to}.`
-        : `Email is not switched on yet, so nothing was sent to ${to}. Copy the link from the row and send it yourself.`,
+      message: sendOutcomeMessage({
+        outcome,
+        to,
+        sent: `Link sent to ${to}.`,
+        fallback: 'Copy the link from the row and send it yourself.',
+      }),
     };
   } catch (err) {
     recordError('exhibitor-leads.send', err);

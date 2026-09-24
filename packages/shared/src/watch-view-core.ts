@@ -152,6 +152,57 @@ export function recordingView(
 }
 
 /**
+ * Everything a session page is allowed to hold about watching one session.
+ *
+ * ── Why the page takes this and not the two documents ───────────────────────
+ *
+ * The header above says the caller must not fetch the document, decide
+ * `blocked`, and render `embedUrl` anyway. Saying it was not enough: the
+ * website did exactly that for a fortnight, because the page handed the whole
+ * document to a component and let the component call `streamView`. The
+ * component behaved, and the gated URL still reached the browser — a server
+ * component's props are serialised into the response whether the markup uses
+ * them or not.
+ *
+ * So the decision moves up, and this is the only shape that crosses. Every
+ * field on it is either a `WatchView`, which carries a URL only when the viewer
+ * may have one, or a display fact that is on the session document already: how
+ * the stream is running, how long the recording is, and when its window opens
+ * and closes. None of those is what was sold.
+ */
+export interface SessionWatchView {
+  /** The live stream, decided. */
+  live: WatchView;
+  /** The recording, decided. */
+  recorded: WatchView;
+  /** For the "Live now" pill. Already on the session document. */
+  streamState: StreamState | null;
+  durationSeconds: number | null;
+  availableFromMs: number | null;
+  availableUntilMs: number | null;
+}
+
+/**
+ * Both decisions and the display facts, in one call, so a caller has no reason
+ * to keep the documents around after making them.
+ */
+export function sessionWatchView(
+  stream: StreamLike | null | undefined,
+  recording: (RecordingLike & { durationSeconds?: number | null }) | null | undefined,
+  viewer: Viewer,
+  nowMs: number,
+): SessionWatchView {
+  return {
+    live: streamView(stream, viewer),
+    recorded: recordingView(recording, viewer, nowMs),
+    streamState: stream?.state ?? null,
+    durationSeconds: recording?.durationSeconds ?? null,
+    availableFromMs: recording?.availableFromMs ?? null,
+    availableUntilMs: recording?.availableUntilMs ?? null,
+  };
+}
+
+/**
  * "Main Conference", "Main Conference or Gold", "Main Conference, Gold or
  * Platinum".
  *

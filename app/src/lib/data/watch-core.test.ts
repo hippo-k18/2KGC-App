@@ -105,6 +105,35 @@ describe('ticketSentence', () => {
       'Watching this session live is not included with every ticket.',
     );
   });
+
+  /*
+   * The refusal and the ticket disagreed, and the screen took the ticket's
+   * side. An attendee who had never opened the Me tab had no pointer on their
+   * profile, so the rules could not find their ticket and refused the document
+   * — while this sentence, built from a query on their email address that works
+   * regardless, told them the ticket they hold is exactly the one that includes
+   * it. Two sentences, one screen, contradicting each other.
+   */
+  it('does not tell a refused reader that the ticket they hold covers it', () => {
+    const line = ticketSentence('stream', ['All Access (VIP)'], 'All Access (VIP)');
+    expect(line).not.toContain('included with');
+    expect(line).not.toContain('Your ticket is All Access (VIP).');
+    expect(line).toBe(
+      'Your ticket could not be checked on this device, so this is locked. Check your ticket on the Me tab, then try again.',
+    );
+  });
+
+  it('says the same for a recording, and for a ticket listed beside others', () => {
+    expect(ticketSentence('recording', ['Gold', 'Virtual', 'Platinum'], 'Virtual')).not.toContain(
+      'included with',
+    );
+  });
+
+  it('still names the tickets when the reader genuinely holds another one', () => {
+    expect(ticketSentence('recording', ['All Access (VIP)'], 'Workshops')).toBe(
+      'This recording is included with All Access (VIP) tickets. Your ticket is Workshops.',
+    );
+  });
 });
 
 describe('streamPanel', () => {
@@ -213,6 +242,51 @@ describe('recordingPanel', () => {
     expect(panel?.message).toBe(
       'This recording is included with All Access (VIP), Gold and Main Conference tickets. Your ticket is Startup Table.',
     );
+  });
+
+  /*
+   * ── Finding 6, the client half ──────────────────────────────────────────
+   *
+   * `firestore.rules` now refuses a recording whose window has closed, so the
+   * document the sentence above was written from is no longer readable. The
+   * closing date on the session is, and these cases pin that it is what gets
+   * used: a reader whose ticket did include the library must not be told her
+   * ticket is the problem, and the block must not simply vanish.
+   */
+  it('says the library closed, not that the ticket is wrong, once the window has passed', () => {
+    const panel = recording({
+      outcome: 'denied',
+      recording: null,
+      closesAtMs: Date.UTC(2027, 11, 31),
+      nowMs: Date.UTC(2028, 0, 2),
+      allowed: ['All Access (VIP)'],
+    });
+    expect(panel?.message).toBe(
+      'This recording closed on 31 December 2027 and is no longer available.',
+    );
+    expect(panel?.barred).toBe(false);
+  });
+
+  it('still draws the block when the reader never asked, because a closed one is news', () => {
+    const panel = recording({
+      outcome: 'none',
+      recording: null,
+      closesAtMs: Date.UTC(2027, 11, 31),
+      nowMs: Date.UTC(2028, 0, 2),
+    });
+    expect(panel?.message).toContain('closed on 31 December 2027');
+    expect(panel?.embedUrl).toBeNull();
+  });
+
+  it('leaves a recording whose closing date has not arrived entirely alone', () => {
+    const panel = recording({ closesAtMs: Date.UTC(2027, 11, 31), nowMs: Date.UTC(2027, 5, 1) });
+    expect(panel?.embedUrl).toBe(RECORDING.embedUrl);
+  });
+
+  it('draws nothing at all for a session with no recording, closing date or not', () => {
+    expect(
+      recording({ outcome: 'none', exists: false, recording: null, closesAtMs: 0, nowMs: 1 }),
+    ).toBeNull();
   });
 });
 

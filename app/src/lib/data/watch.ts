@@ -122,6 +122,19 @@ export function useSessionWatch(session: Session | null): SessionWatch {
   const hasStream = Boolean(session?.streamState);
   const hasRecording = session?.hasRecording === true;
 
+  /*
+   * The closing date off the session, which every reader may see.
+   *
+   * `firestore.rules` enforces the availability window as well as the ticket,
+   * so once a library closes the document is refused — and asking for it
+   * anyway turns "this closed on 1 March" into "not on your ticket". Same
+   * reason the two flags above gate the reads at all: ask only the questions
+   * that have an answer.
+   */
+  const closesAtMs = msOf(session?.recordingUntil);
+  const recordingClosed = closesAtMs !== null && closesAtMs <= Date.now();
+  const askRecording = hasRecording && !recordingClosed;
+
   const streamRead = useDocument<SessionStreamDoc>(
     () =>
       hasStream && id
@@ -133,10 +146,10 @@ export function useSessionWatch(session: Session | null): SessionWatch {
 
   const recordingRead = useDocument<SessionRecordingDoc>(
     () =>
-      hasRecording && id
+      askRecording && id
         ? doc(getDb(), COLLECTIONS.sessions, id, SUBCOLLECTIONS.watch, WATCH_RECORDING_DOC)
         : null,
-    [hasRecording, id],
+    [askRecording, id],
     (_docId, d) => d as SessionRecordingDoc,
   );
 
@@ -151,7 +164,7 @@ export function useSessionWatch(session: Session | null): SessionWatch {
     streamRead.data,
   );
   const recordingOutcome = outcomeOf(
-    hasRecording,
+    askRecording,
     recordingRead.loading,
     recordingRead.error,
     recordingRead.data,
@@ -179,6 +192,7 @@ export function useSessionWatch(session: Session | null): SessionWatch {
       exists: hasRecording,
       allowed: session.recordingTicketTypes ?? [],
       myTicketType: ticket.ticketType,
+      closesAtMs,
       // Read once per render rather than on a timer. A recording whose window
       // closes while somebody is looking at the screen keeps playing until they
       // leave it, which is the kinder of the two wrong answers and the one a
@@ -194,6 +208,7 @@ export function useSessionWatch(session: Session | null): SessionWatch {
     recordingOutcome,
     recordingData,
     hasRecording,
+    closesAtMs,
     ticket.ticketType,
   ]);
 }

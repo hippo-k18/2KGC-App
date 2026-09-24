@@ -856,7 +856,7 @@ body.nav-open {
 .hero {
   position: relative;
   color: var(--white);
-  background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 28% / cover no-repeat;
+  background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 46% / cover no-repeat;
   padding: 0;
   isolation: isolate;
 }
@@ -2517,7 +2517,7 @@ a.logo-card:hover {
 .kgc-stats {
   background: transparent;
   padding-block: 0 48px;
-  margin-top: -84px;
+  margin-top: -124px;
   position: relative;
   z-index: 2;
 }
@@ -3408,6 +3408,19 @@ a.logo-card:hover {
   position: relative;
 }
 
+/*
+ * The strip holds one line now rather than a moving list, so it centres and
+ * keeps the same weight and tracking the scrolling run used.
+ */
+.ticker-line {
+  padding: 7px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .ticker-track {
   display: flex;
   width: max-content;
@@ -3466,7 +3479,7 @@ a.logo-card:hover {
     animation: none;
   }
 
-  .ticker {
+  .ticker:has(.ticker-track) {
     overflow-x: auto;
   }
 }

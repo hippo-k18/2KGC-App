@@ -10,6 +10,7 @@ export const metadata: Metadata = {
     'Everything the Knowledge Graph Conference organizers have announced: room changes, schedule updates and notices, newest first.',
 };
 
+/** Per-request, and it has to be. This is the wall board. It re-reads itself every sixty seconds through `AutoRefresh`, and a cache in front of that would add a second minute to the one it already carries — on the one screen where being a minute behind is the whole failure. */
 export const dynamic = 'force-dynamic';
 
 /**

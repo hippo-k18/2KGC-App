@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { recordingView, streamView, ticketList } from "./watch-view-core.js";
+import {
+  recordingView,
+  sessionWatchView,
+  streamView,
+  ticketList,
+} from "./watch-view-core.js";
 import type { RecordingLike, StreamLike } from "./watch-view-core.js";
 
 const stream = (over: Partial<StreamLike> = {}): StreamLike => ({
@@ -157,5 +162,67 @@ describe("ticketList", () => {
   it("is empty for an empty list, so the caller writes its own sentence", () => {
     expect(ticketList([])).toBe("");
     expect(ticketList(["  ", ""])).toBe("");
+  });
+});
+
+/**
+ * The leak this file's header warns about, pinned.
+ *
+ * `sessionWatchView` is the whole of what a page may hold, so the test walks
+ * everything it returns and looks for the link. Written as a deep scan rather
+ * than a check of named fields on purpose: the bug was somebody adding the
+ * record back beside the decision, and a test that only knows today's field
+ * names would not have caught it.
+ */
+function deepStrings(value: unknown, out: string[] = []): string[] {
+  if (typeof value === "string") out.push(value);
+  else if (Array.isArray(value)) for (const v of value) deepStrings(v, out);
+  else if (value && typeof value === "object")
+    for (const v of Object.values(value)) deepStrings(v, out);
+  return out;
+}
+
+describe("sessionWatchView", () => {
+  const gatedStream = stream({ allowedTicketTypes: ["All Access (VIP)"] });
+  const gatedRecording = recording({
+    allowedTicketTypes: ["All Access (VIP)"],
+    durationSeconds: 3_130,
+    availableUntilMs: Date.parse("2028-03-31T00:00:00Z"),
+  });
+
+  it("sends no link to a visitor carrying no ticket at all", () => {
+    const view = sessionWatchView(gatedStream, gatedRecording, { ticketType: null }, NOW);
+    const text = deepStrings(view).join(" ");
+    expect(view.live).toMatchObject({ kind: "blocked", block: "no-ticket" });
+    expect(view.recorded).toMatchObject({ kind: "blocked", block: "no-ticket" });
+    expect(text).not.toContain("dQw4w9WgXcQ");
+    expect(text).not.toContain("76979871");
+    expect(text).not.toContain("http");
+  });
+
+  it("sends no link to a visitor holding the wrong ticket", () => {
+    const view = sessionWatchView(gatedStream, gatedRecording, { ticketType: "Virtual" }, NOW);
+    const text = deepStrings(view).join(" ");
+    expect(view.live).toMatchObject({ kind: "blocked", block: "wrong-ticket" });
+    expect(text).not.toContain("dQw4w9WgXcQ");
+    expect(text).not.toContain("76979871");
+  });
+
+  it("still carries the dates and the length, which are on the session anyway", () => {
+    const view = sessionWatchView(gatedStream, gatedRecording, { ticketType: "Virtual" }, NOW);
+    expect(view.streamState).toBe("live");
+    expect(view.durationSeconds).toBe(3_130);
+    expect(view.availableUntilMs).toBe(Date.parse("2028-03-31T00:00:00Z"));
+  });
+
+  it("hands the link over once the ticket covers it", () => {
+    const view = sessionWatchView(
+      gatedStream,
+      gatedRecording,
+      { ticketType: "All Access (VIP)" },
+      NOW,
+    );
+    expect(view.live).toMatchObject({ kind: "play", embedUrl: stream().embedUrl });
+    expect(view.recorded).toMatchObject({ kind: "play", embedUrl: recording().embedUrl });
   });
 });

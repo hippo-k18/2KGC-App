@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token that an organizer can revoke from the dashboard. A revoked link has to stop opening at once, and one stand's leads must never be served to another from a cache. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -69,7 +70,7 @@ export default async function LeadDeskPage({ params }: { params: Promise<{ token
           only the people your stand has scanned.
         </p>
 
-        <ScanDesk token={rawToken} exhibitorName={grant.exhibitor.name} />
+        <ScanDesk token={rawToken} exhibitorName={grant.exhibitor.name} timeZone={ev.timeZone} />
 
         <section className="lead-list">
           <div className="lead-list-head">

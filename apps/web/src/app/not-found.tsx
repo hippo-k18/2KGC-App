@@ -16,9 +16,19 @@ export default function NotFound() {
       <div className="wrap narrow">
         <p className="eyebrow">404</p>
         <h1>This node has no edges</h1>
+        {/*
+          ⚠️ This used to read "Order confirmation links expire, because they
+          show a claim code." Six kinds of one-off link land here — an order,
+          a speaker profile, a reviewer's queue, a consent form, a mailing
+          preference, a stand's scanning desk — and all six were told they had
+          followed an order confirmation. The stand staff whose link had just
+          been stopped got an explanation about claim codes. The general page
+          says the general thing; a route with something better to say carries
+          its own, as `exhibitor/[token]` now does.
+        */}
         <p className="lede">
-          That page does not exist. Order confirmation links expire, because they show a claim
-          code.
+          That page does not exist. A link we sent you may also have stopped working, since most of
+          them are meant to be used once.
         </p>
         <p className="muted">Anything below will reconnect you.</p>
 
