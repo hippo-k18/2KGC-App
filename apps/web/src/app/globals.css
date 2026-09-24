@@ -898,6 +898,14 @@ body.nav-open {
   padding-block: clamp(48px, 6vw, 96px);
 }
 
+/* The stat boxes cover the bottom of the photo on a wide screen, so the text
+   centres in the part that stays visible. */
+@media (width > 620px) {
+  .hero .wrap {
+    padding-block: clamp(24px, 3vw, 48px) clamp(120px, 14vw, 200px);
+  }
+}
+
 /*
  * The hero headline is the one italic heading on the site, and it is set far
  * larger than the theme's 32px `h1` — it is the only place the page shouts.
@@ -2626,6 +2634,13 @@ a.logo-card:hover {
   padding: 36px 28px;
   text-align: center;
   box-shadow: none;
+}
+
+/* Taller on a wide screen. The extra height goes below, so the tops stay put. */
+@media (width > 620px) {
+  .kgc-stat {
+    padding-bottom: 88px;
+  }
 }
 
 /*
