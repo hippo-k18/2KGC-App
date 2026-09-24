@@ -1,29 +1,68 @@
-// Usage: node shot.mjs <dash|web|app> <outDir> <width> <path> [<path>...]
-// Writes <outDir>/<slug>-<width>.png (full page, capped) and <outDir>/metrics-<width>.json
+/**
+ * Screenshot a list of routes and measure what a person would notice.
+ *
+ * ── Why this exists ─────────────────────────────────────────────────────────
+ *
+ * `tsc` and `next build` both pass on a page whose table is cut in half at
+ * phone width, whose chart draws transparent bars, or whose menu opens off the
+ * left edge of the screen. Every one of those shipped here and was found by
+ * looking. This takes the looking and makes it repeatable: it renders each
+ * route at a chosen width, writes a full-page PNG, and records the handful of
+ * measurements that catch what the eye misses.
+ *
+ * Read the PNG. The metrics narrow down where to look; they do not replace it.
+ *
+ * ── Usage ───────────────────────────────────────────────────────────────────
+ *
+ *   node shot.mjs <dash|web|app> <outDir> <width> <path> [<path>...]
+ *
+ * At most about 15 paths per invocation, and one invocation at a time: several
+ * in parallel make the dashboard's sign-in time out.
+ *
+ *   SHOT_ORIGIN      override the host (default: the deployed site)
+ *   SHOT_EMAIL       dashboard sign-in, required for `dash`
+ *   SHOT_PASSPHRASE  dashboard sign-in, required for `dash`
+ *   SHOT_TAG         suffix for the metrics file, so two runs into one folder
+ *                    do not overwrite each other
+ *
+ * Needs playwright. It is not a dependency of this repo, so install it in a
+ * scratch directory and run from there:
+ *
+ *   mkdir -p /tmp/shots && cd /tmp/shots && npm i playwright@1.57
+ *   cp <repo>/docs/audit-2026-09-19/shot.mjs .
+ *
+ * ── What it writes ──────────────────────────────────────────────────────────
+ *
+ *   <outDir>/<slug>-<width>.png        the full page
+ *   <outDir>/metrics-<width><tag>.json one entry per route
+ *
+ * `horizontalScroll` is the one to grep for first: a page wider than the phone
+ * it is being read on is the defect this project shipped on all 215 dashboard
+ * routes at once.
+ */
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ORIGINS = {
-  dash: 'https://kgc27-dashboard.netlify.app',
-  web: 'https://kgc27-website.netlify.app',
+  dash: 'https://dashboard.knowledgegraph.tech',
+  web: 'https://staging.knowledgegraph.tech',
   app: 'https://kgc27-app.netlify.app',
 };
 const [site, outDir, widthArg, ...paths] = process.argv.slice(2);
 const width = Number(widthArg);
-const origin = ORIGINS[site];
+const origin = process.env.SHOT_ORIGIN || ORIGINS[site];
 if (!origin || !width || !paths.length) {
   console.error('usage: node shot.mjs <dash|web|app> <outDir> <width> <path>...');
   process.exit(2);
 }
-// The dashboard login comes from the environment only. Nothing is defaulted, so
-// no credential lives in this file.
 const { SHOT_EMAIL, SHOT_PASSPHRASE } = process.env;
 if (site === 'dash' && (!SHOT_EMAIL || !SHOT_PASSPHRASE)) {
-  console.error('Set SHOT_EMAIL and SHOT_PASSPHRASE to the dashboard login before running this against dash.');
+  console.error('Set SHOT_EMAIL and SHOT_PASSPHRASE to the dashboard sign-in.');
   process.exit(2);
 }
 fs.mkdirSync(outDir, { recursive: true });
+
 const mobile = width < 700;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const ctx = await browser.newContext({
@@ -44,17 +83,21 @@ if (site === 'dash') {
   await page.goto(origin + '/login', { waitUntil: 'domcontentloaded' });
   await page.fill('input[name=email]', SHOT_EMAIL);
   await page.fill('input[name=passphrase]', SHOT_PASSPHRASE);
-  await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 30000 }), page.click('button[type=submit]')]);
+  await Promise.all([
+    page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 30000 }),
+    page.click('button[type=submit]'),
+  ]);
 }
 
 const results = [];
 for (const p of paths) {
-  const slug = (p.replace(/^\/+|\/+$/g, '').replace(/[^a-z0-9]+/gi, '_') || 'home');
+  const slug = p.replace(/^\/+|\/+$/g, '').replace(/[^a-z0-9]+/gi, '_') || 'home';
   const entry = { path: p, slug, shot: path.join(outDir, `${slug}-${width}.png`) };
   consoleErrors.length = 0;
   try {
-    const resp = await page.goto(origin + p, { waitUntil: 'networkidle', timeout: 45000 }).catch(async () =>
-      page.goto(origin + p, { waitUntil: 'domcontentloaded', timeout: 45000 }));
+    const resp = await page
+      .goto(origin + p, { waitUntil: 'networkidle', timeout: 45000 })
+      .catch(async () => page.goto(origin + p, { waitUntil: 'domcontentloaded', timeout: 45000 }));
     entry.status = resp ? resp.status() : null;
     entry.finalUrl = page.url().replace(origin, '');
     await page.waitForTimeout(800);
@@ -72,7 +115,7 @@ for (const p of paths) {
         return s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0;
       };
       const all = [...document.body.querySelectorAll('*')].filter(visible);
-      // an element inside a horizontally scrollable ancestor is allowed to be wide
+      // An element inside something that scrolls sideways is allowed to be wide.
       const inScroller = (el) => {
         for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
           const ox = getComputedStyle(a).overflowX;
@@ -85,7 +128,7 @@ for (const p of paths) {
         .filter((el) => !inScroller(el))
         .slice(0, 12)
         .map((el) => { const r = el.getBoundingClientRect(); return { el: sel(el), left: Math.round(r.left), right: Math.round(r.right), text: txt(el) }; });
-      const tappable = all.filter((el) => el.matches('a[href],button,[role=button],input:not([type=hidden]),select,textarea,[onclick]'));
+      const tappable = all.filter((el) => el.matches('a[href],button,summary,[role=button],input:not([type=hidden]),select,textarea,[onclick]'));
       const smallTaps = tappable
         .filter((el) => { const r = el.getBoundingClientRect(); return r.width < 32 || r.height < 32; })
         .slice(0, 15)
@@ -99,23 +142,31 @@ for (const p of paths) {
         .filter((el) => { const s = getComputedStyle(el); return (s.overflow === 'hidden' || s.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1; })
         .slice(0, 10)
         .map((el) => ({ el: sel(el), text: txt(el) }));
-      const words = (document.body.innerText || '').trim().split(/\s+/).filter(Boolean).length;
-      const brokenImgs = [...document.images].filter((i) => i.complete && i.naturalWidth === 0).map((i) => i.src.slice(0, 120)).slice(0, 8);
+      // A custom property that was never declared resolves to the inherited
+      // colour rather than erroring, which is how a chart came to draw its bars
+      // fully transparent on a screen reporting real money.
+      const invisible = all
+        .filter((el) => {
+          const s = getComputedStyle(el);
+          return /rgba\(0, 0, 0, 0\)|transparent/.test(s.backgroundColor) && el.matches('[class*=bar],[class*=chart] *') && el.getBoundingClientRect().height > 8;
+        })
+        .slice(0, 6)
+        .map((el) => ({ el: sel(el), text: txt(el) }));
       return {
         viewportWidth: vw,
         docScrollWidth: document.documentElement.scrollWidth,
         horizontalScroll: document.documentElement.scrollWidth > vw + 1,
         pageHeight: document.documentElement.scrollHeight,
-        words,
+        words: (document.body.innerText || '').trim().split(/\s+/).filter(Boolean).length,
         emDashes: ((document.body.innerText || '').match(/—/g) || []).length,
-        overflowing, smallTaps, tinyText, clipped, brokenImgs,
+        overflowing, smallTaps, tinyText, clipped, invisible,
+        brokenImgs: [...document.images].filter((i) => i.complete && i.naturalWidth === 0).map((i) => i.src.slice(0, 120)).slice(0, 8),
         title: document.title,
         h1: [...document.querySelectorAll('h1')].map((h) => h.innerText.trim().slice(0, 80)).slice(0, 3),
       };
     });
     entry.consoleErrors = [...new Set(consoleErrors)].slice(0, 6);
-    const h = Math.min(entry.metrics.pageHeight, mobile ? 5000 : 3000);
-    await page.screenshot({ path: entry.shot, fullPage: false, clip: { x: 0, y: 0, width, height: Math.max(h, 400) } }).catch(async () => {
+    await page.screenshot({ path: entry.shot, fullPage: true }).catch(async () => {
       await page.screenshot({ path: entry.shot });
     });
   } catch (e) {
@@ -124,5 +175,6 @@ for (const p of paths) {
   results.push(entry);
   console.log(`${entry.status ?? 'ERR'} ${p}${entry.metrics?.horizontalScroll ? '  [H-SCROLL]' : ''}${entry.error ? '  ' + entry.error : ''}`);
 }
-fs.writeFileSync(path.join(outDir, `metrics-${width}.json`), JSON.stringify(results, null, 1));
+const tag = process.env.SHOT_TAG ? '-' + process.env.SHOT_TAG : '';
+fs.writeFileSync(path.join(outDir, `metrics-${width}${tag}.json`), JSON.stringify(results, null, 1));
 await browser.close();
