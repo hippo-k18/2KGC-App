@@ -149,12 +149,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <BrandStyle brandColor={branding.brandColor} accentColor={branding.accentColor} />
       </head>
       <body>
-        <SiteHeader logoUrl={branding.logoUrl || undefined} eventName={ev.name} />
+        <SiteHeader
+          logoUrl={branding.logoUrl || undefined}
+          eventName={ev.name}
+          showAgenda={branding.showAgenda}
+          showSpeakers={branding.showSpeakers}
+        />
         <main>{children}</main>
         <SiteFooter
           contactEmail={branding.supportEmail || SITE.contactEmail}
           datesShort={ev.datesShort}
           venue={ev.venue}
+          showAgenda={branding.showAgenda}
+          showSpeakers={branding.showSpeakers}
         />
         <ReferenceOverlay />
       </body>

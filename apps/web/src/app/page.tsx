@@ -252,9 +252,11 @@ export default async function HomePage() {
             <Link href="/tickets" className="btn btn-primary">
               Register now
             </Link>
-            <Link href="/agenda" className="btn btn-ghost">
-              See the agenda
-            </Link>
+            {branding.showAgenda && (
+              <Link href="/agenda" className="btn btn-ghost">
+                See the agenda
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -274,7 +276,7 @@ export default async function HomePage() {
             value: ATTENDEES_EXPECTED,
             noun: 'Attendees expected',
             blurb:
-              'Leading practitioners across hybrid AI, LLMs, NLP, machine learning and data management, for five days on Roosevelt Island.',
+              'Leading practitioners across hybrid AI, LLMs, NLP, machine learning and data management, for five days in New York.',
           },
           {
             value: String(counts.sponsors),
@@ -297,7 +299,7 @@ export default async function HomePage() {
         page: the thing being demonstrated sits exactly where the incumbent used
         to be. Capped per day, because the homepage teases and `/agenda` does not.
       */}
-      {agenda.length > 0 && (
+      {branding.showAgenda && agenda.length > 0 && (
         <section className="kgc-wide" aria-labelledby="schedule-heading">
           <h2 id="schedule-heading" className="hero-headline" style={{ fontSize: 32 }}>
             KGC {ev.year} Full Agenda
@@ -344,7 +346,7 @@ export default async function HomePage() {
             // The live site spells this "Limitied". Reproduced in shape, not in
             // spelling; a typo is not a design decision.
             note: '*Limited availability',
-            link: { label: 'Learn more', href: '/agenda' },
+            link: branding.showAgenda ? { label: 'Learn more', href: '/agenda' } : undefined,
           },
           {
             heading: '#2 Networking Opportunities',
@@ -485,8 +487,7 @@ export default async function HomePage() {
           <summary>Where should I make hotel arrangements?</summary>
           <div className="answer">
             <p>
-              For KGC {ev.year} we recommend the following, both within easy reach of the campus
-              and the city:
+              For KGC {ev.year} we recommend the following, both within easy reach of the venue:
             </p>
             <ul>
               <li>TownePlace Suites, Long Island City</li>
@@ -521,12 +522,12 @@ export default async function HomePage() {
         </details>
 
         <details>
-          <summary>How do I get to the Cornell Tech campus?</summary>
+          <summary>How do I get to Bryant Park?</summary>
           <div className="answer">
             <p>
-              The campus is on Roosevelt Island. The tram from 59th Street and 2nd Avenue runs
-              every few minutes and takes about four; the F train stops on the island; the ferry is
-              slower.
+              Bryant Park is in Midtown Manhattan, between 40th and 42nd Streets and Fifth and
+              Sixth Avenues. The B, D, F and M trains stop at 42 St–Bryant Park and the 7 at 5 Av.
+              Grand Central is a short walk east.
             </p>
           </div>
         </details>

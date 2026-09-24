@@ -93,6 +93,10 @@ export interface BrandingSettings {
   logoUrl: string;
   /** An image URL. The wide picture behind the website hero and the app's Home header. */
   bannerUrl: string;
+  /** Whether the public website shows the agenda. Off hides the page and every link to it. */
+  showAgenda: boolean;
+  /** Whether the public website shows the speakers. Off hides the page and every link to it. */
+  showSpeakers: boolean;
 }
 
 /** `settings/sponsorTiers` — the ordered tier list. See `sponsor-tiers.ts`. */
@@ -187,6 +191,9 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     brandedSlug: "",
     logoUrl: "",
     bannerUrl: "",
+    // Hidden until the organizers switch them on under Marketing > Event Website.
+    showAgenda: false,
+    showSpeakers: false,
   },
   access: {
     attendeeListVisible: true,
@@ -341,6 +348,20 @@ export const SETTINGS_REGISTER: Register = {
       status: "live",
       readers: ["web", "app"],
       why: "The website's homepage hero and the app's Home header use it as their picture.",
+    },
+    showAgenda: {
+      status: "live",
+      readers: ["web"],
+      why:
+        "Off, the website's agenda pages return not found and the header, footer, home " +
+        "page and search stop linking to them. The app's own agenda is unaffected.",
+    },
+    showSpeakers: {
+      status: "live",
+      readers: ["web"],
+      why:
+        "Off, the website's speakers page returns not found and the header, footer and " +
+        "search stop linking to it. The app is unaffected.",
     },
   },
   access: {

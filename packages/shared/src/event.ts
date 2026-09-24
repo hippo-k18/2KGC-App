@@ -47,7 +47,7 @@ export const EVENT = {
   name: "Knowledge Graph Conference 2027",
   shortName: "KGC",
   website: "https://www.knowledgegraph.tech/",
-  venue: "Cornell Tech, Roosevelt Island, New York, NY",
+  venue: "Bryant Park, New York, NY",
   timeZone: TIME_ZONE,
   contactEmail: CONTACT_EMAIL,
 } as const;

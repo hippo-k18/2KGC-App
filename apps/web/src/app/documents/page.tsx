@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listPublicDocuments, listPublicPages, type PublicDocument } from '@/lib/data';
+import { listPublicDocuments, listPublicPages, siteVisibility, type PublicDocument } from '@/lib/data';
 import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -81,7 +81,11 @@ export default async function DocumentsPage() {
    * a PDF somebody uploaded or a page somebody typed. Each has its own address
    * at `/{slug}` and this is the index of them.
    */
-  const [documents, pages] = await Promise.all([listPublicDocuments(), listPublicPages()]);
+  const [documents, pages, show] = await Promise.all([
+    listPublicDocuments(),
+    listPublicPages(),
+    siteVisibility(),
+  ]);
 
   return (
     <>
@@ -128,8 +132,13 @@ export default async function DocumentsPage() {
             <>
               <h2>Nothing published yet</h2>
               <p>
-                Handouts are added as the programme firms up. The{' '}
-                <Link href="/agenda">agenda</Link> is the thing to watch in the meantime.
+                Handouts are added as the programme firms up.
+                {show.agenda && (
+                  <>
+                    {' '}
+                    The <Link href="/agenda">agenda</Link> is the thing to watch in the meantime.
+                  </>
+                )}
               </p>
             </>
           ) : (

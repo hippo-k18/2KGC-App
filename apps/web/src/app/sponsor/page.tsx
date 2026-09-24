@@ -9,7 +9,7 @@ import { formatPrice } from '@/lib/tickets';
 export const metadata: Metadata = {
   title: 'Sponsor KGC',
   description:
-    'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Cornell Tech NYC.',
+    'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Bryant Park, New York.',
 };
 
 /**

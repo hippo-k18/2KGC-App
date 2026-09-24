@@ -280,7 +280,7 @@ export default async function Tickets1Page({
               </div>
               <div>
                 <p className="k">Address</p>
-                <p className="v">Cornell Tech &amp; globally online</p>
+                <p className="v">Bryant Park &amp; globally online</p>
               </div>
             </div>
           </div>

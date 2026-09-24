@@ -19,7 +19,7 @@ import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Startup Pitch',
-  description: `Pitch your knowledge graph startup to investors at the Knowledge Graph Conference ${SITE.year}, Cornell Tech NYC.`,
+  description: `Pitch your knowledge graph startup to investors at the Knowledge Graph Conference ${SITE.year}, Bryant Park, New York.`,
 };
 
 /**

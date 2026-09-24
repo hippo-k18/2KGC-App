@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { siteEvent } from '@/lib/data';
+import { notFound } from 'next/navigation';
+import { siteEvent, siteVisibility } from '@/lib/data';
 import { listSignageRooms } from '@/lib/room-signage';
 
 /**
@@ -35,6 +36,8 @@ export const metadata: Metadata = {
  * somewhere to send an organizer who wants to see all of them at once.
  */
 export default async function RoomIndexPage() {
+  // The room screens show the programme, so they hide with it.
+  if (!(await siteVisibility()).agenda) notFound();
   const [rooms, ev] = await Promise.all([listSignageRooms(), siteEvent()]);
 
   return (

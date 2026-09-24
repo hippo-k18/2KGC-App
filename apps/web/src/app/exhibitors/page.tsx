@@ -5,7 +5,7 @@ import { listExhibitorsByZone, siteEvent } from '@/lib/data';
 export const metadata: Metadata = {
   title: 'Exhibitors',
   description:
-    'Who is exhibiting at the Knowledge Graph Conference 2027, and where to find them in the hall at Cornell Tech, Roosevelt Island.',
+    'Who is exhibiting at the Knowledge Graph Conference 2027, and where to find them at Bryant Park, New York.',
 };
 
 /**

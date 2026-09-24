@@ -38,7 +38,7 @@ export const SITE = {
   name: EVENT.name,
   shortName: EVENT.shortName,
   venue: EVENT.venue,
-  venueShort: 'Cornell Tech, Roosevelt Island',
+  venueShort: 'Bryant Park, New York',
   city: 'New York City',
   timeZone: EVENT.timeZone,
 
@@ -109,7 +109,7 @@ export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
  */
 export const TICKER: string[] = [
   '3–7 May 2027',
-  'Cornell Tech, Roosevelt Island, NYC',
+  'Bryant Park, New York',
   '1,000+ attendees expected',
   'Workshops Mon–Tue · Conference Wed–Fri',
   'Every session recorded',

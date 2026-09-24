@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AutoRefresh } from '@/components/auto-refresh';
-import { siteEvent } from '@/lib/data';
+import { siteEvent, siteVisibility } from '@/lib/data';
 import { roomSignage } from '@/lib/room-signage';
 import { clockOf, signageView, untilLabel } from '@/lib/room-signage-core';
 
@@ -68,6 +68,7 @@ function dayName(day: string): string {
 }
 
 export default async function RoomSignPage({ params }: { params: Promise<{ roomId: string }> }) {
+  if (!(await siteVisibility()).agenda) notFound();
   const { roomId } = await params;
   const [room, ev] = await Promise.all([roomSignage(roomId), siteEvent()]);
   if (!room) notFound();

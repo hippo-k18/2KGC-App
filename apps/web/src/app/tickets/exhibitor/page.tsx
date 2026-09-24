@@ -5,7 +5,7 @@ import { AudienceTicketsPage } from '../audience-page';
 export const metadata: Metadata = {
   title: 'Exhibit at KGC 2027',
   description:
-    'Booth packages for the Knowledge Graph Conference 2027 at Cornell Tech, Roosevelt Island.',
+    'Booth packages for the Knowledge Graph Conference 2027 at Bryant Park, New York.',
 };
 
 /** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. */

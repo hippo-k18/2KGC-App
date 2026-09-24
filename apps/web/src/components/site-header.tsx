@@ -24,10 +24,15 @@ import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 export function SiteHeader({
   logoUrl,
   eventName = 'Knowledge Graph Conference',
+  showAgenda = false,
+  showSpeakers = false,
 }: {
   /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
   logoUrl?: string;
   eventName?: string;
+  /** Marketing > Event Website switches, resolved in the root layout. */
+  showAgenda?: boolean;
+  showSpeakers?: boolean;
 } = {}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
@@ -131,7 +136,11 @@ export function SiteHeader({
           </Link>
 
           <nav id="main-nav" aria-label="Main" className={open ? 'open' : undefined}>
-            {NAV.map((item) => (
+            {NAV.filter(
+              (item) =>
+                (showAgenda || item.href !== '/agenda') &&
+                (showSpeakers || item.href !== '/speakers'),
+            ).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -248,7 +257,7 @@ export function SiteHeader({
                 id="site-search-input"
                 type="search"
                 name="q"
-                placeholder="Search sessions, speakers, pages and articles"
+                placeholder="Search the site"
                 autoComplete="off"
               />
               <button type="submit" className="btn btn-primary">

@@ -6,7 +6,7 @@ import { getRegistration } from '@/lib/registrations';
 import { pendingTemporaryPasswordFor } from '@/lib/app-account';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { QrCode } from '@/components/qr-code';
-import { siteEvent } from '@/lib/data';
+import { siteEvent, siteVisibility } from '@/lib/data';
 import { forgetTicketAction, useTicketOnThisDeviceAction } from '@/app/ticket-actions';
 import { readTicketPass } from '@/lib/ticket-pass';
 import { APP_DISTRIBUTION, APP_URL, SITE } from '@/lib/site';
@@ -59,7 +59,7 @@ const appHost = APP_URL.replace(/^https?:\/\//, '');
  * does not open a door on its own.
  */
 export default async function OrderPage({ params }: { params: Promise<{ token: string }> }) {
-  const ev = await siteEvent();
+  const [ev, show] = await Promise.all([siteEvent(), siteVisibility()]);
   const { token } = await params;
   const rawToken = decodeURIComponent(token);
   const payload = readOrderToken(rawToken);
@@ -225,9 +225,11 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
                 on their own page, where your ticket covers them.
               </p>
               <p className="watch-actions">
-                <Link className="btn btn-primary" href="/agenda">
-                  Go to the agenda
-                </Link>
+                {show.agenda && (
+                  <Link className="btn btn-primary" href="/agenda">
+                    Go to the agenda
+                  </Link>
+                )}
                 <form action={forgetTicketAction}>
                   <button type="submit" className="btn btn-outline">
                     Forget this ticket
@@ -298,9 +300,11 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
               Star the sessions you want from the agenda and they sync to your phone. Workshops
               fill up.
             </p>
-            <Link href="/agenda" className="btn btn-outline">
-              Plan your week
-            </Link>
+            {show.agenda && (
+              <Link href="/agenda" className="btn btn-outline">
+                Plan your week
+              </Link>
+            )}
           </li>
 
           <li>

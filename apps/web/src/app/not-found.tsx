@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { LostNode } from '@/components/lost-node';
+import { siteVisibility } from '@/lib/data';
 
 /**
  * A 404 that is a node with no edges.
@@ -9,7 +10,8 @@ import { LostNode } from '@/components/lost-node';
  * illustration and the task are the same gesture — reconnecting the graph is
  * literally what the page is asking you to do.
  */
-export default function NotFound() {
+export default async function NotFound() {
+  const show = await siteVisibility();
   return (
     <section className="notfound">
       <LostNode targetSelector=".notfound-links a" />
@@ -34,8 +36,8 @@ export default function NotFound() {
 
         <div className="notfound-links">
           <Link href="/">Home</Link>
-          <Link href="/agenda">Agenda</Link>
-          <Link href="/speakers">Speakers</Link>
+          {show.agenda && <Link href="/agenda">Agenda</Link>}
+          {show.speakers && <Link href="/speakers">Speakers</Link>}
           <Link href="/tickets">Tickets</Link>
         </div>
       </div>

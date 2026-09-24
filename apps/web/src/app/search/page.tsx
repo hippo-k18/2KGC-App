@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listAgenda, listPublicPages, listSpeakers } from '@/lib/data';
+import { listAgenda, listPublicPages, listSpeakers, siteVisibility } from '@/lib/data';
 import { POSTS } from '@/lib/posts';
 import { ABOUT_MENU, formatDayHeading, localTime, NAV, NAV_MORE } from '@/lib/site';
 
@@ -59,7 +59,16 @@ export default async function SearchPage({
   let posts: typeof POSTS = [];
 
   if (needle.length) {
-    const [days, people, cms] = await Promise.all([listAgenda(), listSpeakers(), listPublicPages()]);
+    const [show, cms] = await Promise.all([siteVisibility(), listPublicPages()]);
+    // A hidden programme is not searched, so no result leads to a page that is not there.
+    const [days, people] = await Promise.all([
+      show.agenda ? listAgenda() : Promise.resolve([]),
+      show.speakers ? listSpeakers() : Promise.resolve([]),
+    ]);
+    const hiddenPaths = new Set([
+      ...(show.agenda ? [] : ['/agenda']),
+      ...(show.speakers ? [] : ['/speakers']),
+    ]);
 
     sessions = days.flatMap((d) =>
       d.sessions
@@ -91,7 +100,7 @@ export default async function SearchPage({
       ...menu.map((m) => ({ href: m.href, label: m.label })),
       ...cms.map((p) => ({ href: `/${p.slug}`, label: p.title })),
     ].filter((p) => {
-      if (seen.has(p.href) || !matches(needle, p.label)) return false;
+      if (seen.has(p.href) || hiddenPaths.has(p.href) || !matches(needle, p.label)) return false;
       seen.add(p.href);
       return true;
     });
@@ -115,7 +124,7 @@ export default async function SearchPage({
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Sessions, speakers, pages and articles"
+            placeholder="Search the site"
             autoComplete="off"
             autoFocus={!q}
           />

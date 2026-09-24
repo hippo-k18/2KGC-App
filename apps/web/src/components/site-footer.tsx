@@ -12,11 +12,15 @@ export function SiteFooter({
   contactEmail = SITE.contactEmail,
   datesShort = SITE.datesShort,
   venue = SITE.venue,
+  showAgenda = false,
+  showSpeakers = false,
 }: {
   contactEmail?: string;
   /** From Content > Basics, resolved in the root layout. The defaults are the constants. */
   datesShort?: string;
   venue?: string;
+  showAgenda?: boolean;
+  showSpeakers?: boolean;
 }) {
   return (
     <footer className="site-footer">
@@ -43,8 +47,8 @@ export function SiteFooter({
           <div>
             <h2>Attend</h2>
             <Link href="/tickets">Tickets</Link>
-            <Link href="/agenda">Agenda</Link>
-            <Link href="/speakers">Speakers</Link>
+            {showAgenda && <Link href="/agenda">Agenda</Link>}
+            {showSpeakers && <Link href="/speakers">Speakers</Link>}
             {/* An attendee-facing directory of who is in the hall, so it sits
                 with the programme rather than under Participate with the
                 packages that sell a booth. */}

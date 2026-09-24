@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import {
   agendaSpeakers,
   brandingSettings,
@@ -10,6 +11,7 @@ import {
   type AgendaSession,
   type PublicDocument,
   siteEvent,
+  siteVisibility,
 } from '@/lib/data';
 import { AgendaSearch } from '@/components/agenda-search';
 import { FocusOnHash } from '@/components/focus-on-hash';
@@ -84,6 +86,7 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  if (!(await siteVisibility()).agenda) notFound();
   const ev = await siteEvent();
   const params = await searchParams;
   const dayParam = firstValue(params.day);

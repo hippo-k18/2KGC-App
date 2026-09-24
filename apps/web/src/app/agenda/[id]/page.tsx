@@ -6,6 +6,7 @@ import {
   listAgenda,
   listPublicDocuments,
   siteEvent,
+  siteVisibility,
   type AgendaSession,
   type SpeakerCard,
 } from '@/lib/data';
@@ -80,6 +81,7 @@ export async function generateMetadata({
 }
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
+  if (!(await siteVisibility()).agenda) notFound();
   const { id } = await params;
   const sessionId = decodeURIComponent(id);
 
