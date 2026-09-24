@@ -8350,3 +8350,151 @@ section .site-search-form {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+/* ------------------------------------------------------- agenda board -- */
+
+/*
+ * The days side by side, scrolling sideways. Each column scrolls on its own, so
+ * the sideways scrollbar stays on screen rather than at the foot of the longest
+ * day. A column widens while the pointer is over it.
+ */
+.agenda-board-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.agenda-board-nav button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.agenda-board-nav button:hover {
+  background: var(--wash);
+}
+
+.agenda-board {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  height: calc(100svh - var(--header-h) - 48px);
+  padding-bottom: 10px;
+}
+
+.agenda-col {
+  flex: 0 0 300px;
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-align: start;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 12px 12px;
+  transition: flex-basis 0.25s ease;
+}
+
+@media (hover: hover) {
+  .agenda-col:hover,
+  .agenda-col:focus-within {
+    flex-basis: 560px;
+  }
+
+  /* Narrow columns show the title, time, track and room; speakers appear
+     when the column opens. */
+  .agenda-col:not(:only-child):not(:hover):not(:focus-within) .session-people {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agenda-col {
+    transition: none;
+  }
+}
+
+.agenda-col .day-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--white);
+  margin: 0 0 4px;
+  padding: 12px 0 8px;
+}
+
+.agenda-col .day-head h2 {
+  font-size: 20px;
+}
+
+.agenda-col .timeband-head {
+  position: static;
+  background: none;
+}
+
+.agenda-col:not(:only-child) .timeband {
+  grid-template-columns: 52px 1fr;
+}
+
+.agenda-col:not(:only-child) .timeband-grid {
+  grid-template-columns: 1fr;
+}
+
+.agenda-col:not(:only-child) .timeband-grid .session {
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.agenda-col:not(:only-child) .timeband-grid .session:last-child {
+  border-bottom: 0;
+}
+
+/* One day chosen: the column is the page, as the plain list was. */
+.agenda-board:has(> .agenda-col:only-child) {
+  height: auto;
+  overflow: visible;
+}
+
+.agenda-col:only-child {
+  flex: 1 1 auto;
+  height: auto;
+  overflow: visible;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.agenda-col:only-child .day-head {
+  position: static;
+  background: none;
+}
+
+@media (width <= 620px) {
+  .agenda-board-nav {
+    display: none;
+  }
+
+  /* Swipe between days, one at a time, with the next one peeking in. */
+  .agenda-board {
+    height: auto;
+    scroll-snap-type: x mandatory;
+    margin-inline: calc(var(--wrap-padding) * -1);
+    padding-inline: var(--wrap-padding);
+    scroll-padding-inline: var(--wrap-padding);
+    gap: 10px;
+  }
+
+  .agenda-col {
+    flex: 0 0 86%;
+    height: auto;
+    overflow: visible;
+  }
+}

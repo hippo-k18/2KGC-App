@@ -182,6 +182,12 @@ export function AgendaList({
 }) {
   const [open, setOpen] = useState<{ session: AgendaSession; heading: string } | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  // One column's width per press, so a mouse without a sideways wheel can
+  // still reach Friday.
+  const scrollBoard = (dir: 1 | -1) =>
+    boardRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
 
   /*
    * `showModal()` is called from an effect rather than at the click, because the
@@ -201,8 +207,25 @@ export function AgendaList({
 
   return (
     <>
+      {days.length > 1 && (
+        <div className="agenda-board-nav">
+          <button type="button" onClick={() => scrollBoard(-1)} aria-label="Earlier days">
+            ‹
+          </button>
+          <button type="button" onClick={() => scrollBoard(1)} aria-label="Later days">
+            ›
+          </button>
+        </div>
+      )}
+
+      {/*
+        Every day side by side, scrolling sideways. A column widens while the
+        pointer is over it, so the day being read gets the room and the rest
+        stay in view as a strip.
+      */}
+      <div className="agenda-board" ref={boardRef}>
       {days.map((d) => (
-        <div key={d.day}>
+        <div key={d.day} className="agenda-col">
           {/*
             The session count that used to sit beside the day heading is gone,
             at the owner's request while reviewing the mockup. The number is
@@ -273,6 +296,7 @@ export function AgendaList({
           ))}
         </div>
       ))}
+      </div>
 
       {/*
         `onClose` keeps React's state in step with the dialog when the browser
