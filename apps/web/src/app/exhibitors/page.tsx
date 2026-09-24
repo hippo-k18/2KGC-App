@@ -70,9 +70,7 @@ export default async function ExhibitorsPage() {
           <p className="eyebrow">Exhibition</p>
           <h1>Exhibitors at {ev.shortName} {ev.year}</h1>
           <p className="lede">
-            The exhibition hall is where the coffee is served, which is where most of the
-            conversations at {ev.shortName} actually start. {ev.datesLong} at{' '}
-            {ev.venueShort}.
+            {ev.datesLong} at {ev.venueShort}.
           </p>
         </div>
       </section>

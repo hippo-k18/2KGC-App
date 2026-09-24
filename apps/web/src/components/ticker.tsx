@@ -3,10 +3,8 @@ import { ANNOUNCEMENT } from '@/lib/site';
 /**
  * The orange strip under the header.
  *
- * It used to scroll seven facts past. A visitor deciding whether to come reads
- * the hero for the what and the when; this strip is worth one thing, and the
- * one thing is whether they can buy a ticket yet. So it holds still and says
- * that, and nothing else.
+ * One line, whether a visitor can buy a ticket yet, repeated and scrolling left.
+ * The copies are for the eye only: a screen reader hears the line once.
  *
  * `salesOpen` comes from the page, which knows whether a payment processor is
  * connected. That is deliberately not a constant: a bar promising tickets are
@@ -22,9 +20,25 @@ export function Ticker({ salesOpen = false }: { salesOpen?: boolean }) {
 
   if (!line) return null;
 
+  // Enough copies to overfill a wide screen, then the whole run twice so the
+  // -50% keyframe lands exactly on the start of the second run.
+  const run = Array.from({ length: 8 }, (_, i) => i);
+
   return (
-    <div className="ticker" role="complementary" aria-label="Conference at a glance">
-      <div className="ticker-line">{line}</div>
+    <div className="ticker" role="complementary" aria-label="Ticket news">
+      <p className="sr-only">{line}</p>
+      <div className="ticker-track" aria-hidden="true">
+        {[0, 1].map((half) => (
+          <ul className="ticker-run" key={half}>
+            {run.map((i) => (
+              <li key={i}>
+                {line}
+                <span className="ticker-dot" />
+              </li>
+            ))}
+          </ul>
+        ))}
+      </div>
     </div>
   );
 }

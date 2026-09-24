@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { FEATURED_2026, REST_2026, SPEAKERS_2026 } from '@kgc/scripts/src/lib/speakers-2026';
-import { SpeakerCard, ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
+import { FEATURED_2026, REST_2026 } from '@kgc/scripts/src/lib/speakers-2026';
+import { ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
 import { listSpeakers } from '@/lib/data';
 import { SPEAKERS_PAGE_SOURCE } from '@kgc/shared';
 
@@ -113,22 +113,7 @@ function Roster2026() {
   return (
     <section style={{ padding: '72px 0 96px' }}>
       <div className="wrap-kgc">
-        <h1 className="speakers-head">Our First Speakers</h1>
-
-        {SPEAKERS_2026.length === 0 ? (
-          <p className="notice">The speaker list is not published yet.</p>
-        ) : (
-          <>
-            {/* Three across, then the remaining two centred beneath them. */}
-            <div className="featured-speakers">
-              {tiles(FEATURED_2026).map((s) => (
-                <SpeakerCard key={s.id} eager speaker={s} />
-              ))}
-            </div>
-
-            <ViewAllSpeakers speakers={tiles(REST_2026)} featuredCount={FEATURED_2026.length} />
-          </>
-        )}
+        <ViewAllSpeakers featured={tiles(FEATURED_2026)} speakers={tiles(REST_2026)} />
       </div>
     </section>
   );
@@ -185,24 +170,7 @@ async function LiveRoster() {
   return (
     <section style={{ padding: '72px 0 96px' }}>
       <div className="wrap-kgc">
-        <h1 className="speakers-head">Our First Speakers</h1>
-
-        {tiles.length === 0 ? (
-          <p className="notice">The speaker list is not published yet.</p>
-        ) : (
-          <>
-            {featured.length > 0 ? (
-              /* Three across, then the remaining two centred beneath them. */
-              <div className="featured-speakers">
-                {featured.map((s) => (
-                  <SpeakerCard key={s.id} eager speaker={s} />
-                ))}
-              </div>
-            ) : null}
-
-            <ViewAllSpeakers speakers={rest} featuredCount={featured.length} />
-          </>
-        )}
+        <ViewAllSpeakers featured={featured} speakers={rest} />
       </div>
     </section>
   );

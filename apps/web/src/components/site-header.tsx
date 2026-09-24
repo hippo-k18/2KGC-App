@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 
 /**
@@ -31,6 +31,21 @@ export function SiteHeader({
 } = {}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+
+  // The bar opens with the caret in it, and Escape or a new page closes it.
+  useEffect(() => {
+    if (!searching) return;
+    searchInput.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSearching(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [searching]);
+
+  useEffect(() => setSearching(false), [path]);
 
   /*
    * While the menu is open the page behind it must not scroll.
@@ -190,13 +205,22 @@ export function SiteHeader({
             them. Grouping them is also what lets the hamburger keep its place at
             the very end of the row on a phone while staying hidden on desktop.
 
-            Search is present and orange on the live site. It lands on the
-            programme search box rather than on the top of the agenda: for a
-            while it loaded that page with nothing focused and nothing to type
-            in, which is a magnifier that does not search.
+            The magnifier opens a search box for the whole site under the bar.
+            Without script it is an ordinary link to the search page.
           */}
           <div className="header-actions">
-            <Link href="/agenda#agenda-search" className="search" aria-label="Search the agenda">
+            <Link
+              href="/search"
+              className="search"
+              aria-label="Search the site"
+              aria-expanded={searching}
+              aria-controls="site-search"
+              onClick={(e) => {
+                e.preventDefault();
+                setOpen(false);
+                setSearching((v) => !v);
+              }}
+            >
               <SearchIcon />
             </Link>
 
@@ -212,6 +236,27 @@ export function SiteHeader({
             </button>
           </div>
         </div>
+
+        {searching && (
+          <form id="site-search" className="site-search" role="search" action="/search" method="get">
+            <div className="wrap site-search-form">
+              <label className="sr-only" htmlFor="site-search-input">
+                Search the site
+              </label>
+              <input
+                ref={searchInput}
+                id="site-search-input"
+                type="search"
+                name="q"
+                placeholder="Search sessions, speakers, pages and articles"
+                autoComplete="off"
+              />
+              <button type="submit" className="btn btn-primary">
+                Search
+              </button>
+            </div>
+          </form>
+        )}
       </header>
 
     </>

@@ -83,6 +83,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "review",
   "robots.txt",
   "rooms",
+  "search",
   "sitemap.xml",
   "speaker",
   "speakers",

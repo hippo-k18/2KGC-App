@@ -359,8 +359,7 @@ export default async function HomePage() {
             body: (
               <>
                 Build relationships, trade notes and find the people solving the problem you are
-                solving. The app keeps your schedule, your messages and the people you have met in
-                one place for the whole week.
+                solving.
               </>
             ),
           },
@@ -401,7 +400,6 @@ export default async function HomePage() {
           A dedicated strand on data integration, profiling, curation, querying and ontology mapping
           over clinical and biomedical graphs, and on the machine learning built on top of them.
         </p>
-        <p>It is the part of the programme that sells out first, every year.</p>
       </PhotoSplit>
 
       <Testimonials
@@ -538,8 +536,7 @@ export default async function HomePage() {
         <div className="wrap narrow center">
           <h2>Bring your team</h2>
           <p className="lede" style={{ margin: '0 auto 24px' }}>
-            {ev.datesLong} at {ev.venue}. Register now, and your ticket appears in the KGC app
-            the moment you sign in with the same email address.
+            {ev.datesLong} at {ev.venue}.
           </p>
           <Link href="/tickets" className="btn btn-primary">
             Register now

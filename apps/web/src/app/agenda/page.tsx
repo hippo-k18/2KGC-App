@@ -60,26 +60,6 @@ function firstValue(v: string | string[] | undefined): string | undefined {
   return s?.trim() || undefined;
 }
 
-/** Rebuild the query string with one parameter changed or cleared. */
-function filterHref(
-  current: { day?: string; track?: string; q?: string },
-  patch: { day?: string | null; track?: string | null; q?: string | null },
-) {
-  const next = {
-    day: patch.day === null ? undefined : (patch.day ?? current.day),
-    track: patch.track === null ? undefined : (patch.track ?? current.track),
-    // Carried through every chip. A search that is silently dropped the moment
-    // somebody picks a day is a filter row that undoes the box above it.
-    q: patch.q === null ? undefined : (patch.q ?? current.q),
-  };
-  const params = new URLSearchParams();
-  if (next.day) params.set('day', next.day);
-  if (next.track) params.set('track', next.track);
-  if (next.q) params.set('q', next.q);
-  const qs = params.toString();
-  return qs ? `/agenda?${qs}` : '/agenda';
-}
-
 /**
  * Title, speaker, room and track, folded and case-insensitive.
  *
@@ -205,11 +185,6 @@ export default async function AgendaPage({
       <div className="wrap">
         <p className="eyebrow">{ev.datesLong}</p>
         <h1>Agenda</h1>
-        <p className="lede">
-          {total} published sessions across {allDays.length} days at {ev.venue}. All times are
-          local to the venue ({ev.timeZone.replace('_', ' ')}). The programme firms up through the
-          spring; the <Link href="/tickets">KGC app</Link> keeps your own schedule in sync.
-        </p>
 
         {allDays.length === 0 ? (
           <p className="notice" style={{ marginTop: 28 }}>
@@ -218,86 +193,17 @@ export default async function AgendaPage({
           </p>
         ) : (
           <>
-            {/*
-              Two rows of links, one per parameter, each keeping the other
-              parameter's value. Rendered even when nothing is filtered, because
-              a control that only appears once you have used it cannot be found.
-            */}
-            {/* Spacing lives in `.agenda-filters`, not here. An inline style
-                beats any stylesheet rule, so a `marginTop: 28` on this element
-                could only be overridden at a phone width with `!important`. */}
-            {/*
-              A real box, because the magnifier in the header points here.
-              It used to land on the top of this page with nothing to type in,
-              so the one control on the site that looks like a search did
-              nothing but reload the agenda.
-
-              A plain GET form: no script, and the result is an address that
-              survives a paste. Outside `.agenda-filters` because on a phone
-              that element is `display: contents` and the Day row sticks to the
-              header as its first child.
-            */}
-            <AgendaSearch initialQuery={qParam ?? ''} day={dayParam} track={trackParam} />
-            {/* The caret, for somebody who arrived here by pressing a magnifier. */}
+            {/* Search, day and track on one line. The magnifier in the
+                header used to point here; the caret still lands in the box for
+                anyone arriving with #agenda-search. */}
+            <AgendaSearch
+              initialQuery={qParam ?? ''}
+              day={dayParam}
+              track={trackParam}
+              days={allDays.map((d) => ({ value: d.day, label: formatDayHeading(d.day) }))}
+              tracks={tracks.map((t) => ({ value: t.id, label: t.name }))}
+            />
             <FocusOnHash id="agenda-search" />
-
-            <div className="agenda-filters">
-              <div className="filter-row">
-                <span className="filter-label" id="filter-day">
-                  Day
-                </span>
-                <div className="filter-options" role="group" aria-labelledby="filter-day">
-                  <Link
-                    href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { day: null })}
-                    className="filter-chip"
-                    aria-current={!dayParam ? 'true' : undefined}
-                  >
-                    All days
-                  </Link>
-                  {allDays.map((d) => (
-                    <Link
-                      key={d.day}
-                      href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { day: d.day })}
-                      className="filter-chip"
-                      aria-current={dayParam === d.day ? 'true' : undefined}
-                    >
-                      {formatDayHeading(d.day)}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {tracks.length > 0 && (
-                <div className="filter-row">
-                  {/* The count is the second half of the cue the fade on the
-                      row gives: twelve tracks and one chip in view says the
-                      rest are off to the right. */}
-                  <span className="filter-label" id="filter-track">
-                    Track ({tracks.length})
-                  </span>
-                  <div className="filter-options" role="group" aria-labelledby="filter-track">
-                    <Link
-                      href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { track: null })}
-                      className="filter-chip"
-                      aria-current={!trackParam ? 'true' : undefined}
-                    >
-                      All tracks
-                    </Link>
-                    {tracks.map((t) => (
-                      <Link
-                        key={t.id}
-                        href={filterHref({ day: dayParam, track: trackParam, q: qParam }, { track: t.id })}
-                        className="filter-chip"
-                        aria-current={trackParam === t.id ? 'true' : undefined}
-                        style={t.color ? ({ '--track': t.color } as React.CSSProperties) : undefined}
-                      >
-                        {t.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
             {filtered && (
               <p className="filter-summary">
@@ -321,21 +227,6 @@ export default async function AgendaPage({
               </p>
             ) : (
               <>
-                {/*
-                  The jump-to-day nav only earns its space when there is more
-                  than one day on the page. With `?day=` in force it would be a
-                  row of one anchor pointing at the heading directly beneath it.
-                */}
-                {days.length > 1 && (
-                  <nav className="day-nav" aria-label="Jump to day">
-                    {days.map((d) => (
-                      <a key={d.day} href={`#${d.day}`}>
-                        {formatDayHeading(d.day)}
-                      </a>
-                    ))}
-                  </nav>
-                )}
-
                 {/*
                   The rows and the detail dialog they open. The day heading is
                   formatted here and handed down rather than re-derived in the

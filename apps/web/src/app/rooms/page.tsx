@@ -47,7 +47,7 @@ export default async function RoomIndexPage() {
           <h1>Room screens</h1>
           <p className="wall-sub">
             One page per room, showing what is on now and next. Open the room&rsquo;s page on the
-            screen outside its door and leave it there. Each one keeps itself up to date.
+            screen outside its door and leave it there.
           </p>
         </header>
 

@@ -80,14 +80,11 @@ export default async function SponsorPage() {
           <h1>Sponsor KGC 2027</h1>
           <p className="lede">
             A thousand people who buy, build and operate knowledge graph infrastructure, in one
-            building for five days. Roughly a third architects and engineers, a third data
-            leadership, a third
-            researchers.
+            building for five days.
           </p>
           <p>
             Sponsorship enquiries:{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>. Packages sell out by
-            February most years.
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
           </p>
         </div>
       </section>
@@ -149,9 +146,9 @@ export default async function SponsorPage() {
           <p className="eyebrow">Call for speakers</p>
           <h2>Speak at KGC</h2>
           <p>
-            The programme committee reads every submission. What gets accepted is specific: a system
-            you built, a modelling decision you regret, a migration that went sideways, an evaluation
-            with numbers in it. A product tour does not; that is what the booth is for.
+            We look for specific work: a system you built, a modelling decision you would change, a
+            migration that went sideways, an evaluation with numbers in it. Product tours belong at
+            the booth.
           </p>
           <p>
             Formats are a 25-minute talk, a 45-minute deep dive, a panel or a half-day workshop.

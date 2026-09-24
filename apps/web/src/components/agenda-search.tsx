@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 /**
@@ -30,14 +30,30 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
  * JavaScript never arrives: this is an enhancement over the old form, not a
  * replacement for it.
  */
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * Search, day and track on one line.
+ *
+ * The day and track pickers are dropdowns that change the address the moment
+ * one is picked, so they filter on the server exactly as the old rows of chips
+ * did and a filtered agenda is still a link someone can share.
+ */
 export function AgendaSearch({
   initialQuery,
   day,
   track,
+  days,
+  tracks,
 }: {
   initialQuery: string;
   day?: string;
   track?: string;
+  days: FilterOption[];
+  tracks: FilterOption[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,17 +64,24 @@ export function AgendaSearch({
   // just arrived on, and on a shared link it would strip the query they came for.
   const typed = useRef(false);
 
-  useEffect(() => {
-    if (!typed.current) return;
-    const id = setTimeout(() => {
+  const go = useCallback(
+    (patch: Record<string, string>) => {
       const next = new URLSearchParams(params.toString());
-      if (value.trim()) next.set('q', value.trim());
-      else next.delete('q');
+      for (const [k, v] of Object.entries(patch)) {
+        if (v) next.set(k, v);
+        else next.delete(k);
+      }
       const qs = next.toString();
       startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
-    }, 250);
+    },
+    [params, pathname, router],
+  );
+
+  useEffect(() => {
+    if (!typed.current) return;
+    const id = setTimeout(() => go({ q: value.trim() }), 250);
     return () => clearTimeout(id);
-  }, [value, params, pathname, router]);
+  }, [value, go]);
 
   return (
     <form
@@ -66,6 +89,7 @@ export function AgendaSearch({
       role="search"
       action="/agenda"
       method="get"
+      aria-busy={pending}
       onSubmit={(e) => {
         // The typing has already navigated. Submitting again would only reload
         // the same address and scroll the page back to the top.
@@ -87,11 +111,51 @@ export function AgendaSearch({
         placeholder="Search sessions, speakers and rooms"
         autoComplete="off"
       />
-      {day ? <input type="hidden" name="day" value={day} /> : null}
-      {track ? <input type="hidden" name="track" value={track} /> : null}
-      <button type="submit" className="btn btn-primary" aria-live="polite">
-        {pending ? 'Searching' : 'Search'}
-      </button>
+
+      <label className="sr-only" htmlFor="agenda-day">
+        Day
+      </label>
+      <select
+        id="agenda-day"
+        name="day"
+        value={day ?? ''}
+        onChange={(e) => go({ day: e.target.value })}
+      >
+        <option value="">All days</option>
+        {days.map((d) => (
+          <option key={d.value} value={d.value}>
+            {d.label}
+          </option>
+        ))}
+      </select>
+
+      {tracks.length > 0 && (
+        <>
+          <label className="sr-only" htmlFor="agenda-track">
+            Track
+          </label>
+          <select
+            id="agenda-track"
+            name="track"
+            value={track ?? ''}
+            onChange={(e) => go({ track: e.target.value })}
+          >
+            <option value="">All tracks</option>
+            {tracks.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+
+      {/* Without script the dropdowns cannot navigate by themselves. */}
+      <noscript>
+        <button type="submit" className="btn btn-primary">
+          Filter
+        </button>
+      </noscript>
     </form>
   );
 }

@@ -1,6 +1,5 @@
 import { ANNOUNCEMENT_WALL_LIMIT } from '@kgc/shared';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { AutoRefresh } from '@/components/auto-refresh';
 import { listAnnouncements, siteEvent } from '@/lib/data';
 
@@ -110,8 +109,7 @@ export default async function AnnouncementsPage() {
           </p>
           <h1>Announcements</h1>
           <p className="wall-sub">
-            Everything the organizers have announced, newest first. The same notices reach the{' '}
-            <Link href="/tickets">KGC app</Link> as a push.
+            Everything the organizers have announced, newest first.
           </p>
         </header>
 

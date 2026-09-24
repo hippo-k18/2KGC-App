@@ -124,7 +124,7 @@
    */
   --header-height: 96px;
   /* The ticker strip. Measured, not assumed — it was 30 here and renders 36. */
-  --announce-height: 36px;
+  --announce-height: 50px;
   --chrome-height: calc(var(--header-height) + var(--announce-height));
 
   /*
@@ -856,7 +856,7 @@ body.nav-open {
 .hero {
   position: relative;
   color: var(--white);
-  background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 46% / cover no-repeat;
+  background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 72% / cover no-repeat;
   padding: 0;
   isolation: isolate;
 }
@@ -1211,8 +1211,8 @@ body.nav-open {
 
 .day-head {
   border-bottom: 2px solid var(--blue);
-  padding-bottom: 8px;
-  margin: 44px 0 18px;
+  padding-bottom: 6px;
+  margin: 28px 0 0;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1246,7 +1246,7 @@ body.nav-open {
  * second column on a desktop.
  */
 .timeband {
-  margin-top: 22px;
+  margin-top: 10px;
   /*
    * ⚠️ This is a `<section>`, and `section` padding near the top of
    * this file is the page's vertical rhythm for *page-level* sections. Inherited
@@ -1309,6 +1309,56 @@ body.nav-open {
 }
 
 /*
+ * On a wide screen the time moves into a column on the left of its sessions,
+ * which saves the heading line every slot used to spend, and three sessions sit
+ * abreast. A slot's rows are still one band, just shorter.
+ */
+@media (width >= 760px) {
+  .timeband {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    margin-top: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .timeband-head {
+    position: static;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    padding: 9px 0;
+    background: none;
+  }
+
+  .timeband-rule,
+  .timeband-count {
+    display: none;
+  }
+
+  .timeband-grid {
+    border-top: 0;
+  }
+
+  .timeband-grid .session {
+    border-bottom: 0;
+  }
+
+  /* A slot with one session uses the whole row instead of a third of it. */
+  .timeband-grid .session:only-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+  }
+
+  .timeband-head b {
+    font-size: 15px;
+  }
+
+  .timeband-head em {
+    font-size: 13px;
+  }
+}
+
+/*
  * Two abreast once there is room. Borders sit on the rows rather than coming
  * from a grid gap over a coloured background, because a band with an odd number
  * of sessions would otherwise paint the empty half of its last row as a
@@ -1324,13 +1374,27 @@ body.nav-open {
   }
 }
 
+@media (width >= 1100px) {
+  .timeband-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .timeband-grid .session:nth-child(odd) {
+    border-right: 0;
+  }
+
+  .timeband-grid .session:not(:nth-child(3n)):not(:only-child) {
+    border-right: 1px solid var(--line);
+  }
+}
+
 .session {
   display: grid;
   grid-template-columns: 3px 1fr;
-  gap: 12px;
+  gap: 10px;
   align-items: start;
   width: 100%;
-  padding: 12px 14px 12px 0;
+  padding: 8px 12px 8px 0;
   /* A button arrives with a UA border, background, centred text and its own
      font, none of which the grid above overrides. */
   border: 0;
@@ -1364,9 +1428,9 @@ body.nav-open {
 
 .session-title {
   display: block;
-  font-size: 0.95rem;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.32;
+  line-height: 1.3;
   color: var(--ink);
 }
 
@@ -1376,8 +1440,8 @@ body.nav-open {
   flex-wrap: wrap;
   align-items: center;
   gap: 0 6px;
-  margin-top: 3px;
-  font-size: 0.78rem;
+  margin-top: 2px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -1404,7 +1468,7 @@ body.nav-open {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .session-people.plain {
@@ -1420,8 +1484,8 @@ body.nav-open {
 
 .session-faces img,
 .session-faces .is-fallback {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   object-fit: cover;
   /* Overlapped, with the page colour as the ring, so a pair reads as one group
@@ -1439,19 +1503,24 @@ body.nav-open {
   display: grid;
   place-items: center;
   color: var(--white);
-  font-size: 0.52rem;
+  font-size: 9px;
   font-weight: 800;
 }
 
 .session-names {
   min-width: 0;
-  font-size: 0.8rem;
+  font-size: 13.5px;
   line-height: 1.35;
   color: var(--body);
 }
 
+/* Several speakers run on one line rather than one line each. */
 .session-name {
-  display: block;
+  display: inline;
+}
+
+.session-name + .session-name::before {
+  content: ", ";
 }
 
 .session-name b {
@@ -2550,13 +2619,13 @@ a.logo-card:hover {
 }
 
 .kgc-stat {
-  /* Opaque and lifted: it is standing on a photograph now, not on the page. */
-  background: var(--white);
-  border: 1px solid rgb(255 255 255 / 55%);
-  border-radius: var(--radius);
+  /* Square, pale and flat, as on the live site. */
+  background: var(--wash);
+  border: 0;
+  border-radius: 0;
   padding: 36px 28px;
   text-align: center;
-  box-shadow: 0 18px 48px rgb(16 36 58 / 18%);
+  box-shadow: none;
 }
 
 /*
@@ -3425,7 +3494,7 @@ a.logo-card:hover {
   display: flex;
   width: max-content;
   /* Half of the doubled track, so the loop lands on the duplicate exactly. */
-  animation: ticker-slide 46s linear infinite;
+  animation: ticker-slide 40s linear infinite;
 }
 
 /* A moving target you cannot read is worse than a static one. */
@@ -3447,9 +3516,10 @@ a.logo-card:hover {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 7px 0;
+  padding: 0;
+  height: var(--announce-height);
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -3715,7 +3785,7 @@ a.logo-card:hover {
  * where a number or a label is doing real work and deserves the accent.
  */
 .kgc-stat h2 strong {
-  color: var(--orange);
+  color: var(--navy);
 }
 
 .tier .price {
@@ -6620,24 +6690,52 @@ a.li-icon::after {
  */
 .agenda-search {
   display: flex;
-  gap: 10px;
-  margin-top: 28px;
+  gap: 8px;
+  margin: 20px 0 12px;
 }
 
-.agenda-search input {
-  flex: 1 1 auto;
+/* Search, day and track share one line: the box takes what the two
+   dropdowns leave. */
+.agenda-search input,
+.agenda-search select {
   min-width: 0;
   font: inherit;
-  padding: 11px 14px;
+  font-size: 0.9rem;
+  height: 40px;
+  padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--white);
+  background-color: var(--white);
   color: var(--ink);
 }
 
-.agenda-search input:focus-visible {
+.agenda-search input {
+  flex: 1 1 260px;
+}
+
+.agenda-search select {
+  flex: 0 1 220px;
+  cursor: pointer;
+}
+
+.agenda-search input:focus-visible,
+.agenda-search select:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 1px;
+}
+
+@media (width <= 620px) {
+  .agenda-search {
+    flex-wrap: wrap;
+  }
+
+  .agenda-search input {
+    flex-basis: 100%;
+  }
+
+  .agenda-search select {
+    flex: 1 1 0;
+  }
 }
 
 .agenda-search .btn {
@@ -8157,4 +8255,83 @@ body:has(.sign-screen) .sign-screen {
   .lead-scan-row .btn {
     flex: 1 1 140px;
   }
+}
+
+/* ------------------------------------------------------------ site search -- */
+
+/* The bar the header magnifier opens, directly under the navy header. */
+.site-search {
+  background: var(--navy);
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  padding: 12px 0 16px;
+}
+
+.site-search-form {
+  display: flex;
+  gap: 8px;
+}
+
+.site-search-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.site-search-form input:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 1px;
+}
+
+.site-search-form .btn {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0 22px;
+  height: 44px;
+}
+
+section .site-search-form {
+  margin: 20px 0 16px;
+}
+
+.search-group {
+  margin-top: 28px;
+}
+
+.search-group h2 {
+  font-size: 1.1rem;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--blue);
+}
+
+.search-group h2 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.search-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-group li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.search-group li a {
+  font-weight: 600;
+}
+
+.search-group li span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
 }

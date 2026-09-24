@@ -90,9 +90,7 @@ export default async function DocumentsPage() {
           <p className="eyebrow">Resources</p>
           <h1>Documents</h1>
           <p className="lede">
-            Maps, travel notes and handouts for {SITE.shortName} {SITE.year}, published for anyone
-            to read. Materials restricted to a ticket type are not listed here. Those live in the{' '}
-            <Link href="/tickets">KGC app</Link>, where your ticket is what unlocks them.
+            Maps, travel notes and handouts for {SITE.shortName} {SITE.year}.
           </p>
         </div>
       </section>

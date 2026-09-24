@@ -41,10 +41,6 @@ export default async function TeamPage() {
             at twice the size purely because it borrowed the other page's class.
           */}
           <h2>Meet the team</h2>
-          <p className="learn-intro">
-            The people who programme the conference, run the community, and keep the week on its
-            feet.
-          </p>
 
           <div className="team-grid">
             {TEAM.map((p) => (
