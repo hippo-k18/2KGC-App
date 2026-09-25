@@ -2,7 +2,14 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
-import { formatPostDate, POST_CATEGORIES, POSTS, postsInCategory, type Post } from '@/lib/posts';
+import {
+  formatPostDate,
+  POST_CATEGORIES,
+  POSTS,
+  postsInCategory,
+  postsWithTag,
+  type Post,
+} from '@/lib/posts';
 
 export const metadata: Metadata = {
   title: 'Blog',
@@ -23,10 +30,8 @@ const PER_PAGE = 12;
  * itself publishes — so the archive is browsable here without this site making
  * a network call to render, or claiming authorship of writing it did not do.
  *
- * What it deliberately does not do is reproduce the article bodies. Most of
- * these posts are guest-authored and their copyright is not the conference's to
- * relocate, so each card leads to a detail page that credits the author and
- * sends the reader to the canonical article. See the docblock in `posts.ts`.
+ * Each card leads to the full article at `/blog/<slug>`, whose body comes from
+ * `src/content/blog/`. See the docblock in `posts.ts`.
  *
  * Filtering and paging both run off the query string rather than client state:
  * every view of this archive is then a real URL somebody can link to, and the
@@ -35,7 +40,7 @@ const PER_PAGE = 12;
 export default async function BlogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; page?: string }>;
+  searchParams: Promise<{ category?: string; tag?: string; page?: string }>;
 }) {
   const params = await searchParams;
 
@@ -44,7 +49,12 @@ export default async function BlogPage({
   const category =
     POST_CATEGORIES.find((entry) => entry.name === params.category)?.name ?? null;
 
-  const posts = postsInCategory(category);
+  // A tag comes from the `#tag` chips under each post. It is not in the chip row
+  // (there are 139 of them), so it shows as a line above the grid instead.
+  const tagged = !category && params.tag ? postsWithTag(params.tag) : [];
+  const tag = tagged.length > 0 ? params.tag! : null;
+
+  const posts = tag ? tagged : postsInCategory(category);
   const pageCount = Math.max(1, Math.ceil(posts.length / PER_PAGE));
   const page = Math.min(Math.max(1, Number(params.page) || 1), pageCount);
   const visible = posts.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -52,6 +62,7 @@ export default async function BlogPage({
   const hrefFor = (nextCategory: string | null, nextPage: number) => {
     const query = new URLSearchParams();
     if (nextCategory) query.set('category', nextCategory);
+    else if (tag) query.set('tag', tag);
     if (nextPage > 1) query.set('page', String(nextPage));
     const qs = query.toString();
     return qs ? `/blog?${qs}` : '/blog';
@@ -66,6 +77,12 @@ export default async function BlogPage({
             Talks, fortnightly news roundups and write-ups from the {SITE.shortName} community.{' '}
             {POSTS.length} posts, 2019 to today.
           </p>
+          {tag && (
+            <p style={{ marginTop: 18, marginBottom: 0 }}>
+              Showing <strong>{posts.length}</strong> {posts.length === 1 ? 'post' : 'posts'} tagged{' '}
+              <strong>#{tag}</strong>. <Link href="/blog">Clear</Link>
+            </p>
+          )}
           {category && (
             <p style={{ marginTop: 18, marginBottom: 0 }}>
               Showing <strong>{posts.length}</strong> {posts.length === 1 ? 'post' : 'posts'} in{' '}
@@ -74,7 +91,11 @@ export default async function BlogPage({
           )}
 
           <nav aria-label="Filter by category" className="tags" style={{ marginTop: 22, gap: 8 }}>
-            <CategoryChip href={hrefFor(null, 1)} label="All posts" active={category === null} />
+            <CategoryChip
+              href="/blog"
+              label="All posts"
+              active={category === null && tag === null}
+            />
             {POST_CATEGORIES.map((entry) => (
               <CategoryChip
                 key={entry.name}

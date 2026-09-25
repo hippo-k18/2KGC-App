@@ -9064,3 +9064,482 @@ section .site-search-form {
   padding: 0;
   margin: 0;
 }
+
+/* ------------------------------------------------------ blog post ----- */
+
+/*
+ * A single post, after the live site's Kadence single-post template. Every
+ * number here was read off knowledgegraph.tech with `getComputedStyle` at 1440
+ * and 1920 wide rather than estimated from a screenshot: a 25% sidebar with a
+ * 77px gutter, 80px above and below, a 32px-padded white card with a 4px radius
+ * and a soft drop shadow, 22px body copy. The sidebar drops under the article
+ * below 1024px, where Kadence also stacks it.
+ */
+.post-layout {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 80px var(--wrap-padding);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25%;
+  column-gap: 77px;
+  align-items: start;
+  font-size: 22px;
+  line-height: 1.6;
+  color: var(--body);
+}
+
+@media (width < 1024px) {
+  .post-layout {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 55px;
+    padding-block: 40px;
+  }
+}
+
+.post-card {
+  background: var(--palette-9);
+  border-radius: 4px;
+  box-shadow: 0 15px 15px -10px rgb(0 0 0 / 5%);
+  padding: 32px;
+}
+
+@media (width <= 620px) {
+  .post-layout {
+    font-size: 18px;
+  }
+
+  .post-card {
+    padding: 22px 18px;
+  }
+}
+
+/* "KGC 2024 | KGC TALKS": uppercase, the names bold teal, the bars plain. */
+.post-categories {
+  font-size: 0.7em;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 0.5em;
+}
+
+.post-categories a {
+  color: var(--palette-6);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.post-categories a:hover {
+  text-decoration: underline;
+}
+
+/* Near-black, not the brand navy `.blog-page h1` gives the index heading. */
+.blog-page h1.post-title {
+  color: var(--body);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.post-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.8em;
+  margin: 0.8em 0;
+}
+
+.post-meta-avatar {
+  border-radius: 50%;
+}
+
+.post-meta-divider {
+  width: 1px;
+  height: 1.2em;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+.post-share {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 32px;
+}
+
+.post-share a {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #fff;
+  font: 700 15px/1 Arial, sans-serif;
+  text-decoration: none;
+  transition: opacity 0.12s ease;
+}
+
+.post-share a:hover {
+  opacity: 0.8;
+}
+
+.post-share-linkedin { background: #007bb6; }
+.post-share-whatsapp { background: #25d366; }
+.post-share-facebook { background: #3b5998; }
+.post-share-x { background: #000; }
+
+/*
+ * The scraped article. Its markup is plain document structure plus the three
+ * classes the scraper leaves: `center`, `button` and `embed`.
+ */
+.post-body {
+  overflow-wrap: break-word;
+}
+
+.post-body p,
+.post-body ul,
+.post-body ol,
+.post-body table,
+.post-body figure,
+.post-body blockquote {
+  margin: 0 0 32px;
+}
+
+.post-body a:not(.button) {
+  color: var(--palette-6);
+  text-decoration: underline;
+}
+
+.post-body h2 {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 42px 0 14px;
+}
+
+.post-body h3 {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 36px 0 12px;
+}
+
+.post-body h4 {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 30px 0 10px;
+}
+
+.post-body > :first-child {
+  margin-top: 0;
+}
+
+.post-body img,
+.post-body video {
+  max-width: 100%;
+  height: auto;
+}
+
+.post-body img.center,
+.post-body figure.center {
+  display: block;
+  margin-inline: auto;
+}
+
+.post-body .center {
+  text-align: center;
+}
+
+.post-body hr {
+  border: 0;
+  border-top: 1px solid var(--palette-3);
+  margin: 42px 0;
+}
+
+.post-body blockquote {
+  padding-left: 22px;
+  border-left: 4px solid var(--orange);
+}
+
+.post-body table {
+  border-collapse: collapse;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+
+.post-body td,
+.post-body th {
+  border: 1px solid var(--palette-3);
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+/* WordPress "button" links: the navy SIGN ME UP at the foot of every talk. */
+.post-body a.button {
+  display: inline-block;
+  background: var(--navy);
+  color: #fff;
+  padding: 6.8px 17px;
+  border-radius: 5px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.post-body a.button:hover {
+  background: var(--palette-1);
+}
+
+/* A YouTube player, full column width at 16:9 like the live iframe (903 × 508). */
+.post-body .embed {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 32px;
+}
+
+.post-body .embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* `#tag` chips: orange text, a 1px `#a0aec0` box with 4px corners. */
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.post-tags a {
+  display: inline-block;
+  margin: 8.8px 8.8px 0 0;
+  padding: 7px 10.5px;
+  border: 1px solid #a0aec0;
+  border-radius: 4px;
+  color: var(--orange);
+  font-size: 0.8em;
+  line-height: 1.6;
+  text-decoration: none;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.post-tags a:hover {
+  border-color: var(--orange);
+}
+
+/* The author box sits on the page background, not in the card: square 80px photo. */
+.post-author {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin: 55px 0;
+}
+
+.post-author-avatar {
+  flex: none;
+}
+
+.post-author-name {
+  font-size: 26.4px;
+  font-weight: 700;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.post-author-bio {
+  margin: 4px 0 0;
+}
+
+.post-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin: 55px 0;
+}
+
+.post-nav a {
+  color: var(--body);
+  text-decoration: none;
+}
+
+.post-nav a:hover {
+  color: var(--palette-6);
+}
+
+.post-nav-sub {
+  display: block;
+  margin-bottom: 11px;
+}
+
+.post-nav-next {
+  grid-column: 2;
+  text-align: right;
+}
+
+.post-related {
+  margin-top: 55px;
+}
+
+.post-related h2 {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.5;
+  color: var(--body);
+  margin: 0 0 24px;
+}
+
+.post-related-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+}
+
+@media (width <= 760px) {
+  .post-related-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.post-related-card {
+  background: var(--palette-9);
+  border-radius: 4px;
+  box-shadow: 0 15px 15px -10px rgb(0 0 0 / 5%);
+  overflow: hidden;
+}
+
+/* Kadence's 2:3 thumbnail ratio: the image box is two thirds as tall as wide. */
+.post-related-thumb {
+  display: block;
+  aspect-ratio: 3 / 2;
+  background: var(--palette-7);
+}
+
+.post-related-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.post-related-body {
+  padding: 32px;
+}
+
+.post-related-body h3 {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.post-related-body h3 a {
+  color: var(--body);
+  text-decoration: none;
+}
+
+.post-related-body h3 a:hover {
+  color: var(--palette-6);
+}
+
+.post-related-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 16px;
+  margin: 0;
+}
+
+.post-related-meta img {
+  border-radius: 50%;
+}
+
+.post-sidebar h2 {
+  color: var(--navy);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.post-sidebar p {
+  color: var(--palette-6);
+  margin: 22px 0;
+}
+
+/*
+ * White on orange, as the live sidebar has it. Note this is the combination
+ * `.btn-primary` deliberately rejects for contrast (about 2.6:1); it is kept
+ * here because this page is a replica of the live post template.
+ */
+.post-sidebar-btn {
+  display: inline-block;
+  background: var(--orange);
+  color: #fff;
+  padding: 7.2px 18px;
+  border-radius: 3px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-transform: uppercase;
+  text-decoration: none;
+  margin-bottom: 55px;
+}
+
+.post-sidebar-btn:hover {
+  background: #d9741a;
+  color: #fff;
+}
+
+.post-recent {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+}
+
+.post-recent li {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  margin-bottom: 8.8px;
+}
+
+/*
+ * The link, not just the image, has to refuse to shrink: it is the flex item,
+ * and a long title beside it squeezed it (and the 150px image in it) to 67px.
+ */
+.post-recent-thumb-link {
+  flex: none;
+  display: block;
+}
+
+.post-recent-thumb {
+  width: 150px;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+  flex: none;
+}
+
+/*
+ * The live widget sets these titles in `--palette-3`, the page's own
+ * background, so they are invisible there and only the thumbnails show. Here
+ * they are navy and readable; set `color: var(--palette-3)` to match exactly.
+ */
+.post-recent-title {
+  color: var(--navy);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-decoration: none;
+}
+
+.post-recent-title:hover {
+  text-decoration: underline;
+}
