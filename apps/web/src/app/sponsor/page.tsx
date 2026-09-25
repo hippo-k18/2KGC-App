@@ -115,7 +115,18 @@ export default async function SponsorPage() {
 
           {packages && packages.length > 0 && (
             <>
-              <h2 style={{ marginTop: 56 }}>Packages</h2>
+              <div className="package-head">
+                <h2>Sponsor Packages</h2>
+                <a
+                  className="btn btn-secondary btn-sm"
+                  href={PROSPECTUS_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label="Info: the full sponsorship prospectus, in a new tab"
+                >
+                  Info
+                </a>
+              </div>
               <div className="package-grid">
                 {packages.map((p) => (
                   <PackageBlock key={p.id} tier={p} />
@@ -161,19 +172,72 @@ export default async function SponsorPage() {
   );
 }
 
+/** The full prospectus, kept by the organizers outside this site. */
+const PROSPECTUS_URL =
+  'https://docs.superhuman.com/d/Knowledge-Graph-Conference-Sponsorship-Prospectus_dbvrFq8v5WB/Knowledge-Graph-Conference-2027_suMDKRAQ#_lu_XTxuJ';
+
+/*
+ * Plain wording for this page, keyed by tier id. Same facts as the catalogue,
+ * shorter sentences. A tier added later with no entry here falls back to its
+ * catalogue tagline and list, so a new package still shows up.
+ */
+const PLAIN: Record<string, { summary: string; items: string[] }> = {
+  'sponsor-bronze': {
+    summary: 'Your logo on the website and a listing in the app.',
+    items: [
+      'Listing in the KGC app all week',
+      'Logo on the sponsor wall and the website',
+      '2 Main Conference passes',
+      'Attendee demographics after the event',
+    ],
+  },
+  'sponsor-silver': {
+    summary: 'Everything in Bronze, plus signs in the session rooms and a banner in the app.',
+    items: [
+      'Everything in Bronze',
+      'Banner in the app',
+      'Logo on session room signs',
+      '4 All Access passes',
+      'Contacts from attendees who opt in',
+    ],
+  },
+  'sponsor-gold': {
+    summary: 'A 30-minute session in the agenda and a booth.',
+    items: [
+      'Everything in Silver',
+      '30-minute session in the agenda',
+      'Logo on the main stage backdrop',
+      '8 All Access passes',
+      'Standard booth in the exhibition hall',
+    ],
+  },
+  'sponsor-platinum': {
+    summary: 'One sponsor a year. Your name on the conference, a 45-minute session and a premium booth.',
+    items: [
+      'Everything in Gold',
+      'Your name on all conference branding',
+      '45-minute session next to the keynotes',
+      'Logo on attendee lanyards',
+      '16 All Access passes',
+      'Premium booth in the exhibition hall',
+    ],
+  },
+};
+
 /**
- * One package as a flat block: its name, and on hover the line of scope and
- * everything it includes.
+ * One package as a flat block: its name and one line always, and the full
+ * list on hover or keyboard focus.
  */
 function PackageBlock({ tier }: { tier: Tier }) {
-  const items = (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap(
-    (g) => g.items ?? [],
-  );
+  const plain = PLAIN[tier.id];
+  const summary = plain?.summary ?? tier.tagline;
+  const items =
+    plain?.items ??
+    (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap((g) => g.items ?? []);
   return (
     /*
-      Only the name shows until the block is hovered or focused, then the
-      tagline and list open underneath. `tabIndex` so a keyboard can open it
-      too. Phones have no hover, so there the block is always open.
+      `tabIndex` so a keyboard can open it too. Phones have no hover, so there
+      the list is always shown.
     */
     <article
       className={`flat-block package${tier.featured ? ' is-featured' : ''}`}
@@ -181,9 +245,9 @@ function PackageBlock({ tier }: { tier: Tier }) {
       aria-label={`${tier.name} package`}
     >
       <h3>{tier.name}</h3>
+      <p className="package-line">{summary}</p>
       <div className="package-more">
         <div>
-          <p className="package-line">{tier.tagline}</p>
           <ul>
             {items.map((line) => (
               <li key={line}>{line}</li>

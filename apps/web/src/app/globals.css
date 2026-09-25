@@ -2210,9 +2210,19 @@ body.nav-open {
  * Only where there is a real pointer: a phone has no hover, so there the
  * details are simply shown.
  */
-.package-more .package-line {
-  margin-top: 10px;
+/* The heading with the Info link on the right, on one line. */
+.package-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 56px;
 }
+
+.package-head h2 {
+  margin: 0;
+}
+
 
 /* The collapsing grid only exists where it is used. On a phone it clipped the
    last line of each list, so there the details are plain blocks. */
@@ -2253,14 +2263,14 @@ body.nav-open {
   color: var(--muted);
   font-size: 0.95rem;
   line-height: 1.5;
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-  border-bottom: 2px solid var(--white);
+  margin: 8px 0 0;
 }
 
+/* The rule above the list sits on the list, so it folds away with it. */
 .package ul {
-  margin: 0;
-  padding-left: 1.1em;
+  margin: 16px 0 0;
+  padding: 16px 0 0 1.1em;
+  border-top: 2px solid var(--white);
   font-size: 0.95rem;
   line-height: 1.5;
 }
