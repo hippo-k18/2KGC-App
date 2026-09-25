@@ -874,7 +874,7 @@ body.nav-open {
 .hero {
   position: relative;
   color: var(--white);
-  background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 72% / cover no-repeat;
+  background: var(--palette-1) url('/kgc/bryant-park/midtown-aerial.jpg') center 70% / cover no-repeat;
   padding: 0;
   isolation: isolate;
   /* A white strip down each side, so the photo sits inside the page rather
@@ -8866,4 +8866,19 @@ section .site-search-form {
     padding: 24px 20px;
     font-size: 1rem;
   }
+}
+
+/* The photographer's credit, small in the hero's top right corner. */
+.hero-credit {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 1;
+  margin: 0;
+  font-size: 11px;
+  color: rgb(255 255 255 / 75%);
+}
+
+.hero-credit a {
+  color: inherit;
 }
