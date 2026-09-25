@@ -908,7 +908,9 @@ body.nav-open {
  * in normal flow above this.
  */
 .hero .wrap {
-  min-height: calc(100svh - var(--chrome-height));
+  /* Stops a little above the fold, so a strip of white shows under the photo
+     on the first screen, as on the live site. */
+  min-height: calc(100svh - var(--chrome-height) - 64px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -920,7 +922,7 @@ body.nav-open {
    centres in the part that stays visible. */
 @media (width > 620px) {
   .hero .wrap {
-    padding-block: clamp(24px, 3vw, 48px) clamp(120px, 14vw, 200px);
+    padding-block: clamp(24px, 3vw, 48px) clamp(64px, 7vw, 110px);
   }
 }
 
@@ -2612,9 +2614,9 @@ a.logo-card:hover {
 .kgc-stats {
   /* White from the photo's bottom edge down, so the pale boxes sit on white
      as on the live site. The first 124px is the overlap with the photo. */
-  background: linear-gradient(transparent 124px, var(--white) 124px);
+  background: linear-gradient(transparent 76px, var(--white) 76px);
   padding-block: 0 56px;
-  margin-top: -124px;
+  margin-top: -76px;
   position: relative;
   z-index: 2;
 }
@@ -2631,7 +2633,7 @@ a.logo-card:hover {
 
 .kgc-stats-row {
   display: grid;
-  gap: 26px;
+  gap: 34px;
   /* Each box is as tall as its own text, as on the live site. */
   align-items: start;
   /*

@@ -159,7 +159,7 @@ export default async function HomePage() {
   // The homepage shows a price teaser. If the catalogue cannot be read the
   // strip is simply absent — a homepage is not the place to explain an outage.
   const tiers = (await tiersOrNull()) ?? [];
-  const { counts, sponsorBands, agenda } = await programmeOrNothing();
+  const { sponsorBands, agenda } = await programmeOrNothing();
   const branding = await brandingSettings();
 
   /*
@@ -263,35 +263,29 @@ export default async function HomePage() {
       </section>
 
       {/*
-        Three cards, as on the live site, not the four this used to show. Two of
-        the numbers are `count()` results against Firestore; the attendance
-        figure cannot be, because `registrations` holds ticket holders for this
-        edition mid-sale — fifty-odd in a seeded demo, which would render
-        "52 Attendees" beneath a headline claiming a thousand. So it is declared
-        in `site.ts` as a stated expectation and the noun says "expected", rather
-        than a typed number wearing the costume of a measurement.
+        The three cards in the live site's own words and figures. Theirs are
+        across every edition ("spoke at our conferences"), which is why they are
+        not this year's counts from the database.
       */}
       <StatBlocks
         stats={[
           {
             value: ATTENDEES_EXPECTED,
             noun: 'Attendees',
-            // The figure is a forecast, so the blurb says "expected" and the
-            // heading stays one line, as on the live site.
             blurb:
-              'Leading practitioners across hybrid AI, LLMs, NLP, machine learning and data management, expected for five days in New York.',
+              'Leading experts and award winners in the fields of Hybrid AI, LLMs, NLP, Machine Learning, Data Management make an annual visit to our conference.',
           },
           {
-            value: String(counts.sponsors),
-            noun: counts.sponsors === 1 ? 'Partner' : 'Partners',
+            value: '40+',
+            noun: 'Partners',
             blurb:
-              'Supported by organisations building the tools and the standards the rest of the field runs on.',
+              'We are proud to be supported by a distinguished group of sponsors, each playing a pivotal role in advancing knowledge graph technologies and their applications.',
           },
           {
-            value: String(counts.speakers),
-            noun: counts.speakers === 1 ? 'Speaker' : 'Speakers',
+            value: '150+',
+            noun: 'Speakers',
             blurb:
-              'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists.',
+              'Visionary Data Scientists, Healthcare Professionals, Finance and Investment Analysts, Knowledge Graph Engineers and Ontologists spoke at our conferences.',
           },
         ]}
       />
