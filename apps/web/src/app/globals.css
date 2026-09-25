@@ -2123,6 +2123,176 @@ body.nav-open {
 }
 
 /*
+ * `/sponsor` sets the logos on the page itself rather than on white tiles.
+ * `multiply` takes out the white ground several of the logo files carry, so a
+ * logo with its own white box does not reappear as a tile.
+ */
+.sponsor-tiers.is-blend .logo-card {
+  background: transparent;
+}
+
+.sponsor-tiers.is-blend .logo-card img {
+  mix-blend-mode: multiply;
+}
+
+/*
+ * `/sponsor`: flat grey blocks on a white band, the homepage FAQ panel's look.
+ * Square corners and no border on purpose.
+ */
+.flat-block {
+  background: var(--faq-panel);
+  padding: 28px;
+}
+
+.flat-block h2,
+.flat-block h3 {
+  margin-top: 0;
+  color: var(--navy);
+}
+
+.flat-block > :last-child {
+  margin-bottom: 0;
+}
+
+/* The call for speakers: copy on the left, the button on the right. */
+.speak-box {
+  display: grid;
+  gap: 8px 48px;
+  align-items: center;
+}
+
+.speak-box p {
+  max-width: 68ch;
+}
+
+@media (width >= 768px) {
+  .speak-box {
+    grid-template-columns: 1fr auto;
+    padding: 40px;
+  }
+
+  .speak-box-cta {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+  }
+}
+
+.package-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  /* `start`, so opening one block does not stretch the others in its row. */
+  align-items: start;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+@media (width >= 560px) {
+  .package-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (width >= 1040px) {
+  .package-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.package h3 {
+  font-size: 1.25rem;
+  margin-bottom: 0;
+}
+
+/*
+ * The details open on hover or keyboard focus. `grid-template-rows` from 0fr
+ * to 1fr animates to the content's real height, which `height: auto` cannot.
+ * Only where there is a real pointer: a phone has no hover, so there the
+ * details are simply shown.
+ */
+.package-more .package-line {
+  margin-top: 10px;
+}
+
+/* The collapsing grid only exists where it is used. On a phone it clipped the
+   last line of each list, so there the details are plain blocks. */
+@media (hover: hover) {
+  .package {
+    cursor: default;
+  }
+
+  .package-more {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 200ms ease;
+  }
+
+  .package-more > div {
+    overflow: hidden;
+  }
+
+  .package:hover .package-more,
+  .package:focus-within .package-more,
+  .package:focus .package-more {
+    grid-template-rows: 1fr;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: reduce) {
+  .package-more {
+    transition: none;
+  }
+}
+
+.package:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
+.package-line {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--white);
+}
+
+.package ul {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.package li + li {
+  margin-top: 8px;
+}
+
+/* The top package takes the FAQ's selected-question blue. */
+.package.is-featured {
+  background: var(--faq-selected-bg);
+}
+
+.package.is-featured h3,
+.package.is-featured .package-line {
+  color: var(--faq-selected-fg);
+}
+
+.package-contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  margin-top: 32px;
+}
+
+.package-contact p {
+  margin: 0;
+}
+
+/*
  * `a.logo-card`, not `.logo-card`: a hover response on a non-link is a promise.
  * Sponsors without a website render as a plain div and must stay inert.
  */

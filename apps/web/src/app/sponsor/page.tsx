@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { listSponsorsByTier } from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { SponsorTiers } from '@/components/sponsor-tiers';
-import { TierCard } from '../tickets/tier-card';
+import type { Tier } from '@/lib/tickets';
 import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -46,24 +46,11 @@ export const revalidate = 30;
  * page now read the same documents, and the only thing this one adds is the
  * link that takes you to the other.
  *
- * ── And they were drawing them two different ways ───────────────────────────
+ * ── Drawn here as plain blocks, and sold by email ───────────────────────────
  *
- * Reading the same documents was only half of it. This page then printed every
- * `includes` line of all four tiers in a three-column grid, which put Bronze,
- * Silver and Gold in row one and left Platinum alone at a third of the width in
- * row two — and printed, at full length, the contents `/tickets/sponsor` shows
- * behind a disclosure. `TierCard` is that page's card, so four tiers now sit
- * four across with the same prices, the same one-line scope and the same
- * expandable contents, and the difference between the two pages is which of
- * them takes the money.
- *
- * ── Prices are quoted now, because the sibling page already quotes them ─────
- *
- * The old comment here said no prices were shown because the real prospectus is
- * a Coda doc the live nav links out to and is the authority on what a tier
- * costs. That reasoning stopped holding when `/tickets/sponsor` went live
- * publishing exactly these figures: withholding them here made this page look
- * coy, not discreet, about a number one click away.
+ * This page shows what each package includes and sends people to the inbox.
+ * No prices and no checkout button: sponsorship is agreed with a person.
+ * `/tickets/sponsor` still exists and quotes the figures for anyone sent there.
  *
  * Catalogue order — `sortOrder`, ascending, which is Bronze first — is the same
  * order `/tickets/sponsor` uses. Reversing it here to lead with Platinum would
@@ -75,18 +62,17 @@ export const revalidate = 30;
  *
  * The four sections used to alternate white, tint, white, tint at an identical
  * 64px of padding each, so the page read as four interchangeable stripes with
- * nothing weighted above anything else. The pitch, the prices and the wall of
- * logos are one continuous argument and are now spaced as one; the call for
- * speakers is a different ask of a different reader, and the only large gap on
- * the page is the one in front of it. `.tint` itself is untouched — the replica
+ * nothing weighted above anything else. The call for speakers now sits in a
+ * box under the title, and the packages and the wall of logos follow it,
+ * spaced as one continuous list. `.tint` itself is untouched — the replica
  * pages still use it.
  */
 
 export default async function SponsorPage() {
   /*
    * `tiersOrNull`, not `listTiers`: this is a marketing page, and an
-   * unreachable catalogue should cost it the Packages band, not the sponsor
-   * wall and the call for speakers underneath. The tickets pages keep the loud
+   * unreachable catalogue should cost it the package blocks, not the sponsor
+   * wall and the call for speakers. The tickets pages keep the loud
    * failure, because a price that fails quietly is the one that gets charged.
    */
   const [bands, packages] = await Promise.all([
@@ -94,48 +80,69 @@ export default async function SponsorPage() {
     tiersOrNull('sponsor'),
   ]);
 
+  const mail = (subject: string) =>
+    `mailto:${SITE.contactEmail}?subject=${encodeURIComponent(subject)}`;
+
   return (
     <>
-      <section style={{ paddingBottom: 40 }}>
+      {/* No visible title: the page opens on the talk block. Screen readers
+          still get a heading to land on. */}
+      <h1 className="sr-only">Sponsor KGC 2027</h1>
+
+      {/*
+        One white band for the talk and the packages, with flat grey blocks on
+        it: the same square panel as the homepage FAQ. `id="speak"` is where the
+        footer's "Speak at KGC" link lands.
+      */}
+      <section className="band-white" style={{ paddingBlock: '48px 64px' }}>
         <div className="wrap">
-          <h1>Sponsor KGC 2027</h1>
-          <p className="lede">
-            A thousand people who buy, build and operate knowledge graph infrastructure, in one
-            building for five days.
-          </p>
-          <p>
-            Sponsorship enquiries:{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
-          </p>
+          <div className="flat-block speak-box" id="speak">
+            <h2>Speak at KGC</h2>
+            <p>
+              Tell us about real work: something you built, a decision you would change, a project
+              that went wrong, results you measured. No product pitches.
+            </p>
+            <p>
+              Talks run 25 or 45 minutes, and there are panels and half-day workshops. Submissions
+              open in September and close in December.
+            </p>
+            <p className="speak-box-cta">
+              <a className="btn btn-primary" href={mail('KGC 2027 talk proposal')}>
+                Pitch a talk
+              </a>
+            </p>
+          </div>
+
+          {packages && packages.length > 0 && (
+            <>
+              <h2 style={{ marginTop: 56 }}>Packages</h2>
+              <div className="package-grid">
+                {packages.map((p) => (
+                  <PackageBlock key={p.id} tier={p} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/*
+            Sponsorship is arranged by email, not bought on this page. The
+            subject line tells whoever reads the inbox what it is about.
+          */}
+          <div className="package-contact">
+            <p>
+              To sponsor, email{' '}
+              <a href={mail('KGC 2027 sponsorship')}>{SITE.contactEmail}</a>. Tell us which package
+              you are interested in.
+            </p>
+            <a className="btn btn-primary" href={mail('KGC 2027 sponsorship')}>
+              Email us
+            </a>
+          </div>
         </div>
       </section>
 
-      {packages && packages.length > 0 && (
-        <section style={{ paddingBlock: '0 56px' }}>
-          <div className="wrap">
-            <h2>Packages</h2>
-            {/*
-              `maxWidth: 'none'` because `.tier-grid` centres itself in a
-              1120px measure, which is right on `/tickets/sponsor` where the
-              whole band is centred and wrong here, where it would inset the
-              row 56px from the heading above it.
-
-              Each card links straight to its own tier on the checkout page,
-              so the standalone "Become a sponsor" button underneath went: four
-              calls to action and a fifth one repeating them is the shape of a
-              page that does not know which one it means.
-            */}
-            <div className="tier-grid" style={{ marginTop: 24, maxWidth: 'none' }}>
-              {packages.map((p) => (
-                <TierCard key={p.id} tier={p} href={`/tickets/sponsor?tier=${p.id}#buy`} />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       {bands.length > 0 && (
-        <section style={{ paddingBlock: '0 24px' }}>
+        <section style={{ paddingBlock: '56px 80px' }}>
           <div className="wrap">
             <h2>Our sponsors</h2>
             {/*
@@ -145,36 +152,45 @@ export default async function SponsorPage() {
               list poured into two slots. The homepage keeps the widget's own
               centred titles: nothing up the page from it has said them.
             */}
-            <SponsorTiers bands={bands} titles="label" />
+            <SponsorTiers bands={bands} titles="label" blend />
           </div>
         </section>
       )}
 
-      <section style={{ paddingBlock: '80px' }} id="speak">
-        <div className="wrap">
-          <h2>Speak at KGC</h2>
-          {/*
-            `.wrap`, not `.wrap.narrow`. Narrow centres a 760px column inside a
-            full-width band, so this one started 250px to the right of every
-            heading above it while its background ran the whole screen. The
-            paragraphs keep the measure `.narrow` gave them and lose the indent.
-          */}
-          <p style={{ maxWidth: '68ch' }}>
-            We look for specific work: a system you built, a modelling decision you would change, a
-            migration that went sideways, an evaluation with numbers in it. Product tours belong at
-            the booth.
-          </p>
-          <p style={{ maxWidth: '68ch' }}>
-            Formats are a 25-minute talk, a 45-minute deep dive, a panel or a half-day workshop.
-            Submissions open in September and close in December.
-          </p>
-          <p>
-            <a className="btn btn-primary" href={`mailto:${SITE.contactEmail}?subject=KGC%202027%20talk%20proposal`}>
-              Pitch a talk
-            </a>
-          </p>
-        </div>
-      </section>
     </>
+  );
+}
+
+/**
+ * One package as a flat block: its name, and on hover the line of scope and
+ * everything it includes.
+ */
+function PackageBlock({ tier }: { tier: Tier }) {
+  const items = (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap(
+    (g) => g.items ?? [],
+  );
+  return (
+    /*
+      Only the name shows until the block is hovered or focused, then the
+      tagline and list open underneath. `tabIndex` so a keyboard can open it
+      too. Phones have no hover, so there the block is always open.
+    */
+    <article
+      className={`flat-block package${tier.featured ? ' is-featured' : ''}`}
+      tabIndex={0}
+      aria-label={`${tier.name} package`}
+    >
+      <h3>{tier.name}</h3>
+      <div className="package-more">
+        <div>
+          <p className="package-line">{tier.tagline}</p>
+          <ul>
+            {items.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </article>
   );
 }

@@ -90,14 +90,18 @@ type TierTitles = 'heading' | 'label';
 export function SponsorTiers({
   bands,
   titles = 'heading',
+  blend = false,
 }: {
   bands: SponsorBand[];
   titles?: TierTitles;
+  /* Logos straight on the page background, no white tile. The homepage keeps
+     the tiles, which match the live widget. */
+  blend?: boolean;
 }) {
   if (bands.length === 0) return null;
 
   return (
-    <div className="sponsor-tiers">
+    <div className={blend ? 'sponsor-tiers is-blend' : 'sponsor-tiers'}>
       {bands.map((band) => (
         <section
           className="tier-band"
