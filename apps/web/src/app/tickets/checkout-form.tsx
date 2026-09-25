@@ -703,15 +703,18 @@ function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: str
       disabled={pending || !stripeReady}
     >
       {/*
-        "Payments open soon" rather than "Payments unavailable".
+        One label, whatever the state.
 
-        The two say the same thing to the code and opposite things to a buyer:
-        unavailable reads as broken and sends them away, open soon reads as a
-        date they have not been told yet and keeps the page worth returning to.
-        The key was removed deliberately on 2026-09-09, so this is the state the
-        deployed site is in — not a fault to be reported.
+        The button used to read "Payments open soon" while the notice at the top
+        of this form said "Ticket sales are not open yet" — the same fact stated
+        twice, four inches apart, in two different sets of words. The notice
+        keeps it, because it is read before the typing rather than after it and
+        because it carries the way out; the button goes back to naming its own
+        action. Nothing here is hard coded: `stripeReady` still greys the button
+        out and still draws the notice, and both clear themselves the moment a
+        key is set.
       */}
-      {pending ? 'Redirecting…' : stripeReady ? `Pay ${price} with Stripe` : 'Payments open soon'}
+      {pending ? 'Redirecting…' : `Pay ${price} with Stripe`}
     </button>
   );
 }

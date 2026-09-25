@@ -31,9 +31,12 @@ import { SITE } from '@/lib/site';
  * as unfinished software rather than as a missing fact, and a reader cannot
  * tell whether anything else on the page is real.
  *
- * So the page says the thing plainly in a sentence, names the route that works
- * today, and prints no markers. The sentence disappears on its own the moment
- * both constants hold real values.
+ * So the page names the route that works today, in one sentence at the end of
+ * the paragraph that already gives the address, and prints no markers. It does
+ * not announce that the two details are missing: a notice that says what it is
+ * not telling you, and then adds that everything else on it is accurate, gives
+ * a reader a reason to doubt the rest. The sentence disappears on its own the
+ * moment both constants hold real values.
  *
  * ⚠️ Fill both constants in. Nothing else has to change.
  */
@@ -115,18 +118,13 @@ export default function PrivacyPage() {
 
         <h2>Who is responsible</h2>
         {MISSING_DETAILS ? (
-          <>
-            <p>
-              The Knowledge Graph Conference decides what happens to the data described on this
-              page. For anything about your data, write to{' '}
-              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and you will reach the
-              people who can answer.
-            </p>
-            <p className="muted">
-              The registered company name and postal address are not published here yet. Ask at the
-              address above and they will be given to you. Everything else on this page is accurate.
-            </p>
-          </>
+          <p>
+            The Knowledge Graph Conference decides what happens to the data described on this page.
+            For anything about your data, write to{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and you will reach the
+            people who can answer. Ask at the same address for the registered company name and
+            postal address.
+          </p>
         ) : (
           <p>
             {LEGAL_ENTITY}, {POSTAL_ADDRESS}. For anything about your data, write to{' '}

@@ -136,7 +136,7 @@ export default async function SearchPage({
         {q && (
           <p className="filter-summary" role="status">
             {total === 0 ? (
-              <>Nothing matches “{q}”.</>
+              <>Nothing matches “{q}”. Try a speaker’s name or a session title.</>
             ) : (
               <>
                 {total} {total === 1 ? 'result' : 'results'} for “{q}”.

@@ -52,8 +52,8 @@ const RULES = [
  * said PLACEHOLDER in a comment, and the page printed them under a heading
  * reading "Important dates" with a muted line calling them provisional. An
  * author plans a term around the date, not around the caption. So the page now
- * states that the calendar is not settled and prints nothing that looks like a
- * deadline until something can source one.
+ * prints no date section at all until something can source one, rather than a
+ * heading standing over a line saying there is nothing to print.
  *
  * The topics, the author guidelines and the CEUR-ART requirement stay in React.
  * They are rules an author formats a paper against, and getting one subtly
@@ -131,7 +131,16 @@ export default async function CallForPostersPage() {
 
   return (
     <>
-      <section>
+      {/*
+        Three sections, one background.
+
+        The middle band used to be tinted, which made the page a white / tint /
+        white stripe where the only thing separating one part of the argument
+        from the next was a change of colour. The sections are now told apart by
+        spacing alone: 80px between two of them against 14px between a heading
+        and the paragraph under it, so what belongs together sits together.
+      */}
+      <section style={{ paddingBottom: 40 }}>
         <div className="wrap narrow">
           <p className="eyebrow">KGC {SITE.year}</p>
           <h1>Poster track</h1>
@@ -175,7 +184,7 @@ export default async function CallForPostersPage() {
         </div>
       </section>
 
-      <section className="tint">
+      <section style={{ paddingBlock: 40 }}>
         <div className="wrap narrow">
           <h2>Topics of interest</h2>
           <p>
@@ -192,7 +201,7 @@ export default async function CallForPostersPage() {
         </div>
       </section>
 
-      <section>
+      <section style={{ paddingTop: 40 }}>
         <div className="wrap narrow">
           <h2>Author guidelines</h2>
           <p>
@@ -212,24 +221,25 @@ export default async function CallForPostersPage() {
             publication.
           </p>
 
-          <h2 style={{ marginTop: 40 }}>Important dates</h2>
+          <p>
+            Questions go to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+          </p>
+
           {/*
             A date is printed only when something could source it — the open
             call's own `closesAtLocal`, or a deadline an organizer typed into
-            Website Copy. Otherwise the page says the calendar is not settled and
-            prints nothing, because the three deadlines this section used to
-            carry were the 2026 dates moved forward a year and the muted line
-            calling them provisional did not stop them reading as a date to plan
-            around. `datesConfirmed` still gates the caption, for the case where
-            an organizer has entered dates they are not finished arguing about.
+            Website Copy. Otherwise the heading does not appear either, because
+            the three deadlines this section used to carry were the 2026 dates
+            moved forward a year, the muted line calling them provisional did not
+            stop them reading as a date to plan around, and the line that
+            replaced them — "Dates to be announced" — was a heading and a stop
+            with no fact between them. `datesConfirmed` still gates the caption,
+            for the case where an organizer has entered dates they are not
+            finished arguing about.
           */}
-          {dates.length === 0 ? (
-            <p className="muted">
-              Dates to be announced. Questions:{' '}
-              <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
-            </p>
-          ) : (
+          {dates.length > 0 ? (
             <>
+              <h2 style={{ marginTop: 40 }}>Dates</h2>
               {call.datesConfirmed ? null : (
                 <p className="muted">Provisional. The {SITE.year} calendar is not final.</p>
               )}
@@ -241,7 +251,7 @@ export default async function CallForPostersPage() {
                 ))}
               </ul>
             </>
-          )}
+          ) : null}
 
           <p style={{ marginTop: 32 }}>
             Posters are not the only way to present. The{' '}

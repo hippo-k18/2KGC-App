@@ -100,10 +100,20 @@ export default async function ExhibitorsPage() {
               <h2>
                 {total} {total === 1 ? 'exhibitor' : 'exhibitors'}
               </h2>
-              <p className="muted">Grouped by aisle, in booth order.</p>
-
               {zones.map((zone) => (
-                <section className="exhibitor-zone" key={zone.zone || 'unplaced'}>
+                /*
+                  `paddingBlock: 0`: an aisle is a `<section>`, so it was
+                  inheriting the page sections' own 64px top and bottom — 158px
+                  between two aisles and 168px of empty tint under the last
+                  row, inside a band that already sets its own spacing. The
+                  stylesheet zeroed it for phones only; the same air was wrong
+                  at every width. `.exhibitor-zone`'s 30px margin is the gap.
+                */
+                <section
+                  className="exhibitor-zone"
+                  key={zone.zone || 'unplaced'}
+                  style={{ paddingBlock: 0 }}
+                >
                   <h3 className="exhibitor-zone-title">
                     {/*
                       An exhibitor who has signed but has no space allocated yet
@@ -178,9 +188,15 @@ export default async function ExhibitorsPage() {
 
       {total > 0 && (
         <section>
-          <div className="wrap narrow">
+          {/*
+            `.wrap`, not `.wrap.narrow`. Narrow centres a 760px column inside a
+            full-width band, so this one began 250px to the right of the
+            headings and cards above it. The paragraph keeps the measure
+            `.narrow` gave it and loses the indent.
+          */}
+          <div className="wrap">
             <h2>Exhibit at {ev.shortName} {ev.year}</h2>
-            <p>
+            <p style={{ maxWidth: '68ch' }}>
               Booth packages include a staffed space for the whole week and full conference passes
               for your team.
             </p>

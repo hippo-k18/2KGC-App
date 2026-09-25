@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { listSponsorsByTier } from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { SponsorTiers } from '@/components/sponsor-tiers';
+import { TierCard } from '../tickets/tier-card';
 import { SITE } from '@/lib/site';
-import { formatPrice } from '@/lib/tickets';
 
 export const metadata: Metadata = {
   title: 'Sponsor KGC',
@@ -47,6 +46,17 @@ export const revalidate = 30;
  * page now read the same documents, and the only thing this one adds is the
  * link that takes you to the other.
  *
+ * ── And they were drawing them two different ways ───────────────────────────
+ *
+ * Reading the same documents was only half of it. This page then printed every
+ * `includes` line of all four tiers in a three-column grid, which put Bronze,
+ * Silver and Gold in row one and left Platinum alone at a third of the width in
+ * row two — and printed, at full length, the contents `/tickets/sponsor` shows
+ * behind a disclosure. `TierCard` is that page's card, so four tiers now sit
+ * four across with the same prices, the same one-line scope and the same
+ * expandable contents, and the difference between the two pages is which of
+ * them takes the money.
+ *
  * ── Prices are quoted now, because the sibling page already quotes them ─────
  *
  * The old comment here said no prices were shown because the real prospectus is
@@ -58,6 +68,18 @@ export const revalidate = 30;
  * Catalogue order — `sortOrder`, ascending, which is Bronze first — is the same
  * order `/tickets/sponsor` uses. Reversing it here to lead with Platinum would
  * be a second opinion about the same list.
+ */
+
+/*
+ * ── No tint bands, and three spacing steps instead ──────────────────────────
+ *
+ * The four sections used to alternate white, tint, white, tint at an identical
+ * 64px of padding each, so the page read as four interchangeable stripes with
+ * nothing weighted above anything else. The pitch, the prices and the wall of
+ * logos are one continuous argument and are now spaced as one; the call for
+ * speakers is a different ask of a different reader, and the only large gap on
+ * the page is the one in front of it. `.tint` itself is untouched — the replica
+ * pages still use it.
  */
 
 export default async function SponsorPage() {
@@ -74,7 +96,7 @@ export default async function SponsorPage() {
 
   return (
     <>
-      <section>
+      <section style={{ paddingBottom: 40 }}>
         <div className="wrap">
           <h1>Sponsor KGC 2027</h1>
           <p className="lede">
@@ -89,66 +111,60 @@ export default async function SponsorPage() {
       </section>
 
       {packages && packages.length > 0 && (
-        <section className="tint">
+        <section style={{ paddingBlock: '0 56px' }}>
           <div className="wrap">
             <h2>Packages</h2>
-            <div className="grid g3" style={{ marginTop: 24 }}>
+            {/*
+              `maxWidth: 'none'` because `.tier-grid` centres itself in a
+              1120px measure, which is right on `/tickets/sponsor` where the
+              whole band is centred and wrong here, where it would inset the
+              row 56px from the heading above it.
+
+              Each card links straight to its own tier on the checkout page,
+              so the standalone "Become a sponsor" button underneath went: four
+              calls to action and a fifth one repeating them is the shape of a
+              page that does not know which one it means.
+            */}
+            <div className="tier-grid" style={{ marginTop: 24, maxWidth: 'none' }}>
               {packages.map((p) => (
-                <div className="card" key={p.id}>
-                  <h3>{p.name}</h3>
-                  <p style={{ margin: '4px 0 0', fontWeight: 600 }}>
-                    {formatPrice(p.priceCents, p.currency)}
-                  </p>
-                  {p.tagline && (
-                    <p style={{ margin: '4px 0 0', fontSize: '0.93rem' }}>{p.tagline}</p>
-                  )}
-                  <ul style={{ paddingLeft: 18, margin: '10px 0 0', fontSize: '0.93rem' }}>
-                    {p.includes.map((w) => (
-                      <li key={w} style={{ padding: '3px 0' }}>
-                        {w}
-                      </li>
-                    ))}
-                  </ul>
-                  {/*
-                    A closed package keeps its card and says why, rather than
-                    vanishing — Platinum is capped at one, and "sold out" is the
-                    single most useful thing an enquirer can be told about it.
-                  */}
-                  {!p.onSale && (
-                    <p style={{ margin: '10px 0 0', fontSize: '0.93rem', fontWeight: 600 }}>
-                      {p.unavailableReason ?? 'Not available'}
-                    </p>
-                  )}
-                </div>
+                <TierCard key={p.id} tier={p} href={`/tickets/sponsor?tier=${p.id}#buy`} />
               ))}
             </div>
-            <p style={{ marginTop: 24 }}>
-              <Link className="btn btn-primary" href="/tickets/sponsor">
-                Become a sponsor
-              </Link>
-            </p>
           </div>
         </section>
       )}
 
       {bands.length > 0 && (
-        <section>
+        <section style={{ paddingBlock: '0 24px' }}>
           <div className="wrap">
             <h2>Our sponsors</h2>
-            <SponsorTiers bands={bands} />
+            {/*
+              `titles="label"`, because the packages above are already headed
+              Bronze, Silver, Gold, Platinum, and the wall repeating the same
+              four words at the same weight in the opposite order read as one
+              list poured into two slots. The homepage keeps the widget's own
+              centred titles: nothing up the page from it has said them.
+            */}
+            <SponsorTiers bands={bands} titles="label" />
           </div>
         </section>
       )}
 
-      <section className="tint" id="speak">
-        <div className="wrap narrow">
+      <section style={{ paddingBlock: '80px' }} id="speak">
+        <div className="wrap">
           <h2>Speak at KGC</h2>
-          <p>
+          {/*
+            `.wrap`, not `.wrap.narrow`. Narrow centres a 760px column inside a
+            full-width band, so this one started 250px to the right of every
+            heading above it while its background ran the whole screen. The
+            paragraphs keep the measure `.narrow` gave them and lose the indent.
+          */}
+          <p style={{ maxWidth: '68ch' }}>
             We look for specific work: a system you built, a modelling decision you would change, a
             migration that went sideways, an evaluation with numbers in it. Product tours belong at
             the booth.
           </p>
-          <p>
+          <p style={{ maxWidth: '68ch' }}>
             Formats are a 25-minute talk, a 45-minute deep dive, a panel or a half-day workshop.
             Submissions open in September and close in December.
           </p>

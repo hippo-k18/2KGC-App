@@ -108,9 +108,6 @@ export default async function AnnouncementsPage() {
             </span>
           </p>
           <h1>Announcements</h1>
-          <p className="wall-sub">
-            Everything the organizers have announced, newest first.
-          </p>
         </header>
 
         {announcements.length === 0 ? (
@@ -122,10 +119,7 @@ export default async function AnnouncementsPage() {
           */
           <div className="wall-empty">
             <p>No announcements yet.</p>
-            <p className="wall-sub">
-              Notices posted during {ev.shortName} appear here, and on the phone of everyone with
-              the app.
-            </p>
+            <p className="wall-sub">Room changes and notices from the organizers appear here.</p>
           </div>
         ) : (
           <ol className="wall-list">

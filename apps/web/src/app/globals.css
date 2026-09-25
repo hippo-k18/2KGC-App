@@ -789,6 +789,24 @@ body.nav-open {
   background: var(--palette-1);
 }
 
+/*
+ * `.btn-secondary` was used and never declared, so the one button wearing it
+ * fell all the way through to the browser's own control styling: #efefef with a
+ * 3D border and black text, beside an orange `.btn-primary` in the same stack.
+ * Two buttons from two design systems, one on top of the other. Same lesson as
+ * the undeclared custom properties elsewhere in this file — a class nobody
+ * defined fails silently and only a screenshot catches it.
+ */
+.btn-secondary {
+  background: var(--white);
+  color: var(--navy);
+  border-color: var(--navy);
+}
+
+.btn-secondary:hover {
+  background: var(--wash);
+}
+
 .btn-sm {
   padding: 8px 14px;
   font-size: 0.88rem;
@@ -4465,7 +4483,7 @@ section.tint {
  */
 .tier-card-name {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink);
@@ -4478,7 +4496,7 @@ section.tint {
  */
 .tier-card-price {
   margin: 6px 0 0;
-  font-size: 2.3rem;
+  font-size: 1.35rem;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -4503,7 +4521,7 @@ section.tint {
  */
 .tier-card-line {
   margin: 10px 0 0;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   line-height: 1.5;
   color: var(--muted);
 }
@@ -4522,7 +4540,7 @@ section.tint {
  */
 @media (width >= 470px) {
   .tier-card-name {
-    min-height: calc(2 * 1.3 * 1.15rem);
+    min-height: calc(2 * 1.3 * 1rem);
   }
 
   /*
@@ -4537,7 +4555,7 @@ section.tint {
    * tagline on the page that matters most.
    */
   .tier-card-line {
-    min-height: calc(3 * 1.5 * 0.92rem);
+    min-height: calc(3 * 1.5 * 0.9rem);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
@@ -4569,7 +4587,7 @@ section.tint {
   gap: 10px;
   padding: 14px 0;
   cursor: pointer;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--ink);
 }
@@ -4611,7 +4629,7 @@ section.tint {
 
 .tier-card-detail {
   padding-bottom: 4px;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1.6;
   color: var(--body);
 }
@@ -4638,25 +4656,25 @@ section.tint {
   padding: 0;
 }
 
-/* A drawn tick, matching the order rail's. `•` before a wrapped line hangs the
-   second line under the bullet; the absolute mark keeps the whole item indented
-   to one edge. */
+/* The same short rule the order rail sets, and for the same reason: every line
+   here is included, so a tick has nothing to be checked against. `•` before a
+   wrapped line hangs the second line under the bullet; the absolute mark keeps
+   the whole item indented to one edge. */
 .tier-card-detail li {
   position: relative;
-  padding-left: 20px;
+  padding-left: 0.95rem;
   margin-bottom: 4px;
 }
 
 .tier-card-detail li::before {
   content: '';
   position: absolute;
-  left: 2px;
-  top: 8px;
-  width: 8px;
-  height: 4px;
-  border-left: 1.5px solid var(--highlight);
-  border-bottom: 1.5px solid var(--highlight);
-  transform: rotate(-45deg);
+  left: 0;
+  top: 0.62em;
+  width: 0.5rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--muted);
 }
 
 /*
@@ -4673,7 +4691,7 @@ section.tint {
   background: transparent;
   color: var(--palette-2);
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 1rem;
   text-align: center;
   text-decoration: none;
 }
@@ -6151,7 +6169,7 @@ a.li-icon::after {
 
 .rail-eyebrow {
   margin: 0 0 10px;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -6159,24 +6177,25 @@ a.li-icon::after {
 }
 
 /* `h2` on the page's own scale would be 28px near-black; this is a label for a
-   card, not a section heading, and it is on navy. */
+   card, not a section heading, and it is on navy. `1.35rem` is the step
+   `/tickets` gives its own headline panel name, so the two read as one page. */
 .rail-card .rail-tier {
   color: var(--white);
-  font-size: 26px;
+  font-size: 1.35rem;
   line-height: 1.25;
   margin: 0;
 }
 
 .rail-tagline {
   margin: 8px 0 0;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1.55;
   color: var(--palette-4);
 }
 
 .rail-heading {
   margin: 22px 0 10px;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -6189,28 +6208,32 @@ a.li-icon::after {
   padding: 0;
   display: grid;
   gap: 9px;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
-/* A drawn tick rather than a `•` or a `✓` glyph: the check mark renders at a
-   different weight in every fallback font, and at this size that reads as a
-   rendering fault rather than as a bullet. */
+/*
+ * A short rule, not a tick.
+ *
+ * Every line in this list is included — there is no excluded half for a check
+ * mark to be checked against — so the tick that used to sit here marked nothing
+ * and only spent the accent colour. The mark is the same dash `/tickets` sets
+ * against its own tier contents, so the two lists read as one list.
+ */
 .rail-list li {
   position: relative;
-  padding-left: 26px;
+  padding-left: 1rem;
 }
 
 .rail-list li::before {
   content: '';
   position: absolute;
-  left: 3px;
-  top: 6px;
-  width: 10px;
-  height: 5px;
-  border-left: 2px solid var(--orange);
-  border-bottom: 2px solid var(--orange);
-  transform: rotate(-45deg);
+  left: 0;
+  top: 0.62em;
+  width: 0.6rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--palette-4);
 }
 
 .rail-total {
@@ -6241,7 +6264,7 @@ a.li-icon::after {
  * face.
  */
 .rail-amount {
-  font-size: 1.9rem;
+  font-size: 2.05rem;
   font-weight: 800;
   letter-spacing: -0.01em;
   text-transform: none;
@@ -6250,7 +6273,7 @@ a.li-icon::after {
 
 .rail-note {
   margin: 12px 0 0;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   line-height: 1.5;
   color: var(--palette-4);
 }
@@ -6261,7 +6284,7 @@ a.li-icon::after {
   padding: 0;
   display: grid;
   gap: 10px;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   line-height: 1.5;
   color: var(--muted);
 }
@@ -6280,7 +6303,7 @@ a.li-icon::after {
 /* ------------------------------------------------------------ the form ---- */
 
 .checkout-title {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   margin: 0 0 18px;
 }
 
@@ -6306,7 +6329,7 @@ a.li-icon::after {
   padding: 0;
   font-weight: 600;
   color: var(--ink);
-  font-size: 0.92rem;
+  font-size: 1rem;
   margin-bottom: 8px;
 }
 
@@ -6319,7 +6342,7 @@ a.li-icon::after {
   border-radius: 8px;
   background: var(--white);
   cursor: pointer;
-  font-size: 0.92rem;
+  font-size: 1rem;
 }
 
 .tier-option + .tier-option {
@@ -6375,7 +6398,7 @@ a.li-icon::after {
 
 .tier-option.is-unavailable .tier-option-price {
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -6411,7 +6434,7 @@ a.li-icon::after {
 
 .seat-card-title {
   margin: 0 0 12px;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -6422,6 +6445,26 @@ a.li-icon::after {
    for a form-level fieldset rather than for the first block inside a card. */
 .seat-card .tier-choice {
   margin-bottom: 14px;
+}
+
+/*
+ * The shared form classes, brought onto the ticket flow's own scale.
+ *
+ * `.field label`, `.field .hint` and `.notice` are also the abstract portal's
+ * and the invoice form's, and each sits a half-step off the others, so the
+ * purchase form was setting a label, a hint and a notice at three sizes that
+ * differ by under two pixels. Those rules are not ours to move, so the flow
+ * overrides them for itself: labels and notices on the base step, every hint
+ * one step below it.
+ */
+.buy-layout .field label,
+.buy-layout .notice {
+  font-size: 1rem;
+}
+
+.buy-layout .field .hint,
+.buy-layout .hint {
+  font-size: 0.9rem;
 }
 
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { siteEvent, siteVisibility } from '@/lib/data';
+import { siteVisibility } from '@/lib/data';
 import { listSignageRooms } from '@/lib/room-signage';
 
 /**
@@ -38,15 +38,12 @@ export const metadata: Metadata = {
 export default async function RoomIndexPage() {
   // The room screens show the programme, so they hide with it.
   if (!(await siteVisibility()).agenda) notFound();
-  const [rooms, ev] = await Promise.all([listSignageRooms(), siteEvent()]);
+  const rooms = await listSignageRooms();
 
   return (
     <section className="wall sign">
       <div className="wrap">
         <header className="wall-head">
-          <p className="wall-eyebrow">
-            {ev.shortName} {ev.year}
-          </p>
           <h1>Room screens</h1>
           <p className="wall-sub">
             One page per room, showing what is on now and next. Open the room&rsquo;s page on the
@@ -55,7 +52,7 @@ export default async function RoomIndexPage() {
         </header>
 
         {rooms.length === 0 ? (
-          <p className="wall-sub">No rooms yet.</p>
+          <p className="wall-sub">Rooms appear here once the programme has them.</p>
         ) : (
           <ol className="sign-later room-index">
             {rooms.map((r) => (

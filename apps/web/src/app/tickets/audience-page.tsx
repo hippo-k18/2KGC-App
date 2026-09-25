@@ -144,8 +144,13 @@ export async function AudienceTicketsPage({
           }}
         >
           <div>
-            <h2>{copy.heading}</h2>
-            <ol className="steps" style={{ marginTop: 22 }}>
+            {/*
+              No heading here. It carried `copy.heading` — the same words as the
+              h1 six hundred pixels above it — so the page introduced itself
+              twice and named nothing. The numbered points already say what they
+              are, and the column opposite keeps its own "Register".
+            */}
+            <ol className="steps">
               {copy.points.map((p) => (
                 <li key={p.title}>
                   <strong>{p.title}</strong>

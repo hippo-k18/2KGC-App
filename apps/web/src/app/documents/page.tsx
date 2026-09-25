@@ -74,6 +74,27 @@ const KIND_LABEL: Record<PublicDocument['kind'], string> = {
   link: 'Link',
 };
 
+/**
+ * Two rules that belong to this page and to no other.
+ *
+ * `globals.css` is the replica pages' file, and `.doc-list` is rendered nowhere
+ * but here, so the row layout is carried with the row rather than added to the
+ * shared sheet.
+ *
+ * The row is the title and its description on the left and the host on the
+ * right, so a card holding forty characters still reaches both edges of its
+ * measure instead of trailing off into padding. Under 700px there is no width
+ * to reach across and the host takes its own line.
+ */
+const DOC_ROW_CSS = `
+.doc-card { flex-wrap: wrap; }
+.doc-body { flex: 1 1 0%; }
+.doc-card .doc-host { flex: 0 0 auto; margin: 4px 0 0 16px; text-align: right; }
+@media (width <= 700px) {
+  .doc-card .doc-host { flex-basis: 100%; margin: 8px 0 0; text-align: left; }
+}
+`;
+
 export default async function DocumentsPage() {
   /*
    * The pages an organizer wrote themselves, listed beside the handouts because
@@ -89,38 +110,47 @@ export default async function DocumentsPage() {
 
   return (
     <>
+      {/*
+        One column, not three bands.
+
+        The page was a hero holding an `h1` and one line, then a white band, then
+        a tinted one. The gap under the lede was the same gap that separated two
+        unrelated sections, so band one read as empty. The title, the pages and
+        the handouts are one list of things to read, so they sit in one section
+        now and the spacing carries the grouping: a heading sits close to what it
+        labels and far from what it does not.
+
+        `narrow` because a row carries about forty characters. At the full
+        container each card was a 1200px box around a short sentence.
+      */}
+      <style>{DOC_ROW_CSS}</style>
+
       <section>
-        <div className="wrap">
+        <div className="wrap narrow">
           <h1>Documents</h1>
           <p className="lede">
             Maps, travel notes and handouts for {SITE.shortName} {SITE.year}.
           </p>
-        </div>
-      </section>
 
-      {pages.length > 0 && (
-        <section>
-          <div className="wrap">
-            <h2>Event information</h2>
-            <ul className="doc-list">
-              {pages.map((p) => (
-                <li className="doc-card" key={p.id}>
-                  <span className="tag">Page</span>
-                  <div className="doc-body">
-                    <h3>
-                      <Link href={`/${p.slug}`}>{p.title}</Link>
-                    </h3>
-                    {p.summary && <p className="doc-desc">{p.summary}</p>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
+          {pages.length > 0 && (
+            <>
+              <h2 style={{ marginTop: 52 }}>Event information</h2>
+              <ul className="doc-list">
+                {pages.map((p) => (
+                  <li className="doc-card" key={p.id}>
+                    <span className="tag">Page</span>
+                    <div className="doc-body">
+                      <h3>
+                        <Link href={`/${p.slug}`}>{p.title}</Link>
+                      </h3>
+                      {p.summary && <p className="doc-desc">{p.summary}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
-      <section className="tint">
-        <div className="wrap">
           {documents.length === 0 ? (
             /*
               The honest empty state. Most of the year there is nothing to hand
@@ -129,20 +159,20 @@ export default async function DocumentsPage() {
               than a heading over nothing.
             */
             <>
-              <h2>Nothing published yet</h2>
+              <h2 style={{ marginTop: 52 }}>No documents yet</h2>
               <p>
-                Handouts are added as the programme firms up.
+                Maps, slides and handouts appear here once they are published.
                 {show.agenda && (
                   <>
                     {' '}
-                    The <Link href="/agenda">agenda</Link> is the thing to watch in the meantime.
+                    The <Link href="/agenda">agenda</Link> has what is scheduled so far.
                   </>
                 )}
               </p>
             </>
           ) : (
             <>
-              <h2>
+              <h2 style={{ marginTop: 52 }}>
                 {documents.length} {documents.length === 1 ? 'document' : 'documents'}
               </h2>
 
@@ -157,15 +187,19 @@ export default async function DocumentsPage() {
                         </a>
                       </h3>
                       {d.description && <p className="doc-desc">{d.description}</p>}
-                      {/*
-                        Where the click actually goes. `listPublicDocuments()`
-                        drops any row whose `url` will not parse, so a host is
-                        present on everything that reaches here — but the guard
-                        stays, because an empty string in a `<span>` is a stray
-                        bullet nobody would notice in review.
-                      */}
-                      {d.host && <p className="doc-host">{d.host}</p>}
                     </div>
+                    {/*
+                      Where the click actually goes. `listPublicDocuments()`
+                      drops any row whose `url` will not parse, so a host is
+                      present on everything that reaches here — but the guard
+                      stays, because an empty string in a `<span>` is a stray
+                      bullet nobody would notice in review.
+
+                      It sits at the right edge of the row rather than under the
+                      description, so a row holding one short sentence still
+                      reaches both ends of its measure.
+                    */}
+                    {d.host && <p className="doc-host">{d.host}</p>}
                   </li>
                 ))}
               </ul>

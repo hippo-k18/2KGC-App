@@ -35,7 +35,7 @@ export default async function SponsorTicketsPage({
         heading: `Sponsor ${SITE.shortName} ${SITE.year}`,
         /* See the note on the exhibitor page: the heading band already carries
            the date and venue line, so repeating it here says it twice. */
-        lede: <>A few hundred people who build knowledge graphs for a living, in one place for five days.</>,
+        lede: <>A thousand people who build knowledge graphs for a living, in one place for five days.</>,
         points: [
           {
             title: 'Brand placement',

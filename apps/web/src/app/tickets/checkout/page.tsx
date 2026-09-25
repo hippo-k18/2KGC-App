@@ -65,7 +65,9 @@ export default async function CheckoutPage({
     <section className="band">
       <div className="wrap">
         <p style={{ margin: '0 0 1rem' }}>
-          <Link href="/tickets">← All tickets</Link>
+          <Link href="/tickets" className="btn btn-ghost-quiet btn-sm">
+            ← All tickets
+          </Link>
         </p>
 
         {params.cancelled && (
