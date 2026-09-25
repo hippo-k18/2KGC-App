@@ -874,7 +874,7 @@ body.nav-open {
 .hero {
   position: relative;
   color: var(--white);
-  background: var(--palette-1) url('/kgc/bryant-park/midtown-aerial.jpg') center 70% / cover no-repeat;
+  background: var(--palette-1) url('/kgc/bryant-park/from-empire-state-building.jpg') center 45% / cover no-repeat;
   padding: 0;
   isolation: isolate;
 }
