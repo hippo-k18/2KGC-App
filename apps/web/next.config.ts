@@ -64,6 +64,45 @@ const nextConfig: NextConfig = {
     return config;
   },
 
+  /**
+   * No `x-powered-by: Next.js`. It tells a scanner which exploits to try first
+   * and tells a visitor nothing.
+   */
+  poweredByHeader: false,
+
+  /**
+   * Security headers, set by the app rather than by whatever serves it, so
+   * they travel with it: Apache on the droplet adds none of these, and the
+   * pre-publish gate found all three missing on staging.
+   *
+   * - HSTS: a browser that has seen the site once never tries plain HTTP again.
+   * - nosniff: a file is only ever run as the type it was served as.
+   * - Framing: `SAMEORIGIN` plus CSP `frame-ancestors 'self'` (the modern
+   *   form; old browsers read the first). The checkout embedded invisibly in
+   *   another site, under that site's buttons, is clickjacking. Nothing embeds
+   *   this site in a frame, and embedding *other* things (the session video
+   *   player) is not affected.
+   * - The Stripe webhook is never cached by anything between Stripe and here.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+      {
+        source: '/api/stripe/webhook',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+    ];
+  },
+
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true }, // `npm run lint` runs it separately
 };

@@ -5863,6 +5863,12 @@ section.tint {
 }
 
 /* The wordmark is 1000x275 on the live page and dominates the hero. */
+.learn-hero-band h1 {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .learn-hero-band img {
   width: 100%;
   max-width: 1000px;
@@ -6467,7 +6473,9 @@ a.li-icon::after {
   gap: 10px;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--muted);
+  /* A shade darker than --muted, which measures 4.2:1 on the rail's pale
+     ground and fails WCAG AA. slate-600 is 6.9:1. */
+  color: #475569;
 }
 
 .rail-trust a {
@@ -9045,7 +9053,8 @@ section .site-search-form {
   flex-basis: 100%;
   font-size: 11px;
   line-height: 1.5;
-  opacity: 0.7;
+  /* Full strength. At 0.7 opacity the credit measured 3.3:1 on the navy
+     footer, under WCAG AA's 4.5:1 for text this small. */
 }
 
 .site-footer .fine .photo-credit a {

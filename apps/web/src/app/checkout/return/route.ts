@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilPurchase } from '@/lib/registrations';
-import { stripe, stripeEnabled } from '@/lib/stripe';
+import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 
 /**
  * Where Stripe sends the buyer after a successful Checkout.
@@ -27,10 +27,22 @@ import { stripe, stripeEnabled } from '@/lib/stripe';
  */
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('session_id');
+  /**
+   * The public origin, never `req.nextUrl.origin`.
+   *
+   * Behind the droplet's Apache proxy the request this route sees is the one
+   * Apache made to `127.0.0.1:3200`, so `nextUrl.origin` is the internal
+   * address. Every buyer coming back from Stripe was being sent on to
+   * `http://localhost:3200/order/…`, which on their machine is nothing. The
+   * pre-publish gate found it on staging. `siteOrigin()` is what the checkout
+   * action already uses to build `success_url`: `WEB_PUBLIC_ORIGIN` first, then
+   * the forwarded host.
+   */
+  const origin = siteOrigin(req.headers.get('x-forwarded-host') ?? req.headers.get('host'), req.headers.get('x-forwarded-proto'));
   // The checkout page, not `/tickets#buy` — that anchor went away when buying
   // moved to its own route, and a redirect to a missing fragment silently lands
   // the buyer at the top of a price list with no form and no explanation.
-  const back = new URL('/tickets/checkout', req.nextUrl.origin);
+  const back = new URL('/tickets/checkout', origin);
 
   if (!sessionId || !stripeEnabled()) return NextResponse.redirect(back);
 
@@ -41,7 +53,7 @@ export async function GET(req: NextRequest) {
   // yet, and the buyer goes back to the tickets page rather than to a
   // confirmation that would be a lie.
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
-    return NextResponse.redirect(new URL('/tickets/checkout?cancelled=1', req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/tickets/checkout?cancelled=1', origin));
   }
 
   const email = session.customer_details?.email ?? session.customer_email;
@@ -58,6 +70,6 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.redirect(
-    new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, req.nextUrl.origin),
+    new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, origin),
   );
 }

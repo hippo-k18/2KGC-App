@@ -79,13 +79,16 @@ export default function LearnPage() {
     <>
       <section className="learn-hero-band">
         <div className="wrap-kgc">
-          <Image
-            src="/kgc/learn-wordmark.png"
-            alt="KGC | Learn"
-            width={1000}
-            height={275}
-            priority
-          />
+          {/* The wordmark is the page's title, so it is the h1. */}
+          <h1>
+            <Image
+              src="/kgc/learn-wordmark.png"
+              alt="KGC | Learn"
+              width={1000}
+              height={275}
+              priority
+            />
+          </h1>
           {/* One box for both lines, so a phone can put a panel behind them. */}
           <div className="copy">
             <p className="tagline">

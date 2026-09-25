@@ -74,6 +74,7 @@ export function CheckoutForm({
   stripeReady,
   demoReady = false,
   questions = [],
+  titleAs = 'h2',
 }: {
   /**
    * The catalogue, passed in rather than imported.
@@ -116,7 +117,15 @@ export function CheckoutForm({
    * component with no Admin SDK, and it must not gain one.
    */
   questions?: QuestionFieldDef[];
+  /**
+   * `h1` on `/tickets/checkout`, where "Register" is the page's own title, and
+   * `h2` on the sponsor and exhibitor pages, which already have an `h1` above
+   * this form. A page with no `h1` is one a screen reader cannot jump to the
+   * top of, and the pre-publish gate refuses it.
+   */
+  titleAs?: 'h1' | 'h2';
 }) {
+  const Title = titleAs;
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
   /**
    * The rehearsal button gets its own state because it is a second action on
@@ -224,7 +233,7 @@ export function CheckoutForm({
       <OrderRail tier={selected} quantity={quantity} totalCents={totalCents} />
 
       <form action={action} className="checkout">
-        <h2 className="checkout-title">Register</h2>
+        <Title className="checkout-title">Register</Title>
 
         {shown.error && (
           <p className="notice bad" role="alert">

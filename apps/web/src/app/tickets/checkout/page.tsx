@@ -82,10 +82,11 @@ export default async function CheckoutPage({
             stripeReady={stripeEnabled()}
             demoReady={await demoCheckoutAllowed()}
             questions={form.fields}
+            titleAs="h1"
           />
         ) : (
           <div className="checkout checkout-closed">
-            <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
+            <h1 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h1>
             <p className="notice warn">
               Ticket sales for {ev.name} have not opened. Everything else on this site is
               current.
