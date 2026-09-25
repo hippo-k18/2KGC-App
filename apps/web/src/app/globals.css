@@ -2610,8 +2610,10 @@ a.logo-card:hover {
  * scrim and canvas.
  */
 .kgc-stats {
-  background: transparent;
-  padding-block: 0 48px;
+  /* White from the photo's bottom edge down, so the pale boxes sit on white
+     as on the live site. The first 124px is the overlap with the photo. */
+  background: linear-gradient(transparent 124px, var(--white) 124px);
+  padding-block: 0 56px;
   margin-top: -124px;
   position: relative;
   z-index: 2;
@@ -2623,12 +2625,15 @@ a.logo-card:hover {
   .kgc-stats {
     margin-top: 0;
     padding-top: 40px;
+    background: var(--white);
   }
 }
 
 .kgc-stats-row {
   display: grid;
-  gap: 16px;
+  gap: 26px;
+  /* Each box is as tall as its own text, as on the live site. */
+  align-items: start;
   /*
    * `minmax(260px, 1fr)` needs 3x260 + 2x16 = 812px and the container is 720 at
    * a 768 viewport, so the three stats broke two-and-one with "45 Speakers"
@@ -2645,20 +2650,13 @@ a.logo-card:hover {
 }
 
 .kgc-stat {
-  /* Square, pale and flat, as on the live site. */
-  background: var(--wash);
+  /* Square, pale and flat on white, as on the live site. */
+  background: #f6f8fb;
   border: 0;
   border-radius: 0;
-  padding: 36px 28px;
+  padding: 44px 32px 42px;
   text-align: center;
   box-shadow: none;
-}
-
-/* Taller on a wide screen. The extra height goes below, so the tops stay put. */
-@media (width > 620px) {
-  .kgc-stat {
-    padding-bottom: 88px;
-  }
 }
 
 /*
@@ -2688,10 +2686,11 @@ a.logo-card:hover {
   /* `--palette-12`, the theme's own blue, at regular weight — the live cards set
      their body copy noticeably lighter than their heading, and ours was reading
      as a second heading. */
-  color: var(--palette-12);
+  /* The live cards' lighter steel blue. */
+  color: #4a86b5;
   font-weight: 400;
   font-size: 17px;
-  line-height: 1.65;
+  line-height: 1.7;
   margin: 0;
   max-width: 34ch;
   margin-inline: auto;
@@ -8688,7 +8687,7 @@ section .site-search-form {
 
 /* The blurb under each stat heading sits a little lower. */
 .kgc-stat h2 {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 /* The ticket the buyer already chose, in place of the picker. */

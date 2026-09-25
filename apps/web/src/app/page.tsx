@@ -275,9 +275,11 @@ export default async function HomePage() {
         stats={[
           {
             value: ATTENDEES_EXPECTED,
-            noun: 'Attendees expected',
+            noun: 'Attendees',
+            // The figure is a forecast, so the blurb says "expected" and the
+            // heading stays one line, as on the live site.
             blurb:
-              'Leading practitioners across hybrid AI, LLMs, NLP, machine learning and data management, for five days in New York.',
+              'Leading practitioners across hybrid AI, LLMs, NLP, machine learning and data management, expected for five days in New York.',
           },
           {
             value: String(counts.sponsors),
