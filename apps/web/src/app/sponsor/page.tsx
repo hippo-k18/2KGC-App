@@ -76,7 +76,6 @@ export default async function SponsorPage() {
     <>
       <section>
         <div className="wrap">
-          <p className="eyebrow">Partnership</p>
           <h1>Sponsor KGC 2027</h1>
           <p className="lede">
             A thousand people who buy, build and operate knowledge graph infrastructure, in one
@@ -143,7 +142,6 @@ export default async function SponsorPage() {
 
       <section className="tint" id="speak">
         <div className="wrap narrow">
-          <p className="eyebrow">Call for speakers</p>
           <h2>Speak at KGC</h2>
           <p>
             We look for specific work: a system you built, a modelling decision you would change, a

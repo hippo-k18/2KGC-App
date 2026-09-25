@@ -70,6 +70,7 @@ interface ExtraSeat {
 export function CheckoutForm({
   tiers,
   initialTier,
+  tierLocked = false,
   stripeReady,
   demoReady = false,
   questions = [],
@@ -83,6 +84,12 @@ export function CheckoutForm({
    */
   tiers: Tier[];
   initialTier: TicketId;
+  /**
+   * The buyer arrived by pressing one ticket's button, so that is the ticket.
+   * The picker is replaced by a line naming it, with a way back to choose
+   * another.
+   */
+  tierLocked?: boolean;
   /**
    * Whether `STRIPE_SECRET_KEY` is set on the server, passed down because
    * `stripeEnabled()` is `server-only` and this component runs in the browser.
@@ -309,6 +316,15 @@ export function CheckoutForm({
               `seatTier`, and the server is still the only thing that turns any
               of those ids into money.
             */}
+            {tierLocked && selected.onSale ? (
+              <div className="tier-chosen">
+                <input type="hidden" name="tier" value={selected.id} />
+                <span className="tier-chosen-label">Ticket</span>
+                <strong>{selected.name}</strong>
+                <span>{formatPrice(selected.priceCents, selected.currency)}</span>
+                <Link href="/tickets">Change</Link>
+              </div>
+            ) : (
             <fieldset className="tier-choice">
               <legend>Ticket</legend>
               {tiers.map((t) => (
@@ -335,6 +351,7 @@ export function CheckoutForm({
                 </label>
               ))}
             </fieldset>
+            )}
 
             <div className="field">
               <label htmlFor="name">Attendee name</label>

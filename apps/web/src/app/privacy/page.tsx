@@ -107,7 +107,6 @@ export default function PrivacyPage() {
   return (
     <section>
       <div className="wrap narrow">
-        <p className="eyebrow">Policy</p>
         <h1>Privacy</h1>
         <p className="lede">
           What the Knowledge Graph Conference collects about you, who else handles it, and how to

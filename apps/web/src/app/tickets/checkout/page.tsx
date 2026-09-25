@@ -76,6 +76,7 @@ export default async function CheckoutPage({
           <CheckoutForm
             tiers={tiers}
             initialTier={initialTier}
+            tierLocked={byId.has(params.tier ?? '')}
             stripeReady={stripeEnabled()}
             demoReady={await demoCheckoutAllowed()}
             questions={form.fields}

@@ -39,7 +39,6 @@ export default function PreviousEventsPage() {
   return (
     <section>
       <div className="wrap narrow">
-        <p className="eyebrow">Archive</p>
         <h1>Previous events</h1>
         <p className="lede">
           Every edition of the Knowledge Graph Conference since 2019. Each one keeps its own site,

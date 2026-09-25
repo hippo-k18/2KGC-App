@@ -411,11 +411,8 @@ export default async function HomePage() {
 
       <section className="tint">
         <div className="wrap">
-          <p className="eyebrow">Tickets</p>
-          <h2>Our tickets</h2>
-          <p className="lede" style={{ marginBottom: 30 }}>
-            Prices are per person in US dollars.
-          </p>
+          <h2 className="hero-headline section-headline">KGC {ev.year} Tickets</h2>
+          <p className="section-sub">Per person, in US dollars</p>
 
           <div className="grid g4">
             {/*
@@ -455,19 +452,9 @@ export default async function HomePage() {
       </section>
 
       {sponsorBands.length > 0 && (
-        <section>
+        <section className="band-white">
           <div className="wrap">
-            {/*
-              Heading and standfirst are the live site's own words, not ours —
-              its sponsor block is headed "OUR SPONSORS" over this sentence.
-            */}
-            <p className="eyebrow">Sponsors &amp; partners</p>
-            <h2>Our sponsors</h2>
-            <p className="lede" style={{ marginBottom: 28 }}>
-              We are proud to be supported by a distinguished group of sponsors, each playing a
-              pivotal role in advancing knowledge graph technologies and their applications. Want to
-              join them? <Link href="/sponsor">See the sponsorship packages</Link>.
-            </p>
+            <h2 className="hero-headline section-headline">Sponsors</h2>
             <SponsorTiers bands={sponsorBands} />
           </div>
         </section>

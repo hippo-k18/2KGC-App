@@ -134,7 +134,6 @@ export default async function CodeOfConductPage() {
   return (
     <section>
       <div className="wrap narrow">
-        <p className="eyebrow">Policy</p>
         <h1>Code of Conduct of Knowledge Graphs Conference LLC</h1>
         <p className="lede">
           All attendees, speakers, sponsors and volunteers at The Knowledge Graph Conference (KGC)

@@ -144,7 +144,6 @@ export async function AudienceTicketsPage({
           }}
         >
           <div>
-            <p className="eyebrow">What you get</p>
             <h2>{copy.heading}</h2>
             <ol className="steps" style={{ marginTop: 22 }}>
               {copy.points.map((p) => (

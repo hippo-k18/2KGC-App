@@ -91,7 +91,6 @@ export default async function DocumentsPage() {
     <>
       <section>
         <div className="wrap">
-          <p className="eyebrow">Resources</p>
           <h1>Documents</h1>
           <p className="lede">
             Maps, travel notes and handouts for {SITE.shortName} {SITE.year}.

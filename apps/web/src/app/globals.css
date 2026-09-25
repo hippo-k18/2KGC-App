@@ -3899,71 +3899,169 @@ section.tint {
   }
 }
 
-/* ------------------------------------------------------- quotes as text -- */
+/* --------------------------------------------------- quote carousel -- */
 
-.kgc-quote {
-  scroll-snap-align: start;
-  flex: 0 0 min(430px, 82vw);
-  background: var(--white);
-  border-radius: var(--radius);
-  padding: 34px 30px 28px;
-  display: flex;
+/* One quotation at a time, between two square arrows, as on the live site. */
+.kgc-quotes-heading {
+  font-style: italic;
+  font-weight: 800;
+  color: var(--navy);
 }
 
-.kgc-quote figure {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.kgc-quote blockquote {
-  margin: 0;
-  flex: 1;
-  font-size: 1.05rem;
-  line-height: 1.65;
-  color: var(--ink);
-}
-
-/* The opening quotation mark, drawn large and in the accent. */
-.kgc-quote blockquote::before {
-  content: '\201C';
-  display: block;
-  font-size: 3.2rem;
-  line-height: 0.6;
-  color: var(--orange);
-  margin-bottom: 12px;
-}
-
-.kgc-quote figcaption {
+.quote-carousel {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 24px;
+  margin-top: 32px;
 }
 
-.kgc-quote-mark {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--navy) 0%, var(--highlight) 100%);
-  color: var(--white);
+.quote-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.quote-track {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  transition: transform 0.45s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-track {
+    transition: none;
+  }
+}
+
+.quote-slide {
+  flex: 0 0 100%;
+  padding: 0 8px;
+}
+
+.quote-slide figure {
+  margin: 0;
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+.quote-slide blockquote {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.quote-open,
+.quote-close {
+  font-family: Georgia, 'Times New Roman', serif;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 3.4em;
+  line-height: 0;
+  color: var(--navy);
+  vertical-align: -0.42em;
 }
 
-.kgc-quote-who {
+.quote-open {
+  margin-right: 6px;
+}
+
+.quote-close {
+  margin-left: 6px;
+}
+
+.quote-slide figcaption {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-top: 28px;
+}
+
+.quote-slide figcaption img {
+  flex: none;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.quote-slide figcaption > span {
   display: flex;
   flex-direction: column;
-  font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--navy);
+  line-height: 1.35;
 }
 
-.kgc-quote-who strong {
-  color: var(--ink);
+.quote-slide figcaption strong {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.quote-slide figcaption b {
   font-weight: 700;
+}
+
+.quote-arrow {
+  flex: none;
+  width: 36px;
+  height: 52px;
+  border: 0;
+  border-radius: 3px;
+  background: #555;
+  color: var(--white);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.quote-arrow:hover {
+  background: var(--navy);
+}
+
+.quote-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.quote-dots button {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid #555;
+  background: transparent;
+  cursor: pointer;
+}
+
+.quote-dots button[aria-current] {
+  background: #555;
+}
+
+@media (width <= 620px) {
+  .quote-carousel {
+    gap: 8px;
+  }
+
+  .quote-arrow {
+    width: 30px;
+    height: 44px;
+  }
+
+  .quote-slide blockquote {
+    font-size: 1rem;
+  }
+
+  .quote-slide figcaption {
+    gap: 16px;
+  }
+
+  .quote-slide figcaption img {
+    width: 72px;
+    height: 72px;
+  }
 }
 
 /* ------------------------------------------- "Our First Speakers", 3 then 2 -- */
@@ -8497,4 +8595,86 @@ section .site-search-form {
     height: auto;
     overflow: visible;
   }
+}
+
+/* ---------------------------------------------- home section headings -- */
+
+/* Centred italic headings, the same voice as "The Knowledge Graph Conference
+   in Your Words", for the ticket and sponsor bands on the home page. */
+.section-headline {
+  text-align: center;
+  font-size: 32px;
+  color: var(--navy);
+  margin: 0 0 6px;
+}
+
+.section-sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 30px;
+}
+
+/* A white band, so white sponsor logo boxes sit on white rather than showing
+   as pale boxes on the grey page. */
+.band-white {
+  background: var(--white);
+}
+
+/* The quotes sit on white edge to edge, while their content keeps its width. */
+.kgc-quotes {
+  background: var(--white);
+  box-shadow: 0 0 0 100vmax var(--white);
+  clip-path: inset(0 -100vmax);
+}
+
+/* The ticket cards lift a little under the pointer. */
+@media (hover: hover) {
+  .grid.g4 > .card.tier {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .grid.g4 > .card.tier:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 32px rgb(16 36 58 / 14%);
+  }
+}
+
+/* The blurb under each stat heading sits a little lower. */
+.kgc-stat h2 {
+  margin-bottom: 18px;
+}
+
+/* The ticket the buyer already chose, in place of the picker. */
+.tier-chosen {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border: 2px solid var(--navy);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+}
+
+.tier-chosen-label {
+  flex-basis: 100%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tier-chosen strong {
+  color: var(--ink);
+}
+
+.tier-chosen a {
+  margin-left: auto;
+  font-size: 0.85rem;
 }

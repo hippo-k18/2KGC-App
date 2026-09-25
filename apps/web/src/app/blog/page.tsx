@@ -61,7 +61,6 @@ export default async function BlogPage({
     <>
       <section>
         <div className="wrap">
-          <p className="eyebrow">Writing</p>
           <h1>Blog</h1>
           <p className="lede">
             Talks, fortnightly news roundups and write-ups from the {SITE.shortName} community.{' '}

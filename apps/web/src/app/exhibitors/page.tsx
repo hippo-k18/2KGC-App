@@ -67,7 +67,6 @@ export default async function ExhibitorsPage() {
     <>
       <section>
         <div className="wrap">
-          <p className="eyebrow">Exhibition</p>
           <h1>Exhibitors at {ev.shortName} {ev.year}</h1>
           <p className="lede">
             {ev.datesLong} at {ev.venueShort}.
