@@ -201,6 +201,18 @@
   text-decoration: none;
 }
 
+/*
+ * On a phone the name and price fill the line, so the button wrapped onto a
+ * row of its own and `margin-left: auto` stranded it at the right, below and
+ * apart from the price. Give the name the whole first row instead: price and
+ * button then share the second, the way the other cards pair them.
+ */
+@media (max-width: 767px) {
+  .leadName {
+    flex-basis: 100%;
+  }
+}
+
 .leadCta:hover {
   background: #ffa348;
 }

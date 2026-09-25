@@ -136,6 +136,18 @@ export function SiteHeader({
           </Link>
 
           <nav id="main-nav" aria-label="Main" className={open ? 'open' : undefined}>
+            {/* Hamburger-only items (`.nav-more` is hidden on desktop), first in the phone menu. */}
+            {NAV_MORE.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="nav-more"
+                aria-current={path === item.href ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
             {NAV.filter(
               (item) =>
                 (showAgenda || item.href !== '/agenda') &&
@@ -187,17 +199,6 @@ export function SiteHeader({
               </div>
             </div>
 
-            {NAV_MORE.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="nav-more"
-                aria-current={path === item.href ? 'page' : undefined}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
             <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
               Register now
             </Link>
