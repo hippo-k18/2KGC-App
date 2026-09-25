@@ -112,6 +112,21 @@ export function SiteFooter({
           <span>
             {datesShort} · {venue}
           </span>
+          {/* The home page photograph is CC BY-SA 2.0, which requires this. */}
+          <span className="photo-credit">
+            Home page photo by{' '}
+            <a
+              href="https://commons.wikimedia.org/wiki/File:Aerial_photograph_of_Midtown_Manhattan_%26_Bryant_Park-2008,07.jpg"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Sonja Pieper
+            </a>
+            ,{' '}
+            <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noreferrer">
+              CC BY-SA 2.0
+            </a>
+          </span>
         </div>
       </div>
     </footer>

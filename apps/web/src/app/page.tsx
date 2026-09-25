@@ -260,25 +260,6 @@ export default async function HomePage() {
             )}
           </div>
         </div>
-        {/* The licence asks for a credit wherever the photograph is shown.
-            Only for the built-in picture: a banner saved on App Branding is the
-            organizer's own. */}
-        {!branding.bannerUrl && (
-          <p className="hero-credit">
-            Photo:{' '}
-            <a
-              href="https://commons.wikimedia.org/wiki/File:Aerial_photograph_of_Midtown_Manhattan_%26_Bryant_Park-2008,07.jpg"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Sonja Pieper
-            </a>
-            ,{' '}
-            <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noreferrer">
-              CC BY-SA 2.0
-            </a>
-          </p>
-        )}
       </section>
 
       {/*
