@@ -20,6 +20,7 @@ import { HighlightPair } from '@/components/home/highlight-pair';
 import { PhotoSplit } from '@/components/home/photo-split';
 import { StatBlocks } from '@/components/home/stat-blocks';
 import { Testimonials } from '@/components/home/testimonials';
+import { FaqTabs } from '@/components/home/faq-tabs';
 
 /**
  * The home page reads the real `speakers`, `sessions` and `sponsors`
@@ -460,65 +461,55 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/*
-        Built on `<details>`/`<summary>` rather than buttons and state. It is
-        keyboard-operable, screen-reader-announced and findable by the browser's
-        own in-page search with no JavaScript at all — and on this page the
-        alternative was a hand-rolled accordion that only answered a mouse.
-        The first item is open, as it is in the live site's served HTML.
-      */}
-      <section className="kgc-faq" aria-labelledby="faq-heading">
-        <h2 id="faq-heading">Frequently Asked Questions</h2>
-
-        <details open>
-          <summary>Where should I make hotel arrangements?</summary>
-          <div className="answer">
-            <p>
-              For KGC {ev.year} we recommend the following, both within easy reach of the venue:
-            </p>
-            <ul>
-              <li>TownePlace Suites, Long Island City</li>
-              <li>Hotel 57</li>
-            </ul>
-            <p>
-              Discounted room blocks are arranged closer to the conference; both hotels take
-              reservations at their standard rates in the meantime.
-            </p>
-          </div>
-        </details>
-
-        <details>
-          <summary>Will I qualify for the KGC Video Library subscription?</summary>
-          <div className="answer">
-            <p>
-              In-person and virtual tickets both include access to the recordings. Every session
-              is streamed and recorded.
-            </p>
-          </div>
-        </details>
-
-        
-
-        <details>
-          <summary>Will the in-person presentations be available online?</summary>
-          <div className="answer">
-            <p>
-              Yes. Every session is recorded and published to the video library.
-            </p>
-          </div>
-        </details>
-
-        <details>
-          <summary>How do I get to Bryant Park?</summary>
-          <div className="answer">
-            <p>
-              Bryant Park is in Midtown Manhattan, between 40th and 42nd Streets and Fifth and
-              Sixth Avenues. The B, D, F and M trains stop at 42 St–Bryant Park and the 7 at 5 Av.
-              Grand Central is a short walk east.
-            </p>
-          </div>
-        </details>
-      </section>
+      <FaqTabs
+        heading="Frequently Asked Questions"
+        items={[
+          {
+            question: 'Where should I make hotel arrangements?',
+            answer: (
+              <>
+                <p>
+                  For KGC {ev.year} we recommend two hotels, both <strong>within easy reach of the
+                  venue</strong>.
+                </p>
+                <h3 className="faq-tabs-sub">Recommended hotels:</h3>
+                <p>
+                  <strong>TownePlace Suites, Long Island City</strong>
+                  <br />
+                  <strong>Hotel 57</strong>
+                </p>
+                <p>
+                  Discounted room blocks are arranged closer to the conference. Both hotels take
+                  reservations at their standard rates in the meantime.
+                </p>
+              </>
+            ),
+          },
+          {
+            question: 'Will I qualify for the KGC Video Library subscription?',
+            answer: (
+              <p>
+                In-person and virtual tickets both include access to the recordings. Every session
+                is streamed and recorded.
+              </p>
+            ),
+          },
+          {
+            question: 'Will the in-person presentations be available online?',
+            answer: <p>Yes. Every session is recorded and published to the video library.</p>,
+          },
+          {
+            question: 'How do I get to Bryant Park?',
+            answer: (
+              <p>
+                Bryant Park is in Midtown Manhattan, between 40th and 42nd Streets and Fifth and
+                Sixth Avenues. The B, D, F and M trains stop at 42 St–Bryant Park and the 7 at 5 Av.
+                Grand Central is a short walk east.
+              </p>
+            ),
+          },
+        ]}
+      />
 
       <section className="tint">
         <div className="wrap narrow center">

@@ -8678,3 +8678,138 @@ section .site-search-form {
   margin-left: auto;
   font-size: 0.85rem;
 }
+
+/* ------------------------------------------------- home FAQ (tabs) -- */
+
+/* Questions on the left, the selected answer in a panel on the right, as on the
+   live site. `components/home/faq-tabs.tsx`. The older `.kgc-faq` accordion
+   rules above stay: the tickets pages still use them. */
+:root {
+  --faq-question: #8ec5e8; /* unselected question text */
+  --faq-selected-bg: #9ccbeb;
+  --faq-selected-fg: #1f4a5f;
+  --faq-panel: #f3f5f8; /* a touch darker than the reference so it shows on white */
+}
+
+.faq-tabs {
+  padding-block: 72px 88px;
+}
+
+.faq-tabs-heading {
+  text-align: center;
+  font-size: 32px;
+  font-weight: 800;
+  font-style: normal;
+  color: var(--navy);
+  margin: 0 0 48px;
+}
+
+.faq-tabs-body {
+  display: grid;
+  grid-template-columns: 28% minmax(0, 1fr);
+  gap: 0 40px;
+  align-items: start;
+}
+
+.faq-tabs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.faq-tabs-q {
+  display: block;
+  width: 100%;
+  padding: 20px 18px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--faq-question);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.faq-tabs-q:hover {
+  color: var(--faq-selected-fg);
+}
+
+.faq-tabs-q[aria-selected='true'] {
+  background: var(--faq-selected-bg);
+  color: var(--faq-selected-fg);
+}
+
+.faq-tabs-q:focus-visible,
+.faq-tabs-panel:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
+/* The panel spans the second column; every panel shares it, one shown. */
+.faq-tabs-panel {
+  grid-column: 2;
+  grid-row: 1;
+  background: var(--faq-panel);
+  padding: 40px;
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.faq-tabs-panel[hidden] {
+  display: none;
+}
+
+.faq-tabs-panel p {
+  margin: 0 0 1em;
+}
+
+.faq-tabs-panel > :last-child {
+  margin-bottom: 0;
+}
+
+.faq-tabs-sub {
+  font-size: inherit;
+  font-style: italic;
+  font-weight: 800;
+  line-height: inherit;
+  text-decoration: underline;
+  color: inherit;
+  margin: 0 0 0.4em;
+}
+
+/* Phone: the question list, then the answer beneath it, full width. */
+@media (width <= 620px) {
+  .faq-tabs {
+    padding-block: 44px 56px;
+  }
+
+  .faq-tabs-heading {
+    font-size: 26px;
+    margin-bottom: 28px;
+  }
+
+  .faq-tabs-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .faq-tabs-list {
+    gap: 4px;
+  }
+
+  .faq-tabs-q {
+    padding: 14px 16px;
+    font-size: 1rem;
+  }
+
+  .faq-tabs-panel {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 24px 20px;
+    font-size: 1rem;
+  }
+}
