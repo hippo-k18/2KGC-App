@@ -124,7 +124,7 @@
    */
   --header-height: 96px;
   /* The ticker strip. Measured, not assumed — it was 30 here and renders 36. */
-  --announce-height: 50px;
+  --announce-height: 36px;
   --chrome-height: calc(var(--header-height) + var(--announce-height));
 
   /*
@@ -877,6 +877,18 @@ body.nav-open {
   background: var(--palette-1) url('/kgc/Cornell-Tech-Campus-5-CREDIT-IWAN-BAAN-3-scaled.jpg') center 72% / cover no-repeat;
   padding: 0;
   isolation: isolate;
+  /* A white strip down each side, so the photo sits inside the page rather
+     than running to the window edge, as on the live site. The picture and
+     its scrim stay inside the strips. */
+  border-inline: 16px solid var(--white);
+  background-clip: padding-box;
+  background-origin: padding-box;
+}
+
+@media (width <= 620px) {
+  .hero {
+    border-inline-width: 8px;
+  }
 }
 
 /*
@@ -3551,7 +3563,7 @@ a.logo-card:hover {
   padding: 0;
   height: var(--announce-height);
   white-space: nowrap;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -3563,7 +3575,7 @@ a.logo-card:hover {
   height: 5px;
   border-radius: 50%;
   background: rgb(255 255 255 / 75%);
-  margin: 0 26px;
+  margin: 0 20px;
   flex: none;
 }
 
