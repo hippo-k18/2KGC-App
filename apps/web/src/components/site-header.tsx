@@ -26,6 +26,7 @@ export function SiteHeader({
   eventName = 'Knowledge Graph Conference',
   showAgenda = false,
   showSpeakers = false,
+  blogOrigin,
 }: {
   /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
   logoUrl?: string;
@@ -33,8 +34,16 @@ export function SiteHeader({
   /** Marketing > Event Website switches, resolved in the root layout. */
   showAgenda?: boolean;
   showSpeakers?: boolean;
+  /**
+   * `BLOG_ORIGIN`, resolved in the root layout. `/blog` links go straight there:
+   * as a relative `Link` they are prefetched, the middleware answers the
+   * prefetch with a cross-origin redirect, and every page logs a failed fetch.
+   */
+  blogOrigin?: string;
 } = {}) {
   const path = usePathname();
+  const to = (href: string) =>
+    blogOrigin && /^\/blog(\/|\?|$)/.test(href) ? `${blogOrigin}${href.slice(5) || '/'}` : href;
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -147,7 +156,7 @@ export function SiteHeader({
             {NAV_MORE.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={to(item.href)}
                 className="nav-more"
                 aria-current={path === item.href ? 'page' : undefined}
                 onClick={() => setOpen(false)}
@@ -162,7 +171,7 @@ export function SiteHeader({
             ).map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={to(item.href)}
                 aria-current={path === item.href ? 'page' : undefined}
                 onClick={() => setOpen(false)}
               >
@@ -198,7 +207,7 @@ export function SiteHeader({
                       {item.label}
                     </a>
                   ) : (
-                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
+                    <Link key={item.href} href={to(item.href)} onClick={() => setOpen(false)}>
                       {item.label}
                     </Link>
                   ),

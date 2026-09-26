@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listAgenda, listPublicPages, listSpeakers, siteVisibility } from '@/lib/data';
+import { blogUrl } from '@/lib/blog/paths';
 import { POSTS } from '@/lib/posts';
 import { ABOUT_MENU, formatDayHeading, localTime, NAV, NAV_MORE } from '@/lib/site';
 
@@ -186,7 +187,7 @@ export default async function SearchPage({
           <ResultGroup title="Articles" count={posts.length}>
             {posts.slice(0, LIMIT).map((p) => (
               <li key={p.slug}>
-                <Link href={`/blog/${p.slug}`}>{p.title}</Link>
+                <Link href={blogUrl(`/${p.slug}`)}>{p.title}</Link>
                 <span>{p.author}</span>
               </li>
             ))}
