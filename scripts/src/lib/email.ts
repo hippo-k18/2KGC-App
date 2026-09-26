@@ -72,11 +72,11 @@ export function emailEnabled(): boolean {
  * Who the mail comes from.
  *
  * Must be a domain verified in Resend, or every send returns 403. A friendly
- * name is included because "KGC 2027" in an inbox list is recognised and a bare
- * address is not.
+ * name is included because "Knowledge Graph Conference" in an inbox list is
+ * recognised and a bare address is not.
  */
 function fromAddress(): string {
-  return process.env.EMAIL_FROM ?? 'KGC 2027 <tickets@knowledgegraph.tech>';
+  return process.env.EMAIL_FROM ?? 'Knowledge Graph Conference <tickets@knowledgegraph.tech>';
 }
 
 /** Where "questions?" should go. Falls back to the from address. */
@@ -286,7 +286,27 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
 
 const BRAND = '#1c2b4a';
 
-function shell(heading: string, body: string): string {
+/**
+ * Images for a template, served by the website from `public/email/`.
+ *
+ * Linked, not attached: an attachment is sent with every copy of every
+ * receipt, and inline attachments are shown as a paperclip by some clients.
+ * The URL comes from `WEB_PUBLIC_ORIGIN`, so it must name a site that has the
+ * file deployed. Every image has width and height set and alt text, so a
+ * client that blocks images still shows a sensible layout.
+ */
+interface ShellImages {
+  /** A 2:1 photo, full width under the header band. */
+  hero?: { src: string; alt: string };
+  /** Play confetti above the heading: an animated GIF, first frame is static. */
+  confetti?: boolean;
+}
+
+function emailImage(file: string): string {
+  return `${publicSiteOrigin()}/email/${file}`;
+}
+
+function shell(heading: string, body: string, images: ShellImages = {}): string {
   return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 12px;">
     <tr><td align="center">
@@ -294,12 +314,22 @@ function shell(heading: string, body: string): string {
         <tr><td style="background:${BRAND};padding:20px 28px;">
           <span style="color:#ffffff;font-size:17px;font-weight:600;letter-spacing:.02em;">Knowledge Graph Conference 2027</span>
         </td></tr>
-        <tr><td style="padding:28px;">
+        ${
+          images.hero
+            ? `<tr><td style="padding:0;line-height:0;"><img src="${images.hero.src}" width="560" height="280" alt="${images.hero.alt}" style="display:block;width:100%;max-width:560px;height:auto;border:0;"></td></tr>`
+            : ''
+        }
+        <tr><td style="padding:${images.confetti ? '0' : '28px'} 28px 28px;">
+          ${
+            images.confetti
+              ? `<img src="${emailImage('confetti.gif')}" width="504" height="81" alt="" style="display:block;width:100%;max-width:504px;height:auto;border:0;margin:0 0 4px;">`
+              : ''
+          }
           <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:${BRAND};">${heading}</h1>
           ${body}
         </td></tr>
         <tr><td style="padding:18px 28px;background:#fafbfc;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;">
-          3–7 May 2027 · Cornell Tech, Roosevelt Island, New York City<br>
+          3–7 May 2027 · Bryant Park, New York<br>
           Questions? Just reply to this email.
         </td></tr>
       </table>
@@ -363,7 +393,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
-    'Your KGC 2027 ticket is confirmed',
+    "You're going to the Knowledge Graph Conference",
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} you're registered. Here are the details.</p>
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Attendee', esc(input.name || input.to))}
@@ -371,7 +401,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
        ${row('Paid', price)}
        ${row('Sign in with', esc(input.to))}
      </table>
-     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> open the KGC app and sign in with <strong>${esc(input.to)}</strong> — that address is how the app finds your ticket. Your claim code is:</p>
+     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> open the KGC app and sign in with <strong>${esc(input.to)}</strong>. That address is how the app finds your ticket. Your claim code is:</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.claimCode)}</p>
      ${
        input.temporaryPassword
@@ -381,10 +411,17 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
          : ''
      }
      ${button(input.orderUrl, 'View your ticket')}
-     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link — it shows your badge QR code, which is what gets scanned at the door. Don't forward it; anyone with the link can see your ticket.</p>`,
+     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link. It shows your badge QR code, which is what gets scanned at the door. Don't forward it: anyone with the link can see your ticket.</p>`,
+    {
+      hero: {
+        src: emailImage('ticket-hero.jpg'),
+        alt: 'The main hall at the Knowledge Graph Conference',
+      },
+      confetti: true,
+    },
   );
 
-  const text = `${greeting} you're registered for KGC 2027.
+  const text = `${greeting} you're registered for the Knowledge Graph Conference.
 
 Attendee:      ${input.name || input.to}
 Ticket:        ${input.ticketType}
@@ -396,13 +433,13 @@ ${input.temporaryPassword ? `\nTemporary password: ${input.temporaryPassword}\nT
 Next step: open the KGC app and sign in with ${input.to}.
 View your ticket: ${input.orderUrl}
 
-Keep that link private — it shows the badge QR that gets scanned at the door.
+Keep that link private. It shows the badge QR that gets scanned at the door.
 
-3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
+3-7 May 2027, Bryant Park, New York.`;
 
   return send(store, {
     to: input.to,
-    subject: `Your KGC 2027 ticket: ${input.ticketType}`,
+    subject: `Your Knowledge Graph Conference ticket: ${input.ticketType}`,
     html,
     text,
     template: 'purchase-confirmation',
@@ -436,7 +473,7 @@ export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInp
   const seats = `${input.seatCount} ${input.seatCount === 1 ? 'seat' : 'seats'}`;
 
   const html = shell(
-    'Your KGC 2027 invoice is ready',
+    'Your Knowledge Graph Conference invoice is ready',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">We've raised an invoice for <strong>${esc(input.companyName)}</strong> covering ${seats}.</p>
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Company', esc(input.companyName))}
@@ -450,7 +487,7 @@ export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInp
      <p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">The link above lets finance pay by card or bank transfer and download a PDF for your records.</p>`,
   );
 
-  const text = `Your KGC 2027 invoice is ready.
+  const text = `Your Knowledge Graph Conference invoice is ready.
 
 Company:  ${input.companyName}
 Seats:    ${input.seatCount}
@@ -464,7 +501,7 @@ their own confirmation with a claim code.`;
 
   return send(store, {
     to: input.to,
-    subject: `KGC 2027 invoice: ${input.companyName} (${seats})`,
+    subject: `Knowledge Graph Conference invoice: ${input.companyName} (${seats})`,
     html,
     text,
     template: 'invoice-raised',
@@ -536,7 +573,7 @@ to this email.`
 scan at the door. If this was a mistake, reply to this email.`;
 
   const html = shell(
-    'Your KGC 2027 ticket has been refunded',
+    'Your Knowledge Graph Conference ticket has been refunded',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} we've refunded ${amount}${input.ticketType ? ` for your ${esc(input.ticketType)} ticket` : ''}. It usually reaches your account in five to ten working days, depending on your bank.</p>
      <p style="margin:14px 0 0;font-size:15px;line-height:1.6;">${ticketHtml}</p>`,
   );
@@ -549,7 +586,7 @@ ${ticketText}`;
 
   return send(store, {
     to: input.to,
-    subject: 'Your KGC 2027 ticket has been refunded',
+    subject: 'Your Knowledge Graph Conference ticket has been refunded',
     html,
     text,
     template: 'refund-confirmation',
@@ -582,7 +619,7 @@ export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdra
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
-    'Your KGC 2027 ticket has been cancelled',
+    'Your Knowledge Graph Conference ticket has been cancelled',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} the ticket that was passed to you${input.ticketType ? ` for ${esc(input.ticketType)}` : ''} has been cancelled, because the person who bought it has been refunded.</p>
      <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your badge will no longer scan at the door.</strong> The money went back to whoever paid for the ticket, so there is nothing for you to claim. If you think this is wrong, reply to this email and we'll sort it out.</p>`,
   );
@@ -596,7 +633,7 @@ wrong, reply to this email.`;
 
   return send(store, {
     to: input.to,
-    subject: 'Your KGC 2027 ticket has been cancelled',
+    subject: 'Your Knowledge Graph Conference ticket has been cancelled',
     html,
     text,
     template: 'ticket-cancelled',
@@ -653,7 +690,7 @@ export interface SignInCodeEmailInput {
  */
 export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<SendOutcome> {
   const html = shell(
-    'Your KGC 2027 sign-in code',
+    'Your Knowledge Graph Conference sign-in code',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:.22em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:16px;text-align:center;">${esc(input.code)}</p>
      <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask for a new one from the same screen.</p>
@@ -670,7 +707,7 @@ for a new one from the same screen.
 If you didn't ask to sign in, you can ignore this email — nobody can use the
 code without it, and no one has been given access to your account.
 
-3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
+3-7 May 2027, Bryant Park, New York.`;
 
   return send(store, {
     to: input.to,
@@ -678,7 +715,7 @@ code without it, and no one has been given access to your account.
     // the recipient or their ticket: this mail goes to any syntactically valid
     // address that asks, so anything specific in it would confirm to a stranger
     // that the address is on the guest list.
-    subject: 'Your KGC 2027 sign-in code',
+    subject: 'Your Knowledge Graph Conference sign-in code',
     html,
     text,
     template: 'sign-in-code',
@@ -843,7 +880,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
     : '';
 
-  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Cornell Tech, Roosevelt Island, New York City${unsubscribeText}`;
+  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Bryant Park, New York${unsubscribeText}`;
 
   return send(store, {
     to: input.to,
@@ -1315,7 +1352,7 @@ Knowledge Graph Conference 2027`;
 
   return send(store, {
     to: input.to,
-    subject: 'Your speaker profile for KGC 2027',
+    subject: 'Your speaker profile for the Knowledge Graph Conference',
     html,
     text,
     template: 'speaker-profile-request',
@@ -1543,7 +1580,7 @@ Knowledge Graph Conference 2027`;
 
   return send(store, {
     to: input.to,
-    subject: `Scanning badges at KGC 2027: ${input.companyName}`,
+    subject: `Scanning badges at the Knowledge Graph Conference: ${input.companyName}`,
     html,
     text,
     template: 'exhibitor-lead-link',
