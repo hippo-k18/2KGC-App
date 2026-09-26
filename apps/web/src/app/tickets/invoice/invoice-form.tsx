@@ -40,6 +40,13 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
   // is the point at which somebody emails us instead.
   const [seats, setSeats] = useState<Seat[]>([{ key: 1, name: '', email: '', tierId: defaultTier }]);
   const [nextKey, setNextKey] = useState(2);
+  // The payer's fields too, for the same reason. The seats were controlled and
+  // these were not, so one mistake cleared the company name and billing email.
+  const [payer, setPayer] = useState({ company: '', billingEmail: '', po: '', netDays: '30', note: '' });
+  const bind = (field: keyof typeof payer) => ({
+    value: payer[field],
+    onChange: (e: { target: { value: string } }) => setPayer((p) => ({ ...p, [field]: e.target.value })),
+  });
 
   const priceOf = (id: string) => tiers.find((t) => t.id === id)?.priceCents ?? 0;
   const subtotal = seats.reduce((sum, s) => sum + priceOf(s.tierId), 0);
@@ -173,7 +180,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
 
       <div className="field">
         <label htmlFor="company">Company name</label>
-        <input id="company" name="company" required placeholder="Acme Corporation" />
+        <input id="company" name="company" required placeholder="Acme Corporation" {...bind('company')} />
         <p className="hint">Exactly as it should appear on the invoice.</p>
       </div>
 
@@ -184,14 +191,15 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
           name="billingEmail"
           type="email"
           required
-          placeholder="accounts-payable@company.com"
+          placeholder="ap@company.com"
+          {...bind('billingEmail')}
         />
         <p className="hint">Where the invoice goes. Often accounts payable, not you.</p>
       </div>
 
       <div className="field">
         <label htmlFor="po">Purchase order number (optional)</label>
-        <input id="po" name="po" placeholder="PO-2027-0481" maxLength={30} />
+        <input id="po" name="po" placeholder="PO-2027-0481" maxLength={30} {...bind('po')} />
         {/*
           Nudged rather than merely offered. A missing PO number is the single
           commonest reason an accounts-payable system rejects an invoice, and
@@ -202,7 +210,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
 
       <div className="field">
         <label htmlFor="netDays">Payment terms</label>
-        <select id="netDays" name="netDays" defaultValue={30}>
+        <select id="netDays" name="netDays" {...bind('netDays')}>
           <option value={14}>Net 14 days</option>
           <option value={30}>Net 30 days</option>
           <option value={45}>Net 45 days</option>
@@ -212,7 +220,7 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
 
       <div className="field">
         <label htmlFor="note">Note on the invoice (optional)</label>
-        <input id="note" name="note" placeholder="VAT ID, cost centre, department…" />
+        <input id="note" name="note" placeholder="VAT ID or cost centre" {...bind('note')} />
       </div>
 
       <div className="summary">

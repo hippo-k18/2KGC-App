@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
-import { Banner, PageHeader, Panel, Table, Tag } from '../../ui';
+import { Banner, PageHeader, Panel, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +20,34 @@ export const dynamic = 'force-dynamic';
  * product — payout details are exactly what an attacker changes. So this screen
  * links out and explains, and every field is a deep link rather than an input.
  */
+const SETTINGS = [
+  {
+    name: 'Bank account for payouts',
+    why: 'The account ticket revenue lands in.',
+    path: 'settings/payouts',
+  },
+  {
+    name: 'Business details and verification',
+    why: 'Legal name, address and the identity checks Stripe needs before it pays out.',
+    path: 'settings/account',
+  },
+  {
+    name: 'Tax registration and the event location',
+    why: 'An event ticket is taxed where the event happens, not where the buyer lives.',
+    path: 'settings/tax',
+  },
+  {
+    name: 'Invoice branding',
+    why: 'The logo and colours on the invoice PDF.',
+    path: 'settings/branding',
+  },
+  {
+    name: 'API keys and webhooks',
+    why: 'What connects this dashboard and the website to Stripe. Changing a key stops ticket sales until the new one is in place.',
+    path: 'apikeys',
+  },
+];
+
 export default async function BillingInformationPage() {
   await requireOrganizer();
   const base = `https://dashboard.stripe.com/${stripeIsLive() ? '' : 'test/'}`;
@@ -30,14 +58,13 @@ export default async function BillingInformationPage() {
         title="Billing Information"
         info={
           <>
-            <strong>Nothing here is an input</strong>
+            <strong>Edited in Stripe</strong>
             <p>
-              This dashboard signs in with a shared passphrase and no per-person identity, so payout
-              and tax details stay behind Stripe&rsquo;s own login and its two-factor. Every row
-              below is a deep link.
+              Payout and tax details stay behind Stripe&rsquo;s own login and two-factor. Every row
+              below opens Stripe.
             </p>
             {stripeEnabled() ? null : (
-              <p>No Stripe key is configured yet, so these links open an empty account.</p>
+              <p>Stripe is not connected yet, so these links open an empty account.</p>
             )}
           </>
         }
@@ -47,7 +74,7 @@ export default async function BillingInformationPage() {
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key</Tag>
+            <Tag color="grey">Stripe not connected</Tag>
           )
         }
         links={[
@@ -56,6 +83,9 @@ export default async function BillingInformationPage() {
           </Link>,
           <Link key="o" href={ROUTES.attendeeOrders}>
             Attendee orders
+          </Link>,
+          <Link key="t" href="/pay/publish">
+            Sales tax
           </Link>,
         ]}
       />
@@ -68,65 +98,43 @@ export default async function BillingInformationPage() {
         tip instead.
       */}
       <Banner kind="warning">
-        <strong>Payout and tax details are edited in Stripe, never here.</strong> Stripe enforces
-        two-factor on exactly these settings, and a change made there takes effect for KGC
-        immediately. Every row below opens the {stripeIsLive() ? 'live' : 'test'} Stripe dashboard.
+        <strong>Payout and tax details are edited in Stripe, not here.</strong> A change made there
+        takes effect immediately. Every row below opens the {stripeIsLive() ? 'live' : 'test'}{' '}
+        Stripe dashboard.
       </Banner>
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where each thing lives</h2>
-        <Table
-          cols={[
-            { key: 'w', label: 'Setting', className: 'cell-md' },
-            { key: 'd', label: 'Why it is there', className: 'cell-fill' },
-            { key: 'l', label: '', className: 'cell-sm' },
-          ]}
-          rows={[
-            [
-              'Bank account for payouts',
-              'The account ticket revenue lands in. Stripe enforces two-factor to change it.',
-              <a key="l" href={`${base}settings/payouts`} target="_blank" rel="noreferrer">
-                Open ↗
-              </a>,
-            ],
-            [
-              'Business details and verification',
-              'Legal name, address and the identity checks Stripe needs before it will pay out at all.',
-              <a key="l" href={`${base}settings/account`} target="_blank" rel="noreferrer">
-                Open ↗
-              </a>,
-            ],
-            [
-              'Tax registration and the event location',
-              'An event ticket is taxed where the event happens, not where the buyer lives. Setting the location is what makes that correct. See SETUP-PAYMENTS.md §5.',
-              <a key="l" href={`${base}settings/tax`} target="_blank" rel="noreferrer">
-                Open ↗
-              </a>,
-            ],
-            [
-              'Invoice branding',
-              'The logo and colours on the invoice PDF a company forwards to its finance team.',
-              <a key="l" href={`${base}settings/branding`} target="_blank" rel="noreferrer">
-                Open ↗
-              </a>,
-            ],
-            [
-              'API keys and webhooks',
-              'What connects this dashboard and the website to Stripe. Rotating a key here breaks both until the new one is deployed.',
-              <a key="l" href={`${base}apikeys`} target="_blank" rel="noreferrer">
-                Open ↗
-              </a>,
-            ],
-          ]}
-        />
+        {SETTINGS.map((row) => (
+          <div
+            key={row.path}
+            style={{
+              alignItems: 'baseline',
+              borderTop: '1px solid var(--hairline)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '4px 16px',
+              padding: '12px 0',
+            }}
+          >
+            <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+              <strong>{row.name}</strong>
+              <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                {row.why}
+              </div>
+            </div>
+            <a href={`${base}${row.path}`} target="_blank" rel="noreferrer">
+              Open in Stripe ↗
+            </a>
+          </div>
+        ))}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What KGC pays</h2>
         <p className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
-          Stripe takes roughly 2.9% + $0.30 per transaction and nothing else: no monthly fee, no
-          per-ticket fee, and no charge at all in a month with no sales. There is no platform fee on
-          top of it, so the whole of the rest of a ticket price reaches KGC&rsquo;s bank.
+          Stripe takes roughly 2.9% + $0.30 per transaction. There is no monthly fee, no per-ticket
+          fee and no platform fee on top.
         </p>
       </Panel>
     </>

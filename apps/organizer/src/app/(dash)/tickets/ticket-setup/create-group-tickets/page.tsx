@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,11 +69,10 @@ export default async function CreateGroupTicketsPage() {
         title="Create Group Tickets"
         info={
           <>
-            <strong>An invoice is one order with several items</strong>
+            <strong>A group is one order with several seats</strong>
             <p>
-              Both group paths (the invoice form and multi-seat card checkout) write one order
-              with a line per seat, never one order per seat. Group discounts are Stripe promotion
-              codes; there is no bundle product that prices &ldquo;buy five, pay for four&rdquo;.
+              Groups buy by invoice or by putting several seats on one card. For a group discount,
+              use a discount code. Bundle pricing is not available yet.
             </p>
           </>
         }
@@ -100,17 +99,16 @@ export default async function CreateGroupTicketsPage() {
             )}{' '}
             is invoiced and unpaid.
           </strong>{' '}
-          Capacity was taken when each invoice was raised, so those{' '}
-          {unpaid.reduce((n, o) => n + o.seatCount, 0)} seats are spoken for whether or not the
-          money arrives. Each row below links to the hosted invoice finance can pay.
+          Those {unpaid.reduce((n, o) => n + o.seatCount, 0)} seats are held until the invoices are
+          paid or cancelled. Each row below links to the invoice.
         </Banner>
       )}
 
       <StatTiles
         tiles={[
           { label: 'Group orders', value: groups.length, sub: 'invoiced or multi-seat, all statuses' },
-          { label: 'Seats on them', value: seats, sub: 'one order line each' },
-          { label: 'Paid', value: paid.length, sub: 'fulfilled on payment' },
+          { label: 'Seats on them', value: seats, sub: 'one registration each' },
+          { label: 'Paid', value: paid.length, sub: 'tickets issued' },
           {
             label: 'Awaiting payment',
             value: money(
@@ -133,7 +131,7 @@ export default async function CreateGroupTicketsPage() {
           ]}
           rows={groups.slice(0, 25).map((o) => [
             <span key="c">
-              {o.companyName || o.buyerName || o.email}
+              {o.companyName || o.buyerName || <Email address={o.email} />}
               {o.poNumber ? <span className="muted"> · PO {o.poNumber}</span> : null}
             </span>,
             o.seatCount,
@@ -155,11 +153,8 @@ export default async function CreateGroupTicketsPage() {
           empty={<NotInputted what="group orders" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Both forms buyers use are on the marketing site (<code>apps/web</code>, port 3200), not in
-          this dashboard: <code>/tickets/invoice</code> for a PO and net terms,{' '}
-          <code>/tickets</code> for a card. Seats come from <code>items</code> on the order
-          document, not from a count of orders. Six people are one row here and six registrations
-          at the door.
+          Buyers place group orders on the event website: the invoice form for a PO and net terms,
+          or the tickets page for a card. Six people on one order are one row here.
         </p>
       </Panel>
 

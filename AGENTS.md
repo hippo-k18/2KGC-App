@@ -171,7 +171,14 @@ the order and not the price.
 
 **Two decisions that are settled, so do not re-open them:**
 
-- **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
+- **Dashboard sign-in is an email and a six-digit code, since 2026-09-26.**
+  The owner replaced the passphrase with the blog editor's scheme: an address
+  not on the list is told "Email not recognised", no code is sent. Owners are
+  `CONSOLE_ALLOWLIST` (the two owner addresses only); team members and blog
+  writers are both managed on Attendees › Admin Settings. Refunds, erasures and
+  mass sends ask for a fresh emailed code (`reauthenticate()` in
+  `apps/organizer/src/lib/auth.ts`). The history below is kept for context.
+  Earlier: **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
   docs that promised "Google SSO with enforced MFA (DECISIONS.md #5)" were
   withdrawn on 2026-08-28; what the shared secret costs is written down in
   `apps/organizer/src/lib/auth.ts`. ⚠️ On 2026-08-31 the allowlist was cut to
@@ -494,8 +501,18 @@ string literals.
 
 **Top-level:** `registrations`, `users`, `directory`, `sessions`, `speakers`,
 `sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`,
-`ticketTypes`, `orders`, `emailLog`, plus the modelled-but-unbuilt
-`checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+`ticketTypes`, `orders`, `emailLog`, `sessionSeats`, `pages`, plus the
+modelled-but-unbuilt `checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+
+`pages` is the organizer's own content pages — venue notes, travel, an FAQ.
+Authored on Content › Branding Center › Customize Resources, served by the
+website at `/{slug}` and listed in the app on Home › Documents. The body is
+Markdown in the subset `packages/shared/src/rich-text-core.ts` parses, and that
+parser returns **blocks, never markup**: the website, the phone and the
+dashboard preview each render the same array with their own leaf components, so
+there is no HTML path for a `<script>` typed into the editor to travel down. Do
+not add an `html` block kind, and do not render a span's text with
+`dangerouslySetInnerHTML`.
 
 Added by the August 2026 dashboard build-out, all **server-only** and all
 without a `firestore.rules` match block — every write is Admin-SDK, and they
@@ -526,7 +543,17 @@ An `orders` `list` is the entire buyer database in one query.
 `notifications`, `fcmTokens`, `entitlements`; `sessions/{id}/questions`
 (`/upvotes`), `/polls` (`/votes`), `/qaBoard`, `/materials`;
 `threads/{id}/messages`; `communityPosts/{id}/replies`, `/reactions`;
-`sponsors/{id}/leads`; `checkInLists/{id}/checkIns`.
+`sponsors/{id}/leads`; `checkInLists/{id}/checkIns`;
+`sessionSeats/{sessionId}/seats`.
+
+**`sessionSeats/{sessionId}` is the one client-moved counter in the product.**
+It holds `taken` and the waitlist as an *ordered list of uids*, with one
+`seats/{uid}` document per person. The list is on the counter rather than
+derived from the seat documents because rules cannot run a query, and "is this
+uid first in line" has to be one field read. The arithmetic is in
+`packages/shared/src/session-seats.ts` — plain functions, no Firestore import —
+so the app's transaction, the dashboard's Admin-SDK write and the rules cannot
+disagree about who is next. Do not add a second copy of that planning code.
 
 Decisions worth preserving — do not "simplify" these:
 
@@ -643,7 +670,15 @@ Four things to know before editing it:
   pinned to what was actually published, rather than to whatever the client sent.
   Without it a signature could name wording nobody ever agreed to, which is the
   one property the whole record exists to have.
-  All four are deliberate and documented in place. Adding a fifth is a decision,
+  The fifth, added 2026-09-20, is the seat path: `sessionSeats/{sessionId}` and
+  its `seats/{uid}` documents read the session for the cap and the ticket list,
+  the caller's registration for the ticket type, and each other with `get` and
+  `getAfter`, because a seat and the counter that admits it are written in one
+  transaction and each has to check the other. Its heaviest branch — giving up a
+  seat and promoting the first person waiting — reaches five, and
+  `tests/rules/session-seats.test.ts` runs every branch on the emulator, which
+  does enforce the limit.
+  All five are deliberate and documented in place. Adding a sixth is a decision,
   not a detail: the cap is 10 access calls per single-document request and 20 per
   query, and exceeding it is a hard error, not a slowdown.
 - **The ticket list is no longer closed outright.** `registrations` was

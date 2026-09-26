@@ -126,7 +126,7 @@ describe("sessionIcs", () => {
       OPTS,
     );
     expect(ics).toContain("SUMMARY:Graphs\\; commas\\, and \\\\ backslashes");
-    expect(ics).toContain("LOCATION:Room 1\\, Level 2\\, Cornell Tech\\, Roosevelt Island\\, New");
+    expect(ics).toContain("LOCATION:Room 1\\, Level 2\\, Bryant Park\\, New York\\, NY");
     // A URI value, not TEXT. Escaping the query string would break the link.
     expect(ics).toContain("URL:https://example.test/agenda?day=2027-05-05#2027-05-05");
   });

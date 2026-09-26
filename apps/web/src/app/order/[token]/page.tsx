@@ -6,6 +6,9 @@ import { getRegistration } from '@/lib/registrations';
 import { pendingTemporaryPasswordFor } from '@/lib/app-account';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { QrCode } from '@/components/qr-code';
+import { siteEvent, siteVisibility } from '@/lib/data';
+import { forgetTicketAction, useTicketOnThisDeviceAction } from '@/app/ticket-actions';
+import { readTicketPass } from '@/lib/ticket-pass';
 import { APP_DISTRIBUTION, APP_URL, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -15,6 +18,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token and the live state of the ticket behind it. A refunded or cancelled order has to stop showing a claim code on the next load, not a minute later, and two visitors never hold the same token. */
 export const dynamic = 'force-dynamic';
 
 /** `https://kgc27-app.netlify.app` → `kgc27-app.netlify.app`. */
@@ -55,12 +59,23 @@ const appHost = APP_URL.replace(/^https?:\/\//, '');
  * does not open a door on its own.
  */
 export default async function OrderPage({ params }: { params: Promise<{ token: string }> }) {
+  const [ev, show] = await Promise.all([siteEvent(), siteVisibility()]);
   const { token } = await params;
-  const payload = readOrderToken(decodeURIComponent(token));
+  const rawToken = decodeURIComponent(token);
+  const payload = readOrderToken(rawToken);
   if (!payload) notFound();
 
   const reg = await getRegistration(payload.rid);
   if (!reg) notFound();
+
+  /*
+   * Whether this browser is already carrying *this* ticket. Compared by
+   * registration id rather than by the presence of a cookie, so somebody
+   * opening a colleague's forwarded link is offered the swap rather than being
+   * told they already have it.
+   */
+  const pass = await readTicketPass();
+  const passHeld = pass?.registrationId === payload.rid;
 
   // Null unless a password was stored for this registration AND the account
   // still carries `mustChangePassword` — so the block disappears, and the
@@ -118,18 +133,18 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
         */}
         <div className="pass">
           <div className="pass-main">
-            <p className="pass-kicker">{SITE.name}</p>
+            <p className="pass-kicker">{ev.name}</p>
             <p className="pass-name">{attendeeName || reg.email}</p>
             <p className="pass-tier">{reg.ticketType ?? 'Registered'}</p>
 
             <dl className="pass-facts">
               <div>
                 <dt>Dates</dt>
-                <dd>{SITE.datesLong}</dd>
+                <dd>{ev.datesLong}</dd>
               </div>
               <div>
                 <dt>Venue</dt>
-                <dd>{SITE.venueShort}</dd>
+                <dd>{ev.venueShort}</dd>
               </div>
               {/*
                 Both of these run the full width of the panel. An address and a
@@ -190,6 +205,55 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
           attach this ticket to your account.
         </p>
 
+        {/*
+          The one thing this page can do that the app cannot: put the ticket on
+          the browser in front of you, so a session page on this site knows
+          which ticket you hold and can play a stream you paid for.
+
+          It is a button rather than something this page does on arrival for two
+          reasons. A cookie cannot be written from a Server Component at all —
+          only from an action — and, more to the point, a forwarded
+          confirmation link opened by an assistant should not silently leave
+          somebody else's ticket on their machine. See `lib/ticket-pass.ts`.
+        */}
+        <section className="watch-device">
+          <h2>Watch on this device</h2>
+          {passHeld ? (
+            <>
+              <p>
+                This browser is using this ticket. Sessions with a live stream or a recording play
+                on their own page, where your ticket covers them.
+              </p>
+              <p className="watch-actions">
+                {show.agenda && (
+                  <Link className="btn btn-primary" href="/agenda">
+                    Go to the agenda
+                  </Link>
+                )}
+                <form action={forgetTicketAction}>
+                  <button type="submit" className="btn btn-outline">
+                    Forget this ticket
+                  </button>
+                </form>
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Some sessions are streamed live and recorded. Put this ticket on this browser and
+                they play on the session page. Nothing is shared with anyone; it is one cookie on
+                this device, and you can remove it from any session page.
+              </p>
+              <form action={useTicketOnThisDeviceAction} className="watch-actions">
+                <input type="hidden" name="token" value={rawToken} />
+                <button type="submit" className="btn btn-primary">
+                  Use this ticket on this device
+                </button>
+              </form>
+            </>
+          )}
+        </section>
+
         <h2 className="order-next-title">Three things, then you’re done</h2>
 
         <ol className="next-cards">
@@ -236,9 +300,11 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
               Star the sessions you want from the agenda and they sync to your phone. Workshops
               fill up.
             </p>
-            <Link href="/agenda" className="btn btn-outline">
-              Plan your week
-            </Link>
+            {show.agenda && (
+              <Link href="/agenda" className="btn btn-outline">
+                Plan your week
+              </Link>
+            )}
           </li>
 
           <li>

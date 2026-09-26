@@ -47,6 +47,8 @@ export interface SoldCountOrder {
   /** `demo` orders are test purchases and are excluded. */
   channel?: 'checkout' | 'invoice' | 'manual' | 'demo';
   items?: { ticketTypeId?: string; quantity?: number }[];
+  /** `OrderDoc.releasedSeats`: seats an organizer's cancellation gave back. */
+  releasedSeats?: Record<string, string>;
 }
 
 /** Statuses that consume a seat. */
@@ -67,6 +69,33 @@ function seatsOf(line: { quantity?: number }): number {
 }
 
 /**
+ * The seats one order still holds, per tier, after the ones an organizer gave
+ * back by cancelling an attendee without a refund.
+ *
+ * Shared by `soldByTier` and the refund path, because they have to agree: a
+ * seat released on cancellation and then returned again on refund is one seat
+ * handed back twice, which oversells the tier. Never below zero, so a stale
+ * entry naming a tier the order does not carry cannot turn into stock.
+ */
+export function seatsHeldByOrder(
+  order: Pick<SoldCountOrder, 'items' | 'releasedSeats'>,
+): Map<string, number> {
+  const held = new Map<string, number>();
+  for (const line of order.items ?? []) {
+    // An order written before `ticketTypeId` was carried, or pointing at a
+    // tier since deleted, cannot be attributed. Counting it under a made-up
+    // key would move seats into a tier nobody sells.
+    if (!line.ticketTypeId) continue;
+    held.set(line.ticketTypeId, (held.get(line.ticketTypeId) ?? 0) + seatsOf(line));
+  }
+  for (const tierId of Object.values(order.releasedSeats ?? {})) {
+    const n = held.get(tierId);
+    if (n !== undefined) held.set(tierId, Math.max(0, n - 1));
+  }
+  return held;
+}
+
+/**
  * Seats sold per tier id, from the ledger.
  *
  * Tiers with no sales are absent rather than zero — the caller knows the
@@ -78,12 +107,8 @@ export function soldByTier(orders: SoldCountOrder[]): Map<string, number> {
   for (const o of orders) {
     if (o.channel === 'demo') continue;
     if (!consumesSeat(o.status)) continue;
-    for (const line of o.items ?? []) {
-      // An order written before `ticketTypeId` was carried, or pointing at a
-      // tier since deleted, cannot be attributed. Counting it under a made-up
-      // key would move seats into a tier nobody sells.
-      if (!line.ticketTypeId) continue;
-      counts.set(line.ticketTypeId, (counts.get(line.ticketTypeId) ?? 0) + seatsOf(line));
+    for (const [tierId, seats] of seatsHeldByOrder(o)) {
+      if (seats > 0) counts.set(tierId, (counts.get(tierId) ?? 0) + seats);
     }
   }
   return counts;

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { SITE } from '@/lib/site';
+import { formatDeadline, SITE } from '@/lib/site';
 import { loadOwnSubmission } from '@/lib/submissions';
 import { SubmissionForm } from '../../submission-form';
 import { withdrawAction } from '../../actions';
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token. One author's draft must never be served to another from a cache. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -76,7 +77,8 @@ export default async function SubmissionTokenPage({
           <p className="notice" role="status">
             <strong>Saved as a draft.</strong> This has <strong>not</strong> been submitted and
             nobody will read it. Come back through the link we have emailed you and press{' '}
-            <em>Submit</em> before {own.call.closesAtLocal.replace('T', ' ')}.
+            <em>Submit</em> before{' '}
+            {formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal}.
           </p>
         )}
         {r === 'withdrawn' && (
@@ -93,7 +95,15 @@ export default async function SubmissionTokenPage({
           </p>
         )}
 
-        {own.decided && (
+        {own.decided === 'waitlisted' && (
+          <p className="notice" role="status">
+            <strong>This is on the waiting list.</strong> The programme is full for now. If a
+            place opens we will offer it to you, and we will write to you either way. It can no
+            longer be edited.
+          </p>
+        )}
+
+        {own.decided && own.decided !== 'waitlisted' && (
           <p className={`notice ${own.decided === 'accepted' ? '' : 'warn'}`} role="status">
             <strong>
               {own.decided === 'accepted'
@@ -118,7 +128,7 @@ export default async function SubmissionTokenPage({
           <p className="notice warn" role="status">
             <strong>This is still a draft.</strong> It has not been submitted and nobody is reading
             it. Press <em>Submit</em> at the bottom before{' '}
-            {own.call.closesAtLocal.replace('T', ' ')}.
+            {formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal}.
           </p>
         )}
 
@@ -147,7 +157,7 @@ export default async function SubmissionTokenPage({
           <ReadOnly own={own} />
         )}
 
-        {own.editable && own.status !== 'withdrawn' && (
+        {(own.editable || own.decided === 'waitlisted') && own.status !== 'withdrawn' && (
           <form action={withdrawAction} style={{ marginTop: 28 }}>
             <input type="hidden" name="token" value={token} />
             <details>
@@ -223,7 +233,7 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
                     <dt style={{ fontWeight: 600 }}>{f.prompt}</dt>
                     <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
                       {value === undefined || value === ''
-                        ? '—'
+                        ? 'No answer'
                         : typeof value === 'boolean'
                           ? value
                             ? 'Yes'

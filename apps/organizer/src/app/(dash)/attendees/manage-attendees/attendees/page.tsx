@@ -1,14 +1,24 @@
 import Link from 'next/link';
 import { COLLECTIONS } from '@kgc/shared';
+import { getAttendeeForEdit } from '@/lib/attendee-admin';
+import { attendeeCategories } from '@/lib/attendee-categories';
+import { UNCATEGORISED, categoryCounts, categoryLabel, inCategory } from '@/lib/attendee-categories-core';
 import { requireOrganizer } from '@/lib/auth';
+import { listTicketTypes } from '@/lib/commerce';
 import { countWhereEvent, listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { personRefParam } from '@/lib/person-data-core';
+import { Email, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { Dropdown, RowActions } from '../../../menu';
+import { AssignBar, RowCheckbox } from '../../categories/assign-bar';
 import { AddAttendeeForm } from './add-form';
+import { EditPanel } from './edit-panel';
 import { ImportForm } from './import-form';
+import { PersonDataPanel } from './person-data-panel';
 
 export const dynamic = 'force-dynamic';
+
+const ASSIGN_FORM = 'assign-category';
 
 /**
  * Attendees > Manage Attendees > Attendees.
@@ -40,19 +50,29 @@ export default async function AttendeesPage({
   const sp = await searchParams;
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const role = typeof sp.role === 'string' ? sp.role : undefined;
+  const category = typeof sp.category === 'string' ? sp.category : undefined;
   const { page, sort, baseParams } = listParams(sp);
   const importing = typeof sp.import === 'string';
   const adding = typeof sp.add === 'string';
-  const [all, registrations] = await Promise.all([
+  const editId = typeof sp.edit === 'string' ? sp.edit : undefined;
+  // `reg:{id}` or `uid:{id}` — the row says which half of the union it came
+  // from, because a bare id would have to be guessed at and guessing wrong
+  // opens somebody else's file.
+  const dataRef = typeof sp.data === 'string' ? sp.data : undefined;
+  const [all, registrations, catalogue, editing, { categories }] = await Promise.all([
     listAttendees(),
     countWhereEvent(COLLECTIONS.registrations),
+    listTicketTypes(),
+    editId ? getAttendeeForEdit(editId) : null,
+    attendeeCategories(),
   ]);
 
   const needle = (q ?? '').trim().toLowerCase();
   const matched = all.filter((a) => {
     if (role && !a.roles.includes(role)) return false;
+    if (!inCategory(a, category)) return false;
     if (!needle) return true;
-    return [a.name, a.email, a.title, a.company, a.ticketType, ...a.interests]
+    return [a.name, a.email, a.title, a.company, a.ticketType, categoryLabel(categories, a), ...a.interests]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(needle));
   });
@@ -61,26 +81,35 @@ export default async function AttendeesPage({
     name: (a) => a.name,
     title: (a) => a.title ?? '',
     company: (a) => a.company ?? '',
-    category: (a) => a.roles.join(', '),
+    category: (a) => categoryLabel(categories, a),
     ticket: (a) => a.ticketType ?? '',
     signedin: (a) => (a.signedIn ? 1 : 0),
     directory: (a) => (a.visibleInDirectory ? 1 : 0),
   });
   const pageRows = paginate(rows, page, PER_PAGE);
 
-  const roles = [...new Set(all.flatMap((a) => a.roles))].sort();
+  // Counted over ticket holders: the category is on the registration, so
+  // somebody with a profile and no ticket cannot have one.
+  const { counts, uncategorised } = categoryCounts(categories, all.filter((a) => a.registrationId));
   // The ticket types already in use, rather than the sales catalogue: the point
   // of the select is that a hand-added attendee lands in the same bucket as the
   // people who bought, and "Main Conference " with a trailing space is two
   // buckets in every breakdown with nothing anywhere to flag it.
   const ticketTypes = [...new Set(all.map((a) => a.ticketType).filter(Boolean) as string[])].sort();
+  // Changing a ticket type also offers what is on sale and nobody holds yet.
+  const changeTo = [...new Set([...catalogue.map((t) => t.name), ...ticketTypes])];
+  // Title and company fall back to the attendee's own profile, so saving a
+  // corrected name does not blank what they wrote about themselves.
+  const editRow = editing ? all.find((a) => a.registrationId === editing.registrationId) : undefined;
   const hidden = all.filter((a) => a.signedIn && !a.visibleInDirectory).length;
   const signedIn = all.filter((a) => a.signedIn).length;
   const ticketHolders = all.filter((a) => a.registrationId).length;
-  const href = (next: { q?: string; role?: string }) => {
+  const exportQuery = category ? `?category=${encodeURIComponent(category)}` : '';
+  const href = (next: { q?: string; role?: string; category?: string }) => {
     const p = new URLSearchParams();
     if (next.q) p.set('q', next.q);
     if (next.role) p.set('role', next.role);
+    if (next.category) p.set('category', next.category);
     const s = p.toString();
     return s ? `?${s}` : ROUTES.attendees;
   };
@@ -162,8 +191,9 @@ export default async function AttendeesPage({
             label="Export attendees"
             className="btn btn-primary"
             items={[
-              { label: 'Export basic attendee list', href: '/export/attendees' },
-              { label: 'Export badge and catering list', href: '/export/catering' },
+              // A category filter on the list carries into the file.
+              { label: 'Export basic attendee list', href: `/export/attendees${exportQuery}` },
+              { label: 'Export badge and catering list', href: `/export/catering${exportQuery}` },
               { label: 'Export attendee analytics', href: ROUTES.analyticsExports },
             ]}
           />
@@ -202,18 +232,58 @@ export default async function AttendeesPage({
           </div>
         )}
 
+        {editId && (
+          <div
+            id="edit"
+            style={{
+              background: 'var(--surface-alt)',
+              border: '1px solid var(--hairline)',
+              borderRadius: 4,
+              marginBottom: 16,
+              padding: 16,
+            }}
+          >
+            <div style={{ alignItems: 'baseline', display: 'flex', gap: 12, justifyContent: 'space-between' }}>
+              <h2 style={{ fontSize: 15, marginTop: 0 }}>
+                {editing ? `Edit ${editing.name || editing.email}` : 'Edit attendee'}
+              </h2>
+              <Link href={ROUTES.attendees}>Close</Link>
+            </div>
+            {editing ? (
+              <EditPanel
+                key={editing.registrationId}
+                attendee={{
+                  ...editing,
+                  title: editing.title || editRow?.title || '',
+                  company: editing.company || editRow?.company || '',
+                }}
+                ticketTypes={changeTo}
+                categories={categories}
+                emailReady={Boolean(process.env.RESEND_API_KEY)}
+              />
+            ) : (
+              <p className="body-2" style={{ marginBottom: 0 }}>
+                That attendee is no longer on the list.
+              </p>
+            )}
+          </div>
+        )}
+
+        {dataRef && <PersonDataPanel param={dataRef} />}
+
         <form method="get" className="toolbar">
           {role ? <input type="hidden" name="role" value={role} /> : null}
+          {category ? <input type="hidden" name="category" value={category} /> : null}
           <SearchInput
             defaultValue={q}
             width={460}
-            placeholder="Enter name, email, company, titles, location or category"
+            placeholder="Name, email, company, title, ticket, category or interest"
           />
           <button type="submit" className="btn btn-default">
             Search
           </button>
           {q ? (
-            <Link className="btn btn-default" href={href({ role })}>
+            <Link className="btn btn-default" href={href({ role, category })}>
               Clear
             </Link>
           ) : null}
@@ -221,42 +291,62 @@ export default async function AttendeesPage({
 
         <div className="toolbar">
           <Link
-            className={`whova-tag-main ${!role ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+            className={`whova-tag-main ${!category ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
             href={href({ q })}
             style={{ textDecoration: 'none' }}
           >
             All Attendees ({all.length})
           </Link>
-          {roles.map((r) => (
+          {categories.map((c) => (
             <Link
-              key={r}
-              className={`whova-tag-main ${r === role ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
-              href={href({ q, role: r })}
+              key={c.id}
+              className={`whova-tag-main ${c.id === category ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+              href={href({ q, category: c.id })}
               style={{ textDecoration: 'none' }}
             >
-              {r} ({all.filter((a) => a.roles.includes(r)).length})
+              {c.name} ({counts[c.id]})
             </Link>
           ))}
+          <Link
+            className={`whova-tag-main ${category === UNCATEGORISED ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+            href={href({ q, category: UNCATEGORISED })}
+            style={{ textDecoration: 'none' }}
+          >
+            No category ({uncategorised})
+          </Link>
         </div>
 
+        <AssignBar formId={ASSIGN_FORM} categories={categories} />
+
         <Table
+          stackSm
           cols={[
+            { key: 'sel', label: 'Select', className: 'cell-xs' },
             { key: 'n', label: 'Name', className: 'cell-mdsm', sortKey: 'name' },
             { key: 't', label: 'Title', className: 'cell-fill', sortKey: 'title' },
             { key: 'c', label: 'Company', className: 'cell-mdsm cell-truncate', sortKey: 'company' },
             { key: 'tk', label: 'Ticket', className: 'cell-sm', sortKey: 'ticket' },
             { key: 'cat', label: 'Category', className: 'cell-sm', sortKey: 'category' },
             { key: 'app', label: 'App', className: 'cell-xs', sortKey: 'signedin' },
-            { key: 's', label: 'Directory', className: 'cell-xs', sortKey: 'directory' },
+            { key: 's', label: 'Directory', className: 'cell-sm', sortKey: 'directory' },
             { key: 'act', label: '', className: 'cell-xs cell-end-align' },
           ]}
           sort={sort}
           empty="No attendee matches that search"
           rows={pageRows.map((a) => [
+            // The category is on the registration, so only a ticket holder can be ticked.
+            a.registrationId && a.registrationStatus === 'active' ? (
+              <RowCheckbox key="sel" formId={ASSIGN_FORM} rid={a.registrationId} name={a.name} />
+            ) : (
+              // Nothing, not an empty span: a stacked card hides a cell that is
+              // truly empty, and an empty element left a SELECT heading with a
+              // gap under it that reads as a tick box which failed to draw.
+              null
+            ),
             <span key="n">
               <strong>{a.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {a.email}
+                <Email address={a.email} />
               </div>
             </span>,
             a.title ?? <span className="muted">—</span>,
@@ -264,10 +354,10 @@ export default async function AttendeesPage({
             a.ticketType ? (
               <span key="tk">
                 {a.ticketType}
-                {a.registrationStatus === 'cancelled' && (
+                {a.registrationStatus && a.registrationStatus !== 'active' && (
                   <div>
                     <Tag color="red" small>
-                      refunded
+                      {a.registrationStatus}
                     </Tag>
                   </div>
                 )}
@@ -279,7 +369,20 @@ export default async function AttendeesPage({
                 no ticket
               </span>
             ),
-            a.roles.join(', ') || <span className="muted">—</span>,
+            a.categoryId ? (
+              <Tag
+                key="cat"
+                color={categories.find((c) => c.id === a.categoryId)?.color ?? 'grey'}
+                fill="solid"
+                small
+              >
+                {categoryLabel(categories, a)}
+              </Tag>
+            ) : (
+              <span key="cat" className="muted">
+                —
+              </span>
+            ),
             a.signedIn ? (
               <Tag key="app" color="green" fill="outline" small>
                 yes
@@ -303,17 +406,46 @@ export default async function AttendeesPage({
               </span>
             ),
             /*
-              "Edit attendee" and "Remove from event" were greyed-out menu items
-              with no action behind them. Both are removed rather than left
-              looking available — the reasons are in the gap panel below, and a
-              disabled item in an open menu reads as "temporarily unavailable",
-              which is a different and untrue claim.
+              The edit items open the panel above the table for this row's
+              registration. Somebody with a profile and no ticket has nothing
+              here to edit, cancel or transfer, so they get the two links only.
             */
             <RowActions
               key="act"
               items={[
+                ...(a.registrationId
+                  ? a.registrationStatus === 'active'
+                    ? [
+                        { label: 'Edit attendee', href: `?edit=${a.registrationId}#edit` },
+                        { label: 'Set category', href: `?edit=${a.registrationId}#category` },
+                        { label: 'Transfer ticket', href: `?edit=${a.registrationId}#transfer` },
+                        { label: 'Cancel registration', href: `?edit=${a.registrationId}#cancel`, danger: true },
+                      ]
+                    : [{ label: 'View registration', href: `?edit=${a.registrationId}#edit` }]
+                  : []),
                 { label: 'Send announcement', href: ROUTES.announcements },
                 { label: 'Check in at the door', href: ROUTES.checkIn },
+                /*
+                  Both offered on every row, including somebody with a profile
+                  and no ticket: a data request does not depend on having bought
+                  anything, and the walk is keyed on five ids of which the
+                  address is the only one always present.
+
+                  The export is a direct link because it is the common request
+                  and the file is the answer to it. Deletion opens the panel
+                  first, which lists what is held before it offers the button.
+                */
+                {
+                  label: 'Export their data',
+                  href: a.registrationId
+                    ? `/export/person?rid=${encodeURIComponent(a.registrationId)}`
+                    : `/export/person?uid=${encodeURIComponent(a.uid ?? '')}`,
+                },
+                {
+                  label: 'Delete their data',
+                  href: `?data=${personRefParam({ registrationId: a.registrationId, uid: a.uid })}#person-data`,
+                  danger: true,
+                },
               ]}
             />,
           ])}
@@ -322,28 +454,11 @@ export default async function AttendeesPage({
       </Panel>
 
       <Panel>
-        <h2 className="section-header">Why this is two collections merged</h2>
-        <p className="body-2">
-          Whova has one attendee list that every registration product feeds. We have two collections
-          doing different jobs. <code>registrations</code> is the imported ticket list, keyed by an
-          opaque server-minted id rather than by email, because addresses change, because{' '}
-          <code>&ldquo;a/b@example.com&rdquo;</code> is a legal address and an illegal Firestore
-          path segment, and because an email-keyed collection is a membership oracle for anyone who
-          can attempt a read. <code>users</code> is the profile someone creates when they sign in
-          and claim a registration. This screen shows the <strong>union</strong> of the two, joined
-          on the email address. The only key they share, and the reason{' '}
-          <code>registrationId</code> is derived from a normalised address at all. It used to read{' '}
-          <code>users</code> alone, which meant somebody who had bought a ticket five minutes ago
-          was invisible here until they opened the app. The &ldquo;App&rdquo; column now carries
-          that distinction instead of it deciding who appears.
-        </p>
-        <p className="body-2">
-          The {hidden > 0 ? `${hidden} attendees marked "opted out" are` : 'opted-out column is'}{' '}
-          about <code>directory/&#123;uid&#125;</code>, the slim ~450-byte projection every attendee
-          may read. Opting out does not filter the profile out of the directory. It deletes the
-          projection outright, so the record never reaches another device. Rules can hide documents
-          but not fields, which is why the directory is a separate collection at all. The trigger
-          that maintains it is unbuilt (Spark plan), so the projection is whatever the seed wrote.
+        <h2 className="section-header">About this list</h2>
+        <p className="body-2" style={{ marginBottom: 0 }}>
+          The list includes everyone with a ticket and everyone who has signed into the app. App
+          shows who has signed in. Directory shows who other attendees can see
+          {hidden > 0 ? `; ${hidden} opted out` : ''}.
         </p>
       </Panel>
 
@@ -363,23 +478,21 @@ export default async function AttendeesPage({
             overwrites a ticket type with a blank.
           </li>
           <li>
-            <strong>Editing an attendee.</strong> Adding one is built — it writes a registration
-            through the same <code>ensureRegistration</code> as the webhook and the importer, and
-            re-adding an address updates rather than duplicates, which is the edit path for the
-            three fields a registration owns. What is still missing is editing the <em>profile</em>:
-            title, company, interests and photo live on <code>users/&#123;uid&#125;</code>, which
-            the attendee also writes from the app, so an organizer edit needs a rule about who wins
-            and a way to tell them it happened.
+            <strong>Editing, cancelling and transferring, now built.</strong> An address change and a
+            transfer both move the registration to the id derived from the new address and leave the
+            old one as <code>transferred</code>. A cancellation releases a paid seat through{' '}
+            <code>releasedSeats</code> on the order and does not refund it. Still missing: a ticket
+            type change moves no stock and takes no payment, and a refund of a transferred
+            ticket&apos;s order cancels the original holder&apos;s registration, not the new one.
           </li>
           <li>
-            <strong>Removing somebody from the event.</strong> The menu item was greyed out and is
-            now gone rather than pretending. A registration has a <code>cancelled</code> status and
-            flipping it by hand would be one line — but that status is also what a Stripe refund
-            writes, and this screen tags a cancelled registration &ldquo;refunded&rdquo;. Adding a
-            second, moneyless way to reach the same state means the tag lies for one of them, and a
-            headcount that disagrees with the ledger is worse than a missing button. Cancelling a
-            real ticket is a refund on Attendee Orders; cancelling a comp is a Firebase console job
-            until the two states are separated in the model.
+            <strong>Export and deletion of one person, now built.</strong> Both walk the one list in{' '}
+            <code>person-data-core.ts</code>, so a new collection is reached by adding an entry
+            there and by nothing else. Still missing: the call for abstracts is a separate
+            population reached by capability link with no account, and its submissions, reviewer
+            rows and author identities are not in the walk yet. Neither is{' '}
+            <code>gatherings.attendees</code>, which holds typed names rather than ids and has no
+            join key to match on.
           </li>
           <li>
             <strong>Categories and Segments.</strong> Segments are the sharpest idea in the whole

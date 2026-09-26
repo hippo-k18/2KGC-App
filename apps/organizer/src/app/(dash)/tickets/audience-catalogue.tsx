@@ -90,11 +90,10 @@ export async function AudienceCatalogue({
         title={title}
         info={
           <>
-            <strong>The public page reads this list live</strong>
+            <strong>Changes are live right away</strong>
             <p>
-              A price edited here is the price charged on the next request; there is nothing to
-              publish. Hidden tiers stay purchasable by direct link, which is how a negotiated rate
-              works without a second code path.
+              A price edited here is the price charged from then on. Hidden tiers can still be
+              bought by direct link, which is useful for a negotiated rate.
             </p>
             {info}
           </>
@@ -165,8 +164,8 @@ export async function AudienceCatalogue({
                       </Tag>
                     )}
                   </div>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    {t.tagline || <em>no tagline</em>} · <code>{t.id}</code>
+                  <div className="muted" style={{ fontSize: 11, maxWidth: 'max(50vw, 220px)' }}>
+                    {t.tagline || <em>no tagline</em>}
                   </div>
                 </div>,
 

@@ -49,24 +49,15 @@ export default async function ProfilePhotoFramesPage() {
         title="Profile Photo Frames"
         info={
           <>
-            <strong>The blocker is the photo, not the frame</strong>
+            <strong>Frames are not available yet</strong>
             <p>
-              A branded ring around a profile picture is cheap, and it is pointless until attendees
-              have pictures. Nothing in the app sets one: no image picker, no upload, no avatar
-              editor.
-            </p>
-            <p>
-              So this measures how far a frame would reach, against people who have opened the app
-              at all.
+              Attendees cannot set a profile photo in the app yet. This screen shows how many
+              profiles already have a photo a frame could go on.
             </p>
           </>
         }
         tags={
-          withPhoto === 0 ? (
-            <Tag color="grey">not inputted yet</Tag>
-          ) : (
-            <Tag color="orange">{withPhoto} could be framed</Tag>
-          )
+          withPhoto === 0 ? null : <Tag color="orange">{withPhoto} could be framed</Tag>
         }
         links={[
           <Link key="c" href="/engagement/photos/photo-collection">
@@ -90,7 +81,7 @@ export default async function ProfilePhotoFramesPage() {
             value: `${Math.round(coverage * 100)}%`,
             sub: 'of people who signed in',
           },
-          { label: 'Frames', value: 0, sub: 'not inputted yet' },
+          { label: 'Frames', value: 0 },
         ]}
       />
 
@@ -100,10 +91,8 @@ export default async function ProfilePhotoFramesPage() {
           <ProgressBar pct={Math.round(coverage * 100)} />
         </div>
         <p className="body-2" style={{ marginTop: 0 }}>
-          Measured against people who have <em>opened the app</em>, not against every ticket holder:
-          a profile photo is only possible for the former, and the wider denominator would blame the
-          wrong thing. The people who have not signed in are a{' '}
-          <Link href="/tools/app-adoption">separate problem with its own screen</Link>.
+          Counted against people who have opened the app. For people who have not signed in yet,
+          see <Link href="/tools/app-adoption">App Adoption</Link>.
         </p>
         <Table
           cols={[
@@ -115,16 +104,14 @@ export default async function ProfilePhotoFramesPage() {
             [
               'Attendee profiles',
               `${withPhoto} / ${profiles?.total ?? 0}`,
-              'Nobody. The app has no avatar editor, so this is whatever an import wrote rather than what attendees chose.',
+              'Nobody yet. Attendees cannot change their photo in the app.',
             ],
             [
               'Speaker headshots',
               `${census.sources[0]?.withImage ?? 0} / ${census.sources[0]?.total ?? 0}`,
               <span key="w">
                 An organizer, on{' '}
-                <Link href="/content/speaker-center/speaker-manager">Speaker Manager</Link>, as a
-                URL. These are the images a frame would look best on, and they belong to the wrong
-                collection for it.
+                <Link href="/content/speaker-center/speaker-manager">Speaker Manager</Link>.
               </span>,
             ],
           ]}

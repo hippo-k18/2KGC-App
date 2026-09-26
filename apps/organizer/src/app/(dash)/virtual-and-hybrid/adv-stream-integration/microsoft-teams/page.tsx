@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,15 +29,6 @@ export default async function MicrosoftTeamsIntegrationPage() {
     <>
       <PageHeader
         title="Microsoft Teams"
-        info={
-          <>
-            <strong>No Microsoft tenant is connected</strong>
-            <p>
-              Creating a Teams meeting needs a Graph permission that only an attendee&rsquo;s own IT
-              department can grant, in their tenant. Attendance here is a badge scan at a door.
-            </p>
-          </>
-        }
         links={[
           <Link key="z" href="/virtual-and-hybrid/adv-stream-integration/zoom">
             Zoom
@@ -50,14 +40,12 @@ export default async function MicrosoftTeamsIntegrationPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="Teams meetings"
-          action={
-            <Link href={ROUTES.checkIn} className="whova-btn-main">
-              Attendance is at the door
-            </Link>
-          }
-        />
+        <EmptyState>
+          <p className="empty-title">Not available yet</p>
+          <p className="empty-sub">
+            Microsoft Teams is not available yet. Attendance is recorded by badge scan at check-in.
+          </p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -39,9 +39,7 @@ export async function requestInvoice(
 ): Promise<InvoiceState> {
   if (!stripeEnabled()) {
     return {
-      error:
-        'Invoicing is not available on this deployment because no payment processor is ' +
-        'configured. Email us and we will raise one by hand.',
+      error: 'Invoicing is not open yet. Email us and we will raise one by hand.',
     };
   }
 

@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
 import { contactId } from './ids.js';
 import { mintUnsubscribeToken } from './unsubscribe-token.js';
 
@@ -30,12 +30,22 @@ function formatPrice(cents: number, currency = 'usd'): string {
  *
  * ── The one rule that governs this whole file ───────────────────────────────
  *
- * **A failed send must never fail its caller.** Every function here is
- * `Promise<void>` and every one of them swallows its own errors. The callers
- * are the Stripe webhook and the invoice action; a throw in the webhook becomes
- * a non-2xx, a non-2xx makes Stripe retry the event for ever, and Stripe
- * eventually disables the endpoint — which takes *fulfilment* down because a
- * receipt did not send. The ticket matters; the receipt is a courtesy.
+ * **A failed send must never fail its caller.** Every function here swallows
+ * its own errors and none of them rejects. The callers are the Stripe webhook
+ * and the invoice action; a throw in the webhook becomes a non-2xx, a non-2xx
+ * makes Stripe retry the event for ever, and Stripe eventually disables the
+ * endpoint — which takes *fulfilment* down because a receipt did not send. The
+ * ticket matters; the receipt is a courtesy.
+ *
+ * ⚠️ They return `SendOutcome` rather than nothing, and that is a correction,
+ * not a relaxation. The old signature was `Promise<void>` with a comment
+ * saying "there is no caller that should branch on whether a receipt went out,
+ * and offering a boolean invites one to". True of a receipt; false of every
+ * screen with a Send button on it. The dashboard was telling organizers "Link
+ * sent to marek@…" for mail the provider had refused seconds earlier, because
+ * the only thing the caller could check was whether an API key existed. A
+ * caller may now *report* what happened. It still must not *fail* on it: the
+ * webhook and the invoice action ignore the value and are right to.
  *
  * ── Why there is a log ──────────────────────────────────────────────────────
  *
@@ -62,16 +72,26 @@ export function emailEnabled(): boolean {
  * Who the mail comes from.
  *
  * Must be a domain verified in Resend, or every send returns 403. A friendly
- * name is included because "KGC 2027" in an inbox list is recognised and a bare
- * address is not.
+ * name is included because "Knowledge Graph Conference" in an inbox list is
+ * recognised and a bare address is not.
  */
 function fromAddress(): string {
-  return process.env.EMAIL_FROM ?? 'KGC 2027 <tickets@knowledgegraph.tech>';
+  return process.env.EMAIL_FROM ?? 'Knowledge Graph Conference <tickets@knowledgegraph.tech>';
 }
 
 /** Where "questions?" should go. Falls back to the from address. */
+/**
+ * Where questions go: the conference's real, staffed inbox.
+ *
+ * Mail is sent *from* hello@knowledgegraph.tech, which has no mailbox behind
+ * it, so every email tells people not to reply and to write here instead.
+ * Reply-To points here as well, for the people who reply anyway, and so does
+ * the List-Unsubscribe mailto, so neither ends up in an inbox nobody reads.
+ */
+const CONTACT = EVENT.contactEmail;
+
 function replyTo(): string {
-  return process.env.EMAIL_REPLY_TO ?? 'hello@knowledgegraph.tech';
+  return process.env.EMAIL_REPLY_TO ?? CONTACT;
 }
 
 interface SendInput {
@@ -136,12 +156,60 @@ async function log(
 }
 
 /**
+ * What happened to one send. The same three words the log stores, so a screen
+ * and the log can never disagree about a single attempt.
+ *
+ * `skipped` — this deployment cannot send at all.
+ * `failed`  — the provider was asked and refused, or the call threw.
+ * `sent`    — the provider accepted it.
+ *
+ * ⚠️ `sent` is the provider accepting it for delivery, which is the strongest
+ * thing any sender can honestly claim. It is not "it arrived" and it is not
+ * "they read it".
+ */
+export type SendOutcome = 'sent' | 'skipped' | 'failed';
+
+/**
+ * One line for a screen, saying what actually happened to a send.
+ *
+ * ⚠️ This exists because the dashboard was reporting intent as fact. Every Send
+ * button branched on `emailEnabled()`, which only asks whether an API key is
+ * configured, so a key plus a provider that refused the address produced a
+ * green "Link sent to marek@…" beside a log row reading `failed`. An organizer
+ * then tells a stand to check an inbox nothing was ever delivered to.
+ *
+ * The `skipped` wording is the sentence this project already uses on the
+ * screens where sending is switched off, and `failed` is deliberately shaped
+ * the same way: something did not happen, and here is the thing to do instead.
+ * A reader should not have to know which of the two it was to know what to do.
+ *
+ * `fallback` is the by-hand path for this particular screen, so it is the
+ * caller's to supply. It should be a whole sentence.
+ */
+export function sendOutcomeMessage(input: {
+  outcome: SendOutcome;
+  to: string;
+  /** The whole sentence to show when the provider accepted it. */
+  sent: string;
+  /** What to do instead, when it did not go. */
+  fallback: string;
+}): string {
+  if (input.outcome === 'sent') return input.sent;
+  if (input.outcome === 'skipped') {
+    return `Email is not switched on yet, so nothing was sent to ${input.to}. ${input.fallback}`;
+  }
+  return `The email to ${input.to} was refused, so nothing arrived. ${input.fallback}`;
+}
+
+/**
  * Send one email. Never throws, never rejects.
  *
- * Returns nothing on purpose: there is no caller that should branch on whether
- * a receipt went out, and offering a boolean invites one to.
+ * Returns what happened. Every `return` below is paired with the `log()` call
+ * that records the same word, and they are written together on purpose: an
+ * outcome the screen reports and a log row support reads have to come from one
+ * branch, or the two answers to "did it go?" drift apart.
  */
-async function send(store: Firestore, input: SendInput): Promise<void> {
+async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
   const base = {
     to: input.to,
     subject: input.subject,
@@ -158,7 +226,7 @@ async function send(store: Firestore, input: SendInput): Promise<void> {
       status: 'skipped',
       reason: 'RESEND_API_KEY is not set on this deployment',
     });
-    return;
+    return 'skipped';
   }
 
   try {
@@ -203,15 +271,17 @@ async function send(store: Firestore, input: SendInput): Promise<void> {
       const body = await res.text().catch(() => '');
       await log(store, { ...base, status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
       console.error('[email] Resend rejected', input.template, res.status, body);
-      return;
+      return 'failed';
     }
 
     const json = (await res.json().catch(() => ({}))) as { id?: string };
     await log(store, { ...base, status: 'sent', providerId: json.id });
+    return 'sent';
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await log(store, { ...base, status: 'failed', error: message.slice(0, 500) });
     console.error('[email] send threw', input.template, err);
+    return 'failed';
   }
 }
 
@@ -226,7 +296,27 @@ async function send(store: Firestore, input: SendInput): Promise<void> {
 
 const BRAND = '#1c2b4a';
 
-function shell(heading: string, body: string): string {
+/**
+ * Images for a template, served by the website from `public/email/`.
+ *
+ * Linked, not attached: an attachment is sent with every copy of every
+ * receipt, and inline attachments are shown as a paperclip by some clients.
+ * The URL comes from `WEB_PUBLIC_ORIGIN`, so it must name a site that has the
+ * file deployed. Every image has width and height set and alt text, so a
+ * client that blocks images still shows a sensible layout.
+ */
+interface ShellImages {
+  /** A 2:1 photo, full width under the header band. */
+  hero?: { src: string; alt: string };
+  /** Play confetti above the heading: an animated GIF, first frame is static. */
+  confetti?: boolean;
+}
+
+function emailImage(file: string): string {
+  return `${publicSiteOrigin()}/email/${file}`;
+}
+
+function shell(heading: string, body: string, images: ShellImages = {}): string {
   return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 12px;">
     <tr><td align="center">
@@ -234,13 +324,23 @@ function shell(heading: string, body: string): string {
         <tr><td style="background:${BRAND};padding:20px 28px;">
           <span style="color:#ffffff;font-size:17px;font-weight:600;letter-spacing:.02em;">Knowledge Graph Conference 2027</span>
         </td></tr>
-        <tr><td style="padding:28px;">
+        ${
+          images.hero
+            ? `<tr><td style="padding:0;line-height:0;"><img src="${images.hero.src}" width="560" height="280" alt="${images.hero.alt}" style="display:block;width:100%;max-width:560px;height:auto;border:0;"></td></tr>`
+            : ''
+        }
+        <tr><td style="padding:${images.confetti ? '0' : '28px'} 28px 28px;">
+          ${
+            images.confetti
+              ? `<img src="${emailImage('confetti.gif')}" width="504" height="81" alt="" style="display:block;width:100%;max-width:504px;height:auto;border:0;margin:0 0 4px;">`
+              : ''
+          }
           <h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:${BRAND};">${heading}</h1>
           ${body}
         </td></tr>
         <tr><td style="padding:18px 28px;background:#fafbfc;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;">
-          3–7 May 2027 · Cornell Tech, Roosevelt Island, New York City<br>
-          Questions? Just reply to this email.
+          3–7 May 2027 · Bryant Park, New York<br>
+          Please don't reply to this email. For questions, write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.
         </td></tr>
       </table>
     </td></tr>
@@ -298,12 +398,12 @@ export interface PurchaseEmailInput {
  * there is a ticket, and only this says which address to sign in with — the
  * single most common support question after "where is my confirmation".
  */
-export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<void> {
+export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
   const price = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
-    'Your KGC 2027 ticket is confirmed',
+    "You're going to the Knowledge Graph Conference",
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} you're registered. Here are the details.</p>
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Attendee', esc(input.name || input.to))}
@@ -311,7 +411,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
        ${row('Paid', price)}
        ${row('Sign in with', esc(input.to))}
      </table>
-     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> open the KGC app and sign in with <strong>${esc(input.to)}</strong> — that address is how the app finds your ticket. Your claim code is:</p>
+     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> download the Knowledge Graph Conference app from the App Store or Google Play, then sign in with <strong>${esc(input.to)}</strong>. That address is how the app finds your ticket. Your claim code is:</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.claimCode)}</p>
      ${
        input.temporaryPassword
@@ -321,10 +421,17 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
          : ''
      }
      ${button(input.orderUrl, 'View your ticket')}
-     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link — it shows your badge QR code, which is what gets scanned at the door. Don't forward it; anyone with the link can see your ticket.</p>`,
+     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link. It shows your badge QR code, which is what gets scanned at the door. Don't forward it: anyone with the link can see your ticket.</p>`,
+    {
+      hero: {
+        src: emailImage('ticket-hero.jpg'),
+        alt: 'The main hall at the Knowledge Graph Conference',
+      },
+      confetti: true,
+    },
   );
 
-  const text = `${greeting} you're registered for KGC 2027.
+  const text = `${greeting} you're registered for the Knowledge Graph Conference.
 
 Attendee:      ${input.name || input.to}
 Ticket:        ${input.ticketType}
@@ -333,16 +440,18 @@ Sign in with:  ${input.to}
 
 Claim code: ${input.claimCode}
 ${input.temporaryPassword ? `\nTemporary password: ${input.temporaryPassword}\nThe app will ask you to change it the first time you sign in. It is six\ndigits, it belongs to this ticket only, and it stops working the moment you\nchoose your own.\n` : ''}
-Next step: open the KGC app and sign in with ${input.to}.
+Next step: download the Knowledge Graph Conference app from the App Store or
+Google Play, then sign in with ${input.to}.
 View your ticket: ${input.orderUrl}
 
-Keep that link private — it shows the badge QR that gets scanned at the door.
+Keep that link private. It shows the badge QR that gets scanned at the door.
 
-3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
+3-7 May 2027, Bryant Park, New York.
+Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
-    subject: `Your KGC 2027 ticket — ${input.ticketType}`,
+    subject: `Your Knowledge Graph Conference ticket: ${input.ticketType}`,
     html,
     text,
     template: 'purchase-confirmation',
@@ -371,12 +480,12 @@ export interface InvoiceEmailInput {
  * answer ("nothing until it's paid") is the part that causes phone calls if it
  * is left implicit.
  */
-export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInput): Promise<void> {
+export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInput): Promise<SendOutcome> {
   const total = formatPrice(input.totalCents, input.currency);
   const seats = `${input.seatCount} ${input.seatCount === 1 ? 'seat' : 'seats'}`;
 
   const html = shell(
-    'Your KGC 2027 invoice is ready',
+    'Your Knowledge Graph Conference invoice is ready',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">We've raised an invoice for <strong>${esc(input.companyName)}</strong> covering ${seats}.</p>
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Company', esc(input.companyName))}
@@ -390,7 +499,7 @@ export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInp
      <p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">The link above lets finance pay by card or bank transfer and download a PDF for your records.</p>`,
   );
 
-  const text = `Your KGC 2027 invoice is ready.
+  const text = `Your Knowledge Graph Conference invoice is ready.
 
 Company:  ${input.companyName}
 Seats:    ${input.seatCount}
@@ -402,9 +511,9 @@ What happens next: tickets are issued when the invoice is paid, not when it is
 raised, so nobody is registered yet. When payment clears, each attendee gets
 their own confirmation with a claim code.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
-    subject: `KGC 2027 invoice — ${input.companyName} (${seats})`,
+    subject: `Knowledge Graph Conference invoice: ${input.companyName} (${seats})`,
     html,
     text,
     template: 'invoice-raised',
@@ -420,40 +529,126 @@ export interface RefundEmailInput {
   currency: string;
   orderId?: string;
   registrationId?: string;
+  /**
+   * Whether this refund actually took a ticket away. False when a second,
+   * still-paid order covers the same person and their badge keeps working.
+   * Defaults to true, which is what a single-order refund does.
+   */
+  ticketCancelled?: boolean;
+  /**
+   * Whether the ticket had been passed to somebody else before the refund. The
+   * buyer's own badge stopped working at the transfer, not now, so the sentence
+   * about a badge that no longer scans is about a ticket they no longer hold.
+   */
+  transferred?: boolean;
 }
 
 /**
- * Confirms the money went back and, more usefully, that the ticket did not
- * survive it.
+ * Confirms the money went back and, more usefully, what happened to the ticket.
  *
  * The second half is the point. Someone who refunds and still has a
  * confirmation email in their inbox will otherwise turn up at the door — and
  * finding out there is that the badge does not scan is a worse conversation
  * than an email that said so in April.
+ *
+ * ── Three readings, because the buyer is not always the ticket holder ───────
+ *
+ * This goes to whoever paid, always: they are owed the receipt. What it can say
+ * about a badge depends on what the refund did.
+ *
+ * A plain refund cancels the buyer's own ticket, which is the original mail. A
+ * refund of an order whose ticket was **transferred** cancels somebody else's
+ * badge and not the buyer's, so the buyer is told about the ticket they passed
+ * on and `sendTicketWithdrawn` tells the person now holding it. And a refund
+ * that cancelled nothing, because another paid order still covers the seat,
+ * must not claim a badge has stopped working when it has not.
  */
-export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<void> {
+export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<SendOutcome> {
   const amount = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const cancelled = input.ticketCancelled ?? true;
+
+  const ticketHtml = !cancelled
+    ? `<strong>The ticket is not affected.</strong> Another order still covers it, so it scans at the door as before. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
+    : input.transferred
+      ? `<strong>The ticket you passed on is now cancelled</strong>, so it will no longer scan at the door. We have told the person who was holding it. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
+      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, write to ${CONTACT} and we'll sort it out.`;
+
+  const ticketText = !cancelled
+    ? `The ticket is not affected. Another order still covers it, so it scans at the
+door as before. If this was a mistake, write to ${CONTACT}.`
+    : input.transferred
+      ? `The ticket you passed on is now cancelled, so it will no longer scan at the
+door. We have told the person who was holding it. If this was a mistake, write
+to ${CONTACT}.`
+      : `Your registration is now cancelled, so the badge QR in the app will no longer
+scan at the door. If this was a mistake, write to ${CONTACT}.`;
 
   const html = shell(
-    'Your KGC 2027 ticket has been refunded',
+    'Your Knowledge Graph Conference ticket has been refunded',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} we've refunded ${amount}${input.ticketType ? ` for your ${esc(input.ticketType)} ticket` : ''}. It usually reaches your account in five to ten working days, depending on your bank.</p>
-     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, reply to this email and we'll sort it out.</p>`,
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;">${ticketHtml}</p>`,
   );
 
   const text = `${greeting} we've refunded ${amount}${input.ticketType ? ` for your ${input.ticketType} ticket` : ''}.
 
 It usually reaches your account in 5-10 working days.
 
-Your registration is now cancelled, so the badge QR in the app will no longer
-scan at the door. If this was a mistake, reply to this email.`;
+${ticketText}`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
-    subject: 'Your KGC 2027 ticket has been refunded',
+    subject: 'Your Knowledge Graph Conference ticket has been refunded',
     html,
     text,
     template: 'refund-confirmation',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+export interface TicketWithdrawnInput {
+  to: string;
+  name?: string;
+  ticketType?: string;
+  orderId?: string;
+  /** The holder's own registration, never the buyer's. */
+  registrationId?: string;
+}
+
+/**
+ * Tells the person holding a transferred ticket that it has stopped working.
+ *
+ * The refund receipt goes to whoever paid, and after a transfer that is not the
+ * person whose badge just died. Without this mail the holder learns at the
+ * door, from a scanner, which is the exact conversation the refund receipt
+ * exists to prevent for the buyer.
+ *
+ * It carries no amount. No money moved for this reader, and a figure in front
+ * of them would read as a refund they are owed, which it is not.
+ */
+export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdrawnInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  const html = shell(
+    'Your Knowledge Graph Conference ticket has been cancelled',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} the ticket that was passed to you${input.ticketType ? ` for ${esc(input.ticketType)}` : ''} has been cancelled, because the person who bought it has been refunded.</p>
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your badge will no longer scan at the door.</strong> The money went back to whoever paid for the ticket, so there is nothing for you to claim. If you think this is wrong, write to ${CONTACT} and we'll sort it out.</p>`,
+  );
+
+  const text = `${greeting} the ticket that was passed to you${input.ticketType ? ` for ${input.ticketType}` : ''} has been
+cancelled, because the person who bought it has been refunded.
+
+Your badge will no longer scan at the door. The money went back to whoever paid
+for the ticket, so there is nothing for you to claim. If you think this is
+wrong, write to ${CONTACT}.`;
+
+  return send(store, {
+    to: input.to,
+    subject: 'Your Knowledge Graph Conference ticket has been cancelled',
+    html,
+    text,
+    template: 'ticket-cancelled',
     orderId: input.orderId,
     registrationId: input.registrationId,
   });
@@ -505,9 +700,9 @@ export interface SignInCodeEmailInput {
  * something was attempted, including the `skipped` row written when no
  * `RESEND_API_KEY` is configured.
  */
-export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<void> {
+export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<SendOutcome> {
   const html = shell(
-    'Your KGC 2027 sign-in code',
+    'Your Knowledge Graph Conference sign-in code',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:.22em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:16px;text-align:center;">${esc(input.code)}</p>
      <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask for a new one from the same screen.</p>
@@ -524,15 +719,16 @@ for a new one from the same screen.
 If you didn't ask to sign in, you can ignore this email — nobody can use the
 code without it, and no one has been given access to your account.
 
-3-7 May 2027, Cornell Tech, Roosevelt Island, New York City.`;
+3-7 May 2027, Bryant Park, New York.
+Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     // Deliberately does not contain the code, and deliberately does not name
     // the recipient or their ticket: this mail goes to any syntactically valid
     // address that asks, so anything specific in it would confirm to a stranger
     // that the address is on the guest list.
-    subject: 'Your KGC 2027 sign-in code',
+    subject: 'Your Knowledge Graph Conference sign-in code',
     html,
     text,
     template: 'sign-in-code',
@@ -658,7 +854,7 @@ async function unsubscribeUrlFor(
  * `unsubscribeUrlFor()` for why offering it otherwise would be a promise this
  * code cannot keep.
  */
-export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<void> {
+export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const unsubscribe = await unsubscribeUrlFor(store, input.to);
 
@@ -697,9 +893,9 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
     : '';
 
-  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Cornell Tech, Roosevelt Island, New York City${unsubscribeText}`;
+  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.subject,
     html,
@@ -764,7 +960,7 @@ export interface SubmissionReceiptInput {
 export async function sendSubmissionReceipt(
   store: Firestore,
   input: SubmissionReceiptInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
   const heading = input.draft
     ? 'Your abstract has been saved as a draft'
@@ -810,7 +1006,7 @@ It stops working after twelve months.
 —
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.draft
       ? `Your draft for ${input.callTitle}`
@@ -827,6 +1023,12 @@ export interface SubmissionDecisionInput {
   callTitle: string;
   title: string;
   accepted: boolean;
+  /**
+   * Set for a waiting-list decision, which is neither. `accepted` is then
+   * ignored. A flag beside the boolean rather than a three-way field so that
+   * every existing caller keeps meaning what it meant.
+   */
+  waitlisted?: boolean;
   /** The author's link back, so they can read their own submission beside the decision. */
   link: string;
   /**
@@ -864,8 +1066,10 @@ export interface SubmissionDecisionInput {
 export async function sendSubmissionDecision(
   store: Firestore,
   input: SubmissionDecisionInput,
-): Promise<void> {
+): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  if (input.waitlisted) return sendWaitlisted(store, input);
 
   const opening = input.accepted
     ? `we are delighted to say that <strong>“${esc(input.title)}”</strong> has been accepted for ${esc(input.callTitle)}.`
@@ -916,7 +1120,7 @@ ${input.link}
 —
 Knowledge Graph Conference 2027`;
 
-  await send(store, {
+  return send(store, {
     to: input.to,
     subject: input.accepted
       ? `Accepted — ${input.title}`
@@ -924,6 +1128,650 @@ Knowledge Graph Conference 2027`;
     html,
     text,
     template: 'submission-decision',
+    actor: input.actor,
+  });
+}
+
+/**
+ * The waiting-list mail. Its own wording rather than a third branch through
+ * every ternary above, and the same log template, because to the author it is
+ * still "the decision".
+ *
+ * It promises nothing. A place may open or it may not, and the one thing it has
+ * to say clearly is that the author will hear either way.
+ */
+async function sendWaitlisted(store: Firestore, input: SubmissionDecisionInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const opening = `thank you for submitting “${input.title}” to ${input.callTitle}. It is on our waiting list.`;
+  const next =
+    'The reviewers rated it well and the programme is full for now. If a place opens we will offer it to you, and we will write to you either way before the programme is final.';
+  const paras = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    `About your abstract for ${esc(input.callTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${esc(opening)}</p>
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${next}</p>
+     ${
+       paras.length
+         ? `<div style="margin:20px 0 0;padding:14px 16px;background:#fafbfc;border:1px solid #e3e5e8;border-radius:4px;">
+         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#6b7280;">From the committee</p>
+         ${paras
+           .map(
+             (para) =>
+               `<p style="margin:0 0 10px;font-size:14px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+           )
+           .join('')}
+       </div>`
+         : ''
+     }
+     ${button(input.link, 'Read your submission')}`,
+  );
+
+  const text = `${greeting} ${opening}
+
+${next}
+${paras.length ? `\nFrom the committee:\n${paras.join('\n\n')}\n` : ''}
+Read your submission:
+${input.link}
+
+Knowledge Graph Conference 2027`;
+
+  return send(store, {
+    to: input.to,
+    subject: `Your submission to ${input.callTitle}`,
+    html,
+    text,
+    template: 'submission-decision',
+    actor: input.actor,
+  });
+}
+
+export interface ReviewerInvitationInput {
+  to: string;
+  name?: string;
+  /** The call they are being asked to review for, in the words on the public page. */
+  callTitle: string;
+  /** `/review/{token}`, freshly minted for this send. */
+  link: string;
+  /** How many submissions are waiting for them right now. Zero is allowed. */
+  assigned: number;
+  /** When reviews are wanted by, already formatted for a human. Optional. */
+  dueLabel?: string;
+  /** A paragraph from the chair, shown above the button. Plain text. */
+  note?: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The invitation to review, and every reminder after it.
+ *
+ * One template for both, because a reminder is the same mail sent again: each
+ * send carries a newly minted link (`reviewer-token.ts`), so the practical life
+ * of any one URL is "since the last nudge".
+ *
+ * Like the two submission mails it carries no unsubscribe link. It is sent to
+ * one named person by an organizer pressing a button, and it is not governed by
+ * the suppression list.
+ *
+ * ⚠️ It says what the link is: a bearer credential for other people's
+ * unpublished work. The reader has no other way to know not to forward it.
+ */
+export async function sendReviewerInvitation(
+  store: Firestore,
+  input: ReviewerInvitationInput,
+): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const waiting =
+    input.assigned === 0
+      ? 'Nothing has been assigned to you yet. Submissions will appear on your page as they are.'
+      : `${input.assigned} submission${input.assigned === 1 ? ' is' : 's are'} waiting for you.`;
+  const due = input.dueLabel ? ` Reviews are wanted by ${input.dueLabel}.` : '';
+
+  const noteParas = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    `Reviewing for ${esc(input.callTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} thank you for reviewing for <strong>${esc(input.callTitle)}</strong>.</p>
+     ${noteParas
+       .map(
+         (para) =>
+           `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+       )
+       .join('')}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(waiting)}${esc(due)}</p>
+     ${button(input.link, 'Open your review page')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       There is no account and no password. The link is your access, so please do not forward it:
+       anybody who has it can read the submissions assigned to you and score them in your name. If
+       you have a conflict of interest with a submission, say so on its page and it is taken off
+       your list. The link stops working after six months.
+     </p>`,
+  );
+
+  const text = `${greeting} thank you for reviewing for ${input.callTitle}.
+${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
+${waiting}${due}
+
+Open your review page:
+${input.link}
+
+There is no account and no password. The link is your access, so please do not
+forward it: anybody who has it can read the submissions assigned to you and
+score them in your name. If you have a conflict of interest with a submission,
+say so on its page and it is taken off your list. The link stops working after
+six months.
+
+Knowledge Graph Conference 2027`;
+
+  return send(store, {
+    to: input.to,
+    subject: `Reviewing for ${input.callTitle}`,
+    html,
+    text,
+    template: 'reviewer-invitation',
+    actor: input.actor,
+  });
+}
+
+export interface SpeakerProfileRequestInput {
+  to: string;
+  name?: string;
+  /** `/speaker/{token}`, freshly minted for this send. */
+  link: string;
+  /** The titles of the talks they are on, so the mail is obviously about them. */
+  sessionTitles: string[];
+  /** What is missing today: "a bio and a photo". Empty when nothing is. */
+  missingLabel?: string;
+  /** A paragraph from the organizer, shown above the button. Plain text. */
+  note?: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The request for a speaker's own bio, photo and slides, and every reminder.
+ *
+ * One template for both, because a reminder is the same mail sent again: each
+ * send carries a newly minted link (`speaker-token.ts`), so the practical life
+ * of any one URL is "since the last nudge".
+ *
+ * No unsubscribe link, for the reason the reviewer invitation has none — one
+ * named person, one organizer pressing a button, and a speaker who opted out of
+ * the newsletter still has to be asked for the bio their talk is published with.
+ *
+ * ⚠️ It says what the link is and what it is not: a way into one profile, where
+ * nothing appears anywhere until an organizer has read it. That second half
+ * matters, because a speaker who thinks the page publishes straight to the
+ * website writes differently on it.
+ */
+export async function sendSpeakerProfileRequest(
+  store: Firestore,
+  input: SpeakerProfileRequestInput,
+): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const talks =
+    input.sessionTitles.length === 0
+      ? 'You are on the speaker list for Knowledge Graph Conference 2027.'
+      : input.sessionTitles.length === 1
+        ? `You are speaking at Knowledge Graph Conference 2027, on "${input.sessionTitles[0]}".`
+        : `You are speaking at Knowledge Graph Conference 2027, on ${input.sessionTitles.length} sessions.`;
+  const missing = input.missingLabel
+    ? `We are missing ${input.missingLabel} for you.`
+    : 'You can check what we hold and change anything that is out of date.';
+
+  const noteParas = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    'Your speaker profile',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${esc(talks)}</p>
+     ${noteParas
+       .map(
+         (para) =>
+           `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+       )
+       .join('')}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(missing)} Your bio, job title, company, links and a link to your slides all go on the same page.</p>
+     ${button(input.link, 'Fill in your profile')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       There is no account and no password. The link is your access, so please do not forward it.
+       Nothing you send appears anywhere until one of the organizers has read it. The link stops
+       working after six months.
+     </p>`,
+  );
+
+  const text = `${greeting} ${talks}
+${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
+${missing} Your bio, job title, company, links and a link to your slides all go
+on the same page.
+
+Fill in your profile:
+${input.link}
+
+There is no account and no password. The link is your access, so please do not
+forward it. Nothing you send appears anywhere until one of the organizers has
+read it. The link stops working after six months.
+
+Knowledge Graph Conference 2027`;
+
+  return send(store, {
+    to: input.to,
+    subject: 'Your speaker profile for the Knowledge Graph Conference',
+    html,
+    text,
+    template: 'speaker-profile-request',
+    actor: input.actor,
+  });
+}
+
+export interface TeamInvitationInput {
+  to: string;
+  name?: string;
+  /** What they will be able to open, already in words: "Finance, Check-in only". */
+  rolesLabel: string;
+  /** The dashboard's sign-in page. */
+  link: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * Someone has been added to the organizer dashboard. There is nothing to set
+ * up: they sign in with this address and a code we email them each time.
+ */
+export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+
+  const html = shell(
+    'Your organizer dashboard access',
+    `<p style="${P}">${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.</p>
+     <p style="${P}">Your access: <strong>${esc(input.rolesLabel)}</strong>.</p>
+     <p style="${P}">Sign in with this email address. We send you a code each time, so there is no password to keep.</p>
+     ${button(input.link, 'Open the dashboard')}`,
+  );
+
+  const text = `${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.
+
+Your access: ${input.rolesLabel}.
+
+Sign in with this email address. We send you a code each time, so there is no password to keep.
+
+${input.link}`;
+
+  return send(store, {
+    to: input.to,
+    subject: 'Your organizer dashboard access',
+    html,
+    text,
+    template: 'team-invitation',
+    actor: input.actor,
+  });
+}
+
+export interface ConsentRequestInput {
+  to: string;
+  name?: string;
+  /** The form's title, as published: "Photo and video release". */
+  formTitle: string;
+  /** The version being asked for. Recorded in the subject, see `EmailLogDoc`. */
+  version: number;
+  /** The personal signing link. It identifies one signatory and one form. */
+  link: string;
+  /** True when this person has already signed an earlier wording. */
+  resigning: boolean;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+  /**
+   * Groups every row of one send in `emailLog`, exactly as a campaign does.
+   *
+   * It is what makes the send resumable: one id per form and version, so the
+   * rows already written are the list of people already asked, and a second
+   * press picks up where the first stopped instead of mailing everybody twice.
+   * Absent for a link sent to one named person as they are added.
+   */
+  campaignId?: string;
+}
+
+/**
+ * The request to sign a release, carrying that person's own signing link.
+ *
+ * ── One template, two situations ───────────────────────────────────────────
+ *
+ * A first request and a request after the wording changed are the same mail
+ * with a different first sentence, and `resigning` chooses it. Splitting them
+ * is how the second one quietly loses the sentence that matters most: an
+ * earlier signature still stands for what it said, and it does not cover the
+ * new text.
+ *
+ * No unsubscribe link. The suppression list governs marketing, and a release
+ * somebody is being asked to sign is a document about them, not a campaign —
+ * the same reason the reviewer and team invitations carry none.
+ */
+export async function sendConsentRequest(
+  store: Firestore,
+  input: ConsentRequestInput,
+): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const opening = input.resigning
+    ? `the wording of ${esc(input.formTitle)} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
+    : `please read and sign ${esc(input.formTitle)} for Knowledge Graph Conference 2027.`;
+
+  const html = shell(
+    input.resigning ? `Please sign ${esc(input.formTitle)} again` : `Please sign ${esc(input.formTitle)}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${opening}</p>
+     ${button(input.link, 'Read it and sign')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       The link is yours alone, so please do not forward it. You can read the whole text before you
+       agree to anything.
+     </p>`,
+  );
+
+  const text = `${greeting} ${input.resigning
+    ? `the wording of ${input.formTitle} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
+    : `please read and sign ${input.formTitle} for Knowledge Graph Conference 2027.`}
+
+Read it and sign:
+${input.link}
+
+The link is yours alone, so please do not forward it. You can read the whole text
+before you agree to anything.
+
+Knowledge Graph Conference 2027`;
+
+  return send(store, {
+    to: input.to,
+    subject: input.resigning
+      ? `Please sign ${input.formTitle} again (version ${input.version})`
+      : `Please sign ${input.formTitle}`,
+    html,
+    text,
+    template: 'consent-request',
+    actor: input.actor,
+    ...(input.campaignId ? { campaignId: input.campaignId } : {}),
+  });
+}
+
+export interface ExhibitorLeadLinkInput {
+  to: string;
+  /** The exhibiting company, not a person: the mail is read by whoever runs the stand. */
+  companyName: string;
+  contactName?: string;
+  /** `/exhibitor/{token}`, freshly minted for this send. */
+  link: string;
+  boothNumber?: string;
+  /** A paragraph from the organizer, shown above the button. Plain text. */
+  note?: string;
+  /** Who pressed send, recorded in `emailLog`. */
+  actor: string;
+}
+
+/**
+ * The link a stand scans badges with, and every re-send.
+ *
+ * One template for both, because a re-send is the same mail again: each press
+ * mints a fresh link (`exhibitor-token.ts`), so the practical life of any one
+ * URL is "since the last send".
+ *
+ * ⚠️ It says three things that the page also says, deliberately, because the
+ * person who reads this mail is usually not the person who will hold the phone:
+ * the link is the access and must not be posted publicly, every attendee agrees
+ * on screen before anything is stored, and the leads are theirs to download.
+ * A stand that does not know the second one asks attendees to "just scan", and
+ * the agreement stops being one.
+ */
+export async function sendExhibitorLeadLink(
+  store: Firestore,
+  input: ExhibitorLeadLinkInput,
+): Promise<SendOutcome> {
+  const greeting = input.contactName ? `Hi ${esc(input.contactName.split(' ')[0])},` : 'Hi,';
+  const booth = input.boothNumber
+    ? `${esc(input.companyName)} is on stand ${esc(input.boothNumber)} at Knowledge Graph Conference 2027.`
+    : `${esc(input.companyName)} is exhibiting at Knowledge Graph Conference 2027.`;
+
+  const noteParas = (input.note ?? '')
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean);
+
+  const html = shell(
+    'Scan badges at your stand',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${booth}</p>
+     ${noteParas
+       .map(
+         (para) =>
+           `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
+       )
+       .join('')}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Open this on the phone or tablet you will have on the stand. Point it at an attendee's badge, they agree on screen to share their details, and you can add a note and download the whole list as a spreadsheet whenever you like.</p>
+     ${button(input.link, 'Open your lead desk')}
+     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
+       There is no account and no password. The link is your access, so share it with your stand
+       team and nowhere else. Nobody is added to your list unless they are standing in front of you
+       and tap to agree. You see only the people your stand has scanned. The link stops working
+       after four months.
+     </p>`,
+  );
+
+  const text = `${greeting} ${input.companyName}${
+    input.boothNumber ? ` is on stand ${input.boothNumber}` : ' is exhibiting'
+  } at Knowledge Graph Conference 2027.
+${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
+Open this on the phone or tablet you will have on the stand. Point it at an
+attendee's badge, they agree on screen to share their details, and you can add
+a note and download the whole list as a spreadsheet whenever you like.
+
+Open your lead desk:
+${input.link}
+
+There is no account and no password. The link is your access, so share it with
+your stand team and nowhere else. Nobody is added to your list unless they are
+standing in front of you and tap to agree. You see only the people your stand
+has scanned. The link stops working after four months.
+
+Knowledge Graph Conference 2027`;
+
+  return send(store, {
+    to: input.to,
+    subject: `Scanning badges at the Knowledge Graph Conference: ${input.companyName}`,
+    html,
+    text,
+    template: 'exhibitor-lead-link',
+    actor: input.actor,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The blog editor at blog.knowledgegraph.tech
+//
+// Four mails, all transactional and all to one named person: a sign-in code,
+// an invitation to write, a post waiting for review, and the decision on it.
+// None carries an unsubscribe link, for the reason `sendTeamInvitation` has
+// none. The links are built by the caller, which knows the blog's origin.
+// ---------------------------------------------------------------------------
+
+const P = 'margin:0 0 14px;font-size:15px;line-height:1.6;';
+const SMALL = 'margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;';
+
+export interface BlogSignInCodeInput {
+  to: string;
+  code: string;
+  /** How long the code lasts, already formatted: "10 minutes". */
+  expiresLabel: string;
+  /**
+   * Which door it opens. The dashboard also uses a code to confirm a refund or
+   * a mass send, which reads differently from signing in.
+   */
+  surface?: 'blog' | 'dashboard' | 'dashboard-confirm';
+}
+
+const CODE_COPY = {
+  blog: { heading: 'Your blog sign-in code', lead: 'Enter this code to sign in to the KGC blog editor:', subject: 'is your KGC blog code', log: 'Blog sign-in code', template: 'blog-sign-in-code' },
+  dashboard: { heading: 'Your dashboard sign-in code', lead: 'Enter this code to sign in to the KGC organizer dashboard:', subject: 'is your KGC dashboard code', log: 'Dashboard sign-in code', template: 'dashboard-sign-in-code' },
+  'dashboard-confirm': { heading: 'Confirm this action', lead: 'Enter this code in the dashboard to confirm what you are about to do:', subject: 'confirms your KGC dashboard action', log: 'Dashboard confirmation code', template: 'dashboard-sign-in-code' },
+} as const;
+
+/**
+ * A six-digit code for the blog editor or the organizer dashboard. The subject
+ * leads with the code so it can be read from a lock-screen notification, as
+ * the app's does. `emailLog` records the subject, so the logged subject is a
+ * code-free one and the real one is sent directly.
+ */
+export async function sendBlogSignInCode(store: Firestore, input: BlogSignInCodeInput): Promise<SendOutcome> {
+  const copy = CODE_COPY[input.surface ?? 'blog'];
+  const html = shell(
+    copy.heading,
+    `<p style="${P}">${copy.lead}</p>
+     <p style="margin:18px 0;font-size:32px;font-weight:700;letter-spacing:.18em;color:${BRAND};">${esc(input.code)}</p>
+     <p style="${SMALL}">It expires in ${esc(input.expiresLabel)}. If you did not ask for it, ignore this email.</p>`,
+  );
+  const text = `${copy.lead} ${input.code}
+
+It expires in ${input.expiresLabel}. If you did not ask for it, ignore this email.`;
+  const logged = { to: input.to, subject: copy.log, template: copy.template };
+
+  if (!emailEnabled()) {
+    await log(store, { ...logged, status: 'skipped', reason: 'RESEND_API_KEY is not set on this deployment' });
+    return 'skipped';
+  }
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: fromAddress(),
+        to: [input.to],
+        reply_to: replyTo(),
+        subject: `${input.code} ${copy.subject}`,
+        html,
+        text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      await log(store, { ...logged, status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
+      return 'failed';
+    }
+    const json = (await res.json().catch(() => ({}))) as { id?: string };
+    await log(store, { ...logged, status: 'sent', providerId: json.id });
+    return 'sent';
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await log(store, { ...logged, status: 'failed', error: message.slice(0, 500) });
+    return 'failed';
+  }
+}
+
+/** The same mail, named for the dashboard's callers. */
+export const sendAccessCode = sendBlogSignInCode;
+
+export interface BlogInvitationInput {
+  to: string;
+  name?: string;
+  /** The inviting editor's name, or their address. */
+  invitedBy: string;
+  /** "an editor" or "a writer". */
+  roleLabel: string;
+  /** The editor's sign-in page, with the address filled in. */
+  link: string;
+  actor: string;
+}
+
+export async function sendBlogInvitation(store: Firestore, input: BlogInvitationInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const html = shell(
+    'Write for the KGC blog',
+    `<p style="${P}">${greeting} ${esc(input.invitedBy)} has added you to the Knowledge Graph Conference blog as ${esc(input.roleLabel)}.</p>
+     <p style="${P}">Sign in with this email address. We send you a code each time, so there is no password to keep.</p>
+     ${button(input.link, 'Open the blog editor')}
+     <p style="${SMALL}">Posts you write go to the KGC editors for review before they are published.</p>`,
+  );
+  const text = `${greeting} ${input.invitedBy} has added you to the Knowledge Graph Conference blog as ${input.roleLabel}.
+
+Sign in with this email address. We send you a code each time, so there is no password to keep.
+
+${input.link}
+
+Posts you write go to the KGC editors for review before they are published.`;
+  return send(store, { to: input.to, subject: 'Write for the KGC blog', html, text, template: 'blog-invitation', actor: input.actor });
+}
+
+export interface BlogReviewRequestInput {
+  to: string;
+  authorName: string;
+  title: string;
+  /** The post in the editor. */
+  link: string;
+  /** True when the post is already live and these are edits to it. */
+  isEdit: boolean;
+}
+
+export async function sendBlogReviewRequest(store: Firestore, input: BlogReviewRequestInput): Promise<SendOutcome> {
+  const what = input.isEdit ? 'changes to a published post' : 'a new post';
+  const html = shell(
+    'A blog post is waiting for review',
+    `<p style="${P}">${esc(input.authorName)} submitted ${what}:</p>
+     <p style="${P}"><strong>${esc(input.title)}</strong></p>
+     ${button(input.link, 'Review it')}`,
+  );
+  const text = `${input.authorName} submitted ${what}:
+
+${input.title}
+
+${input.link}`;
+  return send(store, {
+    to: input.to,
+    subject: `Review: ${input.title}`.slice(0, 180),
+    html,
+    text,
+    template: 'blog-review-request',
+    actor: input.authorName,
+  });
+}
+
+export interface BlogReviewDecisionInput {
+  to: string;
+  name?: string;
+  title: string;
+  decision: 'published' | 'changes-requested';
+  /** The editor's note, when they left one. */
+  note?: string;
+  /** The live post when published, the draft in the editor otherwise. */
+  link: string;
+  actor: string;
+}
+
+export async function sendBlogReviewDecision(store: Firestore, input: BlogReviewDecisionInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const published = input.decision === 'published';
+  const heading = published ? 'Your post is live' : 'Your post needs a few changes';
+  const lead = published
+    ? `${greeting} <strong>${esc(input.title)}</strong> is now published on the KGC blog.`
+    : `${greeting} an editor has sent <strong>${esc(input.title)}</strong> back to you.`;
+  const note = input.note
+    ? `<p style="margin:0 0 14px;padding:12px 16px;background:#f4f5f7;border-left:3px solid ${BRAND};font-size:15px;line-height:1.6;white-space:pre-wrap;">${esc(input.note)}</p>`
+    : '';
+  const html = shell(
+    heading,
+    `<p style="${P}">${lead}</p>${note}${button(input.link, published ? 'Read it' : 'Open your draft')}`,
+  );
+  const text = `${published ? `${input.title} is now published on the KGC blog.` : `An editor has sent "${input.title}" back to you.`}
+${input.note ? `\n${input.note}\n` : ''}
+${input.link}`;
+  return send(store, {
+    to: input.to,
+    subject: published ? `Published: ${input.title}`.slice(0, 180) : `Changes requested: ${input.title}`.slice(0, 180),
+    html,
+    text,
+    template: 'blog-review-decision',
     actor: input.actor,
   });
 }

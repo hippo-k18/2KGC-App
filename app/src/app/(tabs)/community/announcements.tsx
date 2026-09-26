@@ -38,7 +38,7 @@ export default function AnnouncementsScreen() {
         data={announcements}
         keyExtractor={(a) => a.id}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: Spacing.xxl }}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <View style={{ backgroundColor: colors.surface }}>
             <View
               style={{
@@ -62,15 +62,19 @@ export default function AnnouncementsScreen() {
               </View>
             </View>
 
-            {/* Inset left to the text column, `Spacing.md` off the right edge. */}
-            <View
-              style={{
-                height: HAIRLINE,
-                backgroundColor: colors.separator,
-                marginLeft: Spacing.md + CATEGORY_TILE + Spacing.sm + Spacing.xs,
-                marginRight: Spacing.md,
-              }}
-            />
+            {/* Inset left to the text column, `Spacing.md` off the right edge.
+                Not drawn under the last one, where it would hang in the grey
+                with nothing after it. */}
+            {index < (announcements?.length ?? 0) - 1 ? (
+              <View
+                style={{
+                  height: HAIRLINE,
+                  backgroundColor: colors.separator,
+                  marginLeft: Spacing.md + CATEGORY_TILE + Spacing.sm + Spacing.xs,
+                  marginRight: Spacing.md,
+                }}
+              />
+            ) : null}
           </View>
         )}
         ListEmptyComponent={

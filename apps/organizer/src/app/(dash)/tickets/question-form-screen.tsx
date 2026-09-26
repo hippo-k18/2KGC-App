@@ -4,6 +4,7 @@ import type { TicketAudience } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { answerSummary, getForm } from '@/lib/question-forms';
+import { dayOfInstant } from '@/lib/time';
 import {
   Banner,
   GapPanel,
@@ -17,7 +18,6 @@ import {
 } from '../ui';
 import { deleteQuestionAction, moveQuestionAction, toggleFormAction } from './question-form-actions';
 import { QuestionEditor } from './question-form-editor';
-import { PUBLIC_PAGE } from './audience-catalogue';
 
 /**
  * Question Forms, for one audience.
@@ -74,17 +74,40 @@ export async function QuestionFormScreen({
 
   const summary = await answerSummary(form.fields);
 
+  /**
+   * The questions a later one can be made to depend on.
+   *
+   * A choice or a tick box, at the top level, and never the question being
+   * edited — a chain of conditions is refused by the shared validator and this
+   * is the same rule, made before the organizer can pick something invalid.
+   * A tick box offers one answer, `true`, shown as "ticked".
+   */
+  const parents = form.fields
+    .filter(
+      (f) =>
+        f.id !== editing?.id &&
+        !f.showIf &&
+        (f.kind === 'choice' || f.kind === 'multi-choice' || f.kind === 'checkbox' || f.kind === 'consent'),
+    )
+    .map((f) => ({
+      id: f.id,
+      prompt: f.prompt,
+      answers: f.kind === 'checkbox' || f.kind === 'consent' ? ['true'] : (f.options ?? []),
+    }))
+    .filter((p) => p.answers.length > 0);
+
+  const promptOf = new Map(form.fields.map((f) => [f.id, f.prompt]));
+
   return (
     <>
       <PageHeader
         title={title}
         info={
           <>
-            <strong>Answers belong to the person, not to the purchase</strong>
+            <strong>Answers are kept with the person</strong>
             <p>
-              The buyer answers on <code>{PUBLIC_PAGE[audience]}</code> before the Stripe redirect,
-              and the webhook copies the answers onto the registration. They survive a transferred
-              ticket and a re-bought order, and nothing querying <code>orders</code> can read them.
+              The buyer answers these questions on the ticket page before paying. The answers are
+              saved on their registration and appear in the attendee export.
             </p>
           </>
         }
@@ -114,8 +137,7 @@ export async function QuestionFormScreen({
             These {form.fields.length} questions are switched off, so nobody is being asked
             anything.
           </strong>{' '}
-          Turn the form on below when the questions are the ones you want. Editing a live form is
-          not a draft.
+          Turn the form on below when the questions are ready.
         </Banner>
       )}
 
@@ -127,11 +149,11 @@ export async function QuestionFormScreen({
             value: summary.answered,
             sub: `of ${summary.total}`,
           },
-          { label: 'Tiers', value: tiers.length, sub: `${audience} catalogue` },
+          { label: 'Ticket types', value: tiers.length, sub: `for ${audience}s` },
           {
-            label: 'Orphaned answers',
+            label: 'Kept answers',
             value: summary.orphaned.reduce((n, o) => n + o.count, 0),
-            sub: summary.orphaned.length ? 'questions since removed' : 'none',
+            sub: summary.orphaned.length ? 'from removed questions' : 'none',
           },
         ]}
       />
@@ -158,6 +180,7 @@ export async function QuestionFormScreen({
         </div>
 
         <Table
+          stackSm
           cols={[
             { key: 'q', label: 'Question', className: 'cell-fill' },
             { key: 'k', label: 'Type', className: 'cell-sm' },
@@ -180,10 +203,29 @@ export async function QuestionFormScreen({
                     </>
                   ) : null}
                 </div>
-                <div className="muted" style={{ fontSize: 11 }}>
-                  <code>{f.id}</code>
-                  {f.helpText ? ` · ${f.helpText}` : ''}
-                </div>
+                {/*
+                  The field's own id used to print here. It is the key answers
+                  are stored under and it never changes, which makes it useful
+                  to us and meaningless to an organizer — who reads the question
+                  by its wording, one line up.
+                */}
+                {f.helpText ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {f.helpText}
+                  </div>
+                ) : null}
+                {/*
+                  A sub-question says what reveals it, on its own row. An
+                  organizer reading down the list otherwise has no way to tell
+                  that a question is asked of some people and not others.
+                */}
+                {f.showIf ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    Shown when “{promptOf.get(f.showIf.fieldId) ?? f.showIf.fieldId}” is{' '}
+                    {f.showIf.equals === 'true' ? 'ticked' : `“${f.showIf.equals}”`}
+                    {promptOf.has(f.showIf.fieldId) ? '' : ' · that question is no longer on the form'}
+                  </div>
+                ) : null}
               </div>,
 
               <span key="k" style={{ fontSize: 12 }}>
@@ -231,8 +273,19 @@ export async function QuestionFormScreen({
                 )}
               </div>,
 
-              <div key="x" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Link href={`?edit=${f.id}`} style={{ fontSize: 12 }}>
+              <div
+                key="x"
+                className="row-actions-col"
+                style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+              >
+                {/*
+                  The hash is the fix, not decoration. The editor is the last
+                  panel on the screen, under the whole question list and its
+                  answer summaries, so a plain `?edit=` reloaded the page at the
+                  top and opened the form 3,200px below the fold on a phone.
+                  Tapping Edit looked like it had done nothing at all.
+                */}
+                <Link href={`?edit=${f.id}#question-editor`} style={{ fontSize: 12 }}>
                   Edit
                 </Link>
                 {i > 0 && (
@@ -258,9 +311,30 @@ export async function QuestionFormScreen({
           empty={<NotInputted what="questions" compact />}
         />
 
+        {/*
+          The counts above answer "how many vegetarians". This answers "which
+          people", which is the one a caterer's seating plan and an accessibility
+          coordinator both need, and it is a column per question rather than a
+          row per answer for exactly that reason.
+        */}
+        {summary.answered > 0 && (
+          <p style={{ marginBottom: 0, marginTop: 12 }}>
+            <a
+              href="/export/registration-answers"
+              className="whova-btn-main secondary small"
+              download
+            >
+              Download answers
+            </a>
+            <span className="muted" style={{ fontSize: 12, marginLeft: 10 }}>
+              One row per person, one column per question.
+            </span>
+          </p>
+        )}
+
         {form.updatedAt && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-            Last changed {form.updatedAt.slice(0, 10)}
+            Last changed {dayOfInstant(form.updatedAt)}
             {form.updatedBy ? ` by ${form.updatedBy}` : ''}.
           </p>
         )}
@@ -271,28 +345,27 @@ export async function QuestionFormScreen({
           <h2 style={{ fontSize: 15, marginTop: 0 }}>Answers to questions you removed</h2>
           <p className="body-2" style={{ marginTop: 0 }}>
             Removing a question does <strong>not</strong> delete the answers already given to it.
-            That is deliberate: an organizer removing a question mid-sale is usually fixing the
-            form, and silently destroying two hundred people&rsquo;s dietary requirements as a side
-            effect of that is not recoverable. They are still on the registrations, under these ids.
+            They are still on the registrations.
           </p>
           <Table
             cols={[
-              { key: 'i', label: 'Field id', className: 'cell-md' },
+              { key: 'i', label: 'Removed question', className: 'cell-md' },
               { key: 'c', label: 'Registrations', className: 'cell-sm' },
               { key: 'n', label: '', className: 'cell-fill' },
             ]}
             rows={summary.orphaned.map((o) => [
-              <code key="i">{o.id}</code>,
+              // The wording went with the question; its key is all that is left to name it by.
+              <span key="i">{o.id}</span>,
               o.count,
               <span key="n" className="muted" style={{ fontSize: 12 }}>
-                Re-adding a question with this exact id would reconnect them.
+                Add the question again with the same wording to reconnect these answers.
               </span>,
             ])}
           />
         </Panel>
       )}
 
-      <Panel style={{ marginTop: 16 }}>
+      <Panel id="question-editor" style={{ marginTop: 16, scrollMarginTop: 12 }}>
         <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
           <h2 style={{ fontSize: 15, margin: 0 }}>
             {editing ? `Edit “${editing.prompt}”` : 'Add a question'}
@@ -315,6 +388,7 @@ export async function QuestionFormScreen({
           audience={audience}
           editing={editing}
           tiers={tiers.map((t) => ({ id: t.id, name: t.name }))}
+          parents={parents}
         />
       </Panel>
 
@@ -322,10 +396,9 @@ export async function QuestionFormScreen({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>No conditional logic.</strong> &ldquo;If vegetarian, ask which kind&rdquo;
-            needs a dependency graph, and an open builder with one is the project Whova has been
-            iterating on for years. The closed set of types here covers what a conference actually
-            asks.
+            <strong>Conditions go one level deep.</strong> A question can depend on one earlier
+            answer. A sub-question of a sub-question is refused: a form whose author cannot see
+            what any given person will be asked is a form nobody can check.
           </li>
           <li>
             <strong>No file-upload question.</strong> An exhibitor logo is the one people always
@@ -337,11 +410,6 @@ export async function QuestionFormScreen({
             <strong>Answers are not editable after purchase.</strong> Whova&rsquo;s organizers use
             that constantly, to fix a misspelled company name before the badge prints. The data is
             on the registration and nothing on the attendee screen edits it yet.
-          </li>
-          <li>
-            <strong>Answers are not in the CSV exports.</strong> The exports emit fixed columns;
-            arbitrary answers need a dynamic header. The counts above are what this screen gives
-            instead, and for a catering headcount they are the more useful shape.
           </li>
           <li>
             <strong>Nothing prunes <code>pendingAnswers</code>.</strong> An abandoned checkout

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
+import { SITE } from '@/lib/site';
 import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
@@ -69,9 +70,11 @@ interface ExtraSeat {
 export function CheckoutForm({
   tiers,
   initialTier,
+  tierLocked = false,
   stripeReady,
   demoReady = false,
   questions = [],
+  titleAs = 'h2',
 }: {
   /**
    * The catalogue, passed in rather than imported.
@@ -82,6 +85,12 @@ export function CheckoutForm({
    */
   tiers: Tier[];
   initialTier: TicketId;
+  /**
+   * The buyer arrived by pressing one ticket's button, so that is the ticket.
+   * The picker is replaced by a line naming it, with a way back to choose
+   * another.
+   */
+  tierLocked?: boolean;
   /**
    * Whether `STRIPE_SECRET_KEY` is set on the server, passed down because
    * `stripeEnabled()` is `server-only` and this component runs in the browser.
@@ -108,7 +117,15 @@ export function CheckoutForm({
    * component with no Admin SDK, and it must not gain one.
    */
   questions?: QuestionFieldDef[];
+  /**
+   * `h1` on `/tickets/checkout`, where "Register" is the page's own title, and
+   * `h2` on the sponsor and exhibitor pages, which already have an `h1` above
+   * this form. A page with no `h1` is one a screen reader cannot jump to the
+   * top of, and the pre-publish gate refuses it.
+   */
+  titleAs?: 'h1' | 'h2';
 }) {
+  const Title = titleAs;
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
   /**
    * The rehearsal button gets its own state because it is a second action on
@@ -216,7 +233,7 @@ export function CheckoutForm({
       <OrderRail tier={selected} quantity={quantity} totalCents={totalCents} />
 
       <form action={action} className="checkout">
-        <h2 className="checkout-title">Register</h2>
+        <Title className="checkout-title">Register</Title>
 
         {shown.error && (
           <p className="notice bad" role="alert">
@@ -225,15 +242,28 @@ export function CheckoutForm({
         )}
 
         {/*
-          Fail closed, and say which variable. This is the same refusal
-          `startCheckout` returns if the form is posted anyway — stated here so
-          it is read before the typing rather than after it.
+          Fail closed. This is the same refusal `startCheckout` returns if the
+          form is posted anyway — stated here so it is read before the typing
+          rather than after it. The variable name goes to the server log, not
+          to the buyer.
+        */}
+        {/*
+          And a way out. The round-one review's complaint about `/tickets/
+          invoice` was that a page could say "not open yet" and then leave the
+          reader with nowhere to go; the same sentence was doing the same thing
+          here, above a form the buyer is about to fill in for nothing.
+        */}
+        {/*
+          "Email us", not the address itself. This form is 299px wide in the
+          exhibitor and sponsor pages' two-column band, and
+          `contact@knowledgegraph.tech` has no break opportunity in it — spelled
+          out here it ran 291px inside a 245px paragraph and pushed the whole
+          document 14px wider than the window.
         */}
         {!stripeReady ? (
-          <p className="notice bad" role="alert">
-            <strong>Ticket sales are not configured on this deployment.</strong>{' '}
-            <code>STRIPE_SECRET_KEY</code> is not set, so no payment can be taken and no ticket can
-            be issued. Nothing below will complete a purchase.
+          <p className="notice">
+            Ticket sales are not open yet.{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>Email us</a> and we will hold a place for you.
           </p>
         ) : null}
 
@@ -295,6 +325,15 @@ export function CheckoutForm({
               `seatTier`, and the server is still the only thing that turns any
               of those ids into money.
             */}
+            {tierLocked && selected.onSale ? (
+              <div className="tier-chosen">
+                <input type="hidden" name="tier" value={selected.id} />
+                <span className="tier-chosen-label">Ticket</span>
+                <strong>{selected.name}</strong>
+                <span>{formatPrice(selected.priceCents, selected.currency)}</span>
+                <Link href="/tickets">Change</Link>
+              </div>
+            ) : (
             <fieldset className="tier-choice">
               <legend>Ticket</legend>
               {tiers.map((t) => (
@@ -321,6 +360,7 @@ export function CheckoutForm({
                 </label>
               ))}
             </fieldset>
+            )}
 
             <div className="field">
               <label htmlFor="name">Attendee name</label>
@@ -439,6 +479,24 @@ export function CheckoutForm({
           <span>{formatPrice(totalCents, selected.currency)}</span>
         </div>
 
+        {/*
+          Above the button, not under it.
+
+          This is the sentence a buyer is agreeing to by pressing pay, so it has
+          to be readable before the press rather than after it. It is a
+          statement rather than a tick box because nothing here is optional: a
+          ticket cannot be issued without holding the name and the address, and
+          a checkbox that must be ticked to continue asks for consent that is
+          not real. The two policies it names are linked, because a policy
+          somebody is told they agreed to and cannot open is not one they read.
+        */}
+        <p className="hint" style={{ marginBottom: 12 }}>
+          By registering you agree to the{' '}
+          <Link href="/code-of-conduct">code of conduct</Link> and to how your details are handled,
+          set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a copy of
+          your data or have it deleted at any time.
+        </p>
+
         <SubmitButton stripeReady={stripeReady} price={formatPrice(totalCents, selected.currency)} />
 
         {/*
@@ -454,11 +512,11 @@ export function CheckoutForm({
           <DemoButton action={demoAction} price={formatPrice(totalCents, selected.currency)} />
         )}
 
-        <p className="hint" style={{ marginTop: 12 }}>
-          {stripeReady
-            ? 'You pay on Stripe. Card details never touch this site.'
-            : 'No ticket can be bought until a payment processor is configured.'}
-        </p>
+        {stripeReady && (
+          <p className="hint" style={{ marginTop: 12 }}>
+            You pay on Stripe. Card details never touch this site.
+          </p>
+        )}
       </form>
     </div>
   );
@@ -627,11 +685,16 @@ function DemoButton({
       >
         {pending ? 'Working…' : `Skip payment and register (demo)`}
       </button>
+      {/*
+        No file path here. This block cannot render off localhost, but it is
+        still copy on a page that takes money, and naming a maintenance script
+        on it is the same defect the audit found on a dozen dashboard screens.
+        Anyone who needs the undo already knows where it lives.
+      */}
       <p className="hint" style={{ marginTop: 8 }}>
         Localhost only. Issues a real ticket for {price} without charging: registration, order,
         app account, entitlements, sold count and confirmation email, exactly as a paid purchase
-        does. The order is marked <code>demo</code>, so{' '}
-        <code>scripts/ops/reset-demo-sales.mjs</code> undoes it.
+        does. The order is marked <code>demo</code> so it can be undone.
       </p>
     </>
   );
@@ -649,15 +712,18 @@ function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: str
       disabled={pending || !stripeReady}
     >
       {/*
-        "Payments open soon" rather than "Payments unavailable".
+        One label, whatever the state.
 
-        The two say the same thing to the code and opposite things to a buyer:
-        unavailable reads as broken and sends them away, open soon reads as a
-        date they have not been told yet and keeps the page worth returning to.
-        The key was removed deliberately on 2026-09-09, so this is the state the
-        deployed site is in — not a fault to be reported.
+        The button used to read "Payments open soon" while the notice at the top
+        of this form said "Ticket sales are not open yet" — the same fact stated
+        twice, four inches apart, in two different sets of words. The notice
+        keeps it, because it is read before the typing rather than after it and
+        because it carries the way out; the button goes back to naming its own
+        action. Nothing here is hard coded: `stripeReady` still greys the button
+        out and still draws the notice, and both clear themselves the moment a
+        key is set.
       */}
-      {pending ? 'Redirecting…' : stripeReady ? `Pay ${price} with Stripe` : 'Payments open soon'}
+      {pending ? 'Redirecting…' : `Pay ${price} with Stripe`}
     </button>
   );
 }

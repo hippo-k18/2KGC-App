@@ -153,6 +153,61 @@ export function unmatchedSignatures(
   );
 }
 
+/** A required form, with every signature anybody has given it. */
+export interface RequiredForm {
+  id: string;
+  title: string;
+  version: number;
+  signatures: SignatureRecord[];
+}
+
+/**
+ * Which required forms each person still owes, keyed by every name they answer
+ * to.
+ *
+ * ── Why the map holds more than one key per person ─────────────────────────
+ *
+ * The screens that ask this question hold different halves of a person. The
+ * badge sheet has a registration id and no address; the scan desk has both; a
+ * signature may have been made under a uid. So every key a subject answers to —
+ * its own, its aliases, and its lower-cased address — points at the same list,
+ * and a caller looks up whichever one it happens to be holding.
+ *
+ * ⚠️ `outdated` counts as outstanding here, and that is the point rather than a
+ * rounding decision. Somebody who signed version 2 of a release has agreed to
+ * text that no longer stands; telling a door volunteer they are covered would
+ * be the one answer nobody can take back.
+ *
+ * A person who owes nothing is absent from the map rather than present with an
+ * empty array, so a caller's `?? []` and a `.has()` agree.
+ */
+export function outstandingByPerson(
+  subjects: ConsentSubject[],
+  forms: RequiredForm[],
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (forms.length === 0) return out;
+
+  // One array per person, filled form by form, then pointed at by every key
+  // that person answers to — so a caller holding any of them reads one list.
+  const owed = subjects.map<string[]>(() => []);
+
+  for (const form of forms) {
+    buildRegister(subjects, form.signatures, form.version).forEach((row, i) => {
+      if (row.status !== 'signed') owed[i].push(form.title);
+    });
+  }
+
+  subjects.forEach((subject, i) => {
+    if (owed[i].length === 0) return;
+    for (const key of [subject.key, ...(subject.aliases ?? []), emailKey(subject.email)]) {
+      if (key) out.set(key, owed[i]);
+    }
+  });
+
+  return out;
+}
+
 export interface RegisterTotals {
   expected: number;
   signed: number;
@@ -188,4 +243,97 @@ export function audienceSources(
   if (audience === 'speaker') return ['speaker'];
   if (audience === 'volunteer') return ['volunteer'];
   return [];
+}
+
+// ---------------------------------------------------------------------------
+// Sending the signing links
+// ---------------------------------------------------------------------------
+
+/**
+ * One id per form *and version*, so the rows already in `emailLog` are the
+ * record of who has been asked to sign this wording.
+ *
+ * The version belongs in the id. Rewording a form makes every signature
+ * outstanding again and those people genuinely do have to be asked again, so a
+ * new version starts a new run rather than being told everybody already had it.
+ */
+export function signingCampaignId(formId: string, version: number): string {
+  return `consent_${formId}_v${version}`;
+}
+
+/**
+ * How long a send may hold its campaign before another press may take it over.
+ *
+ * A server action is killed at 26 seconds and the send stops itself at 18, so a
+ * lock older than this belongs to a process that is not running any more. It is
+ * a ceiling on how long one crash can block a campaign, not a timeout on the
+ * work.
+ */
+export const SEND_LOCK_STALE_MS = 30_000;
+
+/**
+ * Whether a send may take the campaign, given when the last one took it.
+ *
+ * ⚠️ `emailLog` cannot answer this. It is the guard on the NEXT press: two
+ * organizers pressing in the same second both read the log before either has
+ * written to it, both see nobody, and both mail the same people a link that
+ * signs a legal release in their name. So a send holds the campaign while it
+ * runs, and this is the one decision in that mechanism worth testing on its
+ * own.
+ *
+ * Abandoned rather than held for ever: a process that died holding the lock
+ * must not take the campaign down with it, and after `SEND_LOCK_STALE_MS` it
+ * cannot still be sending.
+ */
+export function sendLockIsFree(
+  heldAtMs: number | undefined,
+  nowMs: number,
+  staleMs: number = SEND_LOCK_STALE_MS,
+): boolean {
+  return heldAtMs === undefined || nowMs - heldAtMs >= staleMs;
+}
+
+export interface SigningSplit {
+  /** Outstanding, has an address, and has not been written to for this version. */
+  todo: RegisterRow[];
+  /** Outstanding and already written to for this version. */
+  alreadySent: number;
+  /** Outstanding with no address on file. Nothing can reach them. */
+  noAddress: number;
+  /** Outstanding altogether, which is the three above added up. */
+  outstanding: number;
+}
+
+/**
+ * Who a send would actually write to, given who has been written to already.
+ *
+ * ── Why this is a pure function and not three filters in the sender ─────────
+ *
+ * ⚠️ It is the whole of "a retry does not send twice". The sender used to mail
+ * every outstanding row on every call, which on a request that timed out
+ * halfway meant the next press sent a second copy of a legal release to
+ * everybody the first press had already reached. The set of addresses comes
+ * from `emailLog`, written per recipient as each one goes out, and the
+ * comparison is folded because `emailLog.to` holds the address as it was typed
+ * while a register row may hold a different spelling of the same one.
+ *
+ * The screen and the sender both call this, so the number somebody is asked to
+ * confirm is the number that is then attempted. Two code paths answering "how
+ * many?" is how a confirmation stops meaning anything.
+ */
+export function signingSendSplit(
+  rows: readonly RegisterRow[],
+  alreadyMailed: ReadonlySet<string>,
+): SigningSplit {
+  const fold = (e: string | undefined) => (e ?? '').trim().toLowerCase();
+  const outstanding = rows.filter((r) => r.status !== 'signed');
+  const reachable = outstanding.filter((r) => Boolean(r.email));
+  const todo = reachable.filter((r) => !alreadyMailed.has(fold(r.email)));
+
+  return {
+    todo,
+    alreadySent: reachable.length - todo.length,
+    noAddress: outstanding.length - reachable.length,
+    outstanding: outstanding.length,
+  };
 }

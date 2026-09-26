@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CircleIcon, ChevronIcon, SquareIcon, TAB_ICONS } from '@/lib/icons';
 
 /**
@@ -50,9 +50,18 @@ function Tag({ node }: { node: SlimNode }) {
 export function TopNav({ nav, draftTabs }: { nav: SlimNode[]; draftTabs: string[] }) {
   const pathname = usePathname();
   const top = pathname.split('/')[1] ?? '';
+  const strip = useRef<HTMLElement>(null);
+
+  // On a phone the strip scrolls sideways; bring the active tab into it.
+  useEffect(() => {
+    const el = strip.current;
+    const tab = el?.querySelector<HTMLElement>('.menu-item.active');
+    if (!el || !tab || el.scrollWidth <= el.clientWidth) return;
+    el.scrollLeft = tab.offsetLeft - (el.clientWidth - tab.offsetWidth) / 2;
+  }, [top]);
 
   return (
-    <section id="top-nav" className="layout-boxed">
+    <section id="top-nav" className="layout-boxed" ref={strip}>
       <ul className="nav-menus">
         {nav.map((n) => (
           <li key={n.slug} className={`menu-item ${n.widthClass ?? 'medium'} ${n.slug === top ? 'active' : ''}`}>
@@ -178,10 +187,34 @@ const QUICK_ACCESS: [string, string][] = [
   ['Report', '/tools/report'],
 ];
 
-export function Sidebar({ nav, footnote }: { nav: SlimNode[]; footnote: string }) {
+export function Sidebar({
+  nav,
+  footnote,
+  allowed = null,
+}: {
+  nav: SlimNode[];
+  footnote: string;
+  /**
+   * Every href a team member with limited roles may open, or null for an owner.
+   * `nav` arrives already filtered; this is for the fixed links in the other
+   * rail boxes, which are not in the tree. The refusal itself is server-side.
+   */
+  allowed?: string[] | null;
+}) {
   const pathname = usePathname();
+  const can = (href: string) => !allowed || allowed.includes(href);
+  const guides = [
+    ['Organizer Setup Tutorials', '/tools/app-adoption'],
+    ['Guides to Share', '/tools/app-adoption'],
+    ['FAQ', '/tools'],
+  ].filter(([, href]) => can(href));
+  const quick = QUICK_ACCESS.filter(([, href]) => can(href));
   const topSlug = pathname.split('/')[1] ?? '';
   const active = nav.find((n) => n.slug === topSlug);
+  const [railOpen, setRailOpen] = useState(false);
+
+  // Picking a screen closes the phone drawer, so the page is what shows next.
+  useEffect(() => setRailOpen(false), [pathname]);
 
   /**
    * Whova drops the whole rail when the active tab has no children — Publish is
@@ -191,76 +224,91 @@ export function Sidebar({ nav, footnote }: { nav: SlimNode[]; footnote: string }
   if (!active?.children) return null;
 
   return (
-    <aside className="frame-left-side">
-      <div className="sidebar">
-        <div className="sidebar-header">Menu</div>
-        <ul className="sidebar-menu">
-          <li className="treeview-menu-item">
-            <Link className="secondlevel-name" href="/">
-              <CircleIcon />
-              <span>Event List</span>
-            </Link>
-          </li>
-        </ul>
-      </div>
+    <aside className={`frame-left-side${railOpen ? ' rail-open' : ''}`}>
+      {/* Phone only: the rail is a disclosure above the content, closed by default. */}
+      <button
+        type="button"
+        className="rail-toggle"
+        aria-expanded={railOpen}
+        aria-controls="rail-body"
+        onClick={() => setRailOpen((v) => !v)}
+      >
+        <span>{active.title} menu</span>
+        <ChevronIcon open={railOpen} />
+      </button>
+      <div id="rail-body" className="rail-body">
+        {can('/') ? (
+          <div className="sidebar">
+            <div className="sidebar-header">Menu</div>
+            <ul className="sidebar-menu">
+              <li className="treeview-menu-item">
+                <Link className="secondlevel-name" href="/">
+                  <CircleIcon />
+                  <span>Event List</span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+        ) : null}
 
-      <div className="sidebar">
-        <div className="sidebar-header">
-          <span>{active.title}</span>
-          {active.slug === 'tickets' ? (
-            <Link className="btn btn-primary sidebar-header-btn" href="/tickets/ticket-setup">
-              Step-by-step guide ›
-            </Link>
-          ) : null}
-        </div>
-        <ul className="sidebar-menu">
-          {active.children.map((c) => (
-            <FirstLevel key={c.slug} node={c} prefix={`/${active.slug}`} pathname={pathname} />
-          ))}
-        </ul>
-        <p className="sidebar-footnote">{footnote}</p>
-      </div>
-
-      <div className="sidebar">
-        <div className="sidebar-header">Tutorials and Guides</div>
-        <ul className="sidebar-menu">
-          {[
-            ['Organizer Setup Tutorials', '/tools/app-adoption'],
-            ['Guides to Share', '/tools/app-adoption'],
-            ['FAQ', '/tools'],
-          ].map(([label, href]) => (
-            <li key={label} className="treeview-menu-item">
-              <Link className="secondlevel-name" href={href}>
-                <CircleIcon />
-                <span className="nav-label">{label}</span>
+        <div className="sidebar">
+          <div className="sidebar-header">
+            <span>{active.title}</span>
+            {active.slug === 'tickets' && can('/tickets/ticket-setup') ? (
+              <Link className="btn btn-primary sidebar-header-btn" href="/tickets/ticket-setup">
+                Setup guide ›
               </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/*
-        Whova's third rail box. Theirs advertises their newest features with a
-        green "6 NEW" pill; ours is a shortcut list to the screens an organizer
-        opens every day, which is the same job — telling them where to start.
-      */}
-      <div className="sidebar">
-        <div className="sidebar-header">
-          <span>Quick access</span>
+            ) : null}
+          </div>
+          <ul className="sidebar-menu">
+            {active.children.map((c) => (
+              <FirstLevel key={c.slug} node={c} prefix={`/${active.slug}`} pathname={pathname} />
+            ))}
+          </ul>
+          <p className="sidebar-footnote">{footnote}</p>
         </div>
-        <ul className="sidebar-menu">
-          {QUICK_ACCESS.map(([label, href]) => (
-            <li
-              key={href}
-              className={`treeview-menu-item ${pathname === href ? 'active' : ''}`}
-            >
-              <Link className="secondlevel-name" href={href}>
-                <CircleIcon />
-                <span className="nav-label">{label}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+
+        {guides.length > 0 ? (
+          <div className="sidebar">
+            <div className="sidebar-header">Tutorials and Guides</div>
+            <ul className="sidebar-menu">
+              {guides.map(([label, href]) => (
+                <li key={label} className="treeview-menu-item">
+                  <Link className="secondlevel-name" href={href}>
+                    <CircleIcon />
+                    <span className="nav-label">{label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {/*
+          Whova's third rail box. Theirs advertises their newest features with a
+          green "6 NEW" pill; ours is a shortcut list to the screens an organizer
+          opens every day, which is the same job — telling them where to start.
+        */}
+        {quick.length > 0 ? (
+          <div className="sidebar">
+            <div className="sidebar-header">
+              <span>Quick access</span>
+            </div>
+            <ul className="sidebar-menu">
+              {quick.map(([label, href]) => (
+                <li
+                  key={href}
+                  className={`treeview-menu-item ${pathname === href ? 'active' : ''}`}
+                >
+                  <Link className="secondlevel-name" href={href}>
+                    <CircleIcon />
+                    <span className="nav-label">{label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </aside>
   );

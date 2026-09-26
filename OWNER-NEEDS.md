@@ -161,6 +161,13 @@ These are the honest remainder of a two-surface product. Each is app work, not d
 
 ### 3.3 Product and privacy calls
 
+- **Who controls the data, in writing** — ⚠️ two facts, and `/privacy` is live without them. The
+  **registered legal name** of the entity that runs the conference (`/code-of-conduct` carries
+  "Knowledge Graphs Conference LLC", which is evidence and not confirmation), and the **postal
+  address** that entity can be written to. They go into `LEGAL_ENTITY` and `POSTAL_ADDRESS` at the
+  top of `apps/web/src/app/privacy/page.tsx` and nothing else changes — the page detects that both
+  are filled in and drops the paragraph saying they are not published yet. Neither can be guessed,
+  and inventing one would make a public legal page a false statement.
 - **Photos on name badges** — ⚠️ nothing in this project has ever *written* `users.photoURL`. The app
   only reads it, the seed does not set it, there is no avatar upload. A photo slot would print an
   empty box on all 1,000 badges. Closing it means an app-side upload **plus** a consent question

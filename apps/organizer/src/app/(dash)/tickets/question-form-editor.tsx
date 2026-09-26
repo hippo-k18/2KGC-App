@@ -27,18 +27,27 @@ export function QuestionEditor({
   audience,
   editing,
   tiers,
+  parents,
 }: {
   audience: TicketAudience;
   /** Present when editing. Its id is passed through untouched. */
   editing?: QuestionFieldDef;
   tiers: { id: string; name: string }[];
+  /**
+   * Questions on this form that could reveal another one: a choice or a tick
+   * box, at the top level, and never the question being edited. The screen
+   * works that list out, because it is the one that holds the whole form.
+   */
+  parents: { id: string; prompt: string; answers: string[] }[];
 }) {
   const [state, action] = useActionState<QuestionState, FormData>(saveQuestionAction, {});
   const [kind, setKind] = useState<QuestionFieldDef['kind']>(editing?.kind ?? 'short-text');
   const [required, setRequired] = useState(editing?.required ?? false);
+  const [parentId, setParentId] = useState(editing?.showIf?.fieldId ?? '');
 
   const needsOptions = kind === 'choice' || kind === 'multi-choice';
   const isConsent = kind === 'consent';
+  const parent = parents.find((p) => p.id === parentId);
 
   return (
     <form action={action}>
@@ -59,6 +68,7 @@ export function QuestionEditor({
         <input
           id="prompt"
           name="prompt"
+          className="whova-text-input"
           required
           maxLength={200}
           defaultValue={editing?.prompt}
@@ -66,8 +76,7 @@ export function QuestionEditor({
         />
         {editing && (
           <p className="muted" style={{ fontSize: 12 }}>
-            Reword this freely. The question keeps its id (<code>{editing.id}</code>), so every
-            answer already given to it stays attached.
+            Answers already given stay with the question when you reword it.
           </p>
         )}
       </div>
@@ -79,6 +88,7 @@ export function QuestionEditor({
         <select
           id="kind"
           name="kind"
+          className="whova-text-input"
           value={kind}
           onChange={(e) => setKind(e.target.value as QuestionFieldDef['kind'])}
           style={{ maxWidth: 260 }}
@@ -92,10 +102,10 @@ export function QuestionEditor({
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
           {needsOptions
-            ? 'Choices are countable: the catering figure comes from these, and free text does not add up.'
+            ? 'Choices are counted in the export.'
             : kind === 'consent'
-              ? 'A consent box records a decision rather than a preference. It is never pre-ticked and cannot be required.'
-              : 'Free text is exported but not tallied. A hundred distinct sentences is a list, not a distribution.'}
+              ? 'Never pre-ticked. Cannot be required.'
+              : 'Free text is exported but not counted.'}
         </p>
       </div>
 
@@ -107,14 +117,13 @@ export function QuestionEditor({
           <textarea
             id="options"
             name="options"
+            className="whova-text-input"
             rows={5}
             defaultValue={(editing?.options ?? []).join('\n')}
             placeholder={'Vegetarian\nVegan\nGluten-free\nNo requirements'}
           />
           <p className="muted" style={{ fontSize: 12 }}>
-            One per line, at least two. Include the &ldquo;none of these&rdquo; option explicitly.
-            A blank answer and &ldquo;no requirements&rdquo; look identical in an export and mean
-            different things to a caterer.
+            One per line, at least two. Include a &ldquo;none of these&rdquo; option.
           </p>
         </div>
       )}
@@ -126,35 +135,45 @@ export function QuestionEditor({
         <input
           id="helpText"
           name="helpText"
+          className="whova-text-input"
           maxLength={200}
           defaultValue={editing?.helpText}
-          placeholder="optional. Shown under the field"
+          placeholder="Optional. Shown under the question"
         />
       </div>
 
       <div className="whova-form-row">
-        <label className="whova-form-label" htmlFor="required">
-          Required
-        </label>
-        <label style={{ fontSize: 13 }}>
+        {/*
+          The group heading is a `div`, not a `label`: the tick box already has
+          one wrapped round it, and two labels for one control is the defect
+          round two cleared off the other editors.
+        */}
+        <div className="whova-form-label">Required</div>
+        <label className="whova-checkbox-label">
           <input
             id="required"
+            className="whova-checkbox-input"
             type="checkbox"
             name="required"
             checked={required && !isConsent}
             disabled={isConsent}
             onChange={(e) => setRequired(e.target.checked)}
-          />{' '}
-          {isConsent
-            ? 'A consent box cannot be required'
-            : 'The buyer cannot complete checkout without answering'}
+          />
+          <span>
+            {isConsent
+              ? 'A consent box cannot be required'
+              : 'The buyer cannot complete checkout without answering'}
+          </span>
         </label>
         {isConsent && (
           <p className="muted" style={{ fontSize: 12 }}>
-            Consent that cannot be withheld is not consent, and in several jurisdictions does not
-            count as it. If this is genuinely a condition of attending, make it a{' '}
-            <strong>Checkbox</strong> and say so in the prompt. &ldquo;I have read the code of
-            conduct&rdquo; is a gate, not a consent.
+            {parentId
+              ? 'Shown only after the answer below, so it has to be ticked by whoever reaches it. Declining is still one question earlier.'
+              : (
+                  <>
+                    If this is a condition of attending, use a <strong>Checkbox</strong> instead.
+                  </>
+                )}
           </p>
         )}
       </div>
@@ -166,6 +185,7 @@ export function QuestionEditor({
         <select
           id="ticketTypeIds"
           name="ticketTypeIds"
+          className="whova-text-input"
           multiple
           size={Math.min(5, Math.max(2, tiers.length))}
           defaultValue={editing?.ticketTypeIds ?? []}
@@ -178,10 +198,75 @@ export function QuestionEditor({
           ))}
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
-          Select nothing to ask everybody, which is what most questions want. A buyer who answers
-          and then switches to a tier that does not ask this has their answer{' '}
-          <strong>dropped, not rejected</strong>. They have done nothing wrong.
+          Select nothing to ask everybody.
         </p>
+      </div>
+
+      {/*
+        Conditional logic, one level deep.
+
+        Two selects rather than a rule builder: one earlier question, one of its
+        answers. That covers "if vegetarian, which kind" and "if you need a visa
+        letter, what is your passport name", which is what a registration form
+        actually asks. A chain of conditions is a form whose author cannot see
+        what any given person will be shown.
+      */}
+      <div className="whova-form-row">
+        <label className="whova-form-label" htmlFor="showIfFieldId">
+          Show only when
+        </label>
+        {parents.length === 0 ? (
+          <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+            Add a &ldquo;choose one&rdquo;, &ldquo;choose any&rdquo; or tick box question first.
+            Those are the answers a later question can depend on.
+          </p>
+        ) : (
+          <>
+            <select
+              id="showIfFieldId"
+              name="showIfFieldId"
+              className="whova-text-input"
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              style={{ maxWidth: 340 }}
+            >
+              <option value="">Always ask this</option>
+              {parents.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.prompt}
+                </option>
+              ))}
+            </select>
+
+            {parent && (
+              <div style={{ marginTop: 8 }}>
+                <label className="whova-form-label" htmlFor="showIfEquals">
+                  is answered
+                </label>
+                <select
+                  id="showIfEquals"
+                  name="showIfEquals"
+                  className="whova-text-input"
+                  defaultValue={editing?.showIf?.equals ?? ''}
+                  style={{ maxWidth: 340 }}
+                >
+                  <option value="">Choose an answer…</option>
+                  {parent.answers.map((a) => (
+                    <option key={a} value={a}>
+                      {a === 'true' ? 'ticked' : a}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <p className="muted" style={{ fontSize: 12 }}>
+              {parent
+                ? 'The buyer sees this only after that answer. It is dropped if they change their mind.'
+                : 'Pick an earlier question to ask this one only sometimes.'}
+            </p>
+          </>
+        )}
       </div>
 
       <Submit editing={Boolean(editing)} />

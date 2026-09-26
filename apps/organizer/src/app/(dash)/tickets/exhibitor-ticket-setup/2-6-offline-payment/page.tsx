@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { ManualOrderForm } from '../../manual-order-form';
 
 export const dynamic = 'force-dynamic';
@@ -48,12 +48,10 @@ export default async function OfflinePaymentPage() {
         title="2.6 Offline Payment"
         info={
           <>
-            <strong>Every order recorded here is marked</strong>
+            <strong>For payments made outside Stripe</strong>
             <p>
-              It carries <code>channel: manual</code>, your name and your stated reason on the order
-              document itself, so a shortfall against Stripe has an explanation where somebody will
-              look for it. There is no tax line and no refund path. The money moved outside this
-              system.
+              Each order recorded here keeps your name and your reason. These orders have no tax
+              line and cannot be refunded from the dashboard.
             </p>
           </>
         }
@@ -72,16 +70,15 @@ export default async function OfflinePaymentPage() {
       />
 
       <Banner kind="warning">
-        <strong>This issues a ticket against money this system cannot see.</strong> Use it when a
-        wire, a cheque or a contract has genuinely been honoured, never to &ldquo;get somebody
-        in&rdquo; while payment is chased. A Stripe reconciliation will come up short by{' '}
-        {money(manualTotal, currency)}, which is the total of what has been recorded here.
+        <strong>This issues a ticket for a payment made outside Stripe.</strong> Use it only once
+        the wire, cheque or contract has been honoured. Stripe totals will be lower than sales by{' '}
+        {money(manualTotal, currency)}, the total recorded here.
       </Banner>
 
       <StatTiles
         tiles={[
           { label: 'Manual orders', value: manual.length, sub: 'all audiences' },
-          { label: 'Recorded value', value: money(manualTotal, currency), sub: 'never seen by Stripe' },
+          { label: 'Recorded value', value: money(manualTotal, currency), sub: 'paid outside Stripe' },
           { label: 'Comps', value: comps, sub: 'recorded at zero' },
           { label: 'Exhibitor packages', value: packages.length, sub: 'available to record against' },
         ]}
@@ -98,12 +95,12 @@ export default async function OfflinePaymentPage() {
           }))}
           audienceNoun="exhibitor"
           notePlaceholder="Wire ref 88123-A, received 14 Feb"
-          compHint="Zero is allowed and produces a real ticket. Use Pre-paid Exhibitors for a comp, so the reason reads correctly."
+          compHint="Zero is allowed and issues a real ticket. For a comp, use Pre-paid Exhibitors."
         />
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Everything recorded off-platform</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Payments recorded</h2>
         <Table
           cols={[
             { key: 'b', label: 'Buyer', className: 'cell-md' },
@@ -115,13 +112,13 @@ export default async function OfflinePaymentPage() {
             <div key="b">
               <div>{o.buyerName || o.email}</div>
               <div className="muted" style={{ fontSize: 11 }}>
-                {o.email}
+                <Email address={o.email} />
                 {o.companyName ? ` · ${o.companyName}` : ''}
               </div>
             </div>,
 
             <span key="p" style={{ fontSize: 12 }}>
-              {o.ticketNames.join(', ') || '—'}
+              {o.ticketNames.join(', ')}
             </span>,
 
             <strong key="a">
@@ -135,11 +132,12 @@ export default async function OfflinePaymentPage() {
             </strong>,
 
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {o.markedPaidBy ?? 'unknown'} · {o.purchasedAt.slice(0, 10)}
+              {o.markedPaidBy ? <Email address={o.markedPaidBy} /> : 'unknown'} ·{' '}
+              {o.purchasedAt.slice(0, 10)}
               {o.poNumber ? ` · PO ${o.poNumber}` : ''}
             </span>,
           ])}
-          empty={<NotInputted what="off-platform payments" compact />}
+          empty={<NotInputted what="offline payments" compact />}
         />
       </Panel>
 

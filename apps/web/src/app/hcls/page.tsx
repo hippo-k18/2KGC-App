@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { programmeCounts } from '@/lib/data';
+import { programmeCounts, siteEvent } from '@/lib/data';
 import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Healthcare & Life Sciences Symposium',
   description:
-    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Cornell Tech.',
+    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Bryant Park, New York.',
 };
 
 /**
@@ -89,9 +89,24 @@ function stats(counts: { speakers: number; sponsors: number }) {
  * because every number on it was typed; two of them are now measurements, and a
  * measurement cached at build time is a measurement that goes stale silently.
  */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. Two of the numbers on this page are measurements of what is in Firestore.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 export default async function HclsPage() {
+  const ev = await siteEvent();
   const counts = await programmeCounts();
 
   return (
@@ -109,7 +124,7 @@ export default async function HclsPage() {
               Symposium (HCLS)
             </h1>
             <p className="when">
-              {SITE.datesLong} | {SITE.venueShort} + Virtual
+              {ev.datesLong} | {ev.venueShort} + Virtual
             </p>
             <div className="cta">
               <Link href="/tickets" className="btn btn-primary">
@@ -136,7 +151,7 @@ export default async function HclsPage() {
           <h2>About the event</h2>
           <p style={{ margin: 0 }}>
             The Healthcare and Life Sciences Symposium is co-located with the{' '}
-            {SITE.name}.
+            {ev.name}.
           </p>
         </div>
       </section>
@@ -193,7 +208,7 @@ export default async function HclsPage() {
 
       <section className="band band-wash band-centred">
         <div className="wrap narrow">
-          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {SITE.year}</h2>
+          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {ev.year}</h2>
           <p className="lede" style={{ marginBottom: 24 }}>
             Below you’ll find our partners. We welcome any enquiries or feedback.
           </p>
@@ -226,7 +241,7 @@ export default async function HclsPage() {
               </div>
               <div>
                 <p className="k">Address</p>
-                <p className="v">Cornell Tech &amp; globally online</p>
+                <p className="v">Bryant Park &amp; globally online</p>
               </div>
             </div>
           </div>

@@ -14,6 +14,7 @@ import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
@@ -42,6 +43,7 @@ export default function PersonScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user } = useAuth();
+  const { messagingEnabled } = useAppAccess();
 
   // `useDocument`, not a bare `onSnapshot`. The listener this replaces had no
   // error callback — the omission that unmounts the entire app rather than one
@@ -100,7 +102,7 @@ export default function PersonScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="this profile"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View style={{ alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm }}>
               <SkeletonBlock width={AVATAR_PLACEHOLDER} height={AVATAR_PLACEHOLDER} radius={Radius.pill} />
               <SkeletonBlock width="45%" height={22} />
@@ -133,7 +135,7 @@ export default function PersonScreen() {
           ) : null}
         </View>
 
-        {!isMe && user ? (
+        {!isMe && user && messagingEnabled ? (
           <Pressable
             onPress={() =>
               router.push({

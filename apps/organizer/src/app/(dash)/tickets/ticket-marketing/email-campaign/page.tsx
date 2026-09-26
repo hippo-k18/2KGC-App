@@ -3,8 +3,10 @@ import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requireOrganizer, requirePassphrase } from '@/lib/auth';
 import { audienceFor, listContacts, summariseContacts } from '@/lib/campaigns';
 import { listCampaigns } from '@/lib/messaging';
+import { stampOfInstant } from '@/lib/time';
 import {
   Banner,
+  Email,
   GapPanel,
   NotInputted,
   PageHeader,
@@ -87,12 +89,10 @@ export default async function EmailCampaignPage({
         title="Email Campaign"
         info={
           <>
-            <strong>No scheduling, and a campaign goes to a named list</strong>
+            <strong>Sends go out right away, to one contact list</strong>
             <p>
-              A send happens when you press the button. There is no queue and no
-              &ldquo;everyone&rdquo;. Every campaign mail carries a public unsubscribe link and the
-              one-click header Gmail and Apple Mail render their own button from; a reader who uses
-              either is suppressed from every later send.
+              Scheduling is not available yet. Every campaign email has an unsubscribe link, and
+              anyone who unsubscribes is left out of later sends.
             </p>
           </>
         }
@@ -124,14 +124,14 @@ export default async function EmailCampaignPage({
         <Banner kind="warning">
           <strong>A campaign cannot be recalled.</strong> Pressing send delivers to all{' '}
           {recipients.length} {recipients.length === 1 ? 'address' : 'addresses'} listed below
-          immediately. Read the list before you send; a count is the thing you cannot check.
+          immediately. Read the list before you send.
         </Banner>
       )}
 
       <StatTiles
         tiles={[
           { label: 'On this list', value: recipients.length + suppressed, sub: selected || 'none' },
-          { label: 'Will receive', value: recipients.length, sub: 'after suppression' },
+          { label: 'Will receive', value: recipients.length, sub: 'after exclusions' },
           { label: 'Excluded', value: suppressed, sub: 'unsubscribed or bounced' },
           { label: 'Campaigns sent', value: campaigns.length, sub: 'all audiences' },
         ]}
@@ -166,10 +166,6 @@ export default async function EmailCampaignPage({
             <span className="muted" style={{ fontWeight: 400 }}> · {selected}</span>
           ) : null}
         </h2>
-        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          Every address is listed rather than counted. A count is the thing you cannot check:
-          &ldquo;938 contacts&rdquo; reads as correct whether or not the people you meant are in it.
-        </p>
         <Table
           cols={[
             { key: 'e', label: 'Address', className: 'cell-fill' },
@@ -179,41 +175,43 @@ export default async function EmailCampaignPage({
           rows={recipients
             .slice(0, 200)
             .map((r) => [r.email, r.name || '—', r.company || '—'])}
-          empty="Nobody: either the list is empty, or everybody on it is suppressed."
+          empty="Nobody. The list is empty, or everybody on it has unsubscribed or bounced."
         />
         {recipients.length > 200 && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-            Showing the first 200 of {recipients.length}. The send is not truncated, only this
-            table is, and it says so rather than quietly showing a subset.
+            Showing the first 200 of {recipients.length}. The send goes to all of them.
           </p>
         )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Sent</h2>
-        <Table
-          cols={[
-            { key: 's', label: 'Subject', className: 'cell-fill' },
-            { key: 'w', label: 'When', className: 'cell-md' },
-            { key: 'b', label: 'By', className: 'cell-md' },
-            { key: 'r', label: 'Result', className: 'cell-sm' },
-          ]}
-          rows={campaigns.map((c) => [
-            c.subject,
-            <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {c.at.slice(0, 16).replace('T', ' ')}
-            </span>,
-            <span key="b" className="muted" style={{ fontSize: 12 }}>
-              {c.actor ?? '—'}
-            </span>,
-            <span key="r" style={{ fontSize: 12 }}>
-              {c.sent} sent
-              {c.failed > 0 ? <span style={{ color: 'var(--danger)' }}> · {c.failed} failed</span> : null}
-              {c.skipped > 0 ? <span className="muted"> · {c.skipped} skipped</span> : null}
-            </span>,
-          ])}
-          empty={<NotInputted what="campaigns" compact />}
-        />
+        {campaigns.length === 0 ? (
+          <NotInputted what="campaigns" compact />
+        ) : (
+          <Table
+            cols={[
+              { key: 's', label: 'Subject', className: 'cell-fill' },
+              { key: 'w', label: 'When', className: 'cell-md' },
+              { key: 'b', label: 'By', className: 'cell-md' },
+              { key: 'r', label: 'Result', className: 'cell-sm' },
+            ]}
+            rows={campaigns.map((c) => [
+              c.subject,
+              <span key="w" className="muted" style={{ fontSize: 12 }}>
+                {stampOfInstant(c.at)}
+              </span>,
+              <span key="b" className="muted" style={{ fontSize: 12 }}>
+                {c.actor ? <Email address={c.actor} /> : '—'}
+              </span>,
+              <span key="r" style={{ fontSize: 12 }}>
+                {c.sent} sent
+                {c.failed > 0 ? <span style={{ color: 'var(--danger)' }}> · {c.failed} failed</span> : null}
+                {c.skipped > 0 ? <span className="muted"> · {c.skipped} skipped</span> : null}
+              </span>,
+            ])}
+          />
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

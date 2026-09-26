@@ -1,18 +1,20 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { doc } from 'firebase/firestore';
 
 import { COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
 
+import { webSlop } from '@/components/a11y';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import {
   addReply,
   categoryLabel,
@@ -22,16 +24,28 @@ import {
   useReactionCounts,
   useReplies,
 } from '@/lib/data/community';
+import { useDirectory } from '@/lib/data/directory';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
+import { relative } from './index';
+
 type Post = WithId<CommunityPostDoc>;
+
+/**
+ * Slop around the thumb and Edit, which are drawn as bare text at 22pt.
+ *
+ * 11 each side rather than 8: `webSlop` has to take the browser target to 44
+ * on its own, and 22 + 8 + 8 is 38.
+ */
+const REACTION_SLOP = { top: 11, bottom: 11, left: 11, right: 11 };
 
 /** A thread: the post, its replies, and a composer pinned to the keyboard. */
 export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
   const { user } = useAuth();
+  const { writesOpen } = useAppAccess();
 
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
@@ -58,6 +72,26 @@ export default function PostScreen() {
   const missing = postStatus === 'ready' && !post;
 
   const { replies, error: repliesError, retry: retryReplies } = useReplies(id);
+  /*
+   * Names for the bylines, from the same projection the People list reads.
+   *
+   * Three people answering a question all arrived as the same anonymous voice,
+   * and only your own reply carried a label. An attendee who has opted out of
+   * the directory has no document here at all, which is the whole point of that
+   * projection, so their reply stays unnamed rather than being named from some
+   * other collection.
+   */
+  const { people } = useDirectory();
+  const names = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of people ?? []) map.set(p.uid, p.name);
+    return map;
+  }, [people]);
+  const byline = (authorId: string | undefined, at: Parameters<typeof relative>[0]) => {
+    const who =
+      authorId && authorId === user?.uid ? 'You' : (names.get(authorId ?? '') ?? 'Attendee');
+    return `${who} · ${relative(at)}`;
+  };
   const reacted = useMyReactions(user?.uid, id ? [id] : []);
   // `post.reactionCount` is trigger-owned and nothing has ever incremented it,
   // so this screen printed "👍 0" however many people had reacted. Counted
@@ -93,7 +127,7 @@ export default function PostScreen() {
         <View style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md }}>
           <SkeletonScreen
             label="this topic"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View
               style={{
                 backgroundColor: colors.surface,
@@ -167,6 +201,9 @@ export default function PostScreen() {
             ) : (
               <>
                 <Text variant="title3">{post.title}</Text>
+                <Text variant="caption" tone="tertiary">
+                  {byline(post.authorId, post.createdAt)}
+                </Text>
                 <Text>{post.body}</Text>
                 {post.editedAt ? (
                   <Text variant="caption" tone="tertiary">
@@ -190,7 +227,8 @@ export default function PostScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={iReacted ? 'Remove your reaction' : 'React to this post'}
                 accessibilityState={{ selected: iReacted }}
-                hitSlop={8}>
+                hitSlop={REACTION_SLOP}
+                style={{ justifyContent: 'center', ...webSlop({}, REACTION_SLOP) }}>
                 <Text tone={iReacted ? 'tint' : 'secondary'}>
                   {/* A dash until the count arrives — see `useSubcollectionCounts`. */}
                   👍 {likes?.[post.id] ?? '—'}
@@ -206,7 +244,8 @@ export default function PostScreen() {
                     setEditing(true);
                   }}
                   accessibilityRole="button"
-                  hitSlop={8}>
+                  hitSlop={REACTION_SLOP}
+                  style={{ justifyContent: 'center', ...webSlop({}, REACTION_SLOP) }}>
                   <Text tone="tint">Edit</Text>
                 </Pressable>
               ) : null}
@@ -227,6 +266,19 @@ export default function PostScreen() {
             </Text>
           )}
 
+          {/*
+            A heading with nothing under it. "0 REPLIES" over 500pt of empty
+            grey said only that the screen had finished loading; it did not say
+            that the thread is open and that a reply is the next thing to do.
+            Suppressed when the read failed, because the banner above already
+            holds the floor.
+          */}
+          {!repliesError && replies.length === 0 ? (
+            <Text tone="secondary">
+              {writesOpen ? 'No replies yet. Be the first.' : 'No replies.'}
+            </Text>
+          ) : null}
+
           {replies.map((r) => (
             <View
               key={r.id}
@@ -237,15 +289,19 @@ export default function PostScreen() {
                 gap: 4,
               }}>
               <Text>{r.body}</Text>
-              {r.authorId === user?.uid ? (
-                <Text variant="caption" tone="tertiary">
-                  You
-                </Text>
-              ) : null}
+              <Text variant="caption" tone="tertiary">
+                {byline(r.authorId, r.createdAt)}
+              </Text>
             </View>
           ))}
         </ScrollView>
 
+        {/*
+          The reply box goes when the event does. `firestore.rules` refuses the
+          write past the read-only boundary, so a box that still accepted a
+          reply here would take what somebody typed and drop it.
+        */}
+        {writesOpen ? (
         <View
           style={{
             flexDirection: 'row',
@@ -266,7 +322,7 @@ export default function PostScreen() {
               backgroundColor: colors.surface,
               borderRadius: Radius.pill,
               paddingHorizontal: 14,
-              height: 40,
+              height: HIT_TARGET,
               fontSize: 17,
               color: colors.text,
             }}
@@ -281,12 +337,30 @@ export default function PostScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel="Send reply"
-            style={{ justifyContent: 'center', opacity: draft.trim() ? 1 : 0.4 }}>
+            style={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: HIT_TARGET,
+              opacity: draft.trim() ? 1 : 0.4,
+            }}>
             <Text variant="heading" tone="tint">
               Send
             </Text>
           </Pressable>
         </View>
+        ) : (
+          <View
+            style={{
+              padding: Spacing.md,
+              borderTopWidth: HAIRLINE,
+              borderTopColor: colors.border,
+              backgroundColor: colors.background,
+            }}>
+            <Text variant="subhead" tone="secondary">
+              The event is over. The board is still here to read.
+            </Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </>
   );

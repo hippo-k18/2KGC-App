@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SITE } from '@/lib/site';
+import { siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'About KGC',
@@ -26,12 +26,13 @@ export const metadata: Metadata = {
  * The copy is the live site's own, with two typos it carries left corrected
  * ("and and", "suchs as") and the year re-pointed at this event.
  */
-export default function AboutPage() {
+export default async function AboutPage() {
+  const ev = await siteEvent();
   return (
     <>
       <section className="about-hero">
         <div className="wrap-kgc">
-          <h1>{SITE.name}</h1>
+          <h1>{ev.name}</h1>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
             <a
               className="btn btn-accent btn-kgc"
@@ -42,7 +43,7 @@ export default function AboutPage() {
               KGC YouTube Channel
             </a>
             <Link className="btn btn-accent btn-kgc" href="/tickets">
-              Register for KGC {SITE.year}
+              Register for KGC {ev.year}
             </Link>
           </div>
         </div>
@@ -170,7 +171,7 @@ export default function AboutPage() {
             ability to democratize access to knowledge and opportunity.
           </p>
           <Link className="btn btn-accent btn-kgc" href="/tickets">
-            Register for KGC {SITE.year}
+            Register for KGC {ev.year}
           </Link>
         </div>
       </section>

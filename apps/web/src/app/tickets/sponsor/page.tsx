@@ -6,9 +6,10 @@ import { AudienceTicketsPage } from '../audience-page';
 export const metadata: Metadata = {
   title: 'Sponsor KGC 2027',
   description:
-    'Sponsorship packages for the Knowledge Graph Conference 2027 at Cornell Tech, Roosevelt Island.',
+    'Sponsorship packages for the Knowledge Graph Conference 2027 at Bryant Park, New York.',
 };
 
+/** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -32,29 +33,25 @@ export default async function SponsorTicketsPage({
         audience: 'sponsor',
         noun: 'sponsor',
         heading: `Sponsor ${SITE.shortName} ${SITE.year}`,
-        lede: (
-          <>
-            {SITE.datesLong} at {SITE.venue}. KGC is the room where the knowledge-graph field talks
-            to itself: a few hundred people who build this for a living, rather than a few thousand
-            collecting tote bags.
-          </>
-        ),
+        /* See the note on the exhibitor page: the heading band already carries
+           the date and venue line, so repeating it here says it twice. */
+        lede: <>A thousand people who build knowledge graphs for a living, in one place for five days.</>,
         points: [
           {
-            title: 'Your name where the week happens',
-            body: 'Tier decides placement: the app, the stage, the badge lanyards, the reception. Every tier is visible to every attendee for five days.',
+            title: 'Brand placement',
+            body: 'Placement depends on tier: the app, the stage, the badge lanyards, the reception. Every tier is shown to every attendee for all five days.',
           },
           {
-            title: 'Sessions, not just signage',
-            body: 'The upper tiers include a sponsored session on the programme, listed in the agenda like any other.',
+            title: 'A sponsored session',
+            body: 'The upper tiers include a session on the programme, listed in the agenda.',
           },
           {
             title: 'Conference passes for your team',
-            body: 'Included with every tier, and they are full tickets: workshops, sessions, recordings.',
+            body: 'Included with every tier. Full tickets: workshops, sessions, recordings.',
           },
           {
-            title: 'The attendee list, properly',
-            body: 'Aggregate demographics, and the contacts who opt in through the app.',
+            title: 'Attendee data',
+            body: 'Aggregate demographics, plus the contacts who opt in through the app.',
           },
         ],
         emptyHint: (

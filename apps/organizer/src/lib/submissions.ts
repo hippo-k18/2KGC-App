@@ -18,7 +18,7 @@ import {
   type SubmissionStatus,
 } from '@kgc/shared';
 import { mintSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { sendSubmissionDecision } from '@kgc/scripts/src/lib/email';
+import { emailEnabled, sendSubmissionDecision } from '@kgc/scripts/src/lib/email';
 import { sessionId as deriveSessionId, speakerId, stableGuid } from '@kgc/scripts/src/lib/ids';
 /*
  * Imported from the session editor rather than re-derived, because these two
@@ -232,12 +232,17 @@ export interface ReviewRow {
   reviewerId: string;
   status: ReviewDoc['status'];
   scores: Record<string, number>;
+  criterionComments: Record<string, string>;
   overall?: number;
   confidence?: number;
   commentsToCommittee?: string;
   commentsToAuthors?: string;
   conflict: boolean;
   conflictNote?: string;
+  /** Set when an organizer made the exclusion rather than the reviewer. */
+  excludedBy?: string;
+  /** An organizer's exclusion with no scores on it, which can be taken back. */
+  liftable: boolean;
   assignedBy?: ReviewDoc['assignedBy'];
   submittedAtMs?: number;
 }
@@ -258,12 +263,15 @@ export async function listReviews(submissionId: string): Promise<ReviewRow[]> {
           reviewerId: r.reviewerId ?? d.id,
           status: r.status,
           scores: r.scores ?? {},
+          criterionComments: r.criterionComments ?? {},
           overall: r.overall,
           confidence: r.confidence,
           commentsToCommittee: r.commentsToCommittee,
           commentsToAuthors: r.commentsToAuthors,
           conflict: r.conflict === true,
           conflictNote: r.conflictNote,
+          excludedBy: r.excludedBy,
+          liftable: Boolean(r.excludedBy) && Object.keys(r.scores ?? {}).length === 0,
           assignedBy: r.assignedBy,
           submittedAtMs: r.submittedAt ? ms(r.submittedAt) : undefined,
         };
@@ -283,6 +291,7 @@ export interface SubmissionCounts {
   underReview: number;
   accepted: number;
   rejected: number;
+  waitlisted: number;
   withdrawn: number;
   /** Accepted and not yet on the agenda — what the promotion step has to do. */
   awaitingPromotion: number;
@@ -296,6 +305,7 @@ export function countSubmissions(rows: SubmissionRow[]): SubmissionCounts {
     underReview: 0,
     accepted: 0,
     rejected: 0,
+    waitlisted: 0,
     withdrawn: 0,
     awaitingPromotion: 0,
   };
@@ -305,6 +315,7 @@ export function countSubmissions(rows: SubmissionRow[]): SubmissionCounts {
     else if (r.status === 'under-review') c.underReview++;
     else if (r.status === 'accepted') c.accepted++;
     else if (r.status === 'rejected') c.rejected++;
+    else if (r.status === 'waitlisted') c.waitlisted++;
     else if (r.status === 'withdrawn') c.withdrawn++;
     if (r.status === 'accepted' && !r.sessionId) c.awaitingPromotion++;
   }
@@ -347,6 +358,12 @@ export type SubmissionResult = { ok: true; message: string } | { ok: false; erro
 export async function decideSubmission(input: {
   id: string;
   accept: boolean;
+  /**
+   * The waiting list, which is neither. `accept` is ignored when this is set.
+   * A flag beside the boolean so every caller that predates it means what it
+   * meant.
+   */
+  waitlist?: boolean;
   /** Forwarded to the author with the decision. Never reviewer committee notes. */
   note?: string;
   notify: boolean;
@@ -383,7 +400,20 @@ export async function decideSubmission(input: {
      * because the committee met again.
      */
     const round = (sub.decision?.round ?? 0) + 1;
-    const status: SubmissionStatus = input.accept ? 'accepted' : 'rejected';
+    const status: SubmissionStatus = input.waitlist
+      ? 'waitlisted'
+      : input.accept
+        ? 'accepted'
+        : 'rejected';
+
+    if (sub.sessionId && status !== 'accepted') {
+      return {
+        ok: false,
+        error:
+          'This submission is already on the agenda as a session. Remove or cancel the session ' +
+          'before changing the decision.',
+      };
+    }
 
     await ref.update({
       status,
@@ -423,6 +453,7 @@ export async function decideSubmission(input: {
       callTitle: (await getCall(sub.callId))?.title ?? 'the call for abstracts',
       title: sub.title,
       accepted: input.accept,
+      waitlisted: input.waitlist === true,
       link: submissionLink(input.id),
       note: input.note,
       actor: input.actor,
@@ -430,7 +461,9 @@ export async function decideSubmission(input: {
 
     return {
       ok: true,
-      message: `Recorded as ${status}, and ${identity.email} has been told. That email cannot be recalled.`,
+      message: emailEnabled()
+        ? `Recorded as ${status}, and ${identity.email} has been told. That email cannot be recalled.`
+        : `Recorded as ${status}. Email is not switched on yet, so ${identity.email} has not been told.`,
     };
   } catch (err) {
     recordError('submissions.decide', err);
@@ -500,6 +533,58 @@ export async function undoDecision(input: {
     recordError('submissions.undoDecision', err);
     return { ok: false, error: err instanceof Error ? err.message : 'Could not undo the decision.' };
   }
+}
+
+/**
+ * One decision for many submissions.
+ *
+ * A loop over `decideSubmission` and deliberately nothing cleverer: every rule
+ * that guards one decision (no drafts, no withdrawals, the round, the audit
+ * entry, the mail) then guards each of these, and a batch write would need its
+ * own copy of all of them. The ones that were refused are named, so "12 of 14"
+ * is never the whole message.
+ */
+export async function decideMany(input: {
+  ids: string[];
+  accept: boolean;
+  waitlist?: boolean;
+  note?: string;
+  notify: boolean;
+  actor: string;
+}): Promise<SubmissionResult> {
+  const ids = [...new Set(input.ids)].slice(0, 200);
+  if (ids.length === 0) return { ok: false, error: 'Tick at least one submission.' };
+
+  const word = input.waitlist ? 'waitlisted' : input.accept ? 'accepted' : 'rejected';
+  let done = 0;
+  const refused: string[] = [];
+
+  for (const id of ids) {
+    const result = await decideSubmission({
+      id,
+      accept: input.accept,
+      waitlist: input.waitlist,
+      note: input.note,
+      notify: input.notify,
+      actor: input.actor,
+    });
+    if (result.ok) done++;
+    else refused.push(result.error);
+  }
+
+  if (done === 0) return { ok: false, error: `Nothing was changed. ${refused[0]}` };
+
+  return {
+    ok: true,
+    message:
+      `${done} submission${done === 1 ? '' : 's'} recorded as ${word}.` +
+      (!input.notify
+        ? ' No author has been told.'
+        : emailEnabled()
+          ? ' Each author with an address on file has been emailed.'
+          : ' Email is not switched on yet, so no author has been told.') +
+      (refused.length ? ` ${refused.length} left unchanged: ${refused[0]}` : ''),
+  };
 }
 
 // ---------------------------------------------------------------------------

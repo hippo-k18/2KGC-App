@@ -69,9 +69,16 @@ function Poll({
 
   return (
     <View style={{ gap: Spacing.sm }}>
+      {/*
+        Every other block on a session names itself — About, Materials,
+        Questions, Speaker — and this one arrived as a bare sentence between two
+        of them. Read at 390 it looks like part of the description rather than
+        something to tap, and the only hint that a tap does anything is the line
+        under the options saying results appear after you vote.
+      */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-        <Text variant="heading" style={{ flex: 1 }}>
-          {poll.question}
+        <Text variant="label" tone="secondary" style={{ flex: 1 }}>
+          POLL
         </Text>
         {!poll.open ? (
           <Text variant="label" tone="tertiary">
@@ -79,6 +86,7 @@ function Poll({
           </Text>
         ) : null}
       </View>
+      <Text variant="heading">{poll.question}</Text>
 
       <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
         {poll.options.map((opt, i) => {
@@ -132,7 +140,11 @@ function Poll({
                     {chosen ? '✓ ' : ''}
                     {opt.label}
                   </Text>
-                  {voted ? (
+                  {/* The dash is a share that has not arrived yet. On a poll
+                      nothing will ever count there is no share coming, and a
+                      column of four dashes under a sentence already saying so
+                      reads as a broken tally. */}
+                  {voted && (tallied || counted !== 'never-counted') ? (
                     <Text variant="subhead" tone="secondary">
                       {tallied ? `${Math.round(share * 100)}%` : '—'}
                     </Text>
@@ -175,8 +187,7 @@ function Poll({
           poll where nothing will ever count the ballots. */}
       {voted && counted === 'never-counted' ? (
         <Text variant="caption" tone="tertiary">
-          Your vote is recorded. The ballots for this poll have not been counted,
-          so there is no result to show.
+          Your vote is recorded. Results are not available for this poll.
         </Text>
       ) : voted && !tallied ? (
         <Text variant="caption" tone="tertiary">

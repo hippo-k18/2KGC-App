@@ -5,19 +5,21 @@ import {
   listAnnouncements,
   listSponsorsByTier,
   programmeCounts,
+  siteEvent,
 } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
-import { formatPrice } from '@/lib/tickets';
 import { EventSchedule } from '@/components/event-schedule';
 import { Ticker } from '@/components/ticker';
+import { stripeEnabled } from '@/lib/stripe';
 import { SponsorTiers } from '@/components/sponsor-tiers';
 import { GraphField } from '@/components/graph-field';
 import { HighlightPair } from '@/components/home/highlight-pair';
 import { PhotoSplit } from '@/components/home/photo-split';
 import { StatBlocks } from '@/components/home/stat-blocks';
 import { Testimonials } from '@/components/home/testimonials';
+import { FaqTabs } from '@/components/home/faq-tabs';
 
 /**
  * The home page reads the real `speakers`, `sessions` and `sponsors`
@@ -25,7 +27,21 @@ import { Testimonials } from '@/components/home/testimonials';
  * whatever is actually in Firestore, not numbers typed into JSX — so the day a
  * speaker is added in the organizer console, this page says so.
  */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. The home page counts what is in Firestore. Those counts change when an organizer adds a speaker or a session, which is not something that happens between two visitors a second apart.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 /**
  * The five testimonial cards, transcribed from the images they are baked into.
@@ -136,12 +152,12 @@ async function programmeOrNothing() {
 }
 
 export default async function HomePage() {
-  // The ticket catalogue lives in Firestore now, so the homepage's price row
-  // reads it like any other data rather than importing a frozen array.
-  // The homepage shows a price teaser. If the catalogue cannot be read the
-  // strip is simply absent — a homepage is not the place to explain an outage.
+  const ev = await siteEvent();
+  // The homepage no longer shows a ticket row; the catalogue is read only for
+  // the prices in the structured data below. If it cannot be read those are
+  // simply absent.
   const tiers = (await tiersOrNull()) ?? [];
-  const { counts, sponsorBands, agenda, announcements } = await programmeOrNothing();
+  const { sponsorBands, agenda } = await programmeOrNothing();
   const branding = await brandingSettings();
 
   /*
@@ -166,6 +182,7 @@ export default async function HomePage() {
       pageUrl: `${canonicalOrigin()}/`,
       agenda,
       tiers,
+      event: ev,
       description: branding.tagline || SITE.tagline,
     }),
   );
@@ -187,9 +204,20 @@ export default async function HomePage() {
         what the organizer actually announced, and `SiteHeader` is a client
         component. See the note in that file.
       */}
-      <Ticker announcements={announcements.map((a) => a.title)} />
+      <Ticker salesOpen={stripeEnabled()} />
 
-      <section className="hero">
+      {/*
+        A banner saved on App Branding replaces the campus photograph. Set as an
+        inline background so the stylesheet's own picture stands when none is saved.
+      */}
+      <section
+        className="hero"
+        style={
+          branding.bannerUrl
+            ? { backgroundImage: `url(${JSON.stringify(branding.bannerUrl)})` }
+            : undefined
+        }
+      >
         {/* The node-and-edge field over the photograph — see `graph-field.tsx`. */}
         <GraphField />
         <div className="wrap">
@@ -201,11 +229,14 @@ export default async function HomePage() {
             a visitor arrives wanting to confirm — which conference this is, and
             when.
           */}
-          <p className="hero-eyebrow">KGC {SITE.year}</p>
-          <h1>The Knowledge Graph Conference</h1>
-          <p className="lede">Make Your Enterprise Data AI Ready</p>
+          {/* The name and tagline follow Content > Basics and App Branding once they are saved. */}
+          <p className="hero-eyebrow">
+            {ev.shortName} {ev.year}
+          </p>
+          <h1>{ev.name === SITE.name ? 'The Knowledge Graph Conference' : ev.name}</h1>
+          <p className="lede">{branding.tagline || 'Make Your Enterprise Data AI Ready'}</p>
           <p className="hero-dates">
-            {SITE.datesLong} &nbsp;|&nbsp; {SITE.venueShort}
+            {ev.datesLong} &nbsp;|&nbsp; {ev.venueShort}
           </p>
 
           {/*
@@ -220,41 +251,39 @@ export default async function HomePage() {
             <Link href="/tickets" className="btn btn-primary">
               Register now
             </Link>
-            <Link href="/agenda" className="btn btn-ghost">
-              See the agenda
-            </Link>
+            {branding.showAgenda && (
+              <Link href="/agenda" className="btn btn-ghost">
+                See the agenda
+              </Link>
+            )}
           </div>
         </div>
       </section>
 
       {/*
-        Three cards, as on the live site, not the four this used to show. Two of
-        the numbers are `count()` results against Firestore; the attendance
-        figure cannot be, because `registrations` holds ticket holders for this
-        edition mid-sale — fifty-odd in a seeded demo, which would render
-        "52 Attendees" beneath a headline claiming a thousand. So it is declared
-        in `site.ts` as a stated expectation and the noun says "expected", rather
-        than a typed number wearing the costume of a measurement.
+        The three cards in the live site's own words and figures. Theirs are
+        across every edition ("spoke at our conferences"), which is why they are
+        not this year's counts from the database.
       */}
       <StatBlocks
         stats={[
           {
             value: ATTENDEES_EXPECTED,
-            noun: 'Attendees expected',
+            noun: 'Attendees',
             blurb:
-              'Leading practitioners across hybrid AI, LLMs, NLP, machine learning and data management, for five days on Roosevelt Island.',
+              'Leading experts and award winners in the fields of Hybrid AI, LLMs, NLP, Machine Learning, Data Management make an annual visit to our conference.',
           },
           {
-            value: String(counts.sponsors),
-            noun: counts.sponsors === 1 ? 'Partner' : 'Partners',
+            value: '40+',
+            noun: 'Partners',
             blurb:
-              'Supported by organisations building the tools and the standards the rest of the field runs on.',
+              'We are proud to be supported by a distinguished group of sponsors, each playing a pivotal role in advancing knowledge graph technologies and their applications.',
           },
           {
-            value: String(counts.speakers),
-            noun: counts.speakers === 1 ? 'Speaker' : 'Speakers',
+            value: '150+',
+            noun: 'Speakers',
             blurb:
-              'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists.',
+              'Visionary Data Scientists, Healthcare Professionals, Finance and Investment Analysts, Knowledge Graph Engineers and Ontologists spoke at our conferences.',
           },
         ]}
       />
@@ -265,10 +294,10 @@ export default async function HomePage() {
         page: the thing being demonstrated sits exactly where the incumbent used
         to be. Capped per day, because the homepage teases and `/agenda` does not.
       */}
-      {agenda.length > 0 && (
+      {branding.showAgenda && agenda.length > 0 && (
         <section className="kgc-wide" aria-labelledby="schedule-heading">
           <h2 id="schedule-heading" className="hero-headline" style={{ fontSize: 32 }}>
-            KGC {SITE.year} Full Agenda
+            KGC {ev.year} Full Agenda
           </h2>
           <EventSchedule days={agenda} limitPerDay={4} moreHref="/agenda" />
         </section>
@@ -312,7 +341,7 @@ export default async function HomePage() {
             // The live site spells this "Limitied". Reproduced in shape, not in
             // spelling; a typo is not a design decision.
             note: '*Limited availability',
-            link: { label: 'Learn more', href: '/agenda' },
+            link: branding.showAgenda ? { label: 'Learn more', href: '/agenda' } : undefined,
           },
           {
             heading: '#2 Networking Opportunities',
@@ -327,8 +356,7 @@ export default async function HomePage() {
             body: (
               <>
                 Build relationships, trade notes and find the people solving the problem you are
-                solving. The app keeps your schedule, your messages and the people you have met in
-                one place for the whole week.
+                solving.
               </>
             ),
           },
@@ -369,7 +397,6 @@ export default async function HomePage() {
           A dedicated strand on data integration, profiling, curation, querying and ontology mapping
           over clinical and biomedical graphs, and on the machine learning built on top of them.
         </p>
-        <p>It is the part of the programme that sells out first, every year.</p>
       </PhotoSplit>
 
       <Testimonials
@@ -377,137 +404,70 @@ export default async function HomePage() {
         items={TESTIMONIALS}
       />
 
-      <section className="tint">
-        <div className="wrap">
-          <p className="eyebrow">Tickets</p>
-          <h2>Our tickets</h2>
-          <p className="lede" style={{ marginBottom: 30 }}>
-            Prices are per person in US dollars.
-          </p>
-
-          <div className="grid g4">
-            {/*
-              All four carry `card tier`; only the highlight is conditional. The
-              featured card used to be the only one with `tier`, which brought
-              `.tier`'s 24px padding and `display: flex` while its three siblings
-              kept `.card`'s 22px and normal flow — so it sat 2px out, and flex
-              suppressed the margin collapse between the tagline and the price,
-              pushing the price and the button a further 10px down. The result was
-              a four-card row whose prices did not line up, on the one card the
-              eye is meant to land on.
-            */}
-            {tiers.map((t) => (
-              <div key={t.id} className={`card tier${t.featured ? ' featured' : ''}`}>
-                <h3>{t.name}</h3>
-                <p className="muted" style={{ fontSize: '0.9rem' }}>
-                  {t.tagline}
-                </p>
-                <p style={{ fontSize: '1.7rem', fontWeight: 800, color: 'var(--ink)', margin: '10px 0 14px' }}>
-                  {formatPrice(t.priceCents, t.currency)}
-                </p>
-                {/*
-                  `?tier=` matters: the tickets page reads it and preselects the
-                  form, and without it all four of these buttons landed on the
-                  same page with All Access selected — so "Choose Workshops"
-                  offered to charge $1,199 for a $699 ticket. The tickets page's
-                  own tier buttons already carry the param; these were the copy
-                  that lost it.
-                */}
-                <Link href={`/tickets/checkout?tier=${t.id}`} className="btn btn-outline btn-block">
-                  Choose {t.name}
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {sponsorBands.length > 0 && (
-        <section>
+        <section className="band-white">
           <div className="wrap">
-            {/*
-              Heading and standfirst are the live site's own words, not ours —
-              its sponsor block is headed "OUR SPONSORS" over this sentence.
-            */}
-            <p className="eyebrow">Sponsors &amp; partners</p>
-            <h2>Our sponsors</h2>
-            <p className="lede" style={{ marginBottom: 28 }}>
-              We are proud to be supported by a distinguished group of sponsors, each playing a
-              pivotal role in advancing knowledge graph technologies and their applications. Want to
-              join them? <Link href="/sponsor">See the sponsorship packages</Link>.
-            </p>
+            <h2 className="hero-headline section-headline">Sponsors</h2>
             <SponsorTiers bands={sponsorBands} />
           </div>
         </section>
       )}
 
-      {/*
-        Built on `<details>`/`<summary>` rather than buttons and state. It is
-        keyboard-operable, screen-reader-announced and findable by the browser's
-        own in-page search with no JavaScript at all — and on this page the
-        alternative was a hand-rolled accordion that only answered a mouse.
-        The first item is open, as it is in the live site's served HTML.
-      */}
-      <section className="kgc-faq" aria-labelledby="faq-heading">
-        <h2 id="faq-heading">Frequently Asked Questions</h2>
-
-        <details open>
-          <summary>Where should I make hotel arrangements?</summary>
-          <div className="answer">
-            <p>
-              For KGC {SITE.year} we recommend the following, both within easy reach of the campus
-              and the city:
-            </p>
-            <ul>
-              <li>TownePlace Suites, Long Island City</li>
-              <li>Hotel 57</li>
-            </ul>
-            <p>
-              Discounted room blocks are arranged closer to the conference; both hotels take
-              reservations at their standard rates in the meantime.
-            </p>
-          </div>
-        </details>
-
-        <details>
-          <summary>Will I qualify for the KGC Video Library subscription?</summary>
-          <div className="answer">
-            <p>
-              In-person and virtual tickets both include access to the recordings. Every session
-              is streamed and recorded.
-            </p>
-          </div>
-        </details>
-
-        
-
-        <details>
-          <summary>Will the in-person presentations be available online?</summary>
-          <div className="answer">
-            <p>
-              Yes. Every session is recorded and published to the video library.
-            </p>
-          </div>
-        </details>
-
-        <details>
-          <summary>How do I get to the Cornell Tech campus?</summary>
-          <div className="answer">
-            <p>
-              The campus is on Roosevelt Island. The tram from 59th Street and 2nd Avenue runs
-              every few minutes and takes about four; the F train stops on the island; the ferry is
-              slower.
-            </p>
-          </div>
-        </details>
-      </section>
+      <FaqTabs
+        heading="Frequently Asked Questions"
+        items={[
+          {
+            question: 'Where should I make hotel arrangements?',
+            answer: (
+              <>
+                <p>
+                  For KGC {ev.year} we recommend two hotels, both <strong>within easy reach of the
+                  venue</strong>.
+                </p>
+                <h3 className="faq-tabs-sub">Recommended hotels:</h3>
+                <p>
+                  <strong>TownePlace Suites, Long Island City</strong>
+                  <br />
+                  <strong>Hotel 57</strong>
+                </p>
+                <p>
+                  Discounted room blocks are arranged closer to the conference. Both hotels take
+                  reservations at their standard rates in the meantime.
+                </p>
+              </>
+            ),
+          },
+          {
+            question: 'Will I qualify for the KGC Video Library subscription?',
+            answer: (
+              <p>
+                In-person and virtual tickets both include access to the recordings. Every session
+                is streamed and recorded.
+              </p>
+            ),
+          },
+          {
+            question: 'Will the in-person presentations be available online?',
+            answer: <p>Yes. Every session is recorded and published to the video library.</p>,
+          },
+          {
+            question: 'How do I get to Bryant Park?',
+            answer: (
+              <p>
+                Bryant Park is in Midtown Manhattan, between 40th and 42nd Streets and Fifth and
+                Sixth Avenues. The B, D, F and M trains stop at 42 St–Bryant Park and the 7 at 5 Av.
+                Grand Central is a short walk east.
+              </p>
+            ),
+          },
+        ]}
+      />
 
       <section className="tint">
         <div className="wrap narrow center">
           <h2>Bring your team</h2>
           <p className="lede" style={{ margin: '0 auto 24px' }}>
-            {SITE.datesLong} at {SITE.venue}. Register now, and your ticket appears in the KGC app
-            the moment you sign in with the same email address.
+            {ev.datesLong} at {ev.venue}.
           </p>
           <Link href="/tickets" className="btn btn-primary">
             Register now

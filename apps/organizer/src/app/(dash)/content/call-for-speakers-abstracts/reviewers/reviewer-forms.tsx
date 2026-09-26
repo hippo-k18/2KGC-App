@@ -11,6 +11,7 @@ import {
   FormActions,
   FormBanner,
   FormGrid,
+  FieldIdScope,
   Select,
   SubmitButton,
   type FormState,
@@ -32,52 +33,54 @@ export function InviteReviewerForm({ tracks }: { tracks: TrackOption[] }) {
   const [state, action] = useActionState<FormState, FormData>(inviteReviewerAction, {});
 
   return (
-    <form action={action}>
-      <FormBanner state={state} />
+    <FieldIdScope scope="reviewer">
+      <form action={action}>
+        <FormBanner state={state} />
 
-      <FormGrid>
-        <Field label="Name" name="name" required maxLength={120} width="lg" />
-        <Field label="Email" name="email" type="email" required width="lg" />
-      </FormGrid>
+        <FormGrid>
+          <Field label="Name" name="name" required maxLength={120} width="lg" />
+          <Field label="Email" name="email" type="email" required width="lg" />
+        </FormGrid>
 
-      <FormGrid>
-        <Field
-          label="Affiliation"
-          name="affiliation"
-          maxLength={120}
-          width="lg"
-          hint="Used by the committee to spot conflicts of interest. Nothing checks it."
-        />
-        <Field
-          label="Most submissions they will take"
-          name="maxAssignments"
-          type="number"
-          min={1}
-          max={200}
-          defaultValue={10}
-          width="sm"
-          hint="Respected by assignment: somebody at their ceiling is passed over and named, not quietly loaded up."
-        />
-      </FormGrid>
+        <FormGrid>
+          <Field
+            label="Affiliation"
+            name="affiliation"
+            maxLength={120}
+            width="lg"
+            hint="Helps the committee spot conflicts of interest."
+          />
+          <Field
+            label="Most submissions they will take"
+            name="maxAssignments"
+            type="number"
+            min={1}
+            max={200}
+            defaultValue={10}
+            width="sm"
+            hint="Assignment never gives them more than this."
+          />
+        </FormGrid>
 
-      <FieldSet
-        legend="Tracks they cover"
-        hint={
-          tracks.length === 0
-            ? 'No tracks have been entered for this event, so assignment by topic has nothing to match on. Add them in Track Manager.'
-            : 'What assignment by topic matches on. A reviewer with no tracks can still be assigned by hand.'
-        }
-        inline
-      >
-        {tracks.map((t) => (
-          <CheckboxField key={t.id} name="trackIds" value={t.id} label={t.name} />
-        ))}
-      </FieldSet>
+        <FieldSet
+          legend="Tracks they cover"
+          hint={
+            tracks.length === 0
+              ? 'No tracks have been entered for this event, so assignment by topic has nothing to match on. Add them in Track Manager.'
+              : 'What assignment by topic matches on. A reviewer with no tracks can still be assigned by hand.'
+          }
+          inline
+        >
+          {tracks.map((t) => (
+            <CheckboxField key={t.id} name="trackIds" value={t.id} label={t.name} />
+          ))}
+        </FieldSet>
 
-      <FormActions>
-        <SubmitButton>Add reviewer</SubmitButton>
-      </FormActions>
-    </form>
+        <FormActions>
+          <SubmitButton>Add reviewer</SubmitButton>
+        </FormActions>
+      </form>
+    </FieldIdScope>
   );
 }
 
@@ -98,36 +101,38 @@ export function AssignForm({
   const [state, action] = useActionState<FormState, FormData>(assignReviewerAction, {});
 
   return (
-    <form action={action}>
-      <FormBanner state={state} />
-      <FormGrid>
-        <Select
-          label="Submission"
-          name="submissionId"
-          required
-          placeholder="Choose one…"
-          width="xl"
-          options={submissions.map((s) => ({
-            value: s.id,
-            label: `${s.title || 'Untitled'} · ${s.reviewsSubmitted}/${s.reviewsAssigned} reviews`,
-          }))}
-        />
-        <Select
-          label="Reviewer"
-          name="reviewerId"
-          required
-          placeholder="Choose one…"
-          width="lg"
-          options={reviewers.map((r) => ({
-            value: r.id,
-            label: `${r.name} (${r.assignedCount}/${r.maxAssignments})`,
-          }))}
-        />
-      </FormGrid>
-      <FormActions>
-        <SubmitButton pendingLabel="Assigning…">Assign</SubmitButton>
-      </FormActions>
-    </form>
+    <FieldIdScope scope="assign">
+      <form action={action}>
+        <FormBanner state={state} />
+        <FormGrid>
+          <Select
+            label="Submission"
+            name="submissionId"
+            required
+            placeholder="Choose one…"
+            width="xl"
+            options={submissions.map((s) => ({
+              value: s.id,
+              label: `${s.title || 'Untitled'} · ${s.reviewsSubmitted}/${s.reviewsAssigned} reviews`,
+            }))}
+          />
+          <Select
+            label="Reviewer"
+            name="reviewerId"
+            required
+            placeholder="Choose one…"
+            width="lg"
+            options={reviewers.map((r) => ({
+              value: r.id,
+              label: `${r.name} (${r.assignedCount}/${r.maxAssignments})`,
+            }))}
+          />
+        </FormGrid>
+        <FormActions>
+          <SubmitButton pendingLabel="Assigning…">Assign</SubmitButton>
+        </FormActions>
+      </form>
+    </FieldIdScope>
   );
 }
 
@@ -142,8 +147,7 @@ export function AssignByTrackForm({ callId, target }: { callId: string; target: 
       <p className="body-2">
         Gives every submission with a track up to {target} reviewer{target === 1 ? '' : 's'} whose
         own tracks include it, least-loaded first, never past what a reviewer said they would take.
-        A submission that already has its full complement is left alone. Piling a fourth reviewer
-        onto a paper that has three takes that reviewer away from one that has none.
+        A submission that already has enough reviewers is left alone.
       </p>
       <FormActions>
         <SubmitButton variant="secondary" pendingLabel="Matching…">

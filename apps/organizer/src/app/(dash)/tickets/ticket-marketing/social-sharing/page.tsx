@@ -5,6 +5,7 @@ import { listLinks } from '@/lib/campaigns';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,11 +56,10 @@ export default async function SocialSharingPage() {
         title="Social Sharing"
         info={
           <>
-            <strong>Nothing here posts anything</strong>
+            <strong>Track which posts work</strong>
             <p>
-              Posting is done by a person, in a tab they already have open. What this screen
-              automates is knowing which post worked, which is a tracked link per channel, so make
-              one code per post rather than one for the platform.
+              This screen does not post for you. Make one tracked link per post and share it
+              yourself, then compare clicks and orders here.
             </p>
           </>
         }
@@ -126,32 +126,32 @@ export default async function SocialSharingPage() {
         <Table
           cols={[
             { key: 'c', label: 'Check', className: 'cell-md' },
-            { key: 'w', label: 'Why it matters', className: 'cell-fill' },
+            { key: 'w', label: 'Why', className: 'cell-fill' },
             { key: 's', label: '', className: 'cell-sm' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
-              'Open Graph tags on the destination',
-              'A link posted to LinkedIn is rendered by LinkedIn from the page’s OG tags. Missing ones make the post a bare URL, which performs a fraction as well, and nobody notices until after it is posted.',
+              'Link preview',
+              'Social platforms show a title and image for the page you link to. The conference site has these set.',
               <Tag key="s" color="green" small>
                 set
               </Tag>,
             ],
             [
               'The redirect resolves',
-              'Open the /r/ link yourself once. A retired or mistyped code 404s deliberately rather than bouncing to the homepage, precisely so a typo in a link that has gone to a thousand people gets noticed.',
+              'Open the link yourself once. A retired or mistyped code shows a not found page.',
               <Tag key="s" color="blue" small>
                 open it
               </Tag>,
             ],
             [
-              'One code per post, not per platform',
-              'Two posts on the same platform sharing a code cannot be told apart. Codes are free; ambiguity is not.',
+              'One code per post',
+              'Two posts that share a code cannot be told apart.',
               <Tag key="s" color="grey" small>
                 habit
               </Tag>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

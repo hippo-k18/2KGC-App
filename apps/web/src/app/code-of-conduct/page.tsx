@@ -112,7 +112,21 @@ const CONTACT: CodeOfConductContent = {
 };
 
 /** The reporting route is read per request, so a change reaches the page at once. */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. The reporting route is a stored value an organizer edits.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 export default async function CodeOfConductPage() {
   const { reportEmail, committee } = await pageContent(PAGE_CONTENT_KEYS.codeOfConduct, CONTACT);
@@ -120,7 +134,6 @@ export default async function CodeOfConductPage() {
   return (
     <section>
       <div className="wrap narrow">
-        <p className="eyebrow">Policy</p>
         <h1>Code of Conduct of Knowledge Graphs Conference LLC</h1>
         <p className="lede">
           All attendees, speakers, sponsors and volunteers at The Knowledge Graph Conference (KGC)

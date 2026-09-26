@@ -76,12 +76,10 @@ export default async function ReferralContestPage() {
         title="Referral Contest"
         info={
           <>
-            <strong>This measures link-sharing, not referring</strong>
+            <strong>How referrals are counted</strong>
             <p>
-              A friend told about KGC over coffee who then searches for it and buys is
-              unattributed. Attribution is last-click over thirty days, so the ranking rewards the
-              people who posted a link. Narrower than the people who brought somebody. Worth
-              knowing before anybody is told they came second.
+              An order counts for a referrer when the buyer clicked their link in the thirty days
+              before buying. Word of mouth without a click is not counted.
             </p>
           </>
         }
@@ -113,32 +111,33 @@ export default async function ReferralContestPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Leaderboard</h2>
-        <Table
-          cols={[
-            { key: 'p', label: '#', className: 'cell-xs' },
-            { key: 'o', label: 'Referrer', className: 'cell-fill' },
-            { key: 'c', label: 'Clicks', className: 'cell-sm' },
-            { key: 'n', label: 'Orders', className: 'cell-sm' },
-            { key: 'r', label: 'Net', className: 'cell-sm' },
-          ]}
-          rows={leaderboard.map((r, i) => [
-            <strong key="p">{i + 1}</strong>,
-            <div key="o">
-              <div>{r.owner}</div>
-              <div className="muted" style={{ fontSize: 11 }}>
-                {r.links} {r.links === 1 ? 'link' : 'links'}
-              </div>
-            </div>,
-            r.clicks,
-            <strong key="n">{r.orders}</strong>,
-            r.revenueCents > 0 ? money(r.revenueCents, r.currency) : '—',
-          ])}
-          empty={<NotInputted what="referral links" compact />}
-        />
+        {leaderboard.length === 0 ? (
+          <NotInputted what="referral links" compact />
+        ) : (
+          <Table
+            cols={[
+              { key: 'p', label: '#', className: 'cell-xs' },
+              { key: 'o', label: 'Referrer', className: 'cell-fill' },
+              { key: 'c', label: 'Clicks', className: 'cell-sm' },
+              { key: 'n', label: 'Orders', className: 'cell-sm' },
+              { key: 'r', label: 'Net', className: 'cell-sm' },
+            ]}
+            rows={leaderboard.map((r, i) => [
+              <strong key="p">{i + 1}</strong>,
+              <div key="o">
+                <div>{r.owner}</div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {r.links} {r.links === 1 ? 'link' : 'links'}
+                </div>
+              </div>,
+              r.clicks,
+              <strong key="n">{r.orders}</strong>,
+              r.revenueCents > 0 ? money(r.revenueCents, r.currency) : '—',
+            ])}
+          />
+        )}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          One person may hold several links, and the leaderboard sums them. Otherwise the winner is
-          whoever split their audience least. Ties break on net value, then alphabetically, so the
-          order is stable between page loads.
+          A person with several links is ranked on their total. Ties go to the higher net value.
         </p>
       </Panel>
 
@@ -148,7 +147,7 @@ export default async function ReferralContestPage() {
           links={owned}
           publicOrigin={publicOrigin}
           showOwner
-          emptyMessage="No link has an owner. A link with no name attached belongs on Campaign Link Tracking; this screen is only the ones somebody gets credit for."
+          emptyMessage="No referral links yet. Create one below."
         />
       </Panel>
 

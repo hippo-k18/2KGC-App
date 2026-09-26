@@ -13,7 +13,11 @@ import {
 // copy of `registrationId` would drift, and the day it drifted the importer
 // and this site would start writing two documents per attendee.
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { ensureRegistration as sharedEnsureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import {
+  currentHolder,
+  ensureRegistration as sharedEnsureRegistration,
+  stillPaidElsewhere,
+} from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
 import { decideRefund } from './refund-core';
 
@@ -318,8 +322,20 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
 export interface RefundOutcome {
   registrationId: string | null;
   orderId: string;
-  /** Whose ticket it was, so the caller can email them. Null if unknown. */
+  /** Who paid, so the caller can send them the receipt. Null if unknown. */
   email: string | null;
+  /**
+   * The address of the registration that was actually cancelled.
+   *
+   * The same as `email` on every order nobody transferred. After a transfer the
+   * buyer paid and somebody else holds the seat, so the receipt still goes to
+   * `email` while anything that follows the *ticket* — app access, entitlements,
+   * and the mail saying a badge has stopped working — has to follow this
+   * instead.
+   */
+  holderEmail?: string;
+  /** The holder's own name, for greeting them in that mail. */
+  holderName?: string;
   name?: string;
   ticketType?: string;
   /** Cumulative refunded total after this event, in minor units. */
@@ -448,40 +464,48 @@ export async function cancelRegistrationByOrder(input: {
    * Someone who bought twice — a workshop upgrade after a main-conference
    * ticket — has one registration backed by two orders, and refunding the
    * first must not revoke a ticket the second still pays for. So the
-   * registration is cancelled only when no other paid order shares its email.
+   * registration is cancelled only when no other paid order covers it, asked
+   * about the buyer and the holder alike.
+   *
+   * ── And it may not be the buyer's registration any more ────────────────────
+   *
+   * `registrationId(order.email)` is the buyer's document, and after a transfer
+   * that document is already dead while the ticket is somebody else's.
+   * Cancelling the buyer's id would take the money back and leave the new
+   * holder's badge scanning, so the forward link is followed to whoever holds
+   * the seat now. No registration at the end of it means there is no ticket to
+   * withdraw, which is a skip rather than an update that would throw.
    */
-  const rid = registrationId(order.email);
+  const holder = await currentHolder(db(), registrationId(order.email));
+  if (!holder) return { ...details, registrationId: null };
+  const rid = holder.id;
 
   /**
-   * Status is filtered in memory, not in the query.
-   *
-   * `partially_refunded` still paid for a ticket, so the set that keeps a
-   * registration alive is two statuses rather than one — and `where('status',
-   * 'in', [...])` would be a third filter shape to reason about against
-   * `firestore.indexes.json`. One person has a handful of orders; filtering
-   * after the read costs nothing and cannot fail with `failed-precondition`.
+   * Both addresses are asked, and the order being refunded is left out of the
+   * answer. The buyer's other order still pays for the seat they passed on, and
+   * the holder's own purchase still pays for the seat they were handed; either
+   * one keeps the ticket alive. `stillPaidElsewhere` states the rule in full
+   * and `cancelExtraSeats` in the webhook asks it the same way, so the two
+   * cannot drift.
    */
-  const sameEmail = await db()
-    .collection(COLLECTIONS.orders)
-    .where('eventId', '==', EVENT_ID)
-    .where('email', '==', order.email)
-    .get();
-
-  const stillPaidElsewhere = sameEmail.docs
-    .filter((d) => d.id !== oid)
-    .some((d) => {
-      const o = d.data() as OrderDoc;
-      return o.status === 'paid' || o.status === 'partially_refunded';
-    });
-
-  if (stillPaidElsewhere) return { ...details, registrationId: null };
+  if (await stillPaidElsewhere(db(), [order.email, holder.email], oid)) {
+    // `registrationId: null` is "nothing was withdrawn", and the holder is
+    // still reported: the receipt has to know whether the ticket it is talking
+    // about is the buyer's own.
+    return { ...details, registrationId: null, holderEmail: holder.email, holderName: holder.name };
+  }
 
   await db()
     .collection(COLLECTIONS.registrations)
     .doc(rid)
     .update({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
 
-  return { ...details, registrationId: rid };
+  return {
+    ...details,
+    registrationId: rid,
+    holderEmail: holder.email,
+    holderName: holder.name,
+  };
 }
 
 // ---------------------------------------------------------------------------

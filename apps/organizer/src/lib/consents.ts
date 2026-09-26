@@ -20,9 +20,14 @@ import {
   mintConsentToken,
   speakerSignatory,
 } from '@kgc/scripts/src/lib/consent-token';
+import { sendConsentRequest } from '@kgc/scripts/src/lib/email';
 import {
   audienceSources,
   buildRegister,
+  outstandingByPerson,
+  sendLockIsFree,
+  signingCampaignId,
+  signingSendSplit,
   totalsFor,
   unmatchedSignatures,
   type ConsentSubject,
@@ -174,6 +179,56 @@ export interface ConsentRegister {
 }
 
 /**
+ * Everybody an attendee form is put to: the union of profiles and ticket
+ * holders, one row per person.
+ *
+ * The same union `listAttendees()` builds, and for the same reason: somebody who
+ * bought a ticket this morning has no profile yet and is still somebody whose
+ * release is outstanding. Lifted out of `consentRegister` because the badge
+ * sheet and the scan desk now ask the same question of the same people without
+ * wanting a whole register built.
+ */
+async function attendeeSubjects(): Promise<ConsentSubject[]> {
+  const [userSnap, regSnap] = await Promise.all([
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+  ]);
+
+  const byEmail = new Map<string, ConsentSubject>();
+
+  for (const d of userSnap.docs) {
+    const u = d.data() as UserDoc;
+    byEmail.set(emailKey(u.email) || d.id, {
+      key: d.id,
+      name: u.name || u.email || d.id,
+      email: u.email,
+      kind: 'attendee',
+    });
+  }
+
+  for (const d of regSnap.docs) {
+    const r = d.data() as RegistrationDoc;
+    const k = emailKey(r.email);
+    const existing = byEmail.get(k);
+    if (existing) {
+      // The registration id is a second key the same person may have signed
+      // under, if they were sent a link before they ever opened the app.
+      existing.aliases = [...(existing.aliases ?? []), d.id];
+      continue;
+    }
+    byEmail.set(k || d.id, {
+      key: d.id,
+      name: r.name?.trim() || r.email,
+      email: r.email,
+      kind: 'attendee',
+      note: 'has not opened the app. Needs a link',
+    });
+  }
+
+  return [...byEmail.values()];
+}
+
+/**
  * The register for one form: who is expected to sign, and who has.
  *
  * ── Who is expected ─────────────────────────────────────────────────────────
@@ -195,67 +250,12 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
   const form = forms.find((f) => f.id === formId);
   if (!form) return null;
 
-  const responseSnap = await db()
-    .collection(COLLECTIONS.consentForms)
-    .doc(formId)
-    .collection(SUBCOLLECTIONS.responses)
-    .get();
-
-  const signatures: SignatureRecord[] = responseSnap.docs.map((d) => {
-    const r = d.data() as ConsentResponseDoc;
-    return {
-      signatory: r.signatory,
-      uid: r.uid,
-      email: r.email,
-      formVersion: r.formVersion,
-      signedName: r.signedName,
-      signedAt: iso(r.signedAt),
-      channel: r.channel,
-    };
-  });
+  const signatures = await signaturesFor(formId);
 
   const sources = audienceSources(form.audience);
   const subjects: ConsentSubject[] = [];
 
-  if (sources.includes('attendee')) {
-    const [userSnap, regSnap] = await Promise.all([
-      db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
-      db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
-    ]);
-
-    const byEmail = new Map<string, ConsentSubject>();
-
-    for (const d of userSnap.docs) {
-      const u = d.data() as UserDoc;
-      byEmail.set(emailKey(u.email) || d.id, {
-        key: d.id,
-        name: u.name || u.email || d.id,
-        email: u.email,
-        kind: 'attendee',
-      });
-    }
-
-    for (const d of regSnap.docs) {
-      const r = d.data() as RegistrationDoc;
-      const k = emailKey(r.email);
-      const existing = byEmail.get(k);
-      if (existing) {
-        // The registration id is a second key the same person may have signed
-        // under, if they were sent a link before they ever opened the app.
-        existing.aliases = [...(existing.aliases ?? []), d.id];
-        continue;
-      }
-      byEmail.set(k || d.id, {
-        key: d.id,
-        name: r.name?.trim() || r.email,
-        email: r.email,
-        kind: 'attendee',
-        note: 'has not opened the app. Needs a link',
-      });
-    }
-
-    subjects.push(...byEmail.values());
-  }
+  if (sources.includes('attendee')) subjects.push(...(await attendeeSubjects()));
 
   if (sources.includes('speaker')) {
     const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
@@ -320,6 +320,393 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
     orphans: unmatchedSignatures(subjects, signatures),
     audienceUnavailable: sources.length === 0,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Required forms, at the door
+// ---------------------------------------------------------------------------
+
+/** Every signature given to one form, flattened for the matcher. */
+async function signaturesFor(formId: string): Promise<SignatureRecord[]> {
+  const snap = await db()
+    .collection(COLLECTIONS.consentForms)
+    .doc(formId)
+    .collection(SUBCOLLECTIONS.responses)
+    .get();
+
+  return snap.docs.map((d) => {
+    const r = d.data() as ConsentResponseDoc;
+    return {
+      signatory: r.signatory,
+      uid: r.uid,
+      email: r.email,
+      formVersion: r.formVersion,
+      signedName: r.signedName,
+      signedAt: iso(r.signedAt),
+      channel: r.channel,
+    };
+  });
+}
+
+export interface RequiredConsentGaps {
+  /** The published attendee forms an organizer has marked required. */
+  forms: { id: string; title: string; version: number }[];
+  /**
+   * Registration id, uid or lower-cased address → the titles that person has
+   * not signed. Absent means they owe nothing.
+   */
+  outstanding: Map<string, string[]>;
+}
+
+/**
+ * Who still owes a required release, for the screens that meet people.
+ *
+ * ── Why this is a report and not a gate ────────────────────────────────────
+ *
+ * The badge sheet and the scan desk say "form not signed" and carry on. Nothing
+ * here refuses a check-in, and that is a decision rather than an unfinished
+ * half: a door volunteer holding a queue cannot adjudicate a release, and a
+ * conference that turned somebody away from a session they paid for because a
+ * photo waiver was outstanding would be making a much larger mistake than the
+ * one it avoided. The organizer standing behind the desk is the one who decides
+ * what to do about it, and this is what tells them there is something to decide.
+ *
+ * Returns empty and never throws when nothing is required, which is the state
+ * of every event that has not published a required form.
+ */
+export async function requiredConsentGaps(): Promise<RequiredConsentGaps> {
+  try {
+    const required = (await listConsentForms()).filter(
+      (f) => f.audience === 'attendee' && f.status === 'published' && f.required,
+    );
+    if (required.length === 0) return { forms: [], outstanding: new Map() };
+
+    const [subjects, withSignatures] = await Promise.all([
+      attendeeSubjects(),
+      Promise.all(
+        required.map(async (f) => ({
+          id: f.id,
+          title: f.title,
+          version: f.version,
+          signatures: await signaturesFor(f.id),
+        })),
+      ),
+    ]);
+
+    return {
+      forms: required.map((f) => ({ id: f.id, title: f.title, version: f.version })),
+      outstanding: outstandingByPerson(subjects, withSignatures),
+    };
+  } catch (err) {
+    recordError('consent.requiredGaps', err);
+    return { forms: [], outstanding: new Map() };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sending the link
+// ---------------------------------------------------------------------------
+
+export interface SigningSendPlan {
+  formId: string;
+  formTitle: string;
+  version: number;
+  /** Everybody who has not signed this version. */
+  outstanding: number;
+  /** Of those, how many have an address to write to. */
+  reachable: number;
+  /** Of those, how many have already been written to for this version. */
+  alreadySent: number;
+  /** How many this press would actually mail. */
+  pending: number;
+  /** Outstanding people with no address on file. Nothing can reach them. */
+  noAddress: number;
+  /** False when no signing secret is configured, so no link could be minted. */
+  available: boolean;
+}
+
+/** Sent in rounds, so a form with a thousand outstanding rows is not one burst. */
+const SEND_BATCH = 20;
+
+/**
+ * How long one press may spend sending before it stops and says so.
+ *
+ * A serverless function is killed at 26 seconds with no chance to report
+ * anything, and a send that was killed halfway looks exactly like a send that
+ * failed at the start — so the organizer presses again and the first few
+ * hundred people get a second copy of a legal release. This budget makes the
+ * stop deliberate: the work is done in rounds, the clock is checked between
+ * them, and what is left is reported as a number with a way to continue.
+ */
+const SEND_BUDGET_MS = 18_000;
+
+/**
+ * Who would be written to if the signing links were sent right now.
+ *
+ * Read before anything is sent, so the screen can say "312 people will be
+ * emailed" and ask somebody to confirm that number. It is also what makes a
+ * second press safe: `alreadySent` is counted from `emailLog`, which is written
+ * per recipient as each one goes out.
+ */
+export async function signingSendPlan(formId: string): Promise<SigningSendPlan | null> {
+  const register = await consentRegister(formId);
+  if (!register) return null;
+
+  const sentTo = await alreadyMailed(signingCampaignId(formId, register.form.version));
+  const split = signingSendSplit(register.rows, sentTo);
+
+  return {
+    formId,
+    formTitle: register.form.title,
+    version: register.form.version,
+    outstanding: split.outstanding,
+    reachable: split.todo.length + split.alreadySent,
+    alreadySent: split.alreadySent,
+    pending: split.todo.length,
+    noAddress: split.noAddress,
+    available: signingLinksAvailable(),
+  };
+}
+
+/** Every address this run has already written to, folded for comparison. */
+async function alreadyMailed(campaignId: string): Promise<Set<string>> {
+  try {
+    const snap = await db()
+      .collection(COLLECTIONS.emailLog)
+      .where('campaignId', '==', campaignId)
+      .get();
+    return new Set(snap.docs.map((d) => emailKey(d.get('to') as string | undefined)));
+  } catch (err) {
+    /*
+      ⚠️ Rethrown, unlike almost everything else in this file. An empty set here
+      does not mean "nobody has been mailed" — it means "we could not find out",
+      and carrying on would mail everybody a second time. The one case where
+      failing the send is safer than completing it.
+    */
+    recordError('consent.alreadyMailed', err);
+    throw err;
+  }
+}
+
+/**
+ * Run a send with the campaign held, or report that somebody else holds it.
+ *
+ * ── The race this closes ───────────────────────────────────────────────────
+ *
+ * `alreadyMailed` is read once per press. Two organizers pressing Send in the
+ * same second both read the log before either has written to it, both see an
+ * empty set, and both mail the same people a link that signs a legal release in
+ * their name. The log makes a second press an hour later safe; it cannot make
+ * two presses in the same second safe, because neither has written yet.
+ *
+ * The lock is a `create` on a document named after the campaign, so Firestore
+ * decides who wins rather than a read followed by a write. The loser sends
+ * nothing at all and is told to wait — there is no queue here, and a second
+ * copy of the mail is exactly what a queue would produce.
+ *
+ * It is released in a `finally`, and abandoned after `SEND_LOCK_STALE_MS` so a
+ * process that died holding it blocks the campaign for half a minute rather
+ * than for ever.
+ */
+async function withSendLock<T>(
+  campaignId: string,
+  actor: string,
+  run: () => Promise<T>,
+): Promise<T | 'busy'> {
+  const ref = db().collection(COLLECTIONS.sendLocks).doc(campaignId);
+
+  const took = await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const heldAt = snap.exists
+      ? (snap.get('heldAt') as { toMillis?: () => number } | undefined)
+      : undefined;
+    // A lock document with no readable `heldAt` is treated as held right now
+    // rather than as free, so a malformed row refuses a send instead of
+    // authorising a second one.
+    const heldAtMs = snap.exists
+      ? typeof heldAt?.toMillis === 'function'
+        ? heldAt.toMillis()
+        : Date.now()
+      : undefined;
+    if (!sendLockIsFree(heldAtMs, Date.now())) return false;
+    tx.set(ref, { campaignId, actor, heldAt: new Date() });
+    return true;
+  });
+
+  if (!took) return 'busy';
+
+  try {
+    return await run();
+  } finally {
+    // Best effort. A lock nobody released is taken over on its staleness, so
+    // failing to delete it costs half a minute and not a campaign.
+    await ref.delete().catch(() => undefined);
+  }
+}
+
+export interface SendLinksResult {
+  sent: number;
+  /** Still to write to after this press. Zero means the run finished. */
+  remaining: number;
+  /** People already written to for this version before this press. */
+  alreadySent: number;
+  /** People who are outstanding and have no address on file. */
+  noAddress: number;
+  /** False when no signing secret is configured, so no link could be minted. */
+  available: boolean;
+  /** True when the clock ran out and there is more to do. */
+  stoppedEarly: boolean;
+  /**
+   * True when another send for this same form and version was already running,
+   * so this press did nothing at all. Nothing was read and nothing was mailed.
+   */
+  busy: boolean;
+}
+
+/**
+ * Mail the signing link to everybody who has not signed this form.
+ *
+ * ── A step somebody presses, not a side effect of saving ───────────────────
+ *
+ * ⚠️ This used to run inside the save. Publishing a form, or fixing a sentence
+ * in one already published, mailed every outstanding person from inside the
+ * server action: no preview, no count, no confirmation, and no record of how
+ * far it got. On a thousand-attendee event that is fifty rounds of live API
+ * calls inside one request, a timeout at 26 seconds, a generic error, and an
+ * organizer pressing Save again — which sent the first three hundred people a
+ * second copy of a link that signs a legal release in their name.
+ *
+ * Three things fix it and all three are load-bearing. The send is its own
+ * action, behind a typed count and the dashboard passphrase, so nobody mails a
+ * thousand people by correcting a comma. Every recipient is written to
+ * `emailLog` under a campaign id derived from the form and its version, so a
+ * second press skips whoever the first press reached. And the work stops on a
+ * clock rather than on a timeout, so the answer to "did it finish?" is a number
+ * on the screen rather than a guess.
+ *
+ * Nobody who has already signed the current version is written to. Somebody who
+ * signed an earlier version is, and gets the sentence explaining why — their
+ * agreement still stands for what it said, and it does not cover the new text.
+ *
+ * Each send is logged whether or not it leaves the building. With no mail
+ * provider configured every row lands in the log as `skipped`, which is what
+ * makes "it was never sent" distinguishable from "it was sent and not read" —
+ * and, because the skipped rows carry the campaign id too, a run against a
+ * deployment with no mail provider is still not repeated.
+ *
+ * ── The log is the guard for the NEXT press, not for this one ──────────────
+ *
+ * ⚠️ This block used to claim the log covered two organizers pressing at the
+ * same moment. It does not and cannot: both presses read it before either has
+ * written to it, so both see an empty set and both send. A lock on the campaign
+ * is what covers that, and `withSendLock` holds it — the second press mails
+ * nobody and says so.
+ */
+export async function sendSigningLinks(input: {
+  formId: string;
+  actor: string;
+  now?: () => number;
+}): Promise<SendLinksResult> {
+  const empty: SendLinksResult = {
+    sent: 0,
+    remaining: 0,
+    alreadySent: 0,
+    noAddress: 0,
+    available: true,
+    stoppedEarly: false,
+    busy: false,
+  };
+
+  if (!signingLinksAvailable()) return { ...empty, available: false };
+
+  const register = await consentRegister(input.formId);
+  if (!register) return empty;
+
+  const campaignId = signingCampaignId(register.form.id, register.form.version);
+
+  // Everything that reads the log or writes a mail happens inside the lock,
+  // including the read: a set of addresses gathered outside it is the stale
+  // read this exists to prevent.
+  const held = await withSendLock(campaignId, input.actor, async (): Promise<SendLinksResult> => {
+    const sentTo = await alreadyMailed(campaignId);
+    const { todo, alreadySent, noAddress } = signingSendSplit(register.rows, sentTo);
+
+    const clock = input.now ?? (() => Date.now());
+    const startedAt = clock();
+    let sent = 0;
+
+    for (let i = 0; i < todo.length; i += SEND_BATCH) {
+      if (clock() - startedAt > SEND_BUDGET_MS) break;
+      const round = todo.slice(i, i + SEND_BATCH);
+      await Promise.all(
+        round.map((r) =>
+          sendConsentRequest(db(), {
+            to: r.email!,
+            name: r.name,
+            formTitle: register.form.title,
+            version: register.form.version,
+            link: signingLink(register.form.id, r.key),
+            resigning: r.status === 'outdated',
+            actor: input.actor,
+            campaignId,
+          }),
+        ),
+      );
+      sent += round.length;
+    }
+
+    return {
+      sent,
+      remaining: todo.length - sent,
+      alreadySent,
+      noAddress,
+      available: true,
+      stoppedEarly: sent < todo.length,
+      busy: false,
+    };
+  });
+
+  return held === 'busy' ? { ...empty, busy: true } : held;
+}
+
+/**
+ * Ask one person to sign every required attendee form, as they are added.
+ *
+ * The signatory is the registration id rather than a uid, because somebody an
+ * organizer has just typed in has no account yet — that is the whole reason
+ * this mail exists. If they later sign in the app and sign there instead, the
+ * register still matches the two, on the address.
+ */
+export async function sendRequiredLinksTo(input: {
+  registrationId: string;
+  email: string;
+  name?: string;
+  actor: string;
+}): Promise<number> {
+  try {
+    if (!signingLinksAvailable()) return 0;
+
+    const required = (await listConsentForms()).filter(
+      (f) => f.audience === 'attendee' && f.status === 'published' && f.required,
+    );
+
+    for (const form of required) {
+      await sendConsentRequest(db(), {
+        to: input.email,
+        name: input.name,
+        formTitle: form.title,
+        version: form.version,
+        link: signingLink(form.id, input.registrationId),
+        resigning: false,
+        actor: input.actor,
+      });
+    }
+
+    return required.length;
+  } catch (err) {
+    recordError('consent.sendRequiredLinks', err);
+    return 0;
+  }
 }
 
 /**

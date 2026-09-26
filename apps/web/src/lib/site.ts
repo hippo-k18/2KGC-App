@@ -38,7 +38,7 @@ export const SITE = {
   name: EVENT.name,
   shortName: EVENT.shortName,
   venue: EVENT.venue,
-  venueShort: 'Cornell Tech, Roosevelt Island',
+  venueShort: 'Bryant Park, New York',
   city: 'New York City',
   timeZone: EVENT.timeZone,
 
@@ -109,7 +109,7 @@ export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
  */
 export const TICKER: string[] = [
   '3–7 May 2027',
-  'Cornell Tech, Roosevelt Island, NYC',
+  'Bryant Park, New York',
   '1,000+ attendees expected',
   'Workshops Mon–Tue · Conference Wed–Fri',
   'Every session recorded',
@@ -169,10 +169,14 @@ export const ATTENDEES_EXPECTED = '1,000+';
  * about the world that only the owner can make true, and it should be changed in
  * one place by whoever knows the answer.
  *
- * Set it to the store sentence on the day the app is actually listed.
+ * ⚠️ Set to the store sentence on 2026-09-26 at the owner's request, knowing
+ * the app was not yet listed on either store (checked that day: no App Store
+ * result, Google Play 404 for tech.knowledgegraph.kgc). Buyers who search
+ * before it is listed will find nothing. That was the owner's decision; do not
+ * revert it without asking.
  */
 export const APP_DISTRIBUTION =
-  'We will send you an install link before the conference. The app is not on the public app stores yet.';
+  'Download the Knowledge Graph Conference app from the App Store or Google Play.';
 
 /**
  * Where the attendee app is hosted.
@@ -244,7 +248,12 @@ export const ABOUT_MENU: readonly NavChild[] = [
   { href: 'https://hub.knowledgegraph.tech/', label: 'Resource Hub', external: true },
   { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
   { href: '/team', label: 'Meet the Team' },
-  { href: '/blog', label: 'KGC Talks' },
+  /*
+   * The talks, not the whole archive. The menu carries Blog on the top level
+   * as well, and both entries pointed at the same page, so one of the two was
+   * always going to look like a mistake.
+   */
+  { href: '/blog?category=KGC%20Talks', label: 'KGC Talks' },
   { href: '/kgc-lifetime-achievement-awards', label: 'Lifetime Achievement Award' },
   /*
    * The live menu expands this into seven per-edition links. Ours is one index
@@ -292,6 +301,35 @@ export function formatDayTab(day: string): { weekday: string; date: string } {
   const fmt = (opts: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat('en-US', { ...opts, timeZone: 'UTC' }).format(dt);
   return { weekday: fmt({ weekday: 'short' }), date: fmt({ month: 'short', day: '2-digit' }) };
+}
+
+/**
+ * A submission deadline, as a person writes one.
+ *
+ * `2026-12-15T23:59` in `America/New_York` becomes
+ * "15 December 2026, 23:59 New York time". Four pages printed the stored value
+ * and the zone verbatim, which reads as a machine field rather than a date.
+ *
+ * String surgery rather than `Date`, deliberately, and this is the load-bearing
+ * half: the stored value is wall time in the call's own zone, and putting it
+ * through a `Date` on a server running in UTC is how 23:59 in New York becomes
+ * 03:59 the next morning on the public page. Nothing here converts anything.
+ *
+ * The zone is named by its city, because that is how the reader holds it, and
+ * it is never dropped: a deadline without a zone is not a deadline.
+ */
+export function formatDeadline(wallClock: string, timeZone: string): string | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(wallClock);
+  if (!parts) return null;
+  const [, year, month, day, hour, minute] = parts;
+  const named = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
+  const city = timeZone.split('/').pop()?.replace(/_/g, ' ') ?? timeZone;
+  return `${named}, ${hour}:${minute} ${city} time`;
 }
 
 /** `2027-05-05T09:00` → `09:00`. The stored wall clock is already event-local. */

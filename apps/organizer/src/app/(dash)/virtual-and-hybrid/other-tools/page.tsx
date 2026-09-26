@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,17 +37,6 @@ export default async function OtherToolsPage() {
     <>
       <PageHeader
         title="Other Tools"
-        info={
-          <>
-            <strong>Nothing here is configured</strong>
-            <p>
-              Virtual backgrounds, a lobby video, interpretation channels and live captioning all
-              need a streaming or captioning provider to supply the feed they attach to. The two
-              that do not (pronunciation audio and a countdown) belong on the speaker profile and
-              in the app rather than here.
-            </p>
-          </>
-        }
         links={[
           <Link key="s" href="/virtual-and-hybrid/virtual-and-hybrid-setup">
             Virtual &amp; Hybrid Setup
@@ -59,14 +48,12 @@ export default async function OtherToolsPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="virtual event tools"
-          action={
-            <Link href={ROUTES.sessionManager} className="whova-btn-main">
-              Open Session Manager
-            </Link>
-          }
-        />
+        <EmptyState>
+          <p className="empty-title">Not available yet</p>
+          <p className="empty-sub">
+            Virtual backgrounds, lobby video, interpretation, captions, name pronunciation and a countdown are not available yet.
+          </p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

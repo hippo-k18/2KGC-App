@@ -123,6 +123,16 @@ export interface AuditEntry {
     | 'exhibitor.create'
     | 'exhibitor.update'
     /**
+     * A stand's lead desk link, sent and stopped.
+     *
+     * Audited for the reason the speaker portal's two are: the link is a
+     * bearer credential for one company's own contact list, so "who gave
+     * Graphwise a live link, and when did somebody stop it" has to be
+     * answerable months later from something other than memory.
+     */
+    | 'exhibitor.leadLinkSend'
+    | 'exhibitor.leadLinkRevoke'
+    /**
      * Sponsors. Recorded with the weight of a commercial record rather than a
      * content one: `tier` is what a sponsor paid for, and it decides their logo
      * size on the public site and their position in the app's directory. "Who
@@ -163,6 +173,8 @@ export interface AuditEntry {
     | 'poll.publishTally'
     | 'document.create'
     | 'document.update'
+    | 'page.create'
+    | 'page.update'
     /**
      * Floor-plan allocation. `booth.assign` is here for the same reason
      * `order.refund` is: two exhibitors sent to one space is discovered on the
@@ -223,6 +235,27 @@ export interface AuditEntry {
      */
     | 'speaker.create'
     | 'speaker.update'
+    /**
+     * Speaker self-service: the link, and what an organizer did with what came
+     * back.
+     *
+     * `speaker.portalApprove` is the one that matters, and it is separate from
+     * `speaker.update` on purpose. Every other edit to a speaker was typed by
+     * the organizer whose address is in `actor`; this one is text a speaker
+     * wrote, published by an organizer who pressed a button, and "who agreed
+     * this bio could go on the website" is a different question from "who typed
+     * it". `after` carries which fields and which sessions moved rather than
+     * the text, because the draft it came from is overwritten by the speaker's
+     * next submission and the field list is what makes the entry findable.
+     *
+     * `portalRevoke` is here because it takes something away from a person
+     * outside the organization with no notice to them, and `portalSend` because
+     * it puts a bearer link to a named person's profile into an inbox.
+     */
+    | 'speaker.portalSend'
+    | 'speaker.portalApprove'
+    | 'speaker.portalReject'
+    | 'speaker.portalRevoke'
     | 'track.create'
     | 'track.update'
     | 'room.create'
@@ -266,6 +299,36 @@ export interface AuditEntry {
      * it rather than four hundred.
      */
     | 'attendee.add'
+    /**
+     * Everything an organizer does to one registration afterwards. `update`
+     * covers a corrected address too, which moves the registration to a new id:
+     * `targetId` is the old one and `after.registrationId` the new. `cancel`
+     * records whether a paid seat went back on sale and what happened to the
+     * holder's app access, because those are the two questions asked later.
+     */
+    | 'attendee.update'
+    | 'attendee.cancel'
+    | 'attendee.reinstate'
+    | 'attendee.transfer'
+    | 'attendee.ticketType'
+    | 'attendee.confirmation'
+    /**
+     * Everything held about one person, destroyed on request.
+     *
+     * The most consequential entry in this list, and the only one whose subject
+     * no longer exists when it is read. `attendee.cancel` can be reinstated and
+     * `order.refund` can at least be explained; this removes the documents that
+     * would evidence either. So the entry carries the walk's own outcome — how
+     * many records each part of the walk deleted, anonymised or kept — because
+     * afterwards there is nothing else left to count.
+     *
+     * ⚠️ It carries no email address, deliberately. This log survives the
+     * erasure, so an entry naming the person would restore the field the
+     * operation existed to remove.
+     */
+    | 'attendee.erase'
+    /** A category set or cleared, for one person or a selection. */
+    | 'attendee.category'
     /**
      * One in-app message sent from the organizer desk.
      *
@@ -341,10 +404,63 @@ export interface AuditEntry {
     /** Reviewers: who was invited, and who was given whose work to read. */
     | 'reviewer.invite'
     | 'reviewer.update'
-    | 'reviewer.assign';
+    | 'reviewer.assign'
+    /** A reviewer kept away from one submission, and the invitation mail. */
+    | 'reviewer.exclude'
+    | 'reviewer.sendInvitation'
+    /** The scoring criteria reviewers mark against. */
+    | 'call.rubric'
+    /**
+     * Who may open this dashboard, and how much of it.
+     *
+     * Every one of these changes what somebody else can do with the Admin SDK
+     * behind them, so each is its own verb rather than a `settings.update`.
+     * `team.setPassphrase` is the only one whose actor is the member rather
+     * than an owner: it is written when a set-passphrase link is used, and it
+     * never carries the passphrase or its hash, only that one was set.
+     */
+    | 'team.invite'
+    | 'team.roles'
+    | 'team.newLink'
+    | 'team.resendInvitation'
+    | 'blog.invite'
+    | 'blog.role'
+    | 'blog.remove'
+    | 'blog.resendInvitation'
+    | 'team.remove'
+    | 'team.setPassphrase'
+    /** An organizer took somebody out of a capped session, from Session Cap. */
+    | 'sessionSeat.remove'
+    /**
+     * A session's stream or recording. Worth a trail of its own rather than
+     * folding into `session.update`: the field that changes most often here is
+     * the ticket restriction, and "who could watch the closing keynote, and
+     * when did that change" is a question that gets asked after the fact.
+     */
+    | 'session.stream.create'
+    | 'session.stream.update'
+    | 'session.stream.delete'
+    | 'session.recording.create'
+    | 'session.recording.update'
+    | 'session.recording.delete';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;
+  /**
+   * Who or what the entry is about, in words. "Ada Silva", not `reg_01e162…`.
+   *
+   * Optional, and it is the only field here written purely to be read. Tools ›
+   * Report is the one screen this collection has, and it printed `targetPath`
+   * — so a cancelled ticket read `registrations/reg_01e1621469460b03d253854f`
+   * and an organizer asking who had been cancelled could not tell. The name
+   * cannot go in `after`, because that map is a diff and a name appearing there
+   * says the name changed.
+   *
+   * ⚠️ Never set it on `attendee.erase`. That entry survives the erasure by
+   * design and carries no address for the same reason it would carry no name:
+   * the record would restore what the operation existed to remove.
+   */
+  subject?: string;
   /** Only the fields that actually changed, so a diff is readable at a glance. */
   before: Record<string, unknown>;
   after: Record<string, unknown>;

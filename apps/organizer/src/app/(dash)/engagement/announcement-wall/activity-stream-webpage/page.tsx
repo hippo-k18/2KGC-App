@@ -53,13 +53,12 @@ export default async function AnnouncementWallStreamPage() {
         title="Activity Stream Webpage"
         info={
           <>
-            <strong>A foyer screen, not a live feed</strong>
+            <strong>A screen for the foyer</strong>
             <p>
-              The page reads the announcements collection on every request, so writing one puts it
-              on the wall, but the page does not refresh itself. A browser left open shows what was
-              true when it loaded; set the kiosk browser to reload.
+              Every announcement you send appears on the wall, and the page brings itself up to
+              date every minute. Open it on the screen and leave it there.
             </p>
-            <p>The wall renders the newest {ANNOUNCEMENT_WALL_LIMIT}.</p>
+            <p>The wall shows the newest {ANNOUNCEMENT_WALL_LIMIT}.</p>
           </>
         }
         tags={<Tag color="green" fill="outline">live at /announcements</Tag>}
@@ -68,7 +67,7 @@ export default async function AnnouncementWallStreamPage() {
             href={publicUrl('/announcements')}
             target="_blank"
             rel="noreferrer"
-            className="whova-btn-main"
+            className="whova-btn-main secondary"
           >
             Open the wall ↗
           </a>
@@ -103,7 +102,7 @@ export default async function AnnouncementWallStreamPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The stream the wall renders</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>On the wall</h2>
         <Table
           cols={[
             { key: 't', label: 'Title', className: 'cell-fill' },
@@ -140,14 +139,6 @@ export default async function AnnouncementWallStreamPage() {
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
-          <li>
-            <strong>Auto-refresh.</strong> ⚠️ The one thing standing between the wall and a screen
-            you can leave running. Every page in <code>apps/web</code> is server-rendered per
-            request, so a browser parked on <code>/announcements</code> shows whatever was true when
-            it loaded — a room change posted at 11:00 does not appear on a panel opened at 09:00.
-            Fixing it properly means a client component with a timer, and <code>apps/web</code> has
-            none; until then a kiosk browser set to reload is the answer, and the page says so.
-          </li>
           <li>
             <strong>The archive cut-off.</strong> The wall renders the newest{' '}
             {ANNOUNCEMENT_WALL_LIMIT}. That is not a paging control, it is a ceiling so one runaway

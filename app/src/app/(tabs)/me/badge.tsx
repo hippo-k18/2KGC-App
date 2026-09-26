@@ -12,7 +12,7 @@ import { Text } from '@/components/text';
 import { QrCode } from '@/components/qr-code';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/lib/data/badge';
 
@@ -53,9 +53,10 @@ import { badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/li
  */
 export default function BadgeScreen() {
   const colors = useTheme();
+  const { event } = useEventSettings();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
-  const { badge, source, loading, error, retry } = useBadge();
+  const { badge, loading, error, retry } = useBadge();
   const checkIn = useCheckInStatus(badge?.registrationId ?? null);
 
   const brightness = useMaxBrightness(Boolean(badge));
@@ -98,8 +99,13 @@ export default function BadgeScreen() {
               {badge.name}
             </Text>
             <Text tone="secondary" style={{ textAlign: 'center' }}>
-              {badge.ticketType ?? 'Ticket'} · {EVENT.name}
+              {badge.ticketType ?? 'Ticket'} · {event.name}
             </Text>
+            {badge.category ? (
+              <Text variant="caption" tone="tint" style={{ textAlign: 'center' }}>
+                {badge.category.toUpperCase()}
+              </Text>
+            ) : null}
 
             {badgeIsScannable(badge) ? (
               <View
@@ -146,17 +152,11 @@ export default function BadgeScreen() {
           />
 
           <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: Spacing.xs }}>
-            {source === 'cache'
-              ? 'Showing the badge saved on this phone. It is the same code and it will scan.'
-              : 'This badge is saved on your phone, so it still works with no signal.'}
+            Works offline. Do not share a photo of this code.
             {'\n\n'}
-            Treat the code like a boarding pass: anyone who photographs it could be checked in as
-            you. If that happens, your own scan will show the desk that you were already checked
-            in — tell them and they can reissue it.
-            {brightness === 'unavailable'
-              ? '\n\nThis device would not let the app raise the screen brightness. Turn it up by ' +
-                'hand before you reach the desk.'
-              : ''}
+            If the desk says you are already checked in and you are not, someone else used your
+            code. Tell the desk and they can issue a new one.
+            {brightness === 'unavailable' ? '\n\nTurn your screen brightness up before you scan.' : ''}
           </Text>
         </>
       )}
@@ -189,7 +189,7 @@ function CheckInBanner({
         ink: colors.textSecondary,
         label: loading ? 'Checking…' : 'Check-in status unavailable',
         detail: loading
-          ? 'Asking the door list.'
+          ? 'Checking with the registration desk.'
           : 'This needs a connection. The QR above works either way.',
       }
     : checkedInAt
@@ -237,8 +237,8 @@ function CancelledTicket({ status }: { status: string }) {
       }}>
       <Text variant="heading">No badge for this ticket</Text>
       <Text tone="secondary">
-        This registration is {status}, not active, so there is nothing for the door to scan. The
-        registration desk can sort it out — bring the claim code below.
+        This registration is {status}, so there is no badge to scan. Take the claim code below to
+        the registration desk.
       </Text>
     </View>
   );
@@ -251,6 +251,12 @@ function CancelledTicket({ status }: { status: string }) {
  * its own component below, and confusing the two would tell a paying attendee at
  * a door that their registration does not exist. It says what is true: we could
  * not read it, here is what to do instead.
+ *
+ * ⚠️ It also does not say the ticket is fine, which it said until this screen was
+ * driven against a cancelled registration. A cancelled ticket is refused by the
+ * rules and lands here, so "your ticket is fine" was the first thing the app told
+ * somebody whose ticket had just been withdrawn. The read failing is all this
+ * screen knows; the desk is where the reason is.
  */
 function BadgeUnavailable({ onRetry }: { onRetry: () => void }) {
   const colors = useTheme();
@@ -264,8 +270,8 @@ function BadgeUnavailable({ onRetry }: { onRetry: () => void }) {
       }}>
       <Text variant="heading">Could not load your badge</Text>
       <Text tone="secondary">
-        Your ticket is fine; this device could not reach it. At the door, the registration desk
-        can find you by name or by the claim code on your order confirmation page.
+        This device could not read your ticket. At the door, the registration desk can find you by
+        name or by the claim code on your order confirmation page.
       </Text>
       <Pressable
         onPress={onRetry}

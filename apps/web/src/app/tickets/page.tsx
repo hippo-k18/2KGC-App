@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { siteEvent } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
     'All Access, Main Conference, Workshops and Virtual tickets for the Knowledge Graph Conference 2027.',
 };
 
+/** Per-request, and it has to be. Prices and how many of each tier are left. `catalogue.ts` refuses to degrade quietly for exactly this reason: a stale price is indistinguishable from a correct one at the moment a card is charged, and a tier that sold out a minute ago must not still be on sale. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -119,33 +121,40 @@ function LeadPanel({ tier }: { tier: Tier }) {
  *
  * `includes` flat rather than `groups`: there is one column of room here, and
  * group headings in a single narrow column are rules with one item under each.
+ *
+ * The button sits top right, beside the name and price, as it does on the
+ * flagship. Pinned to the bottom it landed under five bullets and read as the
+ * end of the list rather than the way to buy.
  */
 function SecondPanel({ tier }: { tier: Tier }) {
   return (
     <article className={s.second} aria-labelledby="second-name">
-      <h2 id="second-name" className={s.secondName}>
-        {tier.name}
-      </h2>
-      <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+      <div className={s.secondHead}>
+        <div>
+          <h2 id="second-name" className={s.secondName}>
+            {tier.name}
+          </h2>
+          <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+        </div>
+
+        {tier.onSale ? (
+          <Link
+            className={s.secondCta}
+            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+            aria-label={`Choose ${tier.name}`}
+          >
+            Choose
+          </Link>
+        ) : (
+          <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
+        )}
+      </div>
 
       <ul className={s.secondItems}>
         {tier.includes.map((line) => (
           <li key={line}>{line}</li>
         ))}
       </ul>
-
-      {tier.onSale ? (
-        <p className={s.secondCta}>
-          <Link
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        </p>
-      ) : (
-        <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-      )}
     </article>
   );
 }
@@ -187,6 +196,7 @@ export default async function TicketsPage({
 }: {
   searchParams: Promise<{ cancelled?: string }>;
 }) {
+  const ev = await siteEvent();
   const params = await searchParams;
 
   /**
@@ -210,7 +220,7 @@ export default async function TicketsPage({
         <header className={s.head}>
           <h1 className={s.h1}>Tickets</h1>
           <p className={s.orient}>
-            {SITE.datesLong} at {SITE.venueShort}.
+            {ev.datesLong} at {ev.venueShort}.
           </p>
 
           {params.cancelled && (
@@ -237,7 +247,7 @@ export default async function TicketsPage({
           </>
         ) : (
           <p className={s.empty}>
-            Ticket sales for {SITE.name} have not opened yet. Write to{' '}
+            Ticket sales for {ev.name} have not opened yet. Write to{' '}
             <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will tell you
             the moment they do.
           </p>
@@ -315,7 +325,7 @@ export default async function TicketsPage({
               </div>
               <div>
                 <p className="k">Address</p>
-                <p className="v">Cornell Tech &amp; globally online</p>
+                <p className="v">Bryant Park &amp; globally online</p>
               </div>
             </div>
           </div>

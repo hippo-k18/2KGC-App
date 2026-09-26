@@ -41,12 +41,32 @@
  * it. Add a key back when a screen writes it in the same commit.
  */
 
+import { EVENT_SETTINGS_DEFAULTS, type EventSettings } from "./event-basics.js";
+import {
+  DEFAULT_ATTENDEE_CATEGORIES,
+  type AttendeeCategoryDef,
+  type TicketCategoryRule,
+} from "./attendee-categories.js";
+import { DEFAULT_SPONSOR_TIERS, type SponsorTierDef } from "./sponsor-tiers.js";
+
 /** Every settings key in use. A const so a typo is a compile error. */
 export const SETTINGS_KEYS = {
   branding: "branding",
   access: "access",
   logistics: "logistics",
+  /** Content > Basics. Public: the website and the app both print it. */
+  event: "event",
+  /** Content > Sponsor Center > Sponsor Tiering. Public for the same reason. */
+  sponsorTiers: "sponsorTiers",
+  /** Attendees > Categories, and the ticket rule under Tickets. Not public. */
+  attendeeCategories: "attendeeCategories",
 } as const;
+
+/**
+ * The bags a signed-out phone may read. `firestore.rules` names the same
+ * three keys; everything in them is already printed on the public website.
+ */
+export const PUBLIC_SETTINGS_KEYS: readonly SettingsKey[] = ["branding", "event", "sponsorTiers"];
 
 export type SettingsKey = (typeof SETTINGS_KEYS)[keyof typeof SETTINGS_KEYS];
 
@@ -69,6 +89,19 @@ export interface BrandingSettings {
   hashtag: string;
   /** A URL path segment: 3–40 lower-case letters, digits and hyphens. */
   brandedSlug: string;
+  /** An image URL, uploaded here or pasted. Shown in the website and app headers. */
+  logoUrl: string;
+  /** An image URL. The wide picture behind the website hero and the app's Home header. */
+  bannerUrl: string;
+  /** Whether the public website shows the agenda. Off hides the page and every link to it. */
+  showAgenda: boolean;
+  /** Whether the public website shows the speakers. Off hides the page and every link to it. */
+  showSpeakers: boolean;
+}
+
+/** `settings/sponsorTiers` — the ordered tier list. See `sponsor-tiers.ts`. */
+export interface SponsorTierSettings {
+  tiers: SponsorTierDef[];
 }
 
 /**
@@ -83,6 +116,8 @@ export interface BrandingSettings {
 export interface AccessSettings {
   attendeeListVisible: boolean;
   contactSharingEnabled: boolean;
+  /** Event-wide. Off hides messaging in the app and refuses the writes. */
+  attendeeMessagingEnabled: boolean;
   /** Shown to whoever is running the check-in desk. Under 300 characters. */
   staffNote: string;
   /** 4–32 letters, digits or hyphens, upper case. Read out loud, so no punctuation. */
@@ -114,11 +149,24 @@ export interface LogisticsSettings {
   planReady: boolean;
 }
 
+/**
+ * `settings/attendeeCategories` — the category list and the ticket rules. See
+ * `attendee-categories.ts`. Not readable by a phone: the app prints the name
+ * already copied onto the holder's own registration.
+ */
+export interface AttendeeCategorySettings {
+  categories: AttendeeCategoryDef[];
+  ticketRules: TicketCategoryRule[];
+}
+
 /** Key → value shape. The map every install indexes to get a typed bag. */
 export interface SettingsValues {
   branding: BrandingSettings;
   access: AccessSettings;
   logistics: LogisticsSettings;
+  event: EventSettings;
+  sponsorTiers: SponsorTierSettings;
+  attendeeCategories: AttendeeCategorySettings;
 }
 
 /**
@@ -141,10 +189,16 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     supportEmail: "",
     hashtag: "",
     brandedSlug: "",
+    logoUrl: "",
+    bannerUrl: "",
+    // Hidden until the organizers switch them on under Marketing > Event Website.
+    showAgenda: false,
+    showSpeakers: false,
   },
   access: {
     attendeeListVisible: true,
     contactSharingEnabled: true,
+    attendeeMessagingEnabled: true,
     staffNote: "",
     eventCode: "",
     codeRequired: false,
@@ -167,6 +221,9 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     incidentProcedure: "",
     planReady: false,
   },
+  event: EVENT_SETTINGS_DEFAULTS,
+  sponsorTiers: { tiers: DEFAULT_SPONSOR_TIERS },
+  attendeeCategories: { categories: DEFAULT_ATTENDEE_CATEGORIES, ticketRules: [] },
 };
 
 /** The installs that can read a settings document. */
@@ -216,42 +273,43 @@ type Register = { [K in SettingsKey]: { [F in keyof SettingsValues[K]]: Settings
  * posture and a `pending` app read was blocked on a rules change plus a deploy,
  * not just on a hook.
  *
- * ⚠️ That block now exists and it names **one key**:
- * `allow read: if isRegistered() && key == 'logistics'`. Adding an app reader
- * for `branding` or `access` is therefore still a rules change — and for
- * `access` it is a change that should not be made, because `eventCode` and
- * `staffNote` are in it and rules filter documents, not fields.
+ * ⚠️ That block now exists and it names the keys one at a time. Adding an app
+ * reader for `branding` or `access` is therefore still a rules change — and for
+ * `access` it is a change that must not be made, because `staffNote` is in it
+ * and rules filter documents, not fields. The four access fields marked `live`
+ * below reach the phone through `settings/appAccess`, a derived projection
+ * carrying only those four; `app-access.ts` has the argument.
  */
 export const SETTINGS_REGISTER: Register = {
   branding: {
     brandColor: {
-      status: "recorded",
-      readers: [],
+      status: "live",
+      readers: ["web", "app"],
       why:
-        "No surface can honour it. The app compiles its palette into the bundle " +
-        "(app/src/constants/theme.ts, read through useTheme()), so a runtime hex " +
-        "would need the theme to be fetched and to have a first-paint fallback — " +
-        "that is a change to how the app boots, not a settings read. The website's " +
-        "palette is hand-tuned CSS whose contrast pairings were fixed by hand. " +
-        "This field records the decision; it does not apply it.",
+        "The website's root layout turns it into the navy custom properties (header, " +
+        "primary button) and the app's useTheme() lays it over header, tint and accent. " +
+        "Both derive their text and hover steps with brandPalette() in brand-theme.ts, " +
+        "and both keep their built-in palette until a colour is saved.",
     },
     accentColor: {
-      status: "recorded",
-      readers: [],
-      why: "Same as brandColor — build-time in the app, authored CSS on the website.",
-    },
-    tagline: {
       status: "live",
       readers: ["web"],
       why:
-        "The website's OG description. apps/web/src/app/layout.tsx became " +
+        "The website's highlight colour (links, the teal accents). The app has one brand " +
+        "colour and no second accent to map it to.",
+    },
+    tagline: {
+      status: "live",
+      readers: ["web", "app"],
+      why:
+        "The app's sign-in screen prints it under the event name. The website's OG description. apps/web/src/app/layout.tsx became " +
         "generateMetadata() to read it, and keeps SITE.tagline as the fallback so an " +
         "empty setting cannot blank a social card. Baked at build on prerendered " +
         "routes and regenerated per request on the force-dynamic ones.",
     },
     supportEmail: {
       status: "live",
-      readers: ["web"],
+      readers: ["web", "app"],
       /*
        * Wired in exactly one place, and the narrowness is the decision rather
        * than an unfinished job. `SITE.contactEmail` has thirteen call sites and
@@ -261,6 +319,7 @@ export const SETTINGS_REGISTER: Register = {
        * footer, which is the only site-wide renderer of it.
        */
       why:
+        "The app's sign-in screen and Me tab print it as the help address. " +
         "The site footer's contact address (apps/web/src/components/site-footer.tsx), " +
         "resolved in the root layout and passed in. The other twelve SITE.contactEmail " +
         "call sites stay on the constant — some are client components.",
@@ -280,6 +339,30 @@ export const SETTINGS_REGISTER: Register = {
         "route added later. A temporary redirect on purpose — a 308 on a value an " +
         "organizer can edit cannot be withdrawn from a browser cache.",
     },
+    logoUrl: {
+      status: "live",
+      readers: ["web", "app"],
+      why: "The website header and the app's sign-in screen show it in place of the built-in mark.",
+    },
+    bannerUrl: {
+      status: "live",
+      readers: ["web", "app"],
+      why: "The website's homepage hero and the app's Home header use it as their picture.",
+    },
+    showAgenda: {
+      status: "live",
+      readers: ["web"],
+      why:
+        "Off, the website's agenda pages return not found and the header, footer, home " +
+        "page and search stop linking to them. The app's own agenda is unaffected.",
+    },
+    showSpeakers: {
+      status: "live",
+      readers: ["web"],
+      why:
+        "Off, the website's speakers page returns not found and the header, footer and " +
+        "search stop linking to it. The app is unaffected.",
+    },
   },
   access: {
     attendeeListVisible: {
@@ -296,6 +379,23 @@ export const SETTINGS_REGISTER: Register = {
       readers: [],
       why: "Same as attendeeListVisible — enforceable only in firestore.rules.",
     },
+    attendeeMessagingEnabled: {
+      status: "live",
+      readers: ["app"],
+      /*
+       * The one switch in this bag that is enforceable without deciding a
+       * policy question first, which is why it is `live` while the two above
+       * it are not. Messaging is one collection with one write path, so
+       * "nobody may start a conversation" is a rule about `threads` and
+       * `threads/{id}/messages` and nothing else. Hiding the attendee list,
+       * by contrast, would have to overrule each attendee's own
+       * `visibleInDirectory`, and that is a decision rather than a rule.
+       */
+      why:
+        "Off hides Messages everywhere in the app and firestore.rules refuses a new " +
+        "thread or message, so the switch is a lock and not a curtain. Conversations " +
+        "already held stay readable.",
+    },
     staffNote: {
       status: "live",
       readers: ["organizer"],
@@ -308,30 +408,41 @@ export const SETTINGS_REGISTER: Register = {
       why: "Attendees › Check-in renders it above the desk, which is who it is written for.",
     },
     eventCode: {
-      status: "recorded",
-      readers: [],
+      status: "live",
+      readers: ["app"],
+      /*
+       * ⚠️ `live` here means "the app asks for it", NOT "it keeps anyone out".
+       * The real gate is still the `registered` claim, minted only for ticket
+       * holders and checked on every request; one string a thousand people know
+       * is weaker than what already runs, so firestore.rules does not look at
+       * this field and must not be made to. The prompt is a front door on a
+       * building whose locks are elsewhere, and it is worth having for the
+       * reason a front door is: it is what an organizer reads out from a stage.
+       */
       why:
-        "The real gate is the `registered` custom claim, minted only for ticket holders " +
-        "and checked by firestore.rules on every request. One string a thousand people " +
-        "know is weaker than what already runs, so nothing enforces this and nothing should.",
+        "The app asks for the code once, at first sign-in, when one is set. It is a " +
+        "prompt rather than a lock: the ticket claim is the gate, and the rules do not " +
+        "read this field.",
     },
     codeRequired: {
-      status: "recorded",
-      readers: [],
-      why: "Same as eventCode.",
+      status: "live",
+      readers: ["app"],
+      why: "Whether the app asks. Untick it and nobody is prompted again.",
     },
     postEventDays: {
-      status: "recorded",
-      readers: [],
+      status: "live",
+      readers: ["app"],
       why:
-        "Closing access for real means expiring the `registered` claim or adding a date " +
-        "check to firestore.rules. A client that reads a number and hides a screen leaves " +
-        "the data open, which is the failure this field looks like it prevents.",
+        "The last day of the event plus this many days is when the app stops opening. " +
+        "The app shows one plain screen and firestore.rules refuses every read, so the " +
+        "data closes rather than the screens hiding.",
     },
     postEventReadOnly: {
-      status: "recorded",
-      readers: [],
-      why: "Same as postEventDays — a write ban belongs in the rules or nowhere.",
+      status: "live",
+      readers: ["app"],
+      why:
+        "From the end of the event the app still opens and takes no new posts, replies, " +
+        "messages or questions. Refused in firestore.rules as well as hidden in the app.",
     },
   },
   logistics: {
@@ -380,6 +491,54 @@ export const SETTINGS_REGISTER: Register = {
         "Content › Logistics Center reports whether the card is ready, and the app's " +
         "emergency card refuses to render without it — a half-filled card during an " +
         "emergency is worse than none.",
+    },
+  },
+  /*
+   * Every field resolves through `resolveEventBasics()`, which falls back to
+   * the constants in `event.ts` — so an unset field is the old behaviour, not a
+   * blank. `firestore.rules` lets any client read this bag and the two beside
+   * it in `PUBLIC_SETTINGS_KEYS`; all three hold only what the public site prints.
+   */
+  event: {
+    name: { status: "live", readers: ["organizer", "web", "app"], why: "The dashboard masthead, the website titles and hero, the app Home header." },
+    shortName: { status: "live", readers: ["organizer", "web", "app"], why: "The short form in page titles and the app." },
+    startDate: { status: "live", readers: ["organizer", "web", "app"], why: "The date range on the masthead, the website and the app." },
+    endDate: { status: "live", readers: ["organizer", "web", "app"], why: "The date range on the masthead, the website and the app." },
+    timeZone: {
+      status: "live",
+      readers: ["organizer", "web"],
+      why:
+        "Session times are authored as wall clock in this zone. Saving a new zone re-derives " +
+        "every session's start and end, and the website agenda formats in it.",
+    },
+    venue: { status: "live", readers: ["organizer", "web", "app"], why: "Printed beside the dates on all three surfaces." },
+    eventType: {
+      status: "live",
+      readers: ["organizer", "web"],
+      why: "The masthead badge, and the attendance mode in the website's structured data.",
+    },
+  },
+  sponsorTiers: {
+    tiers: {
+      status: "live",
+      readers: ["organizer", "web", "app"],
+      why:
+        "Sponsor Manager's tier select, the website's sponsor bands and the app's sponsor " +
+        "list all group with groupSponsorsByTier() over this list.",
+    },
+  },
+  attendeeCategories: {
+    categories: {
+      status: "live",
+      readers: ["organizer", "app"],
+      why:
+        "The attendee list, the exports and the printed badge read the list. The app prints " +
+        "the name copied onto the holder's registration.",
+    },
+    ticketRules: {
+      status: "live",
+      readers: ["organizer", "web"],
+      why: "ensureRegistration applies it on every purchase, import and hand-added attendee.",
     },
   },
 };

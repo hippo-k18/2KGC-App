@@ -8,7 +8,20 @@ import { SITE } from '@/lib/site';
  * than computed from `new Date()`, which would make the footer a moving target
  * that invalidates the static render every year at midnight on 1 January.
  */
-export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?: string }) {
+export function SiteFooter({
+  contactEmail = SITE.contactEmail,
+  datesShort = SITE.datesShort,
+  venue = SITE.venue,
+  showAgenda = false,
+  showSpeakers = false,
+}: {
+  contactEmail?: string;
+  /** From Content > Basics, resolved in the root layout. The defaults are the constants. */
+  datesShort?: string;
+  venue?: string;
+  showAgenda?: boolean;
+  showSpeakers?: boolean;
+}) {
   return (
     <footer className="site-footer">
       <div className="wrap">
@@ -34,8 +47,8 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
           <div>
             <h2>Attend</h2>
             <Link href="/tickets">Tickets</Link>
-            <Link href="/agenda">Agenda</Link>
-            <Link href="/speakers">Speakers</Link>
+            {showAgenda && <Link href="/agenda">Agenda</Link>}
+            {showSpeakers && <Link href="/speakers">Speakers</Link>}
             {/* An attendee-facing directory of who is in the hall, so it sits
                 with the programme rather than under Participate with the
                 packages that sell a booth. */}
@@ -59,6 +72,10 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
                 people are asked to agree to, and the live site gives it a page
                 of its own rather than a fragment on another one. */}
             <Link href="/code-of-conduct">Code of conduct</Link>
+            {/* Beside the code of conduct for the same reason: both are things
+                people are told they have agreed to, and a privacy notice
+                nobody can find is one nobody read. */}
+            <Link href="/privacy">Privacy</Link>
           </div>
 
           <div>
@@ -93,7 +110,22 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
         <div className="fine">
           <span>© 2019–2027 Knowledge Graph Conference. All rights reserved.</span>
           <span>
-            {SITE.datesShort} · {SITE.venue}
+            {datesShort} · {venue}
+          </span>
+          {/* The home page photograph is CC BY-SA 3.0, which requires this. */}
+          <span className="photo-credit">
+            Home page photo by{' '}
+            <a
+              href="https://commons.wikimedia.org/wiki/File:NYC_Empire_State_Building_view_NNE.jpg"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Arnoldius
+            </a>
+            ,{' '}
+            <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noreferrer">
+              CC BY-SA 3.0
+            </a>
           </span>
         </div>
       </div>

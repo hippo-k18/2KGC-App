@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { FEATURED_2026, REST_2026, SPEAKERS_2026 } from '@kgc/scripts/src/lib/speakers-2026';
-import { SpeakerCard, ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
-import { listSpeakers } from '@/lib/data';
+import { FEATURED_2026, REST_2026 } from '@kgc/scripts/src/lib/speakers-2026';
+import { ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
+import { notFound } from 'next/navigation';
+import { listSpeakers, siteVisibility } from '@/lib/data';
 import { SPEAKERS_PAGE_SOURCE } from '@kgc/shared';
 
 export const metadata: Metadata = {
@@ -62,9 +63,24 @@ export const metadata: Metadata = {
  * exactly five profile ids resolving to Bertails, Hendler, Ivie, Khattar and
  * Pakiman. See `@kgc/scripts/src/lib/speakers-2026.ts`.
  */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. The roster changes when an organizer edits it, not per visitor.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 export default async function SpeakersPage() {
+  if (!(await siteVisibility()).speakers) notFound();
   return SPEAKERS_PAGE_SOURCE === 'firestore' ? <LiveRoster /> : <Roster2026 />;
 }
 
@@ -99,22 +115,7 @@ function Roster2026() {
   return (
     <section style={{ padding: '72px 0 96px' }}>
       <div className="wrap-kgc">
-        <h1 className="speakers-head">Our First Speakers</h1>
-
-        {SPEAKERS_2026.length === 0 ? (
-          <p className="notice">The speaker list is not published yet.</p>
-        ) : (
-          <>
-            {/* Three across, then the remaining two centred beneath them. */}
-            <div className="featured-speakers">
-              {tiles(FEATURED_2026).map((s) => (
-                <SpeakerCard key={s.id} eager speaker={s} />
-              ))}
-            </div>
-
-            <ViewAllSpeakers speakers={tiles(REST_2026)} featuredCount={FEATURED_2026.length} />
-          </>
-        )}
+        <ViewAllSpeakers featured={tiles(FEATURED_2026)} speakers={tiles(REST_2026)} />
       </div>
     </section>
   );
@@ -171,24 +172,7 @@ async function LiveRoster() {
   return (
     <section style={{ padding: '72px 0 96px' }}>
       <div className="wrap-kgc">
-        <h1 className="speakers-head">Our First Speakers</h1>
-
-        {tiles.length === 0 ? (
-          <p className="notice">The speaker list is not published yet.</p>
-        ) : (
-          <>
-            {featured.length > 0 ? (
-              /* Three across, then the remaining two centred beneath them. */
-              <div className="featured-speakers">
-                {featured.map((s) => (
-                  <SpeakerCard key={s.id} eager speaker={s} />
-                ))}
-              </div>
-            ) : null}
-
-            <ViewAllSpeakers speakers={rest} featuredCount={featured.length} />
-          </>
-        )}
+        <ViewAllSpeakers featured={featured} speakers={rest} />
       </div>
     </section>
   );

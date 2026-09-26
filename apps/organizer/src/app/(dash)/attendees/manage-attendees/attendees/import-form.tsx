@@ -52,8 +52,7 @@ export function ImportForm() {
             <input id="file" name="file" type="file" accept=".csv,text/csv" />
             <p className="muted" style={{ fontSize: 12 }}>
               Needs a <strong>Name</strong> and an <strong>Email</strong> column. Ticket type,
-              company and job title are used if present. Column names are matched loosely, so
-              &ldquo;E-mail Address&rdquo; and &ldquo;Organisation&rdquo; both work.
+              company and job title are used if present.
             </p>
           </div>
 
@@ -87,8 +86,7 @@ export function ImportForm() {
           {state.sample && state.sample.length > 0 && (
             <>
               <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
-                The first rows, as the importer understood them. Check the values landed under the
-                right headings before committing.
+                The first rows. Check each value is under the right heading before you import.
               </p>
               <div className="whova-table-wrapper">
                 <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
@@ -141,11 +139,15 @@ export function ImportForm() {
           <form action={commitAction} style={{ marginTop: 14 }}>
             <input type="hidden" name="csv" value={state.csv ?? ''} />
             {state.errors && state.errors.length > 0 && (
-              <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
-                <input type="checkbox" name="allowPartial" /> Import the {state.validCount} good
-                rows anyway and leave the rest
+              <label className="whova-checkbox-label" style={{ marginBottom: 10 }}>
+                <input className="whova-checkbox-input" type="checkbox" name="allowPartial" />
+                <span>Import the {state.validCount} good rows anyway and leave the rest</span>
               </label>
             )}
+            <label className="whova-checkbox-label" style={{ marginBottom: 10 }}>
+              <input className="whova-checkbox-input" type="checkbox" name="sendEmails" defaultChecked />
+              <span>Email each new attendee their confirmation and claim code</span>
+            </label>
             <SubmitButton idle={`Import ${state.validCount} attendees`} busy="Importing…" />
           </form>
         </>
@@ -163,7 +165,7 @@ export function ImportForm() {
 function SubmitButton({ idle, busy }: { idle: string; busy: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? busy : idle}
     </button>
   );

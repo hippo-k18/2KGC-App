@@ -23,7 +23,7 @@ export default async function SocialMediaPage() {
   const posts = [
     {
       label: 'Announcing the app',
-      text: `The KGC 2027 app is live. Your agenda, your badge, and everyone else who's coming. All in one place.\n\nGet it: ${origin}/tickets\n\n#KGC2027 #KnowledgeGraphs`,
+      text: `The KGC 2027 app is live. Your agenda, your badge, and everyone else who's coming.\n\nGet it: ${origin}/tickets\n\n#KGC2027 #KnowledgeGraphs`,
     },
     {
       label: 'A week out',

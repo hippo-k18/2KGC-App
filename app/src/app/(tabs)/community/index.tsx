@@ -1,10 +1,19 @@
 import { useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { Timestamp } from '@kgc/shared';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { CategoryTile, type CategoryTint } from '@/components/category-tile';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -16,6 +25,7 @@ import { WhovaHeader } from '@/components/whova-header';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import { useAnnouncements } from '@/lib/data/announcements';
 import {
   CATEGORIES,
@@ -51,6 +61,16 @@ const CATEGORY_STYLE: Record<string, { icon: IconName; tint: CategoryTint }> = {
 
 /** Fallback for a category id that predates or postdates this table. */
 const DEFAULT_STYLE = { icon: 'bubble.left' as IconName, tint: 'blue' as CategoryTint };
+
+/**
+ * Slop around a bare text control, restated for the browser by `webSlop`.
+ *
+ * 12 rather than 8 above and below: the row is a 20pt subhead, and `webSlop`
+ * has to reach `HIT_TARGET` on its own.
+ */
+const SORT_SLOP = { top: 12, bottom: 12, left: Spacing.sm, right: Spacing.sm };
+/** The same, for the composer's Cancel and Post, which are drawn at 22pt. */
+const SHEET_ACTION_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 
 /**
  * How the board is ordered.
@@ -127,6 +147,7 @@ export default function CommunityScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { messagingEnabled, writesOpen } = useAppAccess();
   const [category, setCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortId>('newest');
@@ -167,15 +188,19 @@ export default function CommunityScreen() {
         userName={profile?.name ?? 'You'}
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me')}
-        actions={[
-          {
-            icon: 'envelope.fill',
-            label: 'Messages',
-            // `from` names the tab to come back to — see `messages/index.tsx`.
-            onPress: () =>
-              router.push({ pathname: '/messages', params: { from: 'community' } }),
-          },
-        ]}
+        actions={
+          messagingEnabled
+            ? [
+                {
+                  icon: 'envelope.fill',
+                  label: 'Messages',
+                  // `from` names the tab to come back to — see `messages/index.tsx`.
+                  onPress: () =>
+                    router.push({ pathname: '/messages', params: { from: 'community' } }),
+                },
+              ]
+            : []
+        }
         search={{
           value: search,
           onChangeText: (next) => {
@@ -236,12 +261,13 @@ export default function CommunityScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Sort by ${sortLabel}`}
             accessibilityHint="Opens the sort options"
-            hitSlop={{ top: Spacing.sm, bottom: Spacing.sm, left: Spacing.sm, right: Spacing.sm }}
+            hitSlop={SORT_SLOP}
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
               gap: Spacing.xs,
               opacity: pressed ? 0.4 : 1,
+              ...webSlop({}, SORT_SLOP),
             })}>
             <Text variant="subhead" tone="secondary">
               Sort by:
@@ -342,7 +368,7 @@ export default function CommunityScreen() {
             <View style={{ padding: Spacing.md, gap: Spacing.md }}>
               <SkeletonScreen
                 label="the community board"
-                slowNotice="Still loading. The app cannot reach the server.">
+                slowNotice="Still loading. Check your connection.">
                 {[0, 1, 2].map((i) => (
                   <View key={i} style={{ gap: Spacing.sm }}>
                     <SkeletonBlock width="35%" height={12} />
@@ -374,8 +400,12 @@ export default function CommunityScreen() {
       />
 
       {/* Whova's blue CTA, pinned above the tab bar. Its left-hand trophy square
-          opens a gamification leaderboard that does not exist here. */}
-      {user ? (
+          opens a gamification leaderboard that does not exist here.
+
+          Gone once the event goes read-only: the rules refuse the post, and a
+          composer that collects a topic nobody can publish is worse than no
+          button. The board itself stays readable. */}
+      {user && writesOpen ? (
         <View
           style={{
             padding: Spacing.md,
@@ -622,9 +652,17 @@ function Composer({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md, gap: Spacing.md }}>
+      {/* Without this the keyboard covers the bottom of the body box on iOS. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1, backgroundColor: colors.background, padding: Spacing.md, gap: Spacing.md }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cancel" hitSlop={12}>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            hitSlop={12}
+            style={{ justifyContent: 'center', ...webSlop({}, SHEET_ACTION_SLOP) }}>
             <Text tone="tint">Cancel</Text>
           </Pressable>
           <Text variant="heading">New topic</Text>
@@ -643,7 +681,8 @@ function Composer({
             accessibilityRole="button"
             accessibilityLabel="Post topic"
             accessibilityState={{ disabled: busy || !title.trim() || !body.trim() }}
-            hitSlop={12}>
+            hitSlop={12}
+            style={{ justifyContent: 'center', ...webSlop({}, SHEET_ACTION_SLOP) }}>
             <Text tone="tint" style={{ opacity: title.trim() && body.trim() ? 1 : 0.4 }}>
               Post
             </Text>
@@ -653,7 +692,16 @@ function Composer({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: Spacing.sm }}>
+          /*
+           * `flexGrow: 0` is not tidiness. A `ScrollView` defaults to `flex: 1`,
+           * and a horizontal one inside this column took every pixel the sheet
+           * had left: at 390x844 the chips sat under the header and the Title
+           * and body boxes were pushed 520pt down to the bottom edge, with the
+           * body box running off the screen. `flexShrink: 0` keeps the row at
+           * its own height when the keyboard takes the space back.
+           */
+          style={{ flexGrow: 0, flexShrink: 0, marginVertical: -Spacing.xs - 1 }}
+          contentContainerStyle={{ gap: Spacing.sm, paddingVertical: Spacing.xs + 1 }}>
           {CATEGORIES.map((c) => (
             <FilterChip
               key={c.id}
@@ -678,12 +726,14 @@ function Composer({
           onChangeText={setBody}
           placeholder="Say a bit more…"
           placeholderTextColor={colors.textTertiary}
-          style={[field, { minHeight: 140, textAlignVertical: 'top' }]}
+          // Capped, so a long post scrolls inside the box instead of growing
+          // it off the bottom of the sheet.
+          style={[field, { minHeight: 140, maxHeight: 240, textAlignVertical: 'top' }]}
           multiline
           accessibilityLabel="Post body"
           maxLength={2000}
         />
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

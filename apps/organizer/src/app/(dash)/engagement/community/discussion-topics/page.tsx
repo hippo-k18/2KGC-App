@@ -13,8 +13,8 @@ export default async function DiscussionTopicsPage() {
         <>
           <strong>Attendee-authored</strong>
           <p>
-            Questions and ice-breakers from the community board. Nothing here lets an organizer
-            post or seed a topic, so the board on day one is whatever attendees have asked.
+            Questions and ice-breakers from the community board. Organizers cannot post topics
+            yet.
           </p>
         </>
       }

@@ -6,6 +6,7 @@ import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 import { publicUrl } from '@/lib/webpages';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { wrapCol } from '../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,16 +94,15 @@ export default async function PublishTicketsPage() {
           every one of them. It fails closed now, and this says so.
         */
         <>
-          <code>STRIPE_SECRET_KEY</code> is unset, so nothing can be bought. The pay button on{' '}
-          <code>/tickets</code> is disabled and checkout refuses before it reads a tier, no sale
-          completes without a processor.
+          No payment processor is connected, so nothing can be bought. The pay button on the
+          ticket page is disabled.
         </>
       ) : stripeIsLive() ? (
         <>Live key. Cards will be charged.</>
       ) : (
         <>
-          Test key (<code>sk_test_…</code>). Real cards are declined; test cards succeed and take no
-          money. This is the right state for everything except selling.
+          Stripe is in test mode. Real cards are declined and test cards take no money. Switch to
+          live before selling.
         </>
       ),
     },
@@ -111,13 +111,12 @@ export default async function PublishTicketsPage() {
       state: emailEnabled() ? 'pass' : 'fail',
       detail: emailEnabled() ? (
         <>
-          <code>RESEND_API_KEY</code> is set. Receipts carry the claim code that turns a purchase
-          into an app account.
+          Receipts carry the claim code that turns a purchase into an app account.
         </>
       ) : (
         <>
-          No provider configured. Every send is logged as <code>skipped</code>, so a buyer gets a
-          ticket and <strong>no claim code</strong>, which is a support ticket per sale.
+          No email provider is connected, so a buyer gets a ticket and{' '}
+          <strong>no claim code</strong>.
         </>
       ),
     },
@@ -140,17 +139,16 @@ export default async function PublishTicketsPage() {
       detail:
         form.fields.length === 0 ? (
           <>
-            No questions are asked. Dietary requirements and accessibility needs are catering and
-            venue decisions with a deadline.{' '}
-            <Link href="/tickets/ticket-setup/1-2-question-forms">Worth asking before you sell</Link>
-            , because collecting them afterwards means chasing everybody.
+            No questions are asked.{' '}
+            <Link href="/tickets/ticket-setup/1-2-question-forms">Add dietary and accessibility questions</Link>{' '}
+            before you sell.
           </>
         ) : form.active ? (
           <>{form.fields.length} questions are asked before checkout.</>
         ) : (
           <>
             {form.fields.length} questions are written but switched off, so nobody is asked. Turn
-            them on before the first sale or the answers are lost for everybody who buys early.
+            them on before the first sale.
           </>
         ),
     },
@@ -182,7 +180,7 @@ export default async function PublishTicketsPage() {
         ) : (
           <>
             {demoOrders} demo {demoOrders === 1 ? 'order is' : 'orders are'} in the ledger. They
-            carry <code>channel: &apos;demo&apos;</code> and are excluded from every takings figure. Real, visible, and not counted as money.
+            are left out of every sales figure.
           </>
         ),
     },
@@ -199,10 +197,8 @@ export default async function PublishTicketsPage() {
           <>
             <strong>There is no publish button</strong>
             <p>
-              A tier with <code>visible: true</code> is on the public page at the next request, no
-              deploy and no switch. A button here would either do nothing or become a fourth place
-              that decides whether a ticket is on sale. The pre-flight below is what a publish step
-              is actually for.
+              A ticket goes on sale as soon as it is listed in Create Tickets. Use the checks below
+              before you list one.
             </p>
           </>
         }
@@ -267,7 +263,7 @@ export default async function PublishTicketsPage() {
             { key: 'c', label: 'Check', className: 'cell-md' },
             { key: 'd', label: '', className: 'cell-fill' },
           ]}
-          rows={checks.map((c) => [
+          rows={wrapCol(checks.map((c) => [
             <Tag
               key="s"
               small
@@ -279,12 +275,11 @@ export default async function PublishTicketsPage() {
             <span key="d" style={{ fontSize: 13 }}>
               {c.detail}
             </span>,
-          ])}
+          ]), 2)}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           <strong>stop</strong> means somebody will pay and something will go wrong.{' '}
-          <strong>look</strong> means it will work and look unfinished. Collapsing the two into one
-          &ldquo;ready&rdquo; light is how a real blocker gets clicked past.
+          <strong>look</strong> means it will work and look unfinished.
         </p>
       </Panel>
 

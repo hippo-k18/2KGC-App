@@ -19,7 +19,7 @@ import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Startup Pitch',
-  description: `Pitch your knowledge graph startup to investors at the Knowledge Graph Conference ${SITE.year}, Cornell Tech NYC.`,
+  description: `Pitch your knowledge graph startup to investors at the Knowledge Graph Conference ${SITE.year}, Bryant Park, New York.`,
 };
 
 /**
@@ -49,9 +49,9 @@ export const metadata: Metadata = {
  * sequence stayed coherent. Nobody ever confirmed them, the page printed them
  * under "Important dates" with a muted line calling them provisional, and a
  * founder plans a quarter around the date rather than the caption. The owner
- * has since confirmed the 2027 calendar is unset, so the page says that and
- * prints nothing that looks like a deadline. An organizer entering real ones in
- * Content › Basics › Website Copy is what brings the list back.
+ * has since confirmed the 2027 calendar is unset, so the page prints no date
+ * section at all, not even a line saying there is none. An organizer entering
+ * real ones in Content › Basics › Website Copy is what brings the list back.
  *
  * The reasons to enter, the format and the $100M claim stay in React — they are
  * the page's argument, not its calendar.
@@ -64,7 +64,21 @@ const CALL: CallPageContent = {
 };
 
 /** Deadlines are read per request: a moved date must not wait for a build. */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. The deadline is a stored value an organizer moves.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 const REASONS = [
   'Direct feedback on your product and vision from a panel of investors, industry experts and practitioners.',
@@ -79,7 +93,16 @@ export default async function StartupPitchPage() {
 
   return (
     <>
-      <section>
+      {/*
+        Three sections, one background.
+
+        The middle band used to be tinted, which made the page a white / tint /
+        white stripe where the only thing separating one part of the argument
+        from the next was a change of colour. The sections are now told apart by
+        spacing alone: 80px between two of them against 14px between a heading
+        and the paragraph under it, so what belongs together sits together.
+      */}
+      <section style={{ paddingBottom: 40 }}>
         <div className="wrap narrow">
           <p className="eyebrow">KGC {SITE.year}</p>
           <h1>Startup Pitch</h1>
@@ -108,9 +131,9 @@ export default async function StartupPitchPage() {
         </div>
       </section>
 
-      <section className="tint">
+      <section style={{ paddingBlock: 40 }}>
         <div className="wrap narrow">
-          <h2>Why enter</h2>
+          <h2>Feedback from a panel of investors</h2>
           <p>
             The investor and startup event is an opportunity for investors to learn more about this
             domain, and about your company and vision in particular.
@@ -125,9 +148,9 @@ export default async function StartupPitchPage() {
         </div>
       </section>
 
-      <section>
+      <section style={{ paddingTop: 40 }}>
         <div className="wrap narrow">
-          <h2>How to enter</h2>
+          <h2>Entering takes a 90-second video</h2>
           <p>
             Submit a short video introduction, 90 seconds maximum, by the application deadline. Do
             not upload sensitive or proprietary information. Startups selected to take part prepare
@@ -139,26 +162,18 @@ export default async function StartupPitchPage() {
             .
           </p>
 
-          <h2 style={{ marginTop: 40 }}>Important dates</h2>
           {/*
-            Nothing here until a date exists to print. The live 2026 page carries
-            firm dates; the four this page used to show were those shifted by a
-            year, and a muted line calling them provisional did not stop them
-            reading as a calendar to plan around. `datesConfirmed` still gates
-            the caption, for dates an organizer has entered but not settled.
+            The heading appears only when there is a date under it. It used to
+            stand over the line "Dates to be announced", which is a heading and a
+            stop that carry no fact between them; the live 2026 page carries firm
+            dates and the 2027 calendar is unset, so the page now says nothing
+            about dates at all until an organizer enters one in Website Copy.
+            `datesConfirmed` still gates the caption, for dates an organizer has
+            entered but not settled.
           */}
-          {dates.length === 0 ? (
-            <p className="muted">
-              The {SITE.year} calendar is not confirmed yet, so this page states no dates. The
-              application deadline and the date of the pitch event appear here once they are set.
-              Write to{' '}
-              <a href="mailto:startup-pitch@knowledgegraph.tech">
-                startup-pitch@knowledgegraph.tech
-              </a>{' '}
-              if you need to know before then.
-            </p>
-          ) : (
+          {dates.length > 0 ? (
             <>
+              <h2 style={{ marginTop: 40 }}>Dates</h2>
               {call.datesConfirmed ? null : (
                 <p className="muted">Provisional. The {SITE.year} calendar is not final.</p>
               )}
@@ -170,7 +185,7 @@ export default async function StartupPitchPage() {
                 ))}
               </ul>
             </>
-          )}
+          ) : null}
 
           <p style={{ marginTop: 32 }}>
             Not a startup? <Link href="/sponsor">Sponsorship packages</Link> and the{' '}

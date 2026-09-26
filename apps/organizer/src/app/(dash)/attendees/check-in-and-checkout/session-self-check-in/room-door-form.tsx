@@ -43,7 +43,7 @@ export function RoomDoorForm({
           options={options}
           placeholder="Pick a session…"
           required
-          hint="Pressing this twice opens one door, not two. The list id is derived from the session."
+          hint="Opening the same session twice reuses the same door."
         />
         <Field
           label="Station name"
@@ -51,7 +51,7 @@ export function RoomDoorForm({
           defaultValue={defaultStation}
           autoComplete="off"
           width="sm"
-          hint="What a duplicate scan will name. The room, usually."
+          hint="Shown when a badge is scanned twice. Usually the room."
         />
       </FormGrid>
       {state.error ? <p className="whova-form-error-message">{state.error}</p> : null}

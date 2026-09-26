@@ -14,7 +14,7 @@
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\"",
     "seed": "npm run seed --workspace=@kgc/scripts --",
     "import:whova": "npm run import:whova --workspace=@kgc/scripts --",
-    "test": "vitest run scripts/src app/src packages/shared tests/qr tests/programme tests/parity",
+    "test": "vitest run scripts/src app/src packages/shared apps/organizer/src/lib apps/web/src/lib/blog tests/qr tests/programme tests/parity",
     "test:functions": "npm run build --workspace=functions && firebase emulators:exec --only firestore,auth,functions \"npm run seed && vitest run tests/functions --no-file-parallelism\"",
     "claims": "npm run claims --workspace=@kgc/scripts --",
     "reconcile:sold": "npx tsx scripts/ops/reconcile-sold-counts.ts",
@@ -31,12 +31,15 @@
     "test:programme-import": "firebase emulators:exec --only firestore --config firebase.import-test.json --project kgc-import-test \"vitest run --config vitest.import-emulator.mts\"",
     "smoke": "bash scripts/smoke-dashboard.sh",
     "avatars:speakers": "npm run avatars:speakers --workspace=@kgc/scripts --",
-    "rebuild:programme": "npm run rebuild:programme --workspace=@kgc/scripts --"
+    "rebuild:programme": "npm run rebuild:programme --workspace=@kgc/scripts --",
+    "test:prepublish": "cd tests/prepublish && npx playwright test",
+    "publish:web": "bash scripts/publish-web.sh"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",
     "@firebase/rules-unit-testing": "^5.0.1",
     "firebase-tools": "^15.27.0",
+    "jsdom": "^30.1.1",
     "vitest": "^4.1.10"
   }
 }

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { LinkedIn } from '@/components/linkedin-icon';
 import { TEAM } from '@/lib/people';
-import { SITE } from '@/lib/site';
+import { siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Meet the Team',
@@ -22,12 +22,13 @@ export const metadata: Metadata = {
  * photographs of the same people.
  */
 
-export default function TeamPage() {
+export default async function TeamPage() {
+  const ev = await siteEvent();
   return (
     <>
       <section className="about-hero">
         <div className="wrap-kgc">
-          <h1>{SITE.name} Team</h1>
+          <h1>{ev.name} Team</h1>
         </div>
       </section>
 
@@ -40,10 +41,6 @@ export default function TeamPage() {
             at twice the size purely because it borrowed the other page's class.
           */}
           <h2>Meet the team</h2>
-          <p className="learn-intro">
-            The people who programme the conference, run the community, and keep the week on its
-            feet.
-          </p>
 
           <div className="team-grid">
             {TEAM.map((p) => (

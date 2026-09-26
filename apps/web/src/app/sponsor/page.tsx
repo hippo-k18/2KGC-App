@@ -1,18 +1,32 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { listSponsorsByTier } from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { SponsorTiers } from '@/components/sponsor-tiers';
+import { PackageGrid } from '@/components/package-grid';
+import type { Tier } from '@/lib/tickets';
 import { SITE } from '@/lib/site';
-import { formatPrice } from '@/lib/tickets';
 
 export const metadata: Metadata = {
   title: 'Sponsor KGC',
   description:
-    'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Cornell Tech NYC.',
+    'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Bryant Park, New York.',
 };
 
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. Tiers and logos change when an organizer edits them, not per visitor.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 /*
  * The packages come from `ticketTypes`, not from a constant here.
@@ -33,24 +47,33 @@ export const dynamic = 'force-dynamic';
  * page now read the same documents, and the only thing this one adds is the
  * link that takes you to the other.
  *
- * ── Prices are quoted now, because the sibling page already quotes them ─────
+ * ── Drawn here as plain blocks, and sold by email ───────────────────────────
  *
- * The old comment here said no prices were shown because the real prospectus is
- * a Coda doc the live nav links out to and is the authority on what a tier
- * costs. That reasoning stopped holding when `/tickets/sponsor` went live
- * publishing exactly these figures: withholding them here made this page look
- * coy, not discreet, about a number one click away.
+ * This page shows what each package includes and sends people to the inbox.
+ * No prices and no checkout button: sponsorship is agreed with a person.
+ * `/tickets/sponsor` still exists and quotes the figures for anyone sent there.
  *
  * Catalogue order — `sortOrder`, ascending, which is Bronze first — is the same
  * order `/tickets/sponsor` uses. Reversing it here to lead with Platinum would
  * be a second opinion about the same list.
  */
 
+/*
+ * ── No tint bands, and three spacing steps instead ──────────────────────────
+ *
+ * The four sections used to alternate white, tint, white, tint at an identical
+ * 64px of padding each, so the page read as four interchangeable stripes with
+ * nothing weighted above anything else. The call for speakers now sits in a
+ * box under the title, and the packages and the wall of logos follow it,
+ * spaced as one continuous list. `.tint` itself is untouched — the replica
+ * pages still use it.
+ */
+
 export default async function SponsorPage() {
   /*
    * `tiersOrNull`, not `listTiers`: this is a marketing page, and an
-   * unreachable catalogue should cost it the Packages band, not the sponsor
-   * wall and the call for speakers underneath. The tickets pages keep the loud
+   * unreachable catalogue should cost it the package blocks, not the sponsor
+   * wall and the call for speakers. The tickets pages keep the loud
    * failure, because a price that fails quietly is the one that gets charged.
    */
   const [bands, packages] = await Promise.all([
@@ -58,98 +81,176 @@ export default async function SponsorPage() {
     tiersOrNull('sponsor'),
   ]);
 
+  const mail = (subject: string) =>
+    `mailto:${SITE.contactEmail}?subject=${encodeURIComponent(subject)}`;
+
   return (
     <>
-      <section>
-        <div className="wrap">
-          <p className="eyebrow">Partnership</p>
-          <h1>Sponsor KGC 2027</h1>
-          <p className="lede">
-            A thousand people who buy, build and operate knowledge graph infrastructure, in one
-            building for five days. Roughly a third architects and engineers, a third data
-            leadership, a third
-            researchers.
-          </p>
-          <p>
-            Sponsorship enquiries:{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>. Packages sell out by
-            February most years.
-          </p>
-        </div>
-      </section>
+      {/* No visible title: the page opens on the talk block. Screen readers
+          still get a heading to land on. */}
+      <h1 className="sr-only">Sponsor KGC 2027</h1>
 
-      {packages && packages.length > 0 && (
-        <section className="tint">
-          <div className="wrap">
-            <h2>Packages</h2>
-            <div className="grid g3" style={{ marginTop: 24 }}>
-              {packages.map((p) => (
-                <div className="card" key={p.id}>
-                  <h3>{p.name}</h3>
-                  <p style={{ margin: '4px 0 0', fontWeight: 600 }}>
-                    {formatPrice(p.priceCents, p.currency)}
-                  </p>
-                  {p.tagline && (
-                    <p style={{ margin: '4px 0 0', fontSize: '0.93rem' }}>{p.tagline}</p>
-                  )}
-                  <ul style={{ paddingLeft: 18, margin: '10px 0 0', fontSize: '0.93rem' }}>
-                    {p.includes.map((w) => (
-                      <li key={w} style={{ padding: '3px 0' }}>
-                        {w}
-                      </li>
-                    ))}
-                  </ul>
-                  {/*
-                    A closed package keeps its card and says why, rather than
-                    vanishing — Platinum is capped at one, and "sold out" is the
-                    single most useful thing an enquirer can be told about it.
-                  */}
-                  {!p.onSale && (
-                    <p style={{ margin: '10px 0 0', fontSize: '0.93rem', fontWeight: 600 }}>
-                      {p.unavailableReason ?? 'Not available'}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-            <p style={{ marginTop: 24 }}>
-              <Link className="btn btn-primary" href="/tickets/sponsor">
-                Become a sponsor
-              </Link>
+      {/*
+        One white band for the talk and the packages, with flat grey blocks on
+        it: the same square panel as the homepage FAQ. `id="speak"` is where the
+        footer's "Speak at KGC" link lands.
+      */}
+      <section className="band-white" style={{ paddingBlock: '48px 64px' }}>
+        <div className="wrap">
+          <div className="flat-block speak-box" id="speak">
+            <h2>Speak at KGC</h2>
+            <p>
+              Tell us about real work: something you built, a decision you would change, a project
+              that went wrong, results you measured. No product pitches.
+            </p>
+            <p>
+              Talks run 25 or 45 minutes, and there are panels and half-day workshops. Submissions
+              open in September and close in December.
+            </p>
+            <p className="speak-box-cta">
+              <a className="btn btn-primary" href={mail('KGC 2027 talk proposal')}>
+                Pitch a talk
+              </a>
             </p>
           </div>
-        </section>
-      )}
+
+          {packages && packages.length > 0 && (
+            <>
+              <PackageGrid
+                info={
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href={PROSPECTUS_URL}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    aria-label="Info: the full sponsorship prospectus, in a new tab"
+                  >
+                    Info
+                  </a>
+                }
+              >
+                {packages.map((p) => (
+                  <PackageBlock key={p.id} tier={p} />
+                ))}
+              </PackageGrid>
+            </>
+          )}
+
+          {/*
+            Sponsorship is arranged by email, not bought on this page. The
+            subject line tells whoever reads the inbox what it is about.
+          */}
+          <div className="package-contact">
+            <p>
+              To sponsor, email{' '}
+              <a href={mail('KGC 2027 sponsorship')}>{SITE.contactEmail}</a>. Tell us which package
+              you are interested in.
+            </p>
+            <a className="btn btn-primary" href={mail('KGC 2027 sponsorship')}>
+              Email us
+            </a>
+          </div>
+        </div>
+      </section>
 
       {bands.length > 0 && (
-        <section>
+        <section style={{ paddingBlock: '56px 80px' }}>
           <div className="wrap">
             <h2>Our sponsors</h2>
-            <SponsorTiers bands={bands} />
+            {/*
+              `titles="label"`, because the packages above are already headed
+              Bronze, Silver, Gold, Platinum, and the wall repeating the same
+              four words at the same weight in the opposite order read as one
+              list poured into two slots. The homepage keeps the widget's own
+              centred titles: nothing up the page from it has said them.
+            */}
+            <SponsorTiers bands={bands} titles="label" blend />
           </div>
         </section>
       )}
 
-      <section className="tint" id="speak">
-        <div className="wrap narrow">
-          <p className="eyebrow">Call for speakers</p>
-          <h2>Speak at KGC</h2>
-          <p>
-            The programme committee reads every submission. What gets accepted is specific: a system
-            you built, a modelling decision you regret, a migration that went sideways, an evaluation
-            with numbers in it. A product tour does not; that is what the booth is for.
-          </p>
-          <p>
-            Formats are a 25-minute talk, a 45-minute deep dive, a panel or a half-day workshop.
-            Submissions open in September and close in December.
-          </p>
-          <p>
-            <a className="btn btn-primary" href={`mailto:${SITE.contactEmail}?subject=KGC%202027%20talk%20proposal`}>
-              Pitch a talk
-            </a>
-          </p>
-        </div>
-      </section>
     </>
+  );
+}
+
+/** The full prospectus, kept by the organizers outside this site. */
+const PROSPECTUS_URL =
+  'https://docs.superhuman.com/d/Knowledge-Graph-Conference-Sponsorship-Prospectus_dbvrFq8v5WB/Knowledge-Graph-Conference-2027_suMDKRAQ#_lu_XTxuJ';
+
+/*
+ * Plain wording for this page, keyed by tier id. Same facts as the catalogue,
+ * shorter sentences. A tier added later with no entry here falls back to its
+ * catalogue tagline and list, so a new package still shows up.
+ */
+const PLAIN: Record<string, { summary: string; items: string[] }> = {
+  'sponsor-bronze': {
+    summary: 'Your logo on the website and a listing in the app.',
+    items: [
+      'Listing in the KGC app all week',
+      'Logo on the sponsor wall and the website',
+      '2 Main Conference passes',
+      'Attendee demographics after the event',
+    ],
+  },
+  'sponsor-silver': {
+    summary: 'Everything in Bronze, plus signs in the session rooms and a banner in the app.',
+    items: [
+      'Everything in Bronze',
+      'Banner in the app',
+      'Logo on session room signs',
+      '4 All Access passes',
+      'Contacts from attendees who opt in',
+    ],
+  },
+  'sponsor-gold': {
+    summary: 'A 30-minute session in the agenda and a booth.',
+    items: [
+      'Everything in Silver',
+      '30-minute session in the agenda',
+      'Logo on the main stage backdrop',
+      '8 All Access passes',
+      'Standard booth in the exhibition hall',
+    ],
+  },
+  'sponsor-platinum': {
+    summary: 'One sponsor a year. Your name on the conference, a 45-minute session and a premium booth.',
+    items: [
+      'Everything in Gold',
+      'Your name on all conference branding',
+      '45-minute session next to the keynotes',
+      'Logo on attendee lanyards',
+      '16 All Access passes',
+      'Premium booth in the exhibition hall',
+    ],
+  },
+};
+
+/**
+ * One package as a flat block: its name and one line always, and the full
+ * list when the "More" button in `PackageGrid` opens every block at once.
+ */
+function PackageBlock({ tier }: { tier: Tier }) {
+  const plain = PLAIN[tier.id];
+  const summary = plain?.summary ?? tier.tagline;
+  const items =
+    plain?.items ??
+    (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap((g) => g.items ?? []);
+  return (
+    <article
+      className={`flat-block package${tier.featured ? ' is-featured' : ''}`}
+      aria-label={`${tier.name} package`}
+    >
+      <h3>{tier.name}</h3>
+      <p className="package-line">{summary}</p>
+      <div className="package-more">
+        <div>
+          <ul>
+            {items.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </article>
   );
 }

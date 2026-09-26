@@ -26,6 +26,8 @@ import {
   getDoc,
   getDocs,
   increment,
+  limitToLast,
+  orderBy,
   query,
   setDoc,
   updateDoc,
@@ -195,11 +197,23 @@ beforeEach(async () => {
       eventId: 'kgc-2027', title: 'Written before the field existed',
       url: 'https://example.org/old.pdf', kind: 'pdf', status: 'published', order: 3,
     });
+    // A published custom page and an unpublished one. `published` is a boolean
+    // here rather than a `PublishStatus`, so the predicate a client's `list`
+    // has to carry is a different shape from the two above and gets its own
+    // fixture rather than borrowing one.
+    await setDoc(doc(db, 'pages/page_wifi'), {
+      eventId: 'kgc-2027', title: 'Wi-Fi', slug: 'wifi',
+      body: '## Wi-Fi\n\nJoin **KGC-Guest**.', published: true, order: 0,
+    });
+    await setDoc(doc(db, 'pages/page_unpublished'), {
+      eventId: 'kgc-2027', title: 'Shuttle times', slug: 'shuttle',
+      body: 'Not settled yet.', published: false, order: 1,
+    });
     // A published survey and a draft one, so the `status` predicate is exercised
     // in both directions on both verbs — and one response, belonging to A, so
     // "somebody else may not read mine" is tested against a document that exists.
     await setDoc(doc(db, 'surveys/sv1'), {
-      eventId: 'kgc-2027', title: 'Opening session — your feedback',
+      eventId: 'kgc-2027', title: 'Opening session: your feedback',
       questions: [{ id: 'q1', prompt: 'How useful?', kind: 'rating', required: false }],
       status: 'published', responseCount: 1,
     });
@@ -296,9 +310,18 @@ beforeEach(async () => {
       authorId: A, title: 'T', body: 'B', status: 'visible', replyCount: 0, reactionCount: 0,
     });
     // Two replies with different authors, because most of what can go wrong
-    // with a reply is somebody acting on one that is not theirs.
-    await setDoc(doc(db, 'communityPosts/p1/replies/r1'), { authorId: A, body: 'mine' });
-    await setDoc(doc(db, 'communityPosts/p1/replies/r2'), { authorId: B, body: 'theirs' });
+    // with a reply is somebody acting on one that is not theirs. Both carry
+    // `status`, the way the seed and `addReply` write it, because the read
+    // rule is now satisfied by a query filtering on that field.
+    await setDoc(doc(db, 'communityPosts/p1/replies/r1'), {
+      authorId: A, body: 'mine', status: 'visible',
+    });
+    await setDoc(doc(db, 'communityPosts/p1/replies/r2'), {
+      authorId: B, body: 'theirs', status: 'visible',
+    });
+    // And one from before the field existed. It is still fetchable on its own,
+    // which is the case the read rule's first branch is there for.
+    await setDoc(doc(db, 'communityPosts/p1/replies/rOld'), { authorId: B, body: 'from before' });
     await setDoc(doc(db, 'communityPosts/p1/reactions/' + A), { uid: A, emoji: '👍' });
     await setDoc(doc(db, 'sessions/s1/questions/q1'), {
       authorId: A, body: 'Q?', upvoteCount: 0, answered: false, state: 'pending',
@@ -352,6 +375,12 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, 'settings/branding'), {
       eventId: 'kgc-2027', values: { tagline: 'The knowledge graph event of the year' },
+    });
+    await setDoc(doc(db, 'settings/event'), {
+      eventId: 'kgc-2027', values: { name: 'Knowledge Graph Conference 2027' },
+    });
+    await setDoc(doc(db, 'settings/sponsorTiers'), {
+      eventId: 'kgc-2027', values: { tiers: [{ id: 'diamond', name: 'Diamond', size: 3 }] },
     });
     // Thread id is the two uids sorted and joined with '_'. Both sides start
     // with something unread, so "you may not zero the OTHER person's badge" is
@@ -1092,15 +1121,34 @@ describe('server-owned counters', () => {
   // inbox once, when a predicate reading `resource.data` passed on a single
   // document and evaluated against null across a collection. The count the board
   // now depends on is therefore asserted here rather than assumed.
-  it('lets an attendee count the replies on a post', async () => {
+  //
+  // ⚠️ The count has to carry the same `status` filter the list does, because
+  // the rule refuses an unfiltered query on replies — that is what stops a
+  // hidden reply being read by anything that skips the client-side filter. An
+  // unfiltered count is denied, which is also why it is asserted here: the
+  // board's number would quietly be missing rather than wrong.
+  it('lets an attendee count the visible replies on a post', async () => {
     const snap = await assertSucceeds(
-      getCountFromServer(collection(asA(), 'communityPosts/p1/replies')),
+      getCountFromServer(
+        query(collection(asA(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
+      ),
     );
+    // Two of the three fixture replies carry `status`; the pre-`status` one is
+    // not in a filtered query and cannot be, because Firestore has no way to
+    // ask for a field that is absent.
     expect(snap.data().count).toBe(2);
   });
 
+  it('refuses an unfiltered reply count, the same as an unfiltered list', async () => {
+    await assertFails(getCountFromServer(collection(asA(), 'communityPosts/p1/replies')));
+  });
+
   it('refuses a reply count to someone without a ticket', async () => {
-    await assertFails(getCountFromServer(collection(noClaim(), 'communityPosts/p1/replies')));
+    await assertFails(
+      getCountFromServer(
+        query(collection(noClaim(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
+      ),
+    );
   });
 
   // The same argument, for the two counts `app/src/lib/data/counts.ts` added
@@ -1188,8 +1236,12 @@ describe('the community board', () => {
   });
 
   it('refuses a reply signed with someone else’s name', async () => {
+    // Otherwise valid — `status` is present and visible — so the only thing
+    // left to refuse it is the name on it.
     await assertFails(
-      setDoc(doc(asB(), 'communityPosts/p1/replies/r3'), { authorId: A, body: 'forged' }),
+      setDoc(doc(asB(), 'communityPosts/p1/replies/r3'), {
+        authorId: A, body: 'forged', status: 'visible',
+      }),
     );
   });
 
@@ -1838,6 +1890,19 @@ describe('the money collections are closed to every client', () => {
     ['ticketTypes', 'main-conference'],
     ['emailLog', 'mail_1'],
     ['auditLog', 'audit_1'],
+    // Not money, but the same posture for a sharper reason: who may sign in to
+    // the dashboard, with what role, and the hash of their passphrase.
+    ['teamMembers', 'team_1'],
+    /*
+     * A speaker's own words, before an organizer has read them.
+     *
+     * `speakers/{id}` is readable by every ticket holder, which is why the
+     * draft is not kept there: "waiting for approval" has to mean nobody can
+     * see it yet, and a bio somebody withdrew before sending must not be
+     * readable from a phone. It also carries `linksValidFrom`, which is what
+     * revocation is enforced against.
+     */
+    ['speakerProfileEdits', 'ada-okonkwo-7f21'],
   ] as const;
 
   for (const [collectionName, id] of closed) {
@@ -2017,6 +2082,39 @@ describe('the exhibitor hall', () => {
     await assertFails(setDoc(doc(asOrg(), 'exhibitors/ex2'), { eventId: 'kgc-2027', name: 'X' }));
   });
 
+  it('keeps one exhibitor’s leads closed to every client, including that exhibitor', async () => {
+    /*
+     * `exhibitors/{id}/leads/{registrationId}` is written by the website's
+     * Admin SDK, through the signed link a stand holds, and by nothing else. It
+     * has no match block and must not get one.
+     *
+     * The guarantee is worth a test rather than being left to default-deny for
+     * two reasons. It holds a named attendee's email address beside a note
+     * somebody typed about them, which is the most directly personal record in
+     * this project; and the collection sits *under* a document
+     * (`exhibitors/{id}`) that is itself closed, so a future rule opening the
+     * parent — say, to let a sponsor read their own record — would open this
+     * with it unless somebody is looking. A collection-group query is the
+     * shape that would hurt most: every lead taken in the hall.
+     */
+    await assertFails(getDoc(doc(asA(), 'exhibitors/ex1/leads/reg_x')));
+    await assertFails(getDocs(collection(asA(), 'exhibitors/ex1/leads')));
+    await assertFails(getDocs(collectionGroup(asA(), 'leads')));
+    await assertFails(getDoc(doc(asOrg(), 'exhibitors/ex1/leads/reg_x')));
+    await assertFails(getDocs(collection(asOrg(), 'exhibitors/ex1/leads')));
+    await assertFails(getDocs(collectionGroup(asOrg(), 'leads')));
+    await assertFails(
+      setDoc(doc(asA(), 'exhibitors/ex1/leads/reg_x'), {
+        eventId: 'kgc-2027',
+        exhibitorId: 'ex1',
+        registrationId: 'reg_x',
+        name: 'Ada',
+        email: 'ada@example.test',
+      }),
+    );
+    await assertFails(deleteDoc(doc(asOrg(), 'exhibitors/ex1/leads/reg_x')));
+  });
+
   it('keeps the floor plan closed to every client', async () => {
     // Not opened, and deliberately so: a booth holds an order id, the ticket
     // type it was sold as, who assigned it and whether it is `held` — promised
@@ -2134,6 +2232,57 @@ describe('handouts', () => {
       updateDoc(doc(asA(), 'documents/doc_restricted'), { visibleToTicketTypes: [] }),
     );
     await assertFails(deleteDoc(doc(asOrg(), 'documents/doc_open')));
+  });
+});
+
+describe('custom pages', () => {
+  it('lets a ticket holder read a published page', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'pages/page_wifi')));
+  });
+
+  it('hides an unpublished page from attendees and shows it to an organizer', async () => {
+    await assertFails(getDoc(doc(asA(), 'pages/page_unpublished')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'pages/page_unpublished')));
+  });
+
+  it('refuses a pages list that is not filtered to published', async () => {
+    // The hazard `sessions`, `surveys` and `documents` all carry: `resource.data`
+    // is null across a query, so the filter is what makes the read permitted at
+    // all. Both verbs, because a permitted `get` proves nothing about a `list`.
+    await assertFails(getDocs(collection(asA(), 'pages')));
+    await assertFails(
+      getDocs(query(collection(asA(), 'pages'), where('eventId', '==', 'kgc-2027'))),
+    );
+    // The exact query `usePages` issues, both equalities and in that order.
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(asA(), 'pages'),
+          where('eventId', '==', 'kgc-2027'),
+          where('published', '==', true),
+        ),
+      ),
+    );
+  });
+
+  it('refuses pages to somebody signed in without a ticket', async () => {
+    await assertFails(getDoc(doc(noClaim(), 'pages/page_wifi')));
+    await assertFails(getDoc(doc(unauth(), 'pages/page_wifi')));
+    await assertFails(
+      getDocs(query(collection(noClaim(), 'pages'), where('published', '==', true))),
+    );
+  });
+
+  it('lets no client write a page, organizers included', async () => {
+    // The body is prose rendered on a page a thousand people open. A client that
+    // could write it could put text of its choosing in front of all of them, so
+    // authoring stays with the dashboard and the Admin SDK.
+    await assertFails(setDoc(doc(asOrg(), 'pages/page_mine'), {
+      eventId: 'kgc-2027', title: 'Mine', slug: 'mine', body: 'x', published: true, order: 9,
+    }));
+    await assertFails(updateDoc(doc(asOrg(), 'pages/page_wifi'), { body: 'Rewritten' }));
+    await assertFails(updateDoc(doc(asA(), 'pages/page_wifi'), { published: false }));
+    await assertFails(deleteDoc(doc(asOrg(), 'pages/page_wifi')));
   });
 });
 
@@ -2279,7 +2428,6 @@ describe('the emergency card', () => {
 
   it('refuses every other settings document to the same ticket holder', async () => {
     await assertFails(getDoc(doc(asA(), 'settings/access')));
-    await assertFails(getDoc(doc(asA(), 'settings/branding')));
     // Including an organizer, who is a client with a role and not a server. The
     // dashboard reads these with the Admin SDK and bypasses rules entirely.
     await assertFails(getDoc(doc(asOrg(), 'settings/access')));
@@ -2318,6 +2466,36 @@ describe('the emergency card', () => {
     await assertFails(updateDoc(doc(asOrg(), 'settings/logistics'), { values: { planReady: false } }));
     await assertFails(deleteDoc(doc(asOrg(), 'settings/logistics')));
     await assertFails(setDoc(doc(asOrg(), 'settings/access'), { eventId: 'kgc-2027', values: {} }));
+  });
+});
+
+describe('the public settings bags', () => {
+  // The brand colour and logo, the event's name and dates, and the sponsor tier
+  // names. All of it is printed on the public website, and the app paints its
+  // sign-in screen with it before anybody has a token, so these three keys are
+  // readable signed out. The predicate still names keys: `access` stays shut.
+
+  it('lets anybody read branding, event and sponsorTiers, signed in or not', async () => {
+    for (const key of ['branding', 'event', 'sponsorTiers']) {
+      await assertSucceeds(getDoc(doc(unauth(), `settings/${key}`)));
+      await assertSucceeds(getDoc(doc(noClaim(), `settings/${key}`)));
+      await assertSucceeds(getDoc(doc(asA(), `settings/${key}`)));
+    }
+  });
+
+  it('still refuses access and logistics to the signed-out reader it opened those three to', async () => {
+    await assertFails(getDoc(doc(unauth(), 'settings/access')));
+    await assertFails(getDoc(doc(unauth(), 'settings/logistics')));
+    await assertFails(getDoc(doc(noClaim(), 'settings/access')));
+    // A key nobody has written yet is not public by default either.
+    await assertFails(getDoc(doc(unauth(), 'settings/somethingNew')));
+  });
+
+  it('lets no client write them', async () => {
+    for (const key of ['branding', 'event', 'sponsorTiers']) {
+      await assertFails(setDoc(doc(asOrg(), `settings/${key}`), { eventId: 'kgc-2027', values: {} }));
+      await assertFails(deleteDoc(doc(asOrg(), `settings/${key}`)));
+    }
   });
 });
 
@@ -2635,5 +2813,387 @@ describe('consent forms and signatures', () => {
     await assertFails(
       getDocs(query(collection(asOrg(), 'consentForms/cf_photo/responses'), where('uid', '==', A))),
     );
+  });
+});
+
+/**
+ * The access window, the messaging switch and the event code.
+ *
+ * All three are organizer settings that used to save and do nothing. They reach
+ * this file through `settings/appAccess` — a projection of `settings/access`
+ * and the event's own dates, carrying only what a phone and these rules may
+ * have. The dashboard rewrites it on every save of either.
+ *
+ * Every test here writes the projection itself, because the fixture leaves it
+ * absent on purpose: absent is the open state, and a suite that never runs
+ * without it would not notice the day this stopped failing open.
+ */
+describe('the app access window', () => {
+  const HOUR = 3_600_000;
+
+  /** Write the projection the way the dashboard does. */
+  const project = (values: Record<string, unknown>) =>
+    env.withSecurityRulesDisabled(async (ctx) =>
+      setDoc(doc(ctx.firestore(), 'settings/appAccess'), {
+        eventId: 'kgc-2027',
+        key: 'appAccess',
+        values,
+      }),
+    );
+
+  it('leaves everything open while no projection has been written', async () => {
+    await assertSucceeds(getDocs(query(collection(asA(), 'sessions'), where('status', '==', 'published'))));
+    await assertSucceeds(
+      setDoc(doc(asA(), 'communityPosts/pOpen'), {
+        authorId: A, title: 'T', body: 'B', status: 'visible', replyCount: 0, reactionCount: 0,
+      }),
+    );
+  });
+
+  /** `0` is "never", not 1970 — the same rule the app and the dashboard follow. */
+  it('treats a zero cutoff as never closing', async () => {
+    await project({ closesAtMs: 0, readOnlyFromMs: 0 });
+    await assertSucceeds(getDoc(doc(asA(), 'communityPosts/p1')));
+  });
+
+  it('refuses to read the event once the window has closed', async () => {
+    await project({ closesAtMs: Date.now() - HOUR });
+    await assertFails(getDoc(doc(asA(), 'communityPosts/p1')));
+    await assertFails(getDoc(doc(asA(), 'sessions/s1')));
+    await assertFails(getDocs(collection(asA(), `threads/${A}_${B}/messages`)));
+    await assertFails(getDoc(doc(asA(), 'registrations/reg_001')));
+  });
+
+  it('closes on an organizer too, because the event is over for everyone', async () => {
+    await project({ closesAtMs: Date.now() - HOUR });
+    await assertFails(getDoc(doc(asOrg(), 'communityPosts/p1')));
+  });
+
+  /**
+   * `users/{uid}/notifications` was the one read outside the window. The phone
+   * showed the "has ended" screen while the titles and bodies of agenda
+   * changes stayed readable by that account for ever. A notification is event
+   * content like the session it is about.
+   */
+  it('takes the notifications with it when it closes', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) =>
+      setDoc(doc(ctx.firestore(), `users/${A}/notifications/n1`), {
+        title: 'Room change', body: 'Keynote moved to Hall B', read: false,
+      }),
+    );
+
+    await project({ closesAtMs: Date.now() + HOUR });
+    await assertSucceeds(getDoc(doc(asA(), `users/${A}/notifications/n1`)));
+    await assertSucceeds(updateDoc(doc(asA(), `users/${A}/notifications/n1`), { read: true }));
+
+    await project({ closesAtMs: Date.now() - HOUR });
+    await assertFails(getDoc(doc(asA(), `users/${A}/notifications/n1`)));
+    await assertFails(updateDoc(doc(asA(), `users/${A}/notifications/n1`), { read: true }));
+  });
+
+  /**
+   * The one document a closed app must still be able to read. Without it the
+   * phone cannot tell "the event is over" from "the server refused", and the
+   * attendee gets an error screen with a Sign out button instead of a sentence.
+   */
+  it('still hands a closed phone the document that says it is closed', async () => {
+    await project({ closesAtMs: Date.now() - HOUR });
+    await assertSucceeds(getDoc(doc(asA(), 'settings/appAccess')));
+    await assertSucceeds(getDoc(doc(noClaim(), 'settings/appAccess')));
+  });
+
+  it('keeps the projection away from a reader with no account at all', async () => {
+    await project({ closesAtMs: 0 });
+    await assertFails(getDoc(doc(unauth(), 'settings/appAccess')));
+  });
+
+  /**
+   * The event code is in its own document, and that is the whole point of the
+   * second document: `appAccess` has to reach anybody signed in, so anything
+   * in it reaches anybody who can create a Firebase account. The code reaches
+   * ticket holders only.
+   */
+  describe('the event code, which is kept out of it', () => {
+    const putCode = (joinCode: string) =>
+      env.withSecurityRulesDisabled(async (ctx) =>
+        setDoc(doc(ctx.firestore(), 'settings/appJoinCode'), {
+          eventId: 'kgc-2027',
+          key: 'appJoinCode',
+          values: { joinCode },
+        }),
+      );
+
+    it('is handed to a ticket holder', async () => {
+      await putCode('KGC2027');
+      await assertSucceeds(getDoc(doc(asA(), 'settings/appJoinCode')));
+    });
+
+    it('is refused to an account that holds no ticket', async () => {
+      await putCode('KGC2027');
+      await assertFails(getDoc(doc(noClaim(), 'settings/appJoinCode')));
+      await assertFails(getDoc(doc(unauth(), 'settings/appJoinCode')));
+    });
+
+    it('is not written by any client', async () => {
+      await assertFails(
+        setDoc(doc(asOrg(), 'settings/appJoinCode'), { eventId: 'kgc-2027', values: {} }),
+      );
+    });
+  });
+
+  it('lets no client write the projection', async () => {
+    await project({ closesAtMs: 0 });
+    await assertFails(setDoc(doc(asOrg(), 'settings/appAccess'), { eventId: 'kgc-2027', values: {} }));
+  });
+
+  it('still opens, and still refuses new writes, in read-only mode', async () => {
+    await project({ closesAtMs: Date.now() + HOUR, readOnlyFromMs: Date.now() - HOUR });
+
+    await assertSucceeds(getDoc(doc(asA(), 'communityPosts/p1')));
+    await assertFails(
+      setDoc(doc(asA(), 'communityPosts/pLate'), {
+        authorId: A, title: 'T', body: 'B', status: 'visible', replyCount: 0, reactionCount: 0,
+      }),
+    );
+    await assertFails(
+      // Valid in every other respect, so read-only is the only thing refusing it.
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rLate'), {
+        authorId: A, body: 'late', status: 'visible',
+      }),
+    );
+    await assertFails(setDoc(doc(asA(), `communityPosts/p1/reactions/${A}`), { uid: A, emoji: '👍' }));
+    await assertFails(
+      setDoc(doc(asA(), `threads/${A}_${B}/messages/mLate`), { senderId: A, body: 'late' }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), 'sessions/s1/questions/qLate'), {
+        authorId: A, body: 'Q?', upvoteCount: 0, answered: false, state: 'pending',
+      }),
+    );
+  });
+
+  /**
+   * Read-only is a rule about attendees. A takedown request does not stop
+   * arriving because the conference ended.
+   */
+  it('lets an organizer keep moderating after the event goes read-only', async () => {
+    await project({ closesAtMs: Date.now() + HOUR, readOnlyFromMs: Date.now() - HOUR });
+    await assertSucceeds(updateDoc(doc(asOrg(), 'communityPosts/p1'), { status: 'hidden' }));
+    await assertSucceeds(updateDoc(doc(asOrg(), 'communityPosts/p1/replies/r2'), { status: 'hidden' }));
+  });
+
+  it('does not stop somebody saving a session to their own agenda', async () => {
+    await project({ closesAtMs: Date.now() + HOUR, readOnlyFromMs: Date.now() - HOUR });
+    await assertSucceeds(
+      setDoc(doc(asA(), `users/${A}/savedSessions/s2`), { sessionId: 's2', remind: false }),
+    );
+  });
+});
+
+describe('the attendee messaging switch', () => {
+  const HOUR = 3_600_000;
+  const project = (values: Record<string, unknown>) =>
+    env.withSecurityRulesDisabled(async (ctx) =>
+      setDoc(doc(ctx.firestore(), 'settings/appAccess'), {
+        eventId: 'kgc-2027', key: 'appAccess', values,
+      }),
+    );
+
+  it('is on when the organizer has never touched it', async () => {
+    await project({ closesAtMs: 0 });
+    await assertSucceeds(
+      setDoc(doc(asA(), `threads/${A}_${B}/messages/m2`), { senderId: A, body: 'hello' }),
+    );
+  });
+
+  it('refuses a new message and a new conversation when it is off', async () => {
+    await project({ closesAtMs: 0, messagingEnabled: false });
+    await assertFails(
+      setDoc(doc(asA(), `threads/${A}_${B}/messages/m3`), { senderId: A, body: 'hello' }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), `threads/${A}_newPerson`), { participantIds: [A, 'newPerson'] }),
+    );
+  });
+
+  /**
+   * Switching messaging off is not a retraction. What people already said to
+   * each other stays theirs to read, and the unread badge stays clearable —
+   * otherwise every phone in the event carries a count nobody can dismiss.
+   */
+  it('leaves conversations already held readable, and their badges clearable', async () => {
+    await project({ closesAtMs: 0, messagingEnabled: false });
+    await assertSucceeds(getDoc(doc(asA(), `threads/${A}_${B}`)));
+    await assertSucceeds(getDocs(collection(asA(), `threads/${A}_${B}/messages`)));
+    await assertSucceeds(
+      updateDoc(doc(asA(), `threads/${A}_${B}`), { unread: { [A]: 0, [B]: 2 } }),
+    );
+  });
+});
+
+describe('a hidden community reply', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'communityPosts/p1/replies/rHidden'), {
+        authorId: B, body: 'moderated', status: 'hidden',
+      });
+    });
+  });
+
+  it('cannot be fetched on its own by another attendee', async () => {
+    await assertFails(getDoc(doc(asA(), 'communityPosts/p1/replies/rHidden')));
+  });
+
+  it('is still readable by its author and by an organizer', async () => {
+    await assertSucceeds(getDoc(doc(asB(), 'communityPosts/p1/replies/rHidden')));
+    await assertSucceeds(getDoc(doc(asOrg(), 'communityPosts/p1/replies/rHidden')));
+  });
+
+  /** A reply written before `status` existed is a visible reply, not a broken one. */
+  it('leaves a reply with no status field readable', async () => {
+    await assertSucceeds(getDoc(doc(asA(), 'communityPosts/p1/replies/rOld')));
+  });
+
+  it('may not be created already hidden', async () => {
+    await assertFails(
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rPreHidden'), {
+        authorId: A, body: 'sneaky', status: 'hidden',
+      }),
+    );
+  });
+
+  /**
+   * ⚠️ The create rule read `status` with a default too, so a reply could be
+   * written with no `status` at all. The only query an attendee may run filters
+   * on that field, and Firestore cannot ask for one that is absent — so such a
+   * reply is in no list and no count, while still being readable one at a time
+   * by anyone holding its id. Neither shown nor hidden, and no moderator action
+   * moves it either way for the people reading the board.
+   */
+  it('may not be created without a status at all', async () => {
+    await assertFails(
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rNoStatus'), { authorId: A, body: 'unmoderatable' }),
+    );
+  });
+
+  it('is created normally when it carries the field', async () => {
+    await assertSucceeds(
+      setDoc(doc(asA(), 'communityPosts/p1/replies/rNew'), {
+        authorId: A, body: 'hello', status: 'visible',
+      }),
+    );
+  });
+
+  /**
+   * ⚠️ THE ONE THAT USED TO FAIL. The rule read `status` with a default, which
+   * on a query returns the default whatever the document says — so an
+   * unfiltered `getDocs` handed every hidden reply to every ticket holder, and
+   * "hide" was a filter one client happened to apply rather than a control.
+   * Anything that skipped it — the dashboard, a script, an older build of the
+   * app, a REST call with a signed-in token — read the text a moderator had
+   * taken down.
+   */
+  it('is not returned by an unfiltered query', async () => {
+    await assertFails(getDocs(collection(asA(), 'communityPosts/p1/replies')));
+  });
+
+  /**
+   * ⚠️ THE SECOND ONE THAT USED TO FAIL, and the reason `get` and `list` are
+   * now separate rules.
+   *
+   * The first repair guarded the default with `resource.data.keys().size() > 0`
+   * on the stated grounds that a query binds no keys. A query binds the fields
+   * it CONSTRAINS — so one equality filter on any field at all was enough to
+   * make the size test pass, return the default, and hand back every hidden
+   * reply. `authorId` here stands for the `eventId` filter that proved it;
+   * neither names `status`, which is the only filter a `list` may carry.
+   *
+   * Asserted on the query rather than on its rows: a rules `list` is decided
+   * once, against the query, so "denied" is the whole result.
+   */
+  it('is not returned by a query filtered on some other field', async () => {
+    await assertFails(
+      getDocs(query(collection(asA(), 'communityPosts/p1/replies'), where('authorId', '==', B))),
+    );
+    await assertFails(
+      getDocs(
+        query(collection(asA(), 'communityPosts/p1/replies'), where('body', '==', 'moderated')),
+      ),
+    );
+  });
+
+  /** Counting is a query too, and it was the other half of the same hole. */
+  it('is not counted by a query filtered on some other field', async () => {
+    await assertFails(
+      getCountFromServer(
+        query(collection(asA(), 'communityPosts/p1/replies'), where('authorId', '==', B)),
+      ),
+    );
+  });
+
+  /**
+   * The author's own hidden reply, stated as what it is: reachable one at a
+   * time, not by query. `get` is decided by the document and `list` by the
+   * query, and there is no screen that asks for "my hidden replies".
+   */
+  it('is not returned to its own author by a query naming them', async () => {
+    await assertFails(
+      getDocs(query(collection(asB(), 'communityPosts/p1/replies'), where('authorId', '==', B))),
+    );
+  });
+
+  /** The query the app sends. It is what the rule now makes it send. */
+  it('is not in the filtered query the board actually runs', async () => {
+    const snap = await getDocs(
+      query(collection(asA(), 'communityPosts/p1/replies'), where('status', '==', 'visible')),
+    );
+    expect(snap.docs.map((d) => d.id)).not.toContain('rHidden');
+  });
+
+  /**
+   * The same query with the ordering and the page bound `useReplies` really
+   * puts on it. A rule that only tolerated the bare filter would leave the
+   * board empty and the reason would be a `permission-denied` on a line nobody
+   * had tested.
+   */
+  it('still allows that query with the ordering and page bound the board uses', async () => {
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(asA(), 'communityPosts/p1/replies'),
+          where('status', '==', 'visible'),
+          orderBy('createdAt', 'asc'),
+          limitToLast(50),
+        ),
+      ),
+    );
+  });
+
+  /**
+   * Moderation is still the organizer's, and a moderator reading the board
+   * needs the hidden rows in front of them to un-hide one.
+   */
+  it('is still listed for an organizer, unfiltered', async () => {
+    const snap = await getDocs(collection(asOrg(), 'communityPosts/p1/replies'));
+    expect(snap.docs.map((d) => d.id)).toContain('rHidden');
+  });
+});
+
+describe('the event code prompt', () => {
+  it('lets an attendee record that they answered it, once', async () => {
+    await assertSucceeds(updateDoc(doc(asA(), `users/${A}`), { joinedAt: new Date() }));
+    // Written once and never moved: a second write would be a client deciding
+    // it had never joined, and the prompt is meant to be asked once.
+    await assertFails(updateDoc(doc(asA(), `users/${A}`), { joinedAt: new Date() }));
+  });
+
+  it('lets nobody record it on somebody else', async () => {
+    await assertFails(updateDoc(doc(asB(), `users/${A}`), { joinedAt: new Date() }));
+  });
+
+  /** The code itself is in the projection and nowhere a signed-out reader can reach. */
+  it('keeps the authoring bag with the staff note in it shut', async () => {
+    await assertFails(getDoc(doc(asA(), 'settings/access')));
+    await assertFails(getDoc(doc(asOrg(), 'settings/access')));
   });
 });

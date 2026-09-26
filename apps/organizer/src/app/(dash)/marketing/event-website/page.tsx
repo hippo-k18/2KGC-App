@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { PAGE_CONTENT_KEYS, type PageContentKey } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
+import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { setSiteVisibilityAction } from './actions';
 import { readPageContentMeta } from '@/lib/page-content';
 import { pageReadiness, publicUrl } from '@/lib/webpages';
 import { GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
@@ -120,9 +122,29 @@ export default async function EventWebsitePage() {
 
   const copyPages = SITE_PAGES.filter((p) => p.key);
 
-  const [readiness, copyMeta] = await Promise.all([
+  const [readiness, copyMeta, branding] = await Promise.all([
     pageReadiness(),
     Promise.all(copyPages.map((p) => readPageContentMeta(p.key!))),
+    readSettings(SETTINGS_KEYS.branding),
+  ]);
+
+  const switches = [
+    {
+      field: 'showAgenda',
+      label: 'Agenda',
+      on: branding.showAgenda,
+      what: 'The agenda, session pages and room screens, and every link to them.',
+    },
+    {
+      field: 'showSpeakers',
+      label: 'Speakers',
+      on: branding.showSpeakers,
+      what: 'The speakers page and every link to it.',
+    },
+  ] as const;
+  const hiddenPaths = new Set([
+    ...(branding.showAgenda ? [] : ['/agenda']),
+    ...(branding.showSpeakers ? [] : ['/speakers']),
   ]);
 
   /*
@@ -147,17 +169,16 @@ export default async function EventWebsitePage() {
         title="Event Website"
         info={
           <>
-            <strong>A real site, not a generated one</strong>
+            <strong>Every page on the public site</strong>
             <p>
-              knowledgegraph.tech is the conference&rsquo;s own design, so there is no page builder
-              and no embed snippet. The trade is that the pages marked <em>code</em> below need a
-              deploy to change; everything else is editable from this dashboard.
+              Pages marked <em>live</em> or <em>copy</em> are edited from this dashboard. The
+              rest cannot be edited here.
             </p>
           </>
         }
         tags={<Tag color="blue">{SITE_PAGES.length} pages</Tag>}
         actions={
-          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             Open the site ↗
           </a>
         }
@@ -180,15 +201,15 @@ export default async function EventWebsitePage() {
           {
             label: 'Editable from here',
             value: editable,
-            sub: `${SITE_PAGES.length - editable} are code`,
+            sub: `${SITE_PAGES.length - editable} cannot be edited here`,
           },
           {
             label: 'Copy confirmed',
             value: `${confirmed}/${copyPages.length}`,
-            sub: confirmed === copyPages.length ? 'saved for this edition' : 'not inputted yet',
+            sub: confirmed === copyPages.length ? 'saved for this edition' : 'not saved yet',
           },
           {
-            label: 'Data problems',
+            label: 'Missing details',
             value: problems,
             sub: problems === 0 ? 'nothing missing' : 'visible to a visitor',
           },
@@ -196,23 +217,62 @@ export default async function EventWebsitePage() {
       />
 
       <Panel>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Show on the website</h2>
+        <Table
+          cols={[
+            { key: 'p', label: 'Section', className: 'cell-md' },
+            { key: 'w', label: 'What it covers', className: 'cell-fill' },
+            { key: 's', label: 'Status', className: 'cell-sm' },
+            { key: 'a', label: '', className: 'cell-md' },
+          ]}
+          rows={switches.map((sw) => [
+            <strong key="p">{sw.label}</strong>,
+            <span key="w" className="muted" style={{ fontSize: 12 }}>
+              {sw.what}
+            </span>,
+            <Tag key="s" color={sw.on ? 'green' : 'grey'} small>
+              {sw.on ? 'shown' : 'hidden'}
+            </Tag>,
+            <form key="a" action={setSiteVisibilityAction}>
+              <input type="hidden" name="field" value={sw.field} />
+              <input type="hidden" name="show" value={sw.on ? '0' : '1'} />
+              <button type="submit" className={`whova-btn-main ${sw.on ? 'secondary' : 'primary'}`}>
+                {sw.on ? `Hide ${sw.label.toLowerCase()}` : `Show ${sw.label.toLowerCase()}`}
+              </button>
+            </form>,
+          ])}
+        />
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
+          A change reaches the website within a minute. The app is not affected.
+        </p>
+      </Panel>
+
+      <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Pages</h2>
         <Table
           cols={[
             { key: 't', label: 'Page', className: 'cell-fill' },
-            { key: 'p', label: 'Path', className: 'cell-md' },
+            { key: 'p', label: 'Address', className: 'cell-md' },
             { key: 'e', label: 'Edited from', className: 'cell-md' },
           ]}
           rows={SITE_PAGES.map((p) => {
             const editor = p.source ? EDITOR_FOR[p.source] : undefined;
             const at = savedAt.get(p.path);
             return [
-              <a key="t" href={publicUrl(p.path)} target="_blank" rel="noreferrer">
-                {p.title} ↗
-              </a>,
-              <code key="p" style={{ fontSize: 12 }}>
+              <span key="t">
+                <a href={publicUrl(p.path)} target="_blank" rel="noreferrer">
+                  {p.title} ↗
+                </a>
+                {hiddenPaths.has(p.path) && (
+                  <>
+                    {' '}
+                    <Tag small>hidden</Tag>
+                  </>
+                )}
+              </span>,
+              <span key="p" className="muted" style={{ fontSize: 12 }}>
                 {p.path}
-              </code>,
+              </span>,
               p.how === 'data' ? (
                 <span key="e" style={{ fontSize: 12 }}>
                   <Tag color="green" fill="outline" small>
@@ -227,12 +287,12 @@ export default async function EventWebsitePage() {
                   </Tag>{' '}
                   <Link href={WEBSITE_COPY}>Website Copy</Link>
                   <div className="muted" style={{ fontSize: 11 }}>
-                    {at ? `saved ${at.slice(0, 10)}` : 'not inputted yet. Using the built-in text'}
+                    {at ? `saved ${at.slice(0, 10)}` : 'not saved yet. Showing the standard text'}
                   </div>
                 </span>
               ) : (
                 <span key="e" className="muted" style={{ fontSize: 12 }}>
-                  code. Needs a deploy
+                  Not editable here
                 </span>
               ),
             ];
@@ -243,10 +303,8 @@ export default async function EventWebsitePage() {
           once underneath it rather than left to the colour of a tag.
         */}
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          <strong>live</strong>. Rendered from Firestore on every request, so a change here shows
-          there immediately. <strong>copy</strong>. Prose, but the fields that go stale each
-          edition are saved in Website Copy. <strong>code</strong>. A React file; changing a word
-          is a pull request.
+          <strong>live</strong>: a change here shows on the site right away.{' '}
+          <strong>copy</strong>: the text that changes each year is edited in Website Copy.
         </p>
       </Panel>
 

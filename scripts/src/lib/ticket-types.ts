@@ -90,7 +90,7 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     name: "Main Conference",
     priceCents: 79_900,
     currency: "usd",
-    tagline: "Wednesday to Friday at Cornell Tech.",
+    tagline: "Wednesday to Friday at Bryant Park.",
     /**
      * The second headline panel on `/tickets`.
      *

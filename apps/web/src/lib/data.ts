@@ -14,16 +14,29 @@ import {
   type PageContentDoc,
   type PageContentKey,
   type PageContentValues,
+  type PageDoc,
   type SessionDoc,
   type SpeakerDoc,
   type SponsorDoc,
   type SponsorTier,
   type TrackDoc,
+  type EventBasics,
+  type EventType,
+  type SponsorTierDef,
+  DEFAULT_SPONSOR_TIERS,
+  groupSponsorsByTier,
+  resolveEventBasics,
+  resolveSponsorTiers,
   servableLogoURL,
+  sortPages,
+  tierRank,
+  tierSize,
   usable,
 } from '@kgc/shared';
+import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import { db } from './firestore';
+import { SITE } from './site';
 
 /**
  * Every read the public site does.
@@ -47,7 +60,8 @@ import { db } from './firestore';
  *
  * ── A database that cannot be reached is an empty page, not a 500 ──────────
  *
- * Every read below goes through `safely()`. Without it, a deployment whose
+ * Every read below goes through `safely()`, or through `shared()`, which is
+ * `safely()` with a cache in front of it. Without either, a deployment whose
  * credentials are missing or whose project is unreachable returns a 500 on the
  * homepage, the agenda and the sponsor page — which is what happened on
  * production, and it is a much worse failure than it needs to be. The
@@ -73,6 +87,84 @@ import { db } from './firestore';
 async function safely<T>(what: string, read: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await read();
+  } catch (err) {
+    console.error(`[data] ${what} failed; rendering the empty state instead`, err);
+    return fallback;
+  }
+}
+
+/**
+ * How long one read may be shared between visitors, in seconds.
+ *
+ * ── Why this number and not a larger one ────────────────────────────────────
+ *
+ * Every page on this site declared `force-dynamic`, so each visit re-rendered
+ * from scratch and queried Firestore again — with nothing cached anywhere, by
+ * anybody, ever. Measured on the live site, the agenda took 0.81 to 0.95
+ * seconds to first byte against 0.06 for a page that read nothing. A
+ * conference programme does not change between two people loading it a second
+ * apart, and the database was answering as though it might.
+ *
+ * A minute is the ceiling an organizer's expectation sets: they edit a session
+ * in the dashboard, switch to the site and look. Anything longer than that
+ * reads as a broken save, and this project has shipped enough of those.
+ *
+ * ⚠️ **Thirty, not sixty, because the two caches stack.** A page that declares
+ * `revalidate = 60` re-renders at most once a minute, and the render it does
+ * makes its reads through this cache — which may itself hand back a value that
+ * is already most of a window old. So a sixty-second page over a sixty-second
+ * read is a change that can take a hundred and twenty seconds to appear, not
+ * sixty. Measured, not reasoned: a page published through the dashboard showed
+ * up thirty-five seconds later with both windows at sixty, and the worst case
+ * was twice the number either one of them named. Thirty here and thirty on the
+ * routes puts the ceiling back at one minute, which is what was promised.
+ *
+ * ⚠️ What is deliberately NOT cached: `listAnnouncements` and the room signage
+ * read. Those two are the live surfaces — a wall panel in a foyer, a sign
+ * outside a room — and they already re-read themselves every sixty seconds
+ * through `AutoRefresh`. Caching them would add a second minute of staleness to
+ * the one they already carry, on exactly the screens where being a minute
+ * behind is the whole failure. They stay per-request and cost one query each
+ * per sign per minute.
+ */
+const SHARED_SECONDS = 30;
+
+/**
+ * Every shared read carries this tag as well as its own.
+ *
+ * Nothing calls `revalidateTag` today: the dashboard is a separate deployment
+ * and reaching this one needs an endpoint and a shared secret, which is a
+ * decision about how the two are wired rather than something to invent here.
+ * The tag exists so that on-demand invalidation is a route handler away rather
+ * than a re-plumbing of this file.
+ */
+export const SITE_CONTENT_TAG = 'site-content';
+
+/**
+ * A read whose answer may be handed to the next visitor as well.
+ *
+ * `safely()` with a cache in front of it, and the same contract: a database
+ * that cannot be reached is an empty page and not a 500. The failure is thrown
+ * inside the cached function and caught outside it, so a fallback is never
+ * what gets stored — a minute of "the agenda is empty" because one query timed
+ * out would be a far worse bargain than the one this is making.
+ *
+ * ⚠️ `what` is the cache key, so it has to vary with every argument the read
+ * depends on. `pageContent` and `getPublicPage` both take one and both fold it
+ * into the key; a key that ignores an argument serves one page's body under
+ * another page's address.
+ */
+async function shared<T>(
+  what: string,
+  read: () => Promise<T>,
+  fallback: T,
+  seconds: number = SHARED_SECONDS,
+): Promise<T> {
+  try {
+    return await unstable_cache(read, ['site', what], {
+      revalidate: seconds,
+      tags: [SITE_CONTENT_TAG, what],
+    })();
   } catch (err) {
     console.error(`[data] ${what} failed; rendering the empty state instead`, err);
     return fallback;
@@ -116,7 +208,7 @@ async function safely<T>(what: string, read: () => Promise<T>, fallback: T): Pro
 export const brandingSettings = cache(async function brandingSettings(): Promise<BrandingSettings> {
   const defaults = SETTINGS_DEFAULTS.branding;
 
-  return safely(
+  return shared(
     'brandingSettings',
     async () => {
       const doc = await db().collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.branding).get();
@@ -126,6 +218,63 @@ export const brandingSettings = cache(async function brandingSettings(): Promise
     },
     { ...defaults },
   );
+});
+
+/**
+ * Which programme pages the organizers have switched on, under Marketing >
+ * Event Website. Both start off. A hidden page returns not found and nothing on
+ * the site links to it.
+ */
+export async function siteVisibility(): Promise<{ agenda: boolean; speakers: boolean }> {
+  const b = await brandingSettings();
+  return { agenda: b.showAgenda, speakers: b.showSpeakers };
+}
+
+/**
+ * The event's name, dates, time zone, venue and type, as Content > Basics saved
+ * them, resolved over the constants `SITE` is built from.
+ *
+ * Server components read this where they used to read `SITE.name`,
+ * `SITE.datesLong`, `SITE.venue` and `SITE.timeZone`. Client components cannot
+ * read Firestore and stay on `SITE`, the same split `supportEmail` has. With
+ * nothing saved, or the database unreachable, this returns exactly what `SITE`
+ * says.
+ */
+export const eventBasics = cache(async function eventBasics(): Promise<EventBasics> {
+  return shared(
+    'eventBasics',
+    async () => {
+      const doc = await db().collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.event).get();
+      const data = doc.data() as { eventId?: string; values?: unknown } | undefined;
+      if (!doc.exists || data?.eventId !== EVENT_ID) return resolveEventBasics(null);
+      return resolveEventBasics(usable(SETTINGS_DEFAULTS.event, data.values));
+    },
+    resolveEventBasics(null),
+  );
+});
+
+/** What `siteEvent()` hands a page: the saved basics in the shape `SITE` has. */
+export interface SiteEvent extends EventBasics {
+  /** The short venue line. The saved venue once one is saved, else `SITE.venueShort`. */
+  venueShort: string;
+  /** The event type, only when an organizer has chosen one. */
+  savedEventType?: EventType;
+}
+
+/**
+ * `eventBasics()` with the one field `SITE` has and the settings do not.
+ *
+ * `SITE.venueShort` is a hand-shortened form of the constant venue. Once an
+ * organizer saves a venue of their own there is nothing to shorten it to, so the
+ * saved venue is used in both places.
+ */
+export const siteEvent = cache(async function siteEvent(): Promise<SiteEvent> {
+  const basics = await eventBasics();
+  return {
+    ...basics,
+    venueShort: basics.venue === SITE.venue ? SITE.venueShort : basics.venue,
+    savedEventType: basics.eventTypeSaved ? basics.eventType : undefined,
+  };
 });
 
 /**
@@ -156,7 +305,7 @@ export async function pageContent<K extends PageContentKey>(
   key: K,
   fallback: PageContentValues[K],
 ): Promise<PageContentValues[K]> {
-  return safely(
+  return shared(
     `pageContent:${key}`,
     async () => {
       const doc = await db().collection(COLLECTIONS.pageContent).doc(key).get();
@@ -217,7 +366,7 @@ export interface SpeakerCard {
 }
 
 export async function listSpeakers(): Promise<SpeakerCard[]> {
-  return safely('listSpeakers', async () => {
+  return shared('listSpeakers', async () => {
   const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
 
   return snap.docs
@@ -299,6 +448,7 @@ export interface Announcement {
  * news.
  */
 export async function listAnnouncements(limit = 3): Promise<Announcement[]> {
+  // Per-request, deliberately. See SHARED_SECONDS: this is the wall board.
   return safely('listAnnouncements', async () => {
     const snap = await db()
       .collection(COLLECTIONS.announcements)
@@ -362,6 +512,34 @@ export interface AgendaSession {
    * denormalised caches. Never decide anything from it, and never join on it.
    */
   speakerNames: string[];
+  /**
+   * The speaker's deck, once there is one.
+   *
+   * `SessionDoc.slidesUrl` had no reader anywhere in this project until the
+   * speaker portal started collecting it — an organizer could import one and
+   * nothing would ever show it, which is the defect class AGENTS.md counts. It
+   * is rendered in the session dialog rather than on the card because a talk
+   * with slides is not more important than one without, and a link on every row
+   * would say otherwise.
+   */
+  slidesUrl?: string;
+  /**
+   * That there is something to watch, and whether it needs a particular ticket.
+   *
+   * The three display-only flags off `SessionDoc`, carried so an agenda row can
+   * say "Live now" without a read per session — which is the whole reason they
+   * are denormalised onto the session at all (see `SessionDoc.streamState`).
+   *
+   * ⚠️ They say a talk is live. They do not say **where**, and nothing derived
+   * from them may. The stream and recording URLs live in
+   * `sessions/{id}/watch/{stream|recording}`, are gated by ticket type, and are
+   * read on the session page alone. If a field ever appears here holding a URL,
+   * that is the gate being undone: every visitor to `/agenda` receives this
+   * object.
+   */
+  streamState?: 'scheduled' | 'live' | 'ended';
+  hasRecording?: boolean;
+  watchRestricted?: boolean;
 }
 
 export interface AgendaDay {
@@ -380,7 +558,7 @@ export interface AgendaDay {
  * after the fetch costs nothing and cannot fail in production.
  */
 export async function listAgenda(): Promise<AgendaDay[]> {
-  return safely('listAgenda', async () => {
+  return shared('listAgenda', async () => {
   const snap = await db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).get();
 
   const sessions = snap.docs
@@ -402,6 +580,10 @@ export async function listAgenda(): Promise<AgendaDay[]> {
         skillLevel: s.skillLevel,
         speakerIds: s.speakerIds ?? [],
         speakerNames: s.speakerNames ?? [],
+        slidesUrl: s.slidesUrl,
+        streamState: s.streamState,
+        hasRecording: s.hasRecording,
+        watchRestricted: s.watchRestricted,
       }),
     );
 
@@ -476,6 +658,9 @@ export async function listAgenda(): Promise<AgendaDay[]> {
 export const agendaSpeakers = cache(async function agendaSpeakers(): Promise<
   Record<string, SpeakerCard>
 > {
+  // Not `shared()`: it is a reshape of `listSpeakers()`, which is cached
+  // already. Caching it again would store the same forty-five speakers twice
+  // under two keys, with two expiries that can disagree.
   return safely(
     'agendaSpeakers',
     async () => Object.fromEntries((await listSpeakers()).map((s) => [s.id, s])),
@@ -507,7 +692,7 @@ export interface TrackCard {
  * whatever sequence the importer happened to write.
  */
 export async function listTracks(): Promise<TrackCard[]> {
-  return safely('listTracks', async () => {
+  return shared('listTracks', async () => {
     const snap = await db().collection(COLLECTIONS.tracks).where('eventId', '==', EVENT_ID).get();
 
     return snap.docs
@@ -528,6 +713,14 @@ export interface PublicDocument {
   kind: DocumentDoc['kind'];
   /** The link's host, printed on the card — see the note below about off-site links. */
   host: string;
+  /**
+   * The session this handout belongs to, if the organizer attached it to one.
+   *
+   * Carried rather than filtered on, so that `/documents` still lists every
+   * public handout and the agenda can pick out the ones for a given talk. A
+   * deck is not less public for being about a session.
+   */
+  sessionId?: string;
 }
 
 /**
@@ -565,7 +758,7 @@ export interface PublicDocument {
  * fail only in production.
  */
 export async function listPublicDocuments(): Promise<PublicDocument[]> {
-  return safely('listPublicDocuments', async () => {
+  return shared('listPublicDocuments', async () => {
     const snap = await db()
       .collection(COLLECTIONS.documents)
       .where('eventId', '==', EVENT_ID)
@@ -591,10 +784,119 @@ export async function listPublicDocuments(): Promise<PublicDocument[]> {
           url: d.url,
           kind: d.kind ?? 'link',
           host: linkHost(d.url),
+          ...(d.sessionId ? { sessionId: d.sessionId } : {}),
         }),
       );
   }, []);
 }
+
+// ---------------------------------------------------------------------------
+// Custom pages
+// ---------------------------------------------------------------------------
+
+export interface PublicPage {
+  id: string;
+  title: string;
+  slug: string;
+  /** Markdown, in the subset `@kgc/shared`'s `parseRichText` understands. */
+  body: string;
+  summary?: string;
+}
+
+function toPublicPage(id: string, p: PageDoc): PublicPage {
+  return {
+    id,
+    title: p.title,
+    slug: p.slug,
+    body: p.body ?? '',
+    ...(p.summary ? { summary: p.summary } : {}),
+  };
+}
+
+/**
+ * Whether a stored page is fit to serve.
+ *
+ * `published === true` rather than truthiness, for the reason
+ * `listPublicDocuments` demands a real empty array: a page written before the
+ * field existed carries `undefined`, and the wrong direction for that to fail
+ * is "visible to the internet". A title and a body are the other two, because
+ * there is nothing to render without them.
+ */
+function servablePage(p: PageDoc): boolean {
+  return p.published === true && Boolean(p.title) && typeof p.body === 'string' && p.body.trim() !== '';
+}
+
+/**
+ * The published pages, in the organizer's order.
+ *
+ * Filtered and sorted in memory for the reason at the top of this file: a
+ * `where('eventId') + where('published')` pair needs a composite index, and the
+ * emulator enforces neither its presence nor its absence, so an indexed query
+ * passes every local run and fails in production with `failed-precondition`.
+ */
+export async function listPublicPages(): Promise<PublicPage[]> {
+  return shared('listPublicPages', async () => {
+    const snap = await db().collection(COLLECTIONS.pages).where('eventId', '==', EVENT_ID).get();
+
+    return sortPages(
+      snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as PageDoc) }))
+        .filter(servablePage)
+        .map((p) => ({ ...toPublicPage(p.id, p), order: p.order ?? 0 })),
+    ).map(({ order: _order, ...page }) => page);
+  }, []);
+}
+
+/**
+ * One published page by its address, or `null`.
+ *
+ * The slug is a field rather than the document id — an organizer renaming a
+ * page's address must not orphan every reference to the document inside this
+ * database — so this is a query, not a `get`. Case is folded because the value
+ * is typed from printed material, the same reason the branded slug is compared
+ * that way, and because `normaliseSlug` stores only lower case anyway.
+ *
+ * ── Why it asks for the slug rather than reading the collection ─────────────
+ *
+ * `[slug]` is the root catch-all on this site, so **every** unknown URL lands
+ * here before it 404s. This used to fetch every page of the event and scan the
+ * result in memory; `generateMetadata` and the page body each call it, so one
+ * request was two whole-collection reads, and anything walking `/aaa`, `/aab`,
+ * … turned a 404 into a billed scan with nothing in front of it. Asking for
+ * the one slug reads the documents that match, which for an unknown address is
+ * none.
+ *
+ * The query is a single equality filter on `slug`, which needs no composite
+ * index — the rule at the top of this file, and here it is also what keeps
+ * `eventId` out of the query. A slug is unique within an event (`slugProblem`
+ * enforces it) but not across events, so the event check stays, in memory, on
+ * at most a handful of documents.
+ *
+ * `cache()` collapses the metadata call and the body call into one read per
+ * request. It does not survive the request, which is right: a page published a
+ * moment ago should appear on the next one.
+ */
+export const getPublicPage = cache(async function getPublicPage(
+  slug: string,
+): Promise<PublicPage | null> {
+  const wanted = slug.trim().toLowerCase();
+  if (wanted === '') return null;
+  return shared(
+    `getPublicPage:${wanted}`,
+    async () => {
+      const snap = await db()
+        .collection(COLLECTIONS.pages)
+        .where('slug', '==', wanted)
+        .limit(5)
+        .get();
+      const found = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as PageDoc) }))
+        .find((p) => p.eventId === EVENT_ID && servablePage(p));
+      return found ? toPublicPage(found.id, found) : null;
+    },
+    null,
+  );
+});
 
 /**
  * The host a document link points at, or `''` if it is not a URL at all.
@@ -624,27 +926,27 @@ export interface SponsorCard {
   logoURL?: string;
 }
 
-const TIER_ORDER: Record<SponsorTier, number> = {
-  platinum: 0,
-  gold: 1,
-  silver: 2,
-  bronze: 3,
-};
-
 /**
- * How large each tier's logo renders, as a step from 1 to 3.
+ * The tier list the organizer keeps on Sponsor Tiering, in rank order.
  *
- * These are not chosen — they are the `tier_size` map the live site's own
- * sponsor widget serves, and they are why Platinum reads as bought-bigger while
- * Silver and Bronze deliberately share a size. `.logo-row` turns a step into
- * pixels; see the sponsors block in `globals.css`.
+ * It replaces two constants that used to sit here: a fixed order, and the logo
+ * size per tier (Platinum 3, Gold 2, Silver 1, Bronze 1, the `tier_size` map the
+ * live site's own sponsor widget serves). Those four are still what
+ * `resolveSponsorTiers` returns when nothing is saved. `.logo-row` turns a size
+ * step into pixels; see the sponsors block in `globals.css`.
  */
-export const TIER_SIZE: Record<SponsorTier, 1 | 2 | 3> = {
-  platinum: 3,
-  gold: 2,
-  silver: 1,
-  bronze: 1,
-};
+export const sponsorTierList = cache(async function sponsorTierList(): Promise<SponsorTierDef[]> {
+  return shared(
+    'sponsorTierList',
+    async () => {
+      const doc = await db().collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.sponsorTiers).get();
+      const data = doc.data() as { eventId?: string; values?: { tiers?: unknown } } | undefined;
+      if (!doc.exists || data?.eventId !== EVENT_ID) return DEFAULT_SPONSOR_TIERS;
+      return resolveSponsorTiers(data.values?.tiers);
+    },
+    DEFAULT_SPONSOR_TIERS,
+  );
+});
 
 /** `Oxford Semantic Technologies` → `oxford-semantic-technologies`. */
 function logoSlug(name: string): string {
@@ -740,7 +1042,8 @@ const SELF_HOSTED_LOGOS = new Set([
 ]);
 
 export async function listSponsors(): Promise<SponsorCard[]> {
-  return safely('listSponsors', async () => {
+  return shared('listSponsors', async () => {
+  const tiers = await sponsorTierList();
   const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
 
   return snap.docs
@@ -754,7 +1057,7 @@ export async function listSponsors(): Promise<SponsorCard[]> {
         logoURL: localLogo(s.name, s.logoURL),
       };
     })
-    .sort((a, b) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9) || a.name.localeCompare(b.name));
+    .sort((a, b) => tierRank(tiers, a.tier) - tierRank(tiers, b.tier) || a.name.localeCompare(b.name));
   }, []);
 }
 
@@ -767,16 +1070,15 @@ export async function listSponsors(): Promise<SponsorCard[]> {
  * a conference with no Bronze sponsors shows no Bronze heading.
  */
 export async function listSponsorsByTier(): Promise<
-  { tier: SponsorTier; size: 1 | 2 | 3; sponsors: SponsorCard[] }[]
+  { tier: SponsorTier; name: string; size: 1 | 2 | 3; sponsors: SponsorCard[] }[]
 > {
-  const all = await listSponsors();
-  return (Object.keys(TIER_ORDER) as SponsorTier[])
-    .map((tier) => ({
-      tier,
-      size: TIER_SIZE[tier],
-      sponsors: all.filter((s) => s.tier === tier),
-    }))
-    .filter((band) => band.sponsors.length > 0);
+  const [all, tiers] = await Promise.all([listSponsors(), sponsorTierList()]);
+  return groupSponsorsByTier(tiers, all).map((g) => ({
+    tier: g.tier.id,
+    name: g.tier.name,
+    size: tierSize(g.tier.size),
+    sponsors: g.sponsors,
+  }));
 }
 
 export interface ExhibitorCard {
@@ -849,7 +1151,7 @@ const SELF_HOSTED_EXHIBITOR_LOGOS = new Set<string>([]);
  * the rule at the top of this file. Fourteen booths and six exhibitors.
  */
 export async function listExhibitorsByZone(): Promise<ExhibitorZone[]> {
-  return safely('listExhibitorsByZone', async () => {
+  return shared('listExhibitorsByZone', async () => {
     const [exhibitorSnap, boothSnap] = await Promise.all([
       db().collection(COLLECTIONS.exhibitors).where('eventId', '==', EVENT_ID).get(),
       db().collection(COLLECTIONS.booths).where('eventId', '==', EVENT_ID).get(),
@@ -935,7 +1237,7 @@ export async function listExhibitorsByZone(): Promise<ExhibitorZone[]> {
  * tell. Change them together or give them one query.
  */
 export async function programmeCounts(): Promise<{ speakers: number; sessions: number; sponsors: number }> {
-  return safely('programmeCounts', async () => {
+  return shared('programmeCounts', async () => {
   const [speakers, sessions, sponsors] = await Promise.all([
     db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).count().get(),
     db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).count().get(),

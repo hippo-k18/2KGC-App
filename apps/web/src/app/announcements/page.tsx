@@ -1,8 +1,7 @@
 import { ANNOUNCEMENT_WALL_LIMIT } from '@kgc/shared';
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { listAnnouncements } from '@/lib/data';
-import { SITE } from '@/lib/site';
+import { AutoRefresh } from '@/components/auto-refresh';
+import { listAnnouncements, siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Announcements',
@@ -10,6 +9,7 @@ export const metadata: Metadata = {
     'Everything the Knowledge Graph Conference organizers have announced: room changes, schedule updates and notices, newest first.',
 };
 
+/** Per-request, and it has to be. This is the wall board. It re-reads itself every sixty seconds through `AutoRefresh`, and a cache in front of that would add a second minute to the one it already carries — on the one screen where being a minute behind is the whole failure. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -42,11 +42,15 @@ export const dynamic = 'force-dynamic';
  * also what an attendee opens on a phone when they missed the push, and a wall
  * that drops the detail sends them to the app for it.
  *
- * ⚠️ **It does not refresh itself.** Every page in `apps/web` is server-rendered
- * per request, so a browser parked on this URL shows whatever was true when it
- * loaded. On a lobby screen that matters, and the honest fix is a kiosk browser
- * set to reload — not a comment here claiming otherwise. The dashboard's gap
- * note still lists auto-refresh for that reason.
+ * ── It refreshes itself now ────────────────────────────────────────────────
+ *
+ * This page used to say, here and on the dashboard screen that links to it,
+ * that a kiosk browser set to reload was the answer. It is not: nobody
+ * configures the reload interval of a screen they hung on a wall in a hurry,
+ * and a stale wall is indistinguishable from a current one. `AutoRefresh` runs
+ * `router.refresh()` on a timer, which re-runs this server component — the
+ * route is `force-dynamic`, so that is a genuine re-read — and the head of the
+ * page says when it last managed it.
  */
 
 /**
@@ -55,11 +59,10 @@ export const dynamic = 'force-dynamic';
  * Formatted in the **venue's** zone, not the server's and not the reader's, for
  * the reason the agenda page's header gives at length: a time rendered in
  * whatever zone the machine happens to be in is how somebody reads "the keynote
- * moved to 14:00" and turns up five hours late. `SITE.timeZone` comes from
- * `@kgc/shared`, so this and the programme cannot disagree about where the
- * conference is.
+ * moved to 14:00" and turns up five hours late. The zone is the one saved on
+ * Content > Basics (`siteEvent()`), the same one the programme is authored in.
  */
-function announcedAt(ms: number): string {
+function announcedAt(ms: number, timeZone: string): string {
   if (!ms) return '';
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
@@ -68,13 +71,23 @@ function announcedAt(ms: number): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: SITE.timeZone,
+    timeZone,
   })
     .format(new Date(ms))
     .replace(', ', ' · ');
 }
 
+/**
+ * A minute, which is slower than the room sign and deliberately so.
+ *
+ * An announcement is typed by a person and read for as long as it stays up; a
+ * sign outside a room is counting down to a talk. Re-reading forty documents
+ * more often than anybody writes one buys nothing.
+ */
+const WALL_REFRESH_SECONDS = 60;
+
 export default async function AnnouncementsPage() {
+  const ev = await siteEvent();
   /*
    * The wall limit, not the default 3 — see `ANNOUNCEMENT_WALL_LIMIT` in
    * `@kgc/shared` for why the archive wants a different number from the ticker.
@@ -89,13 +102,12 @@ export default async function AnnouncementsPage() {
       <div className="wrap">
         <header className="wall-head">
           <p className="wall-eyebrow">
-            {SITE.shortName} {SITE.year} · {SITE.datesLong}
+            {ev.shortName} {ev.year} · {ev.datesLong}
+            <span className="wall-refresh">
+              <AutoRefresh seconds={WALL_REFRESH_SECONDS} />
+            </span>
           </p>
           <h1>Announcements</h1>
-          <p className="wall-sub">
-            Everything the organizers have announced, newest first. The same notices reach the{' '}
-            <Link href="/tickets">KGC app</Link> as a push.
-          </p>
         </header>
 
         {announcements.length === 0 ? (
@@ -107,10 +119,7 @@ export default async function AnnouncementsPage() {
           */
           <div className="wall-empty">
             <p>No announcements yet.</p>
-            <p className="wall-sub">
-              Notices posted during {SITE.shortName} appear here, and on the phone of everyone with
-              the app.
-            </p>
+            <p className="wall-sub">Room changes and notices from the organizers appear here.</p>
           </div>
         ) : (
           <ol className="wall-list">
@@ -124,7 +133,7 @@ export default async function AnnouncementsPage() {
               <li className={i === 0 ? 'wall-item latest' : 'wall-item'} key={a.id}>
                 <p className="wall-when">
                   {i === 0 && <span className="wall-badge">Latest</span>}
-                  {announcedAt(a.createdAtMs)}
+                  {announcedAt(a.createdAtMs, ev.timeZone)}
                 </p>
                 <h2>{a.title}</h2>
                 {a.body && <p className="wall-body">{a.body}</p>}

@@ -16,16 +16,17 @@ export const dynamic = 'force-dynamic';
  * ── What is deliberately missing, and why ───────────────────────────────────
  *
  * A moderator has three useful powers — hide, pin, mark answered. Two are here.
- * **Pinning is not**, because it reorders a board ranked by `upvoteCount`, and
- * that counter is written by a Cloud Function trigger that has never deployed:
- * `iam.serviceAccounts.ActAs` on the App Engine default service account is
- * outstanding (`OWNER-ACTIONS.md` §3). A pin control fighting a frozen ranking
- * would be worse than none.
+ * **Pinning is not**: it needs a field on the question and a rule saying who may
+ * write it, and the app's board has nowhere to render a pinned row yet.
  *
- * ⚠️ The upvote numbers below therefore **do not move**. They are shown because
- * hiding them would misrepresent what the app displays to attendees, and the
- * queue is ordered by time rather than by them so that no moderator is sorting
- * by a fossil.
+ * ── The vote numbers move now, and what changed ─────────────────────────────
+ *
+ * They used to be read off `SessionQuestionDoc.upvoteCount`, which is written by
+ * an undeployed trigger and therefore frozen, so a moderator watched a question
+ * collect upvotes and saw the same number all afternoon. `listQaSessions` counts
+ * the `upvotes` subcollection instead — the true figure, and the one the app
+ * already shows. The queue stays in arrival order; the reasoning is in
+ * `moderation.ts` beside the sort.
  *
  * ── Per-session moderators are not here either ──────────────────────────────
  *
@@ -67,11 +68,10 @@ export default async function SessionQaManagerPage({
         title="Session Q&amp;A Manager"
         info={
           <>
-            <strong>Vote counts do not move</strong>
+            <strong>Newest question first</strong>
             <p>
-              Upvotes and poll tallies are written by a Cloud Function trigger that has never
-              deployed. It needs one IAM grant (<code>OWNER-ACTIONS.md</code> §3). The app shows
-              the same frozen figures, so the queue below is ordered by time instead.
+              Vote counts are current every time this page loads. Questions stay in the order they
+              were asked, so nothing new drops out of sight.
             </p>
           </>
         }
@@ -229,13 +229,8 @@ export default async function SessionQaManagerPage({
               <span key="s" className="muted" style={{ fontSize: 12 }}>
                 {q.sessionTitle}
               </span>,
-              <span
-                key="v"
-                className="muted"
-                style={{ fontSize: 12 }}
-                title="Frozen: the counter's trigger has never deployed"
-              >
-                {q.upvoteCount}
+              <span key="v" style={{ fontSize: 12 }}>
+                <strong>{q.upvoteCount}</strong>
               </span>,
               <Tag key="st" color={STATE_COLOR[q.state]} fill="outline" small>
                 {q.state}

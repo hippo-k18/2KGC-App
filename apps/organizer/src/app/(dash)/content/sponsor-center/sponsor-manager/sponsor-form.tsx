@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import type { SponsorDoc, SponsorTier, WithId } from '@kgc/shared';
+import type { SponsorDoc, SponsorTierDef, WithId } from '@kgc/shared';
 import { ImageField } from '@/components/image-field';
 import {
   Field,
@@ -26,7 +26,7 @@ import { saveSponsorAction } from './actions';
  * separate surfaces read it as a *ranking*: the public sponsor page groups by it
  * and sizes the logo from it, the app's directory sorts by it, and this screen
  * groups by it. Getting it wrong is a commercial error rather than a typo, so it
- * is a constrained select over the same `TIER_ORDER` those surfaces use and it
+ * is a constrained select over the same saved tier list those surfaces use and it
  * sits where the eye lands first.
  *
  * ── Every control here has a reader ─────────────────────────────────────────
@@ -41,9 +41,10 @@ export function SponsorForm({
   existing,
   tiers,
 }: {
-  existing?: WithId<SponsorDoc>;
-  /** `TIER_ORDER` from the server, so the select cannot drift from the sort. */
-  tiers: SponsorTier[];
+  /** Without its timestamps: a Firestore `Timestamp` cannot cross into a client component. */
+  existing?: Omit<WithId<SponsorDoc>, 'createdAt' | 'updatedAt'>;
+  /** The saved tier list from the server, so the select cannot drift from the sort. */
+  tiers: SponsorTierDef[];
 }) {
   const [state, action] = useActionState<FormState, FormData>(saveSponsorAction, {});
 
@@ -65,11 +66,10 @@ export function SponsorForm({
           hint={
             existing ? (
               <>
-                Id <code>{existing.id}</code> stays the same when you rename them. Lead scans and
-                the website&rsquo;s logo files both point at it.
+                Renaming keeps their lead scans and logo.
               </>
             ) : (
-              'The id is made from this name, and it is permanent.'
+              'As it should appear in the app and on the website.'
             )
           }
         />
@@ -81,7 +81,7 @@ export function SponsorForm({
           width="sm"
           defaultValue={existing?.tier ?? ''}
           placeholder="Choose…"
-          options={tiers.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+          options={tiers.map((t) => ({ value: t.id, label: t.name }))}
           error={state.fieldErrors?.tier}
           hint="What they bought. Decides logo size on the public sponsor page and position in the app."
         />
@@ -128,7 +128,7 @@ export function SponsorForm({
         rows={4}
         defaultValue={existing?.description}
         maxLength={1200}
-        hint="Shown on the sponsor's own screen in the app. Not shown on the website, which renders logos only."
+        hint="Shown on the sponsor's own screen in the app. The website shows logos only."
       />
 
       <Textarea

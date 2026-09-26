@@ -1,5 +1,14 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { COLLECTIONS, EVENT_ID, type RegistrationDoc } from "@kgc/shared";
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  SETTINGS_KEYS,
+  categoryFromRule,
+  resolveAttendeeCategories,
+  resolveTicketRules,
+  type OrderDoc,
+  type RegistrationDoc,
+} from "@kgc/shared";
 import { claimCode, emailHash, normaliseEmail, qrSecret, registrationId } from "./ids.js";
 
 /**
@@ -80,6 +89,12 @@ export interface EnsureRegistrationInput {
  * invalidates a badge that is physically in someone's hand. So they are minted
  * only on first creation, and an attendee who has already claimed their
  * registration is not un-claimed by a second ticket.
+ *
+ * **The ticket rule is applied here**, because this is the one place a
+ * purchase, an invoice, an import and a hand-added attendee all pass through.
+ * `settings/attendeeCategories` is read inside the transaction and the ticket
+ * type is resolved with `categoryFromRule`, which leaves a category an
+ * organizer set by hand alone and does nothing when no rule names the ticket.
  */
 export async function ensureRegistration(
   store: Firestore,
@@ -91,8 +106,17 @@ export async function ensureRegistration(
 
   const result = await store.runTransaction(async (tx) => {
     const existing = await tx.get(regRef);
+    const bag = (await tx.get(store.collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.attendeeCategories))).data();
+    const stored = bag?.eventId === EVENT_ID ? bag.values : undefined;
+    const categories = resolveAttendeeCategories(stored?.categories);
+    const rules = resolveTicketRules(stored?.ticketRules, categories);
     // A native Date, never a sentinel — see the docblock above.
     const now = new Date();
+
+    const byRule = (current: Pick<RegistrationDoc, "categorySource">) => {
+      const next = categoryFromRule(current, categories, rules, input.ticketType);
+      return next === "keep" ? undefined : next;
+    };
 
     if (existing.exists) {
       const prev = existing.data() as RegistrationDoc;
@@ -105,6 +129,7 @@ export async function ensureRegistration(
         name: input.name,
         ticketType: input.ticketType,
         status: "active",
+        ...(byRule(prev) ?? {}),
         updatedAt: now,
       });
 
@@ -132,6 +157,7 @@ export async function ensureRegistration(
       // Random and opaque, and the only value that ever goes into a badge QR.
       // A uid here would let anyone who photographs a badge learn an identity.
       qrSecret: qrSecret(),
+      ...(byRule({}) ?? {}),
     };
 
     tx.set(regRef, { ...fresh, createdAt: now, updatedAt: now });
@@ -162,4 +188,114 @@ export async function ensureRegistration(
     claimCode: result.claimCode,
     created: result.created,
   };
+}
+
+/**
+ * Who holds the seat an order paid for, now.
+ *
+ * The order names the buyer, and `registrationId(order.email)` is the document
+ * that address maps to. After a transfer that document is `status:
+ * 'transferred'` and the ticket is somebody else's — so refunding the order and
+ * cancelling the id derived from the buyer's address withdraws a ticket that
+ * was already dead and leaves the new holder's badge scanning. The money goes
+ * back and the person walks in.
+ *
+ * So the forward link is followed to the end of the chain. A ticket can move
+ * more than once, and `transferredTo` on each step is written in the same batch
+ * that marks the step transferred, so the chain is never half-written.
+ *
+ * Returns `null` when nothing is there to cancel: no registration at that id at
+ * all, or a chain that points at a document which has since been deleted. The
+ * caller must treat that as "no ticket to withdraw" rather than cancelling the
+ * id it started with.
+ *
+ * `limit` is a cycle guard, not a policy. A chain longer than this is a repair
+ * job, and looping forever inside a Stripe webhook is the one outcome that
+ * makes it worse.
+ */
+export async function currentHolder(
+  store: Firestore,
+  startId: string,
+  limit = 10,
+): Promise<{
+  id: string;
+  email: string;
+  /** For greeting them in a mail. Absent on a registration nobody named. */
+  name?: string;
+  status: RegistrationDoc["status"];
+} | null> {
+  const seen = new Set<string>();
+  let id = startId;
+
+  for (let hop = 0; hop < limit; hop += 1) {
+    if (seen.has(id)) return null;
+    seen.add(id);
+
+    const snap = await store.collection(COLLECTIONS.registrations).doc(id).get();
+    const reg = snap.data() as RegistrationDoc | undefined;
+    if (!reg || reg.eventId !== EVENT_ID) return null;
+
+    const next = reg.status === "transferred" ? reg.transferredTo : undefined;
+    if (!next) return { id, email: reg.email, name: reg.name, status: reg.status };
+    id = next;
+  }
+
+  return null;
+}
+
+/**
+ * Is some *other* order still paying for this seat?
+ *
+ * The question a refund has to ask before it withdraws a ticket. Someone who
+ * bought twice — a workshop upgrade on top of a main-conference ticket — has
+ * one registration backed by two orders, and refunding the first must not
+ * revoke what the second still pays for.
+ *
+ * ── Why two addresses rather than one ───────────────────────────────────────
+ *
+ * After a transfer the buyer paid and somebody else holds the seat, and either
+ * of them can be the reason it stays alive. The buyer's second order still
+ * covers the registration they passed on; a colleague who was handed the seat
+ * and also bought one of their own keeps the one they paid for. Asking only the
+ * holder cancels a ticket the buyer is still paying for, and asking only the
+ * buyer is what made a refund miss the holder in the first place. So the caller
+ * passes both and this answers about the pair.
+ *
+ * `excludeOrderId` is the order being refunded. Its status has usually already
+ * been moved to `refunded` by the time this runs, so the filter below would
+ * drop it anyway — but that is an ordering accident, and a rule that means "no
+ * *other* order" has to say so itself.
+ *
+ * Status is filtered in memory rather than in the query. `partially_refunded`
+ * still paid for a ticket, so the set that keeps a registration alive is two
+ * statuses rather than one, and `where('status', 'in', [...])` would be a third
+ * filter shape to keep matched in `firestore.indexes.json`. One person has a
+ * handful of orders; filtering after the read costs nothing and cannot fail
+ * with `failed-precondition`.
+ */
+export async function stillPaidElsewhere(
+  store: Firestore,
+  emails: (string | null | undefined)[],
+  excludeOrderId: string,
+): Promise<boolean> {
+  const addresses = [
+    ...new Set(emails.filter((e): e is string => Boolean(e)).map((e) => normaliseEmail(e))),
+  ];
+
+  for (const email of addresses) {
+    const snap = await store
+      .collection(COLLECTIONS.orders)
+      .where("eventId", "==", EVENT_ID)
+      .where("email", "==", email)
+      .get();
+
+    const paying = snap.docs.some((d) => {
+      if (d.id === excludeOrderId) return false;
+      const order = d.data() as OrderDoc;
+      return order.status === "paid" || order.status === "partially_refunded";
+    });
+    if (paying) return true;
+  }
+
+  return false;
 }

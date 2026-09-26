@@ -79,8 +79,8 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
             ...(state.fanOutOk ? null : { color: 'var(--danger)', fontWeight: 600 }),
           }}
         >
-          Agenda caches: {state.fanOut}
-          {state.fanOutOk ? null : ' Run the agenda cache check on Track Manager to repair them.'}
+          Agenda: {state.fanOut}
+          {state.fanOutOk ? null : ' Use “Repair” on Track Manager to update them.'}
         </p>
       )}
 
@@ -95,11 +95,11 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
         hint={
           existing ? (
             <>
-              As it appears on the agenda and the badge. Renaming rewrites the cached name on{' '}
+              As it appears on the agenda and the badge. Renaming updates the name on{' '}
               {existing.sessionCount === 0
                 ? 'no sessions. They are not on the programme yet'
                 : `their ${existing.sessionCount} session${existing.sessionCount === 1 ? '' : 's'}`}
-              . Id <code>{existing.id}</code> never changes. Sessions point at it.
+              .
             </>
           ) : (
             'As it should appear on the agenda and the badge.'
@@ -150,10 +150,8 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
         width="lg"
         hint={
           <>
-            The address the programme committee corresponds with. Known from the call for papers,
-            months before they hold a ticket. Message Speakers sends here in preference to whatever
-            address they later bought a ticket with. Without one, this speaker cannot be chased for
-            a bio or a slide deck.
+            Message Speakers sends to this address first. Without one, this speaker cannot be
+            emailed until they hold a ticket.
           </>
         }
       />
@@ -186,9 +184,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
         legend="On the public speakers page"
         hint={
           <>
-            These two used to be unreachable from here. The website rendered a roster checked into
-            its own source, so the highlighted five and their order were a deploy, not a decision,
-            and this screen could not change either. They are fields on the speaker now.
+            Controls how this speaker shows on the website.
           </>
         }
       >
@@ -199,9 +195,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           label="Highlight in “Our First Speakers”"
           description={
             <>
-              Lifts them into the block of large cards at the top of <code>/speakers</code>, above
-              the main grid. Nothing enforces a count, and the heading below the block counts
-              whatever you choose. Highlight nobody and the page is a single grid.
+              Shows them in the large cards at the top of the speakers page, above the main grid.
             </>
           }
         />
@@ -216,10 +210,8 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           defaultValue={existing?.displayOrder}
           hint={
             <>
-              Lower numbers come first. Leave it empty and they sort by surname after everyone who
-              has a number, so a speaker you add today lands at the end of the roster rather than
-              in the middle of it. The imported 2026 roster is numbered in the order it was
-              published, which is why the page did not move when it came out of the bundle.
+              Lower numbers come first. Speakers with no number sort by surname after everyone who
+              has one.
             </>
           }
         />
@@ -227,9 +219,8 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
 
       {existing?.userId ? (
         <p className="muted" style={{ fontSize: 12 }}>
-          Joined to the attendee account <code>{existing.userId}</code>. That link is what makes
-          their profile, their saved sessions and their messages resolve to this speaker, and
-          nothing on this form touches it.
+          This speaker is linked to an attendee account. Saving this form does not change that
+          link.
         </p>
       ) : null}
 

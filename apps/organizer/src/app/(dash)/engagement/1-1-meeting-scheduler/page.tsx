@@ -44,15 +44,12 @@ export default async function MeetingSchedulerPage({
       ]}
       info={
         <>
-          <strong>Meeting-room inventory</strong>
+          <strong>Meeting room bookings</strong>
           <p>
-            The rooms sponsors and exhibitors ask for, booked by a person and checked against the
-            programme so nothing lands in a room with a keynote in it.
+            Book meeting rooms for sponsors and exhibitors. Each booking is checked against the
+            agenda for room clashes.
           </p>
-          <p>
-            Attendees cannot request a meeting: that needs a request flow in the app and a model of
-            what somebody&rsquo;s availability means, and neither exists.
-          </p>
+          <p>Attendees cannot request a meeting from the app yet.</p>
         </>
       }
       formCopy={{
@@ -60,8 +57,7 @@ export default async function MeetingSchedulerPage({
         titleLabel: 'Booked for',
         titlePlaceholder: 'Graphwise: customer meetings',
         hostLabel: 'Booked by',
-        capacityHint:
-          'How many people fit. Two is a one-to-one; a sponsor bringing a customer team needs more, which is why this is a number rather than a fixed pair.',
+        capacityHint: 'How many people fit.',
         defaultCapacity: 2,
       }}
       notBuilt={[

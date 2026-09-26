@@ -1,193 +1,329 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { formatPostDate, getPost, POSTS } from '@/lib/posts';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { blogBase, blogUrl } from '@/lib/blog/paths';
+import { publicPost, publicPosts, type PublicPost } from '@/lib/blog/public';
+import { PostBodyDoc } from '@/lib/blog/render';
+import { getAuthor, getPostBody } from '@/lib/post-content';
+import { formatPostDate } from '@/lib/posts';
+import { SITE } from '@/lib/site';
 
-/** Seventy known slugs and no database behind them, so all of it prerenders. */
-export function generateStaticParams() {
-  return POSTS.map((post) => ({ slug: post.slug }));
-}
+/** The newsletter form lives on the conference's HubSpot, same as the live site. */
+const NEWSLETTER = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
+
+/** The archive plus whatever editors have published, so rendered per request from a cached list. */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const post = getPost((await params).slug);
-  if (!post) return { title: 'Post not found' };
+  const found = await publicPost((await params).slug);
+  if (!found || !('post' in found)) return { title: 'Post not found' };
+  const { post } = found;
+
+  // With the full article here, this page is the article: the canonical is its
+  // own URL. An archive post whose body was never scraped is still only a
+  // summary, and keeps pointing at the original so it does not compete with it.
+  const hasBody = post.body.kind === 'doc' || getPostBody(post.slug) !== null;
+  const canonical = hasBody ? blogUrl(`/${post.slug}`) : post.url;
 
   return {
     title: post.title,
     description: post.excerpt.slice(0, 200),
-    /**
-     * The canonical URL is the article on knowledgegraph.tech, not this page.
-     *
-     * This page carries the post's title, byline and excerpt — the same words
-     * as the original. Pointing the canonical at the original is how this site
-     * says "that one is the real copy" instead of competing with an author's
-     * own page for their own writing.
-     */
-    alternates: { canonical: post.url },
+    alternates: { canonical },
     openGraph: {
       type: 'article',
       title: post.title,
       description: post.excerpt.slice(0, 200),
-      url: post.url,
+      url: canonical,
       publishedTime: post.date,
       authors: [post.author],
+      images: post.image ? [post.image] : undefined,
     },
   };
 }
 
 /**
- * A single post's summary page.
+ * A single post, laid out as the live site's Kadence single-post template lays
+ * it out, measured on knowledgegraph.tech at 1440 and 1920 wide: the article in
+ * a white card on the blue-grey blog page with a share row above the body and
+ * `#tag` chips below it, a sidebar of calls to action and recent posts beside
+ * it, and the author box, previous/next links and "Further Reading" under it.
  *
- * Deliberately not the article. It reproduces what the live site publishes as a
- * summary — title, date, author, categories, featured image and the excerpt —
- * and then hands the reader over to the canonical article. Most of these posts
- * are guest-authored, and moving someone else's full text onto a different
- * domain is a rights decision rather than an engineering one; see the docblock
- * in `@/lib/posts`.
- *
- * The page exists at all, rather than the index linking straight out, because
- * the categories, the byline and the neighbouring posts are worth a URL — and
- * because a reader who lands here from search gets the credit and the link
- * rather than a dead end.
+ * The body is the scraped WordPress HTML from `src/content/blog/`; see
+ * `@/lib/post-content` for why rendering it as HTML is safe here. If a post has
+ * no scraped body the page falls back to the excerpt and a link out, so a
+ * partial scrape degrades to what the site did before rather than to a blank.
  */
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
-  const post = getPost((await params).slug);
-  if (!post) notFound();
+  const [found, all, base] = await Promise.all([publicPost((await params).slug), publicPosts(), blogBase()]);
+  if (!found) notFound();
+  if ('redirectTo' in found) permanentRedirect(`${base}/${found.redirectTo}`);
+  const { post } = found;
+  const home = base || '/';
 
-  const index = POSTS.findIndex((entry) => entry.slug === post.slug);
-  const newer = POSTS[index - 1];
-  const older = POSTS[index + 1];
+  const legacyBody = post.body.kind === 'legacy' ? getPostBody(post.body.slug) : null;
+  const archived = getAuthor(post.author);
+  const author = {
+    avatar: post.authorAvatar ?? archived?.avatar ?? null,
+    bio: post.authorBio ?? archived?.bio ?? '',
+  };
+
+  const index = all.findIndex((entry) => entry.slug === post.slug);
+  const newer = all[index - 1];
+  const older = all[index + 1];
+  const recent = all.filter((entry) => entry.slug !== post.slug).slice(0, 3);
+  const related = relatedPosts(post, all, 3);
 
   return (
-    <>
-      <section>
-        <div className="wrap narrow">
-          <p className="eyebrow">
-            <Link href="/blog" style={{ color: 'inherit' }}>
-              Blog
-            </Link>{' '}
-            · {formatPostDate(post.date)}
-          </p>
-          <h1>{post.title}</h1>
-          <p className="lede" style={{ marginBottom: 16 }}>
-            By{' '}
-            {post.authorUrl ? (
-              <a href={post.authorUrl} rel="noopener noreferrer">
-                {post.author}
-              </a>
-            ) : (
-              post.author
-            )}
-          </p>
+    <div className="post-layout">
+      <div className="post-main">
+        <article className="post-card">
+          <header>
+            <p className="post-categories">
+              {post.categories.map((name, i) => (
+                <span key={name}>
+                  {i > 0 && ' | '}
+                  <Link href={`${home}?category=${encodeURIComponent(name)}`}>{name}</Link>
+                </span>
+              ))}
+            </p>
+            <h1 className="post-title">{post.title}</h1>
+            <div className="post-meta">
+              {author?.avatar && (
+                <Image src={author.avatar} alt="" width={75} height={75} className="post-meta-avatar" />
+              )}
+              <span>By {post.author}</span>
+              <span className="post-meta-divider" aria-hidden="true" />
+              <time dateTime={post.date}>{formatPostDate(post.date)}</time>
+            </div>
+          </header>
 
-          <div className="tags" style={{ marginBottom: 26 }}>
-            {post.categories.map((name) => (
-              <Link
-                key={name}
-                className="tag"
-                href={`/blog?category=${encodeURIComponent(name)}`}
-                style={{ textDecoration: 'none' }}
-              >
-                {name}
-              </Link>
-            ))}
-          </div>
+          <ShareRow title={post.title} url={blogUrl(`/${post.slug}`)} />
 
-          {post.image && (
-            <Image
-              src={post.image}
-              alt=""
-              width={post.imageWidth}
-              height={post.imageHeight}
-              sizes="(width >= 800px) 760px, 100vw"
-              priority
-              style={{
-                width: '100%',
-                /*
-                 * The archive's featured images run from 1024×385 to 512×512.
-                 * At a flat `width: 100%` the square ones render 760px tall and
-                 * push the byline and the excerpt below the fold — a logo
-                 * occupying a whole screen. Capping the *height* rather than the
-                 * width lets the wide banners fill the column, as intended, and
-                 * pulls only the tall ones in.
-                 */
-                maxWidth: Math.round((440 * post.imageWidth) / post.imageHeight),
-                height: 'auto',
-                margin: '0 auto 26px',
-                display: 'block',
-                borderRadius: 'var(--radius)',
-                border: '1px solid var(--line)',
-              }}
-            />
-          )}
-
-          {/*
-            `excerptIsQuote` marks the one post WordPress publishes no excerpt
-            for. Its opening words are shown as an explicit quotation with the
-            link immediately after, which is a quote of the article rather than
-            a copy of it.
-          */}
-          {post.excerptIsQuote ? (
-            <blockquote style={{ fontSize: '1.05rem' }}>
-              <p>&ldquo;{post.excerpt}&rdquo;</p>
-            </blockquote>
+          {post.body.kind === 'doc' ? (
+            <div className="post-body">
+              <PostBodyDoc doc={post.body.doc} />
+            </div>
+          ) : legacyBody ? (
+            <div className="post-body" dangerouslySetInnerHTML={{ __html: legacyBody }} />
           ) : (
-            <p style={{ fontSize: '1.05rem' }}>{post.excerpt}</p>
+            <div className="post-body">
+              <p>{post.excerpt}</p>
+              <p>
+                <a href={post.url} rel="noopener noreferrer">
+                  Read the full post on knowledgegraph.tech
+                </a>
+              </p>
+            </div>
           )}
-
-          <p className="notice" style={{ marginTop: 26 }}>
-            <strong>This is the summary, not the article.</strong>{' '}
-            <a href={post.url} rel="noopener noreferrer">
-              Read the full post on knowledgegraph.tech →
-            </a>
-          </p>
 
           {post.tags.length > 0 && (
-            <>
-              <h2 style={{ marginTop: 34, fontSize: '1rem' }}>Tagged</h2>
-              <p className="muted">{post.tags.join(' · ')}</p>
-            </>
+            <footer className="post-tags" aria-label="Post tags">
+              {post.tags.map((tag) => (
+                <Link key={tag} href={`${home}?tag=${encodeURIComponent(tag)}`}>
+                  <span aria-hidden="true">#</span>
+                  {tag}
+                </Link>
+              ))}
+            </footer>
           )}
-        </div>
-      </section>
+        </article>
 
-      <section className="tint">
-        <div className="wrap narrow">
-          <h2>More from the archive</h2>
-          <div className="grid g2" style={{ marginTop: 18 }}>
-            {newer && <NeighbourCard label="Newer post" post={newer} />}
-            {older && <NeighbourCard label="Older post" post={older} />}
+        <div className="post-author">
+          {author?.avatar && (
+            <Image src={author.avatar} alt="" width={80} height={80} className="post-author-avatar" />
+          )}
+          <div>
+            <p className="post-author-name">{post.author}</p>
+            {author?.bio && <p className="post-author-bio">{author.bio}</p>}
           </div>
-          <p style={{ marginTop: 22 }}>
-            <Link href="/blog">← All {POSTS.length} posts</Link>
-          </p>
         </div>
-      </section>
-    </>
+
+        <nav className="post-nav" aria-label="Posts">
+          {older && (
+            <Link href={`${base}/${older.slug}`} rel="prev" className="post-nav-prev">
+              <span className="post-nav-sub">
+                <Arrow direction="left" /> Previous
+              </span>
+              {older.title}
+            </Link>
+          )}
+          {newer && (
+            <Link href={`${base}/${newer.slug}`} rel="next" className="post-nav-next">
+              <span className="post-nav-sub">
+                Next <Arrow direction="right" />
+              </span>
+              {newer.title}
+            </Link>
+          )}
+        </nav>
+
+        {related.length > 0 && (
+          <section className="post-related" aria-labelledby="further-reading">
+            <h2 id="further-reading">Further Reading</h2>
+            <div className="post-related-grid">
+              {related.map((entry) => (
+                <RelatedCard key={entry.slug} post={entry} base={base} />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <aside className="post-sidebar" aria-label="Sidebar">
+        <h2>Connect with KG Experts</h2>
+        <p>
+          When you attend the {SITE.name} from {SITE.datesLong}, you have the chance to learn, grow,
+          network, and more with a community of knowledge graph professionals.
+        </p>
+        <Link href="/tickets" className="post-sidebar-btn">
+          Get my ticket
+        </Link>
+
+        <h2>KGC Newsletter</h2>
+        <p>
+          Stay in the loop with the world of knowledge graphs, AI, and more: Subscribe to the KGC
+          Newsletter!
+        </p>
+        <a href={NEWSLETTER} className="post-sidebar-btn" rel="noopener noreferrer">
+          Keep me updated
+        </a>
+
+        <h2>Explore Recent Blog Posts</h2>
+        <ul className="post-recent">
+          {recent.map((entry) => (
+            <li key={entry.slug}>
+              {entry.image && (
+                <Link
+                  href={`${base}/${entry.slug}`}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  className="post-recent-thumb-link"
+                >
+                  <Image
+                    src={entry.image}
+                    alt=""
+                    width={150}
+                    height={150}
+                    sizes="150px"
+                    className="post-recent-thumb"
+                  />
+                </Link>
+              )}
+              <Link href={`${base}/${entry.slug}`} className="post-recent-title">
+                {entry.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </aside>
+    </div>
   );
 }
 
-function NeighbourCard({
-  label,
-  post,
-}: {
-  label: string;
-  post: (typeof POSTS)[number];
-}) {
+/**
+ * The four round share buttons above the body, in the live site's order and
+ * brand colours. Plain links to each network's share URL: no script, no
+ * tracking pixel, nothing loaded until somebody clicks.
+ */
+function ShareRow({ title, url }: { title: string; url: string }) {
+  const u = encodeURIComponent(url);
+  const t = encodeURIComponent(title);
+  const links = [
+    { label: 'LinkedIn', cls: 'linkedin', glyph: 'in', href: `https://www.linkedin.com/shareArticle?mini=true&url=${u}&title=${t}` },
+    { label: 'WhatsApp', cls: 'whatsapp', glyph: 'W', href: `https://wa.me/?text=${u}` },
+    { label: 'Facebook', cls: 'facebook', glyph: 'f', href: `https://www.facebook.com/sharer.php?u=${u}` },
+    { label: 'X', cls: 'x', glyph: '𝕏', href: `https://twitter.com/intent/tweet?url=${u}&text=${t}` },
+  ];
   return (
-    <div className="card">
-      <p className="eyebrow">{label}</p>
-      <h3 style={{ fontSize: '1rem', lineHeight: 1.35 }}>
-        <Link href={`/blog/${post.slug}`}>{post.title}</Link>
-      </h3>
-      <p className="muted" style={{ fontSize: '0.88rem', marginBottom: 0 }}>
-        {formatPostDate(post.date)} · {post.author}
-      </p>
+    <div className="post-share">
+      {links.map((link) => (
+        <a
+          key={link.cls}
+          href={link.href}
+          className={`post-share-${link.cls}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Share on ${link.label}`}
+        >
+          <span aria-hidden="true">{link.glyph}</span>
+        </a>
+      ))}
     </div>
   );
+}
+
+function Arrow({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      style={{ verticalAlign: '-3px', transform: direction === 'right' ? 'scaleX(-1)' : undefined }}
+    >
+      <path d="M20 12H5M11 5l-7 7 7 7" />
+    </svg>
+  );
+}
+
+function RelatedCard({ post, base }: { post: PublicPost; base: string }) {
+  const avatar = post.authorAvatar ?? getAuthor(post.author)?.avatar;
+  return (
+    <article className="post-related-card">
+      <Link href={`${base}/${post.slug}`} tabIndex={-1} aria-hidden="true" className="post-related-thumb">
+        {post.image && (
+          <Image
+            src={post.image}
+            alt=""
+            width={post.imageWidth}
+            height={post.imageHeight}
+            sizes="(width >= 980px) 25vw, 100vw"
+          />
+        )}
+      </Link>
+      <div className="post-related-body">
+        <p className="post-categories">
+          {post.categories.map((name, i) => (
+            <span key={name}>
+              {i > 0 && ' | '}
+              <Link href={`${base || '/'}?category=${encodeURIComponent(name)}`}>{name}</Link>
+            </span>
+          ))}
+        </p>
+        <h3>
+          <Link href={`${base}/${post.slug}`}>{post.title}</Link>
+        </h3>
+        <p className="post-related-meta">
+          {avatar && <Image src={avatar} alt="" width={25} height={25} />}
+          By {post.author} · {formatPostDate(post.date)}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * The posts sharing the most tags and categories with this one, newest first on
+ * a tie. The live site's "Further Reading" is Kadence's own pick; this is the
+ * nearest thing that can be computed from the data here.
+ */
+function relatedPosts(post: PublicPost, all: PublicPost[], count: number): PublicPost[] {
+  const mine = new Set([...post.tags, ...post.categories]);
+  return all.filter((entry) => entry.slug !== post.slug)
+    .map((entry) => ({
+      entry,
+      score: [...entry.tags, ...entry.categories].filter((t) => mine.has(t)).length,
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, count)
+    .map(({ entry }) => entry);
 }

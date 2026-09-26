@@ -1,28 +1,17 @@
+'use client';
+
+import { useState } from 'react';
+
 /**
  * "The Knowledge Graph Conference in Your Words".
  *
- * ## Why these are typeset and not images any more
+ * One quotation at a time, with its portrait, and arrows and dots to move
+ * between them, as on the live site. Nothing advances by itself, so nothing
+ * moves under somebody mid-sentence.
  *
- * The five files under `public/kgc/testimonials/` are the live site's carousel
- * slides, and each one is a *rendered picture of a quotation* — the words are
- * pixels. Using them meant the quotes could not be selected, searched, indexed
- * or resized; they carried their own typography rather than the site's, so the
- * type inside slide one was visibly a different size from slide two at the same
- * render width; and on a phone they were upscaled and soft. The fifth was also
- * the one nobody ever saw, because it sat off the end of a horizontally
- * scrolling strip with no affordance and its lazy load never fired.
- *
- * Every quote was already transcribed into `TESTIMONIALS` in `page.tsx` — the
- * component was passing it as `alt` text and then drawing the picture anyway. So
- * the text was always there; it was just not the thing being displayed.
- *
- * The images are left in the repository rather than deleted: they are the
- * primary source for these transcriptions, and anyone checking a quote should be
- * able to find the original.
- *
- * The layout is a scroll-snapping strip rather than the live site's
- * auto-advancing Splide carousel. It needs no JavaScript, it is operable by
- * keyboard and trackpad alike, and nothing moves under a reader mid-sentence.
+ * The quotes are text transcribed from the live site's slides, which are
+ * pictures of quotations. The portraits are cut from those same slides and sit
+ * beside them as `<prefix>-face.png`.
  */
 export interface Testimonial {
   file: string;
@@ -31,42 +20,93 @@ export interface Testimonial {
   who: string;
 }
 
-/** Initials for the fallback portrait. Two at most, so the disc stays legible. */
-function initials(who: string): string {
-  return who
-    .split(',')[0]
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-}
+/** The portrait cut from the slide: the first eight characters of its file name. */
+const faceOf = (file: string) => `/kgc/testimonials/${file.slice(0, 8)}-face.png`;
 
 export function Testimonials({ heading, items }: { heading: string; items: Testimonial[] }) {
+  const [at, setAt] = useState(0);
+  const go = (i: number) => setAt((i + items.length) % items.length);
+
   return (
-    <section className="kgc-quotes" aria-label="What attendees say">
+    <section className="kgc-quotes" aria-label="What attendees say" aria-roledescription="carousel">
       <h2 className="kgc-quotes-heading">{heading}</h2>
-      <ul className="kgc-quotes-strip">
-        {items.map((t) => {
-          const [name, ...rest] = t.who.split(',').map((s) => s.trim());
-          return (
-            <li key={t.file} className="kgc-quote">
-              <figure>
-                <blockquote>{t.quote}</blockquote>
-                <figcaption>
-                  <span className="kgc-quote-mark" aria-hidden="true">
-                    {initials(t.who)}
-                  </span>
-                  <span className="kgc-quote-who">
-                    <strong>{name}</strong>
-                    {rest.length ? <span>{rest.join(', ')}</span> : null}
-                  </span>
-                </figcaption>
-              </figure>
-            </li>
-          );
-        })}
-      </ul>
+
+      <div className="quote-carousel">
+        <button type="button" className="quote-arrow" onClick={() => go(at - 1)} aria-label="Previous quote">
+          <Chevron dir="left" />
+        </button>
+
+        <div className="quote-viewport">
+          <ul className="quote-track" style={{ transform: `translateX(-${at * 100}%)` }}>
+            {items.map((t, i) => {
+              // "Name, Job title, Employer", as printed on the original slide.
+              const [name, ...rest] = t.who.split(',').map((x) => x.trim());
+              const employer = rest.length > 1 ? rest[rest.length - 1] : undefined;
+              const title = rest.length > 1 ? rest.slice(0, -1).join(', ') : rest[0];
+              return (
+                <li
+                  key={t.file}
+                  className="quote-slide"
+                  aria-hidden={i !== at}
+                  aria-roledescription="slide"
+                  aria-label={`${i + 1} of ${items.length}`}
+                >
+                  <figure>
+                    <blockquote>
+                      <span className="quote-open" aria-hidden="true">
+                        &ldquo;
+                      </span>
+                      {t.quote}
+                      <span className="quote-close" aria-hidden="true">
+                        &rdquo;
+                      </span>
+                    </blockquote>
+                    <figcaption>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={faceOf(t.file)} alt="" width={120} height={120} />
+                      <span>
+                        <strong>{name}</strong>
+                        {employer && <b>{employer}</b>}
+                        {title && <span>{title}</span>}
+                      </span>
+                    </figcaption>
+                  </figure>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <button type="button" className="quote-arrow" onClick={() => go(at + 1)} aria-label="Next quote">
+          <Chevron dir="right" />
+        </button>
+      </div>
+
+      <div className="quote-dots">
+        {items.map((t, i) => (
+          <button
+            key={t.file}
+            type="button"
+            aria-label={`Quote ${i + 1}`}
+            aria-current={i === at ? 'true' : undefined}
+            onClick={() => go(i)}
+          />
+        ))}
+      </div>
     </section>
+  );
+}
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d={dir === 'left' ? 'm15 5-7 7 7 7' : 'm9 5 7 7-7 7'}
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

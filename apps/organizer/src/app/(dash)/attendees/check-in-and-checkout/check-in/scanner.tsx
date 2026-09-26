@@ -265,7 +265,7 @@ export function Scanner({
             void submit(code, 'typed');
           }}
         >
-          <label htmlFor="code">Badge code: QR secret or six-character claim code</label>
+          <label htmlFor="code">Badge code, scanned or the six characters under the QR</label>
           <input
             id="code"
             name="code"
@@ -292,10 +292,7 @@ export function Scanner({
 
         {detectorAvailable === false ? (
           <p className="muted">
-            This browser has no <code>BarcodeDetector</code>, so the camera cannot decode a QR
-            here. Safari and Firefox both lack it; Chrome and Edge on desktop and Android have it.
-            Type the code instead. It is the same write either way, and it is why the box above is
-            focused on load.
+            This browser cannot read QR codes with the camera. Use Chrome or Edge, or type the code.
           </p>
         ) : null}
         {cameraError ? <p className="error">Camera: {cameraError}</p> : null}
@@ -328,10 +325,7 @@ export function Scanner({
               autoComplete="off"
             />
             <p className="muted">
-              Device <code>{deviceId || '…'}</code>, kept in this browser&apos;s{' '}
-              <code>localStorage</code>. It is the <code>checkInStations</code> document id and the
-              first half of every <code>scanEvents</code> id, so it must survive a reload. Scanning{' '}
-              <strong>{listName}</strong>.
+              Scanning <strong>{listName}</strong>.
             </p>
           </>
         )}
@@ -363,7 +357,7 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       <div className="scan-result scan-unknown">
         <div className="scan-verdict">ERROR</div>
         <div className="scan-name">{result.error}</div>
-        <div className="scan-meta">Nothing was written. Try again.</div>
+        <div className="scan-meta">Nothing was recorded. Try again.</div>
       </div>
     );
   }
@@ -380,9 +374,7 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
               'Nothing was recorded. Please see a member of staff at the registration desk.'
             ) : (
               <>
-                Checked against every <code>qrSecret</code> and every <code>claimCode</code> for
-                this event. Nothing was written to <code>checkIns</code>. Logged as{' '}
-                <code>{result.scanEventId}</code>.
+                Nothing was recorded. Check the code and try again.
               </>
             )}
           </div>
@@ -409,7 +401,7 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
             <>Checked in at {timeOf(result.checkedInAt)}. You are all set. Enjoy the conference.</>
           ) : (
             <>
-              Checked in at {timeOf(result.checkedInAt)}. Wrote <code>{result.checkInPath}</code>.
+              Checked in at {timeOf(result.checkedInAt)}.
             </>
           )}
         </div>
@@ -425,9 +417,7 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
           ) : (
             <>
               Already checked in at <strong>{timeOf(result.checkedInAt)}</strong> at{' '}
-              <strong>{result.stationLabel}</strong>. Nothing was written this time. The second{' '}
-              <code>create</code> failed with <code>already-exists</code>, which is the duplicate
-              check. Wave them through.
+              <strong>{result.stationLabel}</strong>. Nothing more to do.
             </>
           )}
         </div>
@@ -449,15 +439,43 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       ) : null}
 
       {/*
+        A required release this person has not signed.
+
+        It sits under the verdict as something for the desk to raise, not as a
+        refusal. On a kiosk it names no document and asks the person to come to
+        the desk: an unattended screen telling somebody which release they have
+        not signed is a screen telling the queue behind them too.
+
+        ⚠️ "They are checked in" only where they are. A cancelled or transferred
+        ticket is not checked in, and this line used to say it was — directly
+        under a verdict saying the opposite, which is the one moment a desk
+        volunteer is reading fast and deciding whether to let somebody past.
+      */}
+      {result.consentOutstanding?.length ? (
+        <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
+          {kiosk ? (
+            <>Form not signed. Please see the registration desk before you go in.</>
+          ) : (
+            <>
+              Form not signed: <strong>{result.consentOutstanding.join(', ')}</strong>.{' '}
+              {result.outcome === 'ok' || result.outcome === 'duplicate'
+                ? 'They are checked in. Ask them to sign.'
+                : 'Ask them to sign.'}
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {/*
         The provenance line is diagnostics for whoever is running the desk — a
         scan id is pasteable into the Firebase console, which is exactly why it
         does not belong on an unattended screen.
       */}
       {kiosk ? null : (
         <div className="scan-foot muted">
-          {result.matchedOn ? `matched on ${result.matchedOn} · ` : null}
-          {result.source} · <code>scanEvents/{result.scanEventId}</code>
-          {result.scanEventReplayed ? ' · replay, original entry kept' : null}
+          {result.matchedOn === 'claimCode' ? 'typed code · ' : result.matchedOn ? 'badge · ' : null}
+          {result.source}
+          {result.scanEventReplayed ? ' · repeat scan' : null}
         </div>
       )}
     </div>

@@ -146,7 +146,9 @@ export async function listCheckInLists(): Promise<CheckInListRow[]> {
       const l = d.data() as CheckInListDoc;
       return {
         id: d.id,
-        name: l.name,
+        // Lists made before September 2026 were named "KGC 2027 — Main Door".
+        // Rewritten here, once, so every screen that names a list agrees.
+        name: l.name.replace(' — ', ': '),
         kind: l.kind,
         sessionId: l.sessionId,
         opensAt: iso(l.opensAt) ?? undefined,

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 
 /**
@@ -21,9 +21,43 @@ import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
  * than the translucent white bar this used to be — the mark is white, so on white
  * it disappeared.
  */
-export function SiteHeader() {
+export function SiteHeader({
+  logoUrl,
+  eventName = 'Knowledge Graph Conference',
+  showAgenda = false,
+  showSpeakers = false,
+}: {
+  /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
+  logoUrl?: string;
+  eventName?: string;
+  /** Marketing > Event Website switches, resolved in the root layout. */
+  showAgenda?: boolean;
+  showSpeakers?: boolean;
+} = {}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+
+  // The bar opens with the caret in it, and Escape or a new page closes it.
+  useEffect(() => {
+    if (!searching) return;
+    searchInput.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSearching(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [searching]);
+
+  useEffect(() => setSearching(false), [path]);
+
+  // On blog.knowledgegraph.tech "/" is the blog, so the logo points at
+  // `/__site`, which the middleware sends to the main site's home page.
+  const [home, setHome] = useState('/');
+  useEffect(() => {
+    if (/^blog\./.test(window.location.hostname)) setHome('/__site');
+  }, []);
 
   /*
    * While the menu is open the page behind it must not scroll.
@@ -86,23 +120,46 @@ export function SiteHeader() {
       */}
       <header className="site-header">
         <div className="wrap bar">
-          <Link href="/" className="logo" aria-label="Knowledge Graph Conference, home">
+          <Link href={home} className="logo" aria-label={`${eventName}, home`}>
             {/*
               Intrinsic size is the file's own 2048×763, so Next can reserve the
               right box; CSS takes it down to the header height. `priority`
               because it is the largest thing above the fold on every page.
             */}
-            <Image
-              src="/kgc/cropped-White-Wordmark-2.png"
-              alt="Knowledge Graph Conference"
-              width={2048}
-              height={763}
-              priority
-            />
+            {logoUrl ? (
+              // A logo saved on App Branding. A plain `img`: its host is not in
+              // `images.remotePatterns`, and `next/image` throws on one that is not.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={eventName} />
+            ) : (
+              <Image
+                src="/kgc/cropped-White-Wordmark-2.png"
+                alt="Knowledge Graph Conference"
+                width={2048}
+                height={763}
+                priority
+              />
+            )}
           </Link>
 
           <nav id="main-nav" aria-label="Main" className={open ? 'open' : undefined}>
-            {NAV.map((item) => (
+            {/* Hamburger-only items (`.nav-more` is hidden on desktop), first in the phone menu. */}
+            {NAV_MORE.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="nav-more"
+                aria-current={path === item.href ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {NAV.filter(
+              (item) =>
+                (showAgenda || item.href !== '/agenda') &&
+                (showSpeakers || item.href !== '/speakers'),
+            ).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -149,17 +206,6 @@ export function SiteHeader() {
               </div>
             </div>
 
-            {NAV_MORE.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="nav-more"
-                aria-current={path === item.href ? 'page' : undefined}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
             <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
               Register now
             </Link>
@@ -176,12 +222,22 @@ export function SiteHeader() {
             them. Grouping them is also what lets the hamburger keep its place at
             the very end of the row on a phone while staying hidden on desktop.
 
-            Search is present and orange on the live site. It routes to a real
-            page rather than opening a box that does nothing: a search field that
-            swallows a query is worse than an honest link.
+            The magnifier opens a search box for the whole site under the bar.
+            Without script it is an ordinary link to the search page.
           */}
           <div className="header-actions">
-            <Link href="/agenda" className="search" aria-label="Search the agenda">
+            <Link
+              href="/search"
+              className="search"
+              aria-label="Search the site"
+              aria-expanded={searching}
+              aria-controls="site-search"
+              onClick={(e) => {
+                e.preventDefault();
+                setOpen(false);
+                setSearching((v) => !v);
+              }}
+            >
               <SearchIcon />
             </Link>
 
@@ -197,6 +253,27 @@ export function SiteHeader() {
             </button>
           </div>
         </div>
+
+        {searching && (
+          <form id="site-search" className="site-search" role="search" action="/search" method="get">
+            <div className="wrap site-search-form">
+              <label className="sr-only" htmlFor="site-search-input">
+                Search the site
+              </label>
+              <input
+                ref={searchInput}
+                id="site-search-input"
+                type="search"
+                name="q"
+                placeholder="Search the site"
+                autoComplete="off"
+              />
+              <button type="submit" className="btn btn-primary">
+                Search
+              </button>
+            </div>
+          </form>
+        )}
       </header>
 
     </>

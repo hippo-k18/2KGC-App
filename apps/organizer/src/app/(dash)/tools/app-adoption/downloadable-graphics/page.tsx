@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { APP_DISTRIBUTION, EVENT, publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { GapPanel, PageHeader, Panel } from '../../../ui';
-import { QrSymbol, eventWindow, qrSvgMarkup } from '../snippet';
+import { QrDownload, QrSymbol, eventWindow } from '../snippet';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,17 +37,16 @@ export default async function DownloadableGraphicsPage() {
         title="Downloadable Graphics"
         info={
           <>
-            <strong>One sign, no image pipeline</strong>
+            <strong>One printable sign</strong>
             <p>
-              The table sign below is real and prints from your browser. Social cards, banners and
-              slide backgrounds need a server-side image renderer, which this project does not
-              have.
+              The desk sign prints from your browser. Social cards, banners and slide backgrounds
+              are not available yet.
             </p>
           </>
         }
         actions={
-          <Link className="whova-btn-main" href="/tools/app-adoption/app-download-button">
-            Snippets and QR markup
+          <Link className="whova-btn-main secondary" href="/tools/app-adoption/app-download-button">
+            Buttons and links
           </Link>
         }
         links={[
@@ -63,11 +62,12 @@ export default async function DownloadableGraphicsPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Registration desk sign</h2>
         <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          A5 at 100% on the browser&rsquo;s print dialogue, or scale it up for a lectern. Print with
-          backgrounds off. The KGC mark is the only colour on it and everything else is black on
-          white on purpose, because a table sign gets photocopied, and the mark is dark enough to
-          survive that in greyscale.
+          Print this page from a computer at A5, 100% scale, with backgrounds off. It also
+          photocopies well in black and white.
         </p>
+
+        {/* The sign is 559px wide; under 768px it is scaled to fit the panel. */}
+        <style>{'@media screen and (max-width: 767px) { .desk-sign { zoom: 0.55; } }'}</style>
 
         {/*
           Fixed millimetre dimensions rather than a responsive card: this is a
@@ -75,6 +75,7 @@ export default async function DownloadableGraphicsPage() {
           out of the printer. 148×210mm is A5 portrait.
         */}
         <div
+          className="desk-sign"
           style={{
             background: '#fff',
             border: '1px solid var(--hairline)',
@@ -123,22 +124,18 @@ export default async function DownloadableGraphicsPage() {
 
         {dates === null && (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-            The dates are left off because no session has a day yet. They are counted from the
-            programme rather than typed, so that a printed sign cannot carry a date the agenda has
-            since moved.
+            The dates appear on the sign once the agenda has sessions.
           </p>
         )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The symbol on its own</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>The QR code on its own</h2>
         <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          For a slide, a lanyard card, or somebody else&rsquo;s design. Vector, so it prints at any
-          size; the four-module quiet zone is already inside the box and must not be cropped off.
+          A vector file for a slide, a lanyard card or another design. Keep the white border when
+          you place it.
         </p>
-        <pre className="whova-code" style={{ userSelect: 'all' }}>
-          {qrSvgMarkup(href, 600)}
-        </pre>
+        <QrDownload text={href} />
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

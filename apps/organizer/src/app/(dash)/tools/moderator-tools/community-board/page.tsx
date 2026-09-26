@@ -3,8 +3,9 @@ import { COMMUNITY_CATEGORY_LABEL as CATEGORY_LABEL } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listBoardForModeration, type ModeratedPost } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
+import { dayOfInstant } from '@/lib/time';
 import { ConfirmButton } from '../../../form';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
+import { Banner, EmptyState, GapPanel, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
 import {
   deletePostAction,
   deleteReplyAction,
@@ -78,7 +79,7 @@ function PostCard({ post }: { post: ModeratedPost }) {
         )}
         <span style={{ flex: 1 }} />
         <span className="muted" style={{ fontSize: 11 }}>
-          {post.authorName} · {post.createdAt.slice(0, 10)}
+          {post.authorName} · {dayOfInstant(post.createdAt)}
         </span>
 
         <form action={moderatePostAction}>
@@ -86,13 +87,15 @@ function PostCard({ post }: { post: ModeratedPost }) {
           <input type="hidden" name="status" value={hidden ? 'visible' : 'hidden'} />
           <button
             type="submit"
+            className="mod-action"
             style={{
               background: 'none',
               border: 0,
               color: hidden ? 'var(--link)' : 'var(--danger, #b3352c)',
               cursor: 'pointer',
               fontSize: 12,
-              padding: 0,
+              margin: '-10px -6px',
+              padding: '10px 6px',
             }}
           >
             {hidden ? 'Restore' : 'Hide'}
@@ -113,11 +116,9 @@ function PostCard({ post }: { post: ModeratedPost }) {
             confirmLabel="Delete permanently"
             confirmPhrase="delete"
           >
-            Destroys this post and its {post.replies.length}{' '}
-            {post.replies.length === 1 ? 'reply' : 'replies'}. This cannot be undone from anywhere in
-            this product. The text and the author are kept in the audit log, so the record of what
-            was said survives. Use this for content that must not remain readable, not for content
-            that is merely unwelcome.
+            Deletes this post and its {post.replies.length}{' '}
+            {post.replies.length === 1 ? 'reply' : 'replies'}. This cannot be undone. The text and
+            the author are kept in the audit log.
           </ConfirmButton>
         )}
       </div>
@@ -144,7 +145,7 @@ function PostCard({ post }: { post: ModeratedPost }) {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="muted" style={{ fontSize: 11 }}>
-                    {r.authorName} · {r.createdAt.slice(0, 10)}
+                    {r.authorName} · {dayOfInstant(r.createdAt)}
                     {rHidden && (
                       <>
                         {' '}
@@ -170,13 +171,15 @@ function PostCard({ post }: { post: ModeratedPost }) {
                     <input type="hidden" name="status" value={rHidden ? 'visible' : 'hidden'} />
                     <button
                       type="submit"
+                      className="mod-action"
                       style={{
                         background: 'none',
                         border: 0,
                         color: rHidden ? 'var(--link)' : 'var(--danger, #b3352c)',
                         cursor: 'pointer',
                         fontSize: 11,
-                        padding: 0,
+                        margin: '-10px -6px',
+                        padding: '10px 6px',
                       }}
                     >
                       {rHidden ? 'Restore' : 'Hide'}
@@ -191,8 +194,8 @@ function PostCard({ post }: { post: ModeratedPost }) {
                       confirmPhrase="delete"
                       width={280}
                     >
-                      Destroys this reply. It cannot be undone; the text and the author stay in the
-                      audit log.
+                      Deletes this reply. This cannot be undone. The text and the author stay in
+                      the audit log.
                     </ConfirmButton>
                   )}
                 </div>
@@ -266,9 +269,9 @@ export default async function ModerateCommunityBoardPage({
         between hide and delete is the whole decision.
       */}
       <Banner kind="info">
-        <strong>Hide takes a post out of the app immediately and keeps it.</strong> Restore is one
-        click and the replies survive. <strong>Delete</strong> appears once a post is hidden and is
-        irreversible. The text stays only in the audit log.
+        <strong>Hide takes a post or a reply out of the app immediately and keeps it.</strong>{' '}
+        Restore is one click and the replies survive. <strong>Delete</strong> appears once a post
+        is hidden and is irreversible. The text stays only in the audit log.
       </Banner>
 
       <Tabs
@@ -280,7 +283,9 @@ export default async function ModerateCommunityBoardPage({
 
       <Panel>
         {shown.length === 0 ? (
-          <NotInputted what={view === 'hidden' ? 'hidden posts' : 'community posts'} />
+          <EmptyState>
+            <p className="empty-title">{view === 'hidden' ? 'No hidden posts' : 'No posts yet'}</p>
+          </EmptyState>
         ) : (
           shown.map((p) => <PostCard key={p.id} post={p} />)
         )}

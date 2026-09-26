@@ -1,5 +1,6 @@
 import type { CommunityCategory } from "./community.js";
 import type { SettingsKey, SettingsValues } from "./settings.js";
+import type { StreamProvider, StreamState } from "./stream-core.js";
 
 /**
  * A structural stand-in for `firebase/firestore`'s `Timestamp` (and the
@@ -52,8 +53,13 @@ export interface BaseDoc {
  * with a size weight each — Platinum 3, Gold 2, Silver 1, Bronze 1. There is no
  * Diamond tier and no startup tier. Read in that order, this union is also the
  * sort order, so nothing needs a separate ranking table beyond `TIER_ORDER`.
+ *
+ * Those four are now the defaults rather than the whole set. The tier list is
+ * `settings/sponsorTiers`, edited on Sponsor Tiering, and this field holds the
+ * `id` of one entry — so the type is a string, and order and display name come
+ * from `sponsor-tiers.ts`, never from this value.
  */
-export type SponsorTier = "platinum" | "gold" | "silver" | "bronze";
+export type SponsorTier = string;
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 export type SessionFormat =
   | "keynote"
@@ -114,6 +120,31 @@ export interface UserDoc extends BaseDoc {
   /** Written only by Cloud Functions; mirrored into the custom claim. */
   roles: Role[];
   /**
+   * This account's own registration, as an id — the pointer `firestore.rules`
+   * needs to find out which ticket the caller holds.
+   *
+   * ── Why a pointer the client writes, and why that is safe ──────────────────
+   *
+   * Gating a stream by ticket type means a rule has to answer "what ticket does
+   * this token hold", and nothing in the token says. The ticket is on
+   * `registrations/{id}`, whose id is `reg_` + sha256(email) — and the rules
+   * language has no hash function, so a rule cannot address the caller's own
+   * registration from their address. The seat rules get around it by having the
+   * client name the registration *in the write*; a read has no such field, only
+   * the document path, so the pointer has to be stored.
+   *
+   * It is written by the app, so it is not trusted, and it does not need to be:
+   * the rule reads the registration this points at and then checks that it
+   * belongs to the caller with `registrationIsMine()` — the same address fold
+   * the badge uses. Pointing it at somebody else's registration gets a denial,
+   * not their ticket.
+   *
+   * Absent on every profile written before 2026-09-23, and absent reads as "no
+   * ticket type known", which passes an unrestricted stream and is refused by a
+   * restricted one. That is the safe direction.
+   */
+  registrationId?: string;
+  /**
    * True while this account still holds the temporary password it was
    * provisioned with, and the app must not let the attendee past the change
    * screen until it is false.
@@ -147,6 +178,21 @@ export interface UserDoc extends BaseDoc {
    * two situations the attendee is in. Cleared together with it.
    */
   mustSetPassword?: boolean;
+  /**
+   * When this attendee answered the event code prompt.
+   *
+   * Its presence is the whole of it: the prompt is asked once, and this is how
+   * the app remembers it was. It is not a credential and nothing gates on it —
+   * `firestore.rules` lets the owner write it once and never move it, so a
+   * client can record its own answer and cannot un-join anybody, itself
+   * included.
+   *
+   * Absent on every account that signed in before a code was set, and on every
+   * account while no code is required. An organizer who switches the code on
+   * mid-event is asking the whole room, not only the people who arrive after —
+   * so absent means "ask", and that is the intended direction.
+   */
+  joinedAt?: Timestamp;
 }
 
 /**
@@ -200,8 +246,28 @@ export interface RegistrationDoc extends BaseDoc {
   /** Addresses an attendee may also sign in with — assistants, forwards, aliases. */
   altEmails: string[];
   name?: string;
+  /**
+   * What an organizer typed for a badge, from Attendees. The attendee's own
+   * profile (`users/{uid}`) wins wherever both exist; these are what a ticket
+   * holder who never opens the app is printed with.
+   */
+  title?: string;
+  company?: string;
   ticketType?: string;
   status: "active" | "cancelled" | "transferred";
+  /**
+   * The two ends of a transfer, or of a corrected address. A registration's id
+   * is derived from its email, so moving a ticket to another address is a new
+   * document rather than an edit, and these are the only link between the two.
+   */
+  transferredTo?: string;
+  transferredFrom?: string;
+  /**
+   * Present while an organizer's cancellation is holding a paid seat out of
+   * `quantitySold`. Names the order and tier it was taken from, so reinstating
+   * puts back exactly what cancelling released. See `OrderDoc.releasedSeats`.
+   */
+  seatRelease?: { orderId: string; ticketTypeId: string };
   /** Set once the holder has signed in and claimed the registration. */
   claimedByUid?: string;
   /** Printed on the badge as a fallback sign-in door for a wrong-address attendee. */
@@ -211,6 +277,20 @@ export interface RegistrationDoc extends BaseDoc {
    * QR payload would let anyone who photographs a badge learn an identity.
    */
   qrSecret: string;
+
+  /**
+   * The organizer's label for this person: an id from `settings/
+   * attendeeCategories`, the name it had when it was set, and who set it.
+   *
+   * `category` is a copy on purpose. The holder's phone can read this document
+   * and cannot read the settings bag, so the name travels with the ticket; a
+   * rename on the dashboard rewrites it. `categorySource: "manual"` is what
+   * stops a repeat purchase from undoing a hand assignment. Not a role and not
+   * a claim: nothing in `firestore.rules` reads it.
+   */
+  categoryId?: string;
+  category?: string;
+  categorySource?: "manual" | "ticket";
 
   /**
    * Answers to the registration question form, keyed by `QuestionFieldDef.id`.
@@ -232,10 +312,17 @@ export interface RegistrationDoc extends BaseDoc {
 /**
  * One question on a registration form.
  *
- * A closed set of kinds, deliberately. An open builder with conditional logic
- * is the project Whova has been iterating on for years; a fixed set covers
- * dietary requirements, t-shirt size, job function and a consent box, which is
- * what a conference actually asks.
+ * A closed set of kinds, deliberately. An open builder is the project Whova has
+ * been iterating on for years; a fixed set covers dietary requirements, t-shirt
+ * size, job function and a consent box, which is what a conference actually
+ * asks.
+ *
+ * The one piece of logic it does carry is `showIf`, one level deep: a question
+ * revealed by a particular answer to an earlier choice or tick box. The shared
+ * builder in `@kgc/scripts/src/lib/question-forms.ts` has held the rules for it
+ * since the call for abstracts was built, and both forms use the same ones — a
+ * second notion of "is this question being asked?" is how a checkout comes to
+ * reject an answer its own page never showed a field for.
  */
 export interface QuestionFieldDef {
   /**
@@ -269,6 +356,14 @@ export interface QuestionFieldDef {
    * form's audience — which is what most questions want.
    */
   ticketTypeIds?: string[];
+  /**
+   * Present on a sub-question: the earlier answer that reveals it.
+   *
+   * Sub-questions live in the same flat `fields` array as everything else rather
+   * than nested inside their parent, because answers are a flat map keyed by
+   * field id at every depth. One level deep, and the validator enforces that.
+   */
+  showIf?: FieldTrigger;
   order: number;
 }
 
@@ -329,7 +424,7 @@ export interface FieldTrigger {
  * is a valid `FormFieldDef`, so `questionForms/{audience}` documents flow
  * through the shared builder untouched and every existing caller keeps its own
  * narrower type. Nothing changes for registration until somebody defines a field
- * that uses one of the three properties below.
+ * that uses one of the two properties below.
  *
  * The builder, the validator and the version planner that operate on this shape
  * live in `@kgc/scripts/src/lib/question-forms.ts` rather than here, for the
@@ -352,15 +447,12 @@ export interface FormFieldDef extends Omit<QuestionFieldDef, "kind"> {
   maxLength?: number;
   /** Who may see the answer. Absent means `organizers`. */
   visibility?: FieldVisibility;
-  /**
-   * Present on a sub-question: the parent answer that reveals it.
-   *
-   * Sub-questions live in the same flat `fields` array as everything else rather
-   * than nested inside their parent, because answers are a flat map keyed by
-   * field id at every depth. The nesting is one level deep and the validator
-   * enforces that.
+  /*
+   * `showIf` is inherited from `QuestionFieldDef` rather than declared here.
+   * It started on this type, for the call for abstracts, and moved up when the
+   * registration form began using it too — one declaration, so the two forms
+   * cannot drift into two shapes of the same idea.
    */
-  showIf?: FieldTrigger;
 }
 
 /**
@@ -519,23 +611,189 @@ export interface SessionDoc extends BaseDoc {
   qaEnabled: boolean;
   pollsEnabled: boolean;
   /**
-   * Absent means uncapped.
+   * Seats. Absent or 0 means uncapped.
    *
-   * ⚠️ **Nothing enforces this.** This comment used to read "enforced in a
-   * transaction, not by rules"; there is no such transaction. Nothing in
-   * `app/`, `apps/web/`, `apps/organizer/` or `functions/` reads this field
-   * except `conflicts-core.ts`, which only warns when a cap exceeds what the
-   * room seats. Adding a session to a schedule writes a private
-   * `savedSessions` bookmark with no count and no ceiling, so an attendee can
-   * save a full workshop and nothing objects.
-   *
-   * It is therefore a **stated intent**, useful for planning and for the
-   * over-capacity warning, and it is not a limit. `attendees/session-cap` says
-   * so on screen. Making it real needs a counter and a transaction that does
-   * not exist yet — and a decision about what happens at the door when somebody
-   * turns up to a session they were never counted into.
+   * Enforced twice: the app takes a seat in a transaction over
+   * `sessionSeats/{sessionId}`, and `firestore.rules` re-checks the same
+   * arithmetic with `getAfter()`, so a hand-built request cannot take seat 41
+   * of 40. The cases live in `session-seats.ts` beside this file. Lowering a
+   * cap below the seats already taken removes nobody; the session just stops
+   * promoting from its waitlist until it is back under.
    */
   capacity?: number;
+  /**
+   * Ticket types that may take a seat, as the names `RegistrationDoc.ticketType`
+   * holds. Absent or empty means every ticket. Names rather than ticket type
+   * ids because the registration carries the name and the rules compare the
+   * two directly. Edited on Attendees, Ticket Session Mapping.
+   */
+  eligibleTicketTypes?: string[];
+  /**
+   * That this session has a stream, and how it is running. Display only.
+   *
+   * ── Why a flag here and the link in a subcollection ─────────────────────────
+   *
+   * `firestore.rules` filters documents, not fields (see the security model in
+   * `AGENTS.md`), so a stream URL restricted to one ticket tier cannot live on
+   * the session document — every attendee may read a published session, and a
+   * field on it is a field they have. The URL lives in
+   * `sessions/{id}/watch/{stream|recording}`, which is gated on its own.
+   *
+   * What is left here is the part that is not a secret: that something is on,
+   * and whether it needs a particular ticket. That is what an agenda row needs
+   * to draw a "Live now" pill without a second read per session, and what the
+   * dashboard's Streaming Setup counts. Absent means no stream has been set up.
+   *
+   * Written only by the dashboard, alongside the watch document, and cleared
+   * with `FieldValue.delete()` rather than by omission — under `merge` an
+   * `undefined` writes no key at all (AGENTS.md gotcha 9), so a removed stream
+   * would leave a "Live now" pill on the agenda for ever.
+   */
+  streamState?: "scheduled" | "live" | "ended";
+  /** A recording exists for this session. The link itself is gated. */
+  hasRecording?: boolean;
+  /**
+   * The stream or the recording names ticket types. The agenda says "included
+   * with your ticket" or does not, without anybody having to be refused first.
+   */
+  watchRestricted?: boolean;
+  /**
+   * The ticket type **names** that may watch this session live, and the ones
+   * that may watch the recording. Empty or absent means every ticket type.
+   *
+   * ── Why the names are out here and the links are not ────────────────────────
+   *
+   * The link is the thing that is sold; the tier that bought it is on the
+   * website's pricing page. So the names are not a secret, and a reader who is
+   * about to be refused needs them: "this is for All Access and Gold tickets"
+   * is something a person can act on, and "you are not allowed to watch this"
+   * is not. They cannot be read out of the watch document itself, because the
+   * whole point of that document is that the reader who needs this sentence is
+   * the one being denied it.
+   *
+   * Two lists rather than one union, and that distinction is load-bearing: a
+   * free live stream with a recording sold to the video-library tiers is the
+   * ordinary arrangement here, and a union would put "not on your ticket" on a
+   * stream anybody may watch. `watchRestricted` stays as the one-bit summary
+   * the dashboard already counts.
+   *
+   * Written by the dashboard beside the watch documents, always either written
+   * or `FieldValue.delete()`d (AGENTS.md gotcha 9), so lifting a restriction
+   * really lifts it.
+   */
+  streamTicketTypes?: string[];
+  recordingTicketTypes?: string[];
+  /**
+   * When the recording stops being available, if it ever does.
+   *
+   * Out here for the same reason as the names: a list of recordings has to be
+   * able to say "available until 31 December" without one gated read per row,
+   * and a reader whose library has closed is owed the date rather than a
+   * refusal. The authoritative window is still the one on the recording
+   * document, which is what the player checks.
+   */
+  recordingUntil?: Timestamp;
+}
+
+/**
+ * `sessions/{sessionId}/watch/{WATCH_STREAM_DOC}` — where to watch this session
+ * live, and who may.
+ *
+ * A subcollection document rather than fields on the session, because rules
+ * filter documents and not fields, and this is the one thing about a session
+ * that is not for everybody. The session carries `streamState` so the agenda
+ * can say a talk is live without being allowed to say where.
+ *
+ * Server-written. Every write is the dashboard with the Admin SDK; the client
+ * rule is read-only, and the read is the ticket check.
+ */
+export interface SessionStreamDoc {
+  eventId: string;
+  sessionId: string;
+  provider: StreamProvider;
+  /**
+   * What the organizer pasted, kept verbatim so the editor round-trips and so
+   * a mis-parse can be diagnosed from the document rather than from memory.
+   * Nothing renders it.
+   */
+  source: string;
+  /** Normalised by `parseStreamSource`. Where a person watches it. */
+  watchUrl: string;
+  /** Normalised. Equal to `watchUrl` when the provider refuses to be framed. */
+  embedUrl: string;
+  /** The provider's own id, where it has one. */
+  videoId?: string;
+  /** False for Zoom, which sends `X-Frame-Options` and cannot be embedded. */
+  embeddable: boolean;
+  state: StreamState;
+  /**
+   * Ticket type **names** that may watch, as `RegistrationDoc.ticketType`
+   * holds them. Empty means every ticket type, and the writer always stores the
+   * array so that "I removed the restriction" cannot silently keep it.
+   */
+  allowedTicketTypes: string[];
+  updatedAt: Timestamp;
+}
+
+/**
+ * `sessions/{sessionId}/watch/{WATCH_RECORDING_DOC}` — the recording, once
+ * there is one.
+ *
+ * Same document-level gating as the stream, and independent of it: a session
+ * may have a stream, a recording, both or neither, and the two are separate
+ * documents so an organizer can take the stream down without taking the
+ * recording with it.
+ */
+export interface SessionRecordingDoc {
+  eventId: string;
+  sessionId: string;
+  provider: StreamProvider;
+  source: string;
+  watchUrl: string;
+  embedUrl: string;
+  videoId?: string;
+  embeddable: boolean;
+  /** What the library lists it as. Defaults to the session title. */
+  title: string;
+  /** Absent when nobody typed one. Never 0 — 0 would read as an empty talk. */
+  durationSeconds?: number;
+  /** Absent means it is up as soon as it is saved. */
+  availableFrom?: Timestamp;
+  /** Absent means it stays up. The expiry a video library is usually sold with. */
+  availableUntil?: Timestamp;
+  allowedTicketTypes: string[];
+  updatedAt: Timestamp;
+}
+
+/**
+ * `sessionSeats/{sessionId}` — the seat counter for a capped or restricted
+ * session. Created by the first attendee to take a seat.
+ *
+ * A separate document and not fields on the session, because attendees write
+ * it and may not write a session.
+ */
+export interface SessionSeatsDoc {
+  eventId: string;
+  sessionId: string;
+  taken: number;
+  /** Uids waiting, first in line first. See `session-seats.ts` for why a list. */
+  waitlist: string[];
+  updatedAt: Timestamp;
+}
+
+/**
+ * `sessionSeats/{sessionId}/seats/{uid}` — one attendee's place, seated or
+ * waiting. Tied to a registration so a seat always belongs to a ticket.
+ */
+export interface SessionSeatDoc {
+  eventId: string;
+  sessionId: string;
+  uid: string;
+  registrationId: string;
+  status: "seated" | "waitlisted";
+  createdAt: Timestamp;
+  /** Set when a waitlisted seat becomes a real one. */
+  promotedAt?: Timestamp;
 }
 
 /** `speakers/{id}` */
@@ -600,6 +858,94 @@ export interface SpeakerDoc extends BaseDoc {
    * whichever address they later bought a ticket with.
    */
   contactEmail?: string;
+}
+
+/**
+ * What a speaker typed into their own profile link, before an organizer has
+ * looked at it.
+ *
+ * Every key is optional and an absent key means "they left it alone", which is
+ * not the same as "they cleared it" — an empty string is how the form says
+ * cleared, and the approval writes that through as a deletion. The two have to
+ * stay distinguishable or a speaker who only fixed their job title would wipe
+ * their own bio.
+ */
+export interface SpeakerProfileDraft {
+  title?: string;
+  company?: string;
+  bio?: string;
+  /**
+   * A link to a headshot, as typed.
+   *
+   * Not an upload. Files enter this project through one path only
+   * (`apps/organizer/src/lib/uploads.ts`), which holds the Admin SDK credential
+   * and lives in the dashboard; the public website has no writer for the bucket
+   * and must not grow one just for this form. So a speaker sends a link and the
+   * organizer, who already has the file picker on Speaker Manager, uploads the
+   * file if one is sent instead. The portal page says so rather than offering a
+   * control that cannot work.
+   */
+  photoURL?: string;
+  social?: { linkedin?: string; x?: string; website?: string };
+  /**
+   * `sessions/{id}` → the slides link for that one session.
+   *
+   * Keyed by session rather than a single field on the speaker because a
+   * speaker with a keynote and a workshop has two decks, and the field the
+   * agenda reads is `SessionDoc.slidesUrl`. Only sessions that already name
+   * this speaker are accepted; the approval re-checks that rather than trusting
+   * whatever keys arrived.
+   */
+  slides?: Record<string, string>;
+}
+
+/**
+ * Where one speaker's self-service link has got to.
+ *
+ * Deliberately linear, because it is a chase list and the only question an
+ * organizer asks is "who is still holding me up". `sent` is set when a link
+ * goes out, `opened` the first time the page is loaded, `submitted` when they
+ * press the button, and the last two when an organizer decides.
+ */
+export type SpeakerProfileEditStatus =
+  | "sent"
+  | "opened"
+  | "submitted"
+  | "approved"
+  | "rejected";
+
+/**
+ * `speakerProfileEdits/{speakerId}` — the self-service link for one speaker,
+ * what they sent back, and where it stands.
+ *
+ * Server-only, and `collections.ts` says why it is not a field on the speaker.
+ * Keyed by the speaker id so there is exactly one of these per speaker: a
+ * second submission replaces the first, which is what "I sent the wrong bio"
+ * should do.
+ */
+export interface SpeakerProfileEditDoc extends BaseDoc {
+  speakerId: string;
+  status: SpeakerProfileEditStatus;
+  /** When a link was last mailed, and to which address. */
+  linkSentAt?: Timestamp;
+  linkSentTo?: string;
+  openedAt?: Timestamp;
+  submittedAt?: Timestamp;
+  decidedAt?: Timestamp;
+  /** The organizer who approved or turned it down. */
+  decidedBy?: string;
+  /** An organizer's note on why it was turned down. Their record, not a reply. */
+  note?: string;
+  /**
+   * Epoch milliseconds. A link minted before this instant no longer opens.
+   *
+   * Milliseconds rather than a `Timestamp` because it is compared against the
+   * token's own `iat`, which is epoch ms — `scripts/src/lib/speaker-token.ts`
+   * has the argument for keeping revocation out of the token and here instead.
+   */
+  linksValidFrom?: number;
+  /** The last thing they sent. Kept after a decision, as the record of it. */
+  draft?: SpeakerProfileDraft;
 }
 
 /** `sessions/{sessionId}/materials/{id}` */
@@ -774,6 +1120,15 @@ export interface PollDoc {
   totalVotes: number;
   talliesUpdatedAt?: Timestamp;
   open: boolean;
+  /**
+   * Keep the published result up to date without anybody pressing a button.
+   *
+   * Off, the numbers attendees see move only when an organizer publishes the
+   * count, which is the safe default for a poll whose result is meant to land
+   * as a reveal. On, the room view recounts and republishes while it is open,
+   * so the phones in the room follow the screen at the front of it.
+   */
+  liveResults?: boolean;
   createdAt: Timestamp;
 }
 
@@ -1201,6 +1556,18 @@ export interface OrderDoc extends BaseDoc {
   registrationIds?: string[];
 
   /**
+   * Seats an organizer gave back by cancelling an attendee without refunding
+   * the order, as `registrationId → ticketTypeId`.
+   *
+   * A map keyed by registration rather than a count, so cancelling twice is one
+   * entry and reinstating deletes exactly that entry. `soldByTier` and
+   * `decideRefund` both subtract it: the first so that reconciling stock from
+   * orders agrees with `quantitySold`, the second so a later refund of this
+   * order does not hand the same seat back a second time.
+   */
+  releasedSeats?: Record<string, string>;
+
+  /**
    * An organizer accepting a purchase order as payment, out of band.
    *
    * This is the deliberate escape hatch for "the PO is good enough" — and it is
@@ -1231,6 +1598,13 @@ export interface EmailLogDoc {
     | "purchase-confirmation"
     | "invoice-raised"
     | "refund-confirmation"
+    /**
+     * The other half of a refund, when the ticket had been transferred: the
+     * receipt goes to whoever paid, and this goes to whoever was holding the
+     * badge that just stopped scanning. Two readers, two rows, because "was the
+     * new holder ever told?" is a question the buyer's row cannot answer.
+     */
+    | "ticket-cancelled"
     /**
      * The six-digit sign-in code from `requestOtp`. The only row in this log
      * that records the delivery of a **credential**, which is why nothing about
@@ -1266,7 +1640,52 @@ export interface EmailLogDoc {
      * same mail with a different first sentence and splitting them is how the
      * rejection quietly loses the paragraph explaining what happens next.
      */
-    | "submission-decision";
+    | "submission-decision"
+    /** A reviewer's invitation, carrying the link to their review page. */
+    | "reviewer-invitation"
+    /** A dashboard team member's link to choose their passphrase. */
+    | "team-invitation"
+    /**
+     * One person's link to sign one consent form, at one version.
+     *
+     * Written once per recipient, like `bulk-message` and for the same reason:
+     * the question asked afterwards is "was Ada ever sent this?", and a single
+     * row saying "sent to 137 people" cannot answer it. The version is in the
+     * subject, because a second request after the wording moved is a different
+     * mail about a different document.
+     */
+    | "consent-request"
+    /**
+     * One speaker's link to fill in their own profile, and every reminder.
+     *
+     * Written once per recipient, like `consent-request`, because the question
+     * afterwards is "was Ada ever asked?" and a row saying "sent to 137
+     * speakers" cannot answer it. Transactional and not governed by the
+     * suppression list: a speaker who unsubscribed from the newsletter still
+     * has to be asked for the bio their own talk is published with.
+     */
+    | "speaker-profile-request"
+    /**
+     * One exhibitor's link to the lead desk their booth staff scan badges on,
+     * and every re-send.
+     *
+     * Written once per recipient, like `speaker-profile-request`, because the
+     * question afterwards is "does that stand have a working link?" and a row
+     * counting a batch cannot answer it. Transactional: an exhibitor who
+     * unsubscribed from the newsletter has still paid for the booth this link
+     * is the tooling for.
+     */
+    | "exhibitor-lead-link"
+    /** The blog editor's six-digit sign-in code. Never carries the code itself. */
+    | "blog-sign-in-code"
+    /** The organizer dashboard's sign-in or confirmation code. Never carries the code. */
+    | "dashboard-sign-in-code"
+    /** An editor asking someone to write for the blog. */
+    | "blog-invitation"
+    /** A writer submitted a post: one row per editor told. */
+    | "blog-review-request"
+    /** An editor published a post or sent it back: the row for its writer. */
+    | "blog-review-decision";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */
@@ -1282,6 +1701,21 @@ export interface EmailLogDoc {
   /** Who pressed send. Absent on automated transactional mail. */
   actor?: string;
   at: Timestamp;
+}
+
+/**
+ * `sendLocks/{campaignId}` — a bulk send that is running right now.
+ *
+ * Written and deleted by the dashboard with the Admin SDK; no client path.
+ * `heldAt` is what makes it safe to abandon: a send is killed at 26 seconds, so
+ * a lock older than that is nobody's and may be taken over. Without the field
+ * one crashed send would block that campaign for ever.
+ */
+export interface SendLockDoc {
+  campaignId: string;
+  /** The organizer who took it, so the next press can be told who is sending. */
+  actor: string;
+  heldAt: Timestamp;
 }
 
 /**
@@ -1409,6 +1843,107 @@ export interface ExhibitorDoc extends BaseDoc {
   passesAllocated?: number;
   passesUsed?: number;
   status: "confirmed" | "provisional" | "cancelled";
+
+  /**
+   * Lead capture: the state of the capability link this exhibitor's booth staff
+   * open to scan badges. `exhibitor-token.ts` holds no state, so all three of
+   * these live here.
+   *
+   * `leadLinksValidFrom` is epoch milliseconds and is the revocation: the token
+   * carries `iat`, and refusing every link minted before an instant is one
+   * comparison the store makes per request. It stops one exhibitor's links and
+   * nobody else's, which rotating the signing secret could not do. The speaker
+   * portal does the same thing with `SpeakerProfileEditDoc.linksValidFrom`.
+   *
+   * ⚠️ Plain numbers and a `Timestamp`, not a nested map. Under `merge: true` a
+   * map merges key by key, so a partial write would keep a stale half — see
+   * AGENTS.md gotcha 9 and the nested case found live in `submissions.ts`.
+   */
+  leadLinksValidFrom?: number;
+  /**
+   * Epoch milliseconds: when a link was last handed to this stand.
+   *
+   * ⚠️ Separate from `leadLinkSentAt` because they answer different questions
+   * and the screen needs both. *Issued* means an organizer pressed Send, a
+   * fresh token was minted, and this stand is meant to have a working link —
+   * true whether or not the mail left. *Sent* means the mail provider accepted
+   * it. Collapsing the two is what let the dashboard show "stopped" beside a
+   * link that opened: revocation is `iat < leadLinksValidFrom`, so whether a
+   * stand is locked out depends on when a link was last **minted**, and the
+   * only stamp the screen had moved when a mail left instead.
+   */
+  leadLinkIssuedAt?: number;
+  leadLinkSentAt?: Timestamp;
+  /** The address the last link went to, so the screen can say where it went. */
+  leadLinkSentTo?: string;
+}
+
+/**
+ * `exhibitors/{exhibitorId}/leads/{registrationId}` — one attendee who agreed
+ * to be contacted by one exhibitor.
+ *
+ * ── Keyed by registration, for the reason `checkIns` is ─────────────────────
+ *
+ * A booth scans the same badge twice — the attendee came back, or the phone
+ * fired twice at one badge held up. The id makes that land on the same
+ * document, so a second scan is a repeat rather than a duplicate row, and the
+ * page can say "you already have them, scanned at 11:04" instead of quietly
+ * counting them twice in an export somebody is billed against.
+ *
+ * ── Why it is under the exhibitor and not under the attendee ────────────────
+ *
+ * The containment *is* the access rule. An exhibitor's link opens exactly
+ * `exhibitors/{their id}/leads`, so there is no query that could return
+ * somebody they did not scan, and no filter to get wrong. A top-level `leads`
+ * collection filtered by exhibitor id would be one missing `where` away from
+ * handing one company the whole floor's contacts.
+ *
+ * ── What is copied in, and what is not ──────────────────────────────────────
+ *
+ * Name, company, job title and email, copied at scan time — the four things
+ * the consent sentence names and nothing else. Not the uid, not `qrSecret`, not
+ * the ticket type, not the check-in history. Copied rather than joined because
+ * a lead is a record of a conversation on a particular day: an attendee who
+ * later changes employer has not retrospectively met this booth on behalf of
+ * the new one, and an attendee who deletes their account has still been
+ * lawfully given this exhibitor their card.
+ *
+ * Server-written, from the website's Admin SDK, through the capability link.
+ * There is no `firestore.rules` block for it and there must not be one: no
+ * client anywhere in this project may read or write a lead.
+ */
+export interface ExhibitorLeadDoc {
+  eventId: string;
+  exhibitorId: string;
+  /** Matches the document id. Duplicated so an export row is self-describing. */
+  registrationId: string;
+  name: string;
+  email: string;
+  company?: string;
+  title?: string;
+  /** What the booth typed about the conversation. Capped at 500 characters. */
+  note?: string;
+  scannedAt: Timestamp;
+  /**
+   * The agreement, recorded with the record it authorises.
+   *
+   * `wording` is the exact sentence the attendee was shown, stored for the same
+   * reason `ConsentFormDoc` stores its body: "they consented" is worth nothing
+   * without what they consented to, and a sentence that lives only in a
+   * component is a sentence a tidy-up can silently rewrite under every lead
+   * already taken. Built by `leadConsentWording()`.
+   */
+  consent: {
+    grantedAt: Timestamp;
+    wording: string;
+    /**
+     * How the agreement was obtained. One value today — the attendee tapped
+     * agree on the booth's screen straight after the scan — and it is stored
+     * rather than assumed so that a second channel later cannot be mistaken for
+     * this one after the fact.
+     */
+    source: "badge-scan";
+  };
 }
 
 /**
@@ -2035,6 +2570,13 @@ export type SubmissionStatus =
   | "under-review"
   | "accepted"
   | "rejected"
+  /**
+   * Held in reserve: good enough to take if an accepted author drops out. A
+   * decision like the other two, so it carries a `decision` map and is undone
+   * the same way, and it is its own value rather than a flag on `rejected`
+   * because the acceptance rate must not count it as a rejection.
+   */
+  | "waitlisted"
   | "withdrawn";
 
 /** Where a reviewer is in the invitation, before any submission is assigned. */
@@ -2336,8 +2878,8 @@ export interface SubmissionDoc extends BaseDoc {
   reviewsAssigned: number;
   reviewsSubmitted: number;
   /**
-   * The mean of the submitted reviews' `overall` scores, absent until there is
-   * one. Stored rather than computed because the ranking screen sorts on it and
+   * The mean of the submitted reviews' `overall` scores, on the same 0 to 10
+   * scale, absent until there is one. Reviews under a conflict are left out. Stored rather than computed because the ranking screen sorts on it and
    * Firestore cannot order by a value it does not hold.
    */
   scoreAverage?: number;
@@ -2453,9 +2995,17 @@ export interface ReviewDoc {
    */
   scores?: Record<string, number>;
   /**
-   * The mean of `scores`, stored because the ranking screen sorts on it and
-   * Firestore cannot order by a value it does not hold. Written when the review
-   * is submitted, from the rubric in force at that moment.
+   * A remark per `RubricCriterionDef.id`, beside the score it explains. For the
+   * committee only, like `commentsToCommittee`. Only criteria that were given a
+   * remark have a key.
+   */
+  criterionComments?: Record<string, string>;
+  /**
+   * The mean of `scores` with each first placed on a 0 to 10 scale, so that
+   * criteria with different scales count the same (`overallOf` in
+   * `@kgc/scripts/src/lib/review-core.ts`). Stored because the ranking screen
+   * sorts on it and Firestore cannot order by a value it does not hold. Written
+   * when the review is submitted, from the rubric in force at that moment.
    */
   overall?: number;
   /**
@@ -2481,6 +3031,13 @@ export interface ReviewDoc {
    */
   conflict: boolean;
   conflictNote?: string;
+  /**
+   * The organizer address that excluded this reviewer from this submission.
+   * Absent when the reviewer declared the conflict themselves. Either way the
+   * document stays, `declined`, which is what stops the matcher handing the
+   * pair back.
+   */
+  excludedBy?: string;
 
   /**
    * How this assignment was made. Recorded because "random" is the one an
@@ -2527,6 +3084,8 @@ export interface ReviewerDoc extends BaseDoc {
 
   invitedAt?: Timestamp;
   respondedAt?: Timestamp;
+  /** When the invitation email was last sent. Absent until one has been. */
+  lastInvitationAt?: Timestamp;
   /**
    * Lower-case hex sha256 of the nonce in the reviewer's capability link. Same
    * shape and the same revocation argument as `SubmissionDoc.submitterTokenHash`
@@ -2645,4 +3204,72 @@ export interface CertificateDoc extends BaseDoc {
   issuedAt: Timestamp;
   /** The allowlisted organizer identity, as every other audited write records it. */
   issuedBy: string;
+}
+
+/**
+ * What a dashboard team member may open. `owner` is everything; the rest each
+ * name one area, and a member may hold several. The path rules behind each one
+ * live in `apps/organizer/src/lib/team-core.ts`.
+ */
+export type TeamRole = "owner" | "finance" | "agenda" | "sponsors" | "checkin" | "reviews";
+
+/**
+ * `teamMembers/{id}` — one person invited to the organizer dashboard.
+ *
+ * Server-only, like `orders`. These sit alongside the addresses in the
+ * dashboard's `CONSOLE_ALLOWLIST`, which stay owners and keep the shared
+ * passphrase; a member here signs in with a passphrase of their own.
+ *
+ * The id is derived from the address, so inviting the same person twice is one
+ * document rather than two with different roles.
+ */
+export interface TeamMemberDoc extends BaseDoc {
+  /** Lower case. What they type at sign-in, and the audit actor. */
+  email: string;
+  name?: string;
+  roles: TeamRole[];
+  /** `invited` until they have chosen a passphrase through their link. */
+  status: "invited" | "active";
+  /** `scrypt$N$salt$hash`. Absent until the link has been used. */
+  passphraseHash?: string;
+  /**
+   * Lower-case hex sha256 of the nonce in the outstanding set-passphrase link.
+   * Deleted when the link is used, which is what makes it one-time, and
+   * replaced when a new link is issued, which is what kills the old one.
+   */
+  setupNonceHash?: string;
+  setupExpiresAt?: Timestamp;
+  /**
+   * Copied into the session cookie at sign-in and compared on every request.
+   * Changing it signs the member out everywhere; deleting the document does the
+   * same, because there is then nothing to compare against.
+   */
+  sessionEpoch: string;
+  invitedBy: string;
+  lastSignInAt?: Timestamp;
+  updatedBy: string;
+}
+
+/**
+ * `blogMembers/{email}`: who may sign in to the blog editor at
+ * blog.knowledgegraph.tech, and as what. Server-only. Written by the organizer
+ * dashboard (Attendees › Admin Settings), which is where the list is managed,
+ * and read by the website on every blog request.
+ *
+ * Every change to someone's access rotates `sessionEpoch`, which ends their
+ * sessions on their next request.
+ */
+export interface BlogMemberDoc {
+  email: string;
+  name: string;
+  /** Editors publish and review; writers draft their own posts and submit them. */
+  role: "editor" | "writer";
+  status: "invited" | "active" | "removed";
+  bio?: string;
+  /** A photo uploaded through the editor, served from `/blog-media`. */
+  avatar?: string;
+  invitedBy?: string;
+  invitedAt?: unknown;
+  lastSignInAt?: unknown;
+  sessionEpoch: string;
 }

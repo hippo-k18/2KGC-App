@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes, money, salesSummary } from '@/lib/commerce';
+import { listWatchOverview } from '@/lib/streaming';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,15 +19,22 @@ export const dynamic = 'force-dynamic';
  *
  * It does not cover the one thing that actually matters here. KGC sells a
  * `virtual` ticket at $349 whose bullet list opens with "Live streams of every
- * conference and workshop session", and there is no streaming anywhere in this
- * repo — no player in the app, no stream field on `SessionDoc`, no provider
- * account. That is not a missing feature; it is a paid ticket promising a
- * thing that does not exist, and it is worth a number on a screen rather than
- * a line in a backlog.
+ * conference and workshop session", and for a year nothing in this repo could
+ * hold a stream at all. That was not a missing feature; it was a paid ticket
+ * promising a thing that did not exist, and it was worth a number on a screen
+ * rather than a line in a backlog.
  *
- * So this page reads the tier out of `ticketTypes` and the sales out of
- * `orders`, and puts the two side by side. That is its whole job: it is an
- * entitlement report, not an essay about streaming.
+ * ⚠️ **Half of that is fixed as of 2026-09-23.** Sessions carry a stream and a
+ * recording, gated by ticket type, set up on Session Manager and listed on
+ * Streaming Setup. So the number this page reports changed: it is no longer
+ * "streaming does not exist", it is how many sessions actually have something
+ * against how many remote tickets have been sold. What is still not software
+ * is the production — a camera, sound and an operator per room.
+ *
+ * So this page reads the tiers out of `ticketTypes`, the sales out of `orders`
+ * and the setup out of the two `watch` documents per session, and puts the
+ * three side by side. That is its whole job: it is an entitlement report, not
+ * an essay about streaming.
  *
  * ── The three options, kept here rather than on screen ──────────────────────
  *
@@ -50,7 +58,13 @@ export const dynamic = 'force-dynamic';
  */
 export default async function VirtualAndHybridSetupPage() {
   await requireOrganizer();
-  const [tiers, sales] = await Promise.all([listTicketTypes(), salesSummary()]);
+  const [tiers, sales, watch] = await Promise.all([
+    listTicketTypes(),
+    salesSummary(),
+    listWatchOverview(),
+  ]);
+
+  const setUp = watch.filter((r) => r.stream || r.recording).length;
 
   // `inPerson: false` is the entitlement field, not the marketing copy — the
   // same field `attendees/ticket-session-mapping` refuses to guess at.
@@ -69,24 +83,26 @@ export default async function VirtualAndHybridSetupPage() {
         title="Virtual & Hybrid Setup"
         info={
           <>
-            <strong>An entitlement report, not a setup wizard</strong>
+            <strong>Remote ticket report</strong>
             <p>
-              This project runs one event format, in person. There is no switch between virtual,
-              hybrid and in-person to flip, and no per-session stream configuration. What this
-              screen does is compare what remote tiers were sold as against what exists.
+              This page lists the remote ticket tiers, what they include and how many have been
+              sold, beside how many sessions have a stream or a recording set up.
             </p>
           </>
         }
         tags={
-          remoteSold > 0 ? (
+          remoteSold > 0 && setUp === 0 ? (
             <Tag color="red" fill="solid">
-              Sold, not delivered
+              Nothing set up to watch
             </Tag>
           ) : undefined
         }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
             Create Tickets
+          </Link>,
+          <Link key="ss" href={ROUTES.streamingSetup}>
+            Streaming Setup
           </Link>,
           <Link key="v" href="/content/documents-and-videos/video-hosting">
             Video Hosting
@@ -103,15 +119,15 @@ export default async function VirtualAndHybridSetupPage() {
         nothing keeps, and every day it stays on sale adds a refund
         conversation. It changes what the organizer does in the next minute.
       */}
-      {remoteSold > 0 && (
+      {remoteSold > 0 && setUp === 0 && (
         <Banner kind="danger">
           <strong>
-            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold against
-            a promise nothing delivers.
+            {remoteSold} remote {remoteSold === 1 ? 'ticket has' : 'tickets have'} been sold and no
+            session has a stream or a recording.
           </strong>{' '}
-          The remote tiers below are on sale on the public site and nothing in this project streams:
-          no player in the app, no stream URL on a session, no provider account. Every one of them is
-          a refund conversation waiting to happen.
+          These buyers have nothing to watch yet. Add a link on{' '}
+          <Link href={ROUTES.streamingSetup}>Streaming Setup</Link>, or hide the tier in{' '}
+          <Link href={ROUTES.createTickets}>Create Tickets</Link>.
         </Banner>
       )}
 
@@ -119,35 +135,38 @@ export default async function VirtualAndHybridSetupPage() {
         tiles={[
           { label: 'Remote tiers on sale', value: remote.filter((t) => t.visible).length, sub: `${remote.length} defined` },
           { label: 'Remote tickets sold', value: remoteSold, sub: 'settled orders' },
-          { label: 'Money taken for them', value: money(remoteNet, sales.currency), sub: 'net of refunds' },
+          { label: 'Revenue', value: money(remoteNet, sales.currency), sub: 'net of refunds' },
+          {
+            label: 'Sessions to watch',
+            value: setUp,
+            sub: `of ${watch.length} on the agenda`,
+          },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What the buyer was told</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What each tier includes</h2>
         {remote.length === 0 ? (
           <NotInputted what="remote ticket tiers" />
         ) : (
           remote.map((t) => (
             <div key={t.id} style={{ marginBottom: 18 }}>
-              <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 6 }}>
+              <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
                 <strong>{t.name}</strong>
                 <span className="muted">{money(t.priceCents, t.currency)}</span>
                 <Tag color={t.visible ? 'green' : 'grey'}>{t.visible ? 'on sale' : 'hidden'}</Tag>
               </div>
-              <Table
-                cols={[
-                  { key: 'c', label: 'Sold as', className: 'cell-fill' },
-                  { key: 's', label: 'Delivered by', className: 'cell-md' },
-                ]}
-                rows={t.includes.map((line) => [
-                  line,
-                  <span key="s" className="muted">
-                    nothing
-                  </span>,
-                ])}
-                empty="This tier lists no inclusions."
-              />
+              {t.includes.length === 0 ? (
+                <p className="muted" style={{ margin: 0 }}>
+                  This tier lists no inclusions.
+                </p>
+              ) : (
+                <ul style={{ fontSize: 13, lineHeight: 1.7, margin: 0, paddingLeft: 20 }}>
+                  {t.includes.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))
         )}
@@ -157,15 +176,16 @@ export default async function VirtualAndHybridSetupPage() {
           is false on the document. So even the *entitlement* disagrees with the
           sales page, independently of whether anything serves video.
         */}
-        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-          ⚠️ Note the Virtual tier promises &ldquo;on-demand replays&rdquo; in prose while its{' '}
-          <code>includesVideoLibrary</code> entitlement is <code>false</code>. Those two disagree
-          with each other before any player exists. See{' '}
-          <Link href="/content/documents-and-videos/attendee-video-access">
-            Attendee Video Access
-          </Link>
-          .
-        </p>
+        {remote.some((t) => !t.includesVideoLibrary) && (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            Video library access is turned off for at least one remote tier. If the tier lists
+            replays, check{' '}
+            <Link href="/content/documents-and-videos/attendee-video-access">
+              Attendee Video Access
+            </Link>
+            .
+          </p>
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
@@ -177,14 +197,14 @@ export default async function VirtualAndHybridSetupPage() {
             project has one mode, in person, and no switch to flip.
           </li>
           <li>
-            <strong>Per-session stream configuration.</strong> <code>SessionDoc</code> has no
-            stream field at all, so there is nowhere to put a URL even as a placeholder. Adding one
-            is easy; the thing it points at is not.
+            <strong>Nothing produces a feed.</strong> Per-session stream and recording links are
+            built and gated by ticket type; a camera, sound and an operator per room are not
+            software and are not here.
           </li>
           <li>
             <strong>A virtual-attendee experience.</strong> The app is built for someone in the
             building — the badge QR, check-in, the room names. A remote attendee opening it today
-            gets an agenda and a community board and nothing to watch.
+            gets an agenda, a community board and whatever links have been added.
           </li>
         </ul>
       </GapPanel>

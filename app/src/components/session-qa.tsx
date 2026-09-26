@@ -103,7 +103,15 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
           disabled={busy || !draft.trim()}
           accessibilityRole="button"
           accessibilityLabel="Send question"
-          style={{ justifyContent: 'center', opacity: draft.trim() && !busy ? 1 : 0.4 }}>
+          // "Ask" is three characters, so the drawn box is 29pt wide. A target
+          // is 44 in both directions, not only the one the text happens to fill.
+          style={{
+            justifyContent: 'center',
+            alignItems: 'center',
+            minWidth: HIT_TARGET,
+            paddingHorizontal: Spacing.xs,
+            opacity: draft.trim() && !busy ? 1 : 0.4,
+          }}>
           <Text variant="heading" tone="tint">
             Ask
           </Text>
@@ -158,8 +166,19 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
                     accessibilityLabel={
                       mine ? `Remove your upvote${total}` : `Upvote${total}`
                     }
-                    hitSlop={8}
-                    style={{ alignItems: 'center', minWidth: HIT_TARGET, gap: Spacing.xs }}>
+                    // Drawn at the full target rather than drawn small and made
+                    // up with `hitSlop`: the star and its count are 39pt tall
+                    // between them, and `hitSlop` is dropped by
+                    // react-native-web, so in a phone browser this was the one
+                    // control on the screen under 44. A `minHeight` is true
+                    // everywhere and needs no `webSlop` to go with it.
+                    style={{
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: HIT_TARGET,
+                      minHeight: HIT_TARGET,
+                      gap: Spacing.xs,
+                    }}>
                     <Icon
                       name={mine ? 'star.fill' : 'star'}
                       color={mine ? colors.tint : colors.textTertiary}

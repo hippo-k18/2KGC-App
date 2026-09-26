@@ -1,10 +1,16 @@
 import Link from 'next/link';
-import { allowlist, requireOrganizer } from '@/lib/auth';
+import { allowlist, requireOwner } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
+import { dayOfInstant } from '@/lib/time';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { listMembers } from '@/lib/team';
+import { ROLE_LABELS, TEAM_ROLES } from '@/lib/team-core';
 import { SettingsReach } from '../../settings-reach';
-import { GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
+import { Email, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
+import { InviteForm, MemberActions, type RoleOption } from './team';
+import { BlogInviteForm, BlogRowActions } from './blog';
+import { listBlogPeople } from '@/lib/blog-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,27 +20,45 @@ export const dynamic = 'force-dynamic';
  * Whova's version is an admin roster — 30 admins on a paid event, 10 otherwise
  * — plus check-in staff, an event invitation code and share templates. Whova
  * also states plainly that the admin *roles* are cosmetic: every admin has
- * identical privileges whatever role is selected. Ours is more honest about the
- * same fact, because there is only one privilege level and no pretence of a
- * second.
+ * identical privileges whatever role is selected. Ours are not. A role here is
+ * a set of branches of the nav tree, and `requireAccess()` in `lib/auth.ts`
+ * refuses everything outside them, for a screen and for a server action alike.
  *
- * ── One real thing and three recorded ones ──────────────────────────────────
+ * ── Two kinds of row in one table ───────────────────────────────────────────
  *
- * The administrator table is live: it is `CONSOLE_ALLOWLIST`, the env var
- * `requireOrganizer()` actually checks on every request, so what it lists is
- * precisely who can sign in right now. It is read-only here because changing it
- * means editing an env var and restarting — which is a worse experience and a
- * better security boundary than a form that edits its own access control.
+ * Owners come from `CONSOLE_ALLOWLIST` and are read-only here: changing them means editing an env var and redeploying,
+ * which is a worse experience and a better last resort than a form that can
+ * remove the last person able to use it. Everybody else is a `teamMembers`
+ * document an owner made on this screen, limited by role and removable with
+ * immediate effect. Everybody signs in the same way, with a code emailed to
+ * them. This screen is itself owners-only.
  *
- * The switches below it are stored and not enforced, and the banner says so in
- * those words. An attendee-privacy setting that looks configured and is not is
- * exactly the defect AGENTS.md counts fourteen instances of.
+ * The Blog panel manages the other list, `blogMembers`: who can sign in to the
+ * blog editor. It lives here, not in the blog, at the owner's request
+ * (2026-09-26), so both access lists are managed in one place.
+ *
+ * The attendee switches further down are stored and not enforced, and the
+ * screen says so in those words. An attendee-privacy setting that looks
+ * configured and is not is exactly the defect AGENTS.md counts fourteen
+ * instances of.
  */
 export default async function AdminSettingsPage() {
-  await requireOrganizer();
+  await requireOwner();
 
-  const s = await readSettings(SETTINGS_KEYS.access);
+  const [s, members, blogPeople] = await Promise.all([
+    readSettings(SETTINGS_KEYS.access),
+    listMembers(),
+    listBlogPeople(),
+  ]);
   const admins = allowlist();
+  // An address in both places is an owner: the allowlist is asked first.
+  const team = members.filter((m) => !admins.includes(m.email));
+  const people = admins.length + team.length;
+
+  const options: RoleOption[] = TEAM_ROLES.filter((r) => r !== 'owner').map((role) => ({
+    role,
+    ...ROLE_LABELS[role],
+  }));
 
   return (
     <>
@@ -42,15 +66,13 @@ export default async function AdminSettingsPage() {
         title="Admin Settings"
         info={
           <>
-            <strong>The switches are saved, not enforced</strong>
-            <p>
-              They write a real audited document that only this screen reads: the app decides for
-              itself whether to show the attendee list, and <code>firestore.rules</code> knows about
-              neither setting. The administrator table above them is live.
-            </p>
+            <strong>Attendee settings are saved only</strong>
+            <p>The two attendee settings are stored but do not change the app yet.</p>
           </>
         }
-        tags={<Tag color="blue">{admins.length} administrators</Tag>}
+        tags={<Tag color="blue">
+            {people} {people === 1 ? 'administrator' : 'administrators'}
+          </Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
             Attendees
@@ -67,32 +89,138 @@ export default async function AdminSettingsPage() {
       <Panel>
         <h2 className="section-header">Administrators</h2>
         <p className="body-2">
-          Every identity in <code>CONSOLE_ALLOWLIST</code>, re-checked on every request. Removing
-          someone from the env var ends their live session too, not just their next sign-in. There
-          is one privilege level: anybody on this list can refund an order, edit the agenda and
-          check somebody in. Whova offers named roles and then says they grant identical rights;
-          this offers no roles, which is the same thing without the suggestion.
+          Everyone who can sign in to this dashboard, and what each of them can open.
         </p>
         <Table
+          stackSm
           cols={[
             { key: 'e', label: 'Identity', className: 'cell-md' },
-            { key: 'r', label: 'Privileges', className: 'cell-fill' },
+            { key: 'r', label: 'Roles', className: 'cell-fill' },
+            { key: 's', label: 'Status', className: 'cell-sm' },
+            { key: 'a', label: 'Actions', className: 'cell-md' },
           ]}
-          empty="CONSOLE_ALLOWLIST is empty: nobody can sign in"
-          rows={admins.map((e) => [
-            <strong key="e">{e}</strong>,
-            <span key="r" className="muted">
-              Full: read, write, refund, check-in
+          empty="No administrators. Nobody can sign in."
+          rows={[
+            ...admins.map((e) => [
+              <strong key="e">{e}</strong>,
+              <span key="r">
+                {ROLE_LABELS.owner.label}
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  {ROLE_LABELS.owner.covers}
+                </span>
+              </span>,
+              <Tag key="s" color="green">
+                Active
+              </Tag>,
+              <span key="a" className="muted" style={{ fontSize: 12 }}>
+                Owners are set up outside this screen.
+              </span>,
+            ]),
+            ...team.map((m) => [
+              <span key="e">
+                <strong><Email address={m.email} /></strong>
+                {m.name ? (
+                  <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                    {m.name}
+                  </span>
+                ) : null}
+              </span>,
+              <span key="r">
+                {m.roles.map((r) => ROLE_LABELS[r].label).join(', ')}
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  Invited by {m.invitedBy}
+                  {m.invitedAt ? ` on ${dayOfInstant(m.invitedAt)}` : ''}
+                  {m.lastSignInAt ? `. Last sign-in ${dayOfInstant(m.lastSignInAt)}` : ''}
+                </span>
+              </span>,
+              m.status === 'active' ? (
+                <Tag key="s" color="green">
+                  Active
+                </Tag>
+              ) : (
+                <Tag key="s" color="orange">
+                  Invited
+                </Tag>
+              ),
+              <MemberActions
+                key={`a-${m.id}`}
+                memberId={m.id}
+                email={m.email}
+                held={m.roles}
+                options={options}
+              />,
+            ]),
+          ]}
+        />
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Invite a team member</h2>
+        <p className="body-2">
+          They get an email, then sign in with their address and a code we send them. They can
+          open only what their roles cover.
+        </p>
+        <InviteForm options={options} />
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Blog</h2>
+        <p className="body-2">
+          Everyone who can sign in to the blog editor at{' '}
+          <a href="https://blog.knowledgegraph.tech/write" target="_blank" rel="noreferrer">
+            blog.knowledgegraph.tech/write
+          </a>
+          . Writers see only their own posts, and an editor reviews each one before it is published.
+        </p>
+        <Table
+          stackSm
+          cols={[
+            { key: 'e', label: 'Identity', className: 'cell-md' },
+            { key: 'r', label: 'Role', className: 'cell-fill' },
+            { key: 's', label: 'Status', className: 'cell-sm' },
+            { key: 'a', label: 'Actions', className: 'cell-md' },
+          ]}
+          empty="Nobody can sign in to the blog."
+          rows={blogPeople.map((p) => [
+            <span key="e">
+              <strong><Email address={p.email} /></strong>
+              {p.name ? (
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  {p.name}
+                </span>
+              ) : null}
             </span>,
+            <span key="r">
+              {p.role === 'editor' ? 'Editor' : 'Writer'}
+              <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                {p.role === 'editor' ? 'Edits and publishes any post' : 'Drafts their own posts for review'}
+                {p.lastSignInAt ? `. Last sign-in ${dayOfInstant(p.lastSignInAt)}` : ''}
+              </span>
+            </span>,
+            p.status === 'active' ? (
+              <Tag key="s" color="green">
+                Active
+              </Tag>
+            ) : (
+              <Tag key="s" color="orange">
+                Invited
+              </Tag>
+            ),
+            p.fixed ? (
+              <span key="a" className="muted" style={{ fontSize: 12 }}>
+                Owner. Set up outside this screen.
+              </span>
+            ) : (
+              // Keyed on the address: the table keys rows by position, and a
+              // removal would otherwise hand this row's message to the next person.
+              <BlogRowActions key={`a-${p.email}`} email={p.email} role={p.role} invited={p.status === 'invited'} />
+            ),
           ])}
         />
-        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Editing this from a browser is deliberately impossible. A screen that can add an
-          administrator is a screen that can grant Admin-SDK write access to the whole event, and
-          today the only credential in front of it is a shared passphrase. See the warning at the
-          top of <code>src/lib/auth.ts</code>, which is unambiguous that this is not to be exposed
-          beyond localhost before SSO and MFA land.
-        </p>
+        <h3 className="section-header" style={{ fontSize: 15, marginTop: 20 }}>
+          Add someone to the blog
+        </h3>
+        <BlogInviteForm />
       </Panel>
 
       <Panel>
@@ -100,48 +228,39 @@ export default async function AdminSettingsPage() {
         <AdminSettingsForm
           attendeeListVisible={s.attendeeListVisible}
           contactSharingEnabled={s.contactSharingEnabled}
+          attendeeMessagingEnabled={s.attendeeMessagingEnabled}
           staffNote={s.staffNote}
         />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
-            {s.updatedAt ? ` on ${s.updatedAt.slice(0, 10)}` : ''}.
+            {s.updatedAt ? ` on ${dayOfInstant(s.updatedAt)}` : ''}.
           </p>
         )}
       </Panel>
 
       <SettingsReach
         bag={SETTINGS_KEYS.access}
-        fields={['attendeeListVisible', 'contactSharingEnabled', 'staffNote']}
+        fields={['attendeeListVisible', 'contactSharingEnabled', 'attendeeMessagingEnabled', 'staffNote']}
       />
 
       <GapPanel>
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Adding or removing an administrator.</strong> An env var and a redeploy, by
-            design — <code>CONSOLE_ALLOWLIST</code> is re-read on every request, so a removal ends
-            that person&rsquo;s live session as soon as the process picks up the new value. Real
-            user management, with per-person credentials and an audit identity that means
-            something, would need a different sign-in method; the shape of <code>signIn()</code> is
-            chosen so that stays a change to one function.
-          </li>
-          <li>
-            <strong>Roles that mean anything.</strong> There is one level of access. A check-in-only
-            operator, which is the role an event genuinely wants, needs a second level and a rule
-            for it.
-          </li>
-          <li>
-            <strong>Enforcing the attendee switches.</strong> The People tab is unconditional in the
-            app, and directory visibility is the attendee&rsquo;s own choice via{' '}
-            <code>UserDoc.visibleInDirectory</code> — an organizer-level override would have to beat
-            an attendee&rsquo;s privacy setting, which is a decision rather than a checkbox.
+            <strong>Enforcing the first two attendee switches.</strong> The People tab is
+            unconditional in the app, and directory visibility is the attendee&rsquo;s own choice
+            via <code>UserDoc.visibleInDirectory</code> — an organizer-level override would have to
+            beat an attendee&rsquo;s privacy setting, which is a decision rather than a checkbox.
+            The messaging switch beside them is enforced: it is projected into{' '}
+            <code>settings/appAccess</code> and <code>firestore.rules</code> refuses a new thread
+            or message while it is off.
           </li>
           <li>
             <strong>The event invitation code</strong> lives at{' '}
             <Link href="/tools/admin-control/code-access-control">Code Access Control</Link>, in
-            this same settings document. It is stored and not enforced there either, and that screen
-            says so.
+            this same settings document. The app asks for it once at first sign-in; it is a welcome
+            step and not a gate, and that screen says so.
           </li>
         </ul>
       </GapPanel>

@@ -372,7 +372,7 @@ const BIO_NOTES = [
   'Their focus is provenance: not modelling it, which is easy, but keeping it accurate once the pipeline has been rewritten twice.',
   'They came to knowledge graphs from search relevance, and still think about the problem in those terms.',
   'They maintain several open-source tools in this space and are candid about which of them were mistakes.',
-  'Their interest is the operational side — migrations, monitoring, and what to do when a reasoner stops terminating.',
+  'Their interest is the operational side: migrations, monitoring, and what to do when a reasoner stops terminating.',
   'They work on the boundary between knowledge graphs and language models, mostly on the parts that do not work yet.',
   'They have led two large graph migrations, one of which they describe as a success.',
 ];
@@ -395,7 +395,7 @@ const ABSTRACT_BODIES = [
   'Less a methodology talk than a post-mortem. Three approaches were tried, two were abandoned, and the reasons had more to do with team size than with technology.',
   'Practical material, aimed at people who already have a graph and are wondering why it is getting slower. Query shapes, index choices, and the point at which denormalising stopped being a compromise.',
   'The uncomfortable version of this topic: where the published guidance breaks down at scale, and what has to be given up to get past it.',
-  'A tour of the tooling, honestly assessed — including where the standards help, where they get in the way, and what still has to be written by hand.',
+  'A tour of the tooling, honestly assessed, including where the standards help, where they get in the way, and what still has to be written by hand.',
   'Two teams, the same problem, opposite conclusions. This session sets out both and is deliberately not neutral about which travelled better.',
   'Aimed at newcomers, but not introductory. The question is what to build first when the eventual shape of the graph is not yet knowable.',
   'What happens after the pilot succeeds: governance, ownership, and the awkward conversation about who is on call for the ontology.',
@@ -408,11 +408,11 @@ const ABSTRACT_BODIES = [
 export const ATTENDEE_BIOS = [
   'Ontology work at a mid-size insurer. Here mostly for the modelling track.',
   'Second KGC. Happy to talk about migrating off a relational warehouse.',
-  'Data engineer, new to graphs — looking for people to ask stupid questions.',
+  'Data engineer, new to graphs, looking for people to ask stupid questions.',
   'Interested in provenance and in anything involving a reasoner that will not terminate.',
   'Currently deciding between two graph databases. Opinions welcome.',
   'Working on entity resolution across 40 source systems. It is going fine.',
-  'Academic side — knowledge representation. Keen to hear what industry actually deploys.',
+  'Academic side, knowledge representation. Keen to hear what industry actually deploys.',
   'Product manager on a search team. I care about relevance, I tolerate SPARQL.',
   'Building an internal knowledge graph for a hospital network. Governance questions mostly.',
   'Here for the LLM-and-graphs sessions, sceptically.',
@@ -578,11 +578,11 @@ export const COMMUNITY_POSTS = [
   {
     category: 'ride-share',
     title: 'Tram from Manhattan around 08:00?',
-    body: 'Happy to coordinate — the F train gets busy. Anyone heading over from midtown Tuesday morning?',
+    body: 'Happy to coordinate, the F train gets busy. Anyone heading over from midtown Tuesday morning?',
     replies: [
       'I am on the 08:05 from 59th most mornings, happy to have company.',
       'Tram is fine but the queue at 08:30 is twenty minutes. Go early.',
-      'Taking the ferry instead — slower, but you get a seat and a view.',
+      'Taking the ferry instead, slower, but you get a seat and a view.',
     ],
   },
   {
@@ -594,7 +594,7 @@ export const COMMUNITY_POSTS = [
       'Is this still on if it rains?',
       'There is covered seating on the north side, so yes.',
       'Joining late, will find you around 12:40.',
-      'We ended up with eleven people last year — worth booking ahead.',
+      'We ended up with eleven people last year, worth booking ahead.',
     ],
   },
   {
@@ -606,19 +606,19 @@ export const COMMUNITY_POSTS = [
   {
     category: 'questions',
     title: 'Is the Wednesday workshop laptop-required?',
-    body: 'Travelling light — can I follow along without a machine?',
+    body: 'Travelling light. Can I follow along without a machine?',
     replies: [
       'Hands-on for the second half, so bring one if you can.',
-      'Organizer here — you can pair with someone, nobody gets stuck.',
+      'Organizer here. You can pair with someone, nobody gets stuck.',
     ],
   },
   {
     category: 'ice-breakers',
-    title: 'First KGC — what should I not miss?',
+    title: 'First KGC: what should I not miss?',
     body: 'Coming from a pure relational background. What would you tell a first-timer?',
     replies: [
       'The Tuesday keynote, then talk to people in the hallway instead of filling every slot.',
-      'Came from SQL myself two years ago — the modelling track is where it clicked.',
+      'Came from SQL myself two years ago, and the modelling track is where it clicked.',
       'Do not skip the lightning talks. Best signal-to-noise of the week.',
       'Say hello to the sponsors on day one, they are far less busy then.',
     ],
@@ -634,14 +634,17 @@ export const COMMUNITY_POSTS = [
 
 export const ANNOUNCEMENTS = [
   { title: 'Welcome to KGC 2027', body: 'Registration opens at 07:30 in the VEEC lobby. The tram runs every 7 minutes from 59th & 2nd.' },
-  { title: 'Room change: SHACL in Production', body: 'Moved to Bloomberg 165 — bigger room, we underestimated demand.' },
+  { title: 'Room change: SHACL in Production', body: 'Moved to Bloomberg 165. Bigger room, we underestimated demand.' },
   // Do not restore the "the agenda works offline" clause this used to end with.
   // It does not work offline: the Firebase JS SDK has no disk persistence on
   // React Native, so the cache is memory-only and a cold start with no network
   // renders nothing. Promising a room full of attendees that their app works
   // offline, on the one day the venue wifi is saturated, is how this turns into
   // a queue at the registration desk.
-  { title: 'Wifi', body: 'Network: CornellTech-Guest. No password required. It saturates around the keynotes, so room numbers are on the printed programme too.' },
+  // "Wi-Fi", the way the brand spells it and the way the `wifi` custom page and
+  // `/documents` already spell it. This announcement is on the public site and
+  // in the app, beside both of them.
+  { title: 'Wi-Fi', body: 'Network: CornellTech-Guest. No password required. It saturates around the keynotes, so room numbers are on the printed programme too.' },
 ];
 
 export { FIRST, LAST, ORGS, TITLES };
@@ -706,7 +709,7 @@ export const BOOTHS: {
   { number: 'E02', size: '3m × 2m', zone: 'Catering aisle', exhibitor: 'Ontotext Labs', status: 'assigned', ticketTypeId: 'exhibitor-standard-booth' },
   { number: 'E03', size: '3m × 2m', zone: 'Main aisle', exhibitor: 'Cornell Tech Careers', status: 'assigned', ticketTypeId: 'exhibitor-standard-booth' },
   { number: 'E04', size: '3m × 2m', zone: 'Main aisle', exhibitor: 'Semantic Foundry', status: 'assigned', ticketTypeId: 'exhibitor-standard-booth' },
-  { number: 'E05', size: '3m × 2m', zone: 'Main aisle', status: 'blocked', note: 'Structural pillar takes half the space — unsellable.' },
+  { number: 'E05', size: '3m × 2m', zone: 'Main aisle', status: 'blocked', note: 'Structural pillar takes half the space, unsellable.' },
   { number: 'E06', size: '3m × 2m', zone: 'Main aisle', status: 'available', ticketTypeId: 'exhibitor-standard-booth' },
   { number: 'E07', size: '3m × 2m', zone: 'Main aisle', exhibitor: 'Provenance.io', status: 'held', ticketTypeId: 'exhibitor-standard-booth' },
   { number: 'E08', size: '3m × 2m', zone: 'Back wall', status: 'available', ticketTypeId: 'exhibitor-standard-booth' },
@@ -743,7 +746,7 @@ export const CONTACTS: {
   { email: 'hlin@example.invalid', name: 'Hana Lin', company: 'Cobalt Semantics',
     source: 'KGC 2026 delegate list', lists: ['KGC 2026 attendees'] },
   { email: 'p.desai@example.invalid', name: 'Priya Desai', company: 'Argo Pharma',
-    source: 'Partner list — SemWeb Europe', lists: ['Partner: SemWeb Europe'] },
+    source: 'Partner list: SemWeb Europe', lists: ['Partner: SemWeb Europe'] },
   // Unsubscribed on purpose: makes "938 of 1,000" mean something on screen, and
   // proves the re-import guard has something to guard.
   { email: 'no.thanks@example.invalid', name: 'Erik Sandberg', company: 'Vantage Logistics',
@@ -763,12 +766,12 @@ export const CAMPAIGN_LINKS: {
   { code: 'spring-mail', label: 'February announcement email', destination: '/tickets', clicks: 214 },
   { code: 'li-feb', label: 'LinkedIn post, tickets open', destination: '/tickets', channel: 'linkedin', clicks: 88 },
   { code: 'semweb-eu', label: 'SemWeb Europe newsletter', destination: '/tickets', channel: 'partner', clicks: 47 },
-  { code: 'ada-lovelace', label: 'Speaker referral — Ada Lovelace', destination: '/tickets', owner: 'Ada Lovelace', clicks: 63 },
-  { code: 'marek-novak', label: 'Speaker referral — Marek Novak', destination: '/tickets', owner: 'Marek Novak', clicks: 19 },
+  { code: 'ada-lovelace', label: 'Speaker referral: Ada Lovelace', destination: '/tickets', owner: 'Ada Lovelace', clicks: 63 },
+  { code: 'marek-novak', label: 'Speaker referral: Marek Novak', destination: '/tickets', owner: 'Marek Novak', clicks: 19 },
   { code: 'exhibit-outreach', label: 'Exhibitor sales outreach', destination: '/tickets/exhibitor', channel: 'email', clicks: 31 },
   // Retired rather than deleted: the clicks are the only record of what the
   // January campaign achieved, and a retired link 404s.
-  { code: 'jan-teaser', label: 'January teaser — superseded', destination: '/', clicks: 12, active: false },
+  { code: 'jan-teaser', label: 'January teaser (superseded)', destination: '/', clicks: 12, active: false },
 ];
 
 /**
@@ -826,7 +829,7 @@ export const QUESTION_FIELDS: {
     kind: 'choice',
     options: ['Beginner', 'Intermediate', 'Advanced', 'Not decided'],
     required: false,
-    helpText: 'Not a booking — it tells us how many rooms each level needs.',
+    helpText: 'Not a booking. It tells us how many rooms each level needs.',
     ticketTypeIds: ['all-access', 'workshops'],
     order: 30,
   },
@@ -885,18 +888,18 @@ export const GATHERINGS: {
     roomName: 'Bloomberg 165',
     day: '2027-05-06', startsAtLocal: '11:00', endsAtLocal: '12:00',
     capacity: 8, attendees: [],
-    notes: 'No host yet — ask the programme committee.',
+    notes: 'No host yet, ask the programme committee.',
     status: 'planned',
   },
   {
-    kind: 'meeting-slot', title: 'Graphwise — customer meetings',
+    kind: 'meeting-slot', title: 'Graphwise: customer meetings',
     host: 'Graphwise', roomName: 'Bloomberg 165',
     day: '2027-05-05', startsAtLocal: '14:00', endsAtLocal: '16:00',
     capacity: 4, attendees: ['Priya Raman'],
     status: 'confirmed',
   },
   {
-    kind: 'meeting-slot', title: 'Ontotext Labs — press briefing',
+    kind: 'meeting-slot', title: 'Ontotext Labs: press briefing',
     host: 'Ontotext Labs', roomName: 'Bloomberg 271',
     day: '2027-05-06', startsAtLocal: '09:30', endsAtLocal: '10:30',
     capacity: 6, attendees: [],
@@ -924,7 +927,10 @@ export const TASKS: {
   { project: 'Registration', title: 'Print badges', assignee: 'Ana', status: 'todo', dueOn: '2027-04-28' },
   { project: 'Registration', title: 'Brief the desk volunteers on the scanner', status: 'todo', dueOn: '2027-05-02' },
   { project: 'Registration', title: 'Run one live-mode Stripe transaction end to end', assignee: 'Tom', status: 'todo', dueOn: '2027-03-15',
-    notes: 'The webhook has never received a real event. SETUP-PAYMENTS.md section 4.' },
+    // No file name in a note an organizer reads. This one is the only place in
+    // the seed that named a document in the repo, and it rendered on Projects
+    // and Checklists as a task somebody is expected to act on.
+    notes: 'The webhook has never received a real event. Ask the developer for the payment setup steps.' },
 ];
 
 export const DOCUMENTS: {
@@ -934,7 +940,7 @@ export const DOCUMENTS: {
 }[] = [
   { title: 'Code of conduct', description: 'What we expect of everyone, and how to report a problem.',
     url: 'https://www.knowledgegraph.tech/code-of-conduct', kind: 'link', restrictTo: [], status: 'published' },
-  { title: 'Venue map — Bloomberg Center', description: 'Rooms, the exhibition hall and the quiet room.',
+  { title: 'Venue map: Bloomberg Center', description: 'Rooms, the exhibition hall and the quiet room.',
     url: 'https://example.invalid/kgc-2027-venue-map.pdf', kind: 'pdf', restrictTo: [], status: 'published' },
   { title: 'Getting to Roosevelt Island', description: 'Tram, subway and where not to park.',
     url: 'https://example.invalid/kgc-2027-travel.pdf', kind: 'pdf', restrictTo: [], status: 'published' },
@@ -943,8 +949,88 @@ export const DOCUMENTS: {
   { title: 'Workshop datasets', description: 'The RDF dumps used in Monday and Tuesday labs.',
     url: 'https://example.invalid/kgc-2027-workshop-data.zip', kind: 'link',
     restrictTo: ['Workshops', 'All Access (VIP)'], status: 'published' },
-  { title: 'Sponsor prospectus 2028', description: 'Not for attendees — draft for the sales conversation.',
+  { title: 'Sponsor prospectus 2028', description: 'Not for attendees. Draft for the sales conversation.',
     url: 'https://example.invalid/kgc-2028-prospectus.pdf', kind: 'pdf', restrictTo: [], status: 'draft' },
+];
+
+/**
+ * Three example content pages, so the editor, `/{slug}` and the app's page list
+ * all have something real to draw.
+ *
+ * ⚠️ **Demo copy, written to look plausible, and none of it is true.** There is
+ * no `KGC-Guest` network and the tram fare is invented. `seed-demo.ts` writes
+ * these only against the emulator, for the same reason it says every attendee
+ * is synthetic: an invented Wi-Fi password on a live event is a queue at the
+ * registration desk.
+ *
+ * Between them they exercise every block the renderer knows — headings, both
+ * kinds of list, links, bold and inline code — so a change to the parser shows
+ * up on a seeded page rather than only in the unit test.
+ */
+export const PAGES: { title: string; slug: string; summary: string; body: string }[] = [
+  {
+    title: 'Wi-Fi',
+    slug: 'wifi',
+    summary: 'How to get online at the Bloomberg Center.',
+    body: [
+      '## Conference network',
+      '',
+      'Join **KGC-Guest**. There is no password. Open a browser and accept the terms on the page that appears.',
+      '',
+      '## If it will not connect',
+      '',
+      '1. Forget the network and rejoin it.',
+      '2. Turn private Wi-Fi address off for this network.',
+      '3. Come to the registration desk on the ground floor.',
+      '',
+      'The venue also runs `eduroam`. If your institution is on it, that is the faster option.',
+    ].join('\n'),
+  },
+  {
+    title: 'Getting here',
+    slug: 'getting-here',
+    summary: 'Tram, subway and where not to park.',
+    body: [
+      'The Bloomberg Center is on Roosevelt Island. Allow half an hour from midtown.',
+      '',
+      '## By tram',
+      '',
+      'The Roosevelt Island Tramway leaves from 59th Street and 2nd Avenue every 15 minutes. It takes a MetroCard or OMNY, and the ride is about four minutes.',
+      '',
+      '## By subway',
+      '',
+      '- The F train stops at Roosevelt Island.',
+      '- The station is a ten minute walk from the venue.',
+      '',
+      '## Parking',
+      '',
+      'There is no visitor parking at the venue. The Motorgate garage is the only public option on the island and it fills early.',
+      '',
+      'The full programme is on the [agenda](/agenda).',
+    ].join('\n'),
+  },
+  {
+    title: 'FAQ',
+    slug: 'faq',
+    summary: 'The questions the desk is asked most.',
+    body: [
+      '## Is lunch included?',
+      '',
+      'Yes, on all five days, for every ticket type.',
+      '',
+      '## Are talks recorded?',
+      '',
+      'Keynotes and main-track talks are recorded. Workshops are not.',
+      '',
+      '## Can I change which workshop I am in?',
+      '',
+      'Come to the registration desk. Places are limited and some workshops fill on the first morning.',
+      '',
+      '## What should I wear?',
+      '',
+      'Whatever you like. The rooms run cold, so bring a layer.',
+    ].join('\n'),
+  },
 ];
 
 /** One published feedback survey, so the results view has something to render. */
@@ -959,7 +1045,7 @@ export const FEEDBACK_QUESTIONS = [
 ];
 
 export const FEEDBACK_COMMENTS = [
-  'More time for questions — the last ten minutes were rushed.',
+  'More time for questions, the last ten minutes were rushed.',
   'The worked example was the best part. More of that.',
   'Slides were dense. Happy to read them afterwards, but hard to follow live.',
   'Would have liked the dataset in advance.',

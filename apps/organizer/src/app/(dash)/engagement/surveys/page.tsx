@@ -18,10 +18,7 @@ export default async function SurveysPage({
           <p>
             Asked of everybody. One attached to a session appears under Session Feedback instead.
           </p>
-          <p>
-            Answers are never attributed, and the app has no screen that renders a survey yet, so a
-            published one is not yet answerable from a phone.
-          </p>
+          <p>Answers are anonymous.</p>
         </>
       }
       searchParams={searchParams}

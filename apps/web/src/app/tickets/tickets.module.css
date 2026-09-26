@@ -105,9 +105,14 @@
   gap: 1rem;
 }
 
+/*
+ * 1.7 : 1 rather than 2 : 1, with a floor on the second column: Main
+ * Conference has its button beside the name, and below about 396px the name
+ * wraps to two lines.
+ */
 @media (min-width: 62rem) {
   .top {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 1fr);
     align-items: stretch;
   }
 }
@@ -199,6 +204,18 @@
   font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
+}
+
+/*
+ * On a phone the name and price fill the line, so the button wrapped onto a
+ * row of its own and `margin-left: auto` stranded it at the right, below and
+ * apart from the price. Give the name the whole first row instead: price and
+ * button then share the second, the way the other cards pair them.
+ */
+@media (max-width: 767px) {
+  .leadName {
+    flex-basis: 100%;
+  }
 }
 
 .leadCta:hover {
@@ -362,18 +379,19 @@
   background: var(--accent);
 }
 
-/* `auto` top margin pins the button to the bottom, so the two panels' calls to
-   action line up however unevenly their contents fall. */
-.secondCta {
-  display: inline-block;
-  align-self: flex-start;
-  margin-top: auto;
-  padding-top: 0.7rem;
+/* Name and price on the left, the button at the top right. */
+.secondHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.secondCta > a {
+.secondCta {
+  flex: none;
   display: inline-block;
-  padding: 0.55rem 1.3rem;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.92rem;
   border: 2px solid var(--navy);
   border-radius: 999px;
   background: var(--white);
@@ -382,19 +400,19 @@
   text-decoration: none;
 }
 
-.secondCta > a:hover {
+.secondCta:hover {
   background: var(--navy);
   color: var(--white);
 }
 
-.secondCta > a:focus-visible {
+.secondCta:focus-visible {
   outline: 3px solid var(--orange);
   outline-offset: 2px;
 }
 
 .secondClosed {
-  margin: auto 0 0;
-  padding-top: 1.1rem;
+  flex: none;
+  margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--muted);
@@ -403,27 +421,31 @@
 /* --------------------------------------------------------- alternatives -- */
 
 /*
- * No heading over these, and no lede. The rule is the join: it says "the panel
- * has ended and a list has started" in 2px, where the option spent a heading, a
- * sentence and about 90px of height saying the same thing less certainly.
+ * Each alternative is a card in the second panel's vocabulary (border, navy
+ * top rule, rounded corners), still laid out as one full-width row on a
+ * laptop so the pair keeps its height and both stay near the fold.
  */
 .altRows {
-  margin: 0.65rem 0 0;
+  margin: 0.9rem 0 0;
   padding: 0;
   list-style: none;
-  border-top: 2px solid var(--navy);
+  display: grid;
+  gap: 0.75rem;
 }
 
 .alt {
   display: grid;
-  gap: 0.3rem 1.5rem;
-  padding: 0.45rem 0;
-  border-bottom: 1px solid var(--line);
+  gap: 0.3rem 1.25rem;
+  padding: 0.45rem clamp(0.9rem, 2vw, 1.1rem);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--navy);
+  border-radius: var(--radius);
+  background: var(--white);
 }
 
 @media (min-width: 56rem) {
   .alt {
-    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 10.5rem) minmax(0, 1fr) auto;
     align-items: center;
   }
 }
@@ -525,9 +547,73 @@
   white-space: nowrap;
 }
 
+/*
+ * Below the three-column row the card stacks its contents like the second
+ * panel, and the dot separators give way to bullets so they are not left
+ * hanging at the end of wrapped lines.
+ */
+@media (max-width: 55.99rem) {
+  .alt {
+    gap: 0;
+    padding: clamp(0.9rem, 2vw, 1.1rem);
+  }
+
+  .altIdent {
+    display: block;
+  }
+
+  .altName {
+    font-size: 1.05rem;
+  }
+
+  .altPrice {
+    margin-top: 0.15rem;
+    font-size: 1.35rem;
+    letter-spacing: -0.025em;
+  }
+
+  .altItems {
+    margin-top: 0.6rem;
+    display: grid;
+    gap: 0.22rem;
+  }
+
+  .altItems li {
+    position: relative;
+    padding-left: 0.95rem;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    color: var(--body);
+  }
+
+  .altItems li:not(:last-child)::after {
+    content: none;
+  }
+
+  .altItems li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 0.5rem;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+  }
+
+  .altAction {
+    margin-top: 0.7rem;
+  }
+
+  .altCta {
+    padding: 0.55rem 1.3rem;
+    font-size: inherit;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .leadCta,
-  .secondCta > a,
+  .secondCta,
   .altCta {
     transition:
       background-color 140ms ease,

@@ -4,6 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { getRoom, listRoomRows } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { publicUrl } from '@/lib/webpages';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { RoomForm, type EditableRoom } from './room-form';
 
@@ -88,9 +89,8 @@ export default async function LogisticsCenterPage({
           <>
             <strong>Rooms, not venue notes</strong>
             <p>
-              Wifi, parking, shuttles and accessibility have no screen in the app to read them, so
-              there is no form for them here. Until there is, a titled link on the Documents screen
-              is what the app renders.
+              Venue notes such as wifi, parking, shuttles and accessibility are not available here
+              yet. Add them as a link on the Documents screen.
             </p>
           </>
         }
@@ -100,7 +100,7 @@ export default async function LogisticsCenterPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add room
             </Link>
           )
@@ -120,16 +120,16 @@ export default async function LogisticsCenterPage({
 
       <StatTiles
         tiles={[
-          { label: 'Rooms', value: rooms.length, sub: 'named on every session in them' },
+          { label: 'Rooms', value: rooms.length, sub: 'shown on their sessions' },
           {
             label: 'Nothing scheduled',
             value: unused.length,
-            sub: unused.length === 0 ? 'every room is in use' : 'booked but empty, or a leftover',
+            sub: unused.length === 0 ? 'every room is in use' : 'no sessions in them',
           },
           {
             label: 'No seat count',
             value: noCapacity.length,
-            sub: 'Conflict Check cannot flag an oversized session',
+            sub: 'Conflict Check cannot check these',
           },
         ]}
       />
@@ -158,39 +158,50 @@ export default async function LogisticsCenterPage({
             Rooms
           </h2>
           <p className="body-2">
-            The room name is copied onto every session held in it, and that copy is what a phone
-            shows. The app has no read access to this collection, so there is no second source.
-            Renaming a room here rewrites the name on every session in it, in one go, and says how
-            many it touched.
+            Attendees see the room name on each session. Renaming a room here updates every
+            session in it.
+          </p>
+          {/*
+            The room sign is a public page, one per room, and it belongs on this
+            list rather than on a screen of its own: the person who needs the
+            address is the one walking the building with a laptop on the morning
+            of day one, and this is the only list that names every room.
+          */}
+          <p className="body-2">
+            Each room has a screen page showing what is on now and next. Open it on the display
+            outside the door and leave it there. It keeps itself up to date.
           </p>
 
           {rooms.length === 0 ? (
             <NotInputted
               what="rooms"
               action={
-                <Link className="whova-btn-main" href="?new=1">
+                <Link className="whova-btn-main secondary" href="?new=1">
                   Add the first one
                 </Link>
               }
             />
           ) : (
           <Table
+            stackSm
             cols={[
-              { key: 'n', label: 'Room', className: 'cell-lg' },
+              { key: 'n', label: 'Room', className: 'cell-md' },
               { key: 'w', label: 'Where', className: 'cell-md' },
               { key: 'c', label: 'Seats', className: 'cell-xs cell-end-align' },
-              { key: 's', label: 'Sessions', className: 'cell-xs cell-end-align' },
-              { key: 'p', label: 'Published', className: 'cell-xs cell-end-align' },
-              { key: 'a', label: '', className: 'cell-xs cell-end-align' },
+              { key: 's', label: 'Sessions', className: 'cell-xsm cell-end-align' },
+              { key: 'p', label: 'Published', className: 'cell-xsm cell-end-align' },
+              { key: 'a', label: '', className: 'cell-sm cell-end-align' },
             ]}
-            empty="Not inputted yet"
+            empty="Nothing here yet"
             rows={rooms.map((r) => [
-              <span key="n">
-                <strong>{r.name}</strong>
-                <div className="muted" style={{ fontSize: 11 }}>
-                  <code>{r.id}</code>
-                </div>
-              </span>,
+              /*
+                The name alone. The row used to print the room's id under it in
+                a monospace face — `veec-classroom-1` — which is how this
+                dashboard addresses a room and not anything an organizer needs
+                to read. The screen link in the last column is the one place
+                the id has a job, and it is already inside the href.
+              */
+              <strong key="n">{r.name}</strong>,
               <span key="w" style={{ fontSize: 13 }}>
                 {r.building || r.floor ? (
                   <>
@@ -217,20 +228,26 @@ export default async function LogisticsCenterPage({
                 r.sessionCount
               ),
               r.publishedCount,
-              <Link key="a" href={`?edit=${encodeURIComponent(r.id)}`} style={{ fontSize: 12 }}>
-                Edit
-              </Link>,
+              <span key="a" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <a
+                  href={publicUrl(`/rooms/${encodeURIComponent(r.id)}`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                >
+                  Screen ↗
+                </a>
+                <Link href={`?edit=${encodeURIComponent(r.id)}`} style={{ fontSize: 12 }}>
+                  Edit
+                </Link>
+              </span>,
             ])}
           />
           )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-            <strong>There is no delete.</strong> Every session in a room points at it by id, and
-            the cached room name is the attendee&rsquo;s only wayfinding. Deleting the document
-            would leave that name unrepairable, because the name needed to repair it went with it.
-            A room that is no longer in use is emptied by moving its sessions in{' '}
-            <Link href={ROUTES.sessionManager}>Session Manager</Link>, after which it appears above
-            with nothing scheduled.
+            <strong>Rooms cannot be deleted.</strong> Move its sessions to another room in{' '}
+            <Link href={ROUTES.sessionManager}>Session Manager</Link> instead.
           </p>
         </Panel>
       )}
@@ -240,10 +257,8 @@ export default async function LogisticsCenterPage({
           The venue
         </h2>
         <p className="body-2">
-          <strong>{EVENT.venue}</strong>. A compile-time constant in <code>@kgc/shared</code>{' '}
-          shared by the app, the seed script, the importer and this dashboard, so the four cannot
-          drift. <Link href="/content/basics">Basics</Link> explains why that is read-only rather
-          than a text input.
+          <strong>{EVENT.venue}</strong>. The venue cannot be edited here. It is listed with the
+          other event details on <Link href="/content/basics">Basics</Link>.
         </p>
         <p className="body-2">
           <strong>Emergency card:</strong>{' '}
@@ -267,7 +282,7 @@ export default async function LogisticsCenterPage({
           <Link href="/virtual-and-hybrid/logistics-management/emergency-manager">
             Emergency Manager
           </Link>
-          , in the same settings document as the venue notes above.
+          .
         </p>
       </Panel>
 

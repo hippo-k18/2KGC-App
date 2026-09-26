@@ -13,10 +13,11 @@ import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useDirectory } from '@/lib/data/directory';
+import { useAppAccess } from '@/lib/data/app-access';
 import { markThreadRead, sendMessage, useMessages, useThreads } from '@/lib/data/messages';
 
 /**
@@ -80,6 +81,13 @@ export default function ThreadScreen() {
 
   const uid = user?.uid;
   const unreadForMe = threads?.find((t) => t.id === threadId)?.unread?.[uid ?? ''] ?? 0;
+
+  // Two organizer settings meet here: the event-wide messaging switch and the
+  // read-only half of the access window. Either one closes the composer, and
+  // neither closes the conversation — what people have already said to each
+  // other stays theirs to read, which is what the rules do too.
+  const { messagingEnabled, writesOpen } = useAppAccess();
+  const canSend = messagingEnabled && writesOpen;
 
   // Reading the conversation is what clears the badge. Nothing called
   // `markThreadRead` before this, so the red count on the header icon survived
@@ -160,6 +168,12 @@ export default function ThreadScreen() {
           }
         />
 
+        {/*
+          The composer, or one line saying why there is not one.
+          `firestore.rules` refuses the send in both cases, so a box that
+          accepted a message here would take somebody's words and lose them.
+        */}
+        {canSend ? (
         <View
           style={{
             flexDirection: 'row',
@@ -192,12 +206,32 @@ export default function ThreadScreen() {
             onPress={send}
             accessibilityRole="button"
             accessibilityLabel="Send"
-            style={{ justifyContent: 'center', opacity: draft.trim() ? 1 : 0.4 }}>
+            // 39pt of text. A target is 44 across as well as down.
+            style={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: HIT_TARGET,
+              opacity: draft.trim() ? 1 : 0.4,
+            }}>
             <Text variant="heading" tone="tint">
               Send
             </Text>
           </Pressable>
         </View>
+        ) : (
+          <View
+            style={{
+              padding: Spacing.md,
+              borderTopWidth: HAIRLINE,
+              borderTopColor: colors.border,
+            }}>
+            <Text variant="subhead" tone="secondary">
+              {messagingEnabled
+                ? 'The event is over. You can still read this conversation.'
+                : 'Messaging is off for this event. You can still read this conversation.'}
+            </Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </>
   );

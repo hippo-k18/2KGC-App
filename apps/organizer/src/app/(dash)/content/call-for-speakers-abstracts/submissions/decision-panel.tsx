@@ -12,7 +12,7 @@ import {
 import { decideAction } from './actions';
 
 /**
- * Accept or reject one abstract.
+ * Accept, waitlist or reject one abstract.
  *
  * ── Two submits, one form ──────────────────────────────────────────────────
  *
@@ -71,12 +71,15 @@ export function DecisionPanel({
             : 'Email the author, no address on file, so nothing can be sent'
         }
         disabled={!authorEmail}
-        description="Unticked by default. An email in somebody's inbox cannot be recalled by anything in this product, so this is the half of the decision that is genuinely final."
+        description="Unticked by default. An email cannot be recalled once it is sent."
       />
 
       <FormActions>
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">
           {decided ? 'Change to accepted' : 'Accept'}
+        </SubmitButton>
+        <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
+          {decided ? 'Change to waitlisted' : 'Waitlist'}
         </SubmitButton>
         <SubmitButton name="verdict" value="reject" variant="danger" pendingLabel="Recording…">
           {decided ? 'Change to rejected' : 'Reject'}

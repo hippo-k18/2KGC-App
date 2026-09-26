@@ -29,14 +29,11 @@ export default async function RoundTablePage({
       ]}
       info={
         <>
-          <strong>A plan, not a sign-up sheet</strong>
+          <strong>Table plan</strong>
+          <p>Topics, hosts, rooms and who sits where, for the front desk and the table cards.</p>
           <p>
-            The topics, the hosts, the room and who is sitting where. The sheet the front desk
-            works from and what gets printed on the table cards.
-          </p>
-          <p>
-            Nothing in the app reads it, so placing somebody here does not tell them. Meet-ups on
-            the community board are the nearest thing attendees can use.
+            Attendees do not see this in the app yet, so tell people where they are seated. For
+            sign-ups attendees run themselves, use Meet-ups.
           </p>
         </>
       }
@@ -45,8 +42,7 @@ export default async function RoundTablePage({
         titleLabel: 'Topic',
         titlePlaceholder: 'Ontology governance in regulated industries',
         hostLabel: 'Host',
-        capacityHint:
-          'Seats at the table. Eight to ten is the number a conversation survives. Past that it becomes a panel with no microphone.',
+        capacityHint: 'Seats at the table.',
         defaultCapacity: 8,
       }}
       notBuilt={[

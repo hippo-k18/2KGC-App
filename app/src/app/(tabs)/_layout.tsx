@@ -94,6 +94,20 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         overflow: visible;
       }
 
+      /*
+       * Reserve the strip the bar covers. The bar is "position: fixed", so it
+       * takes no space of its own and each tab's panel ran the full height of
+       * the window underneath it: the last row of every list, and the Reply box
+       * on a community topic, sat behind the tabs. The panels are the tab list's
+       * siblings, so one rule covers every screen inside the tabs, pushed ones
+       * included. 55px is the bar: 7 + 25 glyph + 3 + 12 label + 7, and the
+       * hairline. The safe-area term matches the bar's own padding.
+       */
+      [role='tablist'][aria-label='Main'] ~ [role='tabpanel'] {
+        box-sizing: border-box;
+        padding-bottom: calc(55px + env(safe-area-inset-bottom, 0px));
+      }
+
       [role='tablist'][aria-label='Main'] > button {
         flex: 1 1 0;
         min-width: 0;

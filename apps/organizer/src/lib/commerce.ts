@@ -16,6 +16,7 @@ import {
   type SoldCountOrder,
 } from '@kgc/scripts/src/lib/sold-counts';
 import { db } from './firestore';
+import { salesByCode, type CodeSplit } from './sales-core';
 import { toWallClockInZone } from './time';
 
 /**
@@ -211,6 +212,12 @@ export interface SalesSummary {
   outstandingCents: number;
   ticketsSold: number;
   byTier: TierSales[];
+  /**
+   * What each discount code was worth, over the same settled orders as
+   * `byTier`. Empty until a buyer uses one, which cannot happen before there is
+   * a payment account to create codes on.
+   */
+  byCode: CodeSplit;
   /** ISO date → net cents, ascending. Drives the sales-over-time strip. */
   daily: { date: string; netCents: number; orders: number }[];
   /** Test purchases, counted separately so they never pollute revenue. */
@@ -292,6 +299,9 @@ export async function salesSummary(): Promise<SalesSummary> {
     outstandingCents: sum(outstanding, (o) => o.totalCents),
     ticketsSold: sum(counted, (o) => o.seatCount),
     byTier: [...byTierMap.values()].sort((a, b) => b.netCents - a.netCents),
+    // The same `settled` rows the tier split and the daily strip read, so the
+    // three panels on Summary cannot disagree about which orders exist.
+    byCode: salesByCode(settled),
     daily: [...dailyMap.entries()]
       .map(([date, v]) => ({ date, ...v }))
       .sort((a, b) => a.date.localeCompare(b.date)),

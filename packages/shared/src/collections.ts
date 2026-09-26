@@ -79,6 +79,15 @@ export const COLLECTIONS = {
   surveys: "surveys",
   documents: "documents",
   /**
+   * Organizer-authored content pages — the venue note, travel, the FAQ.
+   *
+   * Not `pageContent`: that is editable copy slotted into website pages whose
+   * layout is code, one document per existing page. These are whole pages that
+   * exist only because somebody wrote them, addressed by their own `slug`, and
+   * they appear on the phone as well as the site. See `custom-pages-core.ts`.
+   */
+  pages: "pages",
+  /**
    * Photo, video and recording releases — the published wording, with the
    * signatures underneath at `consentForms/{id}/responses/{responseId}`.
    *
@@ -135,6 +144,63 @@ export const COLLECTIONS = {
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",
   auditLog: "auditLog",
+  /** Seat counters for capped or ticket-restricted sessions. See `SessionSeatsDoc`. */
+  sessionSeats: "sessionSeats",
+  /**
+   * Server-only: the people invited to the organizer dashboard, their roles and
+   * their hashed passphrases. No `match` block in `firestore.rules`, and it must
+   * not get one — a client that could read this could read who holds the keys.
+   */
+  teamMembers: "teamMembers",
+  /**
+   * What a speaker sent back through their own profile link, waiting for an
+   * organizer to approve it. One document per speaker, at the speaker's own id.
+   *
+   * Server-only, with no `match` block in `firestore.rules`, and it must not get
+   * one. The obvious alternative — holding the draft on `speakers/{id}` — puts
+   * unapproved text about a person inside a document every ticket holder may
+   * read, which is the opposite of what "waiting for approval" means. Here the
+   * only readers are the dashboard and the website's own server, both of which
+   * hold the Admin SDK.
+   */
+  speakerProfileEdits: "speakerProfileEdits",
+  /**
+   * Server-only. One document per bulk send that is running right now, so that
+   * two organizers pressing the same button at the same moment do not both mail
+   * the same people.
+   *
+   * It exists because the guard underneath it is not enough on its own. A send
+   * skips whoever is already in `emailLog` under its campaign id, which makes a
+   * second press an hour later safe — but two presses in the same second both
+   * read that log before either has written to it, and both see nobody. The
+   * document id is the campaign id, so taking the lock is a `create` that fails
+   * rather than a check that races, the same shape `booths` and `compPasses`
+   * use.
+   *
+   * A lock is abandoned rather than held: it carries the time it was taken, and
+   * one older than the longest a send can live is taken over. Nothing here is a
+   * queue, and a caller that cannot have the lock is told to wait rather than
+   * made to.
+   *
+   * No `match` block in `firestore.rules`, and it must not get one.
+   */
+  sendLocks: "sendLocks",
+  /**
+   * The blog at blog.knowledgegraph.tech: new posts, and edits of the archive
+   * in `apps/web/src/content/blog`. Server-only, like `pageContent`: the website
+   * reads and writes it with the Admin SDK and nothing else touches it.
+   */
+  blogPosts: "blogPosts",
+  /** Who may sign in to the blog editor, and as what. Server-only. */
+  blogMembers: "blogMembers",
+  /** One pending blog sign-in code per address, stored hashed. Server-only. */
+  blogSignInCodes: "blogSignInCodes",
+  /**
+   * One pending organizer-dashboard code per address, stored hashed: to sign
+   * in, or `{email}__confirm` to confirm a refund, erasure or mass send.
+   * Server-only.
+   */
+  consoleSignInCodes: "consoleSignInCodes",
 } as const;
 
 export const SUBCOLLECTIONS = {
@@ -169,7 +235,20 @@ export const SUBCOLLECTIONS = {
    * the organizer's notes; see `GatheringPlacementDoc`.
    */
   gatherings: "gatherings",
+  /** `sessionSeats/{sessionId}/seats/{uid}` — one attendee's seat or waitlist place. */
+  seats: "seats",
+  /**
+   * `sessions/{id}/watch/{stream|recording}` — where to watch this session, and
+   * who may. Two fixed ids, never a generated one, so a reader fetches the
+   * document it wants instead of listing a collection it may not be allowed to
+   * list. Gated by ticket type in `firestore.rules`; see `SessionStreamDoc`.
+   */
+  watch: "watch",
 } as const;
+
+/** The two documents inside `sessions/{id}/watch`. */
+export const WATCH_STREAM_DOC = "stream";
+export const WATCH_RECORDING_DOC = "recording";
 
 /** The single document inside `sessions/{id}/qaBoard`. */
 export const QA_BOARD_DOC = "current";

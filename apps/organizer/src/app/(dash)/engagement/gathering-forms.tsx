@@ -15,7 +15,7 @@ function Submit({ idle, busy, secondary }: { idle: string; busy: string; seconda
   return (
     <button
       type="submit"
-      className={`whova-btn-main${secondary ? ' secondary' : ''}`}
+      className={`whova-btn-main ${secondary ? 'secondary' : 'primary'}`}
       disabled={pending}
     >
       {pending ? busy : idle}
@@ -73,6 +73,7 @@ export function GatheringForm({
         <input
           id="title"
           name="title"
+          className="whova-text-input"
           required
           maxLength={120}
           defaultValue={editing?.title}
@@ -87,15 +88,12 @@ export function GatheringForm({
         <input
           id="host"
           name="host"
+          className="whova-text-input"
           maxLength={80}
           defaultValue={editing?.host}
           placeholder="optional"
           style={{ maxWidth: 300 }}
         />
-        <p className="muted" style={{ fontSize: 12 }}>
-          Free text. Most of the people who host a table are speakers or partners who hold no
-          account here, and requiring one would exclude exactly them.
-        </p>
       </div>
 
       <div className="whova-form-row">
@@ -105,6 +103,7 @@ export function GatheringForm({
         <select
           id="roomId"
           name="roomId"
+          className="whova-text-input"
           defaultValue={editing?.roomId ? `${editing.roomId}|${editing.roomName}` : ''}
           style={{ maxWidth: 300 }}
         >
@@ -121,7 +120,13 @@ export function GatheringForm({
         <label className="whova-form-label" htmlFor="day">
           Day
         </label>
-        <select id="day" name="day" defaultValue={editing?.day ?? ''} style={{ maxWidth: 220 }}>
+        <select
+          id="day"
+          name="day"
+          className="whova-text-input"
+          defaultValue={editing?.day ?? ''}
+          style={{ maxWidth: 220 }}
+        >
           <option value="">Not decided…</option>
           {days.map((d) => (
             <option key={d} value={d}>
@@ -139,6 +144,7 @@ export function GatheringForm({
           <input
             id="startsAtLocal"
             name="startsAtLocal"
+            className="whova-text-input"
             placeholder="14:00"
             defaultValue={editing?.startsAtLocal}
             style={{ maxWidth: 100 }}
@@ -146,14 +152,14 @@ export function GatheringForm({
           <span className="muted">to</span>
           <input
             name="endsAtLocal"
+            className="whova-text-input"
             placeholder="15:00"
             defaultValue={editing?.endsAtLocal}
             style={{ maxWidth: 100 }}
           />
         </div>
         <p className="muted" style={{ fontSize: 12 }}>
-          Local wall time at the venue, 24-hour. The same convention the agenda uses, so a room
-          clash between a session and a table is comparable.
+          Venue time, 24-hour.
         </p>
       </div>
 
@@ -164,6 +170,7 @@ export function GatheringForm({
         <input
           id="capacity"
           name="capacity"
+          className="whova-text-input"
           type="number"
           min={1}
           max={200}
@@ -183,9 +190,10 @@ export function GatheringForm({
         <input
           id="notes"
           name="notes"
+          className="whova-text-input"
           maxLength={200}
           defaultValue={editing?.notes}
-          placeholder="optional. AV needed, catering, anything the desk should know"
+          placeholder="optional"
         />
       </div>
 
@@ -213,18 +221,23 @@ export function PlaceForm({
   if (gathering.full) {
     return (
       <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-        Full at {gathering.capacity}. Raise the capacity to add anybody else. The cap is refused
-        rather than exceeded, because somebody sent to a table with no chair is worse than a number
-        being wrong.
+        Full at {gathering.capacity}. Raise the capacity to add anybody else.
       </p>
     );
   }
 
   return (
-    <form action={action} style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
+    <form action={action} style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="id" value={gathering.id} />
-      <input name="name" placeholder="Name" maxLength={80} required style={{ maxWidth: 220 }} />
+      <input
+        name="name"
+        className="whova-text-input"
+        placeholder="Name"
+        maxLength={80}
+        required
+        style={{ flex: '1 1 140px', maxWidth: 220, width: 'auto' }}
+      />
       <Submit idle={`Add (${gathering.spare} left)`} busy="Adding…" secondary />
       {state.error && (
         <span className="error" role="alert" style={{ fontSize: 12 }}>
