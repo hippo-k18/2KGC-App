@@ -26,6 +26,9 @@ function selfOrigin(request: NextRequest): string {
  * `lib/blog/host.ts` for why). Requests to any other host are untouched, except
  * `/blog` when `BLOG_ORIGIN` names the blog host.
  */
+/** The addresses people guess for the blog editor. All lead to its sign-in. */
+const SIGN_IN_ALIASES = new Set(['/login', '/log-in', '/signin', '/sign-in', '/admin', '/editor', '/dashboard', '/wp-admin', '/wp-login.php']);
+
 export function middleware(request: NextRequest) {
   const url = request.nextUrl;
   const path = url.pathname;
@@ -53,6 +56,8 @@ export function middleware(request: NextRequest) {
   if (bare !== path) return NextResponse.redirect(`${selfOrigin(request)}${bare}${url.search}`, 308);
 
   if (!blogHost) return NextResponse.next();
+
+  if (SIGN_IN_ALIASES.has(path)) return NextResponse.redirect(`${blogOrigin ?? selfOrigin(request)}/write`, 307);
 
   // Old /blog links land on the same post without the prefix.
   if (isBlogPath(path)) {
