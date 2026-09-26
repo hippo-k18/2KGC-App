@@ -162,7 +162,6 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               </a>
               |{' '}
               <span className="event-status-badge badge-info">{basics.eventTypeLabel}</span>
-              <span className="event-status-badge badge-alert">App: draft</span>
             </div>
 
             <div className="guide-info">
