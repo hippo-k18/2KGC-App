@@ -364,15 +364,16 @@ test.describe('server-side checks with sales open @tickets', () => {
 
   test('refuses a tier id that does not exist, even when posted directly', async ({ page }) => {
     await openForm(page);
-    // The one that is actually posted: the checked radio, or the hidden input
-    // when the tier is locked. Rewriting an unchecked radio posts nothing, and
-    // this test then walked straight through to a real Stripe page.
+    await page.getByLabel('Attendee name').fill('Mallory Example');
+    await page.getByLabel('Email address').first().fill(fakeEmail('forged'));
+    // Last, and on the input that is actually posted: the checked radio, or the
+    // hidden input when the tier is locked. React writes a controlled input's
+    // value back on every render, so a forgery made before typing is undone by
+    // the typing, and this test used to walk straight through to Stripe.
     await page
       .locator('input[type="radio"][name="tier"]:checked, input[type="hidden"][name="tier"]')
       .first()
       .evaluate((i) => ((i as HTMLInputElement).value = 'free-ticket'));
-    await page.getByLabel('Attendee name').fill('Mallory Example');
-    await page.getByLabel('Email address').first().fill(fakeEmail('forged'));
     await page.locator('form.checkout button.btn-primary').click();
     await expect(alert(page)).toContainText(/Choose a ticket type/i);
   });
