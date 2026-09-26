@@ -1378,46 +1378,34 @@ export interface TeamInvitationInput {
   name?: string;
   /** What they will be able to open, already in words: "Finance, Check-in only". */
   rolesLabel: string;
-  /** The dashboard's set-passphrase page, carrying a link that works once. */
+  /** The dashboard's sign-in page. */
   link: string;
-  /** How long the link lasts, already formatted: "3 days". */
-  expiresLabel: string;
   /** Who pressed send, recorded in `emailLog`. */
   actor: string;
 }
 
 /**
- * The invitation to the organizer dashboard, and every new link after it.
- *
- * One template for the first invitation and for a reset, because they are the
- * same mail: a link that sets a passphrase once. No unsubscribe link, for the
- * reason the reviewer invitation has none — one named person, one button press.
+ * Someone has been added to the organizer dashboard. There is nothing to set
+ * up: they sign in with this address and a code we email them each time.
  */
 export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<SendOutcome> {
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
 
   const html = shell(
     'Your organizer dashboard access',
-    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.</p>
-     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Your access: <strong>${esc(input.rolesLabel)}</strong>.</p>
-     ${button(input.link, 'Choose your passphrase')}
-     <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       The link works once and expires in ${esc(input.expiresLabel)}. After that you sign in with
-       this email address and the passphrase you chose. Please do not forward it.
-     </p>`,
+    `<p style="${P}">${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.</p>
+     <p style="${P}">Your access: <strong>${esc(input.rolesLabel)}</strong>.</p>
+     <p style="${P}">Sign in with this email address. We send you a code each time, so there is no password to keep.</p>
+     ${button(input.link, 'Open the dashboard')}`,
   );
 
   const text = `${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.
 
 Your access: ${input.rolesLabel}.
 
-Choose your passphrase:
-${input.link}
+Sign in with this email address. We send you a code each time, so there is no password to keep.
 
-The link works once and expires in ${input.expiresLabel}. After that you sign in
-with this email address and the passphrase you chose. Please do not forward it.
-
-Knowledge Graph Conference 2027`;
+${input.link}`;
 
   return send(store, {
     to: input.to,
@@ -1618,31 +1606,42 @@ export interface BlogSignInCodeInput {
   code: string;
   /** How long the code lasts, already formatted: "10 minutes". */
   expiresLabel: string;
+  /**
+   * Which door it opens. The dashboard also uses a code to confirm a refund or
+   * a mass send, which reads differently from signing in.
+   */
+  surface?: 'blog' | 'dashboard' | 'dashboard-confirm';
 }
 
+const CODE_COPY = {
+  blog: { heading: 'Your blog sign-in code', lead: 'Enter this code to sign in to the KGC blog editor:', subject: 'is your KGC blog code', log: 'Blog sign-in code', template: 'blog-sign-in-code' },
+  dashboard: { heading: 'Your dashboard sign-in code', lead: 'Enter this code to sign in to the KGC organizer dashboard:', subject: 'is your KGC dashboard code', log: 'Dashboard sign-in code', template: 'dashboard-sign-in-code' },
+  'dashboard-confirm': { heading: 'Confirm this action', lead: 'Enter this code in the dashboard to confirm what you are about to do:', subject: 'confirms your KGC dashboard action', log: 'Dashboard confirmation code', template: 'dashboard-sign-in-code' },
+} as const;
+
 /**
- * The code that signs someone in to the blog editor. The subject leads with the
- * code so it can be read from a lock-screen notification, as the app's does.
- * The code goes in the body and subject only: `emailLog` records the subject,
- * so the logged subject is replaced with a code-free one.
+ * A six-digit code for the blog editor or the organizer dashboard. The subject
+ * leads with the code so it can be read from a lock-screen notification, as
+ * the app's does. `emailLog` records the subject, so the logged subject is a
+ * code-free one and the real one is sent directly.
  */
 export async function sendBlogSignInCode(store: Firestore, input: BlogSignInCodeInput): Promise<SendOutcome> {
+  const copy = CODE_COPY[input.surface ?? 'blog'];
   const html = shell(
-    'Your blog sign-in code',
-    `<p style="${P}">Enter this code to sign in to the KGC blog editor:</p>
+    copy.heading,
+    `<p style="${P}">${copy.lead}</p>
      <p style="margin:18px 0;font-size:32px;font-weight:700;letter-spacing:.18em;color:${BRAND};">${esc(input.code)}</p>
      <p style="${SMALL}">It expires in ${esc(input.expiresLabel)}. If you did not ask for it, ignore this email.</p>`,
   );
-  const text = `Your KGC blog sign-in code: ${input.code}
+  const text = `${copy.lead} ${input.code}
 
 It expires in ${input.expiresLabel}. If you did not ask for it, ignore this email.`;
+  const logged = { to: input.to, subject: copy.log, template: copy.template };
 
   if (!emailEnabled()) {
-    await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'skipped', reason: 'RESEND_API_KEY is not set on this deployment' });
+    await log(store, { ...logged, status: 'skipped', reason: 'RESEND_API_KEY is not set on this deployment' });
     return 'skipped';
   }
-  // `send` logs its subject, and this subject carries the code. Send directly
-  // with the real subject and log a neutral one.
   try {
     const res = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -1651,25 +1650,28 @@ It expires in ${input.expiresLabel}. If you did not ask for it, ignore this emai
         from: fromAddress(),
         to: [input.to],
         reply_to: replyTo(),
-        subject: `${input.code} is your KGC blog code`,
+        subject: `${input.code} ${copy.subject}`,
         html,
         text,
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
+      await log(store, { ...logged, status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
       return 'failed';
     }
     const json = (await res.json().catch(() => ({}))) as { id?: string };
-    await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'sent', providerId: json.id });
+    await log(store, { ...logged, status: 'sent', providerId: json.id });
     return 'sent';
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'failed', error: message.slice(0, 500) });
+    await log(store, { ...logged, status: 'failed', error: message.slice(0, 500) });
     return 'failed';
   }
 }
+
+/** The same mail, named for the dashboard's callers. */
+export const sendAccessCode = sendBlogSignInCode;
 
 export interface BlogInvitationInput {
   to: string;

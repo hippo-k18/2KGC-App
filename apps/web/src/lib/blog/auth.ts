@@ -37,6 +37,8 @@ const CODE_MS = 10 * 60 * 1000;
 const CODE_RESEND_MS = 45 * 1000;
 const MAX_TRIES = 5;
 
+export const NOT_RECOGNISED = 'Email not recognised. Ask a KGC editor to invite you.';
+
 function secret(): string {
   const own = process.env.BLOG_SESSION_SECRET;
   if (own && own.length >= 16) return own;
@@ -71,13 +73,17 @@ async function mayEnter(email: string): Promise<boolean> {
 }
 
 /**
- * Mail a code. Answers the same way for an address that may not sign in, so
- * the form cannot be used to learn who writes for the blog.
+ * Mail a code, or say plainly that the address has no access.
+ *
+ * It used to answer the same way for every address, so the form could not be
+ * used to learn who writes for the blog. The owner chose the plain answer
+ * instead (2026-09-26): someone who mistyped their address, or was never
+ * invited, should be told rather than left waiting for an email.
  */
 export async function requestCode(rawEmail: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
   const email = normaliseEmail(rawEmail);
   if (!email) return { ok: false, error: 'Enter a valid email address.' };
-  if (!(await mayEnter(email))) return { ok: true, email };
+  if (!(await mayEnter(email))) return { ok: false, error: NOT_RECOGNISED };
 
   const ref = codes().doc(email);
   const prior = await ref.get();

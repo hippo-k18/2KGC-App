@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmCodeField } from '@/components/confirm-code';
+
 import { useActionState } from 'react';
 import type { SigningSendPlan } from '@/lib/consents';
 import { sendSigningLinksAction, type ConsentFormState } from './actions';
@@ -93,21 +95,7 @@ export function SendSigningLinksForm({
             />
           </div>
 
-          {needsPassphrase && (
-            <div className="whova-form-row">
-              <label className="whova-form-label" htmlFor="consent-send-passphrase">
-                Your dashboard passphrase
-              </label>
-              <input
-                id="consent-send-passphrase"
-                className="whova-text-input"
-                name="passphrase"
-                type="password"
-                autoComplete="off"
-                style={{ maxWidth: 240 }}
-              />
-            </div>
-          )}
+          {needsPassphrase && <ConfirmCodeField id="consent-send-code" />}
 
           <button type="submit" className="whova-btn-main primary">
             Send {plan.pending} {plan.pending === 1 ? 'link' : 'links'}

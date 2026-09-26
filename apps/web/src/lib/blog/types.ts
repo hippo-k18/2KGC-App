@@ -1,4 +1,4 @@
-import type { BlogRole, DraftState } from './access';
+import type { DraftState } from './access';
 import type { Doc } from './doc';
 
 /**
@@ -56,20 +56,8 @@ export interface BlogPostDoc {
   updatedBy: string;
 }
 
-export interface BlogMemberDoc {
-  email: string;
-  name: string;
-  role: BlogRole;
-  status: 'invited' | 'active' | 'removed';
-  bio?: string;
-  /** A photo uploaded through the editor, served from `/blog-media`. */
-  avatar?: string;
-  invitedBy?: string;
-  invitedAt?: Date;
-  lastSignInAt?: Date;
-  /** Changed whenever access changes. A session minted under an older one is refused. */
-  sessionEpoch: string;
-}
+/** Defined in `@kgc/shared`, because the organizer dashboard manages the list. */
+export type { BlogMemberDoc } from '@kgc/shared';
 
 /** A post as a page or a list needs it, with the stored dates turned into numbers. */
 export interface StoredPost extends Omit<BlogPostDoc, 'submittedAt' | 'publishedAt' | 'createdAt' | 'updatedAt'> {

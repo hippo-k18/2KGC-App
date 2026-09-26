@@ -1678,6 +1678,8 @@ export interface EmailLogDoc {
     | "exhibitor-lead-link"
     /** The blog editor's six-digit sign-in code. Never carries the code itself. */
     | "blog-sign-in-code"
+    /** The organizer dashboard's sign-in or confirmation code. Never carries the code. */
+    | "dashboard-sign-in-code"
     /** An editor asking someone to write for the blog. */
     | "blog-invitation"
     /** A writer submitted a post: one row per editor told. */
@@ -3246,4 +3248,28 @@ export interface TeamMemberDoc extends BaseDoc {
   invitedBy: string;
   lastSignInAt?: Timestamp;
   updatedBy: string;
+}
+
+/**
+ * `blogMembers/{email}`: who may sign in to the blog editor at
+ * blog.knowledgegraph.tech, and as what. Server-only. Written by the organizer
+ * dashboard (Attendees › Admin Settings), which is where the list is managed,
+ * and read by the website on every blog request.
+ *
+ * Every change to someone's access rotates `sessionEpoch`, which ends their
+ * sessions on their next request.
+ */
+export interface BlogMemberDoc {
+  email: string;
+  name: string;
+  /** Editors publish and review; writers draft their own posts and submit them. */
+  role: "editor" | "writer";
+  status: "invited" | "active" | "removed";
+  bio?: string;
+  /** A photo uploaded through the editor, served from `/blog-media`. */
+  avatar?: string;
+  invitedBy?: string;
+  invitedAt?: unknown;
+  lastSignInAt?: unknown;
+  sessionEpoch: string;
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmCodeField } from '@/components/confirm-code';
+
 import { useActionState, useState } from 'react';
 import { Field, FormBanner, SubmitButton, type FormState } from '../../../form';
 import { erasePersonAction } from './person-data-actions';
@@ -90,16 +92,7 @@ export function ErasePersonForm({
             autoComplete="off"
             groupStyle={{ marginBottom: 12 }}
           />
-          {needsPassphrase && (
-            <Field
-              name="passphrase"
-              type="password"
-              width="lg"
-              label="Your dashboard passphrase"
-              autoComplete="off"
-              groupStyle={{ marginBottom: 12 }}
-            />
-          )}
+          {needsPassphrase && <ConfirmCodeField id="erase-confirm-code" />}
           <SubmitButton variant="danger" disabled={!armed} pendingLabel="Deleting…">
             Delete everything
           </SubmitButton>

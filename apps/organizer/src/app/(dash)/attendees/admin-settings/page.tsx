@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { allowlist, requireOwner } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { dayOfInstant } from '@/lib/time';
@@ -10,6 +9,8 @@ import { SettingsReach } from '../../settings-reach';
 import { Email, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
 import { InviteForm, MemberActions, type RoleOption } from './team';
+import { BlogInviteForm, BlogRowActions } from './blog';
+import { listBlogPeople } from '@/lib/blog-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,13 +26,16 @@ export const dynamic = 'force-dynamic';
  *
  * ── Two kinds of row in one table ───────────────────────────────────────────
  *
- * Owners come from `CONSOLE_ALLOWLIST`, sign in with the shared passphrase and
- * are read-only here: changing them means editing an env var and redeploying,
+ * Owners come from `CONSOLE_ALLOWLIST` and are read-only here: changing them means editing an env var and redeploying,
  * which is a worse experience and a better last resort than a form that can
  * remove the last person able to use it. Everybody else is a `teamMembers`
- * document an owner made on this screen — invited by email, limited by role,
- * on a passphrase of their own chosen through a one-time link, and removable
- * with immediate effect. This screen is itself owners-only.
+ * document an owner made on this screen, limited by role and removable with
+ * immediate effect. Everybody signs in the same way, with a code emailed to
+ * them. This screen is itself owners-only.
+ *
+ * The Blog panel manages the other list, `blogMembers`: who can sign in to the
+ * blog editor. It lives here, not in the blog, at the owner's request
+ * (2026-09-26), so both access lists are managed in one place.
  *
  * The attendee switches further down are stored and not enforced, and the
  * screen says so in those words. An attendee-privacy setting that looks
@@ -41,7 +45,11 @@ export const dynamic = 'force-dynamic';
 export default async function AdminSettingsPage() {
   await requireOwner();
 
-  const [s, members] = await Promise.all([readSettings(SETTINGS_KEYS.access), listMembers()]);
+  const [s, members, blogPeople] = await Promise.all([
+    readSettings(SETTINGS_KEYS.access),
+    listMembers(),
+    listBlogPeople(),
+  ]);
   const admins = allowlist();
   // An address in both places is an owner: the allowlist is asked first.
   const team = members.filter((m) => !admins.includes(m.email));
@@ -131,11 +139,11 @@ export default async function AdminSettingsPage() {
                 </Tag>
               ) : (
                 <Tag key="s" color="orange">
-                  {m.linkOutstanding ? 'Invited' : 'Link expired'}
+                  Invited
                 </Tag>
               ),
               <MemberActions
-                key="a"
+                key={`a-${m.id}`}
                 memberId={m.id}
                 email={m.email}
                 held={m.roles}
@@ -149,15 +157,70 @@ export default async function AdminSettingsPage() {
       <Panel>
         <h2 className="section-header">Invite a team member</h2>
         <p className="body-2">
-          They get a link to choose their own passphrase, then sign in with their email address.
-          They can open only what their roles cover.
+          They get an email, then sign in with their address and a code we send them. They can
+          open only what their roles cover.
         </p>
-        {emailEnabled() ? null : (
-          <p className="muted" style={{ fontSize: 12 }}>
-            Email is not switched on yet. You will get the link to send yourself.
-          </p>
-        )}
         <InviteForm options={options} />
+      </Panel>
+
+      <Panel>
+        <h2 className="section-header">Blog</h2>
+        <p className="body-2">
+          Everyone who can sign in to the blog editor at{' '}
+          <a href="https://blog.knowledgegraph.tech/write" target="_blank" rel="noreferrer">
+            blog.knowledgegraph.tech/write
+          </a>
+          . Writers see only their own posts, and an editor reviews each one before it is published.
+        </p>
+        <Table
+          stackSm
+          cols={[
+            { key: 'e', label: 'Identity', className: 'cell-md' },
+            { key: 'r', label: 'Role', className: 'cell-fill' },
+            { key: 's', label: 'Status', className: 'cell-sm' },
+            { key: 'a', label: 'Actions', className: 'cell-md' },
+          ]}
+          empty="Nobody can sign in to the blog."
+          rows={blogPeople.map((p) => [
+            <span key="e">
+              <strong><Email address={p.email} /></strong>
+              {p.name ? (
+                <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                  {p.name}
+                </span>
+              ) : null}
+            </span>,
+            <span key="r">
+              {p.role === 'editor' ? 'Editor' : 'Writer'}
+              <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                {p.role === 'editor' ? 'Edits and publishes any post' : 'Drafts their own posts for review'}
+                {p.lastSignInAt ? `. Last sign-in ${dayOfInstant(p.lastSignInAt)}` : ''}
+              </span>
+            </span>,
+            p.status === 'active' ? (
+              <Tag key="s" color="green">
+                Active
+              </Tag>
+            ) : (
+              <Tag key="s" color="orange">
+                Invited
+              </Tag>
+            ),
+            p.fixed ? (
+              <span key="a" className="muted" style={{ fontSize: 12 }}>
+                Owner. Set up outside this screen.
+              </span>
+            ) : (
+              // Keyed on the address: the table keys rows by position, and a
+              // removal would otherwise hand this row's message to the next person.
+              <BlogRowActions key={`a-${p.email}`} email={p.email} role={p.role} invited={p.status === 'invited'} />
+            ),
+          ])}
+        />
+        <h3 className="section-header" style={{ fontSize: 15, marginTop: 20 }}>
+          Add someone to the blog
+        </h3>
+        <BlogInviteForm />
       </Panel>
 
       <Panel>

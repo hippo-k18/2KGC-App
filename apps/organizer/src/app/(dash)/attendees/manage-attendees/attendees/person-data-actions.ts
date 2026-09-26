@@ -42,7 +42,7 @@ export async function erasePersonAction(
   if (!ref) return { error: 'That attendee is no longer on the list.' };
 
   if (!(await reauthenticate(String(formData.get('passphrase') ?? '')))) {
-    return { error: 'That passphrase is not correct. Nothing has been deleted.' };
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been deleted.' };
   }
 
   try {

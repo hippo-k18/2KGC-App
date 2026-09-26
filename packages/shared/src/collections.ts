@@ -195,6 +195,12 @@ export const COLLECTIONS = {
   blogMembers: "blogMembers",
   /** One pending blog sign-in code per address, stored hashed. Server-only. */
   blogSignInCodes: "blogSignInCodes",
+  /**
+   * One pending organizer-dashboard code per address, stored hashed: to sign
+   * in, or `{email}__confirm` to confirm a refund, erasure or mass send.
+   * Server-only.
+   */
+  consoleSignInCodes: "consoleSignInCodes",
 } as const;
 
 export const SUBCOLLECTIONS = {

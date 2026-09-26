@@ -5,7 +5,7 @@ import type { TeamRole } from '@kgc/shared';
 import { CheckboxField, Field, FieldSet, FormActions, FormBanner, FormGrid, SubmitButton } from '../../form';
 import {
   inviteMemberAction,
-  newLinkAction,
+  resendInviteAction,
   removeMemberAction,
   setRolesAction,
   type TeamState,
@@ -34,29 +34,6 @@ function RoleBoxes({ options, held = [] }: { options: RoleOption[]; held?: TeamR
   );
 }
 
-/**
- * The link, when there is one to hand over. It is on screen once: the server
- * keeps only a hash of what is inside it, so it cannot be shown again, only
- * replaced.
- */
-function LinkBox({ state }: { state: TeamState }) {
-  if (!state.link) return null;
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <input
-        className="whova-text-input"
-        readOnly
-        value={state.link}
-        aria-label="Set-passphrase link"
-        onFocus={(e) => e.currentTarget.select()}
-      />
-      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        Shown once. Anyone with this link can set the passphrase for this account.
-      </p>
-    </div>
-  );
-}
-
 export function InviteForm({ options }: { options: RoleOption[] }) {
   const [state, action] = useActionState<TeamState, FormData>(inviteMemberAction, {});
   return (
@@ -71,7 +48,6 @@ export function InviteForm({ options }: { options: RoleOption[] }) {
      */
     <form action={action} key={`invite-${state.attempt ?? 0}`}>
       <FormBanner state={state} style={{ marginBottom: 12 }} />
-      <LinkBox state={state} />
       <FormGrid>
         <Field
           name="email"
@@ -121,7 +97,7 @@ export function MemberActions({
   options: RoleOption[];
 }) {
   const [roles, rolesAction] = useActionState<TeamState, FormData>(setRolesAction, {});
-  const [link, linkAction] = useActionState<TeamState, FormData>(newLinkAction, {});
+  const [resent, resendAction] = useActionState<TeamState, FormData>(resendInviteAction, {});
   const [removed, removeAction] = useActionState<TeamState, FormData>(removeMemberAction, {});
 
   return (
@@ -140,18 +116,16 @@ export function MemberActions({
 
       <details>
         <summary className="linkish" style={{ cursor: 'pointer', listStyle: 'none' }}>
-          New passphrase link
+          Resend invitation
         </summary>
-        <form action={linkAction} style={panel}>
+        <form action={resendAction} style={panel}>
           <input type="hidden" name="memberId" value={memberId} />
-          <FormBanner state={link} style={{ marginBottom: 12 }} />
-          <LinkBox state={link} />
+          <FormBanner state={resent} style={{ marginBottom: 12 }} />
           <div style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
-            Signs {email} out and replaces any earlier link. Their passphrase keeps working until
-            they choose a new one.
+            Emails {email} again with the address to sign in at.
           </div>
-          <SubmitButton small pendingLabel="Making…">
-            Make a new link
+          <SubmitButton small pendingLabel="Sending…">
+            Send it again
           </SubmitButton>
         </form>
       </details>

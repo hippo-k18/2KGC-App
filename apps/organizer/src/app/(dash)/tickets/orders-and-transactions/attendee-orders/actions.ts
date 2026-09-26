@@ -76,7 +76,7 @@ export async function refundOrderAction(
   }
 
   if (!(await reauthenticate(passphrase))) {
-    return { error: 'That passphrase is not correct. Nothing has been refunded.' };
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been refunded.' };
   }
 
   const order = await getOrder(orderId);
@@ -204,7 +204,7 @@ export async function markInvoicePaidAction(
 
   if (!orderId) return { error: 'No order specified.' };
   if (!(await reauthenticate(passphrase))) {
-    return { error: 'That passphrase is not correct. Nothing has changed.' };
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has changed.' };
   }
   if (note.length < 3) {
     // Required, because "why is this marked paid?" asked six months later has

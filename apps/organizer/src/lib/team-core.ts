@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { TeamRole } from '@kgc/shared';
 
 /**
@@ -192,113 +192,12 @@ export function canExport(roles: readonly TeamRole[], kind: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// A member's passphrase
+// Identity
 // ---------------------------------------------------------------------------
 
-/**
- * Longer than the shared one has to be, because this one guards a named
- * person's access and nobody else needs to be able to say it aloud at a desk.
- */
-export const MIN_MEMBER_PASSPHRASE = 10;
-
-/** A sentence for the form, or null when the passphrase will do. */
-export function passphraseProblem(passphrase: string): string | null {
-  if (passphrase.length < MIN_MEMBER_PASSPHRASE) {
-    return `Use at least ${MIN_MEMBER_PASSPHRASE} characters.`;
-  }
-  if (passphrase.length > 200) return 'Use 200 characters or fewer.';
-  if (passphrase.trim() !== passphrase) return 'Remove the space at the start or end.';
-  return null;
-}
-
-const SCRYPT_N = 16384;
-const SCRYPT_KEYLEN = 32;
-
-/** `scrypt$N$salt$hash`, salted per member. The cost travels with the hash. */
-export function hashPassphrase(passphrase: string, salt: Buffer = randomBytes(16)): string {
-  const hash = scryptSync(passphrase, salt, SCRYPT_KEYLEN, { N: SCRYPT_N });
-  return `scrypt$${SCRYPT_N}$${salt.toString('base64url')}$${hash.toString('base64url')}`;
-}
-
-/** False for a wrong passphrase and for a stored value it cannot read. */
-export function verifyPassphrase(passphrase: string, stored: string | undefined): boolean {
-  if (!stored) return false;
-  const [scheme, n, salt, hash] = stored.split('$');
-  const cost = Number(n);
-  if (scheme !== 'scrypt' || !salt || !hash || !Number.isInteger(cost) || cost < 2) return false;
-  try {
-    const expected = Buffer.from(hash, 'base64url');
-    const actual = scryptSync(passphrase, Buffer.from(salt, 'base64url'), expected.length, { N: cost });
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// The set-passphrase link
-// ---------------------------------------------------------------------------
-
-/** Three days: long enough to survive a weekend, short enough to go stale. */
-export const SETUP_LINK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-
-export interface SetupClaim {
-  memberId: string;
-  /** Random per link. The member document holds its hash, so a link works once. */
-  nonce: string;
-  expiresAt: number;
-}
-
-/**
- * Signed under its own label, so a session cookie can never verify as a setup
- * link or the reverse even though both use the dashboard's one secret.
- */
-function signSetup(secret: string, body: string): string {
-  return createHmac('sha256', secret).update(`team-setup.${body}`).digest('base64url');
-}
-
+/** A random value for `sessionEpoch`; a new one ends every older session. */
 export function newNonce(): string {
   return randomBytes(24).toString('base64url');
-}
-
-export function hashNonce(nonce: string): string {
-  return createHash('sha256').update(nonce).digest('hex');
-}
-
-export function mintSetupToken(secret: string, claim: SetupClaim): string {
-  const body = Buffer.from(
-    JSON.stringify({ t: 'team-setup', mid: claim.memberId, n: claim.nonce, exp: claim.expiresAt }),
-  ).toString('base64url');
-  return `${body}.${signSetup(secret, body)}`;
-}
-
-/**
- * The claim inside a link, or null when it is forged, malformed or expired.
- * Whether it has been *used* is a fact about the member document, not the
- * token, and the caller checks that against `hashNonce(claim.nonce)`.
- */
-export function readSetupToken(secret: string, token: string, now: number): SetupClaim | null {
-  const [body, mac] = token.split('.');
-  if (!body || !mac) return null;
-
-  const a = Buffer.from(mac);
-  const b = Buffer.from(signSetup(secret, body));
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-
-  try {
-    const parsed = JSON.parse(Buffer.from(body, 'base64url').toString()) as {
-      t?: unknown;
-      mid?: unknown;
-      n?: unknown;
-      exp?: unknown;
-    };
-    if (parsed.t !== 'team-setup') return null;
-    if (typeof parsed.mid !== 'string' || typeof parsed.n !== 'string') return null;
-    if (typeof parsed.exp !== 'number' || parsed.exp < now) return null;
-    return { memberId: parsed.mid, nonce: parsed.n, expiresAt: parsed.exp };
-  } catch {
-    return null;
-  }
 }
 
 /** `team_` + sha256 of the address, so one person is one document. */

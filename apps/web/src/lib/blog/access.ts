@@ -5,7 +5,8 @@
  * Two roles:
  *
  *  - **Editors** run the blog. They see every post, edit any of them, publish,
- *    unpublish, delete, and invite people.
+ *    unpublish and delete. Who may sign in at all, and as which role, is
+ *    managed in the organizer dashboard (Attendees › Admin Settings).
  *  - **Writers** are invited. They see only their own posts and can never
  *    publish: a writer's post goes to review, and an editor publishes it. A
  *    writer editing their own post that is already live edits a draft beside

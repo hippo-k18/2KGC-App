@@ -5,8 +5,15 @@ import type { TeamRole } from '@kgc/shared';
 import { writeAppAccessProjection } from '@/lib/app-access';
 import { isAllowed, requireOrganizer, requireOwner } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
-import { inviteMember, removeMember, sendNewLink, setMemberRoles } from '@/lib/team';
+import { inviteMember, removeMember, resendInvitation, setMemberRoles } from '@/lib/team';
 import { parseRoles } from '@/lib/team-core';
+import {
+  inviteBlogPerson,
+  removeBlogPerson,
+  resendBlogInvitation,
+  setBlogRole,
+  type BlogRole,
+} from '@/lib/blog-access';
 
 export interface AdminSettingsState {
   ok?: boolean;
@@ -78,8 +85,6 @@ export interface TeamState {
   ok?: boolean;
   message?: string;
   error?: string;
-  /** The set-passphrase link, shown once so an owner can pass it on by hand. */
-  link?: string;
   /**
    * What was typed, handed back so a refusal does not empty the form.
    *
@@ -122,7 +127,7 @@ export async function inviteMemberAction(_prev: TeamState, formData: FormData): 
   const res = await inviteMember({ email, name, roles, actor });
   revalidatePath(PATH);
   return res.ok
-    ? { ok: true, message: res.message, link: res.link, attempt }
+    ? { ok: true, message: res.message, attempt }
     : { error: res.error, typed, attempt };
 }
 
@@ -137,16 +142,54 @@ export async function setRolesAction(_prev: TeamState, formData: FormData): Prom
   return res.ok ? { ok: true, message: res.message } : { error: res.error };
 }
 
-export async function newLinkAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
+export async function resendInviteAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
   const actor = await requireOwner();
-  const res = await sendNewLink({ memberId: String(formData.get('memberId') ?? ''), actor });
-  revalidatePath(PATH);
-  return res.ok ? { ok: true, message: res.message, link: res.link } : { error: res.error };
+  const res = await resendInvitation({ memberId: String(formData.get('memberId') ?? ''), actor });
+  return res.ok ? { ok: true, message: res.message } : { error: res.error };
 }
 
 export async function removeMemberAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
   const actor = await requireOwner();
   const res = await removeMember({ memberId: String(formData.get('memberId') ?? ''), actor });
+  revalidatePath(PATH);
+  return res.ok ? { ok: true, message: res.message } : { error: res.error };
+}
+
+// ---------------------------------------------------------------------------
+// The blog
+// ---------------------------------------------------------------------------
+
+export interface BlogState {
+  ok?: boolean;
+  message?: string;
+  error?: string;
+  typed?: { email: string; name: string; role: BlogRole };
+  attempt?: number;
+}
+
+export async function inviteBlogAction(prev: BlogState, formData: FormData): Promise<BlogState> {
+  const actor = await requireOwner();
+  const attempt = (prev.attempt ?? 0) + 1;
+  const typed = {
+    email: String(formData.get('email') ?? ''),
+    name: String(formData.get('name') ?? ''),
+    role: (formData.get('role') === 'editor' ? 'editor' : 'writer') as BlogRole,
+  };
+  const res = await inviteBlogPerson({ ...typed, actor });
+  revalidatePath(PATH);
+  return res.ok ? { ok: true, message: res.message, attempt } : { error: res.error, typed, attempt };
+}
+
+export async function blogRowAction(_prev: BlogState, formData: FormData): Promise<BlogState> {
+  const actor = await requireOwner();
+  const email = String(formData.get('email') ?? '');
+  const intent = String(formData.get('intent') ?? '');
+  const res =
+    intent === 'remove'
+      ? await removeBlogPerson({ email, actor })
+      : intent === 'resend'
+        ? await resendBlogInvitation({ email, actor })
+        : await setBlogRole({ email, role: intent === 'make-editor' ? 'editor' : 'writer', actor });
   revalidatePath(PATH);
   return res.ok ? { ok: true, message: res.message } : { error: res.error };
 }

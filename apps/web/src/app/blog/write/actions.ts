@@ -1,9 +1,8 @@
 'use server';
 
-import type { BlogRole } from '@/lib/blog/access';
 import { currentViewer, requestCode, signOut, verifyCode } from '@/lib/blog/auth';
 import { actionRedirect as go } from '@/lib/blog/paths';
-import * as people from '@/lib/blog/people';
+import { updateProfile } from '@/lib/blog/profile';
 import * as store from '@/lib/blog/store';
 import { BlogError, type DraftInput } from '@/lib/blog/store';
 
@@ -100,24 +99,11 @@ export async function deletePostAction(id: string) {
   return run(async (v) => (await store.deletePost(v, id), { go: path }));
 }
 
-// ── People ──────────────────────────────────────────────────────────────────
-
-export async function inviteAction(input: { email: string; name: string; role: BlogRole }) {
-  return run(async (v) => people.invite(v, input));
-}
-
-export async function resendInviteAction(email: string) {
-  return run(async (v) => ({ sent: await people.resendInvite(v, email) }));
-}
-
-export async function setRoleAction(email: string, role: BlogRole) {
-  return run(async (v) => (await people.setRole(v, email, role), {}));
-}
-
-export async function removeMemberAction(email: string) {
-  return run(async (v) => (await people.removeMember(v, email), {}));
-}
+// ── Profile ─────────────────────────────────────────────────────────────────
+//
+// Who can sign in is managed in the organizer dashboard (Attendees › Admin
+// Settings), not here.
 
 export async function updateProfileAction(input: { name: string; bio: string; avatar: string | null }) {
-  return run(async (v) => (await people.updateProfile(v, input), {}));
+  return run(async (v) => (await updateProfile(v, input), {}));
 }

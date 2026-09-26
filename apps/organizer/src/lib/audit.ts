@@ -422,6 +422,11 @@ export interface AuditEntry {
     | 'team.invite'
     | 'team.roles'
     | 'team.newLink'
+    | 'team.resendInvitation'
+    | 'blog.invite'
+    | 'blog.role'
+    | 'blog.remove'
+    | 'blog.resendInvitation'
     | 'team.remove'
     | 'team.setPassphrase'
     /** An organizer took somebody out of a capped session, from Session Cap. */

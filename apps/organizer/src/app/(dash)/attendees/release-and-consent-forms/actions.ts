@@ -198,7 +198,7 @@ export async function sendSigningLinksAction(
     }
 
     if (!(await reauthenticate(passphrase))) {
-      return { error: 'That passphrase is not correct. Nothing has been sent.' };
+      return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.' };
     }
 
     if (Number(typed) !== plan.pending) {

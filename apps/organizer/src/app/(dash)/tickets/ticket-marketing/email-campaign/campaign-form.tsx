@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmCodeField } from '@/components/confirm-code';
+
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
@@ -172,21 +174,7 @@ export function CampaignForm({
               />
             </div>
 
-            {needsPassphrase && (
-              <div className="whova-form-group" style={{ marginBottom: 0 }}>
-                <label className="whova-form-label" htmlFor="passphrase">
-                  Dashboard passphrase
-                </label>
-                <input
-                  id="passphrase"
-                  name="passphrase"
-                  type="password"
-                  autoComplete="off"
-                  className="whova-text-input"
-                  style={{ maxWidth: 240 }}
-                />
-              </div>
-            )}
+            {needsPassphrase && <ConfirmCodeField />}
           </>
         )}
       </div>

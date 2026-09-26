@@ -171,7 +171,14 @@ the order and not the price.
 
 **Two decisions that are settled, so do not re-open them:**
 
-- **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
+- **Dashboard sign-in is an email and a six-digit code, since 2026-09-26.**
+  The owner replaced the passphrase with the blog editor's scheme: an address
+  not on the list is told "Email not recognised", no code is sent. Owners are
+  `CONSOLE_ALLOWLIST` (the two owner addresses only); team members and blog
+  writers are both managed on Attendees › Admin Settings. Refunds, erasures and
+  mass sends ask for a fresh emailed code (`reauthenticate()` in
+  `apps/organizer/src/lib/auth.ts`). The history below is kept for context.
+  Earlier: **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
   docs that promised "Google SSO with enforced MFA (DECISIONS.md #5)" were
   withdrawn on 2026-08-28; what the shared secret costs is written down in
   `apps/organizer/src/lib/auth.ts`. ⚠️ On 2026-08-31 the allowlist was cut to

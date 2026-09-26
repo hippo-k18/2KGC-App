@@ -18,8 +18,7 @@ export function SignInForm({ initialEmail }: { initialEmail: string }) {
       <form action={action} className="st-panel">
         <h1>Check your email</h1>
         <p>
-          If <strong>{state.email}</strong> writes for the blog, a six-digit code is on its way. It
-          expires in 10 minutes.
+          We sent a six-digit code to <strong>{state.email}</strong>. It expires in 10 minutes.
         </p>
         <label className="st-field">
           <span>Code</span>

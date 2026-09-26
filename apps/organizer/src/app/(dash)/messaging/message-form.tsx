@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmCodeField } from '@/components/confirm-code';
+
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { Audience, Recipient } from '@/lib/messaging';
@@ -154,21 +156,7 @@ export function MessageForm({
               />
             </div>
 
-            {needsPassphrase && (
-              <div className="whova-form-row" style={{ marginBottom: 0 }}>
-                <label className="whova-form-label" htmlFor="passphrase">
-                  Dashboard passphrase
-                </label>
-                <input
-                  id="passphrase"
-                  className="whova-text-input"
-                  name="passphrase"
-                  type="password"
-                  autoComplete="off"
-                  style={{ maxWidth: 240 }}
-                />
-              </div>
-            )}
+            {needsPassphrase && <ConfirmCodeField />}
           </>
         )}
       </div>

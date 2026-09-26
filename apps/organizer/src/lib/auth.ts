@@ -1,59 +1,44 @@
 import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { checkCode, issueCode } from './access-code';
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { TeamRole } from '@kgc/shared';
-import { checkMemberPassphrase, findMember, stampSignIn } from './team';
+import { findMember, stampSignIn } from './team';
 import { canExport, canOpen, canRunAction, homeFor } from './team-core';
 
 /**
- * Console auth: an email allowlist plus a shared passphrase.
+ * Console auth: an address, then a six-digit code emailed to it.
  *
- * **This is the design, not a staging post.** Earlier revisions of this file
- * described itself as "v0" and promised Google SSO with enforced MFA. That was
- * decided against on 2026-08-28: KGC runs one event with a handful of
- * organizers, and an SSO integration adds an identity provider, a consent
- * screen and a second failure mode to a tool that four people sign into.
+ * ── Who gets in ─────────────────────────────────────────────────────────────
  *
- * What that costs, stated plainly rather than left implied:
+ * Owners are the addresses in `CONSOLE_ALLOWLIST` (since 2026-09-26 the two
+ * owner addresses, and nobody else), and they can do everything. Beside them
+ * sits `teamMembers` in Firestore (`lib/team.ts`): people an owner added on
+ * Attendees › Admin Settings, each with roles that limit what they can open.
+ * Anyone else is told "Email not recognised" and no code is sent.
  *
- *  - **No MFA.** The passphrase is the only factor. Length is enforced against
- *    live data (`MIN_LIVE_PASSPHRASE`), which is what stands in for it.
- *  - **No per-person audit identity.** The recorded actor is the address typed
- *    beside the shared secret, so the audit log tells you which organizer
- *    *claimed* to act, not which one did.
- *  - **Revocation runs through the environment.** Removing an address from
- *    `CONSOLE_ALLOWLIST` does end that person's live session — `decode()`
- *    re-checks the list on every request rather than trusting the cookie — but
- *    the change only takes effect once the process picks up the new value,
- *    which on Netlify means a redeploy.
+ * Until 2026-09-26 this was an email plus a shared passphrase, with members on
+ * passphrases of their own set through a one-time link. The owner replaced it
+ * with codes, the same scheme as the blog editor. What that changes:
  *
- * The shape is still worth keeping: `signIn()` is the only place that decides
- * *whether* an email is authentic, so if that decision is ever revisited it is
- * one function, not a rewrite.
+ *  - **Each person proves they hold their own inbox**, so the audit actor is
+ *    somebody who could actually sign in as that address, owners included.
+ *  - **Nothing to leak or rotate.** There is no shared secret any more;
+ *    `CONSOLE_PASSPHRASE` is ignored.
+ *  - **The inbox is now the whole boundary.** Whoever controls an owner's
+ *    email controls the dashboard, and the Admin SDK behind it bypasses
+ *    `firestore.rules`.
  *
- * ── Team members, added 2026-09-20 ──────────────────────────────────────────
- *
- * The allowlist above is unchanged and its addresses are owners. Beside it sits
- * `teamMembers` in Firestore (`lib/team.ts`): people an owner invited from
- * Attendees › Admin Settings, each with roles that limit what they can open and
- * a passphrase of their own, stored as a scrypt hash and chosen through a
- * one-time link. For them the three costs above change: the audit actor is an
- * address only that person can sign in as, and revocation is a deleted
- * document, felt on their next request with no redeploy.
+ * Removing an address from the allowlist, or a member from the team, ends that
+ * person's live session on their next request: `accessFor()` re-checks both
+ * every time rather than trusting the cookie.
  *
  * **Roles are enforced in one place, `requireOrganizer()`**, from the path the
  * request was made to — see `team-core.ts` for why the path, and for the map.
  * No page or action carries a role check of its own and none should grow one.
- *
- * ⚠️ The Admin SDK behind this bypasses `firestore.rules` entirely. The
- * passphrase is the whole boundary, so it must be long, it must not be shared
- * outside the organizer team, and the dashboard URL should be treated as a
- * second secret. `requirePassphrase()` makes a missing one a startup failure in
- * production, so the dangerous configuration fails closed rather than silently
- * opening the door.
  */
 
 const COOKIE = 'kgc_console_session';
@@ -147,89 +132,18 @@ const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess
 
   const member = await findMember(session.email);
   if (!member || member.status !== 'active' || member.roles.length === 0) return null;
-  // A new set-passphrase link rotates the epoch, which ends every older session.
+  // A changed epoch ends every session minted before it.
   if (!session.epoch || session.epoch !== member.sessionEpoch) return null;
   return { email: member.email, roles: member.roles };
 });
 
-/**
- * The single point at which an email becomes an authenticated identity.
- * Everything downstream — the cookie, `requireOrganizer()`, the audit actor —
- * reads the result and not the method, so a different method stays a change to
- * this one function.
- */
-/**
- * A shared passphrase, required whenever one is configured.
- *
- * The allowlist alone is not a credential: an email address is public
- * information, so on a localhost-only tool it is a convenience and on a
- * reachable URL it is nothing at all. `CONSOLE_PASSPHRASE` closes that, and
- * `requirePassphrase()` makes it mandatory in production so that deploying
- * without one is a startup failure rather than a silent open door.
- *
- * It is the difference between "anyone who knows an address" and "anyone who
- * knows an address and a secret", which is the difference that matters once
- * this is reachable over a network. What it does not give you is an audit
- * identity stronger than the address typed alongside it — see the file header.
- */
-function passphrase(): string | undefined {
-  const p = process.env.CONSOLE_PASSPHRASE;
-  return p && p.length > 0 ? p : undefined;
-}
+const NOT_RECOGNISED = 'Email not recognised. Ask a KGC organizer to add you.';
 
-/** True when a passphrase must be supplied — always, once off localhost. */
-export function requirePassphrase(): boolean {
-  return Boolean(passphrase()) || process.env.NODE_ENV === 'production';
-}
-
-/**
- * A short passphrase is fine for a demo and unacceptable against live data.
- *
- * `123` is a perfectly reasonable secret when the dashboard is showing invented
- * attendees — the whole point of that deployment is that strangers get in and
- * click around. It is not a reasonable secret in front of the Admin SDK on the
- * real project, where the same form guards the actual ticket list and bypasses
- * every security rule.
- *
- * So the test is not "is this the emulator" but **"can this process reach real
- * data"**, which is exactly the presence of a service-account credential. A
- * dashboard with no credential can read nothing whatever the passphrase is, so
- * a weak one costs nothing; the moment somebody sets FIREBASE_SERVICE_ACCOUNT
- * the same weak passphrase starts refusing every sign-in, without anyone having
- * to remember to tighten it. The dangerous configuration becomes unreachable by
- * accident rather than merely discouraged.
- *
- * ⚠️ **Lowered from 12 to 7 on 2026-08-31 at the owner's request**, so that
- * `kgc2027` is accepted against the live project. The guard still exists — it
- * still refuses `123` — but at seven characters it no longer stands in for MFA
- * in the way the paragraph above describes. What now carries the boundary is
- * the allowlist being one address and the dashboard URL being unadvertised.
- * Raise this again, and rotate the secret, before the event runs on real
- * attendees. `DEPLOY-NETLIFY.md` records the same warning next to the deploy.
- */
-const MIN_LIVE_PASSPHRASE = 7;
-
-/** True when this process holds a credential that can read the real project. */
-export function hasLiveCredentials(): boolean {
-  if (process.env.FIRESTORE_EMULATOR_HOST) return false;
-  return Boolean(
-    process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_SERVICE_ACCOUNT,
-  );
-}
-
-function weakSecretAgainstLiveData(): boolean {
-  if (!hasLiveCredentials()) return false;
-  const p = passphrase();
-  return Boolean(p) && p!.length < MIN_LIVE_PASSPHRASE;
-}
-
-/** Constant-time compare, so the form is not a timing oracle for the secret. */
-function passphraseMatches(supplied: string): boolean {
-  const expected = passphrase();
-  if (!expected) return false;
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+/** May this address sign in? An owner in the allowlist, or a team member not removed. */
+async function mayEnter(email: string): Promise<boolean> {
+  if (isAllowed(email)) return true;
+  const member = await findMember(email);
+  return Boolean(member && member.roles.length > 0);
 }
 
 async function startSession(session: ConsoleSession): Promise<void> {
@@ -243,54 +157,55 @@ async function startSession(session: ConsoleSession): Promise<void> {
   });
 }
 
-const NO_MATCH = 'That email and password do not match.';
+/**
+ * Step one of signing in: mail a six-digit code, or say plainly that the
+ * address has no access.
+ *
+ * ── Changed 2026-09-26, at the owner's request ──────────────────────────────
+ *
+ * This was an email and a shared passphrase, and a wrong address got the same
+ * answer as a wrong passphrase so the form could not be used to learn who the
+ * organizers are. The owner chose codes, the same as the blog editor, and a
+ * plain "Email not recognised" over that secrecy. What a code gives that the
+ * shared secret did not: each person proves they hold their own inbox, so the
+ * audit actor is somebody who could actually sign in as that address.
+ */
+export async function requestSignInCode(raw: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
+  const email = raw.trim().toLowerCase();
+  if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(email)) return { ok: false, error: 'Enter your email address.' };
+  if (!(await mayEnter(email))) return { ok: false, error: NOT_RECOGNISED };
+  if ((await issueCode(email, 'signin')) === 'failed') {
+    return { ok: false, error: 'The email with your code could not be sent. Try again in a minute.' };
+  }
+  return { ok: true, email };
+}
 
-export async function signIn(
-  email: string,
-  supplied = '',
+/** Step two: check the code and open a session. Returns the screen to land on. */
+export async function signInWithCode(
+  raw: string,
+  code: string,
 ): Promise<{ ok: true; home: string } | { ok: false; error: string }> {
-  const normalised = email.trim().toLowerCase();
-  if (!normalised) return { ok: false, error: 'Enter an email address.' };
-
-  // An invited member, on their own passphrase. The allowlist is asked first
-  // and wins, so an address in both places is an owner on the shared secret and
-  // a stale team document can never narrow or widen what an owner holds.
-  if (!isAllowed(normalised)) {
-    const member = await checkMemberPassphrase(normalised, supplied);
-    if (!member || member.roles.length === 0) return { ok: false, error: NO_MATCH };
-    await startSession({
-      email: member.email,
-      expiresAt: Date.now() + SESSION_TTL_MS,
-      epoch: member.sessionEpoch,
-    });
-    await stampSignIn(member.id);
-    return { ok: true, home: homeFor(member.roles) };
+  const email = raw.trim().toLowerCase();
+  if (!(await checkCode(email, 'signin', code)) || !(await mayEnter(email))) {
+    return { ok: false, error: 'That code is not right, or it has expired.' };
   }
-
-  if (requirePassphrase()) {
-    if (!passphrase()) {
-      // Deploying to a public host without a secret is a configuration error,
-      // and it must fail loudly at the door rather than let everybody in.
-      return {
-        ok: false,
-        error: 'CONSOLE_PASSPHRASE is not set on the server. Sign-in is disabled.',
-      };
-    }
-    if (weakSecretAgainstLiveData()) {
-      return {
-        ok: false,
-        error:
-          `CONSOLE_PASSPHRASE is shorter than ${MIN_LIVE_PASSPHRASE} characters and this ` +
-          'dashboard holds live credentials. Short secrets may only guard demo data.',
-      };
-    }
-    // Deliberately the same message as an unknown address — a sign-in form
-    // should not be an oracle for who the organizers are.
-    if (!passphraseMatches(supplied)) return { ok: false, error: NO_MATCH };
+  if (isAllowed(email)) {
+    await startSession({ email, expiresAt: Date.now() + SESSION_TTL_MS });
+    return { ok: true, home: homeFor(['owner']) };
   }
+  const member = (await findMember(email))!;
+  await startSession({ email: member.email, expiresAt: Date.now() + SESSION_TTL_MS, epoch: member.sessionEpoch });
+  await stampSignIn(member.id);
+  return { ok: true, home: homeFor(member.roles) };
+}
 
-  await startSession({ email: normalised, expiresAt: Date.now() + SESSION_TTL_MS });
-  return { ok: true, home: homeFor(['owner']) };
+/**
+ * Whether the confirm-with-a-code step is shown on the six screens that ask
+ * for it. Always, now that every organizer signs in with a code; kept as a
+ * function so those screens did not change.
+ */
+export function requirePassphrase(): boolean {
+  return true;
 }
 
 export async function signOut(): Promise<void> {
@@ -400,29 +315,28 @@ export async function exportAccess(kind: string): Promise<'ok' | 'signed-out' | 
 /**
  * Prove it is still you, for an action that cannot be undone.
  *
- * A session cookie lasts eight hours, which is right for editing an agenda and
- * wrong for sending money back. An unattended laptop at a registration desk is
- * the normal state of a conference, not an edge case, and "refund" sitting one
- * click away behind an eight-hour session is an accident waiting for a passer-by.
+ * A session lasts eight hours, which is right for editing an agenda and wrong
+ * for sending money back: an unattended laptop at a registration desk is the
+ * normal state of a conference. So a refund, an erasure and a mass send each
+ * ask for a fresh code from the signed-in person's inbox (`sendConfirmCode`),
+ * which a passer-by at the desk does not have.
  *
- * So the refund action asks for the passphrase again. This is genuinely weak —
- * it is a shared secret, and anyone who can sign in at all knows it — but it
- * raises the bar from *a stray click* to *a deliberate act*, which is the
- * specific failure being defended against here. If the sign-in method is ever
- * revisited this becomes a step-up assertion and the call sites do not change.
- *
- * Returns true when no passphrase is configured at all, which is only possible
- * on localhost: `requirePassphrase()` makes one mandatory in production, so a
- * deployment cannot reach this and get a free pass.
+ * The argument is still named for the passphrase it replaced, and the six
+ * forms still post it as `passphrase`, so `tests/parity/step-up-guard.test.ts`
+ * keeps pinning the same actions.
  */
 export async function reauthenticate(supplied: string): Promise<boolean> {
   const access = await currentAccess();
   if (!access) return false;
-  // A team member proves it with their own passphrase, never the shared one:
-  // they were not given it, and the point of the step is that it is still them.
-  if (!isAllowed(access.email)) {
-    return Boolean(await checkMemberPassphrase(access.email, supplied));
+  return checkCode(access.email, 'confirm', supplied);
+}
+
+/** Mail the signed-in organizer a confirmation code. */
+export async function sendConfirmCode(): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
+  const access = await currentAccess();
+  if (!access) return { ok: false, error: 'You have been signed out. Sign in again.' };
+  if ((await issueCode(access.email, 'confirm')) === 'failed') {
+    return { ok: false, error: 'The email with your code could not be sent. Try again in a minute.' };
   }
-  if (!requirePassphrase()) return true;
-  return passphraseMatches(supplied);
+  return { ok: true, email: access.email };
 }

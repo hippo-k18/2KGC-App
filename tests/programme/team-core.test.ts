@@ -4,7 +4,7 @@
  * `requireOrganizer()` in `apps/organizer/src/lib/auth.ts` is the one place a
  * team member's roles are enforced, and everything it decides comes from the
  * pure functions tested here: which paths a role opens, where it lands, and
- * whether a passphrase or a set-passphrase link is good. The Admin SDK behind
+ * who an address is. The Admin SDK behind
  * the dashboard bypasses `firestore.rules`, so there is no second boundary
  * underneath this one — a wrong answer here is a check-in volunteer reading
  * the order book.
@@ -17,25 +17,18 @@ import { describe, expect, it } from 'vitest';
 import type { TeamRole } from '@kgc/shared';
 import { NAV, allPaths } from '../../apps/organizer/src/lib/nav';
 import {
-  MIN_MEMBER_PASSPHRASE,
   ROLE_LABELS,
   TEAM_ROLES,
   canExport,
   canOpen,
   canRunAction,
-  hashNonce,
-  hashPassphrase,
   homeFor,
   looksLikeEmail,
   memberIdFor,
-  mintSetupToken,
   newNonce,
   normalisePath,
   parseRoles,
-  passphraseProblem,
-  readSetupToken,
   screenOfBundle,
-  verifyPassphrase,
 } from '../../apps/organizer/src/lib/team-core';
 
 const EVERY_PATH = allPaths(NAV);
@@ -254,95 +247,16 @@ describe('parseRoles', () => {
   });
 });
 
-describe('a member passphrase', () => {
-  it('verifies against its own hash and not against another passphrase', () => {
-    const stored = hashPassphrase('correct horse battery');
-    expect(verifyPassphrase('correct horse battery', stored)).toBe(true);
-    expect(verifyPassphrase('correct horse batterz', stored)).toBe(false);
-    expect(verifyPassphrase('', stored)).toBe(false);
+describe('who an address is', () => {
+  it('is one team document per person, whatever the case they typed', () => {
+    expect(memberIdFor('Ada@Example.com')).toBe(memberIdFor(' ada@example.com '));
+    expect(memberIdFor('ada@example.com')).not.toBe(memberIdFor('bob@example.com'));
   });
-
-  it('is never stored as itself, and is salted per member', () => {
-    const a = hashPassphrase('correct horse battery');
-    const b = hashPassphrase('correct horse battery');
-    expect(a).not.toContain('correct horse battery');
-    expect(a).not.toBe(b);
-    expect(a.startsWith('scrypt$')).toBe(true);
+  it('accepts an address and refuses a bare word', () => {
+    expect(looksLikeEmail('ada@example.com')).toBe(true);
+    expect(looksLikeEmail('ada')).toBe(false);
   });
-
-  it('refuses a missing or unreadable stored value rather than throwing', () => {
-    expect(verifyPassphrase('anything', undefined)).toBe(false);
-    expect(verifyPassphrase('anything', '')).toBe(false);
-    expect(verifyPassphrase('anything', 'plain$text')).toBe(false);
-    expect(verifyPassphrase('anything', 'scrypt$notanumber$abc$def')).toBe(false);
-  });
-
-  it('must be long enough and carry no stray spaces', () => {
-    expect(passphraseProblem('x'.repeat(MIN_MEMBER_PASSPHRASE - 1))).toMatch(/at least/);
-    expect(passphraseProblem(' padded passphrase ')).toMatch(/space/);
-    expect(passphraseProblem('x'.repeat(201))).toMatch(/200/);
-    expect(passphraseProblem('x'.repeat(MIN_MEMBER_PASSPHRASE))).toBeNull();
-  });
-});
-
-describe('the set-passphrase link', () => {
-  const secret = 'a-session-secret-of-enough-length';
-  const now = Date.UTC(2026, 8, 20);
-  const claim = { memberId: memberIdFor('ada@example.org'), nonce: newNonce(), expiresAt: now + 60_000 };
-
-  it('round-trips the member it was minted for', () => {
-    expect(readSetupToken(secret, mintSetupToken(secret, claim), now)).toEqual(claim);
-  });
-
-  it('is refused once it has expired', () => {
-    expect(readSetupToken(secret, mintSetupToken(secret, claim), claim.expiresAt + 1)).toBeNull();
-  });
-
-  it('is refused under a different secret', () => {
-    expect(readSetupToken('another-secret-of-enough-length', mintSetupToken(secret, claim), now)).toBeNull();
-  });
-
-  it('is refused when the body is swapped for another member under the old signature', () => {
-    const [, mac] = mintSetupToken(secret, claim).split('.');
-    const [body] = mintSetupToken(secret, { ...claim, memberId: memberIdFor('eve@example.org') }).split('.');
-    expect(readSetupToken(secret, `${body}.${mac}`, now)).toBeNull();
-  });
-
-  it('is refused when it is not a token at all', () => {
-    for (const junk of ['', 'abc', 'a.b', '.', 'a.b.c']) {
-      expect(readSetupToken(secret, junk, now)).toBeNull();
-    }
-  });
-
-  it('cannot be forged from a session cookie signed with the same secret', async () => {
-    // The cookie is `base64url(json).hmac(json)` with no label. The same bytes
-    // presented as a setup link must fail, because the link signs under one.
-    const { createHmac } = await import('node:crypto');
-    const body = Buffer.from(
-      JSON.stringify({ t: 'team-setup', mid: claim.memberId, n: claim.nonce, exp: claim.expiresAt }),
-    ).toString('base64url');
-    const cookieStyleMac = createHmac('sha256', secret).update(body).digest('base64url');
-    expect(readSetupToken(secret, `${body}.${cookieStyleMac}`, now)).toBeNull();
-  });
-
-  it('stores a hash of the nonce, never the nonce, and each link has its own', () => {
-    expect(hashNonce(claim.nonce)).toMatch(/^[0-9a-f]{64}$/);
-    expect(hashNonce(claim.nonce)).not.toContain(claim.nonce);
+  it('mints a fresh session epoch every time', () => {
     expect(newNonce()).not.toBe(newNonce());
-  });
-});
-
-describe('member ids and addresses', () => {
-  it('one address is one document, however it was typed', () => {
-    expect(memberIdFor(' Ada@Example.org ')).toBe(memberIdFor('ada@example.org'));
-    expect(memberIdFor('ada@example.org')).not.toBe(memberIdFor('eve@example.org'));
-    expect(memberIdFor('ada@example.org')).toMatch(/^team_[0-9a-f]{32}$/);
-  });
-
-  it('an invitation needs something shaped like an address', () => {
-    expect(looksLikeEmail('ada@example.org')).toBe(true);
-    expect(looksLikeEmail('demo')).toBe(false);
-    expect(looksLikeEmail('ada@example')).toBe(false);
-    expect(looksLikeEmail('ada @example.org')).toBe(false);
   });
 });
