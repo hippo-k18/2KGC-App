@@ -2,14 +2,19 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 import { publicSiteOrigin } from '@kgc/shared';
-import { BLOG_HOST_HEADER } from './host';
+import { isBlogHost } from './host';
 
 /**
  * A link inside the blog, right for the host the reader is on: `/write` on
  * blog.knowledgegraph.tech, `/blog/write` on the main site and on localhost.
  */
 export async function blogBase(): Promise<string> {
-  return (await headers()).get(BLOG_HOST_HEADER) ? '' : '/blog';
+  return (await isBlogRequest()) ? '' : '/blog';
+}
+
+/** Did this request come in on the blog host? `next.config.ts` rewrites it, keeping the Host. */
+export async function isBlogRequest(): Promise<boolean> {
+  return isBlogHost((await headers()).get('host'));
 }
 
 export async function blogPath(path: string): Promise<string> {
@@ -30,5 +35,5 @@ export const blogUrl = (path: string) => blogOrigin() + (path === '/' ? '' : pat
  * site, `/write` on the blog host. See the note at the top of `actions.ts`.
  */
 export async function actionRedirect(path: string): Promise<string> {
-  return (await headers()).get(BLOG_HOST_HEADER) ? path : `/blog${path}`;
+  return (await isBlogRequest()) ? path : `/blog${path}`;
 }

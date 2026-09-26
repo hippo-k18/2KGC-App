@@ -1,7 +1,13 @@
 /**
  * The blog lives at blog.knowledgegraph.tech, served by this same app from its
- * `/blog` routes. `middleware.ts` does the mapping; this file holds the facts
- * it and the pages share. No `server-only`: the middleware imports it.
+ * `/blog` routes. The rewrites are in `next.config.ts` and the redirects in
+ * `middleware.ts`; this file holds the facts they and the pages share. No
+ * `server-only`: the middleware imports it.
+ *
+ * Why not rewrite in middleware: on the droplet the server binds 127.0.0.1,
+ * NextURL reports that as localhost, and Next then treats a middleware rewrite
+ * as another origin and proxies it as a fresh HTTP request with the Host
+ * changed. Config rewrites happen in-process and keep the Host header.
  *
  * On the blog host:
  *   /                  → /blog
@@ -13,9 +19,6 @@
  * Everywhere else, `/blog/...` is served as it always was, unless `BLOG_ORIGIN`
  * is set, in which case it redirects to the blog host.
  */
-
-/** Set by the middleware on requests it rewrote from the blog host. */
-export const BLOG_HOST_HEADER = 'x-kgc-blog-host';
 
 export const isBlogHost = (host: string | null | undefined) => /^blog\./i.test(host ?? '');
 

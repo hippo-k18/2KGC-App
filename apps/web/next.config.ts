@@ -30,6 +30,25 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: '4mb' } },
 
   /**
+   * blog.knowledgegraph.tech is this app's `/blog` routes. Before the filesystem
+   * check, so the blog host's `/` is the blog and not the home page. Paths with
+   * a dot are files in `public/` and pass through; post slugs never have one.
+   * See `src/lib/blog/host.ts`.
+   */
+  async rewrites() {
+    const has = [{ type: 'host' as const, value: 'blog\\..*' }];
+    return {
+      beforeFiles: [
+        { source: '/', has, destination: '/blog' },
+        { source: '/feed.xml', has, destination: '/blog/feed.xml' },
+        { source: '/:path((?!_next/|api/|blog-media/|kgc/|email/|blog/|blog$)[^.]*)', has, destination: '/blog/:path' },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
+
+  /**
    * Where the build output goes, overridable.
    *
    * `npm run build` here overwrites the `.next` a dev server on :3200 is
