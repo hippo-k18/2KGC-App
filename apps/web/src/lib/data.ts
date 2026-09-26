@@ -222,8 +222,8 @@ export const brandingSettings = cache(async function brandingSettings(): Promise
 
 /**
  * Which programme pages the organizers have switched on, under Marketing >
- * Event Website. Both start off. A hidden page returns not found and nothing on
- * the site links to it.
+ * Event Website. Both start off. A hidden page redirects to /previous-events
+ * (old WordPress addresses land on it) and nothing on the site links to it.
  */
 export async function siteVisibility(): Promise<{ agenda: boolean; speakers: boolean }> {
   const b = await brandingSettings();

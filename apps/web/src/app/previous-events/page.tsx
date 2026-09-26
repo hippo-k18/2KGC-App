@@ -12,8 +12,9 @@ import type { Metadata } from 'next';
  * having, and past events are exactly where an invented speaker list would be
  * hardest to spot and most embarrassing.
  *
- * So the links go to the live archives, which are the real record and which the
- * conference maintains. They are marked as leaving the site.
+ * So the links go to the archived copies of the old WordPress site at
+ * archive.knowledgegraph.tech, which are the real record. Not to the same paths
+ * on this domain: those now redirect back to this page.
  */
 
 export const metadata: Metadata = {
@@ -22,17 +23,17 @@ export const metadata: Metadata = {
     'Every previous edition of the Knowledge Graph Conference, from 2019 onwards, with links to each archived site.',
 };
 
-const LIVE = 'https://www.knowledgegraph.tech';
+const ARCHIVE = 'https://archive.knowledgegraph.tech';
 
 /** Href and blurb per edition, in the live "Previous Events" menu's own order. */
 const EDITIONS = [
-  { year: 2025, href: `${LIVE}/conference-2025/`, where: 'Cornell Tech, New York City' },
-  { year: 2024, href: `${LIVE}/conference-2024/`, where: 'Cornell Tech, New York City' },
-  { year: 2023, href: `${LIVE}/kgc-2023-home/`, where: 'Cornell Tech, New York City' },
-  { year: 2022, href: `${LIVE}/kgc-2022-home/`, where: 'Online' },
-  { year: 2021, href: `${LIVE}/kgc2021/`, where: 'Online' },
-  { year: 2020, href: `${LIVE}/conference-2020/`, where: 'Online' },
-  { year: 2019, href: `${LIVE}/conference-2019/`, where: 'Columbia University, New York City' },
+  { year: 2025, href: `${ARCHIVE}/conference-2025/`, where: 'Cornell Tech, New York City' },
+  { year: 2024, href: `${ARCHIVE}/conference-2024/`, where: 'Cornell Tech, New York City' },
+  { year: 2023, href: `${ARCHIVE}/kgc-2023-home/`, where: 'Cornell Tech, New York City' },
+  { year: 2022, href: `${ARCHIVE}/kgc-2022-home/`, where: 'Online' },
+  { year: 2021, href: `${ARCHIVE}/kgc2021/`, where: 'Online' },
+  { year: 2020, href: `${ARCHIVE}/conference-2020/`, where: 'Online' },
+  { year: 2019, href: `${ARCHIVE}/conference-2019/`, where: 'Columbia University, New York City' },
 ];
 
 export default function PreviousEventsPage() {

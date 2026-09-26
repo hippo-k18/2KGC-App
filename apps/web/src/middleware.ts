@@ -1,10 +1,30 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { isBlogHost, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
+import { oldSiteTarget } from '@/lib/old-site';
 
 /**
- * The redirects half of serving blog.knowledgegraph.tech; the rewrites are in
- * `next.config.ts` (see `lib/blog/host.ts` for why). Requests to any other host
- * are untouched, except `/blog` when `BLOG_ORIGIN` names the blog host.
+ * This request's own origin. Not `nextUrl.origin`, which reports the droplet's
+ * 127.0.0.1 as localhost, and not `x-forwarded-proto` first, which Next fills
+ * in as `http` itself when Apache sends none. A configured origin for this
+ * host wins.
+ */
+function selfOrigin(request: NextRequest): string {
+  const host = request.headers.get('host') ?? 'localhost';
+  for (const o of [process.env.WEB_PUBLIC_ORIGIN, process.env.BLOG_ORIGIN]) {
+    try {
+      if (o && new URL(o).host === host) return o.replace(/\/$/, '');
+    } catch {}
+  }
+  return `${request.headers.get('x-forwarded-proto') ?? 'http'}://${host}`;
+}
+
+/**
+ * Three jobs, in this order: the old WordPress addresses (one 301 each, see
+ * `lib/old-site.ts`), trailing slashes (`skipTrailingSlashRedirect` hands them
+ * here so an old address is one hop, not two), and the redirects half of
+ * serving blog.knowledgegraph.tech; the rewrites are in `next.config.ts` (see
+ * `lib/blog/host.ts` for why). Requests to any other host are untouched, except
+ * `/blog` when `BLOG_ORIGIN` names the blog host.
  */
 export function middleware(request: NextRequest) {
   const url = request.nextUrl;
@@ -12,26 +32,35 @@ export function middleware(request: NextRequest) {
 
   if (passesThrough(path)) return NextResponse.next();
 
-  if (!isBlogHost(request.headers.get('host'))) {
-    const blogOrigin = process.env.BLOG_ORIGIN?.replace(/\/$/, '');
-    if (blogOrigin && (path === '/blog' || path.startsWith('/blog/'))) {
-      return NextResponse.redirect(`${blogOrigin}${path.slice(5) || '/'}${url.search}`, 308);
+  const blogHost = isBlogHost(request.headers.get('host'));
+  const blogOrigin = process.env.BLOG_ORIGIN?.replace(/\/$/, '');
+  const bare = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  const isBlogPath = (p: string) => p === '/blog' || p.startsWith('/blog/') || p.startsWith('/blog?');
+
+  if (!blogHost) {
+    // `/blog` targets go straight to the blog host, not through the 308 below,
+    // so an old address is one hop.
+    const target = oldSiteTarget(path);
+    if (target) {
+      const to = blogOrigin && isBlogPath(target) ? `${blogOrigin}${target.slice(5) || '/'}` : `${selfOrigin(request)}${target}`;
+      return NextResponse.redirect(to, 301);
     }
-    return NextResponse.next();
+    if (blogOrigin && isBlogPath(bare)) {
+      return NextResponse.redirect(`${blogOrigin}${bare.slice(5) || '/'}${url.search}`, 308);
+    }
   }
 
-  // Old /blog links land on the same post without the prefix. Not built from
-  // `nextUrl`, which reports the droplet's 127.0.0.1 as localhost.
-  if (path === '/blog' || path.startsWith('/blog/')) {
-    const origin =
-      process.env.BLOG_ORIGIN?.replace(/\/$/, '') ??
-      `${request.headers.get('x-forwarded-proto') ?? 'http'}://${request.headers.get('host')}`;
-    return NextResponse.redirect(`${origin}${path.slice(5) || '/'}${url.search}`, 308);
+  if (bare !== path) return NextResponse.redirect(`${selfOrigin(request)}${bare}${url.search}`, 308);
+
+  if (!blogHost) return NextResponse.next();
+
+  // Old /blog links land on the same post without the prefix.
+  if (isBlogPath(path)) {
+    return NextResponse.redirect(`${blogOrigin ?? selfOrigin(request)}${path.slice(5) || '/'}${url.search}`, 308);
   }
 
   // The header's links to the rest of the site, and its logo (`/__site`), go
-  // to the public site. BLOG_MAIN_ORIGIN, because the app's own
-  // WEB_PUBLIC_ORIGIN is staging while the new site is being tested.
+  // to the public site.
   const first = path.split('/')[1] ?? '';
   if (MAIN_SITE_ROUTES.has(first) || first === '__site') {
     const main = (process.env.BLOG_MAIN_ORIGIN ?? process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');

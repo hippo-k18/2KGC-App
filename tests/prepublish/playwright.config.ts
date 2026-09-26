@@ -3,10 +3,11 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * The pre-publish gate for the public website.
  *
- * Runs against whatever origin `PREPUBLISH_URL` names, staging by default.
- * `scripts/publish-web.sh` deploys staging and then runs this against it.
+ * Runs against whatever origin `PREPUBLISH_URL` names, the live site by default
+ * (staging.knowledgegraph.tech redirects there since 2026-09-26).
+ * `scripts/publish-web.sh` deploys and then runs this against it.
  *
- *   PREPUBLISH_URL    origin under test (default: https://staging.knowledgegraph.tech)
+ *   PREPUBLISH_URL    origin under test (default: https://www.knowledgegraph.tech)
  *   PREPUBLISH_SALES  `closed` or `open`: what state ticket sales must be in.
  *                     A mismatch fails the run, because a lost Stripe key and a
  *                     newly added one are both things to find out before
@@ -17,7 +18,7 @@ import { defineConfig, devices } from '@playwright/test';
  * The default run never writes to Firestore and never sends an email. The
  * `local-fulfilment` project is the one exception and only runs on localhost.
  */
-const baseURL = (process.env.PREPUBLISH_URL ?? 'https://staging.knowledgegraph.tech').replace(/\/$/, '');
+const baseURL = (process.env.PREPUBLISH_URL ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
 const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(baseURL);
 
 export default defineConfig({

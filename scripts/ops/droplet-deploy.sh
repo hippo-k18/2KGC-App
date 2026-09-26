@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Deploy the dashboard, the staging site, or both, with about a second of
-# downtime. Installed on the droplet as /opt/kgc/deploy.sh; this file in the
+# Deploy the dashboard, the public website, or both, with about a second of
+# downtime. The website is www.knowledgegraph.tech since 2026-09-26; it is still
+# called `staging` in the commands below and in its unit name, `kgc-staging`. Installed on the droplet as /opt/kgc/deploy.sh; this file in the
 # repo is the source of truth, copy it over after editing:
 #
 #   scp scripts/ops/droplet-deploy.sh root@142.93.180.72:/opt/kgc/deploy.sh
@@ -67,7 +68,7 @@ app_unit()   { case $1 in web) echo kgc-staging ;; organizer) echo kgc-dashboard
 app_port()   { case $1 in web) echo 3200 ;;        organizer) echo 3100 ;; esac; }
 check_port() { case $1 in web) echo 3201 ;;        organizer) echo 3101 ;; esac; }
 check_path() { case $1 in web) echo /tickets ;;    organizer) echo /login ;; esac; }
-public_url() { case $1 in web) echo https://staging.knowledgegraph.tech/tickets ;;
+public_url() { case $1 in web) echo https://www.knowledgegraph.tech/tickets ;;
                           organizer) echo https://dashboard.knowledgegraph.tech/login ;; esac; }
 env_file()   { echo "$SHARED/$1.env"; }
 
@@ -94,7 +95,7 @@ wait_ok() { # url seconds
 # Written only if it differs, so this is a no-op after the first deploy.
 write_unit() { # app
   local app=$1 unit; unit=$(app_unit "$app")
-  local desc; [ "$app" = web ] && desc="KGC public website, staging" || desc="KGC organizer dashboard"
+  local desc; [ "$app" = web ] && desc="KGC public website (www.knowledgegraph.tech)" || desc="KGC organizer dashboard"
   local want; want=$(cat <<EOF
 [Unit]
 Description=$desc

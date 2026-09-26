@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { FEATURED_2026, REST_2026 } from '@kgc/scripts/src/lib/speakers-2026';
 import { ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { listSpeakers, siteVisibility } from '@/lib/data';
 import { SPEAKERS_PAGE_SOURCE } from '@kgc/shared';
 
@@ -80,7 +80,9 @@ export const metadata: Metadata = {
 export const revalidate = 30;
 
 export default async function SpeakersPage() {
-  if (!(await siteVisibility()).speakers) notFound();
+  // Hidden: hundreds of old WordPress addresses redirect here, so a hidden page sends
+  // them on to the past editions (a temporary 307) rather than a 404.
+  if (!(await siteVisibility()).speakers) redirect('/previous-events');
   return SPEAKERS_PAGE_SOURCE === 'firestore' ? <LiveRoster /> : <Roster2026 />;
 }
 

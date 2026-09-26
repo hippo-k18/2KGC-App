@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 #
-# Deploy the public website to staging and run the pre-publish gate against it.
+# Deploy the public website and run the pre-publish gate against it.
 #
-#   bash scripts/publish-web.sh            check, deploy staging, test staging
-#   bash scripts/publish-web.sh --test     test staging as it is, no deploy
+#   bash scripts/publish-web.sh            check, deploy, test the live site
+#   bash scripts/publish-web.sh --test     test the live site as it is, no deploy
 #   bash scripts/publish-web.sh --fast     skip the unit tests (the browser gate still runs)
 #
 #   PREPUBLISH_SALES=open bash scripts/publish-web.sh   once Stripe is live
 #
-# Staging is https://staging.knowledgegraph.tech, the `kgc-staging` service on
-# the DigitalOcean droplet. `/opt/kgc/deploy.sh staging` there builds whatever
+# The site is https://www.knowledgegraph.tech since 2026-09-26 (staging.
+# redirects there), served by the `kgc-staging` service on the DigitalOcean
+# droplet; the unit kept its old name. `/opt/kgc/deploy.sh staging` there builds whatever
 # is on GitHub for the droplet's branch, so this script refuses to deploy
 # unless your local HEAD is pushed and is what the droplet will build.
 #
@@ -20,7 +21,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WEB="$ROOT/apps/web"
 TESTS="$ROOT/tests/prepublish"
-STAGING_URL="https://staging.knowledgegraph.tech"
+STAGING_URL="https://www.knowledgegraph.tech"
 DROPLET="root@142.93.180.72"
 export PREPUBLISH_SALES="${PREPUBLISH_SALES:-closed}"
 

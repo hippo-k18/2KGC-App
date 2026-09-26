@@ -24,6 +24,13 @@ const nextConfig: NextConfig = {
   devIndicators: false,
 
   /**
+   * Trailing slashes are stripped in `src/middleware.ts` instead, after the old
+   * WordPress addresses (which all had one) are redirected. Next's own strip
+   * runs first and would make every old address two hops.
+   */
+  skipTrailingSlashRedirect: true,
+
+  /**
    * A long blog post's JSON can pass the 1 MB default. Images do not come
    * through actions (see `app/blog-media/upload/route.ts`).
    */
