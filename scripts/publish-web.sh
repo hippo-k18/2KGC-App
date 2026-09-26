@@ -61,6 +61,16 @@ if [ "$DEPLOY" = 1 ]; then
   # No check for a deploy already running: deploy.sh holds a lock and refuses.
 
   # ── 1. Static checks ──────────────────────────────────────────────────────
+  step "No secrets in the repo"
+  # Tracked files only; .env.local and friends are gitignored and stay local.
+  if git -C "$ROOT" grep -nIE '(sk|rk)_live_[A-Za-z0-9]{8}|(sk|rk)_test_[A-Za-z0-9]{20}|whsec_[A-Za-z0-9]{20}|-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ':!*.md' ':!tests/prepublish/**'; then
+    fail "a secret key is committed (above). Remove it, rotate it in Stripe, and rewrite the commit before pushing."
+  fi
+  # Next.js copies any NEXT_PUBLIC_ variable into the browser bundle as-is.
+  if git -C "$ROOT" grep -nIE 'NEXT_PUBLIC_[A-Z_]*(SECRET|PASSPHRASE|PASSWORD|PRIVATE|STRIPE_SK|WEBHOOK|RESEND)' -- apps packages; then
+    fail "a secret is named NEXT_PUBLIC_ (above), which ships it to every visitor."
+  fi
+
   step "Typecheck"
   (cd "$WEB" && npm run typecheck)
 
@@ -73,10 +83,25 @@ if [ "$DEPLOY" = 1 ]; then
   step "Deploy staging ($(git -C "$ROOT" rev-parse --short HEAD) on $REMOTE_BRANCH)"
   # Builds beside the live site, checks the new build on a spare port, then
   # switches over with about a second of downtime. See scripts/ops/droplet-deploy.sh.
-  ssh -o BatchMode=yes "$DROPLET" '/opt/kgc/deploy.sh staging && cat /opt/kgc/live/web/REVISION' | tee /dev/stderr | tail -1 > "$TESTS/reports/.deployed" \
-    || fail "the deploy failed; the live site was left on its previous release"
+  # The leak scan rides the same connection, fed on stdin, so it checks the
+  # release that just went live without a third SSH connection.
+  set +e
+  ssh -o BatchMode=yes "$DROPLET" '/opt/kgc/deploy.sh staging </dev/null && bash -s && cat /opt/kgc/live/web/REVISION' \
+    < "$ROOT/scripts/ops/leak-scan.sh" | tee /dev/stderr | tail -1 > "$TESTS/reports/.deployed"
+  STATUS=${PIPESTATUS[0]}
+  set -e
+  [ "$STATUS" = 3 ] && fail "SECRETS ARE BEING SERVED on staging (named above). Roll back with '/opt/kgc/deploy.sh rollback staging' on the droplet and rotate those keys."
+  [ "$STATUS" = 0 ] || fail "the deploy failed; the live site was left on its previous release"
   DEPLOYED="$(cat "$TESTS/reports/.deployed")"
   [ "${LOCAL:0:10}" = "$DEPLOYED" ] || fail "staging is on $DEPLOYED, expected ${LOCAL:0:10}"
+else
+  step "Leak scan of the live release"
+  set +e
+  ssh -o BatchMode=yes -o ConnectTimeout=15 "$DROPLET" 'bash -s' < "$ROOT/scripts/ops/leak-scan.sh"
+  STATUS=$?
+  set -e
+  [ "$STATUS" = 3 ] && fail "SECRETS ARE BEING SERVED on staging (named above). Rotate those keys."
+  [ "$STATUS" = 0 ] || echo "⚠️  could not run the leak scan over SSH; the browser checks below still look for key patterns"
 fi
 
 # ── 3. The gate ─────────────────────────────────────────────────────────────

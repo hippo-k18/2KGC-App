@@ -142,6 +142,9 @@ story += section("Security", [
     "Local-only sign-in code reader is off",
     "HTTPS headers present",
     "No keys or passwords in the page code",
+    "No keys in any script on any page, and no server-only variable names",
+    "Leak scan: no key or secret value in any public file on the droplet",
+    "No key committed to the repo, no secret named NEXT_PUBLIC",
 ])
 
 story += section("Penetration testing", [

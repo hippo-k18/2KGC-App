@@ -29,8 +29,8 @@ npm run report                                    # open the HTML report
 | Step | What happens | Stops when |
 |---|---|---|
 | 0. Preflight | Droplet reachable over SSH, your HEAD is pushed and is what the droplet's branch will build | Either is not true |
-| 1. Static | `apps/web` typecheck, then the root unit tests (1,177 as of 2026-09-24) | Any type error or failing unit test |
-| 2. Deploy | `/opt/kgc/deploy.sh staging` on the droplet (below), then confirms staging runs your commit | The build or its port check fails; the live site is left alone |
+| 1. Static | No Stripe, webhook or private key in any tracked file, no secret named `NEXT_PUBLIC_*`, then `apps/web` typecheck and the root unit tests (1,177 as of 2026-09-24) | A committed key, a public-prefixed secret, a type error or a failing unit test |
+| 2. Deploy | `/opt/kgc/deploy.sh staging` on the droplet (below), then the leak scan, then confirms staging runs your commit | The build or its port check fails (the live site is left alone), or the leak scan finds a secret (it is already live: roll back and rotate) |
 | 3. Gate | Waits for `/tickets` to answer, runs `tests/prepublish` against staging | Any check fails |
 
 `deploy.sh` builds from GitHub, so uncommitted or unpushed work is never
@@ -180,7 +180,22 @@ what gets tested):
 - A forged unsubscribe link fails cleanly. A bad campaign link does not error.
 - HSTS and `nosniff` are present.
 - No Stripe secret or webhook key, private key, service account, Resend key or
-  emulator host appears in the JavaScript sent with any purchase page.
+  emulator host appears in the JavaScript sent with any purchase page, or in
+  any script linked from any page. No script names a server-only variable
+  (`STRIPE_SECRET_KEY`, `WEB_ORDER_SECRET`, `CONSOLE_PASSPHRASE` and so on),
+  which would mean server code was bundled for the browser.
+
+### The leak scan, on the droplet
+
+`scripts/ops/leak-scan.sh` runs after every deploy, over the same SSH
+connection, and with `--test` too. It reads every file the two sites serve
+without a login (each app's `.next/static` and `public`, 680 files as of
+2026-09-26) and checks for two things: anything shaped like a key, and the
+exact value of every secret in `/opt/kgc/shared/web.env` and
+`organizer.env`. The second catches secrets no pattern can, like the order
+secret or the dashboard passphrase. It prints the name of a leaked variable,
+never its value. Run it by hand with
+`ssh root@142.93.180.72 'bash -s' < scripts/ops/leak-scan.sh`.
 
 ### Penetration checks [`@security`]
 

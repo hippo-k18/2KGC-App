@@ -59,6 +59,7 @@ export const LEAKS: RegExp[] = [
   /sk_live_[A-Za-z0-9]/,
   /sk_test_[A-Za-z0-9]/,
   /rk_live_[A-Za-z0-9]/,
+  /rk_test_[A-Za-z0-9]/,
   /whsec_[A-Za-z0-9]/,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /"private_key"\s*:/,

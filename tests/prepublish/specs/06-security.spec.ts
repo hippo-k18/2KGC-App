@@ -1,4 +1,4 @@
-import { LEAKS, MONEY_ROUTES, SALES, expect, test } from '../helpers';
+import { LEAKS, MONEY_ROUTES, ROUTES, SALES, expect, test } from '../helpers';
 
 /**
  * The money path's locks, checked from outside.
@@ -107,4 +107,28 @@ test.describe('locks on the purchase path @tickets', () => {
       for (const re of LEAKS) expect(all, `JS bundle contains ${re}`).not.toMatch(re);
     });
   }
+
+  // The money routes above load their JS in a browser. This one fetches every
+  // script any page links to, so a chunk only one page uses is covered too.
+  // The leak scan in publish-web.sh goes further and checks every file on disk,
+  // including lazy chunks no page links to; this is the check that needs no SSH.
+  test('no secrets in any script linked from any page', async ({ request }) => {
+    test.setTimeout(120_000);
+    const seen = new Set<string>();
+    for (const route of ROUTES) {
+      const res = await request.get(route.path);
+      if (!res.ok()) continue;
+      for (const [, src] of (await res.text()).matchAll(/<script[^>]+src="([^"]+)"/g)) seen.add(src);
+    }
+    expect(seen.size, 'found no scripts at all').toBeGreaterThan(5);
+    for (const src of seen) {
+      const js = await (await request.get(src)).text();
+      for (const re of LEAKS) expect(js, `${src} contains ${re}`).not.toMatch(re);
+      // Server-side variable names in browser code mean a server module was
+      // bundled for the client, which is how a key leaks on the next deploy.
+      expect(js, `${src} names a server-only secret`).not.toMatch(
+        /STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|WEB_ORDER_SECRET|RESEND_API_KEY|CONSOLE_PASSPHRASE|CONSOLE_SESSION_SECRET/,
+      );
+    }
+  });
 });

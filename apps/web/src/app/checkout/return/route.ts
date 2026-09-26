@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import type Stripe from 'stripe';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilPurchase } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -46,7 +47,15 @@ export async function GET(req: NextRequest) {
 
   if (!sessionId || !stripeEnabled()) return NextResponse.redirect(back);
 
-  const session = await stripe().checkout.sessions.retrieve(sessionId);
+  // A made-up id, or a test-mode id against the live key, is Stripe saying "no
+  // such session". That is a wrong link, not a server fault: back to checkout.
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe().checkout.sessions.retrieve(sessionId);
+  } catch (err) {
+    if ((err as { type?: string }).type === 'StripeInvalidRequestError') return NextResponse.redirect(back);
+    throw err;
+  }
 
   // `paid` for a card; `no_payment_required` for a 100% discount. Anything
   // else — `unpaid`, a delayed bank debit still processing — is not a ticket
