@@ -1675,7 +1675,15 @@ export interface EmailLogDoc {
      * unsubscribed from the newsletter has still paid for the booth this link
      * is the tooling for.
      */
-    | "exhibitor-lead-link";
+    | "exhibitor-lead-link"
+    /** The blog editor's six-digit sign-in code. Never carries the code itself. */
+    | "blog-sign-in-code"
+    /** An editor asking someone to write for the blog. */
+    | "blog-invitation"
+    /** A writer submitted a post: one row per editor told. */
+    | "blog-review-request"
+    /** An editor published a post or sent it back: the row for its writer. */
+    | "blog-review-decision";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */

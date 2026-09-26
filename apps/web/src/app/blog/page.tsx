@@ -2,14 +2,9 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
-import {
-  formatPostDate,
-  POST_CATEGORIES,
-  POSTS,
-  postsInCategory,
-  postsWithTag,
-  type Post,
-} from '@/lib/posts';
+import { blogBase } from '@/lib/blog/paths';
+import { categoriesOf, publicPosts, type PublicPost } from '@/lib/blog/public';
+import { formatPostDate } from '@/lib/posts';
 
 export const metadata: Metadata = {
   title: 'Blog',
@@ -42,7 +37,12 @@ export default async function BlogPage({
 }: {
   searchParams: Promise<{ category?: string; tag?: string; page?: string }>;
 }) {
-  const params = await searchParams;
+  const [params, all, base] = await Promise.all([searchParams, publicPosts(), blogBase()]);
+  const home = base || '/';
+  const POST_CATEGORIES = categoriesOf(all);
+  const postsWithTag = (t: string) =>
+    all.filter((post) => post.tags.some((x) => x.toLowerCase() === t.toLowerCase()));
+  const postsInCategory = (c: string | null) => (c ? all.filter((post) => post.categories.includes(c)) : all);
 
   // Only honour a category that exists. A bad `?category=` filters to nothing
   // and looks like an empty archive, so it falls back to showing everything.
@@ -65,7 +65,7 @@ export default async function BlogPage({
     else if (tag) query.set('tag', tag);
     if (nextPage > 1) query.set('page', String(nextPage));
     const qs = query.toString();
-    return qs ? `/blog?${qs}` : '/blog';
+    return qs ? `${home}?${qs}` : home;
   };
 
   return (
@@ -75,12 +75,12 @@ export default async function BlogPage({
           <h1>Blog</h1>
           <p className="lede">
             Talks, fortnightly news roundups and write-ups from the {SITE.shortName} community.{' '}
-            {POSTS.length} posts, 2019 to today.
+            {all.length} posts, 2019 to today.
           </p>
           {tag && (
             <p style={{ marginTop: 18, marginBottom: 0 }}>
               Showing <strong>{posts.length}</strong> {posts.length === 1 ? 'post' : 'posts'} tagged{' '}
-              <strong>#{tag}</strong>. <Link href="/blog">Clear</Link>
+              <strong>#{tag}</strong>. <Link href={home}>Clear</Link>
             </p>
           )}
           {category && (
@@ -92,7 +92,7 @@ export default async function BlogPage({
 
           <nav aria-label="Filter by category" className="tags" style={{ marginTop: 22, gap: 8 }}>
             <CategoryChip
-              href="/blog"
+              href={home}
               label="All posts"
               active={category === null && tag === null}
             />
@@ -112,7 +112,7 @@ export default async function BlogPage({
         <div className="wrap">
           <div className="grid g3">
             {visible.map((post) => (
-              <PostCard key={post.slug} post={post} />
+              <PostCard key={post.slug} post={post} base={base} />
             ))}
           </div>
 
@@ -193,7 +193,7 @@ function CategoryChip({
  * pads for prose, and a cover image inset by 22px reads as a mistake. The
  * padding moves to the body below it.
  */
-function PostCard({ post }: { post: Post }) {
+function PostCard({ post, base }: { post: PublicPost; base: string }) {
   return (
     <article
       className="card"
@@ -214,7 +214,7 @@ function PostCard({ post }: { post: Post }) {
           {formatPostDate(post.date)}
         </p>
         <h3 style={{ fontSize: '1.05rem', lineHeight: 1.35 }}>
-          <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+          <Link href={`${base}/${post.slug}`}>{post.title}</Link>
         </h3>
         <p className="muted" style={{ fontSize: '0.88rem', marginBottom: 10 }}>
           By {post.author}

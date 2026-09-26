@@ -52,6 +52,13 @@ export function SiteHeader({
 
   useEffect(() => setSearching(false), [path]);
 
+  // On blog.knowledgegraph.tech "/" is the blog, so the logo points at
+  // `/__site`, which the middleware sends to the main site's home page.
+  const [home, setHome] = useState('/');
+  useEffect(() => {
+    if (/^blog\./.test(window.location.hostname)) setHome('/__site');
+  }, []);
+
   /*
    * While the menu is open the page behind it must not scroll.
    *
@@ -113,7 +120,7 @@ export function SiteHeader({
       */}
       <header className="site-header">
         <div className="wrap bar">
-          <Link href="/" className="logo" aria-label={`${eventName}, home`}>
+          <Link href={home} className="logo" aria-label={`${eventName}, home`}>
             {/*
               Intrinsic size is the file's own 2048×763, so Next can reserve the
               right box; CSS takes it down to the header height. `priority`

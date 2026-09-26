@@ -1,33 +1,34 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { canonicalOrigin } from '@/lib/event-jsonld';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { blogBase, blogUrl } from '@/lib/blog/paths';
+import { publicPost, publicPosts, type PublicPost } from '@/lib/blog/public';
+import { PostBodyDoc } from '@/lib/blog/render';
 import { getAuthor, getPostBody } from '@/lib/post-content';
-import { formatPostDate, getPost, POSTS, type Post } from '@/lib/posts';
+import { formatPostDate } from '@/lib/posts';
 import { SITE } from '@/lib/site';
 
 /** The newsletter form lives on the conference's HubSpot, same as the live site. */
 const NEWSLETTER = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
 
-/** Seventy known slugs and no database behind them, so all of it prerenders. */
-export function generateStaticParams() {
-  return POSTS.map((post) => ({ slug: post.slug }));
-}
+/** The archive plus whatever editors have published, so rendered per request from a cached list. */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const post = getPost((await params).slug);
-  if (!post) return { title: 'Post not found' };
+  const found = await publicPost((await params).slug);
+  if (!found || !('post' in found)) return { title: 'Post not found' };
+  const { post } = found;
 
   // With the full article here, this page is the article: the canonical is its
-  // own URL. A post whose body was never scraped is still only a summary, and
-  // keeps pointing at the original so it does not compete with it.
-  const hasBody = getPostBody(post.slug) !== null;
-  const canonical = hasBody ? `/blog/${post.slug}` : post.url;
+  // own URL. An archive post whose body was never scraped is still only a
+  // summary, and keeps pointing at the original so it does not compete with it.
+  const hasBody = post.body.kind === 'doc' || getPostBody(post.slug) !== null;
+  const canonical = hasBody ? blogUrl(`/${post.slug}`) : post.url;
 
   return {
     title: post.title,
@@ -58,17 +59,24 @@ export async function generateMetadata({
  * partial scrape degrades to what the site did before rather than to a blank.
  */
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
-  const post = getPost((await params).slug);
-  if (!post) notFound();
+  const [found, all, base] = await Promise.all([publicPost((await params).slug), publicPosts(), blogBase()]);
+  if (!found) notFound();
+  if ('redirectTo' in found) permanentRedirect(`${base}/${found.redirectTo}`);
+  const { post } = found;
+  const home = base || '/';
 
-  const body = getPostBody(post.slug);
-  const author = getAuthor(post.author);
+  const legacyBody = post.body.kind === 'legacy' ? getPostBody(post.body.slug) : null;
+  const archived = getAuthor(post.author);
+  const author = {
+    avatar: post.authorAvatar ?? archived?.avatar ?? null,
+    bio: post.authorBio ?? archived?.bio ?? '',
+  };
 
-  const index = POSTS.findIndex((entry) => entry.slug === post.slug);
-  const newer = POSTS[index - 1];
-  const older = POSTS[index + 1];
-  const recent = POSTS.filter((entry) => entry.slug !== post.slug).slice(0, 3);
-  const related = relatedPosts(post, 3);
+  const index = all.findIndex((entry) => entry.slug === post.slug);
+  const newer = all[index - 1];
+  const older = all[index + 1];
+  const recent = all.filter((entry) => entry.slug !== post.slug).slice(0, 3);
+  const related = relatedPosts(post, all, 3);
 
   return (
     <div className="post-layout">
@@ -79,7 +87,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               {post.categories.map((name, i) => (
                 <span key={name}>
                   {i > 0 && ' | '}
-                  <Link href={`/blog?category=${encodeURIComponent(name)}`}>{name}</Link>
+                  <Link href={`${home}?category=${encodeURIComponent(name)}`}>{name}</Link>
                 </span>
               ))}
             </p>
@@ -94,10 +102,14 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </div>
           </header>
 
-          <ShareRow title={post.title} url={`${canonicalOrigin()}/blog/${post.slug}`} />
+          <ShareRow title={post.title} url={blogUrl(`/${post.slug}`)} />
 
-          {body ? (
-            <div className="post-body" dangerouslySetInnerHTML={{ __html: body }} />
+          {post.body.kind === 'doc' ? (
+            <div className="post-body">
+              <PostBodyDoc doc={post.body.doc} />
+            </div>
+          ) : legacyBody ? (
+            <div className="post-body" dangerouslySetInnerHTML={{ __html: legacyBody }} />
           ) : (
             <div className="post-body">
               <p>{post.excerpt}</p>
@@ -112,7 +124,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           {post.tags.length > 0 && (
             <footer className="post-tags" aria-label="Post tags">
               {post.tags.map((tag) => (
-                <Link key={tag} href={`/blog?tag=${encodeURIComponent(tag)}`}>
+                <Link key={tag} href={`${home}?tag=${encodeURIComponent(tag)}`}>
                   <span aria-hidden="true">#</span>
                   {tag}
                 </Link>
@@ -133,7 +145,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
         <nav className="post-nav" aria-label="Posts">
           {older && (
-            <Link href={`/blog/${older.slug}`} rel="prev" className="post-nav-prev">
+            <Link href={`${base}/${older.slug}`} rel="prev" className="post-nav-prev">
               <span className="post-nav-sub">
                 <Arrow direction="left" /> Previous
               </span>
@@ -141,7 +153,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </Link>
           )}
           {newer && (
-            <Link href={`/blog/${newer.slug}`} rel="next" className="post-nav-next">
+            <Link href={`${base}/${newer.slug}`} rel="next" className="post-nav-next">
               <span className="post-nav-sub">
                 Next <Arrow direction="right" />
               </span>
@@ -155,7 +167,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <h2 id="further-reading">Further Reading</h2>
             <div className="post-related-grid">
               {related.map((entry) => (
-                <RelatedCard key={entry.slug} post={entry} />
+                <RelatedCard key={entry.slug} post={entry} base={base} />
               ))}
             </div>
           </section>
@@ -187,7 +199,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <li key={entry.slug}>
               {entry.image && (
                 <Link
-                  href={`/blog/${entry.slug}`}
+                  href={`${base}/${entry.slug}`}
                   tabIndex={-1}
                   aria-hidden="true"
                   className="post-recent-thumb-link"
@@ -202,7 +214,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                   />
                 </Link>
               )}
-              <Link href={`/blog/${entry.slug}`} className="post-recent-title">
+              <Link href={`${base}/${entry.slug}`} className="post-recent-title">
                 {entry.title}
               </Link>
             </li>
@@ -262,11 +274,11 @@ function Arrow({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-function RelatedCard({ post }: { post: Post }) {
-  const author = getAuthor(post.author);
+function RelatedCard({ post, base }: { post: PublicPost; base: string }) {
+  const avatar = post.authorAvatar ?? getAuthor(post.author)?.avatar;
   return (
     <article className="post-related-card">
-      <Link href={`/blog/${post.slug}`} tabIndex={-1} aria-hidden="true" className="post-related-thumb">
+      <Link href={`${base}/${post.slug}`} tabIndex={-1} aria-hidden="true" className="post-related-thumb">
         {post.image && (
           <Image
             src={post.image}
@@ -282,15 +294,15 @@ function RelatedCard({ post }: { post: Post }) {
           {post.categories.map((name, i) => (
             <span key={name}>
               {i > 0 && ' | '}
-              <Link href={`/blog?category=${encodeURIComponent(name)}`}>{name}</Link>
+              <Link href={`${base || '/'}?category=${encodeURIComponent(name)}`}>{name}</Link>
             </span>
           ))}
         </p>
         <h3>
-          <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+          <Link href={`${base}/${post.slug}`}>{post.title}</Link>
         </h3>
         <p className="post-related-meta">
-          {author?.avatar && <Image src={author.avatar} alt="" width={25} height={25} />}
+          {avatar && <Image src={avatar} alt="" width={25} height={25} />}
           By {post.author} · {formatPostDate(post.date)}
         </p>
       </div>
@@ -303,9 +315,9 @@ function RelatedCard({ post }: { post: Post }) {
  * a tie. The live site's "Further Reading" is Kadence's own pick; this is the
  * nearest thing that can be computed from the data here.
  */
-function relatedPosts(post: Post, count: number): Post[] {
+function relatedPosts(post: PublicPost, all: PublicPost[], count: number): PublicPost[] {
   const mine = new Set([...post.tags, ...post.categories]);
-  return POSTS.filter((entry) => entry.slug !== post.slug)
+  return all.filter((entry) => entry.slug !== post.slug)
     .map((entry) => ({
       entry,
       score: [...entry.tags, ...entry.categories].filter((t) => mine.has(t)).length,

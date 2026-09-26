@@ -1600,3 +1600,176 @@ Knowledge Graph Conference 2027`;
     actor: input.actor,
   });
 }
+
+// ---------------------------------------------------------------------------
+// The blog editor at blog.knowledgegraph.tech
+//
+// Four mails, all transactional and all to one named person: a sign-in code,
+// an invitation to write, a post waiting for review, and the decision on it.
+// None carries an unsubscribe link, for the reason `sendTeamInvitation` has
+// none. The links are built by the caller, which knows the blog's origin.
+// ---------------------------------------------------------------------------
+
+const P = 'margin:0 0 14px;font-size:15px;line-height:1.6;';
+const SMALL = 'margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;';
+
+export interface BlogSignInCodeInput {
+  to: string;
+  code: string;
+  /** How long the code lasts, already formatted: "10 minutes". */
+  expiresLabel: string;
+}
+
+/**
+ * The code that signs someone in to the blog editor. The subject leads with the
+ * code so it can be read from a lock-screen notification, as the app's does.
+ * The code goes in the body and subject only: `emailLog` records the subject,
+ * so the logged subject is replaced with a code-free one.
+ */
+export async function sendBlogSignInCode(store: Firestore, input: BlogSignInCodeInput): Promise<SendOutcome> {
+  const html = shell(
+    'Your blog sign-in code',
+    `<p style="${P}">Enter this code to sign in to the KGC blog editor:</p>
+     <p style="margin:18px 0;font-size:32px;font-weight:700;letter-spacing:.18em;color:${BRAND};">${esc(input.code)}</p>
+     <p style="${SMALL}">It expires in ${esc(input.expiresLabel)}. If you did not ask for it, ignore this email.</p>`,
+  );
+  const text = `Your KGC blog sign-in code: ${input.code}
+
+It expires in ${input.expiresLabel}. If you did not ask for it, ignore this email.`;
+
+  if (!emailEnabled()) {
+    await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'skipped', reason: 'RESEND_API_KEY is not set on this deployment' });
+    return 'skipped';
+  }
+  // `send` logs its subject, and this subject carries the code. Send directly
+  // with the real subject and log a neutral one.
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: fromAddress(),
+        to: [input.to],
+        reply_to: replyTo(),
+        subject: `${input.code} is your KGC blog code`,
+        html,
+        text,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
+      return 'failed';
+    }
+    const json = (await res.json().catch(() => ({}))) as { id?: string };
+    await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'sent', providerId: json.id });
+    return 'sent';
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await log(store, { to: input.to, subject: 'Blog sign-in code', template: 'blog-sign-in-code', status: 'failed', error: message.slice(0, 500) });
+    return 'failed';
+  }
+}
+
+export interface BlogInvitationInput {
+  to: string;
+  name?: string;
+  /** The inviting editor's name, or their address. */
+  invitedBy: string;
+  /** "an editor" or "a writer". */
+  roleLabel: string;
+  /** The editor's sign-in page, with the address filled in. */
+  link: string;
+  actor: string;
+}
+
+export async function sendBlogInvitation(store: Firestore, input: BlogInvitationInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const html = shell(
+    'Write for the KGC blog',
+    `<p style="${P}">${greeting} ${esc(input.invitedBy)} has added you to the Knowledge Graph Conference blog as ${esc(input.roleLabel)}.</p>
+     <p style="${P}">Sign in with this email address. We send you a code each time, so there is no password to keep.</p>
+     ${button(input.link, 'Open the blog editor')}
+     <p style="${SMALL}">Posts you write go to the KGC editors for review before they are published.</p>`,
+  );
+  const text = `${greeting} ${input.invitedBy} has added you to the Knowledge Graph Conference blog as ${input.roleLabel}.
+
+Sign in with this email address. We send you a code each time, so there is no password to keep.
+
+${input.link}
+
+Posts you write go to the KGC editors for review before they are published.`;
+  return send(store, { to: input.to, subject: 'Write for the KGC blog', html, text, template: 'blog-invitation', actor: input.actor });
+}
+
+export interface BlogReviewRequestInput {
+  to: string;
+  authorName: string;
+  title: string;
+  /** The post in the editor. */
+  link: string;
+  /** True when the post is already live and these are edits to it. */
+  isEdit: boolean;
+}
+
+export async function sendBlogReviewRequest(store: Firestore, input: BlogReviewRequestInput): Promise<SendOutcome> {
+  const what = input.isEdit ? 'changes to a published post' : 'a new post';
+  const html = shell(
+    'A blog post is waiting for review',
+    `<p style="${P}">${esc(input.authorName)} submitted ${what}:</p>
+     <p style="${P}"><strong>${esc(input.title)}</strong></p>
+     ${button(input.link, 'Review it')}`,
+  );
+  const text = `${input.authorName} submitted ${what}:
+
+${input.title}
+
+${input.link}`;
+  return send(store, {
+    to: input.to,
+    subject: `Review: ${input.title}`.slice(0, 180),
+    html,
+    text,
+    template: 'blog-review-request',
+    actor: input.authorName,
+  });
+}
+
+export interface BlogReviewDecisionInput {
+  to: string;
+  name?: string;
+  title: string;
+  decision: 'published' | 'changes-requested';
+  /** The editor's note, when they left one. */
+  note?: string;
+  /** The live post when published, the draft in the editor otherwise. */
+  link: string;
+  actor: string;
+}
+
+export async function sendBlogReviewDecision(store: Firestore, input: BlogReviewDecisionInput): Promise<SendOutcome> {
+  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const published = input.decision === 'published';
+  const heading = published ? 'Your post is live' : 'Your post needs a few changes';
+  const lead = published
+    ? `${greeting} <strong>${esc(input.title)}</strong> is now published on the KGC blog.`
+    : `${greeting} an editor has sent <strong>${esc(input.title)}</strong> back to you.`;
+  const note = input.note
+    ? `<p style="margin:0 0 14px;padding:12px 16px;background:#f4f5f7;border-left:3px solid ${BRAND};font-size:15px;line-height:1.6;white-space:pre-wrap;">${esc(input.note)}</p>`
+    : '';
+  const html = shell(
+    heading,
+    `<p style="${P}">${lead}</p>${note}${button(input.link, published ? 'Read it' : 'Open your draft')}`,
+  );
+  const text = `${published ? `${input.title} is now published on the KGC blog.` : `An editor has sent "${input.title}" back to you.`}
+${input.note ? `\n${input.note}\n` : ''}
+${input.link}`;
+  return send(store, {
+    to: input.to,
+    subject: published ? `Published: ${input.title}`.slice(0, 180) : `Changes requested: ${input.title}`.slice(0, 180),
+    html,
+    text,
+    template: 'blog-review-decision',
+    actor: input.actor,
+  });
+}

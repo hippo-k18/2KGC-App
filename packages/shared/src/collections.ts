@@ -185,6 +185,16 @@ export const COLLECTIONS = {
    * No `match` block in `firestore.rules`, and it must not get one.
    */
   sendLocks: "sendLocks",
+  /**
+   * The blog at blog.knowledgegraph.tech: new posts, and edits of the archive
+   * in `apps/web/src/content/blog`. Server-only, like `pageContent`: the website
+   * reads and writes it with the Admin SDK and nothing else touches it.
+   */
+  blogPosts: "blogPosts",
+  /** Who may sign in to the blog editor, and as what. Server-only. */
+  blogMembers: "blogMembers",
+  /** One pending blog sign-in code per address, stored hashed. Server-only. */
+  blogSignInCodes: "blogSignInCodes",
 } as const;
 
 export const SUBCOLLECTIONS = {

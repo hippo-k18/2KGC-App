@@ -24,6 +24,12 @@ const nextConfig: NextConfig = {
   devIndicators: false,
 
   /**
+   * A long blog post's JSON can pass the 1 MB default. Images do not come
+   * through actions (see `app/blog-media/upload/route.ts`).
+   */
+  experimental: { serverActions: { bodySizeLimit: '4mb' } },
+
+  /**
    * Where the build output goes, overridable.
    *
    * `npm run build` here overwrites the `.next` a dev server on :3200 is
