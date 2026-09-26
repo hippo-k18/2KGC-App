@@ -27,9 +27,9 @@ const ARCHIVE = 'https://archive.knowledgegraph.tech';
 
 /** Href and blurb per edition, in the live "Previous Events" menu's own order. */
 const EDITIONS = [
-  { year: 2025, href: `${ARCHIVE}/conference-2025/`, where: 'Cornell Tech, New York City' },
-  { year: 2024, href: `${ARCHIVE}/conference-2024/`, where: 'Cornell Tech, New York City' },
-  { year: 2023, href: `${ARCHIVE}/kgc-2023-home/`, where: 'Cornell Tech, New York City' },
+  { year: 2025, href: `${ARCHIVE}/conference-2025/`, where: 'New York City' },
+  { year: 2024, href: `${ARCHIVE}/conference-2024/`, where: 'New York City' },
+  { year: 2023, href: `${ARCHIVE}/kgc-2023-home/`, where: 'New York City' },
   { year: 2022, href: `${ARCHIVE}/kgc-2022-home/`, where: 'Online' },
   { year: 2021, href: `${ARCHIVE}/kgc2021/`, where: 'Online' },
   { year: 2020, href: `${ARCHIVE}/conference-2020/`, where: 'Online' },
