@@ -121,33 +121,40 @@ function LeadPanel({ tier }: { tier: Tier }) {
  *
  * `includes` flat rather than `groups`: there is one column of room here, and
  * group headings in a single narrow column are rules with one item under each.
+ *
+ * The button sits top right, beside the name and price, as it does on the
+ * flagship. Pinned to the bottom it landed under five bullets and read as the
+ * end of the list rather than the way to buy.
  */
 function SecondPanel({ tier }: { tier: Tier }) {
   return (
     <article className={s.second} aria-labelledby="second-name">
-      <h2 id="second-name" className={s.secondName}>
-        {tier.name}
-      </h2>
-      <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+      <div className={s.secondHead}>
+        <div>
+          <h2 id="second-name" className={s.secondName}>
+            {tier.name}
+          </h2>
+          <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+        </div>
+
+        {tier.onSale ? (
+          <Link
+            className={s.secondCta}
+            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+            aria-label={`Choose ${tier.name}`}
+          >
+            Choose
+          </Link>
+        ) : (
+          <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
+        )}
+      </div>
 
       <ul className={s.secondItems}>
         {tier.includes.map((line) => (
           <li key={line}>{line}</li>
         ))}
       </ul>
-
-      {tier.onSale ? (
-        <p className={s.secondCta}>
-          <Link
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        </p>
-      ) : (
-        <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-      )}
     </article>
   );
 }
