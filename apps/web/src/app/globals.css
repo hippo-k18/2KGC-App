@@ -2181,8 +2181,9 @@ body.nav-open {
 .package-grid {
   display: grid;
   grid-template-columns: 1fr;
-  /* `start`, so opening one block does not stretch the others in its row. */
-  align-items: start;
+  /* `stretch`, so every block in a row is the height of the tallest. The
+     "More" button opens all of them together, so they stay level open too. */
+  align-items: stretch;
   gap: 16px;
   margin-top: 20px;
 }
@@ -2204,13 +2205,7 @@ body.nav-open {
   margin-bottom: 0;
 }
 
-/*
- * The details open on hover or keyboard focus. `grid-template-rows` from 0fr
- * to 1fr animates to the content's real height, which `height: auto` cannot.
- * Only where there is a real pointer: a phone has no hover, so there the
- * details are simply shown.
- */
-/* The heading with the Info link on the right, on one line. */
+/* The heading with the More and Info buttons on the right, on one line. */
 .package-head {
   display: flex;
   align-items: center;
@@ -2223,40 +2218,33 @@ body.nav-open {
   margin: 0;
 }
 
-
-/* The collapsing grid only exists where it is used. On a phone it clipped the
-   last line of each list, so there the details are plain blocks. */
-@media (hover: hover) {
-  .package {
-    cursor: default;
-  }
-
-  .package-more {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 200ms ease;
-  }
-
-  .package-more > div {
-    overflow: hidden;
-  }
-
-  .package:hover .package-more,
-  .package:focus-within .package-more,
-  .package:focus .package-more {
-    grid-template-rows: 1fr;
-  }
+.package-actions {
+  display: flex;
+  gap: 8px;
 }
 
-@media (hover: hover) and (prefers-reduced-motion: reduce) {
+/*
+ * The lists open together, from the More button. `grid-template-rows` from 0fr
+ * to 1fr animates to the content's real height, which `height: auto` cannot.
+ */
+.package-more {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+}
+
+.package-more > div {
+  overflow: hidden;
+}
+
+.package-grid.is-open .package-more {
+  grid-template-rows: 1fr;
+}
+
+@media (prefers-reduced-motion: reduce) {
   .package-more {
     transition: none;
   }
-}
-
-.package:focus-visible {
-  outline: 2px solid var(--highlight);
-  outline-offset: 2px;
 }
 
 .package-line {

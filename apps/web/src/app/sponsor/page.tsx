@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { listSponsorsByTier } from '@/lib/data';
 import { tiersOrNull } from '@/lib/catalogue';
 import { SponsorTiers } from '@/components/sponsor-tiers';
+import { PackageGrid } from '@/components/package-grid';
 import type { Tier } from '@/lib/tickets';
 import { SITE } from '@/lib/site';
 
@@ -115,23 +116,23 @@ export default async function SponsorPage() {
 
           {packages && packages.length > 0 && (
             <>
-              <div className="package-head">
-                <h2>Sponsor Packages</h2>
-                <a
-                  className="btn btn-secondary btn-sm"
-                  href={PROSPECTUS_URL}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  aria-label="Info: the full sponsorship prospectus, in a new tab"
-                >
-                  Info
-                </a>
-              </div>
-              <div className="package-grid">
+              <PackageGrid
+                info={
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href={PROSPECTUS_URL}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    aria-label="Info: the full sponsorship prospectus, in a new tab"
+                  >
+                    Info
+                  </a>
+                }
+              >
                 {packages.map((p) => (
                   <PackageBlock key={p.id} tier={p} />
                 ))}
-              </div>
+              </PackageGrid>
             </>
           )}
 
@@ -226,7 +227,7 @@ const PLAIN: Record<string, { summary: string; items: string[] }> = {
 
 /**
  * One package as a flat block: its name and one line always, and the full
- * list on hover or keyboard focus.
+ * list when the "More" button in `PackageGrid` opens every block at once.
  */
 function PackageBlock({ tier }: { tier: Tier }) {
   const plain = PLAIN[tier.id];
@@ -235,13 +236,8 @@ function PackageBlock({ tier }: { tier: Tier }) {
     plain?.items ??
     (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap((g) => g.items ?? []);
   return (
-    /*
-      `tabIndex` so a keyboard can open it too. Phones have no hover, so there
-      the list is always shown.
-    */
     <article
       className={`flat-block package${tier.featured ? ' is-featured' : ''}`}
-      tabIndex={0}
       aria-label={`${tier.name} package`}
     >
       <h3>{tier.name}</h3>
