@@ -6,7 +6,7 @@ import { writeAppAccessProjection } from '@/lib/app-access';
 import { isAllowed, requireOrganizer, requireOwner } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
 import { inviteMember, removeMember, resendInvitation, setMemberRoles } from '@/lib/team';
-import { parseRoles } from '@/lib/team-core';
+import { memberIdFor, parseRoles } from '@/lib/team-core';
 import {
   inviteBlogPerson,
   removeBlogPerson,
@@ -106,12 +106,16 @@ export interface TeamState {
 const PATH = '/attendees/admin-settings';
 
 /**
- * `owner` is not on offer. Owners are the addresses configured on the server,
- * which is what keeps a way back in if this list is ever emptied or wrong, and
- * an invited owner could remove the person who invited them.
+ * Every role is on offer, owner included, since 2026-09-26 at the owner's
+ * request. An owner added here can do everything, this screen too, and can
+ * remove other owners added here. What keeps a way back in is the address in
+ * `CONSOLE_ALLOWLIST`, which this screen cannot touch, and the rule below that
+ * nobody can remove themselves or take away their own owner role.
  */
-const grantable = (formData: FormData) =>
-  parseRoles(formData.getAll('roles')).filter((r) => r !== 'owner');
+const grantable = (formData: FormData) => parseRoles(formData.getAll('roles'));
+
+/** True when the row being changed is the person pressing the button. */
+const isSelf = (actor: string, memberId: string) => memberIdFor(actor) === memberId;
 
 export async function inviteMemberAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
   const actor = await requireOwner();
@@ -133,11 +137,12 @@ export async function inviteMemberAction(_prev: TeamState, formData: FormData): 
 
 export async function setRolesAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
   const actor = await requireOwner();
-  const res = await setMemberRoles({
-    memberId: String(formData.get('memberId') ?? ''),
-    roles: grantable(formData),
-    actor,
-  });
+  const memberId = String(formData.get('memberId') ?? '');
+  const roles = grantable(formData);
+  if (isSelf(actor, memberId) && !roles.includes('owner')) {
+    return { error: 'You cannot take away your own owner role. Ask another owner.' };
+  }
+  const res = await setMemberRoles({ memberId, roles, actor });
   revalidatePath(PATH);
   return res.ok ? { ok: true, message: res.message } : { error: res.error };
 }
@@ -150,7 +155,9 @@ export async function resendInviteAction(_prev: TeamState, formData: FormData): 
 
 export async function removeMemberAction(_prev: TeamState, formData: FormData): Promise<TeamState> {
   const actor = await requireOwner();
-  const res = await removeMember({ memberId: String(formData.get('memberId') ?? ''), actor });
+  const memberId = String(formData.get('memberId') ?? '');
+  if (isSelf(actor, memberId)) return { error: 'You cannot remove yourself. Ask another owner.' };
+  const res = await removeMember({ memberId, actor });
   revalidatePath(PATH);
   return res.ok ? { ok: true, message: res.message } : { error: res.error };
 }

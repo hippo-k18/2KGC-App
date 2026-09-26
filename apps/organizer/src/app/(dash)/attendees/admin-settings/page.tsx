@@ -55,7 +55,7 @@ export default async function AdminSettingsPage() {
   const team = members.filter((m) => !admins.includes(m.email));
   const people = admins.length + team.length;
 
-  const options: RoleOption[] = TEAM_ROLES.filter((r) => r !== 'owner').map((role) => ({
+  const options: RoleOption[] = TEAM_ROLES.map((role) => ({
     role,
     ...ROLE_LABELS[role],
   }));
@@ -113,7 +113,7 @@ export default async function AdminSettingsPage() {
                 Active
               </Tag>,
               <span key="a" className="muted" style={{ fontSize: 12 }}>
-                Owners are set up outside this screen.
+                Set in the server settings. Ask for a change there.
               </span>,
             ]),
             ...team.map((m) => [
