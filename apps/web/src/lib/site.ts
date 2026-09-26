@@ -169,10 +169,14 @@ export const ATTENDEES_EXPECTED = '1,000+';
  * about the world that only the owner can make true, and it should be changed in
  * one place by whoever knows the answer.
  *
- * Set it to the store sentence on the day the app is actually listed.
+ * ⚠️ Set to the store sentence on 2026-09-26 at the owner's request, knowing
+ * the app was not yet listed on either store (checked that day: no App Store
+ * result, Google Play 404 for tech.knowledgegraph.kgc). Buyers who search
+ * before it is listed will find nothing. That was the owner's decision; do not
+ * revert it without asking.
  */
 export const APP_DISTRIBUTION =
-  'We will send you an install link before the conference. The app is not on the public app stores yet.';
+  'Download the Knowledge Graph Conference app from the App Store or Google Play.';
 
 /**
  * Where the attendee app is hosted.

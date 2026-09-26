@@ -401,7 +401,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
        ${row('Paid', price)}
        ${row('Sign in with', esc(input.to))}
      </table>
-     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> open the KGC app and sign in with <strong>${esc(input.to)}</strong>. That address is how the app finds your ticket. Your claim code is:</p>
+     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> download the Knowledge Graph Conference app from the App Store or Google Play, then sign in with <strong>${esc(input.to)}</strong>. That address is how the app finds your ticket. Your claim code is:</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.claimCode)}</p>
      ${
        input.temporaryPassword
@@ -430,7 +430,8 @@ Sign in with:  ${input.to}
 
 Claim code: ${input.claimCode}
 ${input.temporaryPassword ? `\nTemporary password: ${input.temporaryPassword}\nThe app will ask you to change it the first time you sign in. It is six\ndigits, it belongs to this ticket only, and it stops working the moment you\nchoose your own.\n` : ''}
-Next step: open the KGC app and sign in with ${input.to}.
+Next step: download the Knowledge Graph Conference app from the App Store or
+Google Play, then sign in with ${input.to}.
 View your ticket: ${input.orderUrl}
 
 Keep that link private. It shows the badge QR that gets scanned at the door.
