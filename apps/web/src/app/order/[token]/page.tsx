@@ -21,8 +21,8 @@ export const metadata: Metadata = {
 /** Per-request, and it has to be. Reads a capability token and the live state of the ticket behind it. A refunded or cancelled order has to stop showing a claim code on the next load, not a minute later, and two visitors never hold the same token. */
 export const dynamic = 'force-dynamic';
 
-/** `https://kgc27-app.netlify.app` → `kgc27-app.netlify.app`. */
-const appHost = APP_URL.replace(/^https?:\/\//, '');
+/** `https://app.example.org` → `app.example.org`. */
+const appHost = APP_URL?.replace(/^https?:\/\//, '') ?? '';
 
 /**
  * The order confirmation — the screen the whole site exists to reach.
@@ -165,6 +165,8 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
           </div>
 
           <div className="pass-stub">
+            {APP_URL ? (
+              <>
             <QrCode
               value={APP_URL}
               size={150}
@@ -182,6 +184,8 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
                 {appHost}
               </a>
             </p>
+              </>
+            ) : null}
 
             {reg.claimCode ? (
               <div className="pass-claim">
@@ -289,9 +293,11 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
               </p>
             )}
             <p className="muted">{APP_DISTRIBUTION}</p>
-            <a href={APP_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
-              Open the KGC app
-            </a>
+            {APP_URL ? (
+              <a href={APP_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
+                Open the KGC app
+              </a>
+            ) : null}
           </li>
 
           <li>

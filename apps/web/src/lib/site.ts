@@ -184,9 +184,10 @@ export const APP_DISTRIBUTION =
  * The Expo app exported to the web, so a buyer can open it from the
  * confirmation page on whatever device they are already holding. It is not the
  * shipping distribution — that is the app stores — but it is the only one that
- * needs nothing installed and no shared Wi-Fi, which is what a demo needs.
+ * needs nothing installed and no shared Wi-Fi. Null while there is no hosted
+ * build (the old Netlify one is gone), and the order page then hides its links.
  */
-export const APP_URL = process.env.APP_PUBLIC_URL ?? 'https://kgc27-app.netlify.app';
+export const APP_URL: string | null = process.env.APP_PUBLIC_URL || null;
 
 /**
  * The header navigation.
