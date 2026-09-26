@@ -64,6 +64,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "announcements",
   "api",
   "blog",
+  "blog-media",
   "call-for-posters",
   "checkout",
   "code-of-conduct",
