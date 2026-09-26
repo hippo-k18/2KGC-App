@@ -57,12 +57,6 @@ export const revalidate = 30;
  */
 const TESTIMONIALS = [
   {
-    file: '78e0d42d86194279988dd51d33556de7_3532888051e57c5057b194c4b6010c7a-1.webp',
-    quote:
-      'The KGC held on Roosevelt Island, much like the island itself, provides an oasis for an practising ontologist like me to meet people solving the exact same problems or at least similar problems, and get inspired by new solutions for building knowledge graphs and realising knowledge-first strategies in their respective companies. I can warmly recommend anyone working with or curious of knowledge graphs to attend the conference.',
-    who: 'Katariina Kari, Lead Ontologist, Inter IKEA Systems',
-  },
-  {
     file: '9f0191bf9a41433d9852204351f4fd63_a4a3dd692336a878d3638d51b4d38deb.webp',
     quote:
       'I think KGC is a one-of-a-kind conference in the field as it maintains its content interesting and at the same time accessible to everyone. I enjoyed the 2023 edition — well organised and full of good inputs.',
@@ -421,18 +415,8 @@ export default async function HomePage() {
             answer: (
               <>
                 <p>
-                  For KGC {ev.year} we recommend two hotels, both <strong>within easy reach of the
-                  venue</strong>.
-                </p>
-                <h3 className="faq-tabs-sub">Recommended hotels:</h3>
-                <p>
-                  <strong>TownePlace Suites, Long Island City</strong>
-                  <br />
-                  <strong>Hotel 57</strong>
-                </p>
-                <p>
-                  Discounted room blocks are arranged closer to the conference. Both hotels take
-                  reservations at their standard rates in the meantime.
+                  Recommended hotels near Bryant Park, with discounted room blocks, will be listed
+                  here closer to the conference.
                 </p>
               </>
             ),

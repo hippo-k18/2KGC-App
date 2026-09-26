@@ -120,7 +120,7 @@ export default async function MemberAndInviteOnlyTicketingPage() {
           </li>
           <li>
             <strong>No allowlisted email domains.</strong> The cheapest real restriction — sell this
-            tier only to <code>@cornell.edu</code> — would be a field on the ticket type and a check
+            tier only to <code>@university.edu</code> — would be a field on the ticket type and a check
             in <code>startCheckout</code>, and would be worth doing before any AMS integration.
           </li>
         </ul>

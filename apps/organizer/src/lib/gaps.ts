@@ -49,12 +49,12 @@ export const GAPS: Record<string, Gap> = {
     whova:
       'Streaming setup per session, rehearsal sessions, and Zoom / Microsoft Teams integrations.',
     needs:
-      'SessionDoc has a format field and nothing else. KGC 2027 is in-person at Cornell Tech, so this is sequenced last on purpose rather than being cheap.',
+      'SessionDoc has a format field and nothing else. KGC 2027 is in-person at Bryant Park, so this is sequenced last on purpose rather than being cheap.',
   },
   'tools/app-adoption': {
     whova:
       'App adoption email, five download-button styles, a web-app link, social graphics and a printable QR poster.',
-    needs: 'An email sender, and the app to exist in the stores. Both are sequenced after the demo.',
+    needs: 'An email sender, and the app to exist in the stores. Both come later.',
   },
   'tools/moderator-tools': {
     whova: 'Moderation queues for session chats, the community board, photos and session Q&A.',

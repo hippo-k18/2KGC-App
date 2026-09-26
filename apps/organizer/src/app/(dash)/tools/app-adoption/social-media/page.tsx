@@ -27,15 +27,15 @@ export default async function SocialMediaPage() {
     },
     {
       label: 'A week out',
-      text: `One week until KGC 2027 at Cornell Tech.\n\nIf you have a ticket, get the app before you travel. It has your badge QR, and the door scans it.\n\n${origin}/tickets`,
+      text: `One week until KGC 2027 at Bryant Park.\n\nIf you have a ticket, get the app before you travel. It has your badge QR, and the door scans it.\n\n${origin}/tickets`,
     },
     {
       label: 'Day one, morning',
-      text: `Doors are open at Cornell Tech. Registration is on your right.\n\nBadge on your phone: open the KGC app, tap Me, then Badge.\n\n#KGC2027`,
+      text: `Doors are open at Bryant Park.\n\nBadge on your phone: open the KGC app, tap Me, then Badge.\n\n#KGC2027`,
     },
     {
       label: 'For speakers to share',
-      text: `I'm speaking at KGC 2027${dates ? `, ${dates}` : ''} at Cornell Tech in New York.\n\nThe full programme is up: ${origin}/agenda\n\n#KGC2027`,
+      text: `I'm speaking at KGC 2027${dates ? `, ${dates}` : ''} at Bryant Park in New York.\n\nThe full programme is up: ${origin}/agenda\n\n#KGC2027`,
     },
   ];
 

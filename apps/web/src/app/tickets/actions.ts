@@ -386,8 +386,8 @@ export async function startCheckout(
                *
                * The subtlety worth knowing: an event ticket is taxed where the
                * *event happens*, not where the buyer lives — unlike almost
-               * everything else Stripe Tax handles. KGC is at Cornell Tech on
-               * Roosevelt Island, so the relevant jurisdiction is New York, and
+               * everything else Stripe Tax handles. KGC is at Bryant Park,
+               * New York, so the relevant jurisdiction is New York, and
                * a buyer in Berlin owes New York's treatment rather than German
                * VAT. That is configured on the Stripe side by setting the
                * event's location; getting it wrong is a filing problem, not a

@@ -84,7 +84,7 @@ export function RoomForm({ existing }: { existing?: EditableRoom }) {
           name="building"
           label="Building"
           defaultValue={existing?.building}
-          placeholder="Bloomberg Center"
+          placeholder="Main building"
           maxLength={60}
         />
         <Field name="floor" label="Floor" defaultValue={existing?.floor} placeholder="2" maxLength={20} />

@@ -592,7 +592,7 @@ export default async function SessionManagerPage({
               a semicolon, not a comma.
             </>
           }
-          placeholder={'Day,Start,End,Title,Room,Track,Speakers\n2027-05-04,09:00,10:00,Knowledge graphs at scale,Bloomberg 165,Graph ML,Ada Okonkwo; Jae Vance'}
+          placeholder={'Day,Start,End,Title,Room,Track,Speakers\n2027-05-04,09:00,10:00,Knowledge graphs at scale,Room 1,Graph ML,Speaker One; Speaker Two'}
           additiveNote={
             <>
               Nothing was removed. A session missing from the file stays on the programme. To

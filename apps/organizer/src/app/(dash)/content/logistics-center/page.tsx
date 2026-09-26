@@ -196,7 +196,7 @@ export default async function LogisticsCenterPage({
             rows={rooms.map((r) => [
               /*
                 The name alone. The row used to print the room's id under it in
-                a monospace face — `veec-classroom-1` — which is how this
+                a monospace face — `room-1` — which is how this
                 dashboard addresses a room and not anything an organizer needs
                 to read. The screen link in the last column is the one place
                 the id has a job, and it is already inside the href.

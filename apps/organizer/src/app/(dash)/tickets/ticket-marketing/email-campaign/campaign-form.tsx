@@ -98,7 +98,7 @@ export function CampaignForm({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={
-            'Tickets for KGC 2027 are open.\n\n3–7 May at Cornell Tech, Roosevelt Island.\n\nEarly-bird pricing runs until 1 March: https://www.knowledgegraph.tech/r/spring-mail'
+            'Tickets for KGC 2027 are open.\n\n3–7 May at Bryant Park, New York.\n\nGet your ticket: https://www.knowledgegraph.tech/tickets'
           }
         />
         <p className="whova-form-description">

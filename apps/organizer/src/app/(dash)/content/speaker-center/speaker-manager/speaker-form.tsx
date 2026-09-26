@@ -127,7 +127,7 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           name="company"
           label="Affiliation"
           defaultValue={existing?.company}
-          placeholder="Cornell Tech"
+          placeholder="Company or university"
           maxLength={90}
         />
       </FormGrid>

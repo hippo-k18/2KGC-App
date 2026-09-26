@@ -125,7 +125,7 @@ function eventWindow(agenda: AgendaDay[], timeZone: string): { start: string; en
 /**
  * Where the conference is, as far as this project actually knows.
  *
- * `EVENT.venue` is `'Cornell Tech, Roosevelt Island, New York, NY'` — one
+ * `EVENT.venue` is `'Bryant Park, New York, NY'` — one
  * string, shared by the app and both websites so they cannot disagree. It is
  * split for the `PostalAddress` rather than being restated, because a second
  * copy of the venue is a second thing to update and the one that gets forgotten

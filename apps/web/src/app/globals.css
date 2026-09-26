@@ -865,11 +865,8 @@ body.nav-open {
 /* ------------------------------------------------------------------- hero - */
 
 /*
- * The real photograph, not the generated one this used to carry: Iwan Baan's
- * aerial of the Cornell Tech campus on Roosevelt Island, with the Queensboro
- * Bridge and midtown behind it. The live site crops into the midtown half, which
- * is why its hero reads as "New York" rather than "a campus" — hence the
- * background position below.
+ * Bryant Park from the Empire State Building, the 2027 venue. The crop keeps the
+ * park and the midtown skyline in frame.
  */
 .hero {
   position: relative;
@@ -995,7 +992,7 @@ body.nav-open {
   font-weight: 700;
 }
 
-/* "MAY 4–8, 2027 | CORNELL TECH NYC" — spaced capitals, as on the live site. */
+/* The dates and venue line in spaced capitals, as on the live site. */
 .hero .hero-dates {
   color: var(--white);
   font-size: 0.95rem;
