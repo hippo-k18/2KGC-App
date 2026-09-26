@@ -47,7 +47,7 @@ function Tag({ node }: { node: SlimNode }) {
   return <span className={`menu-tag ${node.tag}`}>{node.tagLabel ?? node.tag}</span>;
 }
 
-export function TopNav({ nav, draftTabs }: { nav: SlimNode[]; draftTabs: string[] }) {
+export function TopNav({ nav }: { nav: SlimNode[] }) {
   const pathname = usePathname();
   const top = pathname.split('/')[1] ?? '';
   const strip = useRef<HTMLElement>(null);
@@ -68,9 +68,6 @@ export function TopNav({ nav, draftTabs }: { nav: SlimNode[]; draftTabs: string[
             <Link href={`/${n.slug}`}>
               {TAB_ICONS[n.name]}
               <span className="menu-title">{n.title}</span>
-              {draftTabs.includes(n.name) ? (
-                <span className="event-status-badge badge-alert">Draft</span>
-              ) : null}
             </Link>
           </li>
         ))}

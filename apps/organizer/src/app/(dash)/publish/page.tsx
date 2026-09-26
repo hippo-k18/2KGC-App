@@ -8,7 +8,6 @@ import { readPageContentMeta } from '@/lib/page-content';
 import { findConflicts } from '@/lib/conflicts';
 import { ROUTES } from '@/lib/nav';
 import { PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
-import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,16 +56,44 @@ const COPY_PAGES: { key: PageContentKey; title: string }[] = [
 
 const WEBSITE_COPY = '/content/basics/website-copy';
 
+/*
+ * Stripe is asked about on the website, not here. This dashboard deliberately
+ * holds no Stripe key (refunds are done in Stripe itself), so reading its own
+ * environment reported "not connected" while the website was taking payments.
+ * An unsigned POST to the website's webhook answers 400 when both Stripe
+ * secrets are set, 503 with no key and 500 with no webhook secret, and it
+ * stops before touching Stripe or the database. The pre-publish gate uses the
+ * same probe.
+ */
+async function websitePayments(): Promise<'ok' | 'no-stripe' | 'no-webhook-secret' | 'unknown'> {
+  try {
+    const res = await fetch(publicUrl('/api/stripe/webhook'), {
+      method: 'POST',
+      body: '{}',
+      headers: { 'content-type': 'application/json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.status === 400) return 'ok';
+    if (res.status === 503) return 'no-stripe';
+    if (res.status === 500) return 'no-webhook-secret';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export default async function PublishPage() {
   await requireOrganizer();
 
-  const [pages, tickets, conflicts, speakers, sales, copyMeta] = await Promise.all([
+  const [pages, tickets, conflicts, speakers, sales, copyMeta, payments] = await Promise.all([
     pageReadiness(),
     listTicketTypes(),
     findConflicts(),
     listSpeakers(),
     salesSummary(),
     Promise.all(COPY_PAGES.map((p) => readPageContentMeta(p.key))),
+    websitePayments(),
   ]);
 
   const sellable = tickets.filter((t) => t.visible);
@@ -93,21 +120,15 @@ export default async function PublishPage() {
     },
     {
       label: 'Payments are configured',
-      ok: stripeEnabled(),
-      detail: stripeEnabled()
-        ? stripeIsLive()
-          ? 'Stripe is in live mode. Real cards will be charged.'
-          : 'Stripe is in TEST mode, no real money will move. Switch keys before doors open.'
-        : /*
-           * ⚠️ This used to read "the website completes purchases as
-           * clearly-labelled tests and takes no money", which described the
-           * demo-mode branch deleted in August 2026. The purchase path fails
-           * closed now: /tickets disables the button and the server action
-           * refuses before it reads a tier. Saying otherwise on the one screen
-           * an organizer opens to check readiness is the exact defect this
-           * dashboard keeps having.
-           */
-          'Stripe is not connected, so the website refuses every purchase.',
+      ok: payments === 'ok',
+      detail:
+        payments === 'ok'
+          ? 'Stripe is connected on the website and its webhook is checking signatures.'
+          : payments === 'no-stripe'
+            ? 'Stripe is not connected, so the website refuses every purchase.'
+            : payments === 'no-webhook-secret'
+              ? 'Stripe is connected but the webhook secret is missing, so paid orders are never fulfilled.'
+              : 'The website did not answer, so payments could not be checked.',
       href: ROUTES.ordersSummary,
       blocking: true,
     },

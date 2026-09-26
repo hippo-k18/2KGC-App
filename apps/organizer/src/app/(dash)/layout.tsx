@@ -151,7 +151,6 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <div id="top-event-name" className="layout-boxed">
         <div className="event-title">
           <span className="event-name">{basics.name}</span>
-          <span className="event-status-badge badge-alert">Draft</span>
         </div>
 
         <div className="buttons-cards">
@@ -164,7 +163,6 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               |{' '}
               <span className="event-status-badge badge-info">{basics.eventTypeLabel}</span>
               <span className="event-status-badge badge-alert">App: draft</span>
-              <span className="event-status-badge badge-alert">Tickets: draft</span>
             </div>
 
             <div className="guide-info">
@@ -235,7 +233,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
         </div>
       </div>
 
-      <TopNav nav={nav} draftTabs={['tickets', 'publish']} />
+      <TopNav nav={nav} />
 
       <LiveStats
         viewAll={open('tools/report')}
