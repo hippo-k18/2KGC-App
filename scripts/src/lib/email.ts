@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
 import { contactId } from './ids.js';
 import { mintUnsubscribeToken } from './unsubscribe-token.js';
 
@@ -80,8 +80,18 @@ function fromAddress(): string {
 }
 
 /** Where "questions?" should go. Falls back to the from address. */
+/**
+ * Where questions go: the conference's real, staffed inbox.
+ *
+ * Mail is sent *from* hello@knowledgegraph.tech, which has no mailbox behind
+ * it, so every email tells people not to reply and to write here instead.
+ * Reply-To points here as well, for the people who reply anyway, and so does
+ * the List-Unsubscribe mailto, so neither ends up in an inbox nobody reads.
+ */
+const CONTACT = EVENT.contactEmail;
+
 function replyTo(): string {
-  return process.env.EMAIL_REPLY_TO ?? 'hello@knowledgegraph.tech';
+  return process.env.EMAIL_REPLY_TO ?? CONTACT;
 }
 
 interface SendInput {
@@ -330,7 +340,7 @@ function shell(heading: string, body: string, images: ShellImages = {}): string 
         </td></tr>
         <tr><td style="padding:18px 28px;background:#fafbfc;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;">
           3–7 May 2027 · Bryant Park, New York<br>
-          Questions? Just reply to this email.
+          Please don't reply to this email. For questions, write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.
         </td></tr>
       </table>
     </td></tr>
@@ -436,7 +446,8 @@ View your ticket: ${input.orderUrl}
 
 Keep that link private. It shows the badge QR that gets scanned at the door.
 
-3-7 May 2027, Bryant Park, New York.`;
+3-7 May 2027, Bryant Park, New York.
+Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
   return send(store, {
     to: input.to,
@@ -558,20 +569,20 @@ export async function sendRefundConfirmation(store: Firestore, input: RefundEmai
   const cancelled = input.ticketCancelled ?? true;
 
   const ticketHtml = !cancelled
-    ? `<strong>The ticket is not affected.</strong> Another order still covers it, so it scans at the door as before. If this was a mistake, reply to this email and we'll sort it out.`
+    ? `<strong>The ticket is not affected.</strong> Another order still covers it, so it scans at the door as before. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
     : input.transferred
-      ? `<strong>The ticket you passed on is now cancelled</strong>, so it will no longer scan at the door. We have told the person who was holding it. If this was a mistake, reply to this email and we'll sort it out.`
-      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, reply to this email and we'll sort it out.`;
+      ? `<strong>The ticket you passed on is now cancelled</strong>, so it will no longer scan at the door. We have told the person who was holding it. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
+      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, write to ${CONTACT} and we'll sort it out.`;
 
   const ticketText = !cancelled
     ? `The ticket is not affected. Another order still covers it, so it scans at the
-door as before. If this was a mistake, reply to this email.`
+door as before. If this was a mistake, write to ${CONTACT}.`
     : input.transferred
       ? `The ticket you passed on is now cancelled, so it will no longer scan at the
-door. We have told the person who was holding it. If this was a mistake, reply
-to this email.`
+door. We have told the person who was holding it. If this was a mistake, write
+to ${CONTACT}.`
       : `Your registration is now cancelled, so the badge QR in the app will no longer
-scan at the door. If this was a mistake, reply to this email.`;
+scan at the door. If this was a mistake, write to ${CONTACT}.`;
 
   const html = shell(
     'Your Knowledge Graph Conference ticket has been refunded',
@@ -622,7 +633,7 @@ export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdra
   const html = shell(
     'Your Knowledge Graph Conference ticket has been cancelled',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} the ticket that was passed to you${input.ticketType ? ` for ${esc(input.ticketType)}` : ''} has been cancelled, because the person who bought it has been refunded.</p>
-     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your badge will no longer scan at the door.</strong> The money went back to whoever paid for the ticket, so there is nothing for you to claim. If you think this is wrong, reply to this email and we'll sort it out.</p>`,
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;"><strong>Your badge will no longer scan at the door.</strong> The money went back to whoever paid for the ticket, so there is nothing for you to claim. If you think this is wrong, write to ${CONTACT} and we'll sort it out.</p>`,
   );
 
   const text = `${greeting} the ticket that was passed to you${input.ticketType ? ` for ${input.ticketType}` : ''} has been
@@ -630,7 +641,7 @@ cancelled, because the person who bought it has been refunded.
 
 Your badge will no longer scan at the door. The money went back to whoever paid
 for the ticket, so there is nothing for you to claim. If you think this is
-wrong, reply to this email.`;
+wrong, write to ${CONTACT}.`;
 
   return send(store, {
     to: input.to,
@@ -708,7 +719,8 @@ for a new one from the same screen.
 If you didn't ask to sign in, you can ignore this email — nobody can use the
 code without it, and no one has been given access to your account.
 
-3-7 May 2027, Bryant Park, New York.`;
+3-7 May 2027, Bryant Park, New York.
+Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
   return send(store, {
     to: input.to,
@@ -881,7 +893,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
     : '';
 
-  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n—\nKnowledge Graph Conference 2027\n3-7 May 2027, Bryant Park, New York${unsubscribeText}`;
+  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
 
   return send(store, {
     to: input.to,
