@@ -6,14 +6,16 @@ import { test as base, expect, type Page } from '@playwright/test';
  * Token pages (`/order/…`, `/speaker/…`, `/review/…`) are not here; the
  * security spec checks that a forged token on each of them is refused.
  * `/agenda`, `/rooms` and `/speakers` can be switched off from the dashboard, which is
- * why `optional` pages may answer 404 but must never answer 5xx.
+ * why `optional` pages may be off (see `switchedOff`) but must never answer 5xx.
+ *
+ * `/blog` is not here: since 2026-09-26 it redirects to blog.knowledgegraph.tech,
+ * a separate host that this origin-bound gate does not cover.
  */
 export const ROUTES: { path: string; optional?: boolean }[] = [
   { path: '/' },
   { path: '/about' },
   { path: '/agenda', optional: true },
   { path: '/announcements' },
-  { path: '/blog' },
   { path: '/call-for-posters' },
   { path: '/code-of-conduct' },
   { path: '/community' },
@@ -38,6 +40,16 @@ export const ROUTES: { path: string; optional?: boolean }[] = [
 ];
 
 /** The pages that take money, or lead straight to a page that does. */
+/**
+ * Is this optional page switched off? A hidden `/rooms` answers 404; hidden
+ * `/agenda` and `/speakers` redirect to `/previous-events`, because hundreds of
+ * old WordPress addresses point at them.
+ */
+export function switchedOff(route: { path: string; optional?: boolean }, page: Page, status: number | undefined): boolean {
+  if (!route.optional) return false;
+  return status === 404 || new URL(page.url()).pathname !== route.path;
+}
+
 export const MONEY_ROUTES = ['/tickets', '/tickets/checkout', '/tickets/invoice', '/tickets/sponsor', '/tickets/exhibitor'];
 
 export const SALES = (process.env.PREPUBLISH_SALES ?? 'closed') as 'open' | 'closed';

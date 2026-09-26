@@ -1,4 +1,4 @@
-import { BROKEN_TEXT, LEAKS, ROUTES, WRONG_HOSTS, expect, horizontalOverflow, test } from '../helpers';
+import { BROKEN_TEXT, LEAKS, ROUTES, WRONG_HOSTS, expect, horizontalOverflow, switchedOff, test } from '../helpers';
 
 /**
  * Every public page, one test each, on desktop and on a phone.
@@ -17,8 +17,8 @@ for (const route of ROUTES) {
       const status = res?.status() ?? 0;
 
       expect(status, `${route.path} must never be a server error`).toBeLessThan(500);
-      if (route.optional && status === 404) {
-        test.info().annotations.push({ type: 'skipped-content', description: `${route.path} is switched off (404)` });
+      if (switchedOff(route, page, status)) {
+        test.info().annotations.push({ type: 'skipped-content', description: `${route.path} is switched off` });
         return;
       }
       expect(status, `${route.path} status`).toBe(200);
@@ -50,7 +50,7 @@ for (const route of ROUTES) {
     test(`images load and have alt text @smoke`, async ({ page, allowStatus }) => {
       if (route.optional) allowStatus(404);
       const res = await page.goto(route.path, { waitUntil: 'load' });
-      if (route.optional && res?.status() === 404) return;
+      if (switchedOff(route, page, res?.status())) return;
 
       // Scroll through once so lazy images actually request.
       await page.evaluate(async () => {
@@ -79,7 +79,7 @@ for (const route of ROUTES) {
       test.skip(info.project.name !== 'mobile', 'phone layout is checked on the mobile project');
       if (route.optional) allowStatus(404);
       const res = await page.goto(route.path, { waitUntil: 'load' });
-      if (route.optional && res?.status() === 404) return;
+      if (switchedOff(route, page, res?.status())) return;
       expect(await horizontalOverflow(page), 'page is wider than the phone').toBeNull();
     });
 
@@ -87,7 +87,7 @@ for (const route of ROUTES) {
       const started = Date.now();
       const res = await request.get(route.path, { maxRedirects: 0 });
       const ms = Date.now() - started;
-      if (route.optional && res.status() === 404) return;
+      if (route.optional && [404, 307].includes(res.status())) return;
       expect(res.status()).toBe(200);
       // Generous, because staging is one small droplet. A page over this
       // budget on a second try is a page that is actually slow.
@@ -114,4 +114,11 @@ test('the tab icon is served', async ({ page, request }) => {
   const res = await request.get(href!);
   expect(res.status(), `icon ${href}`).toBe(200);
   expect(res.headers()['content-type']).toMatch(/^image\//);
+});
+
+test('/blog is sent to the blog host in one hop @smoke', async ({ request, baseURL }) => {
+  test.skip(/localhost|127\.0\.0\.1/.test(baseURL!), 'the blog host only exists on the droplet');
+  const res = await request.get('/blog', { maxRedirects: 0 });
+  expect(res.status()).toBe(308);
+  expect(res.headers().location).toBe('https://blog.knowledgegraph.tech/');
 });

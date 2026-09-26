@@ -3,6 +3,18 @@
 Written 2026-09-23. Everything about the current domain in this document was
 read from live DNS and the live site on that date, not from memory.
 
+> **Done on 2026-09-26, differently from the plan below.** Netlify was retired,
+> so there was no DNS change: www.knowledgegraph.tech was switched on the
+> droplet from WordPress to the Next.js app by an Apache vhost change, the bare
+> domain and staging. redirect to www, and the redirect map moved from
+> `_redirects` into `apps/web/src/lib/old-site-map.ts` (served by the
+> middleware). All 926 old addresses were checked live and answer 200 after at
+> most two redirects. The WordPress site is archived at
+> archive.knowledgegraph.tech; backups of the old Apache and env files are in
+> `/root/backups/cutover-2026-09-26/` on the droplet. What is still open from
+> this document: Search Console (submit `sitemap.xml`, watch coverage) and
+> switching WordPress's database off after four quiet weeks.
+
 This is a set of instructions for the owner. Nothing here has been done. The
 repository work that could be done without touching anything live is done and is
 described at each step.

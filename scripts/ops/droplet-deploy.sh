@@ -2,7 +2,8 @@
 #
 # Deploy the dashboard, the public website, or both, with about a second of
 # downtime. The website is www.knowledgegraph.tech since 2026-09-26; it is still
-# called `staging` in the commands below and in its unit name, `kgc-staging`. Installed on the droplet as /opt/kgc/deploy.sh; this file in the
+# called `staging` in the commands below and in its unit name, `kgc-staging`.
+# Installed on the droplet as /opt/kgc/deploy.sh; this file in the
 # repo is the source of truth, copy it over after editing:
 #
 #   scp scripts/ops/droplet-deploy.sh root@142.93.180.72:/opt/kgc/deploy.sh
@@ -285,7 +286,7 @@ deploy() { # apps...
     say "removing old release $r"; rm -rf "$path"
   done
 
-  echo "==> wordpress: $(curl -s -o /dev/null -w '%{http_code}' https://www.knowledgegraph.tech/)"
+  echo "==> old site archive: $(curl -s -o /dev/null -w '%{http_code}' https://archive.knowledgegraph.tech/)"
 }
 
 case "${1:-both}" in

@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { MONEY_ROUTES, ROUTES, expect, test } from '../helpers';
+import { MONEY_ROUTES, ROUTES, expect, switchedOff, test } from '../helpers';
 
 /**
  * Accessibility, by axe-core, and what search engines and link previews read.
@@ -15,7 +15,7 @@ for (const route of ROUTES) {
     test.skip(info.project.name === 'mobile', 'axe runs once, on desktop');
     if (route.optional) allowStatus(404);
     const res = await page.goto(route.path);
-    if (route.optional && res?.status() === 404) return;
+    if (switchedOff(route, page, res?.status())) return;
 
     const results = await new AxeBuilder({ page: page as never }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
 
@@ -86,7 +86,7 @@ test.describe('search and sharing @smoke', () => {
     const seen = new Map<string, string>();
     const dupes: string[] = [];
     for (const r of ROUTES) {
-      const res = await request.get(r.path);
+      const res = await request.get(r.path, { maxRedirects: 0 });
       if (res.status() !== 200) continue;
       const title = (await res.text()).match(/<title>([^<]*)<\/title>/)?.[1] ?? '';
       if (seen.has(title)) dupes.push(`"${title}" on ${seen.get(title)} and ${r.path}`);

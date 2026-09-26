@@ -1,13 +1,16 @@
 # Pre-publish tests for the website
 
-Every change to `apps/web` goes to staging at
-<https://staging.knowledgegraph.tech> and through this gate: 420 browser
-checks (241 on a desktop viewport, 179 on a phone). Staging is the
-`kgc-staging` service on the DigitalOcean droplet. Netlify is no longer used.
+Every change to `apps/web` is deployed to the live site at
+<https://www.knowledgegraph.tech> and then run through this gate. There is no
+separate test copy any more: since 2026-09-26 staging.knowledgegraph.tech
+redirects to www. The site is the `kgc-staging` service on the DigitalOcean
+droplet (the unit and the `deploy.sh staging` command kept their old names).
+Netlify is no longer used. A failed build or port check leaves the live site
+alone; a failure found by the gate is live until you roll back.
 
 ```bash
-npm run publish:web                        # check, deploy staging, test staging
-bash scripts/publish-web.sh --test         # test staging as it is, no deploy
+npm run publish:web                        # check, deploy, test the live site
+bash scripts/publish-web.sh --test         # test the live site as it is, no deploy
 bash scripts/publish-web.sh --fast         # skip unit tests, keep the browser gate
 PREPUBLISH_SALES=open npm run publish:web  # once Stripe is live (see below)
 ```
