@@ -277,7 +277,7 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
     posted[f.id] = f.kind === 'multi-choice' ? values : values[0];
   }
 
-  const checked = validateAnswers(fields, primary.id, posted);
+  const checked = validateAnswers(fields, primary.baseTierId ?? primary.id, posted);
   if (!checked.ok) {
     return {
       error: 'Some of the registration questions need an answer.',

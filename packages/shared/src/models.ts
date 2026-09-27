@@ -1395,6 +1395,26 @@ export interface TicketTypeDoc extends BaseDoc {
   taxCode: string;
 
   /**
+   * Set on an add-on: the id of the tier it is sold with, never alone.
+   *
+   * The Workshops add-on is $199 on top of Main Conference. The website refuses
+   * to sell this document by itself, so a direct link to it cannot buy two
+   * workshop days for $199 without the conference.
+   */
+  addOnFor?: string;
+  /**
+   * Set on a bundle: the ids whose prices it adds up, base tier first.
+   *
+   * "Main Conference + Workshops" is what a buyer who ticks the add-on actually
+   * purchases. It is an ordinary hidden tier, so entitlements, seat counts,
+   * refunds and the badge name all work as for any other ticket. Its price is
+   * the sum of these documents' `priceCents`, worked out when it is read, so
+   * raising Main Conference raises the bundle with it. Its own `priceCents` is
+   * ignored by the website.
+   */
+  bundleOf?: string[];
+
+  /**
    * How many attendee registrations **one unit** of this package entitles the
    * buyer to hand out — a sponsor's complimentary passes. Absent means none.
    *

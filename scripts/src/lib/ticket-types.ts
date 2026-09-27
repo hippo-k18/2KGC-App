@@ -48,7 +48,8 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
   {
     id: "all-access",
     name: "All Access (VIP)",
-    priceCents: 119_900,
+    // 2027 Early Bird, 15 Sep to 30 Nov. The ladder is $699, $899, $1,099.
+    priceCents: 69_900,
     currency: "usd",
     tagline: "The whole week, in the room and on demand.",
     featured: true,
@@ -88,7 +89,8 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
   {
     id: "main-conference",
     name: "Main Conference",
-    priceCents: 79_900,
+    // 2027 Early Bird. The ladder is $599, $699, $799.
+    priceCents: 59_900,
     currency: "usd",
     tagline: "Wednesday to Friday at Bryant Park.",
     /**
@@ -132,14 +134,20 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       { heading: "KGC Video Library Subscription (3 months)" },
     ],
   },
+  /**
+   * Workshops is a $199 add-on to Main Conference for 2027, not a ticket of its
+   * own. `addOnFor` stops it being sold alone; what a buyer who ticks it
+   * actually purchases is the bundle below, priced from the two of them.
+   */
   {
     id: "workshops",
     name: "Workshops",
-    priceCents: 69_900,
+    priceCents: 19_900,
     currency: "usd",
-    tagline: "Two days of hands-on practice.",
+    tagline: "Both workshop days, Monday and Tuesday",
+    addOnFor: "main-conference",
     inPerson: true,
-    visible: true,
+    visible: false,
     sortOrder: 30,
     audience: "attendee",
     includesVideoLibrary: false,
@@ -153,9 +161,36 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     ],
   },
   {
+    id: "main-conference-workshops",
+    name: "Main Conference + Workshops",
+    // Ignored by the website, which adds up `bundleOf`. Kept equal to that sum
+    // so the dashboard's ticket list does not show a figure nobody charges.
+    priceCents: 79_800,
+    currency: "usd",
+    tagline: "Wednesday to Friday at Bryant Park, plus both workshop days.",
+    bundleOf: ["main-conference", "workshops"],
+    featured: false,
+    inPerson: true,
+    visible: false,
+    sortOrder: 25,
+    audience: "attendee",
+    includesVideoLibrary: true,
+    includesWorkshops: true,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "Both workshop days, Monday and Tuesday",
+      "Every main conference session, Wednesday to Friday",
+      "Community happy hour",
+      "All evening networking events, including the Friday watch party",
+      "Virtual conference sessions on demand",
+      "Three months of the KGC Video Library",
+    ],
+  },
+  {
     id: "virtual",
     name: "Virtual",
-    priceCents: 34_900,
+    // 2027 Early Bird. The ladder is $129, $159, $350.
+    priceCents: 12_900,
     currency: "usd",
     tagline: "Every session, from wherever you are.",
     inPerson: false,

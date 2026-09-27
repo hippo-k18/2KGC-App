@@ -68,6 +68,14 @@ export interface Tier {
    * information — `txcd_20030000` is in Stripe's own published table.
    */
   taxCode: string;
+  /**
+   * An optional extra offered at checkout, such as the $199 Workshops add-on on
+   * Main Conference. Ticking it buys `tierId`, the hidden bundle, instead of
+   * this tier; `priceCents` is the difference, shown on the checkbox.
+   */
+  addOn?: { tierId: TicketId; name: string; tagline: string; priceCents: number };
+  /** Set on a bundle: the tier it was built on, whose registration questions it answers. */
+  baseTierId?: TicketId;
 }
 
 /** `119900` → `$1,199`. Whole dollars, because every tier is a whole number. */

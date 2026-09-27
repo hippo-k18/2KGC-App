@@ -155,6 +155,12 @@ function SecondPanel({ tier }: { tier: Tier }) {
           <li key={line}>{line}</li>
         ))}
       </ul>
+
+      {tier.addOn && (
+        <p className={s.secondAddOn}>
+          Add {tier.addOn.name} for {formatPrice(tier.addOn.priceCents, tier.currency)} at checkout.
+        </p>
+      )}
     </article>
   );
 }

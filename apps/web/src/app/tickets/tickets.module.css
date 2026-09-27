@@ -379,6 +379,13 @@
   background: var(--accent);
 }
 
+.secondAddOn {
+  margin: 0.7rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
 /* Name and price on the left, the button at the top right. */
 .secondHead {
   display: flex;
