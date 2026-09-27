@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { reauthenticate, requireOrganizer } from '@/lib/auth';
+import { requireOrganizer } from '@/lib/auth';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { erasePerson, resolvePerson } from '@/lib/person-data';
@@ -21,16 +21,8 @@ import type { FormState } from '../../../form';
  * The address is never posted. A form that carried both would let a tampered
  * field confirm one person and erase another.
  *
- * ── Why the passphrase is asked for again ───────────────────────────────────
- *
- * The same argument `refundOrderAction` makes, and it is stronger here. A
- * session cookie lasts eight hours and an unattended laptop at a registration
- * desk is the normal state of a conference, so the typed address alone is not
- * a guard — it is printed on the screen directly above the box. A passer-by
- * could copy it and permanently delete somebody's ticket, profile, messages,
- * posts and sign-in account. A refund can be reversed and this cannot, so the
- * one irreversible destroy in this dashboard gets at least what the reversible
- * one gets.
+ * No emailed code: the owner removed it on 2026-09-27. Typing the row's
+ * address is the only confirmation.
  */
 export async function erasePersonAction(
   _prev: FormState,
@@ -40,10 +32,6 @@ export async function erasePersonAction(
 
   const ref = parsePersonRef(String(formData.get('ref') ?? ''));
   if (!ref) return { error: 'That attendee is no longer on the list.' };
-
-  if (!(await reauthenticate(String(formData.get('passphrase') ?? '')))) {
-    return { error: 'That confirmation code is not right, or it has expired. Nothing has been deleted.' };
-  }
 
   try {
     const identity = await resolvePerson(ref);

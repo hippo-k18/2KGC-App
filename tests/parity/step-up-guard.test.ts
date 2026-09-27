@@ -56,12 +56,12 @@ function bodyOf(source: string, action: string): string {
   return source.slice(start, next === -1 ? source.length : next);
 }
 
+/**
+ * Deleting an attendee (`erasePersonAction`) was on this list until 2026-09-27,
+ * when the owner removed the emailed code from it. Typing the row's address is
+ * now its only confirmation, by choice.
+ */
 const GUARDED: { what: string; file: string; action: string }[] = [
-  {
-    what: 'deleting everything held about one person',
-    file: 'apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/person-data-actions.ts',
-    action: 'erasePersonAction',
-  },
   {
     what: 'refunding an order',
     file: 'apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/actions.ts',
@@ -110,13 +110,5 @@ describe('irreversible actions ask for the passphrase again', () => {
     // referrer header and a server log, and a link somebody could be sent.
     const source = read(GUARDED[0].file);
     expect(source).toContain("formData.get('passphrase')");
-  });
-
-  it('refuses the erasure before it resolves anybody, so a wrong passphrase reads nothing', () => {
-    const body = bodyOf(read(GUARDED[0].file), GUARDED[0].action);
-    const guard = body.indexOf('await reauthenticate(');
-    const resolve = body.indexOf('await resolvePerson(');
-    expect(guard).toBeGreaterThan(-1);
-    expect(resolve).toBeGreaterThan(guard);
   });
 });

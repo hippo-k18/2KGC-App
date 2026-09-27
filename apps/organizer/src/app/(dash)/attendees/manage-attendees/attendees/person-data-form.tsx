@@ -1,7 +1,5 @@
 'use client';
 
-import { ConfirmCodeField } from '@/components/confirm-code';
-
 import { useActionState, useState } from 'react';
 import { Field, FormBanner, SubmitButton, type FormState } from '../../../form';
 import { erasePersonAction } from './person-data-actions';
@@ -35,14 +33,11 @@ export function ErasePersonForm({
   refParam,
   email,
   total,
-  needsPassphrase,
 }: {
   refParam: string;
   /** Empty once there is nobody left to delete. */
   email: string;
   total: number;
-  /** False only on a machine with no passphrase configured, i.e. localhost. */
-  needsPassphrase: boolean;
 }) {
   const [state, erase] = useActionState<FormState, FormData>(erasePersonAction, {});
   const [typed, setTyped] = useState('');
@@ -93,7 +88,6 @@ export function ErasePersonForm({
             autoComplete="off"
             groupStyle={{ marginBottom: 12 }}
           />
-          {needsPassphrase && <ConfirmCodeField id="erase-confirm-code" />}
           <SubmitButton variant="danger" disabled={!armed} pendingLabel="Deleting…">
             Delete attendee
           </SubmitButton>

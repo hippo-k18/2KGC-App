@@ -218,7 +218,9 @@ async function ancestors(parents: readonly string[]): Promise<DocumentReference[
   let refs = await db().collection(parents[0]).listDocuments();
   for (const child of parents.slice(1)) {
     const next: DocumentReference[] = [];
-    for (const ref of refs) next.push(...(await ref.collection(child).listDocuments()));
+    for (const listed of await Promise.all(refs.map((ref) => ref.collection(child).listDocuments()))) {
+      next.push(...listed);
+    }
     refs = next;
   }
   return refs;
@@ -297,11 +299,13 @@ async function documentsIn(place: PersonPlace, keys: PersonKeys): Promise<Docume
     return matching(db().collection(where.collection), where.match, keys, true);
   }
 
-  const out: DocumentSnapshot[] = [];
-  for (const parent of await ancestors(where.parents)) {
-    out.push(...(await matching(parent.collection(where.collection), where.match, keys, false)));
-  }
-  return out;
+  // One query per parent, all at once: run in turn, a walk under every session
+  // took the panel past fifteen seconds.
+  const parents = await ancestors(where.parents);
+  const found = await Promise.all(
+    parents.map((parent) => matching(parent.collection(where.collection), where.match, keys, false)),
+  );
+  return found.flat();
 }
 
 /**
@@ -317,8 +321,11 @@ export async function collectPerson(keys: PersonKeys): Promise<PlaceFindings[]> 
   const seen = new Set<string>();
   const findings: PlaceFindings[] = [];
 
-  for (const place of placesFor(keys)) {
-    const snaps = await documentsIn(place, keys);
+  // Read in parallel, deduped in walk order below, so "first place wins" holds.
+  const places = placesFor(keys);
+  const read = await Promise.all(places.map((place) => documentsIn(place, keys)));
+  for (const [i, place] of places.entries()) {
+    const snaps = read[i];
     const docs: FoundDocument[] = [];
     for (const snap of snaps) {
       if (seen.has(snap.ref.path)) continue;
