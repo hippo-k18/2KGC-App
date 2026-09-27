@@ -124,6 +124,15 @@ describe("the dashboard text box", () => {
     expect(r).toMatchObject({ ok: false, error: "Early Bird must start after Standard." });
   });
 
+  it("refuses a day that does not exist", () => {
+    expect(parsePricePhases("Standard: 899, from 2027-02-30")).toEqual({
+      ok: false,
+      error: "Line 1: 2027-02-30 is not a real date.",
+    });
+    expect(parsePricePhases("Standard: 899, from 2026-13-01")).toMatchObject({ ok: false });
+    expect(parsePricePhases("Leap: 899, from 2028-02-29")).toMatchObject({ ok: true });
+  });
+
   it("refuses a word it does not know rather than guessing", () => {
     expect(parsePricePhases("Early Bird: 699, from 2026-09-15, soon")).toMatchObject({ ok: false });
   });

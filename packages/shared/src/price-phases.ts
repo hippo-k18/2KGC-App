@@ -66,6 +66,16 @@ export interface PriceNow {
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Whether a `YYYY-MM-DD` names a day that exists. `Date.parse` rolls
+ * 2027-02-30 over to 2 March rather than refusing it, so the date is rebuilt
+ * and compared instead.
+ */
+function realDay(day: string): boolean {
+  const d = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day;
+}
+
 /** `2026-11-30`, as the calendar reads in `timeZone` at `now`. */
 export function dayInZone(now: Date, timeZone: string): string {
   // en-CA formats as YYYY-MM-DD, which is the only reason it is used here.
@@ -205,8 +215,11 @@ export function parsePricePhases(
       else if (part === "off sale") phase.offSale = true;
       else if (part.startsWith("from ")) {
         const day = part.slice(5).trim();
-        if (!DAY.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) {
+        if (!DAY.test(day)) {
           return { ok: false, error: `Line ${n}: write the start date as YYYY-MM-DD.` };
+        }
+        if (!realDay(day)) {
+          return { ok: false, error: `Line ${n}: ${day} is not a real date.` };
         }
         phase.startsOn = day;
       } else {
