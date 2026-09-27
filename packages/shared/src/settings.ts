@@ -196,7 +196,8 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     // Hidden until the organizers switch them on under Marketing > Event Website.
     showAgenda: false,
     showSpeakers: false,
-    showTickets: false,
+    // On until an organizer closes sales under Marketing > Event Website.
+    showTickets: true,
   },
   access: {
     attendeeListVisible: true,

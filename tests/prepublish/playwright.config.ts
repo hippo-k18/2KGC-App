@@ -10,7 +10,7 @@ import { defineConfig, devices } from '@playwright/test';
  *   PREPUBLISH_URL    origin under test (default: https://www.knowledgegraph.tech)
  *   PREPUBLISH_SALES  `off`, `closed` or `open`: what state ticket sales must be in.
  *                     `off` is the dashboard switch (Marketing > Event Website)
- *                     with ticket sales turned off; the default.
+ *                     with ticket sales turned off. `open` is the default.
  *                     A mismatch fails the run, because a lost Stripe key and a
  *                     newly added one are both things to find out before
  *                     publishing, not after.

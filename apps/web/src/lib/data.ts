@@ -232,7 +232,7 @@ export async function siteVisibility(): Promise<{ agenda: boolean; speakers: boo
 
 /**
  * Whether tickets are on sale, switched under Marketing > Event Website. Starts
- * off. Off, the ticket pages say sales have not opened, the checkout and
+ * on. Off, the ticket pages say sales have not opened, the checkout and
  * invoice actions refuse, and no "Register now" button renders.
  */
 export async function ticketSalesOpen(): Promise<boolean> {
