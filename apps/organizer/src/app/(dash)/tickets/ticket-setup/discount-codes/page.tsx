@@ -70,15 +70,23 @@ export default async function DiscountCodesPage() {
   let loadError: string | undefined;
   // Attendee tickets a code can be limited to. An add-on is left out because it
   // is never a line of its own at checkout; its bundle is listed instead.
-  const tickets = (await listTicketTypes())
+  // Both reads at once: the page waited for Firestore before it asked Stripe.
+  const [ticketRows, listed] = await Promise.all([
+    listTicketTypes(),
+    listDiscountCodes().then(
+      (rows) => ({ rows }),
+      (err: unknown) => ({ err }),
+    ),
+  ]);
+  const tickets = ticketRows
     .filter((t) => t.audience === 'attendee' && !t.addOnFor)
     .map((t) => ({ id: t.id, name: t.name, hidden: !t.visible }));
-  try {
-    codes = await listDiscountCodes();
-  } catch (err) {
+  if ('rows' in listed) {
+    codes = listed.rows;
+  } else {
     // Reading a third party can fail in ways Firestore does not. Say so rather
     // than rendering an empty table that reads as "you have no codes".
-    loadError = err instanceof Error ? err.message : 'Stripe could not be reached.';
+    loadError = listed.err instanceof Error ? listed.err.message : 'Stripe could not be reached.';
   }
 
   const live = codes.filter((c) => c.active).length;

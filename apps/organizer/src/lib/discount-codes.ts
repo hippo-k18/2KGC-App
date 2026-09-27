@@ -93,6 +93,17 @@ export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
   ]);
 
   return res.data
+    /*
+     * A coupon deleted in Stripe's own dashboard leaves its promotion code
+     * behind: Stripe never deletes a promotion code, and keeps listing it with
+     * the coupon expanded as `{ deleted: true }`. The code can never be used
+     * again, so it is left off this list, which is what deleting it in Stripe
+     * means to the person who did it.
+     */
+    .filter((p) => {
+      const raw = p.promotion?.coupon;
+      return !(raw && typeof raw !== 'string' && 'deleted' in raw && raw.deleted);
+    })
     .map((p) => {
       // Expanded above, so this is a `Coupon` rather than an id string — but a
       // narrow rather than a cast, because an unexpanded response is a bug that
@@ -171,10 +182,14 @@ async function productNames(): Promise<Map<string, string>> {
  */
 async function ensureProducts(tierIds: string[]): Promise<string[]> {
   const s = stripe();
-  const ids: string[] = [];
-  for (const tierId of tierIds) {
-    const ref = db().collection(COLLECTIONS.ticketTypes).doc(tierId);
-    const snap = await ref.get();
+  // One read for every tier, then every tier's Stripe call at once. Done one
+  // tier at a time this was two round trips per ticked box, about 0.4s each,
+  // and the Create button sat on "Creating in Stripe…" for two seconds.
+  const refs = tierIds.map((id) => db().collection(COLLECTIONS.ticketTypes).doc(id));
+  const snaps = await db().getAll(...refs);
+  return Promise.all(snaps.map(async (snap, i) => {
+    const tierId = tierIds[i];
+    const ref = refs[i];
     const t = snap.data() as TicketTypeDoc | undefined;
     if (!t || t.eventId !== EVENT_ID) throw new Error(`Unknown ticket ${tierId}.`);
     const fields = {
@@ -193,9 +208,8 @@ async function ensureProducts(tierIds: string[]): Promise<string[]> {
       productId = product.id;
       await ref.update({ stripeProductId: productId, updatedAt: FieldValue.serverTimestamp() });
     }
-    ids.push(productId);
-  }
-  return ids;
+    return productId;
+  }));
 }
 
 /**
