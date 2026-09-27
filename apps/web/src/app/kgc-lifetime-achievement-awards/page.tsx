@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 /**
  * Built 2026-08-20 against the live /kgc-lifetime-achievement-awards page.
  *
- * The recipient list is the live page's own. It is deliberately short: the live
- * page names the 2026 recipients and one past recipient, and inventing a fuller
- * roll would be fabricating an award record.
+ * The recipient list is the live page's own, checked against the archived
+ * WordPress page on 2026-09-27: the 2026 recipients and every past year back to
+ * 2020. That page has names only, no citations, so this has none either.
  */
 
 const CURRENT = {
@@ -21,7 +21,14 @@ const CURRENT = {
   names: ['James Hendler', 'Ora Lassila', 'Tim Berners-Lee'],
 };
 
-const PAST = [{ year: 2025, names: ['Mark Musen'] }];
+const PAST = [
+  { year: 2025, names: ['Mark Musen'] },
+  { year: 2024, names: ['Doug Lenat'] },
+  { year: 2023, names: ['Denny Vrandečić'] },
+  { year: 2022, names: ['Deborah McGuinness'] },
+  { year: 2021, names: ['Albert-László Barabási'] },
+  { year: 2020, names: ['John F. Sowa'] },
+];
 
 /** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
 export const revalidate = 30;

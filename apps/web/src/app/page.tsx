@@ -406,7 +406,7 @@ export default async function HomePage() {
       {sponsorBands.length > 0 && (
         <section className="band-white">
           <div className="wrap">
-            <h2 className="hero-headline section-headline">Sponsors</h2>
+            <h2 className="hero-headline section-headline">Previous Sponsors</h2>
             <SponsorTiers bands={sponsorBands} />
           </div>
         </section>

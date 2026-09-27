@@ -156,7 +156,7 @@ export default async function SponsorPage() {
       {bands.length > 0 && (
         <section style={{ paddingBlock: '56px 80px' }}>
           <div className="wrap">
-            <h2>Our sponsors</h2>
+            <h2>Previous Sponsors</h2>
             {/*
               `titles="label"`, because the packages above are already headed
               Bronze, Silver, Gold, Platinum, and the wall repeating the same
