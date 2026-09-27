@@ -420,7 +420,7 @@ export default async function HomePage() {
             answer: (
               <>
                 <p>
-                  Recommended hotels near Bryant Park, with discounted room blocks, will be listed
+                  Recommended hotels near Jay Conference Bryant Park, with discounted room blocks, will be listed
                   here closer to the conference.
                 </p>
               </>
@@ -440,11 +440,11 @@ export default async function HomePage() {
             answer: <p>Yes. Every session is recorded and published to the video library.</p>,
           },
           {
-            question: 'How do I get to Bryant Park?',
+            question: 'How do I get to Jay Conference Bryant Park?',
             answer: (
               <p>
-                Bryant Park is in Midtown Manhattan, between 40th and 42nd Streets and Fifth and
-                Sixth Avenues. The B, D, F and M trains stop at 42 St–Bryant Park and the 7 at 5 Av.
+                The venue is in Midtown Manhattan by Bryant Park, between 40th and 42nd Streets and
+                Fifth and Sixth Avenues. The B, D, F and M trains stop at 42 St–Bryant Park and the 7 at 5 Av.
                 Grand Central is a short walk east.
               </p>
             ),

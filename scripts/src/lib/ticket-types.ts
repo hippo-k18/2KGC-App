@@ -92,7 +92,7 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     // 2027 Early Bird. The ladder is $599, $699, $799.
     priceCents: 59_900,
     currency: "usd",
-    tagline: "Wednesday to Friday at Bryant Park.",
+    tagline: "Wednesday to Friday at Jay Conference Bryant Park.",
     /**
      * The second headline panel on `/tickets`.
      *
@@ -167,7 +167,7 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     // so the dashboard's ticket list does not show a figure nobody charges.
     priceCents: 79_800,
     currency: "usd",
-    tagline: "Wednesday to Friday at Bryant Park, plus both workshop days.",
+    tagline: "Wednesday to Friday at Jay Conference Bryant Park, plus both workshop days.",
     bundleOf: ["main-conference", "workshops"],
     featured: false,
     inPerson: true,

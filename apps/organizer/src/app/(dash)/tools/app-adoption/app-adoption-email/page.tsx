@@ -51,7 +51,7 @@ Sign in with the email address you bought your ticket with.
 
 Your ticket and claim code: ${origin}/tickets
 
-See you at Bryant Park,
+See you at Jay Conference Bryant Park,
 The KGC team`;
 
   return (

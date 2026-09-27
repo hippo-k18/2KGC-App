@@ -49,7 +49,7 @@ export const GAPS: Record<string, Gap> = {
     whova:
       'Streaming setup per session, rehearsal sessions, and Zoom / Microsoft Teams integrations.',
     needs:
-      'SessionDoc has a format field and nothing else. KGC 2027 is in-person at Bryant Park, so this is sequenced last on purpose rather than being cheap.',
+      'SessionDoc has a format field and nothing else. KGC 2027 is in-person at Jay Conference Bryant Park, so this is sequenced last on purpose rather than being cheap.',
   },
   'tools/app-adoption': {
     whova:

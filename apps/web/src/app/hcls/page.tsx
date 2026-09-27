@@ -7,7 +7,7 @@ import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Healthcare & Life Sciences Symposium',
   description:
-    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Bryant Park, New York.',
+    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Jay Conference Bryant Park, New York.',
 };
 
 /**
@@ -243,7 +243,7 @@ export default async function HclsPage() {
               </div>
               <div>
                 <p className="k">Address</p>
-                <p className="v">Bryant Park &amp; globally online</p>
+                <p className="v">Jay Conference Bryant Park &amp; globally online</p>
               </div>
             </div>
           </div>

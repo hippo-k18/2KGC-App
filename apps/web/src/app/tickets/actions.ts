@@ -328,7 +328,7 @@ function productData(tier: Tier) {
      *
      * The subtlety worth knowing: an event ticket is taxed where the
      * *event happens*, not where the buyer lives — unlike almost
-     * everything else Stripe Tax handles. KGC is at Bryant Park,
+     * everything else Stripe Tax handles. KGC is at Jay Conference Bryant Park,
      * New York, so the relevant jurisdiction is New York, and
      * a buyer in Berlin owes New York's treatment rather than German
      * VAT. That is configured on the Stripe side by setting the

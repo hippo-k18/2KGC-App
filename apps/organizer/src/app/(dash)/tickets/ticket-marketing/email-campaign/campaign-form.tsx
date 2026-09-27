@@ -98,7 +98,7 @@ export function CampaignForm({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={
-            'Tickets for KGC 2027 are open.\n\n3–7 May at Bryant Park, New York.\n\nGet your ticket: https://www.knowledgegraph.tech/tickets'
+            'Tickets for KGC 2027 are open.\n\n3–7 May at Jay Conference Bryant Park, New York.\n\nGet your ticket: https://www.knowledgegraph.tech/tickets'
           }
         />
         <p className="whova-form-description">

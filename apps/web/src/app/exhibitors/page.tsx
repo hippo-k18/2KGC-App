@@ -5,7 +5,7 @@ import { listExhibitorsByZone, siteEvent, ticketSalesOpen } from '@/lib/data';
 export const metadata: Metadata = {
   title: 'Exhibitors',
   description:
-    'Who is exhibiting at the Knowledge Graph Conference 2027, and where to find them at Bryant Park, New York.',
+    'Who is exhibiting at the Knowledge Graph Conference 2027, and where to find them at Jay Conference Bryant Park, New York.',
 };
 
 /**

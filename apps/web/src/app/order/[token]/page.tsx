@@ -87,7 +87,7 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
   const tier = reg.ticketType ?? 'Registered';
 
   const when = stubDates(ev.startDate, ev.endDate);
-  // "Bryant Park, New York" → the place, with the city on a line under it.
+  // "Jay Conference Bryant Park, New York" → the place, with the city on a line under it.
   const [venuePlace, ...venueRest] = ev.venueShort.split(',');
   const venueCity = venueRest.join(',').trim();
 

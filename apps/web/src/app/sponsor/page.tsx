@@ -9,7 +9,7 @@ import { SITE } from '@/lib/site';
 export const metadata: Metadata = {
   title: 'Sponsor KGC',
   description:
-    'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Bryant Park, New York.',
+    'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Jay Conference Bryant Park, New York.',
 };
 
 /**

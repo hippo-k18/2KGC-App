@@ -211,7 +211,7 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
   },
   logistics: {
     /**
-     * The venue is Bryant Park, New York. `911` is the
+     * The venue is Jay Conference Bryant Park, New York. `911` is the
      * correct answer there and a blank field is not: an emergency card whose
      * first line is empty is a card nobody trusts. It is still editable — the
      * day this event is held anywhere else, it is wrong.

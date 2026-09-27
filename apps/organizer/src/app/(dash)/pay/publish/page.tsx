@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
  * An event ticket is taxed **where the event happens**, not where the buyer
  * lives. That is unlike almost everything else Stripe Tax handles, and getting
  * it wrong still produces a plausible number on the invoice — which is what
- * makes it dangerous. KGC is at Bryant Park, New York, so the
+ * makes it dangerous. KGC is at Jay Conference Bryant Park, New York, so the
  * jurisdiction is New York, and a buyer in Berlin owes New York's treatment
  * rather than German VAT. This is set in Stripe by declaring the event
  * location; without it Stripe taxes by billing address, which is the wrong
@@ -92,7 +92,7 @@ export default async function PublishTaxPage() {
 
       <Banner kind="warning">
         <strong>An event ticket is taxed where the event happens, not where the buyer lives.</strong>{' '}
-        KGC is at Bryant Park, New York, so New York rules apply to every buyer. Until the
+        KGC is at Jay Conference Bryant Park, New York, so New York rules apply to every buyer. Until the
         event location is set in Stripe, Stripe taxes by billing address instead.
       </Banner>
 

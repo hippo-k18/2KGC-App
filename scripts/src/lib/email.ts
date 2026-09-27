@@ -339,7 +339,7 @@ function shell(heading: string, body: string, images: ShellImages = {}): string 
           ${body}
         </td></tr>
         <tr><td style="padding:18px 28px;background:#fafbfc;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;">
-          3–7 May 2027 · Bryant Park, New York<br>
+          3–7 May 2027 · Jay Conference Bryant Park, New York<br>
           Please don't reply to this email. For questions, write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.
         </td></tr>
       </table>
@@ -432,7 +432,7 @@ View your ticket: ${input.orderUrl}
 
 Keep that link private. It shows the badge QR that gets scanned at the door.
 
-3-7 May 2027, Bryant Park, New York.
+3-7 May 2027, Jay Conference Bryant Park, New York.
 Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
   return send(store, {
@@ -705,7 +705,7 @@ for a new one from the same screen.
 If you didn't ask to sign in, you can ignore this email — nobody can use the
 code without it, and no one has been given access to your account.
 
-3-7 May 2027, Bryant Park, New York.
+3-7 May 2027, Jay Conference Bryant Park, New York.
 Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
   return send(store, {
@@ -879,7 +879,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
     : '';
 
-  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
+  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
 
   return send(store, {
     to: input.to,

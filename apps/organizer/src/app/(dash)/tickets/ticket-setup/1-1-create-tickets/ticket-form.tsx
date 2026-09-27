@@ -100,7 +100,7 @@ export function TicketForm({
         name="tagline"
         label="Tagline"
         defaultValue={existing?.tagline}
-        placeholder="Wednesday to Friday at Bryant Park."
+        placeholder="Wednesday to Friday at Jay Conference Bryant Park."
         maxLength={120}
         width="lg"
       />

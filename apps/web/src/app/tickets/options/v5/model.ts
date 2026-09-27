@@ -23,7 +23,7 @@ import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
  * about itself (its name, tagline, bullets and group headings). That is
  * deliberately conservative in the right direction. "Every conference session,
  * Wednesday to Friday" is not an addition over Main Conference, whose own
- * tagline is "Wednesday to Friday at Bryant Park"; "Both workshop days,
+ * tagline is "Wednesday to Friday at Jay Conference Bryant Park"; "Both workshop days,
  * Monday and Tuesday" is, because Main Conference never says "workshop". Every
  * line that survives is a line the cheaper ticket genuinely does not print.
  */
