@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { siteEvent } from '@/lib/data';
+import { siteEvent, ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'About KGC',
@@ -26,8 +26,11 @@ export const metadata: Metadata = {
  * The copy is the live site's own, with two typos it carries left corrected
  * ("and and", "suchs as") and the year re-pointed at this event.
  */
+/** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
+export const revalidate = 30;
+
 export default async function AboutPage() {
-  const ev = await siteEvent();
+  const [ev, salesOpen] = await Promise.all([siteEvent(), ticketSalesOpen()]);
   return (
     <>
       <section className="about-hero">
@@ -42,9 +45,11 @@ export default async function AboutPage() {
             >
               KGC YouTube Channel
             </a>
-            <Link className="btn btn-accent btn-kgc" href="/tickets">
-              Register for KGC {ev.year}
-            </Link>
+            {salesOpen && (
+              <Link className="btn btn-accent btn-kgc" href="/tickets">
+                Register for KGC {ev.year}
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -170,9 +175,11 @@ export default async function AboutPage() {
             the awareness and use of knowledge technologies as a force for social good, through its
             ability to democratize access to knowledge and opportunity.
           </p>
-          <Link className="btn btn-accent btn-kgc" href="/tickets">
-            Register for KGC {ev.year}
-          </Link>
+          {salesOpen && (
+            <Link className="btn btn-accent btn-kgc" href="/tickets">
+              Register for KGC {ev.year}
+            </Link>
+          )}
         </div>
       </section>
     </>

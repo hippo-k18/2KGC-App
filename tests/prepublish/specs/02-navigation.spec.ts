@@ -1,4 +1,4 @@
-import { ROUTES, expect, test } from '../helpers';
+import { ROUTES, SALES, expect, test } from '../helpers';
 
 /**
  * Getting around: the header, the phone menu, the footer, search, and every
@@ -31,6 +31,7 @@ test.describe('header', () => {
   });
 
   test('the Tickets button in the header goes to /tickets @tickets', async ({ page }, info) => {
+    test.skip(SALES === 'off', 'ticket sales are switched off; see 09-sales-off');
     await page.goto('/');
     if (info.project.name === 'mobile') {
       // On a phone Tickets lives inside the menu.

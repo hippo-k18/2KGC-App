@@ -97,6 +97,8 @@ export interface BrandingSettings {
   showAgenda: boolean;
   /** Whether the public website shows the speakers. Off hides the page and every link to it. */
   showSpeakers: boolean;
+  /** Whether the public website sells tickets. Off hides prices, checkout and every "Register now". */
+  showTickets: boolean;
 }
 
 /** `settings/sponsorTiers` — the ordered tier list. See `sponsor-tiers.ts`. */
@@ -194,6 +196,7 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     // Hidden until the organizers switch them on under Marketing > Event Website.
     showAgenda: false,
     showSpeakers: false,
+    showTickets: false,
   },
   access: {
     attendeeListVisible: true,
@@ -362,6 +365,13 @@ export const SETTINGS_REGISTER: Register = {
       why:
         "Off, the website's speakers page returns not found and the header, footer and " +
         "search stop linking to it. The app is unaffected.",
+    },
+    showTickets: {
+      status: "live",
+      readers: ["web"],
+      why:
+        "Off, the website's ticket pages say sales have not opened, checkout and invoice " +
+        "requests are refused, and every \"Register now\" button is hidden.",
     },
   },
   access: {

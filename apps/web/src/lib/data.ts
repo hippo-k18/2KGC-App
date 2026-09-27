@@ -231,6 +231,15 @@ export async function siteVisibility(): Promise<{ agenda: boolean; speakers: boo
 }
 
 /**
+ * Whether tickets are on sale, switched under Marketing > Event Website. Starts
+ * off. Off, the ticket pages say sales have not opened, the checkout and
+ * invoice actions refuse, and no "Register now" button renders.
+ */
+export async function ticketSalesOpen(): Promise<boolean> {
+  return (await brandingSettings()).showTickets;
+}
+
+/**
  * The event's name, dates, time zone, venue and type, as Content > Basics saved
  * them, resolved over the constants `SITE` is built from.
  *

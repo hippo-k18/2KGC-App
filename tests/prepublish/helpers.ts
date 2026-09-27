@@ -52,7 +52,12 @@ export function switchedOff(route: { path: string; optional?: boolean }, page: P
 
 export const MONEY_ROUTES = ['/tickets', '/tickets/checkout', '/tickets/invoice', '/tickets/sponsor', '/tickets/exhibitor'];
 
-export const SALES = (process.env.PREPUBLISH_SALES ?? 'closed') as 'open' | 'closed';
+/**
+ * `off` means ticket sales are switched off under Marketing > Event Website:
+ * every ticket page shows the not-on-sale notice and no "Register now" renders.
+ * `closed` and `open` are the Stripe states, with the switch on.
+ */
+export const SALES = (process.env.PREPUBLISH_SALES ?? 'off') as 'open' | 'closed' | 'off';
 
 /** Text a visitor should never be able to read. Checked against rendered text. */
 export const BROKEN_TEXT: RegExp[] = [

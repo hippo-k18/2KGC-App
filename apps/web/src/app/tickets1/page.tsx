@@ -4,6 +4,8 @@ import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
 import s from './tickets1.module.css';
+import { TicketSalesClosed } from '../tickets/sales-closed';
+import { ticketSalesOpen } from '@/lib/data';
 
 /*
  * `noindex`, unlike `/tickets`.
@@ -166,6 +168,7 @@ export default async function Tickets1Page({
 }: {
   searchParams: Promise<{ cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const params = await searchParams;
 
   /**

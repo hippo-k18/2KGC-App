@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { siteEvent } from '@/lib/data';
+import { siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -8,6 +8,7 @@ import { activeForm } from '@/lib/question-forms';
 import { stripeEnabled } from '@/lib/stripe';
 import type { TicketId } from '@/lib/tickets';
 import { CheckoutForm } from '../checkout-form';
+import { TicketSalesClosed } from '../sales-closed';
 
 export const metadata: Metadata = {
   title: 'Checkout',
@@ -53,6 +54,7 @@ export default async function CheckoutPage({
 }: {
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const ev = await siteEvent();
   const params = await searchParams;
 

@@ -175,7 +175,8 @@ export default async function AgendaPage({
       origin: canonicalOrigin(),
       pageUrl: `${canonicalOrigin()}/agenda`,
       agenda: allDays,
-      tiers: tiers ?? [],
+      // No prices while ticket sales are switched off.
+      tiers: branding.showTickets ? (tiers ?? []) : [],
       event: ev,
       description: branding.tagline || SITE.tagline,
       includeSessions: true,

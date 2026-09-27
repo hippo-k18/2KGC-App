@@ -5,18 +5,20 @@ import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, saveSettings } from '@/lib/settings';
 
 /**
- * Show or hide the agenda or the speakers on the public website.
+ * Show or hide the agenda or the speakers, or open or close ticket sales, on
+ * the public website.
  *
- * Both live in `settings/branding` beside the other things the website reads
+ * All three live in `settings/branding` beside the other things the website reads
  * about how the event presents itself. `saveSettings` merges, so flipping one
- * leaves the logo, colours and the other switch alone.
+ * leaves the logo, colours and the other switches alone.
  */
 export async function setSiteVisibilityAction(formData: FormData): Promise<void> {
   const actor = await requireOrganizer();
   const field = String(formData.get('field') ?? '');
   const show = formData.get('show') === '1';
-  if (field !== 'showAgenda' && field !== 'showSpeakers') return;
+  if (field !== 'showAgenda' && field !== 'showSpeakers' && field !== 'showTickets') return;
 
   await saveSettings(SETTINGS_KEYS.branding, { [field]: show }, actor);
   revalidatePath('/marketing/event-website');
+  revalidatePath('/tickets/publish-tickets');
 }

@@ -60,6 +60,7 @@ async function answerQuestions(page: Page) {
 }
 
 test.describe('checkout form @tickets', () => {
+  test.skip(SALES === 'off', 'ticket sales are switched off; see 09-sales-off');
   let tiers: Tier[] = [];
 
   test.beforeAll(async ({ browser }) => {
@@ -259,6 +260,7 @@ test.describe('checkout form @tickets', () => {
 });
 
 test.describe(`sales are ${SALES} @tickets`, () => {
+  test.skip(SALES === 'off', 'ticket sales are switched off; see 09-sales-off');
   test('the checkout says so, consistently', async ({ page }) => {
     await page.goto('/tickets');
     const [first] = await readTiers(page);

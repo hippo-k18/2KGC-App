@@ -156,9 +156,10 @@ export default async function HomePage() {
   // The homepage no longer shows a ticket row; the catalogue is read only for
   // the prices in the structured data below. If it cannot be read those are
   // simply absent.
-  const tiers = (await tiersOrNull()) ?? [];
-  const { sponsorBands, agenda } = await programmeOrNothing();
   const branding = await brandingSettings();
+  // No prices anywhere, structured data included, while ticket sales are off.
+  const tiers = branding.showTickets ? ((await tiersOrNull()) ?? []) : [];
+  const { sponsorBands, agenda } = await programmeOrNothing();
 
   /*
    * `schema.org/Event`, built from the agenda and the ticket catalogue this
@@ -204,7 +205,7 @@ export default async function HomePage() {
         what the organizer actually announced, and `SiteHeader` is a client
         component. See the note in that file.
       */}
-      <Ticker salesOpen={stripeEnabled()} />
+      <Ticker salesOpen={stripeEnabled() && branding.showTickets} />
 
       {/*
         A banner saved on App Branding replaces the campus photograph. Set as an
@@ -247,16 +248,20 @@ export default async function HomePage() {
             price it carried now has to be found on the ticket cards, which is
             where someone looking for a price goes anyway.
           */}
-          <div className="cta">
-            <Link href="/tickets" className="btn btn-primary">
-              Register now
-            </Link>
-            {branding.showAgenda && (
-              <Link href="/agenda" className="btn btn-ghost">
-                See the agenda
-              </Link>
-            )}
-          </div>
+          {(branding.showTickets || branding.showAgenda) && (
+            <div className="cta">
+              {branding.showTickets && (
+                <Link href="/tickets" className="btn btn-primary">
+                  Register now
+                </Link>
+              )}
+              {branding.showAgenda && (
+                <Link href="/agenda" className="btn btn-ghost">
+                  See the agenda
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -463,17 +468,19 @@ export default async function HomePage() {
         ]}
       />
 
-      <section className="tint">
-        <div className="wrap narrow center">
-          <h2>Bring your team</h2>
-          <p className="lede" style={{ margin: '0 auto 24px' }}>
-            {ev.datesLong} at {ev.venue}.
-          </p>
-          <Link href="/tickets" className="btn btn-primary">
-            Register now
-          </Link>
-        </div>
-      </section>
+      {branding.showTickets && (
+        <section className="tint">
+          <div className="wrap narrow center">
+            <h2>Bring your team</h2>
+            <p className="lede" style={{ margin: '0 auto 24px' }}>
+              {ev.datesLong} at {ev.venue}.
+            </p>
+            <Link href="/tickets" className="btn btn-primary">
+              Register now
+            </Link>
+          </div>
+        </section>
+      )}
     </>
   );
 }

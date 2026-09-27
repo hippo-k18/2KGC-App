@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listExhibitorsByZone, siteEvent } from '@/lib/data';
+import { listExhibitorsByZone, siteEvent, ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Exhibitors',
@@ -61,6 +61,7 @@ function initials(name: string): string {
 export default async function ExhibitorsPage() {
   const ev = await siteEvent();
   const zones = await listExhibitorsByZone();
+  const salesOpen = await ticketSalesOpen();
   const total = zones.reduce((n, z) => n + z.exhibitors.length, 0);
 
   return (
@@ -86,14 +87,16 @@ export default async function ExhibitorsPage() {
             <>
               <h2>The floor plan is still being set</h2>
               <p>
-                No exhibitors are confirmed for {ev.year} yet. Booth packages are on sale now, and
-                this page fills in as they are signed.
+                No exhibitors are confirmed for {ev.year} yet.
+                {salesOpen && ' Booth packages are on sale now, and this page fills in as they are signed.'}
               </p>
-              <p style={{ marginTop: 20 }}>
-                <Link className="btn btn-primary" href="/tickets/exhibitor">
-                  Exhibit at {ev.shortName}
-                </Link>
-              </p>
+              {salesOpen && (
+                <p style={{ marginTop: 20 }}>
+                  <Link className="btn btn-primary" href="/tickets/exhibitor">
+                    Exhibit at {ev.shortName}
+                  </Link>
+                </p>
+              )}
             </>
           ) : (
             <>
@@ -186,7 +189,7 @@ export default async function ExhibitorsPage() {
         </div>
       </section>
 
-      {total > 0 && (
+      {total > 0 && salesOpen && (
         <section>
           {/*
             `.wrap`, not `.wrap.narrow`. Narrow centres a 760px column inside a
