@@ -51,6 +51,8 @@ export default async function AttendeesPage({
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const role = typeof sp.role === 'string' ? sp.role : undefined;
   const category = typeof sp.category === 'string' ? sp.category : undefined;
+  // `?multi=1`: only addresses holding more than one active ticket.
+  const multi = sp.multi === '1';
   const { page, sort, baseParams } = listParams(sp);
   const importing = typeof sp.import === 'string';
   const adding = typeof sp.add === 'string';
@@ -71,6 +73,7 @@ export default async function AttendeesPage({
   const matched = all.filter((a) => {
     if (role && !a.roles.includes(role)) return false;
     if (!inCategory(a, category)) return false;
+    if (multi && a.activeTickets < 2) return false;
     if (!needle) return true;
     return [a.name, a.email, a.title, a.company, a.ticketType, categoryLabel(categories, a), ...a.interests]
       .filter(Boolean)
@@ -104,6 +107,7 @@ export default async function AttendeesPage({
   const hidden = all.filter((a) => a.signedIn && !a.visibleInDirectory).length;
   const signedIn = all.filter((a) => a.signedIn).length;
   const ticketHolders = all.filter((a) => a.registrationId).length;
+  const multiHolders = all.filter((a) => a.activeTickets > 1).length;
   const exportQuery = category ? `?category=${encodeURIComponent(category)}` : '';
   const href = (next: { q?: string; role?: string; category?: string }) => {
     const p = new URLSearchParams();
@@ -148,6 +152,20 @@ export default async function AttendeesPage({
             <div>
               Holding a ticket: <strong>{ticketHolders}</strong> of {registrations} registrations
             </div>
+            {/*
+              One address may buy several tickets (2026-09-26). Allowed, but
+              worth a look: a double purchase by mistake, or tickets bought for
+              colleagues under one address who will each need their own badge.
+            */}
+            {multiHolders > 0 && (
+              <div>
+                <Tag color="orange" small>
+                  {multiHolders} {multiHolders === 1 ? 'address holds' : 'addresses hold'} more than one
+                  ticket
+                </Tag>{' '}
+                {multi ? <Link href={ROUTES.attendees}>Show everyone</Link> : <Link href="?multi=1">Show them</Link>}
+              </div>
+            )}
             {/*
               The number an organizer actually watches in the fortnight before
               doors open, and the reason this screen had to stop reading `users`
@@ -354,6 +372,13 @@ export default async function AttendeesPage({
             a.ticketType ? (
               <span key="tk">
                 {a.ticketType}
+                {a.activeTickets > 1 && (
+                  <div>
+                    <Tag color="orange" small>
+                      {a.activeTickets} tickets
+                    </Tag>
+                  </div>
+                )}
                 {a.registrationStatus && a.registrationStatus !== 'active' && (
                   <div>
                     <Tag color="red" small>

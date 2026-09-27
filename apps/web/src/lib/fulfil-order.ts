@@ -12,7 +12,7 @@ import { recordError } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 import { mintOrderToken } from '@/lib/order-token';
 import { claimAnswers } from '@/lib/question-forms';
-import { ensureRegistration, fulfilPurchase } from '@/lib/registrations';
+import { ensureRegistration, fulfilPurchase, orderIdFor } from '@/lib/registrations';
 
 /**
  * Turning a settled purchase into everything a purchase produces.
@@ -178,13 +178,16 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
   ];
 
   /**
-   * The other seats, each an independent registration keyed on its own address.
+   * The other seats, each an independent registration.
    *
-   * Idempotent for the same structural reason the buyer's is: `registrationId`
-   * is a hash of the email, so a second run rewrites the same three documents
-   * rather than minting six. There is no de-duplication table to keep, because
-   * the ids are derived from the people.
+   * Each passes its order and position, so a second run rewrites the same
+   * documents rather than minting more, and a seat whose address already
+   * holds a ticket (or repeats another seat's) gets a ticket of its own
+   * rather than overwriting that one. One address may hold several tickets
+   * since 2026-09-26; the dashboard flags it.
    */
+  const oid = orderIdFor(externalId);
+  let buyerSeen = false;
   const registrationIds = [result.registrationId];
   const entitlementsFor = new Map<string, Awaited<ReturnType<typeof tierFulfilment>>>();
   let seatsRegistered = 0;
@@ -195,9 +198,11 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
   for (const [i, line] of cart.entries()) {
     const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
     if (!seatEmail) continue;
-    // Seat one is the buyer, fulfilled above. Their share of the total is
+    // The buyer's first seat was fulfilled above. Their share of the total is
     // taken here so the email below reports it rather than the whole payment.
-    if (seatEmail === buyerEmail) {
+    // A later seat with the buyer's address is a further ticket for them.
+    if (seatEmail === buyerEmail && !buyerSeen) {
+      buyerSeen = true;
       buyerShare = shares[i] ?? buyerShare;
       continue;
     }
@@ -206,6 +211,8 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
       email: seatEmail,
       name: line.attendeeName ?? '',
       ticketType: line.ticketTypeName,
+      // Seat 0 is the buyer's, in `fulfilPurchase`; cart positions start at 1.
+      purchase: { orderId: oid, seat: i + 1 },
     });
     registrationIds.push(seat.registrationId);
     seatsRegistered += 1;

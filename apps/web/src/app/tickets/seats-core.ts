@@ -13,15 +13,11 @@
  *
  * ── The one fact that shapes everything below ───────────────────────────────
  *
- * **A registration is keyed by email address.** `registrationId(email)` is a
- * hash of the address, so N seats sharing one address are one registration and
- * one badge no matter what was charged. That is why multi-quantity checkout
- * cannot be a number on its own: three seats need three addresses, or the buyer
- * pays three times for one ticket and finds out at the door.
- *
- * It is also why a duplicate address is refused rather than merged. Merging
- * quietly takes money for a seat that will never exist, and the person who
- * discovers it is a colleague standing at registration without a badge.
+ * **Each seat is its own ticket.** Since 2026-09-26 seats may share an
+ * address: every paid seat becomes a separate registration with its own badge
+ * (`purchaseRegistrationId`), and the dashboard flags an address holding more
+ * than one. Before that a shared address was refused, because it merged into
+ * one badge while charging for several.
  *
  * ── Seats and line items are different shapes, deliberately ─────────────────
  *
@@ -75,8 +71,8 @@ export interface SeatInput {
 export interface SeatProblem {
   /** Zero-based. Seat 0 is the buyer on the Checkout form. */
   index: number;
-  kind: 'empty' | 'too-many' | 'name' | 'email' | 'duplicate';
-  /** The offending address, for the duplicate message. */
+  kind: 'empty' | 'too-many' | 'name' | 'email';
+  /** The offending address, where there is one. */
   email?: string;
 }
 
@@ -112,18 +108,8 @@ export function validateSeats(seats: SeatInput[]): SeatProblem | null {
     if (!EMAIL.test(seat.email)) return { index: i, kind: 'email' };
   }
 
-  /**
-   * Duplicates, folded to lower case because `registrationId` folds too.
-   * `Ada@Example.com` and `ada@example.com` are one registration, so a form
-   * that accepted both would sell two seats and issue one badge.
-   */
-  const seen = new Set<string>();
-  for (const [i, seat] of seats.entries()) {
-    const key = seat.email.toLowerCase();
-    if (seen.has(key)) return { index: i, kind: 'duplicate', email: seat.email };
-    seen.add(key);
-  }
-
+  // A repeated address is allowed since 2026-09-26: each seat becomes its own
+  // ticket (see `purchaseRegistrationId`), and the dashboard flags the address.
   return null;
 }
 

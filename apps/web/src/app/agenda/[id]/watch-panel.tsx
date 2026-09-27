@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { formatDuration, ticketList, type SessionWatchView, type WatchView } from '@kgc/shared';
+import { TicketSignIn } from './ticket-sign-in';
 
 /**
  * Where the video goes, and what stands there when it cannot.
@@ -19,13 +20,11 @@ import { formatDuration, ticketList, type SessionWatchView, type WatchView } fro
  * draw. `page.tsx` decides, this takes `SessionWatchView`, and the blocked
  * shape inside it carries no URL for anything here to leak.
  *
- * ── Why a signed-out visitor is told about tickets and not about signing in ─
+ * ── What a signed-out visitor is shown ──────────────────────────────────────
  *
- * This site has no accounts (see `ticket-pass.ts`). Telling somebody to sign in
- * would be telling them to do something that does not exist. What is true is
- * that watching is part of a ticket, so the panel says which ticket, links to
- * the page where it is sold, and adds one line for the person who already
- * bought one and has their confirmation email.
+ * Watching is part of a ticket, so the panel says which ticket and links to the
+ * page where it is sold. Below that, a ticket holder signs in with the email
+ * they bought with and a code mailed to it (see `ticket-pass.ts`).
  *
  * A server component. Everything it is handed is already decided; nothing about
  * the gate runs in the browser.
@@ -87,7 +86,9 @@ function Blocked({
         </p>
         {view.block === 'wrong-ticket' && passTicketType ? (
           <p className="watch-sub">
-            Your ticket on this device is {passTicketType}, which does not include it.
+            {passTicketType.includes(', ')
+              ? `Your tickets (${passTicketType}) do not include it.`
+              : `Your ticket is ${passTicketType}, which does not include it.`}
           </p>
         ) : null}
         <p className="watch-actions">
@@ -95,12 +96,7 @@ function Blocked({
             See tickets
           </Link>
         </p>
-        {view.block === 'no-ticket' ? (
-          <p className="watch-sub">
-            Already have a ticket? Open the link in your confirmation email and choose Watch on this
-            device.
-          </p>
-        ) : null}
+        {view.block === 'no-ticket' ? <TicketSignIn /> : null}
       </div>
     );
   }

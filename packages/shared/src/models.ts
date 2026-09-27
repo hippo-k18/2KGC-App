@@ -224,6 +224,15 @@ export interface DirectoryDoc {
  */
 export interface RegistrationDoc extends BaseDoc {
   /**
+   * The paid order and seat this ticket came from, when it came from one.
+   * Written by `ensureRegistration` when a purchase passes them, and read back
+   * so a replayed webhook updates this ticket rather than issuing another. One
+   * address can hold several tickets, each with its own `orderId` and `seat`.
+   * Absent on imported, hand-added and pre-2026-09-26 registrations.
+   */
+  orderId?: string;
+  seat?: number;
+  /**
    * The six-digit password this registration's account was provisioned with,
    * held only until the attendee replaces it.
    *
@@ -1700,6 +1709,8 @@ export interface EmailLogDoc {
     | "blog-sign-in-code"
     /** The organizer dashboard's sign-in or confirmation code. Never carries the code. */
     | "dashboard-sign-in-code"
+    /** A ticket holder signing in on a website session page to watch. Never carries the code. */
+    | "ticket-sign-in-code"
     /** An editor asking someone to write for the blog. */
     | "blog-invitation"
     /** A writer submitted a post: one row per editor told. */

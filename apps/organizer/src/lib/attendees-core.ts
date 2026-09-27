@@ -40,6 +40,12 @@ export interface AttendeeRow {
   /** The organizer's label, from the registration. Somebody with no ticket has none. */
   categoryId?: string;
   category?: string;
+  /**
+   * Active tickets held under this address. The row shows one of them; more
+   * than one is flagged on the attendee list, because since 2026-09-26 an
+   * address may buy several tickets and an organizer should check why.
+   */
+  activeTickets: number;
 }
 
 /**
@@ -97,6 +103,7 @@ export function mergeAttendees(
       messagingEnabled: Boolean(u.messagingEnabled),
       interests: u.interests ?? [],
       signedIn: true,
+      activeTickets: 0,
     });
   }
 
@@ -143,6 +150,7 @@ export function mergeAttendees(
       messagingEnabled: false,
       interests: [],
       signedIn: false,
+      activeTickets: 0,
       registrationId: id,
       ticketType: r.ticketType,
       registrationStatus: r.status,
@@ -151,6 +159,12 @@ export function mergeAttendees(
     };
     rows.set(k || id, row);
     shown.set(row, r);
+  }
+
+  for (const { id, data: r } of registrations) {
+    if (r.status !== 'active') continue;
+    const row = rows.get(emailKey(r.email) || id);
+    if (row) row.activeTickets += 1;
   }
 
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));

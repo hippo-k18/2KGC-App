@@ -61,9 +61,8 @@ export async function requestInvoice(
    * three the card checkout posts, parsed and checked by the same code.
    *
    * The rules used to live here, privately: the ten-seat cap, the per-row
-   * checks, and the one that matters most, that a duplicate address is refused
-   * rather than merged because a registration is keyed by email and two seats
-   * on one address are one badge. They moved to `seats-core.ts` when
+   * checks. (A repeated address was refused too, until 2026-09-26, when each
+   * seat became its own ticket.) They moved to `seats-core.ts` when
    * `/tickets` grew a quantity of its own, because two forms that both sell
    * seats and each keep their own copy of that rule agree exactly until
    * somebody changes one of them — and the failure is a company invoiced for
@@ -92,10 +91,6 @@ export async function requestInvoice(
         return { error: `Attendee ${problem.index + 1}: enter a full name.` };
       case 'email':
         return { error: `Attendee ${problem.index + 1}: enter a valid email address.` };
-      case 'duplicate':
-        return {
-          error: `${problem.email} appears twice. Each attendee needs their own address.`,
-        };
     }
   }
 

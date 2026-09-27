@@ -371,7 +371,7 @@ export interface PurchaseEmailInput {
   ticketType: string;
   amountCents: number;
   currency: string;
-  /** The `/order/{token}` capability link. Shows the claim code and the badge. */
+  /** The `/order/{token}` capability link: the ticket itself. */
   orderUrl: string;
   claimCode: string;
   orderId?: string;
@@ -393,10 +393,11 @@ export interface PurchaseEmailInput {
 /**
  * The one email that actually matters.
  *
- * It carries the claim code, which is what turns a purchase into an account in
- * the mobile app. Stripe's own receipt proves money moved; only this proves
- * there is a ticket, and only this says which address to sign in with — the
- * single most common support question after "where is my confirmation".
+ * Stripe's own receipt proves money moved; only this proves there is a ticket.
+ * It deliberately carries no claim code and no password (owner, 2026-09-26):
+ * the registration desk finds people by email, and the website's session pages
+ * sign in with an emailed code. `claimCode` and `temporaryPassword` are still
+ * accepted so callers need not change, and are not printed.
  */
 export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
   const price = formatPrice(input.amountCents, input.currency);
@@ -409,17 +410,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
        ${row('Attendee', esc(input.name || input.to))}
        ${row('Ticket', esc(input.ticketType))}
        ${row('Paid', price)}
-       ${row('Sign in with', esc(input.to))}
      </table>
-     <p style="margin:18px 0 6px;font-size:15px;line-height:1.6;"><strong>Next step:</strong> download the Knowledge Graph Conference app from the App Store or Google Play, then sign in with <strong>${esc(input.to)}</strong>. That address is how the app finds your ticket. Your claim code is:</p>
-     <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.claimCode)}</p>
-     ${
-       input.temporaryPassword
-         ? `<p style="margin:18px 0 6px;font-size:15px;line-height:1.6;">Your temporary password is:</p>
-     <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:12px 16px;text-align:center;">${esc(input.temporaryPassword)}</p>
-     <p style="margin:6px 0 0;font-size:13px;color:#6b7280;line-height:1.6;"><strong>The app will ask you to change it the first time you sign in.</strong> It is six digits, it belongs to this ticket only, and it stops working the moment you choose your own.</p>`
-         : ''
-     }
      ${button(input.orderUrl, 'View your ticket')}
      <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link. It shows your badge QR code, which is what gets scanned at the door. Don't forward it: anyone with the link can see your ticket.</p>`,
     {
@@ -436,12 +427,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
 Attendee:      ${input.name || input.to}
 Ticket:        ${input.ticketType}
 Paid:          ${price}
-Sign in with:  ${input.to}
 
-Claim code: ${input.claimCode}
-${input.temporaryPassword ? `\nTemporary password: ${input.temporaryPassword}\nThe app will ask you to change it the first time you sign in. It is six\ndigits, it belongs to this ticket only, and it stops working the moment you\nchoose your own.\n` : ''}
-Next step: download the Knowledge Graph Conference app from the App Store or
-Google Play, then sign in with ${input.to}.
 View your ticket: ${input.orderUrl}
 
 Keep that link private. It shows the badge QR that gets scanned at the door.
@@ -495,7 +481,7 @@ export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInp
        ${input.dueDate ? row('Due', esc(input.dueDate)) : ''}
      </table>
      ${button(input.hostedInvoiceUrl, 'View and pay the invoice')}
-     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;"><strong>What happens next.</strong> Tickets are issued when the invoice is paid, not when it is raised — so nobody is registered yet. As soon as payment clears, every attendee on the invoice gets their own confirmation email with a claim code.</p>
+     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;"><strong>What happens next.</strong> Tickets are issued when the invoice is paid, not when it is raised — so nobody is registered yet. As soon as payment clears, every attendee on the invoice gets their own confirmation email with their ticket.</p>
      <p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">The link above lets finance pay by card or bank transfer and download a PDF for your records.</p>`,
   );
 
@@ -509,7 +495,7 @@ View and pay: ${input.hostedInvoiceUrl}
 
 What happens next: tickets are issued when the invoice is paid, not when it is
 raised, so nobody is registered yet. When payment clears, each attendee gets
-their own confirmation with a claim code.`;
+their own confirmation with their ticket.`;
 
   return send(store, {
     to: input.to,
@@ -1610,17 +1596,19 @@ export interface BlogSignInCodeInput {
    * Which door it opens. The dashboard also uses a code to confirm a refund or
    * a mass send, which reads differently from signing in.
    */
-  surface?: 'blog' | 'dashboard' | 'dashboard-confirm';
+  surface?: 'blog' | 'dashboard' | 'dashboard-confirm' | 'ticket';
 }
 
 const CODE_COPY = {
   blog: { heading: 'Your blog sign-in code', lead: 'Enter this code to sign in to the KGC blog editor:', subject: 'is your KGC blog code', log: 'Blog sign-in code', template: 'blog-sign-in-code' },
   dashboard: { heading: 'Your dashboard sign-in code', lead: 'Enter this code to sign in to the KGC organizer dashboard:', subject: 'is your KGC dashboard code', log: 'Dashboard sign-in code', template: 'dashboard-sign-in-code' },
+  ticket: { heading: 'Your KGC sign-in code', lead: 'Enter this code on the KGC website to watch the sessions your ticket includes:', subject: 'is your KGC sign-in code', log: 'Ticket sign-in code', template: 'ticket-sign-in-code' },
   'dashboard-confirm': { heading: 'Confirm this action', lead: 'Enter this code in the dashboard to confirm what you are about to do:', subject: 'confirms your KGC dashboard action', log: 'Dashboard confirmation code', template: 'dashboard-sign-in-code' },
 } as const;
 
 /**
- * A six-digit code for the blog editor or the organizer dashboard. The subject
+ * A six-digit code for the blog editor, the organizer dashboard, or a ticket
+ * holder watching on the website. The subject
  * leads with the code so it can be read from a lock-screen notification, as
  * the app's does. `emailLog` records the subject, so the logged subject is a
  * code-free one and the real one is sent directly.

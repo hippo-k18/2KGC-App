@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
-import { COLLECTIONS, type EntitlementDoc } from '@kgc/shared';
+import { COLLECTIONS, type EntitlementDoc, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { currentHolder, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
@@ -26,6 +26,7 @@ import { mintOrderToken } from '@/lib/order-token';
 import {
   cancelRegistrationByOrder,
   ensureRegistration,
+  invoiceOrderId,
   markInvoiceOrderPaid,
   seatsFromOrder,
 } from '@/lib/registrations';
@@ -449,6 +450,9 @@ export async function POST(req: NextRequest) {
           email: seat.email,
           name: seat.name,
           ticketType: seat.ticketType,
+          // Same numbering as the dashboard's mark-paid, so either path that
+          // runs second lands on the same tickets.
+          purchase: { orderId: invoiceOrderId(invoice.id!), seat: i + 1 },
         });
         registered.push(result.registrationId);
 
@@ -717,27 +721,45 @@ async function cancelExtraSeats(
   buyerEmail: string | null,
   refundedOrderId: string,
 ): Promise<string[]> {
-  const cart = await cartLines(sessionId);
-  if (cart.length < 2) return [];
+  /**
+   * The seats this order paid for, from the order's own list, which names each
+   * ticket exactly. Since 2026-09-26 one address can hold several tickets, so
+   * deriving a seat's ticket from its address could cancel the wrong one.
+   * Index 0 is the buyer's, already handled by `cancelRegistrationByOrder`.
+   * An order written before the list existed falls back to the cart.
+   */
+  const orderSnap = await db().collection(COLLECTIONS.orders).doc(refundedOrderId).get();
+  const listed = ((orderSnap.data() as OrderDoc | undefined)?.registrationIds ?? []).slice(1);
+  let starts = listed;
+  if (starts.length === 0) {
+    const cart = await cartLines(sessionId);
+    if (cart.length < 2) return [];
+    const buyer = buyerEmail ? normaliseEmail(buyerEmail) : '';
+    starts = cart
+      .map((line) => normaliseEmail(line.attendeeEmail ?? ''))
+      .filter((e) => e && e !== buyer)
+      .map((e) => registrationId(e));
+  }
 
-  const buyer = buyerEmail ? normaliseEmail(buyerEmail) : '';
   const cancelled: string[] = [];
 
-  for (const line of cart) {
-    const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
-    if (!seatEmail || seatEmail === buyer) continue;
-
+  for (const startId of starts) {
     try {
       /**
        * A seat can have been handed on since it was bought, and then the seat's
-       * own address names a registration that is already dead while the ticket
-       * belongs to somebody else. Follow it, for the same reason the buyer's
-       * seat is followed in `cancelRegistrationByOrder`.
+       * own ticket is already dead while the seat belongs to somebody else.
+       * Follow it, for the same reason the buyer's seat is followed in
+       * `cancelRegistrationByOrder`.
        */
-      const holder = await currentHolder(db(), registrationId(seatEmail));
+      const seatEmail = ((await db().collection(COLLECTIONS.registrations).doc(startId).get()).data() as
+        | RegistrationDoc
+        | undefined)?.email;
+      const holder = await currentHolder(db(), startId);
       if (!holder) continue;
 
-      if (await stillPaidElsewhere(db(), [seatEmail, holder.email], refundedOrderId)) continue;
+      if (await stillPaidElsewhere(db(), [seatEmail, holder.email], refundedOrderId, [startId, holder.id])) {
+        continue;
+      }
 
       const rid = holder.id;
       await db()
@@ -753,10 +775,7 @@ async function cancelExtraSeats(
        */
       await withdrawOrderEntitlements(db(), uidForEmail(holder.email));
     } catch (err) {
-      await recordError('order.seatCancel', err, {
-        path: 'registrations',
-        id: registrationId(seatEmail),
-      });
+      await recordError('order.seatCancel', err, { path: 'registrations', id: startId });
     }
   }
 

@@ -6663,30 +6663,90 @@ a.li-icon::after {
 }
 
 /*
- * The pass: a record, a tear line, and a stub.
+ * The pass: a record, a tear line, and a stub, printed on foil.
  *
- * `overflow: hidden` is what turns the two circles below into notches — each is
+ * `.pass-stage` (from `components/pass-tilt.tsx`) sets `--px` / `--py`, the
+ * pointer's position across the stage from 0 to 1, resting at 0.5. Everything
+ * below is a function of those two numbers: the card tilts so the side under
+ * the pointer presses away, its shadow swings the other way, and the glare and
+ * the glitter follow the light. They are registered with `@property` so that
+ * letting go eases back to centre instead of snapping.
+ *
+ * `overflow: hidden` is what turns the notch circles into notches — each is
  * centred on the tear line and half of it is clipped away by the edge of the
  * card, which is how a real perforation is punched.
  */
+@property --px {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.5;
+}
+
+@property --py {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.5;
+}
+
+.pass-stage {
+  --px: 0.5;
+  --py: 0.5;
+  perspective: 1400px;
+  margin: 32px 0 26px;
+  transition:
+    --px 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --py 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pass-stage[data-active] {
+  transition:
+    --px 0.12s linear,
+    --py 0.12s linear;
+}
+
 .pass {
+  --dx: calc(var(--px) - 0.5);
+  --dy: calc(var(--py) - 0.5);
   position: relative;
   display: grid;
   grid-template-columns: 1fr;
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
   overflow: hidden;
-  margin: 28px 0 18px;
-  box-shadow: 0 10px 30px rgb(16 36 58 / 14%);
+  isolation: isolate;
+  transform: translateZ(0) rotateX(calc(var(--dy) * 9deg)) rotateY(calc(var(--dx) * -11deg));
+  /* A near shadow for contact and a long one for height: the card reads as
+     lifted off the page, and the long one swings away from the light. */
+  box-shadow:
+    0 1px 2px rgb(16 36 58 / 18%),
+    calc(var(--dx) * -28px) calc(18px + var(--dy) * -18px) 40px -8px rgb(16 36 58 / 32%),
+    calc(var(--dx) * -60px) calc(40px + var(--dy) * -30px) 80px -20px rgb(16 36 58 / 28%);
 }
 
 .pass-main {
-  background: var(--palette-2);
+  position: relative;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgb(141 204 238 / 14%), transparent 60%),
+    var(--palette-2);
   color: var(--palette-3);
-  padding: 30px 30px 28px;
+  padding: 26px 30px 22px;
+  overflow: hidden;
 }
 
+/* The wordmark, huge and faint, bleeding off the right edge. */
+.pass-watermark {
+  position: absolute;
+  right: -40px;
+  bottom: -26px;
+  width: 360px;
+  max-width: none;
+  opacity: 0.07;
+  pointer-events: none;
+  user-select: none;
+}
+
+
 .pass-kicker {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -6694,60 +6754,63 @@ a.li-icon::after {
   color: var(--palette-4);
 }
 
+
 .pass-name {
+  position: relative;
   margin: 0;
-  font-size: 1.85rem;
-  line-height: 1.2;
+  font-size: 2.1rem;
+  line-height: 1.15;
   font-weight: 800;
   color: var(--white);
+  overflow-wrap: anywhere;
 }
 
 .pass-tier {
-  margin: 4px 0 0;
+  position: relative;
+  margin: 6px 0 0;
   font-size: 1rem;
   color: var(--orange);
   font-weight: 700;
 }
 
 .pass-facts {
-  margin: 24px 0 0;
-  display: grid;
-  gap: 14px;
+  position: relative;
+  margin: 26px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 44px;
 }
 
-@media (width >= 560px) {
-  .pass-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 28px;
-  }
-}
-
-.pass-facts dt {
-  font-size: 0.68rem;
+.pass-facts dt,
+.pass-issued dt {
+  font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--palette-4);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .pass-facts dd {
   margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.4;
   color: var(--white);
-  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+  line-height: 1.3;
 }
 
-.pass-facts dd.mono {
-  font-size: 0.78rem;
+
+
+.pass-small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--palette-3);
+  opacity: 0.8;
 }
 
-@media (width >= 560px) {
-  .pass-fact-wide {
-    grid-column: 1 / -1;
-  }
-}
+
+
+
 
 /*
  * The stub, one shade deeper than the panel it tears off.
@@ -6759,12 +6822,12 @@ a.li-icon::after {
 .pass-stub {
   position: relative;
   background: var(--palette-1);
-  padding: 26px 24px 24px;
+  padding: 22px 30px 22px 22px;
   text-align: center;
   display: grid;
   justify-items: center;
-  align-content: start;
-  gap: 14px;
+  align-content: center;
+  gap: 10px;
 }
 
 /* The perforation itself: a column of punched dots, inset from both ends the
@@ -6786,14 +6849,128 @@ a.li-icon::after {
   background-repeat: repeat-y;
 }
 
+
+
+.pass-issued {
+  position: relative;
+  margin: 24px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+}
+
+.pass-issued dt {
+  font-size: 0.58rem;
+  margin-bottom: 2px;
+}
+
+.pass-issued dd {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgb(255 255 255 / 75%);
+  overflow-wrap: anywhere;
+}
+
+.pass-stub-head {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pass-stub-mark {
+  display: block;
+  height: 18px;
+  width: auto;
+}
+
+.pass-stub-year {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--orange);
+}
+
+/* `letter-spacing` adds a trailing gap after the last character, so the string
+   sits half a space left of centre unless the same amount is put back. */
+.pass-admit {
+  margin: 6px 0 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-indent: 0.12em;
+  text-transform: uppercase;
+  color: var(--white);
+}
+
+.pass-stub-tier {
+  margin: -4px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--orange);
+}
+
+.pass-stub-date {
+  margin: 4px 0 0;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px dashed rgb(255 255 255 / 28%);
+  display: grid;
+  gap: 4px;
+}
+
+.pass-stub-days {
+  font-size: 2.6rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.pass-stub-month {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  text-transform: uppercase;
+  color: var(--palette-4);
+}
+
+/* The registration number, run up the outer edge like a ticket serial. It is
+   what the desk can look a ticket up by besides the email address. */
+.pass-serial {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  margin: 0;
+  transform: translateY(-50%) rotate(180deg);
+  writing-mode: vertical-rl;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 45%);
+  white-space: nowrap;
+}
+
+/* The QR sits on its own white tile, above the foil (`z-index` 4), so the
+   glitter never lands on a module and the symbol scans as it would on paper. */
+.pass-qr-tile {
+  position: relative;
+  z-index: 4;
+  padding: 6px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 30%);
+}
+
 .pass-qr {
   display: block;
-  border-radius: 3px;
 }
 
 .pass-stub-label {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   line-height: 1.5;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -6803,7 +6980,7 @@ a.li-icon::after {
 
 .pass-stub-label a {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 0.74rem;
   letter-spacing: 0;
   text-transform: none;
@@ -6812,31 +6989,101 @@ a.li-icon::after {
   overflow-wrap: anywhere;
 }
 
-.pass-claim {
-  width: 100%;
-  padding-top: 14px;
-  border-top: 1px dashed rgb(255 255 255 / 28%);
+
+
+
+/* ---------------------------------------------------------------- foil ---- */
+
+.pass-foil,
+.pass-glitter,
+.pass-glare {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
 }
 
-.pass-claim-label {
-  margin: 0 0 4px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--palette-4);
+/* A holographic sheen: a band of colour that slides across as the light moves.
+   `color-dodge` lets it brighten the navy without tinting the white text. */
+.pass-foil {
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgb(141 204 238 / 55%) 36%,
+    rgb(246 134 33 / 45%) 44%,
+    rgb(214 120 255 / 40%) 52%,
+    rgb(120 255 214 / 45%) 60%,
+    transparent 76%
+  );
+  background-size: 260% 260%;
+  background-position: calc(var(--px) * 100%) calc(var(--py) * 100%);
+  mix-blend-mode: color-dodge;
+  opacity: 0.24;
 }
 
-/* `letter-spacing` adds a trailing gap after the last character, so the string
-   sits half a space left of centre unless the same amount is put back. */
-.pass-claim-code {
-  margin: 0;
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-indent: 0.2em;
-  color: var(--white);
+/*
+ * Glitter: two tiles of thresholded noise, so each is a scatter of single
+ * bright specks. They drift at different rates as the light moves, which is
+ * what makes individual flakes flash on and off rather than slide, and a
+ * radial mask centred on the light means only the flakes near it catch.
+ */
+.pass-glitter {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 14 0 0 0 -9.6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='1' seed='19'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .85 0 0 0 0 .6 0 14 0 0 -9.8'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-position:
+    calc(var(--px) * 24px) calc(var(--py) * 24px),
+    calc(var(--px) * -40px) calc(var(--py) * -40px);
+  mix-blend-mode: plus-lighter;
+  opacity: 0.9;
+  mask-image: radial-gradient(
+    circle at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    #000 0,
+    rgb(0 0 0 / 35%) 30%,
+    rgb(0 0 0 / 8%) 65%
+  );
+}
+
+/* The light itself: a soft hotspot where the pointer is. */
+.pass-glare {
+  background: radial-gradient(
+    circle at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    rgb(255 255 255 / 28%) 0,
+    rgb(255 255 255 / 8%) 25%,
+    transparent 55%
+  );
+  mix-blend-mode: overlay;
+}
+
+/* On a touch screen there is no pointer to follow, so the light drifts on its
+   own, slowly, and the card stays flat. */
+@media (hover: none) {
+  .pass-stage {
+    animation: pass-drift 7s ease-in-out infinite alternate;
+  }
+
+  .pass {
+    transform: none;
+  }
+}
+
+@keyframes pass-drift {
+  from {
+    --px: 0.1;
+    --py: 0.2;
+  }
+
+  to {
+    --px: 0.9;
+    --py: 0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pass-stage {
+    animation: none;
+    transition: none;
+  }
 }
 
 @media (width >= 720px) {
@@ -6844,11 +7091,13 @@ a.li-icon::after {
     grid-template-columns: minmax(0, 1fr) 236px;
   }
 
-  /* Centred on the tear line, half of each clipped by `overflow: hidden`. */
+  /* Centred on the tear line, half of each clipped by `overflow: hidden`.
+     Above the foil, so the punched holes stay the colour of the page. */
   .pass::before,
   .pass::after {
     content: '';
     position: absolute;
+    z-index: 5;
     right: 227px;
     width: 18px;
     height: 18px;
@@ -6872,16 +7121,19 @@ a.li-icon::after {
    is wherever the main panel happens to end, which depends on how long the
    venue and the address are, so the only element that knows where to put them
    is the panel itself. `.pass` still clips them, which is what makes each a
-   half-circle. */
+   half-circle. `.pass-main` clips its own overflow too (for the watermark), so
+   on this layout it lets go of that and the watermark is clipped by `.pass`. */
 @media (width < 720px) {
   .pass-main {
-    position: relative;
+    overflow: visible;
+    padding: 22px 22px 20px;
   }
 
   .pass-main::before,
   .pass-main::after {
     content: '';
     position: absolute;
+    z-index: 5;
     bottom: -9px;
     width: 18px;
     height: 18px;
@@ -6895,6 +7147,28 @@ a.li-icon::after {
 
   .pass-main::after {
     right: -9px;
+  }
+
+  .pass-watermark {
+    right: -30px;
+    bottom: auto;
+    top: 10px;
+    width: 260px;
+  }
+
+  .pass-name {
+    font-size: 1.7rem;
+  }
+
+  .pass-stub {
+    padding: 22px;
+  }
+
+  .pass-serial {
+    position: static;
+    transform: none;
+    writing-mode: horizontal-tb;
+    margin-top: 4px;
   }
 
   .pass-stub::before {
@@ -6911,13 +7185,6 @@ a.li-icon::after {
   }
 }
 
-.pass-note {
-  font-size: 0.84rem;
-  line-height: 1.6;
-  color: var(--muted);
-  margin: 0 0 40px;
-}
-
 /*
  * Wider than `.narrow`'s 760, because three cards have to fit across it, and
  * still narrow enough that the pass and the paragraphs share one left edge.
@@ -6928,74 +7195,9 @@ a.li-icon::after {
   max-width: 980px;
 }
 
-.order-next-title {
-  font-size: 1.5rem;
-  margin: 44px 0 20px;
-}
-
-/*
- * What to do next, as three cards rather than a numbered essay.
- *
- * It is an `<ol>` because the order is real — you cannot star a session before
- * signing in, or scan a badge you have not been issued — but the numerals are
- * drawn small and set beside the heading rather than in a circled bullet,
- * because each card is already a complete instruction on its own.
- */
-.next-cards {
-  counter-reset: nextstep;
-  list-style: none;
-  margin: 0 0 36px;
-  padding: 0;
-  display: grid;
-  gap: 16px;
-}
-
-@media (width >= 820px) {
-  .next-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.next-cards > li {
-  counter-increment: nextstep;
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 22px 22px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.next-cards > li::before {
-  content: counter(nextstep, decimal-leading-zero);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--highlight);
-  margin-bottom: 8px;
-}
-
-.next-cards h3 {
-  font-size: 1.05rem;
-  margin: 0 0 8px;
-}
-
-.next-cards p {
-  font-size: 0.85rem;
-  line-height: 1.6;
-  margin: 0 0 14px;
-}
-
-/* Buttons align along the bottom of the row even though the cards say different
-   amounts, so the row reads as three of one thing rather than three unrelated
-   boxes. */
-.next-cards .btn {
-  margin-top: auto;
-}
-
 /* `.muted` is exempt from the 68ch cap, so this one is capped here. */
 .order-fine {
+  margin-top: 28px;
   font-size: 0.84rem;
   line-height: 1.6;
   max-width: 68ch;
@@ -8243,7 +8445,50 @@ body:has(.sign-screen) .sign-screen {
   margin: 0;
 }
 
-/* Which ticket this browser is carrying, and the one button that undoes it. */
+/* A ticket holder's email sign-in, under the "included with" line. */
+.ticket-signin {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.ticket-signin > .watch-sub:first-child {
+  margin-top: 0;
+}
+
+.ticket-signin-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.ticket-signin-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.ticket-signin-error {
+  color: #b91c1c;
+  font-size: 0.88rem;
+  margin: 8px 0 0;
+}
+
+.ticket-signin-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.85rem;
+  margin: 10px 0 0;
+}
+
+/* Who is signed in, and the one button that signs them out. */
 .watch-whose {
   align-items: baseline;
   color: var(--muted);
@@ -8269,22 +8514,6 @@ body:has(.sign-screen) .sign-screen {
   font: inherit;
   padding: 0;
   text-decoration: underline;
-}
-
-.watch-device {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  margin: 26px 0 0;
-  padding: 20px;
-}
-
-.watch-device h2 {
-  font-size: 1.1rem;
-  margin: 0 0 10px;
-}
-
-.watch-device p {
-  margin: 0;
 }
 
 /* The agenda row's cue that a talk is streamed or recorded. */

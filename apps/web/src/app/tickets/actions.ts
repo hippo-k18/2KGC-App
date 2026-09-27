@@ -194,11 +194,6 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
         return {
           error: who ? `${who}enter a valid email address.` : 'Enter a valid email address.',
         };
-      case 'duplicate':
-        return {
-          error:
-            `${problem.email} appears twice. Each attendee needs their own address.`,
-        };
     }
   }
 

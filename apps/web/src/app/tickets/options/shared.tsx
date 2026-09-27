@@ -98,8 +98,9 @@ export function AfterBands() {
               Pick a ticket, and give us the attendee’s name and email address.
             </li>
             <li>
-              <strong>Keep the claim code</strong>
-              Six characters, shown the moment you pay. It is the fallback door into your ticket.
+              <strong>Check your email</strong>
+              Your ticket arrives the moment you pay. The registration desk finds you by that
+              address.
             </li>
             <li>
               <strong>Open the KGC app</strong>

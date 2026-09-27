@@ -1,37 +1,40 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { clearTicketPass, setTicketPass } from '@/lib/ticket-pass';
+import { clearTicketPass, requestTicketCode, verifyTicketCode } from '@/lib/ticket-pass';
 
 /**
- * The two buttons that decide whether this browser is carrying a ticket.
+ * Signing a ticket holder in and out on a session page. See `lib/ticket-pass.ts`.
  *
- * At the app root rather than under `/order`, because both ends need them: the
- * confirmation page offers the ticket to the device, and every session page
- * offers to forget it. A server action is the only place a cookie can be
- * written in the App Router — a Server Component may read `cookies()` and may
- * not set one — which is also the right shape here, because taking a ticket
- * onto a device is a deliberate act and not a side effect of loading a page.
- *
- * ⚠️ Neither of these takes a registration id, an address or a ticket type.
- * The only input is the order token itself, which is verified by
- * `setTicketPass` before it is stored. There is no field here that could name
- * somebody else.
+ * A server action is the only place a cookie can be written in the App Router,
+ * and the layout revalidation is what makes the next session page they open
+ * render with the ticket rather than from the router cache without it.
  */
 
-export async function useTicketOnThisDeviceAction(formData: FormData): Promise<void> {
-  const token = String(formData.get('token') ?? '');
-  await setTicketPass(token);
-  /*
-   * The confirmation page is `force-dynamic`, but the agenda pages that read
-   * the cookie are cached per path in the router cache the browser keeps. The
-   * layout revalidation is what makes the next session page they open render
-   * with the ticket rather than without it.
-   */
-  revalidatePath('/', 'layout');
+export interface TicketSignInState {
+  step: 'email' | 'code' | 'done';
+  email: string;
+  error?: string;
 }
 
-export async function forgetTicketAction(): Promise<void> {
+export async function ticketSignInAction(prev: TicketSignInState, form: FormData): Promise<TicketSignInState> {
+  const intent = String(form.get('intent') ?? '');
+
+  if (intent === 'restart') return { step: 'email', email: prev.email };
+
+  if (prev.step === 'email' || intent === 'resend') {
+    const email = intent === 'resend' ? prev.email : String(form.get('email') ?? '');
+    const sent = await requestTicketCode(email);
+    return sent.ok ? { step: 'code', email: sent.email } : { step: 'email', email, error: sent.error };
+  }
+
+  const result = await verifyTicketCode(prev.email, String(form.get('code') ?? ''));
+  if (!result.ok) return { ...prev, error: result.error };
+  revalidatePath('/', 'layout');
+  return { step: 'done', email: prev.email };
+}
+
+export async function ticketSignOutAction(): Promise<void> {
   await clearTicketPass();
   revalidatePath('/', 'layout');
 }

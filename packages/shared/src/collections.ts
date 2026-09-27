@@ -196,6 +196,11 @@ export const COLLECTIONS = {
   /** One pending blog sign-in code per address, stored hashed. Server-only. */
   blogSignInCodes: "blogSignInCodes",
   /**
+   * One pending website ticket sign-in code per address, stored hashed. The
+   * code lets a ticket holder watch gated streams on session pages. Server-only.
+   */
+  ticketSignInCodes: "ticketSignInCodes",
+  /**
    * One pending organizer-dashboard code per address, stored hashed: to sign
    * in, or `{email}__confirm` to confirm a refund, erasure or mass send.
    * Server-only.

@@ -271,7 +271,7 @@ function BadgeUnavailable({ onRetry }: { onRetry: () => void }) {
       <Text variant="heading">Could not load your badge</Text>
       <Text tone="secondary">
         This device could not read your ticket. At the door, the registration desk can find you by
-        name or by the claim code on your order confirmation page.
+        name or email address.
       </Text>
       <Pressable
         onPress={onRetry}
@@ -315,8 +315,8 @@ function NoTicket({ email }: { email: string | null }) {
         email address. If you registered with a different one, sign in with that instead.
       </Text>
       <Text variant="caption" tone="tertiary">
-        The registration desk can attach your ticket to this account using the claim code on your
-        order confirmation page.
+        The registration desk can attach your ticket to this account using the email address you
+        bought it with.
       </Text>
     </View>
   );

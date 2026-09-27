@@ -115,7 +115,7 @@ export interface FulfilInput {
  * the only event handled, so "one id per session" and "one id per event" are
  * the same statement.
  */
-function orderIdFor(externalId: string): string {
+export function orderIdFor(externalId: string): string {
   // Hashed rather than used raw: `cs_test_…` ids are long and are a Stripe
   // implementation detail, and the id ends up in a Firestore path. Hashed
   // here rather than with `emailHash`, which lowercases first — Stripe ids are
@@ -144,6 +144,8 @@ export function ensureRegistration(input: {
   email: string;
   name: string;
   ticketType: string;
+  /** The paid order and seat. See `EnsureRegistrationInput.purchase`. */
+  purchase?: { orderId: string; seat: number };
 }): Promise<FulfilledRegistration> {
   return sharedEnsureRegistration(db(), input);
 }
@@ -156,15 +158,18 @@ export function ensureRegistration(input: {
  */
 export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegistration> {
   const email = normaliseEmail(input.email);
-  const rid = registrationId(email);
   const oid = orderIdFor(input.externalId);
   const orderRef = db().collection(COLLECTIONS.orders).doc(oid);
 
+  // Seat 0 is the buyer. A second purchase by the same address is a second
+  // ticket, not an update of the first (2026-09-26).
   const result = await ensureRegistration({
     email,
     name: input.name,
     ticketType: input.ticketType,
+    purchase: { orderId: oid, seat: 0 },
   });
+  const rid = result.registrationId;
 
   /**
    * The registration questions, merged onto the registration.
@@ -174,8 +179,8 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
    * `qrSecret` and `claimCode` — widening it to carry form answers would put a
    * marketing concern inside the one function that must never change shape.
    *
-   * Merged, not replaced: a second purchase by the same person must not blank
-   * the dietary requirement they gave the first time. And it can never throw
+   * Merged, not replaced: a replay must not blank an answer already stored.
+   * And it can never throw
    * upward — the ticket is already valid, and losing an answer must not lose a
    * registration.
    */
@@ -461,11 +466,11 @@ export async function cancelRegistrationByOrder(input: {
   /**
    * Only withdraw the registration if this order is the reason it exists.
    *
-   * Someone who bought twice — a workshop upgrade after a main-conference
-   * ticket — has one registration backed by two orders, and refunding the
-   * first must not revoke a ticket the second still pays for. So the
-   * registration is cancelled only when no other paid order covers it, asked
-   * about the buyer and the holder alike.
+   * Since 2026-09-26 a second purchase by the same address is a separate
+   * ticket, so refunding one order withdraws that order's ticket and leaves
+   * the other. The check below still matters for older registrations that two
+   * orders were merged into: one is cancelled only when no other paid order
+   * paid for it, asked about the buyer and the holder alike.
    *
    * ── And it may not be the buyer's registration any more ────────────────────
    *
@@ -476,7 +481,10 @@ export async function cancelRegistrationByOrder(input: {
    * the seat now. No registration at the end of it means there is no ticket to
    * withdraw, which is a skip rather than an update that would throw.
    */
-  const holder = await currentHolder(db(), registrationId(order.email));
+  // The ticket this order paid for. One address can hold several, so the
+  // order's own record says which; older orders fall back to the address.
+  const startId = order.registrationIds?.[0] ?? registrationId(order.email);
+  const holder = await currentHolder(db(), startId);
   if (!holder) return { ...details, registrationId: null };
   const rid = holder.id;
 
@@ -488,7 +496,7 @@ export async function cancelRegistrationByOrder(input: {
    * and `cancelExtraSeats` in the webhook asks it the same way, so the two
    * cannot drift.
    */
-  if (await stillPaidElsewhere(db(), [order.email, holder.email], oid)) {
+  if (await stillPaidElsewhere(db(), [order.email, holder.email], oid, [startId, rid])) {
     // `registrationId: null` is "nothing was withdrawn", and the holder is
     // still reported: the receipt has to know whether the ticket it is talking
     // about is the buyer's own.

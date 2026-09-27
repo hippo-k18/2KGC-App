@@ -62,9 +62,10 @@ test.describe('local purchase, end to end @tickets', () => {
     await expect(page.locator('h1.order-headline')).toBeVisible();
     await expect(page.locator('body')).toContainText('Prepublish Single');
     await expect(page.locator('body')).toContainText(tier.name);
-    // The ticket itself: a QR code the door can scan.
-    await expect(page.locator('svg, img, canvas').filter({ has: page.locator('*') }).first()).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Three things, then you/ })).toBeVisible();
+    // The ticket itself, and none of the credentials it used to print
+    // (removed 2026-09-26).
+    await expect(page.locator('.pass-stub')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(/claim code|temporary password/i);
 
     // The order link is a capability: reloading it works, tampering does not.
     const url = page.url();

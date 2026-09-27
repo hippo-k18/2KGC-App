@@ -11,7 +11,7 @@ import {
   type SpeakerCard,
 } from '@/lib/data';
 import { sessionCalendarPath } from '@kgc/shared';
-import { forgetTicketAction } from '@/app/ticket-actions';
+import { ticketSignOutAction } from '@/app/ticket-actions';
 import { readTicketPass } from '@/lib/ticket-pass';
 import { sessionWatchPanel } from '@/lib/watch';
 import { formatDayHeading, localTime } from '@/lib/site';
@@ -90,18 +90,29 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
   const { session, heading } = found;
 
   /*
-   * Which ticket this device is carrying, if any. Null is the ordinary case:
+   * Which ticket the signed-in reader holds, if any. Null is the ordinary case:
    * most people reading a session page are deciding whether to come. Read
    * before the rest, because the watch decision is made from it on the server.
    */
   const pass = await readTicketPass();
 
-  const [ev, speakers, documents, watch] = await Promise.all([
+  /*
+   * One address can hold several tickets, so the panel is worked out for each
+   * and the one that unlocks the most is shown. A reader with no ticket is one
+   * pass with `null`.
+   */
+  const now = Date.now();
+  const ticketTypes: (string | null)[] = pass?.ticketTypes.length ? pass.ticketTypes : [null];
+  const [ev, speakers, documents, views] = await Promise.all([
     siteEvent(),
     agendaSpeakers(),
     listPublicDocuments(),
-    sessionWatchPanel(sessionId, { ticketType: pass?.ticketType ?? null }, Date.now()),
+    Promise.all(ticketTypes.map((ticketType) => sessionWatchPanel(sessionId, { ticketType }, now))),
   ]);
+  const unlocked = (v: (typeof views)[number]) =>
+    [v.live.kind, v.recorded.kind].filter((k) => k === 'play' || k === 'open').length;
+  const watch = views.reduce((best, v) => (unlocked(v) > unlocked(best) ? v : best));
+  const passLabel = pass?.ticketTypes.join(', ') || null;
 
   const people = session.speakerIds
     .map((sid) => speakers[sid])
@@ -139,28 +150,25 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
         */}
         <WatchPanel
           watch={watch}
-          passTicketType={pass?.ticketType ?? null}
+          passTicketType={passLabel}
           sessionTitle={session.title}
           startsAtLocal={session.startsAtLocal}
         />
 
         {pass && (
           /*
-            Said on every session page, not only where a video is gated: a
-            device carrying somebody's ticket should say so where they can see
-            it and undo it, rather than only when it is about to matter.
+            Said on every session page, not only where a video is gated, so a
+            shared computer shows whose ticket it is and how to sign out.
           */
           <div className="watch-whose">
             <span>
-              This device is using {pass.name}&rsquo;s ticket (
-              {pass.ticketType ?? 'no ticket type'}).
+              Signed in as {pass.email} ({passLabel ?? 'no ticket type'}).
             </span>{' '}
-            {/* A form, not a link. Forgetting a ticket is a write, and a GET
-                that changes state is one prefetch away from doing it on its
-                own. */}
-            <form action={forgetTicketAction}>
+            {/* A form, not a link: signing out is a write, and a GET that
+                changes state is one prefetch away from doing it on its own. */}
+            <form action={ticketSignOutAction}>
               <button type="submit" className="linkish">
-                Forget it
+                Sign out
               </button>
             </form>
           </div>

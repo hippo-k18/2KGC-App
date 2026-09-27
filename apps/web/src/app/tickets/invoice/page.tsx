@@ -94,7 +94,7 @@ export default async function InvoicePage() {
                 </li>
                 <li>
                   <strong>When it clears</strong>, every attendee on the invoice gets their own
-                  confirmation email with a claim code for the app.
+                  confirmation email with their ticket.
                 </li>
               </ol>
 

@@ -49,6 +49,20 @@ export function registrationId(email: string): string {
 }
 
 /**
+ * The id of a second (or later) ticket bought with the same address.
+ *
+ * One address may hold several tickets since 2026-09-26 (owner's decision; the
+ * dashboard flags it). The first ticket keeps `registrationId(email)`, so
+ * everything already keyed that way still finds it. Each further paid seat is
+ * keyed by the order and the seat's position on it, which is what makes a
+ * webhook replay land on the same document instead of minting another ticket.
+ */
+export function purchaseRegistrationId(email: string, orderId: string, seat: number): string {
+  const key = `${normaliseEmail(email)}\u0000${orderId}\u0000${seat}`;
+  return `reg_${createHash('sha256').update(key).digest('hex').slice(0, 24)}`;
+}
+
+/**
  * `contacts/{id}` — a marketing contact, keyed the same way a registration is,
  * so re-importing a CSV converges on one document per person.
  *

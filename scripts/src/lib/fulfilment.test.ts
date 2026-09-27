@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 
 import { currentHolder, stillPaidElsewhere } from './fulfilment.js';
+import { registrationId } from './ids.js';
 
 /**
  * The two questions a refund has to answer before it takes a ticket away:
@@ -267,5 +268,42 @@ describe('stillPaidElsewhere', () => {
     const store = fakeStore({ orders: { ord_one: order({ email: 'ada@example.com' }) } });
 
     expect(await stillPaidElsewhere(store, [null, undefined, ''], 'ord_one')).toBe(false);
+  });
+
+  it('with ticket ids, ignores another order that paid for a different ticket', async () => {
+    // One address, two purchases, two tickets (2026-09-26): the second order
+    // does not keep the first ticket alive.
+    const store = fakeStore({
+      orders: {
+        ord_first: order({ email: 'ada@example.com', registrationIds: ['reg_first'] }),
+        ord_second: order({ email: 'ada@example.com', registrationIds: ['reg_second'] }),
+      },
+    });
+
+    expect(await stillPaidElsewhere(store, ['ada@example.com'], 'ord_first', ['reg_first'])).toBe(false);
+  });
+
+  it('with ticket ids, counts another order that paid for the same ticket', async () => {
+    const store = fakeStore({
+      orders: {
+        ord_first: order({ email: 'ada@example.com', registrationIds: ['reg_first'] }),
+        ord_merged: order({ email: 'ada@example.com', registrationIds: ['reg_first'] }),
+      },
+    });
+
+    expect(await stillPaidElsewhere(store, ['ada@example.com'], 'ord_first', ['reg_first'])).toBe(true);
+  });
+
+  it('reads an order with no ticket list as paying for the address ticket', async () => {
+    const store = fakeStore({
+      orders: {
+        ord_first: order({ email: 'ada@example.com' }),
+        ord_old: order({ email: 'ada@example.com' }),
+      },
+    });
+    const base = registrationId('ada@example.com');
+
+    expect(await stillPaidElsewhere(store, ['ada@example.com'], 'ord_first', [base])).toBe(true);
+    expect(await stillPaidElsewhere(store, ['ada@example.com'], 'ord_first', ['reg_other'])).toBe(false);
   });
 });

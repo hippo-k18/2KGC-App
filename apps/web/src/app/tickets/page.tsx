@@ -301,8 +301,8 @@ export default async function TicketsPage({
             <summary>What if I use a different email address at work?</summary>
             <div className="answer">
               <p>
-                Sign in with either and use the claim code from your confirmation page. We can
-                attach alternate addresses to one registration.
+                Buy with the one you want your ticket on. If you need both, write to us and we will
+                attach the second address to your registration.
               </p>
             </div>
           </details>

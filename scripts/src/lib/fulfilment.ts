@@ -9,7 +9,14 @@ import {
   type OrderDoc,
   type RegistrationDoc,
 } from "@kgc/shared";
-import { claimCode, emailHash, normaliseEmail, qrSecret, registrationId } from "./ids.js";
+import {
+  claimCode,
+  emailHash,
+  normaliseEmail,
+  purchaseRegistrationId,
+  qrSecret,
+  registrationId,
+} from "./ids.js";
 
 /**
  * Turning a paid-for seat into a registration.
@@ -73,10 +80,28 @@ export interface EnsureRegistrationInput {
   name: string;
   /** `TicketTypeDoc.name`-shaped label, e.g. "All Access (VIP)". */
   ticketType: string;
+  /**
+   * The paid order and seat this ticket is for. Given by every path that takes
+   * money (checkout, invoices); left out by imports, hand-adds and comp passes,
+   * which keep the one-registration-per-address behaviour.
+   *
+   * With it, an address that already holds an active ticket from a different
+   * purchase gets a second, separate ticket (`purchaseRegistrationId`). Without
+   * it, the address's one registration is updated as before.
+   */
+  purchase?: { orderId: string; seat: number };
 }
 
 /**
- * Idempotent on the attendee's email address.
+ * Idempotent on the attendee's email address, or on the order and seat when a
+ * purchase is given.
+ *
+ * ⚠️ Since 2026-09-26 one address can hold several paid tickets (the owner's
+ * call; the dashboard flags it). A purchase for an address that already holds
+ * an active ticket from another order gets its own registration, keyed by
+ * `purchaseRegistrationId`, with its own badge. Everything below still holds
+ * for the address's first registration and for every path that passes no
+ * purchase.
  *
  * The document id is `registrationId(email)` — derived rather than random —
  * because the same person arrives more than once by design: Stripe redirects
@@ -101,12 +126,15 @@ export async function ensureRegistration(
   input: EnsureRegistrationInput,
 ): Promise<FulfilledRegistration> {
   const email = normaliseEmail(input.email);
-  const rid = registrationId(email);
-  const regRef = store.collection(COLLECTIONS.registrations).doc(rid);
+  const baseId = registrationId(email);
+  const regs = store.collection(COLLECTIONS.registrations);
+  const purchase = input.purchase;
 
   const result = await store.runTransaction(async (tx) => {
-    const existing = await tx.get(regRef);
+    // Every read happens before any write, as a transaction requires.
+    const base = await tx.get(regs.doc(baseId));
     const bag = (await tx.get(store.collection(COLLECTIONS.settings).doc(SETTINGS_KEYS.attendeeCategories))).data();
+    const order = purchase ? await tx.get(store.collection(COLLECTIONS.orders).doc(purchase.orderId)) : null;
     const stored = bag?.eventId === EVENT_ID ? bag.values : undefined;
     const categories = resolveAttendeeCategories(stored?.categories);
     const rules = resolveTicketRules(stored?.ticketRules, categories);
@@ -118,23 +146,51 @@ export async function ensureRegistration(
       return next === "keep" ? undefined : next;
     };
 
-    if (existing.exists) {
-      const prev = existing.data() as RegistrationDoc;
+    /**
+     * Which document this seat is. The address's own registration unless a
+     * purchase is buying a further ticket for an address that already holds an
+     * active one from somewhere else.
+     *
+     * "From somewhere else" is decided by what the registration and the order
+     * say about each other, so a replay is always recognised as the same seat:
+     * the registration names this order and seat, or (for one written before
+     * `orderId` existed) this order already lists it.
+     */
+    let snap = base;
+    if (purchase && base.exists) {
+      const prev = base.data() as RegistrationDoc;
+      const listed = ((order?.data() as OrderDoc | undefined)?.registrationIds ?? []).includes(baseId);
+      const sameSeat =
+        prev.orderId === undefined ? listed : prev.orderId === purchase.orderId && (prev.seat ?? 0) === purchase.seat;
+      // A replay of an order that has since been refunded or cancelled never
+      // mints a new ticket; it falls back to the old one-per-address update.
+      const settled = ["refunded", "cancelled"].includes((order?.data() as OrderDoc | undefined)?.status ?? "");
+      if (prev.status === "active" && !sameSeat && !settled) {
+        snap = await tx.get(regs.doc(purchaseRegistrationId(email, purchase.orderId, purchase.seat)));
+      }
+    }
+    const ref = snap.ref;
+    const stamp = purchase ? { orderId: purchase.orderId, seat: purchase.seat } : {};
+
+    if (snap.exists) {
+      const prev = snap.data() as RegistrationDoc;
 
       // `createdAt`, `qrSecret`, `claimCode`, `altEmails` and `claimedByUid`
       // are deliberately absent from this write. See the docblock above.
-      tx.update(regRef, {
+      tx.update(ref, {
         email,
         emailHash: emailHash(email),
         name: input.name,
         ticketType: input.ticketType,
         status: "active",
+        ...stamp,
         ...(byRule(prev) ?? {}),
         updatedAt: now,
       });
 
       return {
-        registrationId: rid,
+        ref,
+        registrationId: ref.id,
         email,
         name: input.name,
         ticketType: input.ticketType,
@@ -157,13 +213,15 @@ export async function ensureRegistration(
       // Random and opaque, and the only value that ever goes into a badge QR.
       // A uid here would let anyone who photographs a badge learn an identity.
       qrSecret: qrSecret(),
+      ...stamp,
       ...(byRule({}) ?? {}),
     };
 
-    tx.set(regRef, { ...fresh, createdAt: now, updatedAt: now });
+    tx.set(ref, { ...fresh, createdAt: now, updatedAt: now });
 
     return {
-      registrationId: rid,
+      ref,
+      registrationId: ref.id,
       email,
       name: input.name,
       ticketType: input.ticketType,
@@ -177,7 +235,7 @@ export async function ensureRegistration(
   // and a claim code minted for a pre-claim-code registration is a repair
   // rather than part of the purchase.
   if (result.backfillClaimCode) {
-    await regRef.update({ claimCode: result.claimCode });
+    await result.ref.update({ claimCode: result.claimCode });
   }
 
   return {
@@ -277,6 +335,15 @@ export async function stillPaidElsewhere(
   store: Firestore,
   emails: (string | null | undefined)[],
   excludeOrderId: string,
+  /**
+   * The registrations in question: the one the refunded order paid for and
+   * whoever holds that seat now. When given, only an order that paid for one
+   * of these counts. Since one address can hold several tickets
+   * (2026-09-26), a second ticket's order no longer keeps the first alive.
+   * An order written before `registrationIds` existed is read as paying for
+   * `registrationId(order.email)`.
+   */
+  registrationIds?: string[],
 ): Promise<boolean> {
   const addresses = [
     ...new Set(emails.filter((e): e is string => Boolean(e)).map((e) => normaliseEmail(e))),
@@ -292,7 +359,10 @@ export async function stillPaidElsewhere(
     const paying = snap.docs.some((d) => {
       if (d.id === excludeOrderId) return false;
       const order = d.data() as OrderDoc;
-      return order.status === "paid" || order.status === "partially_refunded";
+      if (order.status !== "paid" && order.status !== "partially_refunded") return false;
+      if (!registrationIds) return true;
+      const covers = order.registrationIds ?? [registrationId(order.email)];
+      return covers.some((id) => registrationIds.includes(id));
     });
     if (paying) return true;
   }
