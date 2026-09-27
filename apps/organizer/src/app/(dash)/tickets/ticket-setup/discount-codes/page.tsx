@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listDiscountCodes, type DiscountCodeRow } from '@/lib/discount-codes';
 import { ROUTES } from '@/lib/nav';
-import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
+import { listTicketTypes } from '@/lib/commerce';
+import { discountsAreLive, discountsEnabled } from '@/lib/stripe';
 import { Banner, EmptyState, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 import { toggleDiscountCodeAction } from './actions';
 import { CodeForm } from './code-form';
@@ -38,7 +39,7 @@ function statusTag(c: DiscountCodeRow) {
 export default async function DiscountCodesPage() {
   await requireOrganizer();
 
-  if (!stripeEnabled()) {
+  if (!discountsEnabled()) {
     return (
       <>
         <PageHeader
@@ -46,7 +47,11 @@ export default async function DiscountCodesPage() {
           info={
             <>
               <strong>Waiting on Stripe</strong>
-              <p>Codes are created and checked in Stripe, so Stripe has to be connected first.</p>
+              <p>
+                Codes are created and checked in Stripe, so the dashboard needs its discount key
+                (<code>STRIPE_DISCOUNTS_KEY</code>) first. It is a restricted key that can write
+                coupons, promotion codes and products, and nothing else.
+              </p>
             </>
           }
           tags={<Tag color="grey">Stripe not connected</Tag>}
@@ -54,7 +59,7 @@ export default async function DiscountCodesPage() {
         <Panel>
           <EmptyState icon="◌">
             <p className="empty-title">Discount codes need Stripe</p>
-            <p className="empty-sub">Connect Stripe to create and track codes.</p>
+            <p className="empty-sub">Add the Stripe discount key to create and track codes.</p>
           </EmptyState>
         </Panel>
       </>
@@ -63,6 +68,11 @@ export default async function DiscountCodesPage() {
 
   let codes: DiscountCodeRow[] = [];
   let loadError: string | undefined;
+  // Attendee tickets a code can be limited to. An add-on is left out because it
+  // is never a line of its own at checkout; its bundle is listed instead.
+  const tickets = (await listTicketTypes())
+    .filter((t) => t.audience === 'attendee' && !t.addOnFor)
+    .map((t) => ({ id: t.id, name: t.name, hidden: !t.visible }));
   try {
     codes = await listDiscountCodes();
   } catch (err) {
@@ -87,8 +97,8 @@ export default async function DiscountCodesPage() {
           </>
         }
         tags={
-          <Tag color={stripeIsLive() ? 'green' : 'orange'} fill="outline">
-            {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
+          <Tag color={discountsAreLive() ? 'green' : 'orange'} fill="outline">
+            {discountsAreLive() ? 'Stripe live' : 'Stripe test mode'}
           </Tag>
         }
         links={[
@@ -110,7 +120,7 @@ export default async function DiscountCodesPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Create a code</h2>
-        <CodeForm />
+        <CodeForm tickets={tickets} />
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
@@ -121,6 +131,7 @@ export default async function DiscountCodesPage() {
           cols={[
             { key: 'code', label: 'Code', className: 'cell-md' },
             { key: 'discount', label: 'Discount', className: 'cell-sm' },
+            { key: 'applies', label: 'Applies to', className: 'cell-md' },
             { key: 'used', label: 'Used', className: 'cell-sm' },
             { key: 'expires', label: 'Expires', className: 'cell-sm' },
             { key: 'status', label: 'Status', className: 'cell-sm' },
@@ -131,6 +142,9 @@ export default async function DiscountCodesPage() {
               {c.code}
             </code>,
             <span key="d">{c.discount}</span>,
+            <span key="t" style={{ fontSize: 12 }}>
+              {c.appliesTo.length ? c.appliesTo.join(', ') : 'All tickets'}
+            </span>,
             <span key="u">
               {c.timesRedeemed}
               {c.maxRedemptions ? ` / ${c.maxRedemptions}` : ''}

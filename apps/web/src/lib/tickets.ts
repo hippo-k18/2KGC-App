@@ -76,6 +76,12 @@ export interface Tier {
   addOn?: { tierId: TicketId; name: string; tagline: string; priceCents: number };
   /** Set on a bundle: the tier it was built on, whose registration questions it answers. */
   baseTierId?: TicketId;
+  /**
+   * The Stripe product this tier sells as, once a discount code has been
+   * limited to it. Not a secret: it is only an id, and Stripe shows it to the
+   * buyer's browser on the payment page anyway.
+   */
+  stripeProductId?: string;
 }
 
 /** `119900` → `$1,199`. Whole dollars, because every tier is a whole number. */

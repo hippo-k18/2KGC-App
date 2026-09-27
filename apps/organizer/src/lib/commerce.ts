@@ -316,6 +316,8 @@ export async function salesSummary(): Promise<SalesSummary> {
 export interface TicketTypeRow {
   id: string;
   name: string;
+  /** Set on an add-on sold only inside a bundle, never by itself. */
+  addOnFor?: string;
   priceCents: number;
   currency: string;
   tagline: string;
@@ -379,6 +381,7 @@ function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
   return {
     id,
     name: t.name,
+    addOnFor: t.addOnFor,
     priceCents: t.priceCents,
     currency: t.currency,
     tagline: t.tagline ?? '',

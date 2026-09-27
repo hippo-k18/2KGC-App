@@ -11,7 +11,11 @@ import { createDiscountCodeAction, type CodeState } from './actions';
  * string people type). That split is a Stripe implementation detail and is
  * deliberately not exposed here — the action creates both.
  */
-export function CodeForm() {
+export function CodeForm({
+  tickets,
+}: {
+  tickets: { id: string; name: string; hidden: boolean }[];
+}) {
   const [state, action] = useActionState<CodeState, FormData>(createDiscountCodeAction, {});
   const [kind, setKind] = useState<'percent' | 'amount'>('percent');
   const [code, setCode] = useState('');
@@ -74,6 +78,27 @@ export function CodeForm() {
           </span>
         </div>
       </div>
+
+      <fieldset className="whova-form-row" style={{ border: 0, margin: 0, padding: 0 }}>
+        <legend className="whova-form-label">Applies to</legend>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px' }}>
+          {tickets.map((t) => (
+            <label key={t.id} style={{ alignItems: 'center', display: 'flex', gap: 6, fontSize: 13 }}>
+              <input type="checkbox" name="tier" value={t.id} />
+              {t.name}
+              {t.hidden ? <span className="muted">(hidden)</span> : null}
+            </label>
+          ))}
+        </div>
+        {/*
+          Leaving every box empty is the common case (a 20% student code), so
+          it means every ticket rather than being an error.
+        */}
+        <p className="muted" style={{ fontSize: 12 }}>
+          Leave all unticked for every ticket. Stripe takes the discount off the ticked tickets
+          only.
+        </p>
+      </fieldset>
 
       <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="maxRedemptions">

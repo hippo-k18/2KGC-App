@@ -118,6 +118,7 @@ function toTier(
     // attendee tiers, which is the only slice that was sellable at the time.
     audience: t.audience ?? 'attendee',
     taxCode: t.taxCode ?? 'txcd_20030000',
+    stripeProductId: optional(t.stripeProductId),
     ...availability(t, now),
     ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(t, parts, now) } : {}),
   };

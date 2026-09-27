@@ -315,6 +315,30 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, origin };
 }
 
+/**
+ * How a ticket is described to Stripe when it has no product of its own.
+ */
+function productData(tier: Tier) {
+  return {
+    name: `KGC 2027: ${tier.name}`,
+    description: tier.tagline,
+    /**
+     * `txcd_20030000` is Stripe's "General - Services" code, which is
+     * what their own ticketing guide specifies for admission.
+     *
+     * The subtlety worth knowing: an event ticket is taxed where the
+     * *event happens*, not where the buyer lives — unlike almost
+     * everything else Stripe Tax handles. KGC is at Bryant Park,
+     * New York, so the relevant jurisdiction is New York, and
+     * a buyer in Berlin owes New York's treatment rather than German
+     * VAT. That is configured on the Stripe side by setting the
+     * event's location; getting it wrong is a filing problem, not a
+     * display bug.
+     */
+    tax_code: tier.taxCode,
+  };
+}
+
 export async function startCheckout(
   _prev: CheckoutState,
   form: FormData,
@@ -364,8 +388,18 @@ export async function startCheckout(
 
   let sessionId: string;
   let url: string | null;
+  /**
+   * Sell each tier as its own Stripe product when it has one.
+   *
+   * A tier gets `stripeProductId` the first time the dashboard limits a
+   * discount code to it, and Stripe matches that restriction by product. The
+   * product is what makes "20% off Main Conference" come off the Main
+   * Conference line and nothing else. Without one, Stripe mints a throwaway
+   * product per session and a restricted code has nothing to match.
+   */
+  let useProducts = true;
   try {
-    const session = await stripe().checkout.sessions.create({
+    const create = () => stripe().checkout.sessions.create({
       mode: 'payment',
       customer_email: email,
       line_items: lines.map((line) => {
@@ -377,24 +411,9 @@ export async function startCheckout(
           price_data: {
             currency: tier.currency,
             unit_amount: tier.priceCents,
-            product_data: {
-              name: `KGC 2027: ${tier.name}`,
-              description: tier.tagline,
-              /**
-               * `txcd_20030000` is Stripe's "General - Services" code, which is
-               * what their own ticketing guide specifies for admission.
-               *
-               * The subtlety worth knowing: an event ticket is taxed where the
-               * *event happens*, not where the buyer lives — unlike almost
-               * everything else Stripe Tax handles. KGC is at Bryant Park,
-               * New York, so the relevant jurisdiction is New York, and
-               * a buyer in Berlin owes New York's treatment rather than German
-               * VAT. That is configured on the Stripe side by setting the
-               * event's location; getting it wrong is a filing problem, not a
-               * display bug.
-               */
-              tax_code: tier.taxCode,
-            },
+            ...(useProducts && tier.stripeProductId
+              ? { product: tier.stripeProductId }
+              : { product_data: productData(tier) }),
           },
         };
       }),
@@ -457,6 +476,23 @@ export async function startCheckout(
       // everything the buyer typed and show them a price list instead.
       cancel_url: `${origin}/tickets/checkout?tier=${encodeURIComponent(primary.id)}&cancelled=1`,
     });
+
+    let session;
+    try {
+      session = await create();
+    } catch (err) {
+      /*
+       * A product archived or deleted in Stripe's own dashboard would otherwise
+       * stop every sale of that ticket. The retry describes the ticket inline,
+       * as before products existed, so it still sells at the right price. The
+       * only loss is that a code limited to that product will not apply, which
+       * errs toward full price rather than a discount nobody meant to give.
+       */
+      if (!lines.some((line) => tiers.get(line.tierId)?.stripeProductId)) throw err;
+      console.error('[checkout] Stripe refused a ticket product; retrying without products', err);
+      useProducts = false;
+      session = await create();
+    }
     sessionId = session.id;
     url = session.url;
   } catch (err) {

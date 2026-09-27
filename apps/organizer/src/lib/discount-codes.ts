@@ -1,6 +1,9 @@
 import 'server-only';
 
-import { stripe } from './stripe';
+import { FieldValue } from 'firebase-admin/firestore';
+import { COLLECTIONS, EVENT_ID, type TicketTypeDoc } from '@kgc/shared';
+import { db } from './firestore';
+import { discountsStripe as stripe } from './stripe';
 
 /**
  * Discount codes, which live in Stripe rather than in Firestore.
@@ -47,6 +50,12 @@ export interface DiscountCodeRow {
   expiresAt?: string;
   /** Stripe restricts some codes to first-time customers or a minimum spend. */
   restrictions: string[];
+  /**
+   * The ticket names the code is limited to, or empty for every ticket. A
+   * product this event does not recognise is shown by its Stripe id rather
+   * than dropped, so a restriction is never hidden.
+   */
+  appliesTo: string[];
   createdAt: string;
 }
 
@@ -75,10 +84,13 @@ function describeCoupon(coupon: {
  * usually absent and silently hiding half the codes.
  */
 export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
-  const res = await stripe().promotionCodes.list({
-    limit: 100,
-    expand: ['data.promotion.coupon'],
-  });
+  const [res, products] = await Promise.all([
+    stripe().promotionCodes.list({
+      limit: 100,
+      expand: ['data.promotion.coupon.applies_to'],
+    }),
+    productNames(),
+  ]);
 
   return res.data
     .map((p) => {
@@ -98,6 +110,7 @@ export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
         );
       }
       if (coupon?.duration && coupon.duration !== 'once') restrictions.push(coupon.duration);
+      const appliesTo = (coupon?.applies_to?.products ?? []).map((id) => products.get(id) ?? id);
 
       return {
         id: p.id,
@@ -110,6 +123,7 @@ export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
         maxRedemptions: p.max_redemptions ?? undefined,
         expiresAt: p.expires_at ? new Date(p.expires_at * 1000).toISOString() : undefined,
         restrictions,
+        appliesTo,
         createdAt: new Date(p.created * 1000).toISOString(),
       };
     })
@@ -124,6 +138,64 @@ export interface CreateDiscountInput {
   currency: string;
   maxRedemptions?: number;
   expiresAt?: Date;
+  /** `ticketTypes` ids the code is limited to. Empty means every ticket. */
+  tierIds: string[];
+}
+
+/** Stripe product id → ticket name, for the tiers that have a product. */
+async function productNames(): Promise<Map<string, string>> {
+  const snap = await db().collection(COLLECTIONS.ticketTypes).where('eventId', '==', EVENT_ID).get();
+  const names = new Map<string, string>();
+  for (const d of snap.docs) {
+    const t = d.data() as TicketTypeDoc;
+    if (t.stripeProductId) names.set(t.stripeProductId, t.name);
+  }
+  return names;
+}
+
+/**
+ * The Stripe product each tier sells as, creating any that do not exist yet.
+ *
+ * ── Why a restricted code needs these ───────────────────────────────────────
+ *
+ * Stripe limits a coupon to tickets by **product id**. The website used to
+ * describe each ticket inline at checkout, which makes Stripe mint a fresh
+ * product per session, so there was nothing stable a restriction could name.
+ * Once a tier has `stripeProductId`, the website sells it as that product and
+ * a code limited to it applies to that line only.
+ *
+ * The idempotency key is the tier id, so two organizers restricting codes to
+ * the same tier at the same moment get one product rather than two. The name
+ * and tax code are refreshed on every call, so a renamed tier is renamed in
+ * Stripe the next time a code is made for it.
+ */
+async function ensureProducts(tierIds: string[]): Promise<string[]> {
+  const s = stripe();
+  const ids: string[] = [];
+  for (const tierId of tierIds) {
+    const ref = db().collection(COLLECTIONS.ticketTypes).doc(tierId);
+    const snap = await ref.get();
+    const t = snap.data() as TicketTypeDoc | undefined;
+    if (!t || t.eventId !== EVENT_ID) throw new Error(`Unknown ticket ${tierId}.`);
+    const fields = {
+      name: `KGC 2027: ${t.name}`,
+      tax_code: t.taxCode ?? 'txcd_20030000',
+      ...(t.tagline ? { description: t.tagline } : {}),
+    };
+    let productId = t.stripeProductId;
+    if (productId) {
+      await s.products.update(productId, fields);
+    } else {
+      const product = await s.products.create(
+        { ...fields, metadata: { kgcEvent: EVENT_ID, tierId } },
+        { idempotencyKey: `kgc-product-${EVENT_ID}-${tierId}` },
+      );
+      productId = product.id;
+      await ref.update({ stripeProductId: productId, updatedAt: FieldValue.serverTimestamp() });
+    }
+    ids.push(productId);
+  }
+  return ids;
 }
 
 /**
@@ -135,10 +207,12 @@ export interface CreateDiscountInput {
  */
 export async function createDiscountCode(input: CreateDiscountInput): Promise<string> {
   const s = stripe();
+  const products = input.tierIds.length ? await ensureProducts(input.tierIds) : [];
 
   const coupon = await s.coupons.create({
     duration: 'once',
     name: input.code,
+    ...(products.length ? { applies_to: { products } } : {}),
     ...(input.percentOff
       ? { percent_off: input.percentOff }
       : { amount_off: input.amountOffCents, currency: input.currency }),

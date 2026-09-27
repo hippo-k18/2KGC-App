@@ -60,6 +60,39 @@ export function stripe(): Stripe {
  * move no real money, and a dashboard that cries wolf on every test refund
  * trains an organizer to click through the warning on the day it is real.
  */
+/**
+ * The discount-code key, separate from `STRIPE_SECRET_KEY` on purpose.
+ *
+ * The dashboard holds no general Stripe key, so no screen here can refund or
+ * pay out. Discount codes still have to be written to Stripe, because Stripe is
+ * what checks them at payment. `STRIPE_DISCOUNTS_KEY` is a restricted key with
+ * write access to Coupons, Promotion Codes and Products only, and only
+ * `discount-codes.ts` reads it. A key that can create a 100%-off code is still
+ * worth guarding, but it cannot move money out of the account.
+ */
+let discountsCached: Stripe | null = null;
+
+export function discountsEnabled(): boolean {
+  return Boolean(process.env.STRIPE_DISCOUNTS_KEY);
+}
+
+export function discountsStripe(): Stripe {
+  if (!discountsCached) {
+    const key = process.env.STRIPE_DISCOUNTS_KEY;
+    if (!key) {
+      throw new Error(
+        'discountsStripe() called with STRIPE_DISCOUNTS_KEY unset. Check discountsEnabled() first.',
+      );
+    }
+    discountsCached = new Stripe(key, { apiVersion: '2025-10-29.clover', typescript: true });
+  }
+  return discountsCached;
+}
+
+export function discountsAreLive(): boolean {
+  return /^(sk|rk)_live_/.test(process.env.STRIPE_DISCOUNTS_KEY ?? '');
+}
+
 export function stripeIsLive(): boolean {
   return (process.env.STRIPE_SECRET_KEY ?? '').startsWith('sk_live_');
 }

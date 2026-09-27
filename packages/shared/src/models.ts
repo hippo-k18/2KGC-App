@@ -1422,6 +1422,16 @@ export interface TicketTypeDoc extends BaseDoc {
    * ignored by the website.
    */
   bundleOf?: string[];
+  /**
+   * The Stripe Product this tier sells as, once a discount code has been
+   * limited to it.
+   *
+   * Created by the dashboard's Discount Codes screen the first time a code is
+   * restricted to this tier. Checkout then sells the tier as this product
+   * rather than a throwaway one per session, which is what lets Stripe apply a
+   * "Main Conference only" code to the Main Conference line and nothing else.
+   */
+  stripeProductId?: string;
 
   /**
    * How many attendee registrations **one unit** of this package entitles the
