@@ -86,7 +86,6 @@ export default async function EventListPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: 'var(--body)', fontSize: 15, fontWeight: 500 }}>
               {EVENT.name}
-              <span className="event-status-badge badge-alert">Draft</span>
             </div>
             <div style={{ color: 'var(--body)', fontSize: 14, fontWeight: 500 }}>
               {days.length ? `${days[0]} – ${days[days.length - 1]}` : 'no sessions scheduled'}
