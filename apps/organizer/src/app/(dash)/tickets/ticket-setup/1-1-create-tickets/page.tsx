@@ -17,6 +17,7 @@ import {
 import { toggleTicketVisibilityAction } from './actions';
 import { SoldCountForm } from './sold-count-form';
 import { TicketForm } from './ticket-form';
+import { salesWindowText } from '@/lib/sales-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -248,14 +249,7 @@ export default async function CreateTicketsPage({
                     with a buyer.
                   */
                   <span key="w" className="muted" style={{ fontSize: 12 }}>
-                    {t.salesOpenAtLocal || t.salesCloseAtLocal ? (
-                      <>
-                        {t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} →{' '}
-                        {t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}
-                      </>
-                    ) : (
-                      'always'
-                    )}
+                    {salesWindowText(t)}
                   </span>,
 
                   <div key="a" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

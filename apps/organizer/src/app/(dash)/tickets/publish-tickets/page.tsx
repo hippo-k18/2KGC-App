@@ -9,6 +9,7 @@ import { setSiteVisibilityAction } from '../../marketing/event-website/actions';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { wrapCol } from '../wrap-col';
+import { salesWindowText } from '@/lib/sales-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +62,8 @@ export default async function PublishTicketsPage() {
     (t) =>
       !(t.salesOpenAt && new Date(t.salesOpenAt).getTime() > now) &&
       !(t.salesCloseAt && new Date(t.salesCloseAt).getTime() < now) &&
-      !(typeof t.quantityTotal === 'number' && t.quantitySold >= t.quantityTotal),
+      !(typeof t.quantityTotal === 'number' && t.quantitySold >= t.quantityTotal) &&
+      !t.offSale,
   );
 
   const freeAndVisible = listed.filter((t) => t.priceCents === 0);
@@ -333,9 +335,7 @@ export default async function PublishTicketsPage() {
               </span>
             ),
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {t.salesOpenAtLocal || t.salesCloseAtLocal
-                ? `${t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} → ${t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}`
-                : 'always'}
+              {salesWindowText(t)}
             </span>,
           ])}
           empty="Nothing is buyable right now. See the pre-flight above."

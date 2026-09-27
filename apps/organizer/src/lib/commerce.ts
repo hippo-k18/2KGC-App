@@ -332,6 +332,13 @@ export interface TicketTypeRow {
   pricePhases?: PricePhase[];
   /** The current phase's name, "Early Bird". */
   phase?: string;
+  /**
+   * Set when the price phases stop the website selling this tier right now:
+   * the current phase is marked off sale or has no price, or no phase has
+   * started. A bundle carries it when any of its parts does. The lists print it
+   * in place of the sales window, so an off-sale add-on does not read as on sale.
+   */
+  offSale?: string;
   /** "Best value", over the ticket on the tickets page. */
   badge?: string;
   /** Set on a bundle: the tiers whose prices it adds up. */
@@ -404,6 +411,7 @@ function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
     flatPriceCents: t.priceCents,
     pricePhases: t.pricePhases,
     phase: now.phase,
+    offSale: now.onSale ? undefined : now.unavailableReason,
     badge: t.badge,
     bundleOf: t.bundleOf,
     currency: t.currency,
@@ -445,6 +453,7 @@ export async function listTicketTypes(): Promise<TicketTypeRow[]> {
     const parts = (row.bundleOf ?? []).map((id) => byId.get(id));
     if (parts.length && parts.every(Boolean)) {
       row.priceCents = parts.reduce((sum, p) => sum + p!.priceCents, 0);
+      row.offSale ??= parts.find((p) => p!.offSale)?.offSale;
     }
   }
   return rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));

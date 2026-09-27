@@ -4,6 +4,7 @@ import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
+import { salesWindowText } from '@/lib/sales-window';
 
 /**
  * The exhibitor and sponsor ticket catalogues.
@@ -186,14 +187,7 @@ export async function AudienceCatalogue({
                 </div>,
 
                 <span key="w" className="muted" style={{ fontSize: 12 }}>
-                  {t.salesOpenAtLocal || t.salesCloseAtLocal ? (
-                    <>
-                      {t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} →{' '}
-                      {t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}
-                    </>
-                  ) : (
-                    'always'
-                  )}
+                  {salesWindowText(t)}
                 </span>,
 
                 <Link key="e" href={`${ROUTES.createTickets}?edit=${t.id}`}>
