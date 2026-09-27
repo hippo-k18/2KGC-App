@@ -993,6 +993,9 @@ body.nav-open {
   font-size: clamp(1.1rem, 2.25vw, 32px);
   line-height: 1.6;
   font-weight: 700;
+  /* `.lede` caps the box at 62ch; without this the capped box sat at the left
+     of the hero and the centred text inside it landed left of the headline. */
+  margin-inline: auto;
 }
 
 /* "MAY 4–8, 2027 | CORNELL TECH NYC" — spaced capitals, as on the live site. */
