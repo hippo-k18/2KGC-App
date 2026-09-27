@@ -42,10 +42,16 @@ export function fixedBlogEditors(): string[] {
     .filter(Boolean);
 }
 
-/** The blog editor's sign-in page, with the address filled in. */
-function signInLink(email: string): string {
+/**
+ * The blog editor's sign-in page, with the address filled in. With the token,
+ * opening it marks them Active on Admin Settings (`acceptBlogInvitation()` in
+ * the website); getting in still takes an emailed code.
+ */
+function signInLink(email: string, inviteToken?: string): string {
   const origin = (process.env.BLOG_ORIGIN ?? `${publicSiteOrigin()}/blog`).replace(/\/$/, '');
-  return `${origin}/write/sign-in?email=${encodeURIComponent(email)}`;
+  const params = new URLSearchParams({ email });
+  if (inviteToken) params.set('invite', inviteToken);
+  return `${origin}/write/sign-in?${params}`;
 }
 
 const roleWords = (role: BlogRole) => (role === 'editor' ? 'an editor' : 'a writer');
@@ -90,11 +96,13 @@ export async function inviteBlogPerson(input: {
     const before = (await ref.get()).data() as BlogMemberDoc | undefined;
     if (before && before.status !== 'removed') return { ok: false, error: `${email} can already sign in to the blog.` };
 
+    const inviteToken = newNonce();
     const doc: BlogMemberDoc = {
       email,
       name,
       role,
       status: 'invited',
+      inviteToken,
       invitedBy: input.actor,
       invitedAt: new Date(),
       sessionEpoch: newNonce(),
@@ -108,7 +116,7 @@ export async function inviteBlogPerson(input: {
       name,
       invitedBy: 'The KGC team',
       roleLabel: roleWords(role),
-      link: signInLink(email),
+      link: signInLink(email, inviteToken),
       actor: input.actor,
     });
     await appendAudit({
@@ -187,12 +195,18 @@ export async function resendBlogInvitation(input: { email: string; actor: string
   const email = input.email.trim().toLowerCase();
   const m = await existing(email);
   if (!m) return { ok: false, error: 'They no longer have blog access.' };
+  // Invitations sent before links carried a token get one now.
+  let inviteToken = m.inviteToken;
+  if (m.status === 'invited' && !inviteToken) {
+    inviteToken = newNonce();
+    await col().doc(email).update({ inviteToken });
+  }
   const outcome = await sendBlogInvitation(db(), {
     to: email,
     name: m.name,
     invitedBy: 'The KGC team',
     roleLabel: roleWords(m.role),
-    link: signInLink(email),
+    link: signInLink(email, inviteToken),
     actor: input.actor,
   });
   await appendAudit({

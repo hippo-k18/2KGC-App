@@ -3,8 +3,11 @@
 import { useActionState } from 'react';
 import { loginAction, type LoginState } from './actions';
 
-export function LoginForm() {
-  const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, { step: 'email' });
+export function LoginForm({ initialEmail = '' }: { initialEmail?: string }) {
+  const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, {
+    step: 'email',
+    email: initialEmail,
+  });
 
   if (state.step === 'code') {
     return (

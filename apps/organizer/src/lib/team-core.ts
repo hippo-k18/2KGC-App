@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { TeamRole } from '@kgc/shared';
 
 /**
@@ -198,6 +198,14 @@ export function canExport(roles: readonly TeamRole[], kind: string): boolean {
 /** A random value for `sessionEpoch`; a new one ends every older session. */
 export function newNonce(): string {
   return randomBytes(24).toString('base64url');
+}
+
+/** Does the token from an invitation link match the stored one? Constant time. */
+export function sameToken(stored: string | undefined, given: string): boolean {
+  if (!stored || !given) return false;
+  const a = Buffer.from(stored);
+  const b = Buffer.from(given);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** `team_` + sha256 of the address, so one person is one document. */

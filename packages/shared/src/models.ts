@@ -3269,8 +3269,17 @@ export interface TeamMemberDoc extends BaseDoc {
   email: string;
   name?: string;
   roles: TeamRole[];
-  /** `invited` until they have chosen a passphrase through their link. */
+  /**
+   * `invited` until they open the link in their invitation or first sign in,
+   * whichever comes first. Either way access still needs an emailed code.
+   */
   status: "invited" | "active";
+  /**
+   * The random value in the invitation link. Opening a link that carries it
+   * turns `invited` into `active`; it is deleted when that happens, and a
+   * re-invite (a new document) gets a new one.
+   */
+  inviteToken?: string;
   /** `scrypt$N$salt$hash`. Absent until the link has been used. */
   passphraseHash?: string;
   /**
@@ -3312,5 +3321,7 @@ export interface BlogMemberDoc {
   invitedBy?: string;
   invitedAt?: unknown;
   lastSignInAt?: unknown;
+  /** As on `TeamMemberDoc`: opening the invitation link with it marks them active. */
+  inviteToken?: string;
   sessionEpoch: string;
 }

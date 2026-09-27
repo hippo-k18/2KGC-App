@@ -7,7 +7,7 @@ import { sendTeamInvitation } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
-import { ROLE_LABELS, looksLikeEmail, memberIdFor, newNonce } from './team-core';
+import { ROLE_LABELS, looksLikeEmail, memberIdFor, newNonce, sameToken } from './team-core';
 
 /**
  * `teamMembers` — the people an owner has invited, beside the env allowlist.
@@ -82,10 +82,39 @@ export async function findMember(email: string): Promise<TeamMember | null> {
 
 export async function stampSignIn(memberId: string): Promise<void> {
   try {
-    // The first sign-in is what turns an invitation into an active member.
-    await members().doc(memberId).update({ lastSignInAt: FieldValue.serverTimestamp(), status: 'active' });
+    // Signing in accepts the invitation too, for anyone who never opened the link.
+    await members()
+      .doc(memberId)
+      .update({ lastSignInAt: FieldValue.serverTimestamp(), status: 'active', inviteToken: FieldValue.delete() });
   } catch (err) {
     recordError('team.stampSignIn', err);
+  }
+}
+
+/**
+ * Opening the link in an invitation accepts it: the row on Admin Settings goes
+ * from Invited to Active. It grants nothing by itself, since getting in still
+ * takes a code sent to the address. Before this the link was a bare `/login`,
+ * so the row stayed Invited until a code was entered, and never changed at all
+ * when the link was opened in a browser already signed in as someone else.
+ */
+export async function acceptInvitation(email: string, token: string): Promise<void> {
+  try {
+    const ref = members().doc(memberIdFor(email));
+    const snap = await ref.get();
+    const d = snap.data() as TeamMemberDoc | undefined;
+    if (!d || d.eventId !== EVENT_ID || d.status !== 'invited' || !sameToken(d.inviteToken, token)) return;
+    await ref.update({ status: 'active', inviteToken: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+    await appendAudit({
+      actor: d.email,
+      action: 'team.acceptInvitation',
+      targetPath: `${COLLECTIONS.teamMembers}/${snap.id}`,
+      targetId: snap.id,
+      before: { status: 'invited' },
+      after: { status: 'active' },
+    });
+  } catch (err) {
+    recordError('team.acceptInvitation', err);
   }
 }
 
@@ -115,13 +144,16 @@ const rolesLabel = (roles: TeamRole[]) => roles.map((r) => ROLE_LABELS[r].label)
 async function sendInvite(
   member: Pick<TeamMember, 'email' | 'name' | 'roles'>,
   actor: string,
+  inviteToken: string | undefined,
 ): Promise<{ emailed: boolean; signInUrl: string }> {
   const signInUrl = `${await dashboardOrigin()}/login`;
+  const params = new URLSearchParams({ email: member.email });
+  if (inviteToken) params.set('invite', inviteToken);
   const outcome = await sendTeamInvitation(db(), {
     to: member.email,
     name: member.name || undefined,
     rolesLabel: rolesLabel(member.roles),
-    link: signInUrl,
+    link: `${signInUrl}?${params}`,
     actor,
   });
   return { emailed: outcome === 'sent', signInUrl };
@@ -149,6 +181,7 @@ export async function inviteMember(input: {
     const ref = members().doc(id);
     // `create`, not `set`: a second invitation to the same address must not
     // quietly reset the first one's roles.
+    const inviteToken = newNonce();
     try {
       await ref.create({
         eventId: EVENT_ID,
@@ -156,6 +189,7 @@ export async function inviteMember(input: {
         ...(name ? { name } : {}),
         roles: input.roles,
         status: 'invited',
+        inviteToken,
         sessionEpoch: newNonce(),
         invitedBy: input.actor,
         updatedBy: input.actor,
@@ -169,7 +203,7 @@ export async function inviteMember(input: {
       throw err;
     }
 
-    const { emailed, signInUrl } = await sendInvite({ email, name, roles: input.roles }, input.actor);
+    const { emailed, signInUrl } = await sendInvite({ email, name, roles: input.roles }, input.actor, inviteToken);
 
     await appendAudit({
       actor: input.actor,
@@ -225,8 +259,15 @@ export async function resendInvitation(input: { memberId: string; actor: string 
   try {
     const snap = await members().doc(input.memberId).get();
     if (!snap.exists) return { ok: false, error: 'They are no longer on the team.' };
-    const member = toMember(snap.id, snap.data() as TeamMemberDoc);
-    const { emailed, signInUrl } = await sendInvite(member, input.actor);
+    const data = snap.data() as TeamMemberDoc;
+    const member = toMember(snap.id, data);
+    // Invitations sent before links carried a token get one now.
+    let inviteToken = data.inviteToken;
+    if (data.status === 'invited' && !inviteToken) {
+      inviteToken = newNonce();
+      await snap.ref.update({ inviteToken });
+    }
+    const { emailed, signInUrl } = await sendInvite(member, input.actor, inviteToken);
     await appendAudit({
       actor: input.actor,
       action: 'team.resendInvitation',

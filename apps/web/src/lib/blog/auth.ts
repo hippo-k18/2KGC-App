@@ -4,6 +4,7 @@ import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS } from '@kgc/shared';
 import { sendBlogSignInCode } from '@kgc/scripts/src/lib/email';
 import { db } from '@/lib/firestore';
@@ -63,6 +64,26 @@ const codes = () => db().collection(COLLECTIONS.blogSignInCodes);
 export async function getMember(email: string): Promise<BlogMemberDoc | null> {
   const snap = await members().doc(email).get();
   return snap.exists ? (snap.data() as BlogMemberDoc) : null;
+}
+
+/**
+ * Opening the link in a blog invitation accepts it, so Admin Settings on the
+ * dashboard shows them Active rather than Invited. It grants nothing: getting
+ * in still takes a code sent to the address.
+ */
+export async function acceptBlogInvitation(rawEmail: string, token: string): Promise<void> {
+  const email = normaliseEmail(rawEmail);
+  if (!email || !token) return;
+  try {
+    const ref = members().doc(email);
+    await db().runTransaction(async (tx) => {
+      const m = (await tx.get(ref)).data() as BlogMemberDoc | undefined;
+      if (!m || m.status !== 'invited' || !m.inviteToken || !codesMatch(m.inviteToken, token)) return;
+      tx.update(ref, { status: 'active', inviteToken: FieldValue.delete() });
+    });
+  } catch (err) {
+    console.error('[blog] acceptBlogInvitation:', err);
+  }
 }
 
 /** May this address sign in at all? */
@@ -135,8 +156,11 @@ export async function verifyCode(rawEmail: string, rawCode: string): Promise<{ o
   // First sign-in of an editor named in BLOG_EDITORS creates their profile.
   const memberRef = members().doc(email);
   const existing = await getMember(email);
+  // Signing in accepts the invitation too, for anyone who never opened the link.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { inviteToken: _accepted, ...rest } = existing ?? ({} as Partial<BlogMemberDoc>);
   const member: BlogMemberDoc = existing
-    ? { ...existing, status: 'active', lastSignInAt: new Date() }
+    ? { ...(rest as BlogMemberDoc), status: 'active', lastSignInAt: new Date() }
     : {
         email,
         name: email.split('@')[0],

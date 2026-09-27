@@ -423,6 +423,7 @@ export interface AuditEntry {
     | 'team.roles'
     | 'team.newLink'
     | 'team.resendInvitation'
+    | 'team.acceptInvitation'
     | 'blog.invite'
     | 'blog.role'
     | 'blog.remove'
