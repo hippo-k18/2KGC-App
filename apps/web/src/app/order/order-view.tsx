@@ -43,8 +43,8 @@ export interface OrderViewRegistration {
  *
  * ── The pass, and why the page is shaped like one ───────────────────────────
  *
- * The order renders as a conference pass: a main panel carrying who and where,
- * and a perforated stub carrying the part you present. The tear line is not
+ * The order renders as an admission ticket: a main panel carrying who and
+ * where, and a perforated stub carrying the part you present. The tear line is not
  * decoration. It marks the real division on this page between the part that is
  * a record and the part you hand over.
  *
@@ -183,8 +183,9 @@ export function OrderView({ ev, reg }: { ev: SiteEvent; reg: OrderViewRegistrati
               </p>
             </div>
 
-            {/* The foil: a colour sheen, glitter and a glare, all driven by the
-                pointer through `PassTilt`. Purely visual. */}
+            {/* The foil: a colour sheen, glitter and a glare, all moved by a
+                finger, the mouse or the phone's tilt through `PassTilt`.
+                Purely visual. */}
             <span className="pass-foil" aria-hidden="true" />
             <span className="pass-glitter" aria-hidden="true" />
             <span className="pass-glare" aria-hidden="true" />
