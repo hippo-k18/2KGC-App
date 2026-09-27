@@ -92,6 +92,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "startup-pitch",
   "submit",
   "team",
+  "ticket",
   "tickets",
   "tickets1",
   "u",
