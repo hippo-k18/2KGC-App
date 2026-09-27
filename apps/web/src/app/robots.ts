@@ -12,7 +12,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       userAgent: '*',
       allow: '/',
       // Private pages: capability links, the blog editor, checkout internals.
-      disallow: blog ? ['/write'] : ['/api/', '/order/', '/checkout/', '/consent/', '/speaker/', '/review/', '/u/', '/r/'],
+      disallow: blog ? ['/write'] : ['/api/', '/order/', '/ticket/', '/checkout/', '/consent/', '/speaker/', '/review/', '/u/', '/r/'],
     },
     sitemap: `${origin}/sitemap.xml`,
   };
