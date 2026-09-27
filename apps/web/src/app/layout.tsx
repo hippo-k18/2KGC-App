@@ -154,6 +154,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           eventName={ev.name}
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
+          showTickets={branding.showTickets}
           blogOrigin={process.env.BLOG_ORIGIN?.replace(/\/$/, '') || undefined}
         />
         <main>{children}</main>

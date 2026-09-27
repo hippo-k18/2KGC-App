@@ -3,7 +3,9 @@ import { requireOrganizer } from '@/lib/auth';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { getForm } from '@/lib/question-forms';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
+import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { publicUrl } from '@/lib/webpages';
+import { setSiteVisibilityAction } from '../../marketing/event-website/actions';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { wrapCol } from '../wrap-col';
@@ -43,11 +45,13 @@ interface Check {
 export default async function PublishTicketsPage() {
   await requireOrganizer();
 
-  const [tickets, orders, form] = await Promise.all([
+  const [tickets, orders, form, branding] = await Promise.all([
     listTicketTypes(),
     listOrders(),
     getForm('attendee'),
+    readSettings(SETTINGS_KEYS.branding),
   ]);
+  const salesOpen = branding.showTickets;
 
   const attendee = tickets.filter((t) => t.audience === 'attendee');
   const listed = attendee.filter((t) => t.visible);
@@ -195,10 +199,10 @@ export default async function PublishTicketsPage() {
         title="Publish Tickets"
         info={
           <>
-            <strong>There is no publish button</strong>
+            <strong>Ticket sales switch</strong>
             <p>
-              A ticket goes on sale as soon as it is listed in Create Tickets. Use the checks below
-              before you list one.
+              While ticket sales are open, a ticket goes on sale as soon as it is listed in Create
+              Tickets. Use the checks below before you open sales or list one.
             </p>
           </>
         }
@@ -234,15 +238,41 @@ export default async function PublishTicketsPage() {
             {blockers.length} blocking {blockers.length === 1 ? 'problem' : 'problems'} on the live
             ticket page.
           </strong>{' '}
-          Tickets are on sale now, so somebody can hand over money while{' '}
+          {salesOpen ? 'Tickets are on sale now' : 'Fix before opening sales'}, or somebody can hand over money while{' '}
           {blockers.length === 1 ? 'this is' : 'these are'} unfixed. Each one is marked{' '}
           <strong>stop</strong> in the pre-flight below.
         </Banner>
       )}
 
+      <Panel>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 15, margin: 0 }}>Ticket sales on the website</h2>
+          <Tag color={salesOpen ? 'green' : 'grey'} small>
+            {salesOpen ? 'open' : 'closed'}
+          </Tag>
+          <form action={setSiteVisibilityAction} style={{ marginLeft: 'auto' }}>
+            <input type="hidden" name="field" value="showTickets" />
+            <input type="hidden" name="show" value={salesOpen ? '0' : '1'} />
+            <button type="submit" className={`whova-btn-main ${salesOpen ? 'secondary' : 'primary'}`}>
+              {salesOpen ? 'Close ticket sales' : 'Open ticket sales'}
+            </button>
+          </form>
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
+          {salesOpen
+            ? 'Listed tickets can be bought on the website.'
+            : 'The website shows no prices and no "Register now" buttons, and the ticket pages say sales have not opened.'}{' '}
+          A change reaches the website within a minute.
+        </p>
+      </Panel>
+
       <StatTiles
         tiles={[
-          { label: 'Buyable now', value: openNow.length, sub: `of ${attendee.length} tiers` },
+          {
+            label: 'Buyable now',
+            value: salesOpen ? openNow.length : 0,
+            sub: salesOpen ? `of ${attendee.length} tiers` : 'ticket sales are closed',
+          },
           { label: 'Blocking', value: blockers.length, sub: blockers.length ? 'money will go wrong' : 'none' },
           { label: 'Warnings', value: warnings.length, sub: 'works, looks unfinished' },
           {

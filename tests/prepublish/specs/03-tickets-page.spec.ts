@@ -1,4 +1,4 @@
-import { expect, parsePrice, readTiers, test } from '../helpers';
+import { SALES, expect, parsePrice, readTiers, test } from '../helpers';
 
 /**
  * /tickets — choosing a ticket.
@@ -8,6 +8,7 @@ import { expect, parsePrice, readTiers, test } from '../helpers';
  */
 
 test.describe('tickets page @tickets', () => {
+  test.skip(SALES === 'off', 'ticket sales are switched off; see 09-sales-off');
   test.beforeEach(async ({ page }) => {
     await page.goto('/tickets');
   });

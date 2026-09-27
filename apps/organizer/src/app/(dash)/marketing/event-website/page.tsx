@@ -141,6 +141,12 @@ export default async function EventWebsitePage() {
       on: branding.showSpeakers,
       what: 'The speakers page and every link to it.',
     },
+    {
+      field: 'showTickets',
+      label: 'Ticket sales',
+      on: branding.showTickets,
+      what: 'Prices, checkout and invoice requests, and every "Register now" button. Off, the ticket pages say sales have not opened.',
+    },
   ] as const;
   const hiddenPaths = new Set([
     ...(branding.showAgenda ? [] : ['/agenda']),
@@ -231,13 +237,19 @@ export default async function EventWebsitePage() {
               {sw.what}
             </span>,
             <Tag key="s" color={sw.on ? 'green' : 'grey'} small>
-              {sw.on ? 'shown' : 'hidden'}
+              {sw.field === 'showTickets' ? (sw.on ? 'open' : 'closed') : sw.on ? 'shown' : 'hidden'}
             </Tag>,
             <form key="a" action={setSiteVisibilityAction}>
               <input type="hidden" name="field" value={sw.field} />
               <input type="hidden" name="show" value={sw.on ? '0' : '1'} />
               <button type="submit" className={`whova-btn-main ${sw.on ? 'secondary' : 'primary'}`}>
-                {sw.on ? `Hide ${sw.label.toLowerCase()}` : `Show ${sw.label.toLowerCase()}`}
+                {sw.field === 'showTickets'
+                  ? sw.on
+                    ? 'Close ticket sales'
+                    : 'Open ticket sales'
+                  : sw.on
+                    ? `Hide ${sw.label.toLowerCase()}`
+                    : `Show ${sw.label.toLowerCase()}`}
               </button>
             </form>,
           ])}

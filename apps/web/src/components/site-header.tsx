@@ -26,6 +26,7 @@ export function SiteHeader({
   eventName = 'Knowledge Graph Conference',
   showAgenda = false,
   showSpeakers = false,
+  showTickets = false,
   blogOrigin,
 }: {
   /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
@@ -34,6 +35,8 @@ export function SiteHeader({
   /** Marketing > Event Website switches, resolved in the root layout. */
   showAgenda?: boolean;
   showSpeakers?: boolean;
+  /** Whether tickets are on sale. Off hides "Register now". */
+  showTickets?: boolean;
   /**
    * `BLOG_ORIGIN`, resolved in the root layout. `/blog` links go straight there:
    * as a relative `Link` they are prefetched, the middleware answers the
@@ -215,9 +218,11 @@ export function SiteHeader({
               </div>
             </div>
 
-            <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
-              Register now
-            </Link>
+            {showTickets && (
+              <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
+                Register now
+              </Link>
+            )}
           </nav>
 
           {/*

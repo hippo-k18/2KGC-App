@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { tiersOrNull } from '@/lib/catalogue';
-import { siteEvent } from '@/lib/data';
+import { siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import type { TicketId } from '@/lib/tickets';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -10,6 +10,7 @@ import { stripeEnabled } from '@/lib/stripe';
 import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
 import { TierCard } from './tier-card';
+import { TicketSalesClosed } from './sales-closed';
 
 /**
  * The exhibitor and sponsor registration pages.
@@ -61,6 +62,7 @@ export async function AudienceTicketsPage({
   copy: AudiencePageCopy;
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const ev = await siteEvent();
   const params = await searchParams;
   const [catalogue, form] = await Promise.all([

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SLACK_WORKSPACE } from '@/lib/site';
+import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Community',
@@ -57,7 +58,11 @@ const LIBRARIES = [
   },
 ];
 
-export default function CommunityPage() {
+/** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
+export const revalidate = 30;
+
+export default async function CommunityPage() {
+  const salesOpen = await ticketSalesOpen();
   return (
     <>
       <section className="band band-centred" style={{ padding: '84px 0 70px' }}>
@@ -118,19 +123,21 @@ export default function CommunityPage() {
         </div>
       </section>
 
-      <section className="band band-pale band-centred">
-        <div className="wrap-kgc">
-          <h2 className="kgc-h2-md" style={{ marginBottom: 18 }}>
-            Meet them in person
-          </h2>
-          <p className="learn-intro" style={{ marginBottom: 30 }}>
-            The community spends one week a year in the same building.
-          </p>
-          <Link className="btn btn-accent btn-kgc" href="/tickets">
-            Register now
-          </Link>
-        </div>
-      </section>
+      {salesOpen && (
+        <section className="band band-pale band-centred">
+          <div className="wrap-kgc">
+            <h2 className="kgc-h2-md" style={{ marginBottom: 18 }}>
+              Meet them in person
+            </h2>
+            <p className="learn-intro" style={{ marginBottom: 30 }}>
+              The community spends one week a year in the same building.
+            </p>
+            <Link className="btn btn-accent btn-kgc" href="/tickets">
+              Register now
+            </Link>
+          </div>
+        </section>
+      )}
     </>
   );
 }

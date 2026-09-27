@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
+import { ticketSalesOpen } from '@/lib/data';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -338,6 +339,10 @@ export async function startCheckout(
     return {
       error: 'Ticket sales are not open yet. Nothing was charged.',
     };
+  }
+  // Switched off under Marketing > Event Website.
+  if (!(await ticketSalesOpen())) {
+    return { error: 'Ticket sales are not open yet. Nothing was charged.' };
   }
 
   const prepared = await prepareCheckout(form);

@@ -4,6 +4,8 @@ import { tiersOrNull } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
 import { stripeEnabled } from '@/lib/stripe';
 import { InvoiceForm } from './invoice-form';
+import { TicketSalesClosed } from '../sales-closed';
+import { ticketSalesOpen } from '@/lib/data';
 
 /**
  * Tickets › Invoice a company.
@@ -29,6 +31,7 @@ export const metadata: Metadata = {
 };
 
 export default async function InvoicePage() {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const tiers = (await tiersOrNull()) ?? [];
   /*
    * The form and the column beside it have to agree.

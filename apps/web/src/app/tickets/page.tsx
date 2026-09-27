@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { siteEvent } from '@/lib/data';
+import { siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
 import s from './tickets.module.css';
+import { TicketSalesClosed } from './sales-closed';
 
 export const metadata: Metadata = {
   title: 'Tickets',
@@ -202,6 +203,7 @@ export default async function TicketsPage({
 }: {
   searchParams: Promise<{ cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const ev = await siteEvent();
   const params = await searchParams;
 

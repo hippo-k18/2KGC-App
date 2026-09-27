@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
   title: 'Lifetime Achievement Award',
@@ -22,7 +23,11 @@ const CURRENT = {
 
 const PAST = [{ year: 2025, names: ['Mark Musen'] }];
 
-export default function AwardsPage() {
+/** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
+export const revalidate = 30;
+
+export default async function AwardsPage() {
+  const salesOpen = await ticketSalesOpen();
   return (
     <>
       {/*
@@ -76,11 +81,13 @@ export default function AwardsPage() {
             </p>
           ))}
 
-          <div style={{ marginTop: 40 }}>
-            <Link className="btn btn-accent btn-kgc" href="/tickets">
-              Join us in May
-            </Link>
-          </div>
+          {salesOpen && (
+            <div style={{ marginTop: 40 }}>
+              <Link className="btn btn-accent btn-kgc" href="/tickets">
+                Join us in May
+              </Link>
+            </div>
+          )}
         </div>
       </section>
     </>

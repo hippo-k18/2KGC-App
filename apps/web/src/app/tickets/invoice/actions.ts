@@ -6,6 +6,7 @@ import { sendInvoiceRaised } from '@/lib/email';
 import { raiseInvoice } from '@/lib/invoicing';
 import { recordInvoiceOrder } from '@/lib/registrations';
 import { stripeEnabled } from '@/lib/stripe';
+import { ticketSalesOpen } from '@/lib/data';
 import { EMAIL, MAX_SEATS, collectSeats, validateSeats } from '../seats-core';
 
 /**
@@ -37,7 +38,7 @@ export async function requestInvoice(
   _prev: InvoiceState,
   form: FormData,
 ): Promise<InvoiceState> {
-  if (!stripeEnabled()) {
+  if (!stripeEnabled() || !(await ticketSalesOpen())) {
     return {
       error: 'Invoicing is not open yet. Email us and we will raise one by hand.',
     };

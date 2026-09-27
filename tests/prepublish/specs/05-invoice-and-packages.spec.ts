@@ -9,6 +9,7 @@ import { SALES, expect, fakeEmail, parsePrice, test } from '../helpers';
  */
 
 test.describe('pay by invoice @tickets', () => {
+  test.skip(SALES === 'off', 'ticket sales are switched off; see 09-sales-off');
   test.beforeEach(async ({ page }) => {
     await page.goto('/tickets/invoice');
   });
@@ -103,6 +104,7 @@ test.describe('pay by invoice @tickets', () => {
 
 for (const kind of ['sponsor', 'exhibitor'] as const) {
   test.describe(`${kind} packages @tickets`, () => {
+    test.skip(SALES === 'off', 'ticket sales are switched off; see 09-sales-off');
     test('page renders packages or says they are coming', async ({ page }) => {
       await page.goto(`/tickets/${kind}`);
       await expect(page.locator('h1')).toBeVisible();

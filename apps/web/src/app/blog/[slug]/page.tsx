@@ -8,6 +8,7 @@ import { PostBodyDoc } from '@/lib/blog/render';
 import { getAuthor, getPostBody } from '@/lib/post-content';
 import { formatPostDate } from '@/lib/posts';
 import { SITE } from '@/lib/site';
+import { ticketSalesOpen } from '@/lib/data';
 
 /** The newsletter form lives on the conference's HubSpot, same as the live site. */
 const NEWSLETTER = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
@@ -59,7 +60,12 @@ export async function generateMetadata({
  * partial scrape degrades to what the site did before rather than to a blank.
  */
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
-  const [found, all, base] = await Promise.all([publicPost((await params).slug), publicPosts(), blogBase()]);
+  const [found, all, base, salesOpen] = await Promise.all([
+    publicPost((await params).slug),
+    publicPosts(),
+    blogBase(),
+    ticketSalesOpen(),
+  ]);
   if (!found) notFound();
   if ('redirectTo' in found) permanentRedirect(`${base}/${found.redirectTo}`);
   const { post } = found;
@@ -180,9 +186,11 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           When you attend the {SITE.name} from {SITE.datesLong}, you have the chance to learn, grow,
           network, and more with a community of knowledge graph professionals.
         </p>
-        <Link href="/tickets" className="post-sidebar-btn">
-          Get my ticket
-        </Link>
+        {salesOpen && (
+          <Link href="/tickets" className="post-sidebar-btn">
+            Get my ticket
+          </Link>
+        )}
 
         <h2>KGC Newsletter</h2>
         <p>

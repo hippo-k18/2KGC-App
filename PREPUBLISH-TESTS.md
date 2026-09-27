@@ -12,7 +12,7 @@ alone; a failure found by the gate is live until you roll back.
 npm run publish:web                        # check, deploy, test the live site
 bash scripts/publish-web.sh --test         # test the live site as it is, no deploy
 bash scripts/publish-web.sh --fast         # skip unit tests, keep the browser gate
-PREPUBLISH_SALES=open npm run publish:web  # once Stripe is live (see below)
+PREPUBLISH_SALES=open npm run publish:web  # once ticket sales are switched on (see below)
 ```
 
 To run the checks on their own against any origin:
@@ -73,9 +73,14 @@ is down for the whole build. Only one deploy can run at a time.
 
 ## Sales state: `PREPUBLISH_SALES`
 
-The site has two legitimate states and the gate insists on the one you name.
+The site has three legitimate states and the gate insists on the one you name.
 
-- **`closed`** (default today): no `STRIPE_SECRET_KEY`. The pay button must be
+- **`off`** (default today): ticket sales are switched off in the dashboard under
+  Marketing > Event Website (or Tickets > Publish Tickets). Every ticket page
+  must say "Tickets are not on sale yet" with no price on it, and no page may
+  show a "Register now" button. The Stripe key is still set, so the webhook
+  must answer 400.
+- **`closed`**: the switch is on but there is no `STRIPE_SECRET_KEY`. The pay button must be
   disabled, the "Ticket sales are not open yet"
   notice must show with an Email us link, the invoice page must show its
   closed notice, and the Stripe webhook must answer 503.
@@ -85,7 +90,7 @@ The site has two legitimate states and the gate insists on the one you name.
 
 A mismatch fails the run. That is deliberate: a Stripe key that went missing
 from a deploy and one that was newly added are both things to know before the
-site goes out. **When Stripe goes live, change the default in
+site goes out. **When ticket sales are switched on, change the default in
 `scripts/publish-web.sh` to `open`.**
 
 ## What is checked

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { programmeCounts, siteEvent } from '@/lib/data';
+import { programmeCounts, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -51,14 +51,13 @@ const OBJECTIVES = [
  * the noun has to say whether the number was counted or stated, because these
  * three cards sit in a row and two of them were counted.
  */
-function stats(counts: { speakers: number; sponsors: number }) {
+function stats(counts: { speakers: number; sponsors: number }, salesOpen: boolean) {
   return [
     {
       n: ATTENDEES_EXPECTED,
       label: 'Attendees expected',
       body: 'Leading experts and award winners across hybrid AI, LLMs, NLP, machine learning and data management make an annual visit to the conference.',
-      href: '/tickets',
-      cta: 'Get tickets →',
+      ...(salesOpen ? { href: '/tickets', cta: 'Get tickets →' } : {}),
     },
     {
       n: String(counts.sponsors),
@@ -108,6 +107,7 @@ export const revalidate = 30;
 export default async function HclsPage() {
   const ev = await siteEvent();
   const counts = await programmeCounts();
+  const salesOpen = await ticketSalesOpen();
 
   return (
     <>
@@ -127,9 +127,11 @@ export default async function HclsPage() {
               {ev.datesLong} | {ev.venueShort} + Virtual
             </p>
             <div className="cta">
-              <Link href="/tickets" className="btn btn-primary">
-                Grab a seat now
-              </Link>
+              {salesOpen && (
+                <Link href="/tickets" className="btn btn-primary">
+                  Grab a seat now
+                </Link>
+              )}
               {/* The call for speakers, not the roster — see `stats()`. */}
               <Link href="/sponsor#speak" className="btn btn-outline">
                 Become a speaker
@@ -193,13 +195,13 @@ export default async function HclsPage() {
           <p className="lede">We’d love to see you here in May.</p>
 
           <div className="stat-cards">
-            {stats(counts).map((s) => (
+            {stats(counts, salesOpen).map((s) => (
               <div key={s.label} className="stat-card">
                 <h3>
                   <strong>{s.n}</strong> {s.label}
                 </h3>
                 <p>{s.body}</p>
-                <Link href={s.href}>{s.cta}</Link>
+                {s.href && <Link href={s.href}>{s.cta}</Link>}
               </div>
             ))}
           </div>
