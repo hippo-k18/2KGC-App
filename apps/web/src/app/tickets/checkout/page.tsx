@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { siteEvent, ticketSalesOpen } from '@/lib/data';
+import { buyerFeePercent, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -85,6 +85,7 @@ export default async function CheckoutPage({
             demoReady={await demoCheckoutAllowed()}
             questions={form.fields}
             titleAs="h1"
+            buyerFeePercent={await buyerFeePercent()}
           />
         ) : (
           <div className="checkout checkout-closed">

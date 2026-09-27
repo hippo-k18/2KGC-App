@@ -1930,6 +1930,18 @@ body.nav-open {
   color: var(--ink);
 }
 
+/* The buyer fee, above the total and in the total's type, but not bold. */
+.summary-fee {
+  margin-bottom: 8px;
+  padding-top: 10px;
+  font-weight: 400;
+}
+
+.summary-fee + .summary {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .notice {
   border-left: 3px solid var(--blue);
   background: var(--wash);
@@ -9938,6 +9950,24 @@ section .site-search-form {
   background: var(--white);
   cursor: pointer;
   font-size: 1rem;
+}
+
+/* Two or more add-ons stack with the usual gap, one margin below the last. */
+.addon-choices {
+  margin: 8px 0 16px;
+}
+
+.addon-choices .addon-choice {
+  margin: 0 0 8px;
+}
+
+.addon-choices .addon-choice:last-child {
+  margin-bottom: 0;
+}
+
+.addon-choice:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .addon-choice:hover {

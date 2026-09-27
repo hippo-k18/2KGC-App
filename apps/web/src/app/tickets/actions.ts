@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
-import { ticketSalesOpen } from '@/lib/data';
+import { brandingSettings, ticketSalesOpen } from '@/lib/data';
+import { buyerFeeCents } from '@kgc/shared';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -106,6 +107,11 @@ type Prepared =
       answersRef?: string;
       campaignCode?: string;
       origin: string;
+      /**
+       * The buyer fee, or 0. Only charged while `settings/branding.
+       * chargeBuyerFee` is on, which it is not by default.
+       */
+      feeCents: number;
     };
 
 async function prepareCheckout(form: FormData): Promise<Prepared> {
@@ -312,7 +318,26 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   const ref = (await cookies()).get(ATTRIBUTION_COOKIE)?.value ?? '';
   const campaignCode = validCode(ref) ? ref : undefined;
 
-  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, origin };
+  /**
+   * The buyer fee, worked out on the ticket subtotal here on the server, like
+   * every other figure on this path. Off unless an organizer has switched it on.
+   */
+  const subtotalCents = seats.reduce((sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0), 0);
+  const feeCents = (await brandingSettings()).chargeBuyerFee ? buyerFeeCents(subtotalCents) : 0;
+
+  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, origin, feeCents };
+}
+
+/** The buyer fee as its own Stripe line, so the receipt shows it apart from the tickets. */
+function feeLine(feeCents: number, primary: Tier) {
+  return {
+    quantity: 1,
+    price_data: {
+      currency: primary.currency,
+      unit_amount: feeCents,
+      product_data: { name: 'Buyer fee', tax_code: primary.taxCode },
+    },
+  };
 }
 
 /**
@@ -366,7 +391,7 @@ export async function startCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin, feeCents } = prepared;
 
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card
@@ -402,21 +427,24 @@ export async function startCheckout(
     const create = () => stripe().checkout.sessions.create({
       mode: 'payment',
       customer_email: email,
-      line_items: lines.map((line) => {
-        // Non-null: every tier id in `lines` came from `seats`, and the loop
-        // above returned an error for any seat whose tier failed to load.
-        const tier = tiers.get(line.tierId)!;
-        return {
-          quantity: line.quantity,
-          price_data: {
-            currency: tier.currency,
-            unit_amount: tier.priceCents,
-            ...(useProducts && tier.stripeProductId
-              ? { product: tier.stripeProductId }
-              : { product_data: productData(tier) }),
-          },
-        };
-      }),
+      line_items: [
+        ...lines.map((line) => {
+          // Non-null: every tier id in `lines` came from `seats`, and the loop
+          // above returned an error for any seat whose tier failed to load.
+          const tier = tiers.get(line.tierId)!;
+          return {
+            quantity: line.quantity,
+            price_data: {
+              currency: tier.currency,
+              unit_amount: tier.priceCents,
+              ...(useProducts && tier.stripeProductId
+                ? { product: tier.stripeProductId }
+                : { product_data: productData(tier) }),
+            },
+          };
+        }),
+        ...(feeCents > 0 ? [feeLine(feeCents, primary)] : []),
+      ],
 
       /**
        * Let Stripe compute tax rather than us.
@@ -466,6 +494,7 @@ export async function startCheckout(
         name,
         seats: String(seats.length),
         ...(campaignCode ? { campaignCode } : {}),
+        ...(feeCents > 0 ? { buyerFeeCents: String(feeCents) } : {}),
         // A reference, not the answers themselves: metadata caps at 500
         // characters per value, and a long-text answer would silently truncate.
         ...(answersRef ? { answersRef } : {}),
@@ -542,6 +571,7 @@ export async function startCheckout(
         seats: cartSeats,
         currency: primary.currency,
         campaignCode,
+        feeCents,
       });
     } catch (err) {
       console.error('[checkout] could not record the seat list for', sessionId, err);
@@ -613,7 +643,7 @@ export async function completeDemoCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin, feeCents } = prepared;
 
   /**
    * A synthetic id where a Stripe Checkout Session id would be.
@@ -635,10 +665,11 @@ export async function completeDemoCheckout(
    * inventing a plausible tax line would put a number on the dashboard that
    * nothing could reconcile.
    */
-  const amountCents = seats.reduce(
+  const subtotalCents = seats.reduce(
     (sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0),
     0,
   );
+  const amountCents = subtotalCents + feeCents;
 
   /**
    * The seat list, written before fulfilment for the same reason the Stripe
@@ -669,6 +700,7 @@ export async function completeDemoCheckout(
         currency: primary.currency,
         campaignCode,
         channel: 'demo',
+        feeCents,
       });
     } catch (err) {
       console.error('[demo-checkout] could not record the seat list for', externalId, err);
@@ -692,7 +724,7 @@ export async function completeDemoCheckout(
       tierId: primary.id,
       amountCents,
       currency: primary.currency,
-      subtotalCents: amountCents,
+      subtotalCents,
       taxCents: 0,
       discountCents: 0,
       campaignCode,

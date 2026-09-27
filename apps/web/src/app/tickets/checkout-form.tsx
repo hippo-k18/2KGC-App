@@ -5,7 +5,7 @@ import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
 import { SITE } from '@/lib/site';
-import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
+import { bundleFor, formatPrice, type AddOn, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
 import { MAX_SEATS } from './seats-core';
@@ -65,8 +65,8 @@ interface ExtraSeat {
   name: string;
   email: string;
   tierId: TicketId;
-  /** Whether this seat takes its tier's add-on. Ignored when the tier has none. */
-  addOn: boolean;
+  /** The add-ons this seat ticked. Any its tier does not offer are ignored. */
+  addOns: TicketId[];
 }
 
 export function CheckoutForm({
@@ -77,6 +77,7 @@ export function CheckoutForm({
   demoReady = false,
   questions = [],
   titleAs = 'h2',
+  buyerFeePercent,
 }: {
   /**
    * The catalogue, passed in rather than imported.
@@ -126,6 +127,12 @@ export function CheckoutForm({
    * top of, and the pre-publish gate refuses it.
    */
   titleAs?: 'h1' | 'h2';
+  /**
+   * The buyer fee, when an organizer has switched it on. Undefined means no
+   * fee, which is the default. Display only: `startCheckout` works the fee out
+   * again on the server.
+   */
+  buyerFeePercent?: number;
 }) {
   const Title = titleAs;
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
@@ -147,7 +154,7 @@ export function CheckoutForm({
   // least inclined to.
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [addOn, setAddOn] = useState(false);
+  const [addOns, setAddOns] = useState<TicketId[]>([]);
   /**
    * The extra seats, seat two onward. Seat one is the buyer, whose name and
    * address are the two fields above — kept out of this list because moving
@@ -202,19 +209,28 @@ export function CheckoutForm({
    * still not be what lands on the card. It exists because a quantity control
    * with no total beside it is a control people are afraid to touch.
    */
-  const addOnOf = (id: TicketId, wanted: boolean) =>
-    wanted ? tiers.find((t) => t.id === id)?.addOn : undefined;
-  const priceOf = (id: TicketId, wanted: boolean) =>
-    (tiers.find((t) => t.id === id)?.priceCents ?? 0) + (addOnOf(id, wanted)?.priceCents ?? 0);
+  const tierOf = (id: TicketId) => tiers.find((t) => t.id === id);
+  /** The ticked add-ons a tier actually offers, so a change of tier drops the rest. */
+  const addOnsOf = (id: TicketId, ticked: readonly TicketId[]): AddOn[] =>
+    (tierOf(id)?.addOns ?? []).filter((a) => ticked.includes(a.id));
+  const priceOf = (id: TicketId, ticked: readonly TicketId[]) =>
+    (tierOf(id)?.priceCents ?? 0) + addOnsOf(id, ticked).reduce((sum, a) => sum + a.priceCents, 0);
   /**
-   * The id a seat posts. With the add-on ticked that is the bundle, an ordinary
-   * hidden tier the server prices from its parts, so the add-on needs no second
-   * field for the server to reconcile against the first.
+   * The id a seat posts. With add-ons ticked that is the bundle holding exactly
+   * those add-ons, an ordinary hidden tier the server prices from its parts, so
+   * the add-ons need no second field for the server to reconcile against the
+   * first.
    */
-  const postedTier = (id: TicketId, wanted: boolean) => addOnOf(id, wanted)?.tierId ?? id;
+  const postedTier = (id: TicketId, ticked: readonly TicketId[]) => {
+    const t = tierOf(id);
+    if (!t) return id;
+    return bundleFor(t, addOnsOf(id, ticked).map((a) => a.id)) ?? id;
+  };
   const quantity = extras.length + 1;
-  const totalCents =
-    priceOf(tier, addOn) + extras.reduce((sum, e) => sum + priceOf(e.tierId, e.addOn), 0);
+  const ticketCents =
+    priceOf(tier, addOns) + extras.reduce((sum, e) => sum + priceOf(e.tierId, e.addOns), 0);
+  const feeCents = buyerFeePercent ? Math.round((ticketCents * buyerFeePercent) / 100) : 0;
+  const totalCents = ticketCents + feeCents;
 
   /**
    * Growing and shrinking the seat list from one number.
@@ -232,7 +248,7 @@ export function CheckoutForm({
       const grown = [...prev];
       while (grown.length < wanted) {
         nextKey.current += 1;
-        grown.push({ key: nextKey.current, name: '', email: '', tierId: tier, addOn });
+        grown.push({ key: nextKey.current, name: '', email: '', tierId: tier, addOns });
       }
       return grown;
     });
@@ -245,9 +261,11 @@ export function CheckoutForm({
     <div className="buy-layout">
       <OrderRail
         tier={selected}
-        addOn={addOnOf(selected.id, addOn)}
+        addOns={addOnsOf(selected.id, addOns)}
         quantity={quantity}
         totalCents={totalCents}
+        feeCents={feeCents}
+        buyerFeePercent={buyerFeePercent}
       />
 
       <form action={action} className="checkout">
@@ -345,16 +363,19 @@ export function CheckoutForm({
             */}
             {tierLocked && selected.onSale ? (
               <div className="tier-chosen">
-                <input type="hidden" name="tier" value={postedTier(selected.id, addOn)} />
+                <input type="hidden" name="tier" value={postedTier(selected.id, addOns)} />
                 <span className="tier-chosen-label">Ticket</span>
                 <strong>{selected.name}</strong>
-                <span>{formatPrice(selected.priceCents, selected.currency)}</span>
+                <span>
+                  {selected.phase ? `${selected.phase} ` : ''}
+                  {formatPrice(selected.priceCents, selected.currency)}
+                </span>
                 <Link href="/tickets">Change</Link>
               </div>
             ) : (
             <fieldset className="tier-choice">
               <legend>Ticket</legend>
-              <input type="hidden" name="tier" value={postedTier(tier, addOn)} />
+              <input type="hidden" name="tier" value={postedTier(tier, addOns)} />
               {tiers.map((t) => (
                 <label
                   key={t.id}
@@ -381,7 +402,7 @@ export function CheckoutForm({
             </fieldset>
             )}
 
-            <AddOnChoice tier={selected} checked={addOn} onChange={setAddOn} id="addOn" />
+            <AddOnChoice tier={selected} ticked={addOns} onChange={setAddOns} id="addOn" />
 
             <div className="field">
               <label htmlFor="name">Attendee name</label>
@@ -437,7 +458,7 @@ export function CheckoutForm({
               */}
               <div className="field">
                 <label htmlFor={`seatTier-${seat.key}`}>Ticket</label>
-                <input type="hidden" name="seatTier" value={postedTier(seat.tierId, seat.addOn)} />
+                <input type="hidden" name="seatTier" value={postedTier(seat.tierId, seat.addOns)} />
                 <select
                   id={`seatTier-${seat.key}`}
                   value={seat.tierId}
@@ -453,9 +474,9 @@ export function CheckoutForm({
               </div>
 
               <AddOnChoice
-                tier={tiers.find((t) => t.id === seat.tierId)}
-                checked={seat.addOn}
-                onChange={(on) => updateExtra(seat.key, { addOn: on })}
+                tier={tierOf(seat.tierId)}
+                ticked={seat.addOns}
+                onChange={(next) => updateExtra(seat.key, { addOns: next })}
                 id={`seatAddOn-${seat.key}`}
               />
 
@@ -500,9 +521,15 @@ export function CheckoutForm({
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={shown.fieldErrors} />
 
+        {feeCents > 0 && (
+          <div className="summary summary-fee">
+            <span>Buyer fee ({buyerFeePercent}%)</span>
+            <span>{formatPrice(feeCents, selected.currency)}</span>
+          </div>
+        )}
         <div className="summary">
           <span>
-            {quantity === 1 ? railName(selected, addOnOf(selected.id, addOn)) : `${quantity} tickets`}
+            {quantity === 1 ? railName(selected, addOnsOf(selected.id, addOns)) : `${quantity} tickets`}
           </span>
           <span>{formatPrice(totalCents, selected.currency)}</span>
         </div>
@@ -551,44 +578,62 @@ export function CheckoutForm({
 }
 
 /** "Main Conference + Workshops" once the add-on is ticked. */
-function railName(tier: Tier, addOn?: Tier['addOn']): string {
-  return addOn ? `${tier.name} + ${addOn.name}` : tier.name;
+function railName(tier: Tier, addOns: AddOn[] = []): string {
+  return [tier.name, ...addOns.map((a) => a.name)].join(' + ');
 }
 
 /**
- * The add-on tick box, under the ticket it belongs to.
+ * The add-on tick boxes, under the ticket they belong to.
  *
- * Drawn only when the seat's tier offers one, so a Virtual seat never shows a
- * workshop option it cannot take. A tick box rather than a fifth radio button,
- * because the add-on is sold with Main Conference and never instead of it.
+ * Drawn only when the seat's tier offers any, so a Virtual seat never shows a
+ * workshop option it cannot take. Tick boxes rather than more radio buttons,
+ * because an add-on is sold with Main Conference and never instead of it.
+ *
+ * A box is disabled when ticking or unticking it would leave a combination no
+ * bundle sells. With every combination on sale that never happens; it is what
+ * stops the form posting a mix the server would price as the base ticket alone.
  */
 function AddOnChoice({
   tier,
-  checked,
+  ticked,
   onChange,
   id,
 }: {
   tier: Tier | undefined;
-  checked: boolean;
-  onChange: (on: boolean) => void;
+  ticked: readonly TicketId[];
+  onChange: (next: TicketId[]) => void;
   id: string;
 }) {
-  const addOn = tier?.onSale ? tier.addOn : undefined;
-  if (!addOn || !tier) return null;
+  const offered = tier?.onSale ? (tier.addOns ?? []) : [];
+  if (!tier || offered.length === 0) return null;
+  const current = offered.filter((a) => ticked.includes(a.id)).map((a) => a.id);
   return (
-    <label className="addon-choice" htmlFor={id}>
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className="addon-choice-text">
-        <span className="addon-choice-name">Add {addOn.name}</span>
-        {addOn.tagline ? <span className="addon-choice-tagline">{addOn.tagline}</span> : null}
-      </span>
-      <span className="addon-choice-price">+{formatPrice(addOn.priceCents, tier.currency)}</span>
-    </label>
+    <div className="addon-choices">
+      {offered.map((addOn) => {
+        const on = current.includes(addOn.id);
+        const next = on ? current.filter((x) => x !== addOn.id) : [...current, addOn.id];
+        const reachable = bundleFor(tier, next) !== undefined;
+        const boxId = `${id}-${addOn.id}`;
+        return (
+          <label className="addon-choice" htmlFor={boxId} key={addOn.id}>
+            <input
+              id={boxId}
+              type="checkbox"
+              checked={on}
+              disabled={!reachable}
+              onChange={() => onChange(next)}
+            />
+            <span className="addon-choice-text">
+              <span className="addon-choice-name">Add {addOn.name}</span>
+              {addOn.tagline ? (
+                <span className="addon-choice-tagline">{addOn.tagline}</span>
+              ) : null}
+            </span>
+            <span className="addon-choice-price">+{formatPrice(addOn.priceCents, tier.currency)}</span>
+          </label>
+        );
+      })}
+    </div>
   );
 }
 
@@ -630,13 +675,18 @@ function SeatCard({ label, children }: { label: string | null; children: ReactNo
  */
 function OrderRail({
   tier,
-  addOn,
+  addOns,
   quantity,
   totalCents,
+  feeCents,
+  buyerFeePercent,
 }: {
   tier: Tier;
-  /** The add-on the buyer ticked on their own seat, if any. */
-  addOn?: Tier['addOn'];
+  /** The add-ons the buyer ticked on their own seat. */
+  addOns: AddOn[];
+  /** The buyer fee in the total, or 0. */
+  feeCents: number;
+  buyerFeePercent?: number;
   /** Seats on this purchase, the buyer included. */
   quantity: number;
   /**
@@ -650,7 +700,7 @@ function OrderRail({
     <aside className="order-rail" aria-label="Your order">
       <div className="rail-card">
         <p className="rail-eyebrow">Your order</p>
-        <h2 className="rail-tier">{railName(tier, addOn)}</h2>
+        <h2 className="rail-tier">{railName(tier, addOns)}</h2>
         {tier.tagline ? <p className="rail-tagline">{tier.tagline}</p> : null}
         {quantity > 1 ? (
           /*
@@ -672,7 +722,7 @@ function OrderRail({
               {tier.includes.map((line) => (
                 <li key={line}>{line}</li>
               ))}
-              {addOn?.tagline ? <li>{addOn.tagline}</li> : null}
+              {addOns.map((a) => (a.tagline ? <li key={a.id}>{a.tagline}</li> : null))}
             </ul>
           </>
         )}
@@ -683,7 +733,11 @@ function OrderRail({
         </div>
         <p className="rail-note">
           {quantity === 1 ? 'One ticket' : `${quantity} tickets`}, in{' '}
-          {tier.currency.toUpperCase()}. Sales tax, where it applies, is added at payment.
+          {tier.currency.toUpperCase()}.
+          {feeCents > 0
+            ? ` Includes a ${buyerFeePercent}% buyer fee of ${formatPrice(feeCents, tier.currency)}.`
+            : ''}{' '}
+          Sales tax, where it applies, is added at payment.
         </p>
       </div>
 

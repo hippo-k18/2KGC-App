@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import type { TicketAudience } from '@kgc/shared';
+import { pricePhasesToText, type TicketAudience } from '@kgc/shared';
 import type { TicketTypeRow } from '@/lib/commerce';
 import {
   CheckboxField,
@@ -91,9 +91,54 @@ export function TicketForm({
         name="price"
         label="Price"
         required
-        defaultValue={existing ? wholeUnits(existing.priceCents) : ''}
+        defaultValue={existing ? wholeUnits(existing.flatPriceCents) : ''}
         currencyName="currency"
         currencyDefault={existing?.currency ?? 'usd'}
+        hint={
+          existing?.pricePhases?.length ? (
+            <>
+              Only used while the price phases below are empty. Today the website charges{' '}
+              {existing.phase ? `the ${existing.phase} price, ` : ''}
+              {wholeUnits(existing.priceCents)}.
+            </>
+          ) : undefined
+        }
+      />
+
+      {/*
+        The price ladder. A text box, like the grouped list below, because the
+        whole ladder is four short lines and reads at a glance. The website
+        charges whichever phase is current, so nobody has to edit prices on the
+        morning a phase changes.
+      */}
+      <Textarea
+        name="pricePhases"
+        label="Price phases"
+        rows={5}
+        defaultValue={existing ? pricePhasesToText(existing.pricePhases) : ''}
+        placeholder={
+          'Super Early Bird: 599, sold out\n' +
+          'Early Bird: 699, from 2026-09-15\n' +
+          'Standard: 899, from 2026-12-01\n' +
+          'Extended: 1099, from 2027-03-01'
+        }
+        hint={
+          <>
+            One phase per line: a name, a price in dollars and the day it starts (New York time).
+            Each phase runs until the next one starts. Add <strong>sold out</strong> to show a
+            phase crossed out, or <strong>off sale</strong> to stop selling during it. Leave empty
+            to sell at the price above.
+          </>
+        }
+      />
+
+      <Field
+        name="badge"
+        label="Badge"
+        defaultValue={existing?.badge}
+        placeholder="Best value"
+        maxLength={24}
+        hint={<>A short label over the ticket on the tickets page. Leave empty for none.</>}
       />
 
       <Field

@@ -2,7 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, TIME_ZONE, type TicketAudience } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  TIME_ZONE,
+  parsePricePhases,
+  pricePhasesToText,
+  type TicketAudience,
+} from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getTicketType } from '@/lib/commerce';
@@ -136,6 +143,8 @@ export async function saveTicketTypeAction(
   const includesVideoLibrary = formData.get('includesVideoLibrary') === 'on';
   const opensRaw = String(formData.get('salesOpenAt') ?? '').trim();
   const closesRaw = String(formData.get('salesCloseAt') ?? '').trim();
+  const phasesRaw = String(formData.get('pricePhases') ?? '');
+  const badge = String(formData.get('badge') ?? '').trim().slice(0, 24);
 
   if (name.length < 2) return { error: 'Give the ticket a name. It prints on the badge.' };
 
@@ -152,6 +161,9 @@ export async function saveTicketTypeAction(
     };
   }
   if (!/^[a-z]{3}$/.test(currency)) return { error: 'Currency must be a three-letter code.' };
+
+  const phases = parsePricePhases(phasesRaw);
+  if (!phases.ok) return { error: `Price phases: ${phases.error}` };
 
   const capacity = capacityRaw === '' ? undefined : Number(capacityRaw);
   if (capacity !== undefined && (!Number.isInteger(capacity) || capacity < 1)) {
@@ -200,6 +212,12 @@ export async function saveTicketTypeAction(
   const fields = {
     name,
     priceCents,
+    /**
+     * The ladder the website charges from. An empty array rather than a delete
+     * when the box is cleared, for the same `merge: true` reason as `groups`.
+     */
+    pricePhases: phases.phases,
+    badge,
     currency,
     tagline,
     includes,
@@ -296,6 +314,8 @@ export async function saveTicketTypeAction(
       ? {
           name: existing.name,
           priceCents: existing.priceCents,
+          pricePhases: pricePhasesToText(existing.pricePhases),
+          badge: existing.badge ?? '',
           visible: existing.visible,
           quantityTotal: existing.quantityTotal,
           tagline: existing.tagline,
@@ -313,6 +333,8 @@ export async function saveTicketTypeAction(
     const changed = diff(before as Record<string, unknown>, {
       name,
       priceCents,
+      pricePhases: pricePhasesToText(phases.phases),
+      badge,
       visible,
       quantityTotal: capacity,
       tagline,
@@ -340,7 +362,7 @@ export async function saveTicketTypeAction(
       ok: true,
       message: existing
         ? `Saved. The website shows the new details immediately${
-            changed.changed.includes('priceCents')
+            changed.changed.includes('priceCents') || changed.changed.includes('pricePhases')
               ? '. Including the new price, which applies to purchases from now on.'
               : '.'
           }`

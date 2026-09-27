@@ -4,6 +4,7 @@ import { siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
+import { monthName } from '@kgc/shared';
 import s from './tickets.module.css';
 import { TicketSalesClosed } from './sales-closed';
 
@@ -49,6 +50,35 @@ export const dynamic = 'force-dynamic';
  */
 
 /**
+ * The price, with the phase it belongs to and the phases already gone.
+ *
+ * "Early Bird" sits over the figure so the buyer knows it is a phase price.
+ * Earlier phases follow it struck through, Super Early Bird marked "Sold Out",
+ * because a crossed-out lower price is the plainest way to say this one will
+ * not come back. The next phase's price is never shown: the page only says
+ * when prices go up.
+ */
+function Price({ tier, className }: { tier: Tier; className: string }) {
+  return (
+    <div className={s.priceBlock}>
+      {tier.phase ? <p className={s.phase}>{tier.phase}</p> : null}
+      <p className={className}>{formatPrice(tier.priceCents, tier.currency)}</p>
+      {tier.earlierPhases?.map((e) => (
+        <p className={s.earlier} key={e.name}>
+          <span className={s.earlierName}>
+            <s aria-label={`${e.name} price ${formatPrice(e.priceCents, tier.currency)}, no longer available`}>
+              {formatPrice(e.priceCents, tier.currency)}
+            </s>{' '}
+            {e.name}
+          </span>
+          {e.soldOut ? <span className={s.soldOut}>Sold Out</span> : null}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
  * The flagship: name, price and button on one line, contents in columns below.
  *
  * The button says "Choose", not "Choose All Access (VIP)". With the tier name
@@ -73,10 +103,13 @@ function LeadPanel({ tier }: { tier: Tier }) {
   return (
     <article className={s.lead} aria-labelledby="lead-name">
       <div className={s.leadHead}>
-        <h2 id="lead-name" className={s.leadName}>
-          {tier.name}
-        </h2>
-        <p className={s.leadPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+        <div className={s.leadTitle}>
+          {tier.badge ? <p className={s.badge}>{tier.badge}</p> : null}
+          <h2 id="lead-name" className={s.leadName}>
+            {tier.name}
+          </h2>
+        </div>
+        <Price tier={tier} className={s.leadPrice} />
 
         {tier.onSale ? (
           <Link
@@ -132,10 +165,11 @@ function SecondPanel({ tier }: { tier: Tier }) {
     <article className={s.second} aria-labelledby="second-name">
       <div className={s.secondHead}>
         <div>
+          {tier.badge ? <p className={s.badgeLight}>{tier.badge}</p> : null}
           <h2 id="second-name" className={s.secondName}>
             {tier.name}
           </h2>
-          <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+          <Price tier={tier} className={s.secondPrice} />
         </div>
 
         {tier.onSale ? (
@@ -157,11 +191,15 @@ function SecondPanel({ tier }: { tier: Tier }) {
         ))}
       </ul>
 
-      {tier.addOn && (
+      {tier.addOns?.length ? (
         <p className={s.secondAddOn}>
-          Add {tier.addOn.name} for {formatPrice(tier.addOn.priceCents, tier.currency)} at checkout.
+          Add{' '}
+          {tier.addOns
+            .map((a) => `${a.name} for ${formatPrice(a.priceCents, tier.currency)}`)
+            .join(' or ')}{' '}
+          at checkout.
         </p>
-      )}
+      ) : null}
     </article>
   );
 }
@@ -171,8 +209,9 @@ function AlternativeRow({ tier }: { tier: Tier }) {
   return (
     <li className={s.alt}>
       <div className={s.altIdent}>
+        {tier.badge ? <p className={s.badgeLight}>{tier.badge}</p> : null}
         <h3 className={s.altName}>{tier.name}</h3>
-        <p className={s.altPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
+        <Price tier={tier} className={s.altPrice} />
       </div>
 
       <ul className={s.altItems}>
@@ -222,6 +261,15 @@ export default async function TicketsPage({
   const ranked = [...tiers].sort((a, b) => b.priceCents - a.priceCents);
   const [lead, second, ...rest] = ranked;
 
+  /*
+   * The soonest day any ticket on sale gets dearer. Only the month is said,
+   * never the new price.
+   */
+  const risesOn = tiers
+    .filter((t) => t.onSale && t.risesOn)
+    .map((t) => t.risesOn!)
+    .sort()[0];
+
   return (
     <>
       <div className={s.page}>
@@ -230,6 +278,9 @@ export default async function TicketsPage({
           <p className={s.orient}>
             {ev.datesLong} at {ev.venueShort}.
           </p>
+          {risesOn ? (
+            <p className={s.rise}>Prices will increase in {monthName(risesOn)}</p>
+          ) : null}
 
           {params.cancelled && (
             <p className={s.cancelled}>

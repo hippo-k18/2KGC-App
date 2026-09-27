@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { tiersOrNull } from '@/lib/catalogue';
-import { siteEvent, ticketSalesOpen } from '@/lib/data';
+import { buyerFeePercent, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import type { TicketId } from '@/lib/tickets';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -178,6 +178,7 @@ export async function AudienceTicketsPage({
               stripeReady={stripeEnabled()}
               demoReady={await demoCheckoutAllowed()}
               questions={form.fields}
+              buyerFeePercent={await buyerFeePercent()}
             />
           ) : (
             /*

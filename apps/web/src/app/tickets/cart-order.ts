@@ -96,6 +96,8 @@ export async function recordCartOrder(input: {
    * real order — can undo the whole rehearsal, seat list included.
    */
   channel?: NonNullable<OrderDoc['channel']>;
+  /** The buyer fee, when it is switched on. Part of the total, not of any seat. */
+  feeCents?: number;
 }): Promise<string> {
   const oid = orderIdForSession(input.sessionId);
 
@@ -154,7 +156,7 @@ export async function recordCartOrder(input: {
     subtotalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
     taxCents: 0,
     discountCents: 0,
-    totalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
+    totalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0) + (input.feeCents ?? 0),
     refundedCents: 0,
     currency: input.currency,
     campaignCode: input.campaignCode,

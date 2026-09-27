@@ -3,13 +3,15 @@ import 'server-only';
 import {
   COLLECTIONS,
   EVENT_ID,
+  TIME_ZONE,
+  priceNow,
   type EntitlementDoc,
   type TicketAudience,
   type TicketTypeDoc,
 } from '@kgc/shared';
 import { db } from './firestore';
 import { entitlementKinds } from './app-account-core';
-import type { Tier } from './tickets';
+import type { AddOn, Tier } from './tickets';
 
 /**
  * Reading the ticket catalogue out of Firestore.
@@ -54,7 +56,15 @@ function availability(t: TicketTypeDoc, now: Date): Pick<Tier, 'onSale' | 'unava
   return windowAndCapacity(t, now);
 }
 
-/** The clock and the seat count, without the add-on rule. A bundle checks its parts with this. */
+/** The price phase in force on `now`, read in the tier's own sales zone. */
+function phaseNow(t: TicketTypeDoc, now: Date) {
+  return priceNow(t, now, t.salesTimeZone ?? TIME_ZONE);
+}
+
+/**
+ * The clock, the price phase and the seat count, without the add-on rule. A
+ * bundle checks its parts with this.
+ */
 function windowAndCapacity(
   t: TicketTypeDoc,
   now: Date,
@@ -68,15 +78,18 @@ function windowAndCapacity(
   if (typeof t.quantityTotal === 'number' && (t.quantitySold ?? 0) >= t.quantityTotal) {
     return { onSale: false, unavailableReason: 'Sold out' };
   }
+  // A phase with no agreed price, or one marked off sale, sells nothing.
+  const phase = phaseNow(t, now);
+  if (!phase.onSale) return { onSale: false, unavailableReason: phase.unavailableReason };
   return { onSale: true };
 }
 
 /**
  * A bundle's price and state, from its parts.
  *
- * The price is the sum of the parts, so "Main Conference + Workshops" follows
- * Main Conference up the price ladder without anybody editing a second
- * document. It is on sale only while every part is inside its window and under
+ * The price is the sum of the parts' current phase prices, so "Main
+ * Conference + Workshops" follows Main Conference up the price ladder without
+ * anybody editing a second document. It is on sale only while every part is inside its window and under
  * its cap: a closed Main Conference must close the bundle too. A missing part
  * closes it rather than pricing it at whatever is left, because a partial sum
  * is a price nobody set.
@@ -91,7 +104,7 @@ function bundlePricing(
   if (docs.length === 0 || docs.some((d) => !d || d.currency !== t.currency)) {
     return { priceCents: t.priceCents, onSale: false, unavailableReason: 'Unavailable' };
   }
-  const priceCents = docs.reduce((sum, d) => sum + d!.priceCents, 0);
+  const priceCents = docs.reduce((sum, d) => sum + phaseNow(d!, now).priceCents, 0);
   for (const state of [windowAndCapacity(t, now), ...docs.map((d) => windowAndCapacity(d!, now))]) {
     if (!state.onSale) return { priceCents, ...state };
   }
@@ -104,10 +117,11 @@ function toTier(
   now: Date,
   parts: Map<string, TicketTypeDoc> = new Map(),
 ): Tier {
+  const phase = phaseNow(t, now);
   return {
     id,
     name: t.name,
-    priceCents: t.priceCents,
+    priceCents: phase.priceCents,
     currency: t.currency,
     tagline: t.tagline ?? '',
     includes: t.includes ?? [],
@@ -119,41 +133,62 @@ function toTier(
     audience: t.audience ?? 'attendee',
     taxCode: t.taxCode ?? 'txcd_20030000',
     stripeProductId: optional(t.stripeProductId),
+    phase: optional(phase.phase),
+    earlierPhases: phase.earlier.length ? phase.earlier : undefined,
+    risesOn: optional(phase.risesOn),
+    badge: t.badge?.trim() || undefined,
     ...availability(t, now),
     ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(t, parts, now) } : {}),
   };
 }
 
 /**
- * The add-on offered on a tier's checkout, if there is one on sale.
+ * The add-ons offered on a tier's checkout, and the bundle each combination buys.
  *
- * Found through the bundle rather than stored on the base tier, so the three
- * documents cannot disagree: the bundle names the base tier first and the
- * add-on second, and the add-on names the base tier in `addOnFor`. The price
- * shown on the checkbox is the add-on's own, which is exactly what the bundle
- * adds.
+ * Found through the bundles rather than stored on the base tier, so the
+ * documents cannot disagree: a bundle names the base tier first and its add-ons
+ * after, and every add-on names the base tier in `addOnFor`. So Main Conference
+ * with Workshops and Continuing education units needs three bundles, one per
+ * combination, and a combination with no bundle simply cannot be ticked.
+ *
+ * Only bundles on sale count, which is what keeps an add-on off the checkout
+ * while its own price phase is off sale. An add-on's price is its own current
+ * phase price, which is exactly what its bundle adds.
  */
-function addOnFor(
+function addOnsFor(
   baseId: string,
   rows: { id: string; doc: TicketTypeDoc }[],
   byId: Map<string, TicketTypeDoc>,
   now: Date,
-): Tier['addOn'] {
+): Pick<Tier, 'addOns' | 'bundles'> {
+  const addOns = new Map<string, AddOn>();
+  const bundles: NonNullable<Tier['bundles']> = [];
   for (const { id, doc } of rows) {
-    const [base, extra, ...more] = doc.bundleOf ?? [];
-    if (base !== baseId || !extra || more.length > 0) continue;
-    const addOn = byId.get(extra);
-    if (!addOn || addOn.addOnFor !== baseId) continue;
-    const bundle = toTier(id, doc, now, byId);
-    if (!bundle.onSale) continue;
-    return {
-      tierId: id,
-      name: addOn.name,
-      tagline: addOn.tagline ?? '',
-      priceCents: bundle.priceCents - (byId.get(baseId)?.priceCents ?? 0),
-    };
+    const [base, ...extras] = doc.bundleOf ?? [];
+    if (base !== baseId || extras.length === 0) continue;
+    const parts = extras.map((e) => byId.get(e));
+    if (parts.some((p) => !p || p.addOnFor !== baseId)) continue;
+    if (!toTier(id, doc, now, byId).onSale) continue;
+    bundles.push({ tierId: id, addOnIds: extras });
+    extras.forEach((extra, i) => {
+      const part = parts[i]!;
+      if (!addOns.has(extra)) {
+        addOns.set(extra, {
+          id: extra,
+          name: part.name,
+          tagline: part.tagline ?? '',
+          priceCents: phaseNow(part, now).priceCents,
+        });
+      }
+    });
   }
-  return undefined;
+  if (bundles.length === 0) return {};
+  // In catalogue order, so Workshops sits above Continuing education units.
+  const order = (id: string) => byId.get(id)?.sortOrder ?? 0;
+  return {
+    addOns: [...addOns.values()].sort((a, b) => order(a.id) - order(b.id)),
+    bundles,
+  };
 }
 
 async function loadAll(): Promise<{ id: string; doc: TicketTypeDoc }[]> {
@@ -234,11 +269,7 @@ export async function listTiers(audience: TicketAudience = 'attendee'): Promise<
       (a, b) =>
         (a.doc.sortOrder ?? 0) - (b.doc.sortOrder ?? 0) || a.doc.name.localeCompare(b.doc.name),
     )
-    .map(({ id, doc }) => {
-      const tier = toTier(id, doc, now, byId);
-      const addOn = addOnFor(id, rows, byId, now);
-      return addOn ? { ...tier, addOn } : tier;
-    });
+    .map(({ id, doc }) => ({ ...toTier(id, doc, now, byId), ...addOnsFor(id, rows, byId, now) }));
 }
 
 /**

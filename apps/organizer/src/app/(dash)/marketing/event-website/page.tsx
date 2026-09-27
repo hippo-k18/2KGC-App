@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { PAGE_CONTENT_KEYS, type PageContentKey } from '@kgc/shared';
+import { BUYER_FEE_PERCENT, PAGE_CONTENT_KEYS, type PageContentKey } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { setSiteVisibilityAction } from './actions';
@@ -147,6 +147,12 @@ export default async function EventWebsitePage() {
       on: branding.showTickets,
       what: 'Prices, checkout and invoice requests, and every "Register now" button. Off, the ticket pages say sales have not opened.',
     },
+    {
+      field: 'chargeBuyerFee',
+      label: 'Buyer fee',
+      on: branding.chargeBuyerFee,
+      what: `Adds a ${BUYER_FEE_PERCENT}% fee to card checkout, shown in the checkout total and as its own line on Stripe. Invoices are unaffected. Off by default.`,
+    },
   ] as const;
   const hiddenPaths = new Set([
     ...(branding.showAgenda ? [] : ['/agenda']),
@@ -237,7 +243,17 @@ export default async function EventWebsitePage() {
               {sw.what}
             </span>,
             <Tag key="s" color={sw.on ? 'green' : 'grey'} small>
-              {sw.field === 'showTickets' ? (sw.on ? 'open' : 'closed') : sw.on ? 'shown' : 'hidden'}
+              {sw.field === 'showTickets'
+                ? sw.on
+                  ? 'open'
+                  : 'closed'
+                : sw.field === 'chargeBuyerFee'
+                  ? sw.on
+                    ? 'charged'
+                    : 'off'
+                  : sw.on
+                    ? 'shown'
+                    : 'hidden'}
             </Tag>,
             <form key="a" action={setSiteVisibilityAction}>
               <input type="hidden" name="field" value={sw.field} />
@@ -247,6 +263,10 @@ export default async function EventWebsitePage() {
                   ? sw.on
                     ? 'Close ticket sales'
                     : 'Open ticket sales'
+                  : sw.field === 'chargeBuyerFee'
+                    ? sw.on
+                      ? 'Stop the fee'
+                      : 'Charge the fee'
                   : sw.on
                     ? `Hide ${sw.label.toLowerCase()}`
                     : `Show ${sw.label.toLowerCase()}`}

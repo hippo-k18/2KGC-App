@@ -8,8 +8,8 @@
  * ── The top line is 2/3 + 1/3, and the split is the hierarchy ──────────────
  *
  * All Access takes two thirds and the navy ground; Main Conference takes one
- * third beside it on white. That is the only thing saying which is the flagship
- * — no badge, no ribbon, no "most popular". The 2:1 is also what makes the two
+ * third beside it on white. That, and the "Best value" badge the team asked
+ * for in September 2026, say which is the flagship. The 2:1 is also what makes the two
  * legible as *different* offers rather than as a comparison table: equal
  * columns invite a feature-by-feature read, and these two tickets are not
  * bought by the same person.
@@ -71,6 +71,14 @@
   font-size: 0.9rem;
   line-height: 1.45;
   color: var(--muted);
+}
+
+/* The only line about future prices. It names the month and never the price. */
+.rise {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .cancelled {
@@ -297,15 +305,22 @@
   margin: 0;
   padding-top: 0.5rem;
   border-top: 1px solid rgb(255 255 255 / 15%);
-  display: flex;
-  flex-wrap: wrap;
+  /* Label on the left, one item per line beside it, so a second item lines up
+     under the first instead of wrapping back under the label. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
   gap: 0.3rem 0.8rem;
   font-size: 0.9rem;
 }
 
 .extrasLabel {
+  grid-row: 1 / span 9;
   color: #b8c7dd;
+}
+
+.extrasItem {
+  grid-column: 2;
 }
 
 .extrasItem {
@@ -626,4 +641,101 @@
       background-color 140ms ease,
       color 140ms ease;
   }
+}
+
+/* ------------------------------------------------------ price and phases -- */
+
+/*
+ * The phase name over the price, and the struck-through earlier phases under
+ * it. Colours inherit from the panel, so the same markup reads on the navy
+ * flagship and on the white cards.
+ */
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.phase {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
+.earlier {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  opacity: 0.75;
+}
+
+/* A phase name never breaks in the middle; the pill moves down instead. */
+.earlierName {
+  white-space: nowrap;
+}
+
+/*
+ * On the flagship the price block gives way before the button does, so name,
+ * price and Choose stay on one line and the struck-through line wraps inside
+ * the block.
+ */
+.lead .priceBlock {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.earlier s {
+  font-weight: 600;
+}
+
+.soldOut {
+  white-space: nowrap;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lead .earlier {
+  color: #dfe8f4;
+}
+
+/* Name with the badge above it, in the flagship's head strip. */
+.leadTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.badge,
+.badgeLight {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.badge {
+  background: var(--orange);
+  color: var(--navy);
+}
+
+.badgeLight {
+  margin-bottom: 0.3rem;
+  background: var(--navy);
+  color: var(--white);
 }

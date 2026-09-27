@@ -99,6 +99,11 @@ export interface BrandingSettings {
   showSpeakers: boolean;
   /** Whether the public website sells tickets. Off hides prices, checkout and every "Register now". */
   showTickets: boolean;
+  /**
+   * Whether card checkout adds the buyer fee (`BUYER_FEE_PERCENT`) as its own
+   * line. Off by default: the team has not confirmed it.
+   */
+  chargeBuyerFee: boolean;
 }
 
 /** `settings/sponsorTiers` — the ordered tier list. See `sponsor-tiers.ts`. */
@@ -198,6 +203,8 @@ export const SETTINGS_DEFAULTS: SettingsValues = {
     showSpeakers: false,
     // On until an organizer closes sales under Marketing > Event Website.
     showTickets: true,
+    // Off until the team confirms the fee. What buyers pay stays the ticket price.
+    chargeBuyerFee: false,
   },
   access: {
     attendeeListVisible: true,
@@ -373,6 +380,13 @@ export const SETTINGS_REGISTER: Register = {
       why:
         "Off, the website's ticket pages say sales have not opened, checkout and invoice " +
         "requests are refused, and every \"Register now\" button is hidden.",
+    },
+    chargeBuyerFee: {
+      status: "live",
+      readers: ["web"],
+      why:
+        "On, card checkout adds the buyer fee as a separate Stripe line and the checkout " +
+        "page shows it in the total. Invoices are unaffected.",
     },
   },
   access: {

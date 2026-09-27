@@ -1,3 +1,4 @@
+import type { PricePhase } from "./price-phases.js";
 import type { CommunityCategory } from "./community.js";
 import type { SettingsKey, SettingsValues } from "./settings.js";
 import type { StreamProvider, StreamState } from "./stream-core.js";
@@ -1332,8 +1333,23 @@ export type TicketAudience = "attendee" | "exhibitor" | "sponsor";
  */
 export interface TicketTypeDoc extends BaseDoc {
   name: string;
-  /** Minor units. Never a float — this is money. */
+  /**
+   * Minor units. Never a float — this is money.
+   *
+   * The flat price, and the whole price for a ticket with no `pricePhases`.
+   * With phases it is only a fallback for display; the current phase's price is
+   * what checkout charges (`priceNow` in `price-phases.ts`).
+   */
   priceCents: number;
+  /**
+   * The price ladder, in order: Super Early Bird, Early Bird, Standard,
+   * Extended. Each phase starts on a day in `salesTimeZone` and runs until the
+   * next one, so the price moves on its own on 1 December. Absent on exhibitor
+   * and sponsor packages, which sell at `priceCents`.
+   */
+  pricePhases?: PricePhase[];
+  /** A short label over the ticket on the tickets page, such as "Best value". */
+  badge?: string;
   currency: string;
   includesVideoLibrary: boolean;
   includesWorkshops: boolean;

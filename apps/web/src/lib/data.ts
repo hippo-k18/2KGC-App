@@ -23,6 +23,7 @@ import {
   type EventBasics,
   type EventType,
   type SponsorTierDef,
+  BUYER_FEE_PERCENT,
   DEFAULT_SPONSOR_TIERS,
   groupSponsorsByTier,
   resolveEventBasics,
@@ -237,6 +238,14 @@ export async function siteVisibility(): Promise<{ agenda: boolean; speakers: boo
  */
 export async function ticketSalesOpen(): Promise<boolean> {
   return (await brandingSettings()).showTickets;
+}
+
+/**
+ * The buyer fee checkout adds, as a percentage, or undefined while it is off
+ * (the default). The checkout form shows it; `startCheckout` charges it.
+ */
+export async function buyerFeePercent(): Promise<number | undefined> {
+  return (await brandingSettings()).chargeBuyerFee ? BUYER_FEE_PERCENT : undefined;
 }
 
 /**
