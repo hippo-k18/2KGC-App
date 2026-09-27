@@ -467,8 +467,8 @@ export default async function AttendeesPage({
                     : `/export/person?uid=${encodeURIComponent(a.uid ?? '')}`,
                 },
                 {
-                  label: 'Delete their data',
-                  href: `?data=${personRefParam({ registrationId: a.registrationId, uid: a.uid })}#person-data`,
+                  label: 'Delete attendee',
+                  href: `?data=${personRefParam({ registrationId: a.registrationId, uid: a.uid })}#erase`,
                   danger: true,
                 },
               ]}

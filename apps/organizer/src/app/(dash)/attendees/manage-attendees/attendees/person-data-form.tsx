@@ -54,10 +54,11 @@ export function ErasePersonForm({
   return (
     <details
       id="erase"
+      open
       style={{ borderTop: '1px solid var(--hairline)', marginTop: 20, paddingTop: 16 }}
     >
       <summary className="linkish" style={{ color: 'var(--danger)', cursor: 'pointer' }}>
-        Delete everything held about them
+        Delete attendee
       </summary>
       <div style={{ marginTop: 12 }}>
         <p className="body-2">
@@ -94,7 +95,7 @@ export function ErasePersonForm({
           />
           {needsPassphrase && <ConfirmCodeField id="erase-confirm-code" />}
           <SubmitButton variant="danger" disabled={!armed} pendingLabel="Deleting…">
-            Delete everything
+            Delete attendee
           </SubmitButton>
         </form>
       </div>
