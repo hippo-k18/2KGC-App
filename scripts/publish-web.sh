@@ -6,7 +6,7 @@
 #   bash scripts/publish-web.sh --test     test the live site as it is, no deploy
 #   bash scripts/publish-web.sh --fast     skip the unit tests (the browser gate still runs)
 #
-#   PREPUBLISH_SALES=open bash scripts/publish-web.sh   once ticket sales are switched on
+#   PREPUBLISH_SALES=off bash scripts/publish-web.sh    while ticket sales are switched off
 #   (Marketing > Event Website in the dashboard); `closed` is on but with no Stripe key
 #
 # The site is https://www.knowledgegraph.tech since 2026-09-26 (staging.
@@ -24,7 +24,7 @@ WEB="$ROOT/apps/web"
 TESTS="$ROOT/tests/prepublish"
 STAGING_URL="https://www.knowledgegraph.tech"
 DROPLET="root@142.93.180.72"
-export PREPUBLISH_SALES="${PREPUBLISH_SALES:-off}"
+export PREPUBLISH_SALES="${PREPUBLISH_SALES:-open}"
 
 DEPLOY=1
 FAST=0

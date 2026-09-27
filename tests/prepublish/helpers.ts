@@ -57,7 +57,7 @@ export const MONEY_ROUTES = ['/tickets', '/tickets/checkout', '/tickets/invoice'
  * every ticket page shows the not-on-sale notice and no "Register now" renders.
  * `closed` and `open` are the Stripe states, with the switch on.
  */
-export const SALES = (process.env.PREPUBLISH_SALES ?? 'off') as 'open' | 'closed' | 'off';
+export const SALES = (process.env.PREPUBLISH_SALES ?? 'open') as 'open' | 'closed' | 'off';
 
 /** Text a visitor should never be able to read. Checked against rendered text. */
 export const BROKEN_TEXT: RegExp[] = [

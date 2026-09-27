@@ -12,7 +12,7 @@ alone; a failure found by the gate is live until you roll back.
 npm run publish:web                        # check, deploy, test the live site
 bash scripts/publish-web.sh --test         # test the live site as it is, no deploy
 bash scripts/publish-web.sh --fast         # skip unit tests, keep the browser gate
-PREPUBLISH_SALES=open npm run publish:web  # once ticket sales are switched on (see below)
+PREPUBLISH_SALES=off npm run publish:web   # while ticket sales are switched off (see below)
 ```
 
 To run the checks on their own against any origin:
@@ -75,7 +75,7 @@ is down for the whole build. Only one deploy can run at a time.
 
 The site has three legitimate states and the gate insists on the one you name.
 
-- **`off`** (default today): ticket sales are switched off in the dashboard under
+- **`off`**: ticket sales are switched off in the dashboard under
   Marketing > Event Website (or Tickets > Publish Tickets). Every ticket page
   must say "Tickets are not on sale yet" with no price on it, and no page may
   show a "Register now" button. The Stripe key is still set, so the webhook
@@ -84,14 +84,14 @@ The site has three legitimate states and the gate insists on the one you name.
   disabled, the "Ticket sales are not open yet"
   notice must show with an Email us link, the invoice page must show its
   closed notice, and the Stripe webhook must answer 503.
-- **`open`**: the pay button must be enabled, no
+- **`open`** (default): the switch is on and Stripe is set. The pay button must be enabled, no
   closed notice, the webhook must answer 400 to an unsigned post, and the
   server-side checks below run.
 
 A mismatch fails the run. That is deliberate: a Stripe key that went missing
 from a deploy and one that was newly added are both things to know before the
-site goes out. **When ticket sales are switched on, change the default in
-`scripts/publish-web.sh` to `open`.**
+site goes out. **If ticket sales are switched off in the dashboard, run the
+gate with `PREPUBLISH_SALES=off`.**
 
 ## What is checked
 
