@@ -8,6 +8,14 @@ import {
   siteEvent,
 } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
+
+/**
+ * The home page says "Bryant Park" where every other page says "Jay Conference
+ * Bryant Park". The user asked for that on 2026-09-27, for this page only.
+ * Applied to the saved venue too, so a venue edited in Content > Basics keeps
+ * the short form here.
+ */
+const homeVenue = (venue: string) => venue.replace('Jay Conference Bryant Park', 'Bryant Park');
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { EventSchedule } from '@/components/event-schedule';
@@ -231,7 +239,7 @@ export default async function HomePage() {
           <h1>{ev.name === SITE.name ? 'The Knowledge Graph Conference' : ev.name}</h1>
           <p className="lede">{branding.tagline || 'Make Your Enterprise Data AI Ready'}</p>
           <p className="hero-dates">
-            {ev.datesLong} &nbsp;|&nbsp; {ev.venueShort}
+            {ev.datesLong} &nbsp;|&nbsp; {homeVenue(ev.venueShort)}
           </p>
 
           {/*
@@ -420,7 +428,7 @@ export default async function HomePage() {
             answer: (
               <>
                 <p>
-                  Recommended hotels near Jay Conference Bryant Park, with discounted room blocks, will be listed
+                  Recommended hotels near Bryant Park, with discounted room blocks, will be listed
                   here closer to the conference.
                 </p>
               </>
@@ -440,7 +448,7 @@ export default async function HomePage() {
             answer: <p>Yes. Every session is recorded and published to the video library.</p>,
           },
           {
-            question: 'How do I get to Jay Conference Bryant Park?',
+            question: 'How do I get to Bryant Park?',
             answer: (
               <p>
                 The venue is in Midtown Manhattan by Bryant Park, between 40th and 42nd Streets and
@@ -457,7 +465,7 @@ export default async function HomePage() {
           <div className="wrap narrow center">
             <h2>Bring your team</h2>
             <p className="lede" style={{ margin: '0 auto 24px' }}>
-              {ev.datesLong} at {ev.venue}.
+              {ev.datesLong} at {homeVenue(ev.venue)}.
             </p>
             <Link href="/tickets" className="btn btn-primary">
               Register now
