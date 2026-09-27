@@ -337,3 +337,21 @@ export function formatDeadline(wallClock: string, timeZone: string): string | nu
 export function localTime(wallClock: string): string {
   return wallClock.slice(11, 16);
 }
+
+/**
+ * The home page says "Bryant Park" where every other page says "Jay Conference
+ * Bryant Park". The user asked for that on 2026-09-27, for the home page and its
+ * footer only. Applied to the saved venue too, so a venue edited in Content >
+ * Basics keeps the short form there.
+ */
+export const homeVenue = (venue: string) => venue.replace('Jay Conference Bryant Park', 'Bryant Park');
+
+/**
+ * An empty element the home page renders so the shared footer can switch to
+ * `homeVenue` with CSS alone (`body:has(...)` in `globals.css`).
+ *
+ * Not `usePathname()`: on the blog host `/` is rewritten to the blog index, so
+ * the path would say "home" on a page that is not. Not a request header read in
+ * the root layout either, which would make every page on the site dynamic.
+ */
+export const HOME_VENUE_MARKER = 'data-home-venue';

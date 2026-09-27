@@ -10008,3 +10008,16 @@ section .site-search-form {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* The footer's venue: short on the home page only. See `homeVenue` in lib/site.ts. */
+.venue-home {
+  display: none;
+}
+
+body:has([data-home-venue]) .venue-full {
+  display: none;
+}
+
+body:has([data-home-venue]) .venue-home {
+  display: inline;
+}

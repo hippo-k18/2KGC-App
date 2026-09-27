@@ -7,15 +7,7 @@ import {
   programmeCounts,
   siteEvent,
 } from '@/lib/data';
-import { ATTENDEES_EXPECTED, HCLS_BADGE, SITE } from '@/lib/site';
-
-/**
- * The home page says "Bryant Park" where every other page says "Jay Conference
- * Bryant Park". The user asked for that on 2026-09-27, for this page only.
- * Applied to the saved venue too, so a venue edited in Content > Basics keeps
- * the short form here.
- */
-const homeVenue = (venue: string) => venue.replace('Jay Conference Bryant Park', 'Bryant Park');
+import { ATTENDEES_EXPECTED, HCLS_BADGE, HOME_VENUE_MARKER, SITE, homeVenue } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { EventSchedule } from '@/components/event-schedule';
@@ -192,6 +184,8 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Tells the site footer to print the short venue. See `homeVenue`. */}
+      <span {...{ [HOME_VENUE_MARKER]: '' }} hidden />
       {jsonLd && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       )}

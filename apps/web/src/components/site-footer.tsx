@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { SITE } from '@/lib/site';
+import { SITE, homeVenue } from '@/lib/site';
 
 /**
  * Copyright runs from the first conference to the current edition — 2019 is
@@ -109,7 +109,19 @@ export function SiteFooter({
         <div className="fine">
           <span>© 2019–2027 Knowledge Graph Conference. All rights reserved.</span>
           <span>
-            {datesShort} · {venue}
+            {datesShort} ·{' '}
+            {homeVenue(venue) === venue ? (
+              venue
+            ) : (
+              /*
+                Both forms, one shown. The home page says "Bryant Park"; every
+                other page keeps the full name. `site.ts` says why CSS picks.
+              */
+              <>
+                <span className="venue-full">{venue}</span>
+                <span className="venue-home">{homeVenue(venue)}</span>
+              </>
+            )}
           </span>
           {/* The home page photograph is CC BY-SA 3.0, which requires this. */}
           <span className="photo-credit">
