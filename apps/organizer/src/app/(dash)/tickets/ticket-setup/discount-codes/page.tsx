@@ -128,14 +128,20 @@ export default async function DiscountCodesPage() {
           Codes ({live} live of {codes.length})
         </h2>
         <Table
+          /*
+           * Every fixed width here plus the one fill column has to fit the
+           * panel. Seven fixed columns added up to 1,224px in a panel about
+           * 1,120px wide, and the last column, the Turn off button, was pushed
+           * past the panel's edge with only its first letter showing.
+           */
           cols={[
-            { key: 'code', label: 'Code', className: 'cell-md' },
-            { key: 'discount', label: 'Discount', className: 'cell-sm' },
-            { key: 'applies', label: 'Applies to', className: 'cell-md' },
-            { key: 'used', label: 'Used', className: 'cell-sm' },
-            { key: 'expires', label: 'Expires', className: 'cell-sm' },
-            { key: 'status', label: 'Status', className: 'cell-sm' },
-            { key: 'act', label: '', className: 'cell-sm' },
+            { key: 'code', label: 'Code', className: 'cell-mdsm' },
+            { key: 'discount', label: 'Discount', className: 'cell-xsm' },
+            { key: 'applies', label: 'Applies to', className: 'cell-fill' },
+            { key: 'used', label: 'Used', className: 'cell-xsm' },
+            { key: 'expires', label: 'Expires', className: 'cell-xsm' },
+            { key: 'status', label: 'Status', className: 'cell-xsm' },
+            { key: 'act', label: '', className: 'cell-xsm' },
           ]}
           rows={codes.map((c) => [
             <code key="c" style={{ fontSize: 13, fontWeight: 600 }}>
