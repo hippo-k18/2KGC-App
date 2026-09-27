@@ -131,7 +131,13 @@
   position: relative;
   display: grid;
   gap: clamp(1.25rem, 3vw, 1.6rem);
-  padding: clamp(1.25rem, 3vw, 1.75rem);
+  /*
+   * The same padding as the white cards, plus 4px for the orange bar, which
+   * sits over the padding where theirs is a border. That is what puts the two
+   * Choose buttons on one line.
+   */
+  padding: calc(clamp(0.9rem, 2vw, 1.1rem) + 4px) clamp(0.9rem, 2vw, 1.1rem)
+    clamp(0.9rem, 2vw, 1.1rem);
   border-radius: var(--radius);
   background: var(--navy);
   color: #dfe8f4;
@@ -164,85 +170,7 @@
      */
     grid-template-rows: auto 1fr;
     gap: 0.85rem;
-    padding: 1rem clamp(1.15rem, 2vw, 1.5rem);
   }
-}
-
-/*
- * Name, price and button on one line.
- *
- * Stacked, this block was 110px of a panel that has to fit above the fold with
- * two rows still showing under it — and the three things in it are all short.
- * Side by side they cost one line, and the button lands beside the price where
- * a price and its call to action belong.
- */
-.leadHead {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.1rem;
-}
-
-.leadName {
-  margin: 0;
-  font-size: clamp(1.15rem, 2.4vw, 1.35rem);
-  line-height: 1.1;
-  letter-spacing: -0.015em;
-  font-weight: 700;
-  color: #fff;
-}
-
-.leadPrice {
-  margin: 0;
-  font-size: clamp(1.75rem, 4vw, 2.05rem);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-weight: 700;
-  color: #fff;
-}
-
-.leadCta {
-  display: inline-block;
-  /* `auto` left margin pushes it to the far end of the strip. */
-  margin-left: auto;
-  padding: 0.55rem 1.2rem;
-  border-radius: 999px;
-  background: var(--orange);
-  color: #10243a;
-  font-size: 1rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-/*
- * On a phone the name and price fill the line, so the button wrapped onto a
- * row of its own and `margin-left: auto` stranded it at the right, below and
- * apart from the price. Give the name the whole first row instead: price and
- * button then share the second, the way the other cards pair them.
- */
-@media (max-width: 767px) {
-  .leadName {
-    flex-basis: 100%;
-  }
-}
-
-.leadCta:hover {
-  background: #ffa348;
-}
-
-.leadCta:focus-visible {
-  outline: 3px solid var(--palette-4);
-  outline-offset: 3px;
-}
-
-.leadClosed {
-  margin: 0 0 0 auto;
-  display: inline-block;
-  padding: 0.55rem 1rem;
-  border: 1px solid rgb(255 255 255 / 35%);
-  border-radius: 999px;
-  font-weight: 600;
-  color: #e7eefa;
 }
 
 /* The grouped contents, laid out rather than stacked. */
@@ -349,24 +277,6 @@
   background: var(--white);
 }
 
-.secondName {
-  margin: 0;
-  font-size: 1.05rem;
-  line-height: 1.2;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.secondPrice {
-  margin: 0.15rem 0 0;
-  font-size: 1.35rem;
-  line-height: 1;
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  color: var(--navy);
-  font-variant-numeric: tabular-nums;
-}
-
 .secondItems {
   margin: 0.6rem 0 0;
   padding: 0;
@@ -401,51 +311,12 @@
   color: var(--ink);
 }
 
-/* Name and price on the left, the button at the top right. */
-.secondHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.secondCta {
-  flex: none;
-  display: inline-block;
-  padding: 0.4rem 1.1rem;
-  font-size: 0.92rem;
-  border: 2px solid var(--navy);
-  border-radius: 999px;
-  background: var(--white);
-  color: var(--navy);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.secondCta:hover {
-  background: var(--navy);
-  color: var(--white);
-}
-
-.secondCta:focus-visible {
-  outline: 3px solid var(--orange);
-  outline-offset: 2px;
-}
-
-.secondClosed {
-  flex: none;
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
 /* --------------------------------------------------------- alternatives -- */
 
 /*
  * Each alternative is a card in the second panel's vocabulary (border, navy
- * top rule, rounded corners), still laid out as one full-width row on a
- * laptop so the pair keeps its height and both stay near the fold.
+ * top rule, rounded corners) with the same head as the two panels above, so
+ * its button lines up with Main Conference's right edge.
  */
 .altRows {
   margin: 0.9rem 0 0;
@@ -456,46 +327,11 @@
 }
 
 .alt {
-  display: grid;
-  gap: 0.3rem 1.25rem;
-  padding: 0.45rem clamp(0.9rem, 2vw, 1.1rem);
+  padding: clamp(0.9rem, 2vw, 1.1rem);
   border: 1px solid var(--line);
   border-top: 4px solid var(--navy);
   border-radius: var(--radius);
   background: var(--white);
-}
-
-@media (min-width: 56rem) {
-  .alt {
-    grid-template-columns: minmax(0, 10.5rem) minmax(0, 1fr) auto;
-    align-items: center;
-  }
-}
-
-.altIdent {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-}
-
-.altName {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.2;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.altPrice {
-  margin: 0;
-  font-size: 1.15rem;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  font-weight: 700;
-  color: var(--navy);
-  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -508,7 +344,7 @@
  * lists every item.
  */
 .altItems {
-  margin: 0;
+  margin: 0.6rem 0 0;
   padding: 0;
   list-style: none;
   display: flex;
@@ -530,72 +366,12 @@
   color: var(--line);
 }
 
-.altAction {
-  display: flex;
-  align-items: center;
-}
-
-.altCta {
-  display: inline-block;
-  padding: 0.4rem 1.1rem;
-  font-size: 0.92rem;
-  border: 2px solid var(--navy);
-  border-radius: 999px;
-  background: var(--white);
-  color: var(--navy);
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.altCta:hover {
-  background: var(--navy);
-  color: var(--white);
-}
-
-.altCta:focus-visible {
-  outline: 3px solid var(--orange);
-  outline-offset: 2px;
-}
-
-.altClosed {
-  margin: 0;
-  padding: 0.5rem 0.9rem;
-  border: 1px dashed var(--muted);
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
 /*
- * Below the three-column row the card stacks its contents like the second
- * panel, and the dot separators give way to bullets so they are not left
- * hanging at the end of wrapped lines.
+ * On a narrow screen the dot separators give way to bullets, like the second
+ * panel's list, so they are not left hanging at the end of wrapped lines.
  */
 @media (max-width: 55.99rem) {
-  .alt {
-    gap: 0;
-    padding: clamp(0.9rem, 2vw, 1.1rem);
-  }
-
-  .altIdent {
-    display: block;
-  }
-
-  .altName {
-    font-size: 1.05rem;
-  }
-
-  .altPrice {
-    margin-top: 0.15rem;
-    font-size: 1.35rem;
-    letter-spacing: -0.025em;
-  }
-
   .altItems {
-    margin-top: 0.6rem;
     display: grid;
     gap: 0.22rem;
   }
@@ -622,25 +398,133 @@
     border-radius: 1px;
     background: var(--accent);
   }
+}
 
-  .altAction {
-    margin-top: 0.7rem;
-  }
+/* ------------------------------------------------------------ card head -- */
 
-  .altCta {
-    padding: 0.55rem 1.3rem;
-    font-size: inherit;
-  }
+/*
+ * One head for every card: name and badge, with the button to their right on
+ * the same line, then the price block under both. The same order, the same
+ * button size and the same spacing on all three cards; the flagship differs
+ * only in colour.
+ */
+.cardHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem 1rem;
+}
+
+.cardTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  min-height: 2.3rem;
+}
+
+.cardName {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lead .cardName {
+  color: #fff;
+}
+
+.cardHead .priceBlock {
+  grid-column: 1 / -1;
+}
+
+.price {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.lead .price {
+  color: #fff;
+}
+
+/* The same pill on every card, 6rem wide so the buttons line up in width too. */
+.cta {
+  display: inline-block;
+  min-width: 6rem;
+  padding: 0.4rem 1rem;
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cta:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.ctaPlain {
+  background: var(--white);
+  color: var(--navy);
+}
+
+.ctaPlain:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+/* Navy on brand orange is 4.71:1. */
+.ctaFeatured {
+  border-color: var(--orange);
+  background: var(--orange);
+  color: #10243a;
+}
+
+.ctaFeatured:hover {
+  border-color: #ffa348;
+  background: #ffa348;
+}
+
+.ctaFeatured:focus-visible {
+  outline-color: var(--palette-4);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .leadCta,
-  .secondCta,
-  .altCta {
+  .cta {
     transition:
       background-color 140ms ease,
+      border-color 140ms ease,
       color 140ms ease;
   }
+}
+
+.closed {
+  margin: 0;
+  min-width: 6rem;
+  padding: 0.5rem 1rem;
+  border: 1px dashed var(--muted);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.lead .closed {
+  border-color: rgb(255 255 255 / 45%);
+  color: #e7eefa;
 }
 
 /* ------------------------------------------------------ price and phases -- */
@@ -690,16 +574,6 @@
   white-space: nowrap;
 }
 
-/*
- * On the flagship the price block gives way before the button does, so name,
- * price and Choose stay on one line and the struck-through line wraps inside
- * the block.
- */
-.lead .priceBlock {
-  flex: 1 1 10rem;
-  min-width: 0;
-}
-
 .earlier s {
   font-weight: 600;
 }
@@ -719,16 +593,9 @@
   color: #dfe8f4;
 }
 
-/* Name with the badge above it, in the flagship's head strip. */
-.leadTitle {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
 .badge,
 .badgeLight {
-  align-self: flex-start;
+  flex: none;
   margin: 0;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
@@ -744,7 +611,6 @@
 }
 
 .badgeLight {
-  margin-bottom: 0.3rem;
   background: var(--navy);
   color: var(--white);
 }

@@ -79,16 +79,56 @@ function Price({ tier, className }: { tier: Tier; className: string }) {
 }
 
 /**
- * The flagship: name, price and button on one line, contents in columns below.
+ * The top of every ticket card, in one structure so the cards read as a set.
  *
- * The button says "Choose", not "Choose All Access (VIP)". With the tier name
- * in it the button came to 301px, the three items on the strip totalled 683px
- * inside 670px, and the whole block wrapped to three lines — 115px instead of
- * 59px, which is most of the height the rows below need to reach the fold. The
- * name it would have repeated is six inches to its left. `aria-label` carries
- * the full phrase, so nothing is lost to a screen reader reading the button out
- * of context.
+ * Name (and badge) on the first line with the button at its right, then the
+ * phase, the price and the struck-through earlier price, in that order on every
+ * card. The user asked for symmetry between All Access and Main Conference on
+ * 2026-09-27: the flagship used to put name, price and button in three columns
+ * while the other cards stacked them, so the buttons sat at different heights
+ * and the crossed-out prices in different places. All Access stays featured by
+ * colour and the badge, not by a different layout.
+ *
+ * The button says "Choose", not "Choose All Access (VIP)": the name is on the
+ * same line, and `aria-label` carries the full phrase for a screen reader.
  */
+function CardHead({
+  tier,
+  featured = false,
+  level = 2,
+}: {
+  tier: Tier;
+  featured?: boolean;
+  level?: 2 | 3;
+}) {
+  const Name = level === 2 ? 'h2' : 'h3';
+  return (
+    <div className={s.cardHead}>
+      <div className={s.cardTitle}>
+        <Name id={`name-${tier.id}`} className={s.cardName}>
+          {tier.name}
+        </Name>
+        {tier.badge ? <p className={featured ? s.badge : s.badgeLight}>{tier.badge}</p> : null}
+      </div>
+
+      {tier.onSale ? (
+        <Link
+          className={`${s.cta} ${featured ? s.ctaFeatured : s.ctaPlain}`}
+          href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+          aria-label={`Choose ${tier.name}`}
+        >
+          Choose
+        </Link>
+      ) : (
+        <p className={s.closed}>{tier.unavailableReason ?? 'Not available'}</p>
+      )}
+
+      <Price tier={tier} className={s.price} />
+    </div>
+  );
+}
+
+/** The flagship: the shared head, then its contents in columns. */
 function LeadPanel({ tier }: { tier: Tier }) {
   /*
    * The grouped shape is the panel's structure. A group with items becomes a
@@ -101,28 +141,8 @@ function LeadPanel({ tier }: { tier: Tier }) {
   const extras = groups.filter((g) => !g.items || g.items.length === 0).map((g) => g.heading);
 
   return (
-    <article className={s.lead} aria-labelledby="lead-name">
-      <div className={s.leadHead}>
-        <div className={s.leadTitle}>
-          {tier.badge ? <p className={s.badge}>{tier.badge}</p> : null}
-          <h2 id="lead-name" className={s.leadName}>
-            {tier.name}
-          </h2>
-        </div>
-        <Price tier={tier} className={s.leadPrice} />
-
-        {tier.onSale ? (
-          <Link
-            className={s.leadCta}
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        ) : (
-          <p className={s.leadClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-        )}
-      </div>
+    <article className={s.lead} aria-labelledby={`name-${tier.id}`}>
+      <CardHead tier={tier} featured />
 
       <div className={s.leadBody}>
         {columns.map((g, i) => (
@@ -155,35 +175,11 @@ function LeadPanel({ tier }: { tier: Tier }) {
  *
  * `includes` flat rather than `groups`: there is one column of room here, and
  * group headings in a single narrow column are rules with one item under each.
- *
- * The button sits top right, beside the name and price, as it does on the
- * flagship. Pinned to the bottom it landed under five bullets and read as the
- * end of the list rather than the way to buy.
  */
 function SecondPanel({ tier }: { tier: Tier }) {
   return (
-    <article className={s.second} aria-labelledby="second-name">
-      <div className={s.secondHead}>
-        <div>
-          {tier.badge ? <p className={s.badgeLight}>{tier.badge}</p> : null}
-          <h2 id="second-name" className={s.secondName}>
-            {tier.name}
-          </h2>
-          <Price tier={tier} className={s.secondPrice} />
-        </div>
-
-        {tier.onSale ? (
-          <Link
-            className={s.secondCta}
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        ) : (
-          <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-        )}
-      </div>
+    <article className={s.second} aria-labelledby={`name-${tier.id}`}>
+      <CardHead tier={tier} />
 
       <ul className={s.secondItems}>
         {tier.includes.map((line) => (
@@ -204,35 +200,17 @@ function SecondPanel({ tier }: { tier: Tier }) {
   );
 }
 
-/** One row: identity and price, everything it includes, and the way in. */
+/** One full-width card: the same head, then everything it includes on a line. */
 function AlternativeRow({ tier }: { tier: Tier }) {
   return (
     <li className={s.alt}>
-      <div className={s.altIdent}>
-        {tier.badge ? <p className={s.badgeLight}>{tier.badge}</p> : null}
-        <h3 className={s.altName}>{tier.name}</h3>
-        <Price tier={tier} className={s.altPrice} />
-      </div>
+      <CardHead tier={tier} level={3} />
 
       <ul className={s.altItems}>
         {tier.includes.map((line) => (
           <li key={line}>{line}</li>
         ))}
       </ul>
-
-      <div className={s.altAction}>
-        {tier.onSale ? (
-          <Link
-            className={s.altCta}
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        ) : (
-          <p className={s.altClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-        )}
-      </div>
     </li>
   );
 }
