@@ -55,11 +55,23 @@ export const dynamic = 'force-dynamic';
  * `<details>` gives the disclosure its expanded state and keyboard handling for
  * free, with no client JavaScript.
  *
- * The card is five rows (head, price, struck price, summary, details) laid on
- * the list's grid with `subgrid`, so each row lines up across the three cards
- * however the names wrap. Keep those five children in that order.
+ * Four children, in this order on every card: the head (name and Choose), the
+ * price block, the summary and the details. The layout variants place them.
  */
-function TicketCard({ tier, featured = false }: { tier: Tier; featured?: boolean }) {
+function TicketCard({
+  tier,
+  featured = false,
+  layout,
+}: {
+  tier: Tier;
+  featured?: boolean;
+  /**
+   * Where the card sits: `wide` is All Access at two thirds, `narrow` Main
+   * Conference at one third beside it, `row` Virtual across the full width
+   * underneath. The markup is the same for all three; only the CSS differs.
+   */
+  layout: 'wide' | 'narrow' | 'row';
+}) {
   /*
    * The same content each card showed before its details were folded away:
    * the featured card its grouped list, with heading-only groups ("KGC Video
@@ -79,7 +91,7 @@ function TicketCard({ tier, featured = false }: { tier: Tier; featured?: boolean
 
   return (
     <article
-      className={`${s.card}${featured ? ` ${s.featured}` : ''}`}
+      className={`${s.card} ${s[layout]}${featured ? ` ${s.featured}` : ''}`}
       aria-labelledby={`name-${tier.id}`}
     >
         <div className={s.cardTop}>
@@ -103,11 +115,11 @@ function TicketCard({ tier, featured = false }: { tier: Tier; featured?: boolean
           )}
         </div>
 
+        <div className={s.priceBlock}>
         <div className={s.priceRow}>
           <p className={s.price}>{formatPrice(tier.priceCents, tier.currency)}</p>
           {tier.phase ? <p className={s.phase}>{tier.phase}</p> : null}
         </div>
-        <div className={s.earlierRow}>
         {tier.earlierPhases?.map((e) => (
           <p className={s.earlier} key={e.name}>
             <s aria-label={`${e.name} price ${formatPrice(e.priceCents, tier.currency)}, no longer available`}>
@@ -207,7 +219,12 @@ export default async function TicketsPage({
         {ranked.length > 0 ? (
           <div className={s.cards}>
             {ranked.map((t, i) => (
-              <TicketCard key={t.id} tier={t} featured={i === 0} />
+              <TicketCard
+                key={t.id}
+                tier={t}
+                featured={i === 0}
+                layout={i === 0 ? 'wide' : i === 1 ? 'narrow' : 'row'}
+              />
             ))}
           </div>
         ) : (

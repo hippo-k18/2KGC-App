@@ -82,25 +82,9 @@
   gap: 1rem;
 }
 
-/*
- * Three across on a laptop. Each card spans five rows of this grid and adopts
- * them with `subgrid`, so the head, price, struck price, summary and details
- * rows line up across all three cards however the names wrap.
- */
-@media (min-width: 56rem) {
-  .cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    column-gap: 1.25rem;
-    row-gap: 0;
-  }
-}
-
 .card {
-  display: grid;
-  grid-row: span 5;
-  grid-template-rows: subgrid;
-  row-gap: 0;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   padding: 1.5rem;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -227,16 +211,16 @@
 
 /* ----------------------------------------------------------------- price -- */
 
+.priceBlock {
+  margin-top: 1.25rem;
+  min-width: 0;
+}
+
 .priceRow {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.25rem 0.6rem;
-  margin-top: 1.25rem;
-}
-
-.earlierRow {
-  min-width: 0;
 }
 
 .price {
@@ -289,8 +273,13 @@
 
 /* ------------------------------------------------------------ disclosure -- */
 
+/*
+ * Pinned to the bottom of a stretched card, so the two cards on the top row
+ * end on the same line.
+ */
 .more {
-  margin-top: 1rem;
+  margin-top: auto;
+  padding-top: 1rem;
 }
 
 .moreToggle {
@@ -389,5 +378,106 @@
 @media (max-width: 55.99rem) {
   .card {
     padding: 1.25rem;
+  }
+}
+
+/* ---------------------------------------------------------------- layout -- */
+
+/*
+ * On a laptop: All Access at two thirds and Main Conference at one third on
+ * the first row, Virtual across the full width underneath (the user's layout,
+ * 2026-09-27). Below 62rem the cards stack in that order.
+ *
+ * The first row stretches so both cards are the same height, with their
+ * Choose buttons on one line at the top and "What's included" on one line at
+ * the bottom. Once any card is opened the row aligns to the start instead, so
+ * only the opened card grows and the other keeps its own height rather than
+ * gaining an empty band.
+ */
+@media (min-width: 62rem) {
+  .cards {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  .cards:has(details[open]) {
+    align-items: start;
+  }
+
+  /* Room for a two-line name, so the prices on the first row line up too. */
+  .wide .cardTop,
+  .narrow .cardTop {
+    min-height: 2.9rem;
+  }
+
+  /* All Access: the summary beside the price, the lists in columns when open. */
+  .wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 2rem;
+  }
+
+  .wide .cardTop,
+  .wide .more {
+    grid-column: 1 / -1;
+  }
+
+  .wide .summary {
+    align-self: end;
+    margin: 0;
+  }
+
+  .wide .more {
+    align-self: end;
+  }
+
+  .wide .moreBody {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    column-gap: 2rem;
+  }
+
+  /* Virtual: name, price, summary and Choose on one line, details under them. */
+  .row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.4fr) auto;
+    grid-template-areas:
+      'title price summary cta'
+      'more more more more';
+    align-items: center;
+    column-gap: 2rem;
+  }
+
+  .row .cardTop {
+    display: contents;
+  }
+
+  .row .cardTitle {
+    grid-area: title;
+  }
+
+  .row .cta,
+  .row .closed {
+    grid-area: cta;
+  }
+
+  .row .priceBlock {
+    grid-area: price;
+    margin: 0;
+  }
+
+  .row .summary {
+    grid-area: summary;
+    margin: 0;
+  }
+
+  .row .more {
+    grid-area: more;
+  }
+
+  .row .items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
   }
 }
