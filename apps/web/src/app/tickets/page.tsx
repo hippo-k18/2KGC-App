@@ -60,7 +60,17 @@ export const dynamic = 'force-dynamic';
  * however the names wrap. Keep those five children in that order.
  */
 function TicketCard({ tier, featured = false }: { tier: Tier; featured?: boolean }) {
-  const groups = tier.groups?.length ? tier.groups : [{ heading: '', items: [...tier.includes] }];
+  /*
+   * The same content each card showed before its details were folded away:
+   * the featured card its grouped list, with heading-only groups ("KGC Video
+   * Library Subscription (3 months)") under "Also included"; the others their
+   * flat `includes`, whose copy differs from their `groups`.
+   */
+  const grouped = featured && tier.groups?.length ? tier.groups : null;
+  const columns = grouped
+    ? grouped.filter((g) => g.items?.length)
+    : [{ heading: '', items: [...tier.includes] }];
+  const extras = grouped ? grouped.filter((g) => !g.items?.length).map((g) => g.heading) : [];
   const addOns = tier.addOns?.length
     ? `Add ${tier.addOns
         .map((a) => `${a.name} for ${formatPrice(a.priceCents, tier.currency)}`)
@@ -112,24 +122,30 @@ function TicketCard({ tier, featured = false }: { tier: Tier; featured?: boolean
         <p className={s.summary}>{tier.tagline}</p>
 
         <details className={s.more}>
-          <summary className={s.moreToggle}>What’s included</summary>
+          <summary className={s.moreToggle}>
+            What’s included<span className="sr-only"> in {tier.name}</span>
+          </summary>
           <div className={s.moreBody}>
-            {groups.map((g, i) => (
+            {columns.map((g, i) => (
               <div key={g.heading || i}>
-                {g.heading && g.items?.length ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
-                {g.items?.length ? (
-                  <ul className={s.items}>
-                    {g.items.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                ) : g.heading ? (
-                  <ul className={s.items}>
-                    <li>{g.heading}</li>
-                  </ul>
-                ) : null}
+                {g.heading ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
+                <ul className={s.items}>
+                  {(g.items ?? []).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
               </div>
             ))}
+            {extras.length > 0 ? (
+              <div>
+                <h3 className={s.groupHead}>Also included</h3>
+                <ul className={s.items}>
+                  {extras.map((heading) => (
+                    <li key={heading}>{heading}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {addOns ? <p className={s.addOn}>{addOns}</p> : null}
           </div>
         </details>
