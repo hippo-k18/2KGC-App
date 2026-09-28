@@ -38,180 +38,102 @@ export const dynamic = 'force-dynamic';
  *
  * ── The shape ─────────────────────────────────────────────────────────────
  *
- * Two panels on one line at 2/3 and 1/3 — the flagship and Main Conference —
- * then the rest as rows. Adapted from `options/v8`; `tickets.module.css` header
- * carries the reasoning and the reductions.
- *
- * ⚠️ **The two rows below are meant to be partly cut off at the fold.** That is
- * the point of the sizing, not a layout that ran out of room: a page ending
- * cleanly under the top line reads as a page with two tickets on it, and
- * Workshops and Virtual are then never found. If you add vertical space here,
- * check what the fold does at 900px before you keep it.
+ * Three cards with one structure, the dearest one featured, each with its
+ * details folded behind "What's included". `tickets.module.css` says why.
  */
 
 /**
- * The price, with the phase it belongs to and the phases already gone.
+ * One ticket card. The same structure for all three tickets.
  *
- * "Early Bird" sits over the figure so the buyer knows it is a phase price.
- * Earlier phases follow it struck through, Super Early Bird marked "Sold Out",
- * because a crossed-out lower price is the plainest way to say this one will
- * not come back. The next phase's price is never shown: the page only says
- * when prices go up.
+ * At rest it shows only what a buyer compares: the name, the price (with the
+ * phase it belongs to and the Super Early Bird price it replaced), a one-line
+ * summary and Choose. Everything the ticket includes sits behind "What's
+ * included", which the owner asked for on 2026-09-07 (expandable cards, less
+ * text) and again on 2026-09-27 when the page had filled back up.
+ *
+ * `featured` changes colour only: the navy card and the orange button.
+ * `<details>` gives the disclosure its expanded state and keyboard handling for
+ * free, with no client JavaScript.
+ *
+ * The card is five rows (head, price, struck price, summary, details) laid on
+ * the list's grid with `subgrid`, so each row lines up across the three cards
+ * however the names wrap. Keep those five children in that order.
  */
-function Price({ tier, className }: { tier: Tier; className: string }) {
+function TicketCard({ tier, featured = false }: { tier: Tier; featured?: boolean }) {
+  const groups = tier.groups?.length ? tier.groups : [{ heading: '', items: [...tier.includes] }];
+  const addOns = tier.addOns?.length
+    ? `Add ${tier.addOns
+        .map((a) => `${a.name} for ${formatPrice(a.priceCents, tier.currency)}`)
+        .join(' or ')} at checkout.`
+    : null;
+
   return (
-    <div className={s.priceBlock}>
-      {tier.phase ? <p className={s.phase}>{tier.phase}</p> : null}
-      <p className={className}>{formatPrice(tier.priceCents, tier.currency)}</p>
-      {tier.earlierPhases?.map((e) => (
-        <p className={s.earlier} key={e.name}>
-          <span className={s.earlierName}>
+    <article
+      className={`${s.card}${featured ? ` ${s.featured}` : ''}`}
+      aria-labelledby={`name-${tier.id}`}
+    >
+        <div className={s.cardTop}>
+          <div className={s.cardTitle}>
+            <h2 id={`name-${tier.id}`} className={s.cardName}>
+              {tier.name}
+            </h2>
+            {tier.badge ? <p className={s.badge}>{tier.badge}</p> : null}
+          </div>
+
+          {tier.onSale ? (
+            <Link
+              className={s.cta}
+              href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+              aria-label={`Choose ${tier.name}`}
+            >
+              Choose
+            </Link>
+          ) : (
+            <p className={s.closed}>{tier.unavailableReason ?? 'Not available'}</p>
+          )}
+        </div>
+
+        <div className={s.priceRow}>
+          <p className={s.price}>{formatPrice(tier.priceCents, tier.currency)}</p>
+          {tier.phase ? <p className={s.phase}>{tier.phase}</p> : null}
+        </div>
+        <div className={s.earlierRow}>
+        {tier.earlierPhases?.map((e) => (
+          <p className={s.earlier} key={e.name}>
             <s aria-label={`${e.name} price ${formatPrice(e.priceCents, tier.currency)}, no longer available`}>
               {formatPrice(e.priceCents, tier.currency)}
             </s>{' '}
             {e.name}
-          </span>
-          {e.soldOut ? <span className={s.soldOut}>Sold Out</span> : null}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/**
- * The top of every ticket card, in one structure so the cards read as a set.
- *
- * Name (and badge) on the first line with the button at its right, then the
- * phase, the price and the struck-through earlier price, in that order on every
- * card. The user asked for symmetry between All Access and Main Conference on
- * 2026-09-27: the flagship used to put name, price and button in three columns
- * while the other cards stacked them, so the buttons sat at different heights
- * and the crossed-out prices in different places. All Access stays featured by
- * colour and the badge, not by a different layout.
- *
- * The button says "Choose", not "Choose All Access (VIP)": the name is on the
- * same line, and `aria-label` carries the full phrase for a screen reader.
- */
-function CardHead({
-  tier,
-  featured = false,
-  level = 2,
-}: {
-  tier: Tier;
-  featured?: boolean;
-  level?: 2 | 3;
-}) {
-  const Name = level === 2 ? 'h2' : 'h3';
-  return (
-    <div className={s.cardHead}>
-      <div className={s.cardTitle}>
-        <Name id={`name-${tier.id}`} className={s.cardName}>
-          {tier.name}
-        </Name>
-        {tier.badge ? <p className={featured ? s.badge : s.badgeLight}>{tier.badge}</p> : null}
-      </div>
-
-      {tier.onSale ? (
-        <Link
-          className={`${s.cta} ${featured ? s.ctaFeatured : s.ctaPlain}`}
-          href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-          aria-label={`Choose ${tier.name}`}
-        >
-          Choose
-        </Link>
-      ) : (
-        <p className={s.closed}>{tier.unavailableReason ?? 'Not available'}</p>
-      )}
-
-      <Price tier={tier} className={s.price} />
-    </div>
-  );
-}
-
-/** The flagship: the shared head, then its contents in columns. */
-function LeadPanel({ tier }: { tier: Tier }) {
-  /*
-   * The grouped shape is the panel's structure. A group with items becomes a
-   * column; a group that is only a heading — "KGC Video Library Subscription
-   * (3 months)" — becomes the line under them, because an empty column with a
-   * rule over it reads as something that failed to load.
-   */
-  const groups = tier.groups?.length ? tier.groups : [{ heading: '', items: [...tier.includes] }];
-  const columns = groups.filter((g) => g.items && g.items.length > 0);
-  const extras = groups.filter((g) => !g.items || g.items.length === 0).map((g) => g.heading);
-
-  return (
-    <article className={s.lead} aria-labelledby={`name-${tier.id}`}>
-      <CardHead tier={tier} featured />
-
-      <div className={s.leadBody}>
-        {columns.map((g, i) => (
-          <div className={s.group} key={g.heading || i}>
-            {g.heading ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
-            <ul className={s.groupItems}>
-              {(g.items ?? []).map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        {extras.length > 0 && (
-          <p className={s.extras}>
-            <span className={s.extrasLabel}>Also included</span>
-            {extras.map((heading) => (
-              <span className={s.extrasItem} key={heading}>
-                {heading}
-              </span>
-            ))}
+            {e.soldOut ? ', sold out' : ''}
           </p>
-        )}
-      </div>
-    </article>
-  );
-}
-
-/**
- * Main Conference, in the third beside the flagship.
- *
- * `includes` flat rather than `groups`: there is one column of room here, and
- * group headings in a single narrow column are rules with one item under each.
- */
-function SecondPanel({ tier }: { tier: Tier }) {
-  return (
-    <article className={s.second} aria-labelledby={`name-${tier.id}`}>
-      <CardHead tier={tier} />
-
-      <ul className={s.secondItems}>
-        {tier.includes.map((line) => (
-          <li key={line}>{line}</li>
         ))}
-      </ul>
+        </div>
 
-      {tier.addOns?.length ? (
-        <p className={s.secondAddOn}>
-          Add{' '}
-          {tier.addOns
-            .map((a) => `${a.name} for ${formatPrice(a.priceCents, tier.currency)}`)
-            .join(' or ')}{' '}
-          at checkout.
-        </p>
-      ) : null}
+        <p className={s.summary}>{tier.tagline}</p>
+
+        <details className={s.more}>
+          <summary className={s.moreToggle}>What’s included</summary>
+          <div className={s.moreBody}>
+            {groups.map((g, i) => (
+              <div key={g.heading || i}>
+                {g.heading && g.items?.length ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
+                {g.items?.length ? (
+                  <ul className={s.items}>
+                    {g.items.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                ) : g.heading ? (
+                  <ul className={s.items}>
+                    <li>{g.heading}</li>
+                  </ul>
+                ) : null}
+              </div>
+            ))}
+            {addOns ? <p className={s.addOn}>{addOns}</p> : null}
+          </div>
+        </details>
     </article>
-  );
-}
-
-/** One full-width card: the same head, then everything it includes on a line. */
-function AlternativeRow({ tier }: { tier: Tier }) {
-  return (
-    <li className={s.alt}>
-      <CardHead tier={tier} level={3} />
-
-      <ul className={s.altItems}>
-        {tier.includes.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-    </li>
   );
 }
 
@@ -232,12 +154,11 @@ export default async function TicketsPage({
   const tiers = (await tiersOrNull()) ?? [];
 
   /*
-   * The two panels are the two dearest tiers, by price, rather than by id or by
-   * the `featured` flag. Four tiers carry `featured`, and an id written into a
-   * layout is an id that is wrong the first time somebody edits the catalogue.
+   * Dearest first, by price rather than by id or the `featured` flag, so the
+   * order survives an edit to the catalogue. The dearest card is the featured
+   * one.
    */
   const ranked = [...tiers].sort((a, b) => b.priceCents - a.priceCents);
-  const [lead, second, ...rest] = ranked;
 
   /*
    * The soonest day any ticket on sale gets dearer. Only the month is said,
@@ -267,21 +188,12 @@ export default async function TicketsPage({
           )}
         </header>
 
-        {lead ? (
-          <>
-            <div className={s.top}>
-              <LeadPanel tier={lead} />
-              {second && <SecondPanel tier={second} />}
-            </div>
-
-            {rest.length > 0 && (
-              <ul className={s.altRows}>
-                {rest.map((t) => (
-                  <AlternativeRow key={t.id} tier={t} />
-                ))}
-              </ul>
-            )}
-          </>
+        {ranked.length > 0 ? (
+          <div className={s.cards}>
+            {ranked.map((t, i) => (
+              <TicketCard key={t.id} tier={t} featured={i === 0} />
+            ))}
+          </div>
         ) : (
           <p className={s.empty}>
             Ticket sales for {ev.name} have not opened yet. Write to{' '}

@@ -1,48 +1,22 @@
 /*
- * The tickets page — two panels on one line, then two rows.
+ * The tickets page: three cards, the same structure on each, details folded.
  *
- * Adapted from `options/v8`, which is where the shape was argued out: panels
- * that lay their contents out in real columns rather than squeezing bullets
- * into a 240px card track, and rows underneath rather than a fourth column.
+ * ── Why it looks like this ──────────────────────────────────────────────────
  *
- * ── The top line is 2/3 + 1/3, and the split is the hierarchy ──────────────
+ * The owner asked on 2026-09-07 for an Apple-clean page: rounded corners, less
+ * height, expandable cards for the details and less text. By 2026-09-27 the
+ * cards had filled up again (full lists always open, headed columns, dividers,
+ * pills and labels competing) and read as cluttered. So each card now shows at
+ * rest only the name, the price, a one-line summary and Choose, and everything
+ * else is behind "What's included".
  *
- * All Access takes two thirds and the navy ground; Main Conference takes one
- * third beside it on white. That, and the "Best value" badge the team asked
- * for in September 2026, say which is the flagship. The 2:1 is also what makes the two
- * legible as *different* offers rather than as a comparison table: equal
- * columns invite a feature-by-feature read, and these two tickets are not
- * bought by the same person.
+ * The three cards share one structure so the Choose buttons, prices and
+ * struck-through Super Early Bird prices sit in the same places (the symmetry
+ * the user asked for in T023). The dearest card is the featured one, and it
+ * differs only in colour.
  *
- * Consequence worth knowing: at one third of the measure the second panel has
- * room for one column of contents, not three. Its `includes` list is rendered
- * flat for that reason, and a tier with fifteen bullets would make the top line
- * taller than the flagship. If that happens, cap the list rather than widening
- * the column.
- *
- * ── What changed on the way out of the option ──────────────────────────────
- *
- * **Everything is smaller.** The option was drawn to be looked at on its own;
- * this one has a job, which is that a buyer arriving at the top of the page can
- * see the panel, read the first alternative in full, and *see that there are
- * more* without scrolling first. The two rows below the fold poking into view
- * are the whole reason for the reductions — a page that ends cleanly at the
- * fold reads as a page with one product on it.
- *
- * Concretely: the price drops from 3.6rem to 2.4rem, panel padding from 3rem to
- * 1.75rem, and the row padding roughly halves.
- *
- * **The prose is gone.** The tagline, the "one ticket that covers both halves
- * of the week" claim, the two-line savings table and its note, and the
- * "If you only need part of the week" heading and lede. They were the
- * option's argument for itself; the tier contents already say what each ticket
- * is, and the prices already say which is dearer.
- *
- * ⚠️ Kept as a CSS module rather than folded into `globals.css`, which is the
- * convention for every other page here. Two reasons: this layout is bespoke to
- * one route and nothing else should be able to reach these names, and
- * `globals.css` is past six thousand lines. `options/` already establishes the
- * module pattern in this app.
+ * ⚠️ Kept as a CSS module rather than folded into `globals.css`: this layout is
+ * bespoke to one route, and `globals.css` is past six thousand lines.
  */
 
 .page {
@@ -54,7 +28,7 @@
 /* ---------------------------------------------------------------- heading -- */
 
 .head {
-  margin-bottom: 0.85rem;
+  margin-bottom: 1.5rem;
 }
 
 .h1 {
@@ -75,10 +49,9 @@
 
 /* The only line about future prices. It names the month and never the price. */
 .rise {
-  margin: 0.35rem 0 0;
+  margin: 0.2rem 0 0;
   font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--ink);
+  color: var(--body);
 }
 
 .cancelled {
@@ -102,365 +75,98 @@
   color: var(--body);
 }
 
-/* -------------------------------------------------------------- top line -- */
+/* ----------------------------------------------------------------- cards -- */
 
-/*
- * Stacked below 62rem, because 1/3 of a phone is not a panel. The order is
- * source order, so the flagship stays first when it stacks.
- */
-.top {
+.cards {
   display: grid;
   gap: 1rem;
 }
 
 /*
- * 1.7 : 1 rather than 2 : 1, with a floor on the second column: Main
- * Conference has its button beside the name, and below about 396px the name
- * wraps to two lines.
+ * Three across on a laptop. Each card spans five rows of this grid and adopts
+ * them with `subgrid`, so the head, price, struck price, summary and details
+ * rows line up across all three cards however the names wrap.
  */
-@media (min-width: 62rem) {
-  .top {
-    grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 1fr);
-    align-items: stretch;
+@media (min-width: 56rem) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 1.25rem;
+    row-gap: 0;
   }
 }
 
-/* ------------------------------------------------------------ lead panel -- */
-
-.lead {
-  position: relative;
+.card {
   display: grid;
-  gap: clamp(1.25rem, 3vw, 1.6rem);
-  /*
-   * The same padding as the white cards, plus 4px for the orange bar, which
-   * sits over the padding where theirs is a border. That is what puts the two
-   * Choose buttons on one line.
-   */
-  padding: calc(clamp(0.9rem, 2vw, 1.1rem) + 4px) clamp(0.9rem, 2vw, 1.1rem)
-    clamp(0.9rem, 2vw, 1.1rem);
-  border-radius: var(--radius);
-  background: var(--navy);
-  color: #dfe8f4;
-  overflow: hidden;
-}
-
-/* The one piece of brand colour on the panel, and it is a rule, not a ribbon. */
-.lead::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 4px;
-  background: var(--orange);
-}
-
-@media (min-width: 62rem) {
-  .lead {
-    /*
-     * Identity above the contents, and the contents across the full panel.
-     *
-     * Both arrangements were measured. Beside — v8's, an identity column and
-     * the contents in what is left — left the contents 357px wide inside two
-     * thirds of the measure, every bullet wrapped to three lines, and the panel
-     * came to 612px. Above, the contents get the whole 700px and run in three
-     * real columns instead of two cramped ones, which is shorter despite
-     * spending a row on the name and price.
-     *
-     * The lesson is worth keeping: at this width the binding constraint is
-     * wrapping, not the number of blocks stacked.
-     */
-    grid-template-rows: auto 1fr;
-    gap: 0.85rem;
-  }
-}
-
-/* The grouped contents, laid out rather than stacked. */
-
-.leadBody {
-  display: grid;
-  gap: 0.65rem 1.75rem;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  row-gap: 0;
   align-content: start;
-}
-
-@media (min-width: 48rem) {
-  .leadBody {
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  }
-}
-
-.group {
-  min-width: 0;
-}
-
-.groupHead {
-  margin: 0 0 0.4rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid rgb(141 204 238 / 35%);
-  font-size: 0.84rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--palette-4);
-}
-
-.groupItems {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.3rem;
-}
-
-.groupItems li {
-  position: relative;
-  padding-left: 1rem;
-  font-size: 0.8rem;
-  line-height: 1.3;
-  color: #e3ebf7;
-}
-
-.groupItems li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.6em;
-  width: 0.6rem;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--orange);
-}
-
-.extras {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgb(255 255 255 / 15%);
-  /* Label on the left, one item per line beside it, so a second item lines up
-     under the first instead of wrapping back under the label. */
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: 0.3rem 0.8rem;
-  font-size: 0.9rem;
-}
-
-.extrasLabel {
-  grid-row: 1 / span 9;
-  color: #b8c7dd;
-}
-
-.extrasItem {
-  grid-column: 2;
-}
-
-.extrasItem {
-  font-weight: 600;
-  color: #fff;
-}
-
-/* ----------------------------------------------------------- second panel -- */
-
-/*
- * Main Conference, at one third, on white.
- *
- * Bordered rather than filled: two navy panels side by side would read as one
- * band split by a gap, and the whole point of the 2:1 is that these are two
- * offers of different weight. The border and the outlined button are the same
- * vocabulary the rows below use, so the eye reads flagship / everything-else
- * rather than three unrelated treatments.
- */
-.second {
-  display: flex;
-  flex-direction: column;
-  padding: clamp(0.9rem, 2vw, 1.1rem);
+  padding: 1.5rem;
   border: 1px solid var(--line);
-  border-top: 4px solid var(--navy);
-  border-radius: var(--radius);
+  border-radius: 18px;
   background: var(--white);
-}
-
-.secondItems {
-  margin: 0.6rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.22rem;
-}
-
-.secondItems li {
-  position: relative;
-  padding-left: 0.95rem;
-  font-size: 0.8rem;
-  line-height: 1.3;
   color: var(--body);
 }
 
-.secondItems li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.6em;
-  width: 0.5rem;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
+.featured {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #dfe8f4;
 }
 
-.secondAddOn {
-  margin: 0.7rem 0 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-/* --------------------------------------------------------- alternatives -- */
-
-/*
- * Each alternative is a card in the second panel's vocabulary (border, navy
- * top rule, rounded corners) with the same head as the two panels above, so
- * its button lines up with Main Conference's right edge.
- */
-.altRows {
-  margin: 0.9rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.alt {
-  padding: clamp(0.9rem, 2vw, 1.1rem);
-  border: 1px solid var(--line);
-  border-top: 4px solid var(--navy);
-  border-radius: var(--radius);
-  background: var(--white);
-}
-
-/*
- * Inline and wrapping, not a bulleted grid.
- *
- * As a two-column list these rows ran to 188px and 216px, which put Workshops
- * below the fold and Virtual off the page entirely — the two tickets a
- * budget-conscious buyer is most likely to want were the two they could not
- * see. Flowing them as separated phrases costs about a third of that and still
- * lists every item.
- */
-.altItems {
-  margin: 0.6rem 0 0;
-  padding: 0;
-  list-style: none;
+/* Name (and badge) on the left, Choose on the right, one line. */
+.cardTop {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.15rem 0.5rem;
-}
-
-.altItems li {
-  font-size: 0.85rem;
-  line-height: 1.4;
-  color: var(--muted);
-}
-
-/* A separator between items, never after the last one. */
-.altItems li:not(:last-child)::after {
-  content: '·';
-  margin-left: 0.5rem;
-  color: var(--line);
-}
-
-/*
- * On a narrow screen the dot separators give way to bullets, like the second
- * panel's list, so they are not left hanging at the end of wrapped lines.
- */
-@media (max-width: 55.99rem) {
-  .altItems {
-    display: grid;
-    gap: 0.22rem;
-  }
-
-  .altItems li {
-    position: relative;
-    padding-left: 0.95rem;
-    font-size: 0.8rem;
-    line-height: 1.3;
-    color: var(--body);
-  }
-
-  .altItems li:not(:last-child)::after {
-    content: none;
-  }
-
-  .altItems li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0.6em;
-    width: 0.5rem;
-    height: 2px;
-    border-radius: 1px;
-    background: var(--accent);
-  }
-}
-
-/* ------------------------------------------------------------ card head -- */
-
-/*
- * One head for every card: name and badge, with the button to their right on
- * the same line, then the price block under both. The same order, the same
- * button size and the same spacing on all three cards; the flagship differs
- * only in colour.
- */
-.cardHead {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.5rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .cardTitle {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.6rem;
-  min-height: 2.3rem;
+  gap: 0.3rem 0.5rem;
+  min-width: 0;
 }
 
 .cardName {
   margin: 0;
-  font-size: 1.1rem;
-  line-height: 1.2;
-  letter-spacing: -0.015em;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   font-weight: 700;
   color: var(--ink);
 }
 
-.lead .cardName {
+.featured .cardName {
   color: #fff;
 }
 
-.cardHead .priceBlock {
-  grid-column: 1 / -1;
-}
-
-.price {
+/* Navy on brand orange is 4.71:1. */
+.badge {
   margin: 0;
-  font-size: 2rem;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--orange);
   color: var(--navy);
-  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.lead .price {
-  color: #fff;
-}
-
-/* The same pill on every card, 6rem wide so the buttons line up in width too. */
+/* The same pill on every card. Outline on white, orange on the featured card. */
 .cta {
+  flex: none;
   display: inline-block;
   min-width: 6rem;
   padding: 0.4rem 1rem;
   border: 2px solid var(--navy);
   border-radius: 999px;
+  background: var(--white);
+  color: var(--navy);
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.4;
@@ -469,34 +175,28 @@
   white-space: nowrap;
 }
 
+.cta:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
 .cta:focus-visible {
   outline: 3px solid var(--orange);
   outline-offset: 2px;
 }
 
-.ctaPlain {
-  background: var(--white);
-  color: var(--navy);
-}
-
-.ctaPlain:hover {
-  background: var(--navy);
-  color: var(--white);
-}
-
-/* Navy on brand orange is 4.71:1. */
-.ctaFeatured {
+.featured .cta {
   border-color: var(--orange);
   background: var(--orange);
   color: #10243a;
 }
 
-.ctaFeatured:hover {
+.featured .cta:hover {
   border-color: #ffa348;
   background: #ffa348;
 }
 
-.ctaFeatured:focus-visible {
+.featured .cta:focus-visible {
   outline-color: var(--palette-4);
 }
 
@@ -510,107 +210,184 @@
 }
 
 .closed {
+  flex: none;
   margin: 0;
-  min-width: 6rem;
-  padding: 0.5rem 1rem;
-  border: 1px dashed var(--muted);
+  padding: 0.4rem 0.9rem;
+  border: 1px dashed currentColor;
   border-radius: 999px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  text-align: center;
-  color: var(--muted);
   white-space: nowrap;
+  color: var(--muted);
 }
 
-.lead .closed {
-  border-color: rgb(255 255 255 / 45%);
-  color: #e7eefa;
+.featured .closed {
+  color: #c3cfe0;
 }
 
-/* ------------------------------------------------------ price and phases -- */
+/* ----------------------------------------------------------------- price -- */
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.earlierRow {
+  min-width: 0;
+}
+
+.price {
+  margin: 0;
+  font-size: 2.25rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.featured .price {
+  color: #fff;
+}
 
 /*
- * The phase name over the price, and the struck-through earlier phases under
- * it. Colours inherit from the panel, so the same markup reads on the navy
- * flagship and on the white cards.
+ * Small, beside the price. Brand orange is 2.51:1 on white, so the white cards
+ * take a burnt orange from the same hue (5.02:1); the navy card keeps brand
+ * orange (4.71:1).
  */
-.priceBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
 .phase {
   margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  /*
-   * Brand orange is 2.51:1 on white, under the 4.5:1 AA needs at this size, so
-   * the white cards take a burnt orange from the same hue (5.02:1). The navy
-   * flagship keeps brand orange, which is 4.71:1 there.
-   */
+  font-size: 0.8rem;
+  font-weight: 600;
   color: #b45309;
 }
 
-.lead .phase {
+.featured .phase {
   color: var(--orange);
 }
 
+/* The struck-through earlier price: one quiet line, no pill. */
 .earlier {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.featured .earlier {
+  color: #c3cfe0;
+}
+
+.summary {
+  margin: 1rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* ------------------------------------------------------------ disclosure -- */
+
+.more {
+  margin-top: 1rem;
+}
+
+.moreToggle {
+  display: inline-flex;
   align-items: center;
-  gap: 0.15rem 0.4rem;
-  font-size: 0.78rem;
-  line-height: 1.3;
-  opacity: 0.75;
-}
-
-/* A phase name never breaks in the middle; the pill moves down instead. */
-.earlierName {
-  white-space: nowrap;
-}
-
-.earlier s {
+  gap: 0.4rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.9rem;
   font-weight: 600;
-}
-
-.soldOut {
-  white-space: nowrap;
-  padding: 0.05rem 0.4rem;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.lead .earlier {
-  color: #dfe8f4;
-}
-
-.badge,
-.badgeLight {
-  flex: none;
-  margin: 0;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.badge {
-  background: var(--orange);
   color: var(--navy);
 }
 
-.badgeLight {
-  background: var(--navy);
-  color: var(--white);
+.moreToggle::-webkit-details-marker {
+  display: none;
+}
+
+/* A small chevron that turns when the card opens. */
+.moreToggle::after {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-0.15rem) rotate(45deg);
+}
+
+.more[open] .moreToggle::after {
+  transform: translateY(0.1rem) rotate(-135deg);
+}
+
+.moreToggle:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.featured .moreToggle {
+  color: #fff;
+}
+
+.moreBody {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.groupHead {
+  margin: 0 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.featured .groupHead {
+  color: #c3cfe0;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.items li {
+  position: relative;
+  padding-left: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.items li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.addOn {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.featured .addOn {
+  color: #c3cfe0;
+}
+
+@media (max-width: 55.99rem) {
+  .card {
+    padding: 1.25rem;
+  }
 }
