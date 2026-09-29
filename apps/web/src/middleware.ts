@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { isBlogHost, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
 import { oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
 import { REFERRAL_MAX_AGE, referralCookiesFrom } from '@/lib/referral-capture';
+import { mainHostIndexable, NOINDEX_HEADER } from '@/lib/indexing-core';
 
 /**
  * This request's own origin. Not `nextUrl.origin`, which reports the droplet's
@@ -35,6 +36,21 @@ const mainOrigin = () =>
 const SIGN_IN_ALIASES = new Set(['/login', '/log-in', '/signin', '/sign-in', '/admin', '/editor', '/dashboard', '/wp-admin', '/wp-login.php']);
 
 export function middleware(request: NextRequest) {
+  const res = route(request);
+  const host = request.headers.get('host') ?? '';
+  if (isBlogHost(host)) return res;
+  // The main site stays out of search results until `SITE_INDEXABLE=true`
+  // (see `lib/indexing-core.ts`). The blog host is never touched here.
+  if (!mainHostIndexable(host, process.env.WEB_PUBLIC_ORIGIN)) {
+    res.headers.set('X-Robots-Tag', NOINDEX_HEADER);
+  }
+  // On every main-site response, redirects included: an old address visited
+  // with `?ref=` is a 301 whose target drops the query, so the invite would be
+  // lost if only the page that finally renders set the cookies.
+  return withReferralCookies(request.nextUrl.searchParams, res);
+}
+
+function route(request: NextRequest): NextResponse {
   const url = request.nextUrl;
   const path = url.pathname;
 
@@ -68,6 +84,8 @@ export function middleware(request: NextRequest) {
     // `/blog` targets go straight to the blog host, not through the 308 below,
     // so an old address is one hop.
     const target = oldSiteTarget(path);
+    // Absolute targets (the archive, the blog feed) are already one hop.
+    if (target && /^https?:\/\//.test(target)) return NextResponse.redirect(target, 301);
     if (target) {
       const to = blogOrigin && isBlogPath(target) ? `${blogOrigin}${target.slice(5) || '/'}` : `${selfOrigin(request)}${target}`;
       return NextResponse.redirect(to, 301);
@@ -83,7 +101,7 @@ export function middleware(request: NextRequest) {
     // `/register` is what people guess, and what Min's example link used. The
     // query string (an invite's `ref` and UTMs) goes along.
     if (path === '/register') return NextResponse.redirect(`${selfOrigin(request)}/tickets${url.search}`, 308);
-    return withReferralCookies(url.searchParams, NextResponse.next());
+    return NextResponse.next(); // referral cookies: see `middleware()`
   }
 
   if (SIGN_IN_ALIASES.has(path)) return NextResponse.redirect(`${blogOrigin ?? selfOrigin(request)}/write`, 307);

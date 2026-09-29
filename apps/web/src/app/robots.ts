@@ -12,7 +12,12 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       userAgent: '*',
       allow: '/',
       // Private pages: capability links, the blog editor, checkout internals.
-      disallow: blog ? ['/write'] : ['/api/', '/order/', '/ticket/', '/checkout/', '/consent/', '/speaker/', '/review/', '/u/', '/r/'],
+      // `/tickets/checkout` and the other two are listed themselves: a rule for
+      // `/checkout/` does not match `/tickets/checkout`. Robots rules are
+      // prefixes, so each also covers its `?tier=` variants.
+      disallow: blog
+        ? ['/write']
+        : ['/api/', '/order/', '/ticket/', '/checkout/', '/tickets/checkout', '/tickets/exhibitor', '/tickets/invoice', '/consent/', '/speaker/', '/review/', '/u/', '/r/'],
     },
     sitemap: `${origin}/sitemap.xml`,
   };

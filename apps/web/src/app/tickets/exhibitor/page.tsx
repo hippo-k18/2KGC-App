@@ -3,6 +3,8 @@ import { SITE } from '@/lib/site';
 import { AudienceTicketsPage } from '../audience-page';
 
 export const metadata: Metadata = {
+  // Checkout, not a landing page: the site-wide noindex goes away at cutover, this stays.
+  robots: { index: false, follow: false },
   title: 'Exhibit at KGC 2027',
   description:
     'Booth packages for the Knowledge Graph Conference 2027 at Jay Conference Bryant Park, New York.',

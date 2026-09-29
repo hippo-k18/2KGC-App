@@ -11,6 +11,8 @@ import { CheckoutForm } from '../checkout-form';
 import { TicketSalesClosed } from '../sales-closed';
 
 export const metadata: Metadata = {
+  // Checkout, not a landing page: the site-wide noindex goes away at cutover, this stays.
+  robots: { index: false, follow: false },
   title: 'Checkout',
   description: 'Register for the Knowledge Graph Conference 2027.',
 };

@@ -25,6 +25,8 @@ import { ticketSalesOpen } from '@/lib/data';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
+  // Checkout, not a landing page: the site-wide noindex goes away at cutover, this stays.
+  robots: { index: false, follow: false },
   title: `Invoice a company | ${SITE.name}`,
   description:
     'Register a group for the Knowledge Graph Conference and pay by invoice on net terms, with a purchase order number.',

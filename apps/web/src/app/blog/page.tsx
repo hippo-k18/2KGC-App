@@ -2,15 +2,29 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SITE } from '@/lib/site';
-import { blogBase } from '@/lib/blog/paths';
+import { blogBase, blogUrl } from '@/lib/blog/paths';
 import { categoriesOf, publicPosts, type PublicPost } from '@/lib/blog/public';
 import { formatPostDate } from '@/lib/posts';
 
-export const metadata: Metadata = {
-  title: 'Knowledge Graph Conference Blog',
-  description:
-    'The Knowledge Graph Conference blog archive: talks, news roundups and write-ups from the KGC community, 2019 to today.',
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: 'Knowledge Graph Conference Blog',
+    description:
+      'The Knowledge Graph Conference blog archive: talks, news roundups and write-ups from the KGC community, 2019 to today.',
+    /**
+     * Every listing variant (`?tag=`, `?category=`, `?page=`) names the blog home
+     * as its canonical, as the SEO review suggests: they share one title and
+     * description, so indexed separately they are thin duplicates. Absolute,
+     * because on blog.knowledgegraph.tech the rendered route is `/blog` while the
+     * address is `/`, which a relative canonical would get wrong. The feed link
+     * is repeated because a page's `alternates` replaces its layout's.
+     */
+    alternates: {
+      canonical: blogUrl('/'),
+      types: { 'application/rss+xml': [{ url: blogUrl('/feed.xml'), title: 'KGC blog' }] },
+    },
+  };
+}
 
 /** Twelve fills four rows of the three-column grid without a long scroll. */
 const PER_PAGE = 12;

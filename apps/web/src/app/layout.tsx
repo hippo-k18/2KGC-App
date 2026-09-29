@@ -57,6 +57,14 @@ export async function generateMetadata(): Promise<Metadata> {
      * resolved on the machine that built them.
      */
     metadataBase: new URL(canonicalOrigin()),
+    /**
+     * A self-referencing canonical on every page, without the query string:
+     * Next resolves `./` against the page's own pathname, so `/tickets?tier=virtual`
+     * and `/?p=14094` name `/tickets` and `/` rather than being indexed as pages of
+     * their own. A route that sets `alternates` replaces this (blog posts point at
+     * their own address; the blog listing at the blog home).
+     */
+    alternates: { canonical: './' },
     title: {
       default: `${ev.name} · ${ev.datesShort}`,
       template: `%s · ${ev.shortName} ${ev.year}`,
