@@ -96,6 +96,54 @@ const COLLECTED = [
   },
 ];
 
+/**
+ * Whether the site is loading Google Analytics, Google Tag Manager and, through
+ * Tag Manager, Apollo.io. The same switch the layout reads (`ANALYTICS_ENABLED`,
+ * off on staging, turned on at the www cutover; see the launch-readiness
+ * branch's `lib/analytics.ts`). While it is off, the page says nothing about
+ * them, because nothing loads them. Read at render, not at import: the layout's
+ * `revalidate` re-renders this page against the server's own environment.
+ *
+ * ⚠️ Legal copy added 2026-09-29 (T054) for review before launch: the attribution
+ * cookies paragraph and everything behind this switch.
+ */
+function analyticsOn(): boolean {
+  return process.env.ANALYTICS_ENABLED === 'true';
+}
+
+/** Cookies set when a visitor arrives through a tracked or invite link. */
+const ATTRIBUTION_COOKIES = [
+  {
+    name: 'kgc_ref',
+    holds: "the code of a link we published, for example in a newsletter or a speaker's post.",
+  },
+  {
+    name: 'kgc_invite',
+    holds:
+      'the referral code of the attendee who sent you a personal invite. If you buy a ticket, your registration keeps that code, so the organizers can see who invited whom.',
+  },
+  {
+    name: 'kgc_utm',
+    holds: 'the campaign tags on the link you followed (utm_source, utm_medium and utm_campaign).',
+  },
+];
+
+/** Loaded only while `analyticsOn()`. Each works under its own terms, not ours. */
+const ANALYTICS_SERVICES = [
+  {
+    name: 'Google Analytics',
+    does: 'Measures how the site is used: pages viewed, the link that brought you, and ticket purchases (the order number, amount and ticket type, never your name or email address).',
+  },
+  {
+    name: 'Google Tag Manager',
+    does: 'Loads the measurement tags, including two that count clicks on the register and ticket buttons.',
+  },
+  {
+    name: 'Apollo.io',
+    does: 'Loaded through Tag Manager. Records visits to the site and may recognise the company a visit comes from, which we use to find organisations interested in the conference.',
+  },
+];
+
 const PROCESSORS = [
   {
     name: 'Google Firebase',
@@ -107,6 +155,7 @@ const PROCESSORS = [
 ];
 
 export default function PrivacyPage() {
+  const analytics = analyticsOn();
   return (
     <section>
       <div className="wrap narrow">
@@ -133,10 +182,17 @@ export default function PrivacyPage() {
         )}
 
         <h2>What we collect</h2>
-        <p>
-          Only what running the conference needs. There is no advertising network on this site, no
-          third-party analytics script, and nothing about you is sold or shared for marketing.
-        </p>
+        {analytics ? (
+          <p>
+            Only what running the conference needs, and the site analytics described under Cookies
+            below. There is no advertising network on this site, and nothing about you is sold.
+          </p>
+        ) : (
+          <p>
+            Only what running the conference needs. There is no advertising network on this site, no
+            third-party analytics script, and nothing about you is sold or shared for marketing.
+          </p>
+        )}
         <ul>
           {COLLECTED.map((c) => (
             <li key={c.what} style={{ padding: '6px 0' }}>
@@ -154,6 +210,21 @@ export default function PrivacyPage() {
             </li>
           ))}
         </ul>
+        {analytics && (
+          <>
+            <p>
+              The site also loads three analytics services. They receive what your browser sends
+              them while you are on the site, and each handles it under its own privacy terms.
+            </p>
+            <ul>
+              {ANALYTICS_SERVICES.map((a) => (
+                <li key={a.name} style={{ padding: '6px 0' }}>
+                  <strong>{a.name}.</strong> {a.does}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         <h2>What other people see</h2>
         <p>
@@ -168,8 +239,38 @@ export default function PrivacyPage() {
         <p>
           One first-party cookie keeps your checkout session together while you buy a ticket. The
           app and this site also keep a small amount of data in your browser to remember that you
-          are signed in and what you have dismissed. There are no advertising or tracking cookies.
+          are signed in and what you have dismissed.
         </p>
+        <p>
+          Three more first-party cookies record how you reached the site, so a ticket purchase can
+          be credited to the link or the person that sent you. They are set only when you arrive
+          through such a link, last 30 days, and hold no name or email address:
+        </p>
+        <ul>
+          {ATTRIBUTION_COOKIES.map((c) => (
+            <li key={c.name} style={{ padding: '6px 0' }}>
+              <strong>{c.name}</strong> holds {c.holds}
+            </li>
+          ))}
+        </ul>
+        {analytics ? (
+          <>
+            <p>
+              Google Analytics, Google Tag Manager and Apollo.io set their own cookies to recognise a
+              returning browser and measure visits. When you buy a ticket, a first-party cookie
+              holding the order number, amount and ticket type lasts 15 minutes, so the confirmation
+              page can report the purchase to Google Analytics once.
+            </p>
+            <p>
+              Analytics runs unless your browser sends Do Not Track or Global Privacy Control, in
+              which case none of it loads. A notice at the bottom of the page says the site uses
+              cookies. Choosing Accept or closing it hides it for a year; that choice is kept in
+              your browser, not in a cookie, and does not change what loads.
+            </p>
+          </>
+        ) : (
+          <p>There are no advertising cookies and no third-party analytics cookies.</p>
+        )}
 
         <h2>How long we keep it</h2>
         <p>
