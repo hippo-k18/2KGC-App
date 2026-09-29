@@ -55,8 +55,10 @@ export const dynamic = 'force-dynamic';
  * `<details>` gives the disclosure its expanded state and keyboard handling for
  * free, with no client JavaScript.
  *
- * Four children, in this order on every card: the head (name and Choose), the
- * price block, the summary and the details. The layout variants place them.
+ * Two parts: `cardMain` (the head, the price block and the summary) and the
+ * details. On a laptop the first row's cards put the two parts on separate
+ * grid rows, so the tops stay equal height while opening one card's details
+ * grows that card alone (T034). The layout variants place them.
  */
 function TicketCard({
   tier,
@@ -94,6 +96,7 @@ function TicketCard({
       className={`${s.card} ${s[layout]}${featured ? ` ${s.featured}` : ''}`}
       aria-labelledby={`name-${tier.id}`}
     >
+      <div className={s.cardMain}>
         <div className={s.cardTop}>
           <div className={s.cardTitle}>
             <h2 id={`name-${tier.id}`} className={s.cardName}>
@@ -132,6 +135,7 @@ function TicketCard({
         </div>
 
         <p className={s.summary}>{tier.tagline}</p>
+      </div>
 
         <details className={s.more}>
           <summary className={s.moreToggle}>

@@ -117,7 +117,7 @@
 .cardName {
   margin: 0;
   font-size: 1.15rem;
-  line-height: 1.25;
+  line-height: 1.15;
   letter-spacing: -0.01em;
   font-weight: 700;
   color: var(--ink);
@@ -211,8 +211,9 @@
 
 /* ----------------------------------------------------------------- price -- */
 
+/* Close under the name, so the name, price and struck price read as one group. */
 .priceBlock {
-  margin-top: 1.25rem;
+  margin-top: 0.6rem;
   min-width: 0;
 }
 
@@ -280,6 +281,29 @@
 .more {
   margin-top: auto;
   padding-top: 1rem;
+}
+
+/*
+ * Open and close with a short height transition where the browser supports
+ * animating to `auto` (`::details-content` and `interpolate-size`). Elsewhere
+ * the details snap open as before. Skipped for anyone who asks for less motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    interpolate-size: allow-keywords;
+  }
+
+  .more::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size 200ms ease,
+      content-visibility 200ms allow-discrete;
+  }
+
+  .more[open]::details-content {
+    block-size: auto;
+  }
 }
 
 .moreToggle {
@@ -388,48 +412,93 @@
  * the first row, Virtual across the full width underneath (the user's layout,
  * 2026-09-27). Below 62rem the cards stack in that order.
  *
- * The first row stretches so both cards are the same height, with their
- * Choose buttons on one line at the top and "What's included" on one line at
- * the bottom. Once any card is opened the row aligns to the start instead, so
- * only the opened card grows and the other keeps its own height rather than
- * gaining an empty band.
+ * ── Why the first row's cards are split in two ─────────────────────────────
+ *
+ * Each of the two top cards is drawn as two grid items: its main part (head,
+ * price, summary) on grid row 1, which stretches so both tops are the same
+ * height, and its details on grid row 2, which aligns to the start. Opening
+ * one card grows only its own details cell.
+ *
+ * Before this (T034), the whole row switched from stretch to start alignment
+ * as soon as any card opened, so opening Main Conference or even Virtual
+ * snapped All Access from 382px to 299px and threw its "What's included" up
+ * 83px. The article becomes `display: contents` here so its two parts can sit
+ * on the grid; its children still inherit its colours.
  */
 @media (min-width: 62rem) {
   .cards {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    gap: 1.25rem;
+    column-gap: 1.25rem;
+    row-gap: 0;
+    align-items: start;
   }
 
-  .cards:has(details[open]) {
-    align-items: start;
+  .wide,
+  .narrow {
+    display: contents;
+  }
+
+  .wide > .cardMain,
+  .narrow > .cardMain,
+  .wide > .more,
+  .narrow > .more {
+    border: 1px solid var(--line);
+    background: var(--white);
+  }
+
+  .featured > .cardMain,
+  .featured > .more {
+    border-color: var(--navy);
+    background: var(--navy);
+  }
+
+  .wide > .cardMain,
+  .narrow > .cardMain {
+    grid-row: 1;
+    align-self: stretch;
+    padding: 1.5rem 1.5rem 0;
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .wide > .more,
+  .narrow > .more {
+    grid-row: 2;
+    margin: 0;
+    padding: 1rem 1.5rem 1.5rem;
+    border-top: 0;
+    border-radius: 0 0 18px 18px;
+  }
+
+  .wide > * {
+    grid-column: 1;
+  }
+
+  .narrow > * {
+    grid-column: 2;
   }
 
   /* Room for a two-line name, so the prices on the first row line up too. */
   .wide .cardTop,
   .narrow .cardTop {
-    min-height: 2.9rem;
+    min-height: 2.65rem;
   }
 
   /* All Access: the summary beside the price, the lists in columns when open. */
-  .wide {
+  .wide > .cardMain {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto 1fr;
+    align-content: start;
     column-gap: 2rem;
   }
 
-  .wide .cardTop,
-  .wide .more {
+  .wide .cardTop {
     grid-column: 1 / -1;
   }
 
   .wide .summary {
-    align-self: end;
-    margin: 0;
-  }
-
-  .wide .more {
-    align-self: end;
+    align-self: center;
+    margin: 0.6rem 0 0;
   }
 
   .wide .moreBody {
@@ -440,6 +509,8 @@
   /* Virtual: name, price, summary and Choose on one line, details under them. */
   .row {
     grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: 1.25rem;
     display: grid;
     grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.4fr) auto;
     grid-template-areas:
@@ -449,6 +520,7 @@
     column-gap: 2rem;
   }
 
+  .row .cardMain,
   .row .cardTop {
     display: contents;
   }
