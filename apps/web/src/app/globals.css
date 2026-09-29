@@ -1485,8 +1485,16 @@ body.nav-open {
   opacity: 0.5;
 }
 
+/*
+ * The track's own colour, darkened. Track colours are chosen in the dashboard
+ * and several (the greens, the ambers, cyan) measured 2.9–3.8:1 as 13px text on
+ * white. Mixed 55% with black, all eleven current tracks come out at 7.7:1 or
+ * better and keep their hue. A very pale colour picked later could still fall
+ * short; the dashboard's track editor is where to catch that.
+ */
 .session-track {
   color: var(--track, var(--blue));
+  color: color-mix(in srgb, var(--track, var(--blue)) 55%, black);
   font-weight: 700;
 }
 
@@ -2259,8 +2267,9 @@ body.nav-open {
   }
 }
 
+/* A step darker than `--muted`, which measured 4.35:1 on the package grey. */
 .package-line {
-  color: var(--muted);
+  color: #52606d;
   font-size: 0.95rem;
   line-height: 1.5;
   margin: 8px 0 0;
@@ -2480,7 +2489,8 @@ a.logo-card:hover {
     line-height: 1;
     letter-spacing: 0.02em;
     padding: 0;
-    color: var(--muted);
+    /* `--muted` measured 4.22:1 on the tile's wash. */
+    color: #4b5563;
   }
 }
 
@@ -5628,18 +5638,12 @@ section.tint {
 }
 
 /*
- * `#2dacee` is the Whova widget's blue, not a theme colour — kept because this
- * button is the one control the live page has and the shape is the point. It is
- * deliberately not added to the palette in `:root`.
- *
- * White on it is a 2.55 contrast ratio, which fails AA. That is the live
- * widget's own value and is kept for the same reason as the orange buttons: an
- * exact copy was asked for. Both are the two places on this site where fidelity
- * was chosen over contrast, and they are the two to revisit first if that
- * trade is ever reversed.
+ * The Whova widget's button, in a deeper blue than its own #2dacee, which put
+ * the white label at 2.54:1 and failed AA. This keeps the white-on-blue button
+ * at 4.82:1. It is deliberately not added to the palette in `:root`.
  */
 .btn-viewall {
-  background: #2dacee;
+  background: #0d78b3;
   color: var(--white);
   border-radius: 4px;
   font-size: 14px;
@@ -5648,7 +5652,7 @@ section.tint {
 }
 
 .btn-viewall:hover {
-  background: #1f9bd8;
+  background: #0b6fa5;
 }
 
 @media (width < 760px) {
