@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
 import { mintOrderToken } from '@/lib/order-token';
-import { fulfilPurchase } from '@/lib/registrations';
+import { fulfilPurchase, orderIdFor } from '@/lib/registrations';
+import { analyticsConfig, encodePurchase, PURCHASE_COOKIE, type PurchasePayload } from '@/lib/analytics';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 
 /**
@@ -78,7 +79,46 @@ export async function GET(req: NextRequest) {
     paid: true,
   });
 
-  return NextResponse.redirect(
+  const res = NextResponse.redirect(
     new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, origin),
   );
+  if (analyticsConfig()) {
+    // Carries the GA4 `purchase` event to the confirmation page, which sends it
+    // once. Only this redirect sets it, so the event fires for the buyer who just
+    // paid, not for an attendee opening their own link, and never on the
+    // /ticket/bought preview. Not a secret: it is what the buyer just bought.
+    res.cookies.set(PURCHASE_COOKIE, encodePurchase(await purchaseOf(session)), {
+      path: '/order',
+      maxAge: 15 * 60,
+      sameSite: 'lax',
+      secure: origin.startsWith('https:'),
+      httpOnly: false,
+    });
+  }
+  return res;
+}
+
+/**
+ * The purchase as GA4's ecommerce `purchase` event wants it. Line items come
+ * from Stripe, so a mixed cart, an add-on bundle or a fee line is reported as it
+ * was charged; if that lookup fails, the session's own metadata stands in.
+ */
+async function purchaseOf(session: Stripe.Checkout.Session): Promise<PurchasePayload> {
+  const value = (session.amount_total ?? 0) / 100;
+  const currency = (session.currency ?? 'usd').toUpperCase();
+  let items: PurchasePayload['items'] = [];
+  try {
+    const lines = await stripe().checkout.sessions.listLineItems(session.id, { limit: 20 });
+    items = lines.data.map((li) => ({
+      item_id: typeof li.price?.product === 'string' ? li.price.product : (li.price?.id ?? ''),
+      item_name: li.description ?? '',
+      price: li.quantity ? li.amount_total / li.quantity / 100 : li.amount_total / 100,
+      quantity: li.quantity ?? 1,
+    }));
+  } catch {}
+  if (items.length === 0) {
+    const seats = Math.max(1, Number(session.metadata?.seats) || 1);
+    items = [{ item_id: session.metadata?.tier ?? '', item_name: session.metadata?.ticketType ?? '', price: value / seats, quantity: seats }];
+  }
+  return { transaction_id: orderIdFor(session.id), value, currency, items };
 }

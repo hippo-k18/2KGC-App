@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
+import { ConsentNotice } from '@/components/consent-notice';
+import { analyticsBootScript, analyticsConfig } from '@/lib/analytics';
 import { brandPalette, isHexColor, mixHex } from '@kgc/shared';
 import { brandingSettings, siteEvent } from '@/lib/data';
 import { canonicalOrigin } from '@/lib/event-jsonld';
@@ -151,11 +153,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * cost one document read between them.
    */
   const [branding, ev] = await Promise.all([brandingSettings(), siteEvent()]);
+  // GA4 + GTM, off unless ANALYTICS_ENABLED=true. See `lib/analytics.ts`.
+  const analytics = analyticsConfig();
 
   return (
     <html lang="en">
       <head>
         <BrandStyle brandColor={branding.brandColor} accentColor={branding.accentColor} />
+        {analytics && <script dangerouslySetInnerHTML={{ __html: analyticsBootScript(analytics) }} />}
       </head>
       <body>
         <SiteHeader
@@ -174,6 +179,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
         />
+        {analytics && <ConsentNotice />}
         <ReferenceOverlay />
       </body>
     </html>

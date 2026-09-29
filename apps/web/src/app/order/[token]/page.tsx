@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { analyticsConfig, decodePurchase, PURCHASE_COOKIE } from '@/lib/analytics';
+import { PurchaseEvent } from './purchase-event';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
 import { siteEvent } from '@/lib/data';
@@ -34,5 +37,13 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
   const reg = await getRegistration(payload.rid);
   if (!reg) notFound();
 
-  return <OrderView ev={ev} reg={reg} />;
+  // Set only by the checkout return redirect for this registration. See `purchase-event.tsx`.
+  const purchase = analyticsConfig() ? decodePurchase((await cookies()).get(PURCHASE_COOKIE)?.value) : null;
+
+  return (
+    <>
+      <OrderView ev={ev} reg={reg} />
+      {purchase && reg.orderId && purchase.transaction_id === reg.orderId && <PurchaseEvent purchase={purchase} cookie={PURCHASE_COOKIE} />}
+    </>
+  );
 }
