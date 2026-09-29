@@ -51,6 +51,33 @@ export interface EditPanelAttendee {
   transferredTo?: string;
   hasPaidOrder: boolean;
   categoryId: string;
+  referral?: {
+    code: string;
+    referred: number;
+    referredBy?: { code: string; registrationId: string; name: string };
+  };
+}
+
+/** Read-only: codes are minted at fulfilment and credit is never edited by hand. */
+function Referrals({ referral: r }: { referral?: EditPanelAttendee['referral'] }) {
+  if (!r || (!r.code && !r.referredBy)) return null;
+  return (
+    <div id="referrals" style={section}>
+      <p className="body-2" style={{ margin: 0 }}>
+        Referral code: {r.code ? <code>{r.code}</code> : <span className="muted">none yet</span>}
+        {r.code ? ` · ${r.referred} ${r.referred === 1 ? 'attendee' : 'attendees'} referred` : ''}
+      </p>
+      {r.referredBy && (
+        <p className="body-2" style={{ margin: '6px 0 0' }}>
+          Referred by{' '}
+          <Link href={`?edit=${r.referredBy.registrationId}#edit`}>
+            {r.referredBy.name || r.referredBy.registrationId}
+          </Link>{' '}
+          (<code>{r.referredBy.code}</code>)
+        </p>
+      )}
+    </div>
+  );
 }
 
 const hidden = (rid: string) => <input type="hidden" name="registrationId" value={rid} />;
@@ -161,6 +188,8 @@ export function EditPanel({
           </FormActions>
         </form>
       </FieldIdScope>
+
+      <Referrals referral={a.referral} />
 
       <form action={changeType} style={section}>
         {hidden(a.registrationId)}

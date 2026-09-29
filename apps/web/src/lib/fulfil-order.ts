@@ -13,6 +13,7 @@ import { db } from '@/lib/firestore';
 import { mintOrderToken } from '@/lib/order-token';
 import { claimAnswers } from '@/lib/question-forms';
 import { ensureRegistration, fulfilPurchase, orderIdFor } from '@/lib/registrations';
+import { ensureReferralCode, recordReferral, type ReferralUtm } from '@kgc/scripts/src/lib/referrals';
 
 /**
  * Turning a settled purchase into everything a purchase produces.
@@ -64,6 +65,13 @@ export interface FulfilOrderInput {
   promotionCode?: string;
   campaignCode?: string;
   /**
+   * The attendee invite this buyer arrived through (`KGC27-…`), and the UTMs on
+   * that link. Stamped as `referredBy` / `utm` on every registration this order
+   * makes. See `scripts/src/lib/referrals.ts` for what is ignored.
+   */
+  referralCode?: string;
+  utm?: ReferralUtm;
+  /**
    * Where the buyer's registration questions are parked. Claimed and deleted
    * here rather than by the caller, so a webhook replay and a repeated demo
    * behave the same way: the second run finds nothing and leaves the answers
@@ -99,6 +107,19 @@ export interface FulfilOrderResult {
  * A missing entitlement write is a support conversation; a webhook that 500s
  * over one is a retry storm that eventually disables the endpoint.
  */
+/**
+ * The registration's referral code, or undefined. Never throws: the code is for
+ * the "Bring your team" block, and a ticket must not fail over it.
+ */
+async function referralCodeFor(rid: string): Promise<string | undefined> {
+  try {
+    return (await ensureReferralCode(db(), rid)) ?? undefined;
+  } catch (err) {
+    await recordError('referral.code', err, { path: 'registrations', id: rid });
+    return undefined;
+  }
+}
+
 async function grantSeatEntitlements(
   uid: string,
   kinds: EntitlementDoc['kind'][],
@@ -251,6 +272,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
       claimCode: seat.claimCode,
       registrationId: seat.registrationId,
       temporaryPassword: seatAccount.temporaryPassword,
+      referralCode: await referralCodeFor(seat.registrationId),
     });
   }
 
@@ -278,6 +300,26 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
       await restoreCartOrder({ sessionId: externalId, lines: cart, registrationIds });
     } catch (err) {
       await recordError('order.seats', err, { path: 'orders', id: externalId });
+    }
+  }
+
+  /**
+   * Who brought them. Every registration this order made is credited to the
+   * referrer, once; a bad code, a self-referral or a replay changes nothing.
+   * Swallowed like everything else after `fulfilPurchase`.
+   */
+  if (input.referralCode || input.utm) {
+    try {
+      const referral = await recordReferral(db(), {
+        registrationIds,
+        code: input.referralCode,
+        utm: input.utm,
+      });
+      if (referral.invalidCode || referral.selfReferrals.length) {
+        console.info('[fulfil] referral ignored for', externalId, referral);
+      }
+    } catch (err) {
+      await recordError('referral.record', err, { path: 'orders', id: oid });
     }
   }
 
@@ -320,6 +362,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     claimCode: result.claimCode,
     registrationId: result.registrationId,
     temporaryPassword: account.temporaryPassword,
+    referralCode: await referralCodeFor(result.registrationId),
   });
 
   return {

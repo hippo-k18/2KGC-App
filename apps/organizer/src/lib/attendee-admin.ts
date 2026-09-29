@@ -25,6 +25,7 @@ import {
 import { applyRuleTo } from './attendee-categories';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
+import { referralFor, type AttendeeReferral } from './referrals';
 import { db } from './firestore';
 
 /**
@@ -643,12 +644,14 @@ export interface AttendeeForEdit {
   transferredTo?: string;
   hasPaidOrder: boolean;
   categoryId: string;
+  /** Their referral code, how many people it brought, and who brought them. */
+  referral: AttendeeReferral;
 }
 
 export async function getAttendeeForEdit(rid: string): Promise<AttendeeForEdit | null> {
   const reg = await readRegistration(rid);
   if (!reg) return null;
-  const orders = await ordersFor(reg.email, rid);
+  const [orders, referral] = await Promise.all([ordersFor(reg.email, rid), referralFor(rid, reg)]);
   return {
     registrationId: rid,
     name: reg.name ?? '',
@@ -660,5 +663,6 @@ export async function getAttendeeForEdit(rid: string): Promise<AttendeeForEdit |
     transferredTo: reg.transferredTo,
     categoryId: reg.categoryId ?? '',
     hasPaidOrder: orders.some((o) => o.status === 'paid' || o.status === 'partially_refunded'),
+    referral,
   };
 }

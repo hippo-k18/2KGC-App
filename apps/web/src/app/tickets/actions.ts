@@ -11,6 +11,7 @@ import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { tierById, tierFulfilment } from '@/lib/catalogue';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
+import { readReferralCookies, referralMetadata, type CapturedReferral } from '@/lib/referral-capture';
 import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import type { Tier } from '@/lib/tickets';
@@ -106,6 +107,8 @@ type Prepared =
       primary: Tier;
       answersRef?: string;
       campaignCode?: string;
+      /** An attendee's invite code and UTMs, from the cookies the middleware set. */
+      referral: CapturedReferral;
       origin: string;
       /**
        * The buyer fee, or 0. Only charged while `settings/branding.
@@ -315,8 +318,11 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
    * merely because we put them there. An unparseable value is dropped rather
    * than carried into Stripe metadata.
    */
-  const ref = (await cookies()).get(ATTRIBUTION_COOKIE)?.value ?? '';
+  const jar = await cookies();
+  const ref = jar.get(ATTRIBUTION_COOKIE)?.value ?? '';
   const campaignCode = validCode(ref) ? ref : undefined;
+  // The same reasoning for an attendee's invite: cookies, re-validated.
+  const referral = readReferralCookies((cookieName) => jar.get(cookieName)?.value);
 
   /**
    * The buyer fee, worked out on the ticket subtotal here on the server, like
@@ -325,7 +331,7 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   const subtotalCents = seats.reduce((sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0), 0);
   const feeCents = (await brandingSettings()).chargeBuyerFee ? buyerFeeCents(subtotalCents) : 0;
 
-  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, origin, feeCents };
+  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents };
 }
 
 /** The buyer fee as its own Stripe line, so the receipt shows it apart from the tickets. */
@@ -391,7 +397,7 @@ export async function startCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin, feeCents } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents } = prepared;
 
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card
@@ -494,6 +500,7 @@ export async function startCheckout(
         name,
         seats: String(seats.length),
         ...(campaignCode ? { campaignCode } : {}),
+        ...referralMetadata(referral),
         ...(feeCents > 0 ? { buyerFeeCents: String(feeCents) } : {}),
         // A reference, not the answers themselves: metadata caps at 500
         // characters per value, and a long-text answer would silently truncate.
@@ -643,7 +650,7 @@ export async function completeDemoCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin, feeCents } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents } = prepared;
 
   /**
    * A synthetic id where a Stripe Checkout Session id would be.
@@ -728,6 +735,8 @@ export async function completeDemoCheckout(
       taxCents: 0,
       discountCents: 0,
       campaignCode,
+      referralCode: referral.referralCode,
+      utm: referral.utm,
       answersRef,
       channel: 'demo',
       origin,

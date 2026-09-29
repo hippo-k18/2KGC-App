@@ -82,6 +82,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "previous-events",
   "privacy",
   "r",
+  "register",
   "review",
   "robots.txt",
   "rooms",

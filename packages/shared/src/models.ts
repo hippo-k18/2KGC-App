@@ -283,6 +283,25 @@ export interface RegistrationDoc extends BaseDoc {
   /** Printed on the badge as a fallback sign-in door for a wrong-address attendee. */
   claimCode?: string;
   /**
+   * This attendee's own referral code, e.g. `KGC27-7QF2`. Minted at fulfilment
+   * by `ensureReferralCode` and reserved in `referralCodes/{code}`, which is what
+   * keeps it unique. It goes into the personal link in the confirmation email's
+   * "Bring your team" block.
+   */
+  referralCode?: string;
+  /**
+   * Who brought this attendee: the referral code their buyer arrived with, and
+   * the registration that owns it. Only ever written for a code that resolved to
+   * somebody else, and never overwritten, so a replayed webhook cannot move the
+   * credit. See `scripts/src/lib/referrals.ts`.
+   */
+  referredBy?: { code: string; registrationId: string; at: Date | Timestamp };
+  /**
+   * The `utm_*` values on the link the buyer arrived through, kept as a backup
+   * to `referredBy` for links shared onward or pasted without the code.
+   */
+  utm?: { source?: string; medium?: string; campaign?: string };
+  /**
    * Random and opaque, and the only thing that goes into a badge QR. A uid in a
    * QR payload would let anyone who photographs a badge learn an identity.
    */

@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
 import { contactId } from './ids.js';
+import { ensureReferralCode, firstNameOf, inviteMailto, personalInviteUrl } from './referrals.js';
 import { mintUnsubscribeToken } from './unsubscribe-token.js';
 
 /**
@@ -388,7 +389,47 @@ export interface PurchaseEmailInput {
    * ticket nobody can diagnose.
    */
   temporaryPassword?: string | null;
+  /**
+   * The attendee's referral code, for the "Bring your team" block. When left
+   * out, it is read or minted from `registrationId`, so the dashboard's senders
+   * (invoices, manual orders, comp passes) get the block without each minting
+   * their own. With neither, or if minting fails, the block is left out.
+   */
+  referralCode?: string | null;
 }
+
+/**
+ * The "Bring your team" block's link and button, or null.
+ *
+ * The personal link goes to the same site as the ticket link, so a staging
+ * receipt invites people to staging and a live one to live.
+ */
+async function inviteFor(
+  store: Firestore,
+  input: PurchaseEmailInput,
+): Promise<{ link: string; mailto: string } | null> {
+  let code = input.referralCode ?? null;
+  if (!code && input.registrationId) {
+    try {
+      code = await ensureReferralCode(store, input.registrationId);
+    } catch (err) {
+      console.error('[email] could not mint a referral code for', input.registrationId, err);
+    }
+  }
+  if (!code) return null;
+  let origin: string;
+  try {
+    origin = new URL(input.orderUrl).origin;
+  } catch {
+    origin = publicSiteOrigin();
+  }
+  const link = personalInviteUrl(origin, code);
+  return { link, mailto: inviteMailto(link, firstNameOf(input.name)) };
+}
+
+/** Min's copy, verbatim (2026-09-28). */
+const BRING_YOUR_TEAM =
+  'Most of what people take home from KGC happens between the sessions, and those conversations go further when the people you work with are in the room too!';
 
 /**
  * The one email that actually matters.
@@ -402,6 +443,7 @@ export interface PurchaseEmailInput {
 export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
   const price = formatPrice(input.amountCents, input.currency);
   const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const invite = await inviteFor(store, input);
 
   const html = shell(
     "You're going to the Knowledge Graph Conference",
@@ -412,7 +454,14 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
        ${row('Paid', price)}
      </table>
      ${button(input.orderUrl, 'View your ticket')}
-     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link. It shows your badge QR code, which is what gets scanned at the door. Don't forward it: anyone with the link can see your ticket.</p>`,
+     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link. It shows your badge QR code, which is what gets scanned at the door. Don't forward it: anyone with the link can see your ticket.</p>${
+       invite
+         ? `
+     <h2 style="margin:28px 0 8px;padding-top:22px;border-top:1px solid #e3e5e8;font-size:17px;line-height:1.3;color:${BRAND};">Bring your team</h2>
+     <p style="margin:0;font-size:15px;line-height:1.6;">${esc(BRING_YOUR_TEAM)}</p>
+     ${button(esc(invite.mailto), 'Invite your team')}`
+         : ''
+     }`,
     {
       hero: {
         src: emailImage('ticket-hero.jpg'),
@@ -431,7 +480,17 @@ Paid:          ${price}
 View your ticket: ${input.orderUrl}
 
 Keep that link private. It shows the badge QR that gets scanned at the door.
+${
+  invite
+    ? `
+Bring your team
 
+${BRING_YOUR_TEAM}
+
+Your personal link to share: ${invite.link}
+`
+    : ''
+}
 3-7 May 2027, Jay Conference Bryant Park, New York.
 Please don't reply to this email. For questions, write to ${CONTACT}.`;
 

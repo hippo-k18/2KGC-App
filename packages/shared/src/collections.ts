@@ -66,6 +66,12 @@ export const COLLECTIONS = {
   contacts: "contacts",
   /** Tracked short links, counted by the redirect route itself. */
   campaignLinks: "campaignLinks",
+  /**
+   * Server-only. `referralCodes/{code}` → the registration that owns the code.
+   * A reservation table, so two attendees can never be handed the same code.
+   * No rules match block: nothing outside the Admin SDK reads it.
+   */
+  referralCodes: "referralCodes",
   /** Registration question forms, one document per audience. */
   questionForms: "questionForms",
   /**

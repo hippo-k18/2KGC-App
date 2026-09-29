@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { isBlogHost, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
 import { oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
+import { REFERRAL_MAX_AGE, referralCookiesFrom } from '@/lib/referral-capture';
 
 /**
  * This request's own origin. Not `nextUrl.origin`, which reports the droplet's
@@ -78,7 +79,12 @@ export function middleware(request: NextRequest) {
 
   if (bare !== path) return NextResponse.redirect(`${selfOrigin(request)}${bare}${url.search}`, 308);
 
-  if (!blogHost) return NextResponse.next();
+  if (!blogHost) {
+    // `/register` is what people guess, and what Min's example link used. The
+    // query string (an invite's `ref` and UTMs) goes along.
+    if (path === '/register') return NextResponse.redirect(`${selfOrigin(request)}/tickets${url.search}`, 308);
+    return withReferralCookies(url.searchParams, NextResponse.next());
+  }
 
   if (SIGN_IN_ALIASES.has(path)) return NextResponse.redirect(`${blogOrigin ?? selfOrigin(request)}/write`, 307);
 
@@ -97,6 +103,24 @@ export function middleware(request: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+/**
+ * Keep an attendee invite's `ref` and UTMs for checkout. See
+ * `lib/referral-capture.ts`. The latest visit with a valid code wins, the same
+ * last-touch rule the tracked-link cookie follows.
+ */
+function withReferralCookies(params: URLSearchParams, response: NextResponse): NextResponse {
+  for (const { name, value } of referralCookiesFrom(params)) {
+    response.cookies.set(name, value, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: REFERRAL_MAX_AGE,
+    });
+  }
+  return response;
 }
 
 export const config = {

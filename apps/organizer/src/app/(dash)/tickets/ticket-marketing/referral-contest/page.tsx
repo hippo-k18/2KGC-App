@@ -3,6 +3,8 @@ import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
+import { attendeeReferralLeaderboard } from '@/lib/referrals';
+import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
@@ -41,7 +43,7 @@ export const dynamic = 'force-dynamic';
 export default async function ReferralContestPage() {
   await requireOrganizer();
 
-  const links = await listLinks();
+  const [links, attendees] = await Promise.all([listLinks(), attendeeReferralLeaderboard()]);
   const publicOrigin = publicSiteOrigin();
 
   const owned = links.filter((l) => l.owner);
@@ -141,6 +143,47 @@ export default async function ReferralContestPage() {
         </p>
       </Panel>
 
+      {/*
+        Attendee invites. Every confirmation email carries a personal link with
+        the attendee's code, and fulfilment credits the registrations it brings
+        (`referredBy`). Counted separately from the links above: an attendee's
+        code credits a person, a tracked link credits an order.
+      */}
+      <Panel style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Attendee referrals</h2>
+        {attendees.rows.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
+            Nobody has registered through an attendee&rsquo;s invite link yet.
+            {attendees.withCode > 0 ? ` ${attendees.withCode} attendees have a code.` : ''}
+          </p>
+        ) : (
+          <Table
+            cols={[
+              { key: 'p', label: '#', className: 'cell-xs' },
+              { key: 'a', label: 'Attendee', className: 'cell-fill' },
+              { key: 'c', label: 'Code', className: 'cell-sm' },
+              { key: 'n', label: 'Referred', className: 'cell-sm' },
+            ]}
+            rows={attendees.rows.map((r, i) => [
+              <strong key="p">{i + 1}</strong>,
+              <div key="a">
+                <Link href={`${ROUTES.attendees}?edit=${r.registrationId}#referrals`}>{r.name || r.email}</Link>
+                {r.name ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {r.email}
+                  </div>
+                ) : null}
+              </div>,
+              r.code ? <code key="c">{r.code}</code> : '—',
+              <strong key="n">{r.referred}</strong>,
+            ])}
+          />
+        )}
+        <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+          Counts attendees whose ticket is still active.
+        </p>
+      </Panel>
+
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Referral links</h2>
         <LinkTable
@@ -177,8 +220,9 @@ export default async function ReferralContestPage() {
             organizer screenshots.
           </li>
           <li>
-            <strong>No self-service sign-up.</strong> Each link is created here by hand. That is
-            fine for twenty speakers and wrong for two hundred attendees.
+            <strong>No self-service sign-up for tracked links.</strong> Each one is created here by
+            hand. Attendees do not need one: each gets a personal code in their confirmation email,
+            counted under Attendee referrals.
           </li>
         </ul>
       </GapPanel>

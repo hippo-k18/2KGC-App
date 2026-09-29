@@ -23,6 +23,7 @@ import { db } from '@/lib/firestore';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
+import { referralFromMetadata } from '@/lib/referral-capture';
 import {
   cancelRegistrationByOrder,
   ensureRegistration,
@@ -641,6 +642,12 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
      * cookie, or a link shared onward as plain text all land here too.
      */
     campaignCode: session.metadata?.campaignCode || undefined,
+    /**
+     * An attendee's invite code and UTMs, put into metadata by `startCheckout`
+     * from the cookies the personal link set. Re-validated on the way out;
+     * fulfilment ignores a code that does not resolve or is the buyer's own.
+     */
+    ...referralFromMetadata(session.metadata),
     /**
      * The registration questions, answered on our page before the redirect and
      * held in `pendingAnswers` until now. Claimed inside `fulfilOrder`, so a
