@@ -2868,8 +2868,9 @@ a.logo-card:hover {
   /* `--palette-12`, the theme's own blue, at regular weight — the live cards set
      their body copy noticeably lighter than their heading, and ours was reading
      as a second heading. */
-  /* The live cards' lighter steel blue. */
-  color: #4a86b5;
+  /* The live cards' steel blue, one step darker: #4a86b5 measured 3.67:1 on
+     the card, under AA's 4.5:1. This is 5.04:1. */
+  color: #3a6f99;
   font-weight: 400;
   font-size: 17px;
   line-height: 1.7;
@@ -3695,13 +3696,17 @@ a.logo-card:hover {
 }
 
 .ticker-link:focus-visible {
-  outline: 3px solid var(--navy);
+  outline: 3px solid var(--white);
   outline-offset: -3px;
 }
 
+/*
+ * Navy on the brand orange (4.71:1). White on it measured 2.51:1, under the
+ * 4.5:1 AA asks of 14px text, and failed the pre-publish accessibility check.
+ */
 .ticker {
   background: var(--orange);
-  color: var(--white);
+  color: var(--navy);
   overflow: hidden;
   /* Its own containing block, so the track can be translated without escaping. */
   position: relative;
@@ -3760,7 +3765,7 @@ a.logo-card:hover {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: rgb(255 255 255 / 75%);
+  background: var(--navy);
   margin: 0 20px;
   flex: none;
 }
@@ -6171,7 +6176,17 @@ a.li-icon::after {
   line-height: 1.2;
   font-weight: 800;
   margin: 0 0 12px;
-  color: var(--orange);
+  /*
+   * Brand orange measured 2.4:1 on these pale cards and 1.43:1 on Slack's
+   * light blue, so the headings take darker oranges from the same hue: the
+   * burnt orange the ticket cards use (4.79:1) and a deeper rust on the
+   * featured card (4.62:1).
+   */
+  color: #b45309;
+}
+
+.channel.featured h2 {
+  color: #8a3510;
 }
 
 .channel p {
@@ -9330,7 +9345,9 @@ section .site-search-form {
    live site. `components/home/faq-tabs.tsx`. The older `.kgc-faq` accordion
    rules above stay: the tickets pages still use them. */
 :root {
-  --faq-question: #8ec5e8; /* unselected question text */
+  /* Unselected question text. The reference's #8ec5e8 is 1.85:1 on white and
+     failed the accessibility check; this steel blue is 5.37:1. */
+  --faq-question: #3a6f99;
   --faq-selected-bg: #9ccbeb;
   --faq-selected-fg: #1f4a5f;
   --faq-panel: #f3f5f8; /* a touch darker than the reference so it shows on white */
