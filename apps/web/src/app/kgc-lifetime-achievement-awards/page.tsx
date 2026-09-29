@@ -46,10 +46,14 @@ const PAST: { year: number; recipients: Recipient[] }[] = [
   { year: 2020, recipients: [{ name: 'John F. Sowa', wikipedia: wiki('John_F._Sowa') }] },
 ];
 
-/** Verbatim from each recipient's KGC speaker page, typos included. */
-const BIOS: { name: string; year: number; paragraphs: string[] }[] = [
+/**
+ * Verbatim from each recipient's KGC speaker page, typos included. `slug` is
+ * that page's address under /past-speakers, where it now lives on this site.
+ */
+const BIOS: { name: string; year: number; slug: string; paragraphs: string[] }[] = [
   {
     "name": "Ora Lassila",
+    "slug": "ora-lassila",
     "year": 2026,
     "paragraphs": [
       "Ora Lassila is a Principal Graph Technologist in the Amazon Neptune graph database group. He has a long experience with graphs, graph databases, ontologies, and knowledge representation, and was a co-author of the original RDF specification as well as a co-author of the seminal article on the Semantic Web. He holds a Ph.D in Computer Science, but actually aspires to be a professional aviation photographer.."
@@ -57,6 +61,7 @@ const BIOS: { name: string; year: number; paragraphs: string[] }[] = [
   },
   {
     "name": "Denny Vrandečić",
+    "slug": "denny-vrandecic-2",
     "year": 2023,
     "paragraphs": [
       "Denny Vrandečić is Head of Special Projects at the Wikimedia Foundation, leading the development of Wikifunctions and Abstract Wikipedia. He is the founder of Wikidata, co-creator of Semantic MediaWiki, and former elected member of the Wikimedia Foundation Board of Trustees. He worked for Google on the Google Knowledge Graph. He has a PhD in Semantic Web and Knowledge Representation from the Karlsruhe Institute of Technology."
@@ -64,6 +69,7 @@ const BIOS: { name: string; year: number; paragraphs: string[] }[] = [
   },
   {
     "name": "Deborah McGuinness",
+    "slug": "deborah-mcguinness",
     "year": 2022,
     "paragraphs": [
       "Deborah McGuinness has been recognized with awards from the American Association for the Advancement of Science (AAAS) and the Association for the Advancement of Artificial Intelligence (AAAI ) for leadership in Semantic Web research and in bridging Artificial Intelligence (AI) and eScience, significant contributions to deployed AI applications, and extensive service to the AI community. She is a leading authority on the semantic web and has been working in knowledge representation and reasoning environments for over 35 years. Deborah’s primary research thrusts include ontologies, provenance, escience, open data, and semantically-enabled schema and data integration for a wide range of informatics , recommender, and configuration applications.",
@@ -73,6 +79,7 @@ const BIOS: { name: string; year: number; paragraphs: string[] }[] = [
   },
   {
     "name": "Albert-László Barabási",
+    "slug": "albert-laszlo-barabasi",
     "year": 2021,
     "paragraphs": [
       "Albert-László Barabási is both the Robert Gray Dodge Professor of Network Science and a Distinguished University Professor at Northeastern University, where he directs the Center for Complex Network Research, and holds appointments in the Departments of Physics and Computer Science, as well as in the Department of Medicine, Harvard Medical School and Brigham and Women Hospital, and is a member of the Center for Cancer Systems Biology at Dana Farber Cancer Institute. A Hungarian born native of Transylvania, Romania, he received his Masters in Theoretical Physics at the Eotvos University in Budapest, Hungary and was awarded a Ph.D. three years later at Boston University. Barabási is the author of the forthcoming book “The Formula: The Science of Success,” and his last book was “Bursts: The Hidden Pattern Behind Everything We Do” (Dutton, 2010) available in five languages. He has also authored “Linked: The New Science of Networks” (Perseus, 2002), currently available in eleven languages, and is the co-editor of “The Structure and Dynamics of Networks” (Princeton, 2005). His work lead to the discovery of scale-free networks in 1999, and proposed the Barabási-Albert model to explain their widespread emergence in natural, technological and social systems, from the cellular telephone to the WWW or online communities. Barabási is a Fellow of the American Physical Society. In 2005 he was awarded the FEBS Anniversary Prize for Systems Biology and in 2006 the John von Neumann Medal by the John von Neumann Computer Society from Hungary, for outstanding achievements in computer-related science and technology. In 2004 he was elected into the Hungarian Academy of Sciences and in 2007 into the Academia Europaea. He received the C&C Prize from the NEC C&C Foundation in 2008. In 2009 APS chose him Outstanding Referee and the US National Academies of Sciences awarded him the 2009 Cozzarelli Prize. In 2011 Barabási was awarded the Lagrange Prize-CRT Foundation for his contributions to complex systems, awarded Doctor Honoris Causa from Universidad Politécnica de Madrid, became an elected Fellow in AAAS (Physics) and is an 2013 Fellow of the Massachusetts Academy of Sciences."
@@ -80,6 +87,7 @@ const BIOS: { name: string; year: number; paragraphs: string[] }[] = [
   },
   {
     "name": "John F. Sowa",
+    "slug": "john-f-sowa",
     "year": 2020,
     "paragraphs": [
       "John F. Sowa spent 30 years on R & D projects at IBM and is a co-founder of VivoMind Research LLC. He is a fellow of the AAAI, and he has published several books and many articles on logic, AI, and computational linguistics."
@@ -176,6 +184,9 @@ export default async function AwardsPage() {
                 {b.paragraphs.map((para) => (
                   <p key={para.slice(0, 40)}>{para}</p>
                 ))}
+                <p>
+                  <Link href={`/past-speakers/${b.slug}`}>{b.name}’s KGC speaker page</Link>
+                </p>
               </div>
             </details>
           ))}
