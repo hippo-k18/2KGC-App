@@ -3683,6 +3683,22 @@ a.logo-card:hover {
 
 /* ---------------------------------------------------------------- ticker -- */
 
+/* The strip is a link to /tickets while sales are open. */
+.ticker-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ticker-link:hover .ticker-track {
+  text-decoration: underline;
+}
+
+.ticker-link:focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: -3px;
+}
+
 .ticker {
   background: var(--orange);
   color: var(--white);
@@ -6178,6 +6194,14 @@ a.li-icon::after {
   gap: 18px;
   max-width: 900px;
   margin: 0 auto;
+}
+
+a.laureate {
+  text-decoration: none;
+}
+
+a.laureate:hover {
+  text-decoration: underline;
 }
 
 .laureate {
@@ -9444,6 +9468,23 @@ section .site-search-form {
   line-height: 1.5;
   /* Full strength. At 0.7 opacity the credit measured 3.3:1 on the navy
      footer, under WCAG AA's 4.5:1 for text this small. */
+}
+
+/* Privacy and Code of conduct, beside the copyright. */
+.site-footer .fine .legal {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.site-footer .fine .legal a {
+  display: inline;
+  color: inherit;
+  font-size: inherit;
+  padding: 0;
+  margin: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .site-footer .fine .photo-credit a {

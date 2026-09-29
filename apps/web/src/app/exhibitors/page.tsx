@@ -70,7 +70,7 @@ export default async function ExhibitorsPage() {
         <div className="wrap">
           <h1>Exhibitors at {ev.shortName} {ev.year}</h1>
           <p className="lede">
-            {ev.datesLong} at {ev.venueShort}.
+            {ev.datesShort} at {ev.venueShort}.
           </p>
         </div>
       </section>

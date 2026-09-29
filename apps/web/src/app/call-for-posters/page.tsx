@@ -17,7 +17,7 @@ import { openCallFor, type OpenCall } from '@/lib/submissions';
  */
 
 export const metadata: Metadata = {
-  title: 'Call for Posters',
+  title: 'Knowledge Graph Conference Call for Posters',
   description: `The Knowledge Graph Conference ${SITE.year} poster track: applied research and emerging ideas from graduate students and early-career researchers.`,
 };
 
@@ -156,7 +156,7 @@ export default async function CallForPostersPage() {
             reasoning, governance and interoperability.
           </p>
           <p>
-            Selected posters are presented in person at {SITE.venueShort}, {SITE.datesLong}.
+            Selected posters are presented in person at {SITE.venueShort}, {SITE.datesShort}.
           </p>
           {/*
             No button when there is no link. An organizer clearing `submitUrl`

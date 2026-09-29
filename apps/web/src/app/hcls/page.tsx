@@ -124,7 +124,7 @@ export default async function HclsPage() {
               Symposium (HCLS)
             </h1>
             <p className="when">
-              {ev.datesLong} | {ev.venueShort} + Virtual
+              {ev.datesShort} | {ev.venueShort} + Virtual
             </p>
             <div className="cta">
               {salesOpen && (

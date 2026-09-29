@@ -71,7 +71,7 @@ export const SITE = {
 
   social: [
     { label: 'LinkedIn', href: 'https://www.linkedin.com/company/knowledge-graph-conference/' },
-    { label: 'X', href: 'https://x.com/knowledgegraphc' },
+    { label: 'X', href: 'https://x.com/KGConference' },
     { label: 'YouTube', href: 'https://www.youtube.com/@knowledgegraphconference' },
     { label: 'Slack', href: SLACK_WORKSPACE },
   ],
@@ -108,7 +108,7 @@ export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
  * read. Keep these short: they are read in passing.
  */
 export const TICKER: string[] = [
-  '3–7 May 2027',
+  'May 3–7, 2027',
   'Jay Conference Bryant Park, New York',
   '1,000+ attendees expected',
   'Workshops Mon–Tue · Conference Wed–Fri',
@@ -190,6 +190,16 @@ export const APP_DISTRIBUTION =
 export const APP_URL: string | null = process.env.APP_PUBLIC_URL || null;
 
 /**
+ * The conference's video and resource site. `hub.knowledgegraph.tech`, the
+ * old Resource Hub, times out; the team moved the menu entry and the
+ * /community video link here on 2026-09-28.
+ */
+export const RESOURCE_HUB = 'https://watch.knowledgegraph.tech';
+
+/** The newsletter sign-up form on the conference's HubSpot. */
+export const NEWSLETTER_SIGNUP = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
+
+/**
  * The header navigation.
  *
  * The live site's own navigation, scraped: `2026 Speakers`, `Sponsor KGC`,
@@ -246,7 +256,7 @@ export interface NavChild {
 export const ABOUT_MENU: readonly NavChild[] = [
   { href: '/about', label: 'About KGC' },
   { href: '/community', label: 'Community' },
-  { href: 'https://hub.knowledgegraph.tech/', label: 'Resource Hub', external: true },
+  { href: RESOURCE_HUB, label: 'Resource Hub', external: true },
   { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
   { href: '/team', label: 'Meet the Team' },
   /*
@@ -344,7 +354,11 @@ export function localTime(wallClock: string): string {
  * footer only. Applied to the saved venue too, so a venue edited in Content >
  * Basics keeps the short form there.
  */
-export const homeVenue = (venue: string) => venue.replace('Jay Conference Bryant Park', 'Bryant Park');
+export const homeVenue = (venue: string) =>
+  venue
+    .replace('Jay Conference Bryant Park', 'Bryant Park')
+    // "New York City" on the home page, at the team's request (2026-09-28).
+    .replace(/, New York(, NY)?$/, ', New York City');
 
 /**
  * An empty element the home page renders so the shared footer can switch to

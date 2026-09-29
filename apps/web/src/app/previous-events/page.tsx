@@ -19,7 +19,7 @@ import Link from 'next/link';
  */
 
 export const metadata: Metadata = {
-  title: 'Previous events',
+  title: 'Previous Knowledge Graph Conferences',
   description:
     'Every previous edition of the Knowledge Graph Conference, from 2019 onwards, with links to each archived site.',
 };

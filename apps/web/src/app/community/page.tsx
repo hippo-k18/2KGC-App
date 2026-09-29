@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SLACK_WORKSPACE } from '@/lib/site';
+import { NEWSLETTER_SIGNUP, RESOURCE_HUB, SLACK_WORKSPACE } from '@/lib/site';
 import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
-  title: 'Community',
+  title: 'The Knowledge Graph Community',
   description:
     'The KGC community: around ten thousand knowledge graph professionals on Slack, LinkedIn and the newsletter.',
 };
@@ -39,9 +39,11 @@ const CHANNELS = [
   },
   {
     name: 'Newsletter',
-    body: 'A monthly note on what the community is building, and what is coming at the next conference.',
+    // Wording from the team, 2026-09-28. The form is the conference's HubSpot
+    // sign-up, the same one the blog links to.
+    body: 'A biweekly newsletter with the latest KGC news, community events, and industry trends.',
     cta: 'Subscribe',
-    href: 'mailto:contact@knowledgegraph.tech?subject=Newsletter',
+    href: NEWSLETTER_SIGNUP,
   },
 ];
 
@@ -52,9 +54,14 @@ const LIBRARIES = [
     href: 'https://www.youtube.com/@knowledgegraphconference',
   },
   {
-    name: 'Vimeo library',
+    /*
+     * Was the Vimeo library. The team pointed it at the conference's own video
+     * site on 2026-09-28, the same address the Resource Hub menu entry now uses.
+     */
+    name: 'Video library',
     body: 'An on-demand library of talks, workshops and tutorials recorded at previous KGC events.',
-    href: 'https://vimeo.com/knowledgegraphconference',
+    href: RESOURCE_HUB,
+    cta: 'Open the video library',
   },
 ];
 
@@ -115,7 +122,7 @@ export default async function CommunityPage() {
                 <h2>{l.name}</h2>
                 <p>{l.body}</p>
                 <a className="btn btn-outline" href={l.href} target="_blank" rel="noreferrer">
-                  Open {l.name.split(' ')[0]}
+                  {'cta' in l ? l.cta : `Open ${l.name.split(' ')[0]}`}
                 </a>
               </div>
             ))}

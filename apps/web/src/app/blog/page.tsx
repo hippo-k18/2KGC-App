@@ -7,7 +7,7 @@ import { categoriesOf, publicPosts, type PublicPost } from '@/lib/blog/public';
 import { formatPostDate } from '@/lib/posts';
 
 export const metadata: Metadata = {
-  title: 'Blog',
+  title: 'Knowledge Graph Conference Blog',
   description:
     'The Knowledge Graph Conference blog archive: talks, news roundups and write-ups from the KGC community, 2019 to today.',
 };

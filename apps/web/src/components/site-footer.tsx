@@ -68,14 +68,6 @@ export function SiteFooter({
             <Link href="/sponsor#speak">Speak at KGC</Link>
             <Link href="/call-for-posters">Poster track</Link>
             <Link href="/startup-pitch">Startup pitch</Link>
-            {/* `/code-of-conduct`, not `/about#code-of-conduct`. It is a policy
-                people are asked to agree to, and the live site gives it a page
-                of its own rather than a fragment on another one. */}
-            <Link href="/code-of-conduct">Code of conduct</Link>
-            {/* Beside the code of conduct for the same reason: both are things
-                people are told they have agreed to, and a privacy notice
-                nobody can find is one nobody read. */}
-            <Link href="/privacy">Privacy</Link>
           </div>
 
           <div>
@@ -109,6 +101,16 @@ export function SiteFooter({
 
         <div className="fine">
           <span>© 2019–2027 Knowledge Graph Conference. All rights reserved.</span>
+          {/*
+            The policies people are told they have agreed to, in the legal row
+            beside the copyright where sites usually keep them. They sat in the
+            Participate column until the team asked for somewhere quieter
+            (2026-09-28).
+          */}
+          <span className="legal">
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/code-of-conduct">Code of conduct</Link>
+          </span>
           <span>
             {datesShort} ·{' '}
             {homeVenue(venue) === venue ? (

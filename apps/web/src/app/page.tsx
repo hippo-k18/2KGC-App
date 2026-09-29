@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   brandingSettings,
@@ -8,6 +9,7 @@ import {
   siteEvent,
 } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, HOME_VENUE_MARKER, SITE, homeVenue } from '@/lib/site';
+
 import { tiersOrNull } from '@/lib/catalogue';
 import { canonicalOrigin, eventJsonLd, jsonLdScript } from '@/lib/event-jsonld';
 import { EventSchedule } from '@/components/event-schedule';
@@ -20,6 +22,18 @@ import { PhotoSplit } from '@/components/home/photo-split';
 import { StatBlocks } from '@/components/home/stat-blocks';
 import { Testimonials } from '@/components/home/testimonials';
 import { FaqTabs } from '@/components/home/faq-tabs';
+
+/**
+ * The home page's own description: the layout's default names the venue in
+ * full, and the home page says "Bryant Park". Under 155 characters, so search
+ * results show it whole (SEO review, 2026-09-28).
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const ev = await siteEvent();
+  return {
+    description: `${ev.name}, ${ev.datesShort} at ${homeVenue(ev.venueShort)}. Five days of workshops and talks on knowledge graphs and enterprise AI.`,
+  };
+}
 
 /**
  * The home page reads the real `speakers`, `sessions` and `sponsors`
@@ -233,7 +247,7 @@ export default async function HomePage() {
           <h1>{ev.name === SITE.name ? 'The Knowledge Graph Conference' : ev.name}</h1>
           <p className="lede">{branding.tagline || 'Make Your Enterprise Data AI Ready'}</p>
           <p className="hero-dates">
-            {ev.datesLong} &nbsp;|&nbsp; {homeVenue(ev.venueShort)}
+            {ev.datesShort} &nbsp;|&nbsp; {homeVenue(ev.venueShort)}
           </p>
 
           {/*
@@ -459,7 +473,7 @@ export default async function HomePage() {
           <div className="wrap narrow center">
             <h2>Bring your team</h2>
             <p className="lede" style={{ margin: '0 auto 24px' }}>
-              {ev.datesLong} at {homeVenue(ev.venue)}.
+              {ev.datesShort} at {homeVenue(ev.venueShort)}.
             </p>
             <Link href="/tickets" className="btn btn-primary">
               Register now

@@ -4,7 +4,7 @@ import { LinkedIn } from '@/components/linkedin-icon';
 import { LEARN_FOUNDERS } from '@/lib/people';
 
 export const metadata: Metadata = {
-  title: 'Learn',
+  title: 'The Knowledge Graph Learning Program',
   description:
     'KGC | Learn: the team, the continuing education roster, and the four certificate programmes.',
 };

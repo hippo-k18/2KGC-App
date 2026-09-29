@@ -7,7 +7,7 @@ import type { Tier } from '@/lib/tickets';
 import { SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
-  title: 'Sponsor KGC',
+  title: 'Sponsor the Knowledge Graph Conference',
   description:
     'Sponsorship and speaking opportunities at the Knowledge Graph Conference 2027, Jay Conference Bryant Park, New York.',
 };

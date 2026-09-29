@@ -61,7 +61,8 @@ export async function generateMetadata(): Promise<Metadata> {
       default: `${ev.name} · ${ev.datesShort}`,
       template: `%s · ${ev.shortName} ${ev.year}`,
     },
-    description: `${ev.name}. ${ev.datesLong}, ${ev.venue}. Five days of workshops, talks and the people building the semantic layer under enterprise AI.`,
+    // Under 155 characters, so search results show it whole (SEO review, 2026-09-28).
+    description: `${ev.name}, ${ev.datesShort} at ${ev.venue}. Workshops and talks on knowledge graphs and enterprise AI.`,
     icons: { icon: '/favicon.png' },
     openGraph: {
       title: `${ev.name} · ${ev.datesShort}`,

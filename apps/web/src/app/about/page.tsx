@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { siteEvent, ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
-  title: 'About KGC',
+  title: 'About the Knowledge Graph Conference',
   description:
     'How the Knowledge Graph Conference started at Columbia University in 2019, what it connects, and what it is for.',
 };

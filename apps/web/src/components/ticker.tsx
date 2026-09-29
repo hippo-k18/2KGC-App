@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ANNOUNCEMENT } from '@/lib/site';
 
 /**
@@ -24,10 +25,13 @@ export function Ticker({ salesOpen = false }: { salesOpen?: boolean }) {
   // -50% keyframe lands exactly on the start of the second run.
   const run = Array.from({ length: 8 }, (_, i) => i);
 
-  return (
-    <div className="ticker" role="complementary" aria-label="Ticket news">
-      <p className="sr-only">{line}</p>
-      <div className="ticker-track" aria-hidden="true">
+  /*
+   * While tickets are on sale the whole strip is a link to them: the team
+   * asked for the home banner to take people straight to registration
+   * (2026-09-28). With sales closed it stays plain text.
+   */
+  const track = (
+    <div className="ticker-track" aria-hidden="true">
         {[0, 1].map((half) => (
           <ul className="ticker-run" key={half}>
             {run.map((i) => (
@@ -38,7 +42,22 @@ export function Ticker({ salesOpen = false }: { salesOpen?: boolean }) {
             ))}
           </ul>
         ))}
-      </div>
+    </div>
+  );
+
+  return (
+    <div className="ticker" role="complementary" aria-label="Ticket news">
+      {salesOpen ? (
+        <Link href="/tickets" className="ticker-link">
+          <span className="sr-only">{line}. Register now</span>
+          {track}
+        </Link>
+      ) : (
+        <>
+          <p className="sr-only">{line}</p>
+          {track}
+        </>
+      )}
     </div>
   );
 }

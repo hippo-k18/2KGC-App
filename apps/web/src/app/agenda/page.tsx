@@ -189,7 +189,7 @@ export default async function AgendaPage({
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ld }} />
       )}
       <div className="wrap">
-        <p className="eyebrow">{ev.datesLong}</p>
+        <p className="eyebrow">{ev.datesShort}</p>
         <h1>Agenda</h1>
 
         {allDays.length === 0 ? (

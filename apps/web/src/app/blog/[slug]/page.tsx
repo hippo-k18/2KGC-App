@@ -7,11 +7,11 @@ import { publicPost, publicPosts, type PublicPost } from '@/lib/blog/public';
 import { PostBodyDoc } from '@/lib/blog/render';
 import { getAuthor, getPostBody } from '@/lib/post-content';
 import { formatPostDate } from '@/lib/posts';
-import { SITE } from '@/lib/site';
+import { NEWSLETTER_SIGNUP, SITE } from '@/lib/site';
 import { ticketSalesOpen } from '@/lib/data';
 
 /** The newsletter form lives on the conference's HubSpot, same as the live site. */
-const NEWSLETTER = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
+const NEWSLETTER = NEWSLETTER_SIGNUP;
 
 /** The archive plus whatever editors have published, so rendered per request from a cached list. */
 export const dynamic = 'force-dynamic';
@@ -183,7 +183,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       <aside className="post-sidebar" aria-label="Sidebar">
         <h2>Connect with KG Experts</h2>
         <p>
-          When you attend the {SITE.name} from {SITE.datesLong}, you have the chance to learn, grow,
+          When you attend the {SITE.name} from {SITE.datesShort}, you have the chance to learn, grow,
           network, and more with a community of knowledge graph professionals.
         </p>
         {salesOpen && (

@@ -84,7 +84,7 @@ export async function AudienceTicketsPage({
           <p className="kicker">{ev.shortName} {ev.year}</p>
           <h1>{copy.heading}</h1>
           <p className="when">
-            {ev.datesLong} | {ev.venueShort}
+            {ev.datesShort} | {ev.venueShort}
           </p>
           <p className="lede" style={{ maxWidth: '46rem' }}>
             {copy.lede}

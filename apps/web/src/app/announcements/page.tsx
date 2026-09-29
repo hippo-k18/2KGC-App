@@ -102,7 +102,7 @@ export default async function AnnouncementsPage() {
       <div className="wrap">
         <header className="wall-head">
           <p className="wall-eyebrow">
-            {ev.shortName} {ev.year} · {ev.datesLong}
+            {ev.shortName} {ev.year} · {ev.datesShort}
             <span className="wall-refresh">
               <AutoRefresh seconds={WALL_REFRESH_SECONDS} />
             </span>

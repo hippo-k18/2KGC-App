@@ -107,7 +107,7 @@ export function OrderView({ ev, reg }: { ev: SiteEvent; reg: OrderViewRegistrati
               <dl className="pass-facts">
                 <div>
                   <dt>Dates</dt>
-                  <dd>{ev.datesLong}</dd>
+                  <dd>{ev.datesShort}</dd>
                 </div>
                 <div>
                   <dt>Venue</dt>

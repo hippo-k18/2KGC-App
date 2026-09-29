@@ -9,7 +9,7 @@ import s from './tickets.module.css';
 import { TicketSalesClosed } from './sales-closed';
 
 export const metadata: Metadata = {
-  title: 'Tickets',
+  title: 'Knowledge Graph Conference Tickets',
   description:
     'All Access, Main Conference, Workshops and Virtual tickets for the Knowledge Graph Conference 2027.',
 };
@@ -209,7 +209,7 @@ export default async function TicketsPage({
         <header className={s.head}>
           <h1 className={s.h1}>Tickets</h1>
           <p className={s.orient}>
-            {ev.datesLong} at {ev.venueShort}.
+            {ev.datesShort} at {ev.venueShort}.
           </p>
           {risesOn ? (
             <p className={s.rise}>Prices will increase in {monthName(risesOn)}</p>

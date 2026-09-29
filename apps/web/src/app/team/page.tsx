@@ -5,7 +5,7 @@ import { TEAM } from '@/lib/people';
 import { siteEvent } from '@/lib/data';
 
 export const metadata: Metadata = {
-  title: 'Meet the Team',
+  title: 'Meet the KGC Organizing Team',
   description: 'The people who run the Knowledge Graph Conference.',
 };
 
