@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { isBlogHost, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
-import { oldSiteTarget } from '@/lib/old-site';
+import { oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
 
 /**
  * This request's own origin. Not `nextUrl.origin`, which reports the droplet's
@@ -26,6 +26,10 @@ function selfOrigin(request: NextRequest): string {
  * `lib/blog/host.ts` for why). Requests to any other host are untouched, except
  * `/blog` when `BLOG_ORIGIN` names the blog host.
  */
+/** The main site's origin, as the blog host links to it. */
+const mainOrigin = () =>
+  (process.env.BLOG_MAIN_ORIGIN ?? process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
+
 /** The addresses people guess for the blog editor. All lead to its sign-in. */
 const SIGN_IN_ALIASES = new Set(['/login', '/log-in', '/signin', '/sign-in', '/admin', '/editor', '/dashboard', '/wp-admin', '/wp-login.php']);
 
@@ -40,7 +44,26 @@ export function middleware(request: NextRequest) {
   const bare = path.length > 1 ? path.replace(/\/+$/, '') : path;
   const isBlogPath = (p: string) => p === '/blog' || p.startsWith('/blog/') || p.startsWith('/blog?');
 
+  // An old speaker page is a `/blog/...` address that is not a post, so on the
+  // blog host it goes to its page on the main site rather than to the blog.
+  if (blogHost) {
+    const target = oldSiteTarget(path);
+    if (target?.startsWith('/past-speakers')) return NextResponse.redirect(`${mainOrigin()}${target}`, 301);
+  }
+
   if (!blogHost) {
+    // A year's list is `/past-speakers?year=2022`. `/past-speakers/2022` is the
+    // address people guess, so it goes there, and a year there is no list for
+    // goes to the whole list, either way in one hop.
+    const yearPath = /^\/past-speakers\/(\d{4})$/.exec(bare);
+    if (yearPath?.[1]) {
+      const to = PAST_SPEAKER_YEARS.has(yearPath[1]) ? `/past-speakers?year=${yearPath[1]}` : '/past-speakers';
+      return NextResponse.redirect(`${selfOrigin(request)}${to}`, 301);
+    }
+    if (bare === '/past-speakers' && url.searchParams.has('year') && !PAST_SPEAKER_YEARS.has(url.searchParams.get('year') ?? '')) {
+      return NextResponse.redirect(`${selfOrigin(request)}/past-speakers`, 301);
+    }
+
     // `/blog` targets go straight to the blog host, not through the 308 below,
     // so an old address is one hop.
     const target = oldSiteTarget(path);
@@ -68,7 +91,7 @@ export function middleware(request: NextRequest) {
   // to the public site.
   const first = path.split('/')[1] ?? '';
   if (MAIN_SITE_ROUTES.has(first) || first === '__site') {
-    const main = (process.env.BLOG_MAIN_ORIGIN ?? process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
+    const main = mainOrigin();
     const rest = first === '__site' ? path.slice(7) || '/' : path;
     return NextResponse.redirect(`${main}${rest}${url.search}`, 307);
   }

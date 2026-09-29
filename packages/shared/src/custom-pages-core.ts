@@ -78,6 +78,7 @@ export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "kgc-lifetime-achievement-awards",
   "learn",
   "order",
+  "past-speakers",
   "previous-events",
   "privacy",
   "r",

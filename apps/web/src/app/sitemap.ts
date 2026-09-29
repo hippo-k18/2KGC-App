@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { listPublicPages, siteVisibility } from '@/lib/data';
 import { publicPosts } from '@/lib/blog/public';
 import { requestHost } from '@/lib/indexing';
+import { PAST_SPEAKERS, PAST_YEARS } from '@/lib/past-speakers';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,5 +37,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(show.speakers ? ['/speakers'] : []),
     ...pages.map((p) => `/${p.slug}`),
   ];
-  return paths.map((p) => ({ url: p === '/' ? origin : origin + p, priority: p === '/' ? 1 : p === '/tickets' ? 0.9 : 0.6 }));
+  return [
+    ...paths.map((p) => ({ url: p === '/' ? origin : origin + p, priority: p === '/' ? 1 : p === '/tickets' ? 0.9 : 0.6 })),
+    // The pages rebuilt from the old site's speaker pages, which rank for the
+    // speakers' names. See `lib/past-speakers.ts`.
+    { url: `${origin}/past-speakers`, priority: 0.5 },
+    ...PAST_YEARS.map((y) => ({ url: `${origin}/past-speakers?year=${y.year}`, priority: 0.4 })),
+    ...PAST_SPEAKERS.map((s) => ({
+      url: `${origin}/past-speakers/${s.slug}`,
+      priority: 0.4,
+      ...(s.modified ? { lastModified: s.modified } : {}),
+    })),
+  ];
 }

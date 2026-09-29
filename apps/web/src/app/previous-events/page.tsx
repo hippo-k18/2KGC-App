@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 /**
  * The "Previous Events" menu the live site has and we did not.
@@ -56,6 +57,11 @@ export default function PreviousEventsPage() {
             </li>
           ))}
         </ul>
+
+        <p style={{ marginTop: 28 }}>
+          <Link href="/past-speakers">Past speakers</Link>: everyone who spoke from 2019 to 2024,
+          with their biographies and talks.
+        </p>
       </div>
     </section>
   );

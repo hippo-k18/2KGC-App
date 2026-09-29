@@ -49,6 +49,19 @@ const nextConfig: NextConfig = {
         { source: '/', has, destination: '/blog' },
         { source: '/feed.xml', has, destination: '/blog/feed.xml' },
         { source: '/:path((?!_next/|api/|blog-media/|kgc/|email/|blog/|blog$)[^.]*)', has, destination: '/blog/:path' },
+        /*
+         * A year's list of past speakers is `/past-speakers?year=2022`, which is
+         * where the old year pages redirect. It is served from the page built
+         * for that year, so it stays static like the rest: a page that reads the
+         * query renders per request, and Next then streams its title, canonical
+         * and description into the body instead of the head. The middleware
+         * has already sent an unknown year to the whole list.
+         */
+        {
+          source: '/past-speakers',
+          has: [{ type: 'query' as const, key: 'year', value: '(?<year>\\d{4})' }],
+          destination: '/past-speakers/:year',
+        },
       ],
       afterFiles: [],
       fallback: [],

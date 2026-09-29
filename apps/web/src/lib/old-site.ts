@@ -1,4 +1,26 @@
 import { EXACT, SECTIONS } from './old-site-map';
+import PAST_SPEAKER_REDIRECTS from '../content/past-speakers/redirects.json';
+import PAST_YEARS from '../content/past-speakers/years.json';
+
+const PAST: Record<string, string> = PAST_SPEAKER_REDIRECTS;
+
+/**
+ * An old speaker address (`/blog/speakers/<slug>/`, or one of the year lists)
+ * to its page under `/past-speakers`, or `null`. One entry per address, from
+ * the WordPress export; see `lib/past-speakers.ts`.
+ *
+ * Its own function because the blog host needs it too: an old `/blog/...` link
+ * that arrives there is otherwise sent to the blog, which has no such post.
+ */
+export function pastSpeakerTarget(path: string): string | null {
+  const p = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  // A year archive's later pages (`/blog/speakers-category/2022/page/3/`) go
+  // where its first page goes.
+  return PAST[p] ?? PAST[p.replace(/\/page\/\d+$/, '')] ?? null;
+}
+
+/** The years `/past-speakers/<year>` has a list for. */
+export const PAST_SPEAKER_YEARS: ReadonlySet<string> = new Set(PAST_YEARS.map((y) => String(y.year)));
 
 /**
  * Where an address from the old WordPress site goes on this one, or `null`
@@ -14,6 +36,8 @@ import { EXACT, SECTIONS } from './old-site-map';
  */
 export function oldSiteTarget(path: string): string | null {
   const p = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  const past = pastSpeakerTarget(p);
+  if (past) return past;
   if (p in EXACT) return EXACT[p];
   for (const [prefix, to] of SECTIONS) {
     if (p === prefix || p.startsWith(prefix + '/')) return to;

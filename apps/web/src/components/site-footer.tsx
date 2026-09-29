@@ -59,6 +59,7 @@ export function SiteFooter({
                 things an attendee looks up, not the things they buy. */}
             <Link href="/announcements">Announcements</Link>
             <Link href="/documents">Documents</Link>
+            <Link href="/past-speakers">Past speakers</Link>
           </div>
 
           <div>

@@ -10021,3 +10021,360 @@ body:has([data-home-venue]) .venue-full {
 body:has([data-home-venue]) .venue-home {
   display: inline;
 }
+
+/* ======================================================= past speakers ==== */
+
+/*
+ * `/past-speakers` and each speaker's page. The banner is `/team`'s, and the
+ * grid is its square portraits over left-aligned names, so the directory reads
+ * as part of the same site rather than a new component.
+ */
+.ps-hero {
+  padding: 96px 0 84px;
+}
+
+.ps-hero h1 {
+  margin: 0 0 10px;
+}
+
+.ps-lede {
+  margin: 0 auto;
+  max-width: 60ch;
+  color: rgb(255 255 255 / 88%);
+  font-size: 1.05rem;
+}
+
+.ps-band {
+  padding: 48px 0 96px;
+}
+
+.ps-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px 32px;
+  margin-bottom: 36px;
+}
+
+.ps-years-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ps-years-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--heading);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.ps-years-nav a:hover {
+  border-color: var(--navy);
+}
+
+.ps-years-nav a[aria-current='page'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--white);
+}
+
+.ps-search {
+  flex: 1 1 260px;
+  max-width: 360px;
+}
+
+.ps-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid #b8c2d1;
+  border-radius: 8px;
+  background: var(--white);
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--body);
+}
+
+.ps-search input:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+}
+
+.ps-count {
+  margin: 6px 0 0;
+  min-height: 1.2em;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 40px 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ps-card {
+  position: relative;
+  min-width: 0;
+}
+
+.ps-card[hidden] {
+  display: none;
+}
+
+.ps-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: var(--palette-7);
+  margin-bottom: 14px;
+}
+
+.ps-photo.is-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--palette-2);
+  letter-spacing: 0.02em;
+}
+
+.ps-name {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.ps-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The whole card is the link's hit area. */
+.ps-name a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.ps-card:hover .ps-name a {
+  text-decoration: underline;
+}
+
+.ps-card:focus-within {
+  outline: 2px solid var(--navy);
+  outline-offset: 6px;
+}
+
+.ps-name a:focus-visible {
+  outline: none;
+}
+
+.ps-org {
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--highlight);
+}
+
+.ps-years {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ps-none[hidden] {
+  display: none;
+}
+
+@media (width < 700px) {
+  .ps-hero {
+    padding: 64px 0 56px;
+  }
+
+  .ps-band {
+    padding: 32px 0 72px;
+  }
+
+  .ps-search {
+    max-width: none;
+  }
+
+  .ps-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 16px;
+  }
+
+  .ps-name {
+    font-size: 15px;
+  }
+
+  .ps-org {
+    font-size: 13px;
+  }
+}
+
+/* ------------------------------------------------------ one speaker ------ */
+
+.ps-profile {
+  padding: 40px 0 96px;
+}
+
+.ps-crumb {
+  margin: 0 0 24px;
+  font-size: 0.9rem;
+}
+
+.ps-crumb a::before {
+  content: '← ';
+}
+
+.ps-head {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 32px;
+  align-items: center;
+}
+
+.ps-head:not(:has(img)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ps-head-photo {
+  display: block;
+  width: 200px;
+  height: 200px;
+  object-fit: cover;
+  background: var(--palette-7);
+}
+
+.ps-head h1 {
+  margin: 0;
+}
+
+.ps-role {
+  margin: 6px 0 0;
+  font-size: 1.05rem;
+  color: var(--highlight);
+}
+
+.ps-spoke {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+}
+
+.ps-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin: 14px 0 0;
+  font-size: 0.95rem;
+}
+
+.ps-h2 {
+  margin: 44px 0 12px;
+  font-size: 1.35rem;
+}
+
+.ps-bio p,
+.ps-bio ul,
+.ps-bio ol {
+  margin: 0 0 14px;
+}
+
+.ps-bio ul,
+.ps-bio ol {
+  padding-left: 1.3em;
+}
+
+.ps-talk-year {
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+}
+
+.ps-talk-label {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ps-talk {
+  margin: 0 0 16px;
+}
+
+.ps-talk-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ps-talk-desc {
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+
+.ps-talk-desc p,
+.ps-talk-desc ul,
+.ps-talk-desc ol {
+  margin: 0 0 10px;
+}
+
+.ps-talk-desc ul,
+.ps-talk-desc ol {
+  padding-left: 1.3em;
+}
+
+.ps-head-figure {
+  margin: 0;
+}
+
+.ps-credit {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.ps-head-figure .ps-credit {
+  max-width: 200px;
+}
+
+.ps-next {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+@media (width < 700px) {
+  .ps-head {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .ps-head-photo {
+    width: 140px;
+    height: 140px;
+  }
+}
