@@ -135,7 +135,9 @@ describe('recordReferral', () => {
     expect(result.credited).toEqual([ben.registrationId, cara.registrationId]);
     for (const rid of [ben.registrationId, cara.registrationId]) {
       const r = await reg(rid);
-      expect(r.referredBy).toMatchObject({ code: ada.code, registrationId: ada.rid });
+      expect(r.referredBy).toMatchObject({ code: ada.code });
+      // The referrer's id is not on the attendee-readable document.
+      expect(Object.keys(r.referredBy!).sort()).toEqual(['at', 'code']);
       expect(r.utm).toEqual(utm);
     }
   });
@@ -185,7 +187,7 @@ describe('recordReferral', () => {
 
     expect(replay.credited).toEqual([]);
     const r = await reg(ben.registrationId);
-    expect(r.referredBy?.registrationId).toBe(ada.rid);
+    expect(r.referredBy?.code).toBe(ada.code);
     expect(r.utm).toEqual({ source: 'attendee' });
   });
 

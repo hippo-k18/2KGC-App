@@ -128,7 +128,8 @@ export async function recordReferral(
       const self = referrer.registrationId === rid || normaliseEmail(referrer.email) === normaliseEmail(reg.email);
       if (self) result.selfReferrals.push(rid);
       else {
-        patch.referredBy = { code: referrer.code, registrationId: referrer.registrationId, at: new Date() };
+        // The code only: see `RegistrationDoc.referredBy` for why not the id.
+        patch.referredBy = { code: referrer.code, at: new Date() };
         result.credited.push(rid);
       }
     }

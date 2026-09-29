@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { COLLECTIONS, EVENT_ID, type RegistrationDoc } from '@kgc/shared';
+import { resolveReferralCode } from '@kgc/scripts/src/lib/referrals';
 import { db } from './firestore';
 import { countReferrals, referralLeaderboard, type ReferrerRow } from './referrals-core';
 
@@ -33,23 +34,29 @@ export interface AttendeeReferral {
 export async function referralFor(rid: string, reg: RegistrationDoc): Promise<AttendeeReferral> {
   const [brought, referrer] = await Promise.all([
     // Single-field equality, served by the automatic index.
-    db().collection(COLLECTIONS.registrations).where('referredBy.registrationId', '==', rid).get(),
-    reg.referredBy?.registrationId
-      ? db().collection(COLLECTIONS.registrations).doc(reg.referredBy.registrationId).get()
+    reg.referralCode
+      ? db().collection(COLLECTIONS.registrations).where('referredBy.code', '==', reg.referralCode).get()
       : null,
+    reg.referredBy?.code ? resolveReferralCode(db(), reg.referredBy.code) : null,
   ]);
-  const regs = brought.docs
-    .map((d) => ({ id: d.id, ...(d.data() as RegistrationDoc) }))
+  const regs = (brought?.docs ?? [])
+    .map((d) => d.data() as RegistrationDoc)
     .filter((r) => r.eventId === EVENT_ID);
-  const by = referrer?.data() as RegistrationDoc | undefined;
+  const by = referrer
+    ? ((await db().collection(COLLECTIONS.registrations).doc(referrer.registrationId).get()).data() as
+        | RegistrationDoc
+        | undefined)
+    : undefined;
   return {
     code: reg.referralCode ?? '',
-    referred: countReferrals(regs).get(rid) ?? 0,
+    referred: reg.referralCode ? (countReferrals(regs).get(reg.referralCode) ?? 0) : 0,
     ...(reg.referredBy
       ? {
           referredBy: {
             code: reg.referredBy.code,
-            registrationId: reg.referredBy.registrationId,
+            // Looked up through `referralCodes`; the attendee's own document
+            // does not hold it. Empty when the referrer has since gone.
+            registrationId: referrer?.registrationId ?? '',
             name: by?.name || by?.email || '',
           },
         }

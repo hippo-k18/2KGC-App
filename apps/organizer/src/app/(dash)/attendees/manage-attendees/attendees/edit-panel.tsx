@@ -70,9 +70,13 @@ function Referrals({ referral: r }: { referral?: EditPanelAttendee['referral'] }
       {r.referredBy && (
         <p className="body-2" style={{ margin: '6px 0 0' }}>
           Referred by{' '}
-          <Link href={`?edit=${r.referredBy.registrationId}#edit`}>
-            {r.referredBy.name || r.referredBy.registrationId}
-          </Link>{' '}
+          {r.referredBy.registrationId ? (
+            <Link href={`?edit=${r.referredBy.registrationId}#edit`}>
+              {r.referredBy.name || r.referredBy.registrationId}
+            </Link>
+          ) : (
+            <span className="muted">an attendee no longer registered</span>
+          )}{' '}
           (<code>{r.referredBy.code}</code>)
         </p>
       )}

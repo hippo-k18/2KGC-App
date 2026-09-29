@@ -290,12 +290,17 @@ export interface RegistrationDoc extends BaseDoc {
    */
   referralCode?: string;
   /**
-   * Who brought this attendee: the referral code their buyer arrived with, and
-   * the registration that owns it. Only ever written for a code that resolved to
-   * somebody else, and never overwritten, so a replayed webhook cannot move the
-   * credit. See `scripts/src/lib/referrals.ts`.
+   * Who brought this attendee: the referral code their buyer arrived with. Only
+   * ever written for a code that resolved to somebody else, and never
+   * overwritten, so a replayed webhook cannot move the credit. See
+   * `scripts/src/lib/referrals.ts`.
+   *
+   * ⚠️ The code only, never the referrer's registration id. The holder can read
+   * this document, and a registration id is a hash of an email address, so it
+   * would let them confirm a guessed address for their referrer. The owner is
+   * resolved server-side through `referralCodes/{code}`, which no client reads.
    */
-  referredBy?: { code: string; registrationId: string; at: Date | Timestamp };
+  referredBy?: { code: string; at: Date | Timestamp };
   /**
    * The `utm_*` values on the link the buyer arrived through, kept as a backup
    * to `referredBy` for links shared onward or pasted without the code.

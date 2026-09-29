@@ -146,7 +146,7 @@ export default async function ReferralContestPage() {
       {/*
         Attendee invites. Every confirmation email carries a personal link with
         the attendee's code, and fulfilment credits the registrations it brings
-        (`referredBy`). Counted separately from the links above: an attendee's
+        (`referredBy.code`). Counted separately from the links above: an attendee's
         code credits a person, a tracked link credits an order.
       */}
       <Panel style={{ marginTop: 16 }}>

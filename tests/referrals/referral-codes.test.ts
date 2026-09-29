@@ -139,17 +139,20 @@ describe('carrying ref and UTMs from the landing page to the registration', () =
 describe('counting referrals for the dashboard', () => {
   const reg = (id: string, over: Record<string, unknown> = {}) =>
     ({ id, email: `${id}@example.com`, name: id, status: 'active', ...over }) as never;
-  const by = (rid: string) => ({ referredBy: { code: 'KGC27-AAAA', registrationId: rid, at: new Date() } });
+  const by = (code: string) => ({ referredBy: { code, at: new Date() } });
 
   it('counts active referred tickets per referrer and ranks them', () => {
     const regs = [
       reg('ada', { referralCode: 'KGC27-AAAA' }),
-      reg('ben', { referralCode: 'KGC27-BBBB', ...by('ada') }),
-      reg('cara', by('ada')),
-      reg('dan', { ...by('ada'), status: 'cancelled' }),
-      reg('eve', by('ben')),
+      reg('ben', { referralCode: 'KGC27-BBBB', ...by('KGC27-AAAA') }),
+      reg('cara', by('KGC27-AAAA')),
+      reg('dan', { ...by('KGC27-AAAA'), status: 'cancelled' }),
+      reg('eve', by('KGC27-BBBB')),
+      // A code with no owner left credits nobody.
+      reg('fay', by('KGC27-GONE')),
     ];
-    expect(countReferrals(regs)).toEqual(new Map([['ada', 2], ['ben', 1]]));
+    expect(countReferrals(regs).get('KGC27-AAAA')).toBe(2);
+    expect(countReferrals(regs).get('KGC27-BBBB')).toBe(1);
     expect(referralLeaderboard(regs).map((r) => [r.registrationId, r.code, r.referred])).toEqual([
       ['ada', 'KGC27-AAAA', 2],
       ['ben', 'KGC27-BBBB', 1],
