@@ -123,16 +123,38 @@ function eventWindow(agenda: AgendaDay[], timeZone: string): { start: string; en
 }
 
 /**
- * Where the conference is, as far as this project actually knows.
+ * Street addresses for the venues this event has used, keyed by venue name.
  *
- * `EVENT.venue` is `'Jay Conference Bryant Park, New York, NY'` — one
- * string, shared by the app and both websites so they cannot disagree. It is
- * split for the `PostalAddress` rather than being restated, because a second
- * copy of the venue is a second thing to update and the one that gets forgotten
- * is always the invisible one.
+ * `EVENT.venue` is `'Jay Conference Bryant Park, New York, NY'`, one string
+ * shared by the app and both websites, and it holds no street address. Search
+ * engines want one (the SEO review found the venue name in `streetAddress`),
+ * so the address is looked up here by the venue's name. A venue the organizers
+ * type into Content > Basics that is not in this table gets the old split of the
+ * string, without a street number, rather than somebody else's address.
+ *
+ * Source: Jay Conference's own Bryant Park brochure
+ * (jaysuites.com/wp-content/uploads/2025/05/jay-conference-brochure-bryant-park.pdf):
+ * "109 West 39th Street, 2nd Floor & Concourse Level, New York, NY 10018".
  */
+const VENUE_ADDRESSES: Record<string, { streetAddress: string; addressLocality: string; addressRegion: string; postalCode: string }> = {
+  'jay conference bryant park': {
+    streetAddress: '109 West 39th Street, 2nd Floor & Concourse Level',
+    addressLocality: 'New York',
+    addressRegion: 'NY',
+    postalCode: '10018',
+  },
+};
+
 function venue(venueName: string): JsonLd {
   const parts = venueName.split(',').map((p) => p.trim());
+  const known = VENUE_ADDRESSES[parts[0].toLowerCase()];
+  if (known) {
+    return {
+      '@type': 'Place',
+      name: parts[0],
+      address: { '@type': 'PostalAddress', ...known, addressCountry: 'US' },
+    };
+  }
   const region = parts.length > 1 ? parts[parts.length - 1] : undefined;
   const locality = parts.length > 2 ? parts[parts.length - 2] : undefined;
   const street = parts.slice(0, Math.max(1, parts.length - 2)).join(', ');
@@ -142,14 +164,19 @@ function venue(venueName: string): JsonLd {
     name: venueName,
     address: {
       '@type': 'PostalAddress',
-      // No postcode and no street number: nothing in this repo holds one, and
-      // schema.org would rather have three true fields than five with two guesses.
       streetAddress: street,
       addressLocality: locality,
       addressRegion: region,
       addressCountry: 'US',
     },
   };
+}
+
+/** The last day a phase price holds: the day before the next phase starts. */
+function dayBefore(day: string): string | undefined {
+  const t = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(t)) return undefined;
+  return new Date(t - 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -163,7 +190,7 @@ function venue(venueName: string): JsonLd {
  * availability comes from the same field the disabled button does, and the two
  * cannot drift.
  *
- * `price` is `priceCents / 100` and the currency is upper-cased — Stripe stores
+ * `price` is the current phase's `priceCents / 100` and the currency is upper-cased — Stripe stores
  * `usd` and schema.org wants ISO 4217's `USD`.
  */
 function offers(tiers: Tier[], origin: string): JsonLd[] {
@@ -178,6 +205,9 @@ function offers(tiers: Tier[], origin: string): JsonLd[] {
     // The tier id travels in this query parameter already — it is what the
     // ticket cards link to and what `startCheckout` reads back.
     url: `${origin}/tickets?tier=${encodeURIComponent(t.id)}`,
+    // `priceCents` is the current phase's price (`catalogue.ts`), so the offer
+    // steps up with the tickets page; this says until when it holds.
+    ...(t.risesOn && dayBefore(t.risesOn) ? { priceValidUntil: dayBefore(t.risesOn) } : {}),
   }));
 }
 
