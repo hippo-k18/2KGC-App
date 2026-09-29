@@ -1,4 +1,5 @@
 import { EXACT, SECTIONS } from './old-site-map';
+import OLD_CONTENT from './old-content-redirects.json';
 import PAST_SPEAKER_REDIRECTS from '../content/past-speakers/redirects.json';
 import PAST_YEARS from '../content/past-speakers/years.json';
 
@@ -33,11 +34,40 @@ export const PAST_SPEAKER_YEARS: ReadonlySet<string> = new Set(PAST_YEARS.map((y
  * the reasoning is in `docs/audit-2026-09-19/domain/MOVE-TO-DOMAIN.md`.
  *
  * A trailing slash is ignored, because every WordPress address had one.
+ *
+ * In order, first match wins:
+ * 1. Old speaker pages and speaker year lists, to their page under
+ *    `/past-speakers` (`pastSpeakerTarget`).
+ * 2. `old-content-redirects.json`: one row per old address, from the SEO
+ *    review's redirect-map.csv (`scripts/import-redirect-map.mjs` writes it).
+ * 3. The feeds, to the blog's real feed rather than its home page, which feed
+ *    readers cannot parse.
+ * 4. Old content with a copy on archive.knowledgegraph.tech: sessions
+ *    (`/blog/agenda/*`), 2019–2021 partner pages (`/blog/partners/*`) and 2019
+ *    photos (`/blog/portfolio/*`) go to the same address there, with the
+ *    trailing slash the archive serves without a second redirect. The section
+ *    roots themselves are not on the archive (403), so they keep their hub.
+ * 5. The hub map in `old-site-map.ts`.
  */
+export const ARCHIVE_ORIGIN = 'https://archive.knowledgegraph.tech';
+export const ARCHIVED_SECTIONS = ['/blog/agenda', '/blog/partners', '/blog/portfolio'];
+
+const FEEDS = new Set(['/feed', '/blog/feed']);
+
+function blogFeed(): string {
+  return `${(process.env.BLOG_ORIGIN || 'https://blog.knowledgegraph.tech').replace(/\/$/, '')}/feed.xml`;
+}
+
 export function oldSiteTarget(path: string): string | null {
   const p = path.length > 1 ? path.replace(/\/+$/, '') : path;
   const past = pastSpeakerTarget(p);
   if (past) return past;
+  const listed = (OLD_CONTENT as Record<string, string>)[p];
+  if (listed) return listed;
+  if (FEEDS.has(p)) return blogFeed();
+  for (const prefix of ARCHIVED_SECTIONS) {
+    if (p.startsWith(prefix + '/')) return `${ARCHIVE_ORIGIN}${p}/`;
+  }
   if (p in EXACT) return EXACT[p];
   for (const [prefix, to] of SECTIONS) {
     if (p === prefix || p.startsWith(prefix + '/')) return to;

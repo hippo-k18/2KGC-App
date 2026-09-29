@@ -37,6 +37,7 @@ describe('old WordPress addresses', () => {
     for (const path of LIVE) {
       const to = oldSiteTarget(path);
       if (!to) continue;
+      if (/^https:\/\//.test(to)) continue; // the archive and the blog feed, checked below
       const first = to.split(/[/?#]/)[1] ?? '';
       expect(first === '' || ROUTES.has(first), `${path} -> ${to}`).toBe(true);
     }
@@ -53,5 +54,30 @@ describe('old WordPress addresses', () => {
       return true;
     });
     expect(lost).toEqual([]);
+  });
+
+  it('sends archived sessions, partners and portfolio items to the same address on the archive, in one hop', () => {
+    expect(oldSiteTarget('/blog/agenda/joe-pindell/')).toBe('https://archive.knowledgegraph.tech/blog/agenda/joe-pindell/');
+    expect(oldSiteTarget('/blog/agenda/joe-pindell')).toBe('https://archive.knowledgegraph.tech/blog/agenda/joe-pindell/');
+    expect(oldSiteTarget('/blog/partners/acme/')).toBe('https://archive.knowledgegraph.tech/blog/partners/acme/');
+    expect(oldSiteTarget('/blog/portfolio/day-1/')).toBe('https://archive.knowledgegraph.tech/blog/portfolio/day-1/');
+    const archived = LIVE.filter((p) => /^\/blog\/(agenda|partners|portfolio)\//.test(p));
+    expect(archived.length).toBeGreaterThan(150);
+    for (const p of archived) expect(oldSiteTarget(p)).toBe(`https://archive.knowledgegraph.tech${p.replace(/\/?$/, '/')}`);
+  });
+
+  it('keeps the section roots and category pages on their hub, since the archive has no copy of the roots', () => {
+    expect(oldSiteTarget('/blog/agenda/')).toBe('/previous-events');
+    expect(oldSiteTarget('/blog/partners')).toBe('/exhibitors');
+    expect(oldSiteTarget('/blog/agenda-category/2021/')).toBe('/previous-events');
+  });
+
+  it('sends speakers to their past-speaker page before any archive rule', () => {
+    expect(oldSiteTarget('/blog/speakers/ora-lassila/')).toBe('/past-speakers/ora-lassila');
+  });
+
+  it('points the old feeds at the blog feed', () => {
+    expect(oldSiteTarget('/feed/')).toBe('https://blog.knowledgegraph.tech/feed.xml');
+    expect(oldSiteTarget('/blog/feed/')).toBe('https://blog.knowledgegraph.tech/feed.xml');
   });
 });

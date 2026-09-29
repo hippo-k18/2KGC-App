@@ -145,8 +145,6 @@ export const EXACT: Record<string, string> = {
   "/blog/category/kgc-talks": "/blog?category=KGC%20Talks",
   "/blog/category/knowledge-graph-news": "/blog?category=Knowledge%20Graph%20News",
   "/blog/category/learning-material": "/blog?category=Learning%20material",
-  "/feed": "/blog",
-  "/blog/feed": "/blog",
 };
 
 /**
