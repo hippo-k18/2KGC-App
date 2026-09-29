@@ -56,9 +56,10 @@ export const dynamic = 'force-dynamic';
  * free, with no client JavaScript.
  *
  * Two parts: `cardMain` (the head, the price block and the summary) and the
- * details. On a laptop the first row's cards put the two parts on separate
- * grid rows, so the tops stay equal height while opening one card's details
- * grows that card alone (T034). The layout variants place them.
+ * details. On a laptop the first row's cards share row tracks for the head,
+ * price and summary through `subgrid`, so those lines match across both cards,
+ * and put the details on a row of their own, so opening one card grows that
+ * card alone (T034, T038). The layout variants place them.
  */
 function TicketCard({
   tier,
@@ -68,9 +69,10 @@ function TicketCard({
   tier: Tier;
   featured?: boolean;
   /**
-   * Where the card sits: `wide` is All Access at two thirds, `narrow` Main
-   * Conference at one third beside it, `row` Virtual across the full width
-   * underneath. The markup is the same for all three; only the CSS differs.
+   * Where the card sits: `wide` is All Access and `narrow` Main Conference,
+   * side by side at 50/50 on the first row (the names are older than the
+   * split), and `row` is Virtual across the full width underneath. The markup
+   * is the same for all three; only the CSS differs.
    */
   layout: 'wide' | 'narrow' | 'row';
 }) {

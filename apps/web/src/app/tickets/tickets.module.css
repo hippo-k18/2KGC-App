@@ -408,26 +408,29 @@
 /* ---------------------------------------------------------------- layout -- */
 
 /*
- * On a laptop: All Access at two thirds and Main Conference at one third on
- * the first row, Virtual across the full width underneath (the user's layout,
- * 2026-09-27). Below 62rem the cards stack in that order.
+ * On a laptop: All Access and Main Conference side by side at 50/50 on the
+ * first row, Virtual across the full width underneath (the user's layout,
+ * 2026-09-28). Below 62rem the cards stack in that order.
  *
- * ── Why the first row's cards are split in two ─────────────────────────────
+ * ── Shared rows, so every line matches across the two top cards ────────────
  *
- * Each of the two top cards is drawn as two grid items: its main part (head,
- * price, summary) on grid row 1, which stretches so both tops are the same
- * height, and its details on grid row 2, which aligns to the start. Opening
- * one card grows only its own details cell.
+ * The grid has four rows for the top cards: head (name and Choose), price
+ * block, summary, details. Each card's main part spans rows 1 to 3 with
+ * `subgrid`, so the two heads, the two prices and the two summaries sit on
+ * the same row tracks and line up exactly however either name or summary
+ * wraps. The user asked for the $699 and $599 lines on one baseline.
  *
- * Before this (T034), the whole row switched from stretch to start alignment
- * as soon as any card opened, so opening Main Conference or even Virtual
- * snapped All Access from 382px to 299px and threw its "What's included" up
- * 83px. The article becomes `display: contents` here so its two parts can sit
- * on the grid; its children still inherit its colours.
+ * ── Why the details are a separate grid item ───────────────────────────────
+ *
+ * Each card's details sit on row 4 on their own, aligned to the start, so
+ * opening one card grows only its own details cell and never resizes the
+ * other card (T034: the whole row used to snap from stretch to start, and All
+ * Access jumped 83px when Main opened). The article is `display: contents`
+ * here so its parts can sit on the grid; they still inherit its colours.
  */
 @media (min-width: 62rem) {
   .cards {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: 1.25rem;
     row-gap: 0;
     align-items: start;
@@ -454,8 +457,11 @@
 
   .wide > .cardMain,
   .narrow > .cardMain {
-    grid-row: 1;
+    grid-row: 1 / span 3;
     align-self: stretch;
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 0;
     padding: 1.5rem 1.5rem 0;
     border-bottom: 0;
     border-radius: 18px 18px 0 0;
@@ -463,7 +469,7 @@
 
   .wide > .more,
   .narrow > .more {
-    grid-row: 2;
+    grid-row: 4;
     margin: 0;
     padding: 1rem 1.5rem 1.5rem;
     border-top: 0;
@@ -478,38 +484,23 @@
     grid-column: 2;
   }
 
-  /* Room for a two-line name, so the prices on the first row line up too. */
-  .wide .cardTop,
-  .narrow .cardTop {
-    min-height: 2.65rem;
-  }
-
-  /* All Access: the summary beside the price, the lists in columns when open. */
-  .wide > .cardMain {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-content: start;
-    column-gap: 2rem;
-  }
-
-  .wide .cardTop {
-    grid-column: 1 / -1;
-  }
-
-  .wide .summary {
-    align-self: center;
-    margin: 0.6rem 0 0;
+  /* Each part on its own shared row, from the top of it. */
+  .wide .priceBlock,
+  .narrow .priceBlock,
+  .wide .summary,
+  .narrow .summary {
+    align-self: start;
   }
 
   .wide .moreBody {
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     column-gap: 2rem;
   }
 
   /* Virtual: name, price, summary and Choose on one line, details under them. */
   .row {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 5;
     margin-top: 1.25rem;
     display: grid;
     grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.4fr) auto;
