@@ -8,10 +8,21 @@ import { PostBodyDoc } from '@/lib/blog/render';
 import { getAuthor, getPostBody } from '@/lib/post-content';
 import { formatPostDate } from '@/lib/posts';
 import { NEWSLETTER_SIGNUP, SITE } from '@/lib/site';
+import { mainSiteLink } from '@/lib/blog/host';
 import { ticketSalesOpen } from '@/lib/data';
 
 /** The newsletter form lives on the conference's HubSpot, same as the live site. */
 const NEWSLETTER = NEWSLETTER_SIGNUP;
+
+/**
+ * Links inside archived post bodies still point at old relative addresses such
+ * as `/about` or `/learn`. On the blog host each main-site one goes straight to
+ * the main site instead of through a redirect (`mainSiteLink`).
+ */
+function mainSiteLinks(html: string | null): string | null {
+  if (!html) return html;
+  return html.replace(/href="(\/[^"]*)"/g, (_whole, path: string) => `href="${mainSiteLink(path)}"`);
+}
 
 /** The archive plus whatever editors have published, so rendered per request from a cached list. */
 export const dynamic = 'force-dynamic';
@@ -71,7 +82,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const { post } = found;
   const home = base || '/';
 
-  const legacyBody = post.body.kind === 'legacy' ? getPostBody(post.body.slug) : null;
+  const legacyBody = post.body.kind === 'legacy' ? mainSiteLinks(getPostBody(post.body.slug)) : null;
   const archived = getAuthor(post.author);
   const author = {
     avatar: post.authorAvatar ?? archived?.avatar ?? null,
@@ -201,8 +212,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           When you attend the {SITE.name} from {SITE.datesShort}, you have the chance to learn, grow,
           network, and more with a community of knowledge graph professionals.
         </p>
+        {/*
+          Absolute to the main site on the blog host, like the menus. With
+          `BLOG_ORIGIN` set this page is only ever served on the blog host.
+        */}
         {salesOpen && (
-          <Link href="/tickets" className="post-sidebar-btn">
+          <Link href={mainSiteLink('/tickets')} className="post-sidebar-btn">
             Get my ticket
           </Link>
         )}

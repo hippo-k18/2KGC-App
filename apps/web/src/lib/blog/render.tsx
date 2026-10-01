@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { safeHref, sanitizeDoc, type Mark, type Node } from './doc';
+import { mainSiteLink } from './host';
 
 /**
  * A stored post body as React elements.
@@ -38,8 +39,10 @@ function withMarks(text: string, marks: Mark[] | undefined, key: number): ReactN
         out = <code>{out}</code>;
         break;
       case 'link': {
-        const href = safeHref(m.attrs.href);
-        if (!href) break;
+        const safe = safeHref(m.attrs.href);
+        if (!safe) break;
+        // A main-site page goes straight there from the blog host.
+        const href = mainSiteLink(safe);
         const external = /^https?:/.test(href);
         out = (
           <a
@@ -113,7 +116,8 @@ function block(n: Node, key: number): ReactNode {
           decoding="async"
         />
       );
-      const href = n.attrs.href ? safeHref(n.attrs.href) : null;
+      const safe = n.attrs.href ? safeHref(n.attrs.href) : null;
+      const href = safe ? mainSiteLink(safe) : null;
       return (
         <figure key={key} className={n.attrs.center ? 'center' : undefined}>
           {href ? (

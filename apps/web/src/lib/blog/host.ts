@@ -60,3 +60,16 @@ export const mainSiteOrigin = () =>
     /\/$/,
     '',
   );
+
+/**
+ * A link a blog page renders, made absolute when it points at a main-site page
+ * and the blog has its own host (`BLOG_ORIGIN`). Then `/learn` in a post goes
+ * straight to the main site's `/learn` instead of through the blog host's
+ * redirect. Anything else (the blog's own paths, absolute URLs, anchors) is
+ * returned as it was.
+ */
+export function mainSiteLink(href: string): string {
+  if (!process.env.BLOG_ORIGIN || !href.startsWith('/') || href.startsWith('//')) return href;
+  const first = href.slice(1).split(/[/?#]/)[0] ?? '';
+  return MAIN_SITE_ROUTES.has(first) ? `${mainSiteOrigin()}${href}` : href;
+}
