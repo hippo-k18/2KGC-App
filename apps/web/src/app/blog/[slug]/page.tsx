@@ -100,7 +100,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <h1 className="post-title">{post.title}</h1>
             <div className="post-meta">
               {author?.avatar && (
-                <Image src={author.avatar} alt="" width={75} height={75} className="post-meta-avatar" />
+                // Decorative: "By {author}" sits right beside it, so a name here
+                // would be read twice. The author box below carries the name.
+                <Image
+                  src={author.avatar}
+                  alt=""
+                  aria-hidden="true"
+                  width={75}
+                  height={75}
+                  className="post-meta-avatar"
+                />
               )}
               <span>By {post.author}</span>
               <span className="post-meta-divider" aria-hidden="true" />
@@ -141,7 +150,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
         <div className="post-author">
           {author?.avatar && (
-            <Image src={author.avatar} alt="" width={80} height={80} className="post-author-avatar" />
+            <Image
+              src={author.avatar}
+              alt={post.author}
+              width={80}
+              height={80}
+              className="post-author-avatar"
+            />
           )}
           <div>
             <p className="post-author-name">{post.author}</p>
@@ -214,7 +229,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                 >
                   <Image
                     src={entry.image}
-                    alt=""
+                    alt={entry.title}
                     width={150}
                     height={150}
                     sizes="150px"
@@ -290,7 +305,7 @@ function RelatedCard({ post, base }: { post: PublicPost; base: string }) {
         {post.image && (
           <Image
             src={post.image}
-            alt=""
+            alt={post.title}
             width={post.imageWidth}
             height={post.imageHeight}
             sizes="(width >= 980px) 25vw, 100vw"
@@ -310,7 +325,8 @@ function RelatedCard({ post, base }: { post: PublicPost; base: string }) {
           <Link href={`${base}/${post.slug}`}>{post.title}</Link>
         </h3>
         <p className="post-related-meta">
-          {avatar && <Image src={avatar} alt="" width={25} height={25} />}
+          {/* Decorative: "By {author}" follows it directly. */}
+          {avatar && <Image src={avatar} alt="" aria-hidden="true" width={25} height={25} />}
           By {post.author} · {formatPostDate(post.date)}
         </p>
       </div>

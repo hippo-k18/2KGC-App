@@ -216,7 +216,7 @@ function PostCard({ post, base }: { post: PublicPost; base: string }) {
       {post.image && (
         <Image
           src={post.image}
-          alt=""
+          alt={post.title}
           width={post.imageWidth}
           height={post.imageHeight}
           sizes="(width >= 900px) 33vw, (width >= 560px) 50vw, 100vw"

@@ -27,7 +27,13 @@ export function SiteFooter({
       <div className="wrap">
         <div className="cols">
           <div>
-            <Image src="/kgc-mark.png" alt="" width={300} height={300} className="mark" />
+            <Image
+              src="/kgc-mark.png"
+              alt="Knowledge Graph Conference"
+              width={300}
+              height={300}
+              className="mark"
+            />
             <p>
               The Knowledge Graph Conference brings together the people building the semantic layer
               underneath enterprise AI: practitioners, researchers and vendors.
