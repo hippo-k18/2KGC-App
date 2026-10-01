@@ -43,7 +43,9 @@ function withMarks(text: string, marks: Mark[] | undefined, key: number): ReactN
         if (!safe) break;
         // A main-site page goes straight there from the blog host.
         const href = mainSiteLink(safe);
-        const external = /^https?:/.test(href);
+        // From the link as written: a main-site page made absolute above is not
+        // an outside link, so it keeps no `rel` and still sends a Referer.
+        const external = /^https?:/.test(safe);
         out = (
           <a
             href={href}
@@ -121,7 +123,7 @@ function block(n: Node, key: number): ReactNode {
       return (
         <figure key={key} className={n.attrs.center ? 'center' : undefined}>
           {href ? (
-            <a href={href} {...(/^https?:/.test(href) ? { rel: 'noopener noreferrer' } : {})}>
+            <a href={href} {...(safe && /^https?:/.test(safe) ? { rel: 'noopener noreferrer' } : {})}>
               {img}
             </a>
           ) : (
