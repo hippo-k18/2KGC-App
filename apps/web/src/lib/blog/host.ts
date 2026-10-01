@@ -44,3 +44,19 @@ export const passesThrough = (path: string) =>
   path.startsWith('/kgc/') ||
   path.startsWith('/email/') ||
   /^\/[^/]+\.(png|jpe?g|gif|svg|ico|webp|txt|xml|webmanifest)$/i.test(path);
+
+/**
+ * The main site's origin, as the blog host links to it: `WEB_PUBLIC_ORIGIN`
+ * (staging today, www after the cutover), then `BLOG_MAIN_ORIGIN`, then www.
+ *
+ * `WEB_PUBLIC_ORIGIN` comes first so the blog's menu always points at the host
+ * that is actually serving this app. While www was back on WordPress after the
+ * rollback, `BLOG_MAIN_ORIGIN=www` sent blog readers who clicked About or
+ * Learn to WordPress, which answers an unknown path with its latest post (SEO
+ * review, 2026-09-28).
+ */
+export const mainSiteOrigin = () =>
+  (process.env.WEB_PUBLIC_ORIGIN ?? process.env.BLOG_MAIN_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(
+    /\/$/,
+    '',
+  );

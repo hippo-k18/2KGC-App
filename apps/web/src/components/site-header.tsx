@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 
@@ -28,6 +28,7 @@ export function SiteHeader({
   showSpeakers = false,
   showTickets = false,
   blogOrigin,
+  mainOrigin,
 }: {
   /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
   logoUrl?: string;
@@ -43,10 +44,24 @@ export function SiteHeader({
    * prefetch with a cross-origin redirect, and every page logs a failed fetch.
    */
   blogOrigin?: string;
+  /**
+   * The main site's origin (`mainSiteOrigin()`, resolved in the root layout).
+   * On the blog host every main-site link is absolute to it, so a blog reader
+   * goes straight to the page instead of through a redirect.
+   */
+  mainOrigin?: string;
 } = {}) {
   const path = usePathname();
-  const to = (href: string) =>
-    blogOrigin && /^\/blog(\/|\?|$)/.test(href) ? `${blogOrigin}${href.slice(5) || '/'}` : href;
+  /*
+   * The blog host rewrites to the `/blog` routes, so the top segment is how
+   * this knows it is on the blog, during server rendering too. Only with
+   * `BLOG_ORIGIN` set: without it `/blog` is a page of the main site.
+   */
+  const onBlog = useSelectedLayoutSegment() === 'blog' && Boolean(blogOrigin && mainOrigin);
+  const to = (href: string) => {
+    if (blogOrigin && /^\/blog(\/|\?|$)/.test(href)) return `${blogOrigin}${href.slice(5) || '/'}`;
+    return onBlog && href.startsWith('/') ? `${mainOrigin}${href}` : href;
+  };
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -66,10 +81,10 @@ export function SiteHeader({
 
   // On blog.knowledgegraph.tech "/" is the blog, so the logo points at
   // `/__site`, which the middleware sends to the main site's home page.
-  const [home, setHome] = useState('/');
+  const [home, setHome] = useState(onBlog ? `${mainOrigin}/` : '/');
   useEffect(() => {
-    if (/^blog\./.test(window.location.hostname)) setHome('/__site');
-  }, []);
+    if (!onBlog && /^blog\./.test(window.location.hostname)) setHome('/__site');
+  }, [onBlog]);
 
   /*
    * While the menu is open the page behind it must not scroll.
@@ -193,7 +208,7 @@ export function SiteHeader({
             */}
             <div className="has-menu">
               <Link
-                href="/about"
+                href={to('/about')}
                 className="menu-parent"
                 aria-current={path.startsWith('/about') ? 'page' : undefined}
                 aria-haspopup="true"
@@ -219,7 +234,7 @@ export function SiteHeader({
             </div>
 
             {showTickets && (
-              <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
+              <Link href={to('/tickets')} className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
                 Register now
               </Link>
             )}
@@ -241,7 +256,7 @@ export function SiteHeader({
           */}
           <div className="header-actions">
             <Link
-              href="/search"
+              href={to('/search')}
               className="search"
               aria-label="Search the site"
               aria-expanded={searching}
@@ -269,7 +284,7 @@ export function SiteHeader({
         </div>
 
         {searching && (
-          <form id="site-search" className="site-search" role="search" action="/search" method="get">
+          <form id="site-search" className="site-search" role="search" action={to('/search')} method="get">
             <div className="wrap site-search-form">
               <label className="sr-only" htmlFor="site-search-input">
                 Search the site

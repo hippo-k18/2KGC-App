@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { SiteFooter } from '@/components/site-footer';
+import { mainSiteOrigin } from '@/lib/blog/host';
 import { SiteHeader } from '@/components/site-header';
 import { ConsentNotice } from '@/components/consent-notice';
 import { analyticsBootScript, analyticsConfig } from '@/lib/analytics';
@@ -170,6 +171,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           showSpeakers={branding.showSpeakers}
           showTickets={branding.showTickets}
           blogOrigin={process.env.BLOG_ORIGIN?.replace(/\/$/, '') || undefined}
+          mainOrigin={mainSiteOrigin()}
         />
         <main>{children}</main>
         <SiteFooter
@@ -178,6 +180,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           venue={ev.venue}
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
+          mainOrigin={mainSiteOrigin()}
+          blogOrigin={process.env.BLOG_ORIGIN?.replace(/\/$/, '') || undefined}
         />
         {analytics && <ConsentNotice />}
         <ReferenceOverlay />

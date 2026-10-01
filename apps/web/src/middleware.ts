@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { isBlogHost, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
+import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
 import { oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
 import { REFERRAL_MAX_AGE, referralCookiesFrom } from '@/lib/referral-capture';
 import { mainHostIndexable, NOINDEX_HEADER } from '@/lib/indexing-core';
@@ -28,9 +28,8 @@ function selfOrigin(request: NextRequest): string {
  * `lib/blog/host.ts` for why). Requests to any other host are untouched, except
  * `/blog` when `BLOG_ORIGIN` names the blog host.
  */
-/** The main site's origin, as the blog host links to it. */
-const mainOrigin = () =>
-  (process.env.BLOG_MAIN_ORIGIN ?? process.env.WEB_PUBLIC_ORIGIN ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
+/** The main site's origin, as the blog host links to it. See `mainSiteOrigin`. */
+const mainOrigin = mainSiteOrigin;
 
 /** The addresses people guess for the blog editor. All lead to its sign-in. */
 const SIGN_IN_ALIASES = new Set(['/login', '/log-in', '/signin', '/sign-in', '/admin', '/editor', '/dashboard', '/wp-admin', '/wp-login.php']);
@@ -117,7 +116,9 @@ function route(request: NextRequest): NextResponse {
   if (MAIN_SITE_ROUTES.has(first) || first === '__site') {
     const main = mainOrigin();
     const rest = first === '__site' ? path.slice(7) || '/' : path;
-    return NextResponse.redirect(`${main}${rest}${url.search}`, 307);
+    // Permanent: these paths always belong to the main site. The menus link
+    // there directly, so this only catches old or hand-typed links.
+    return NextResponse.redirect(`${main}${rest}${url.search}`, 308);
   }
 
   return NextResponse.next();

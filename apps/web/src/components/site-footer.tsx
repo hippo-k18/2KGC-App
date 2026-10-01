@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import Link from 'next/link';
+import { SiteLink } from './site-link';
 import { SITE, homeVenue } from '@/lib/site';
 
 /**
@@ -14,6 +14,8 @@ export function SiteFooter({
   venue = SITE.venue,
   showAgenda = false,
   showSpeakers = false,
+  mainOrigin,
+  blogOrigin,
 }: {
   contactEmail?: string;
   /** From Content > Basics, resolved in the root layout. The defaults are the constants. */
@@ -21,6 +23,9 @@ export function SiteFooter({
   venue?: string;
   showAgenda?: boolean;
   showSpeakers?: boolean;
+  /** `mainSiteOrigin()` and `BLOG_ORIGIN`: on the blog host the links are absolute. */
+  mainOrigin?: string;
+  blogOrigin?: string;
 }) {
   return (
     <footer className="site-footer">
@@ -52,28 +57,28 @@ export function SiteFooter({
 
           <div>
             <h2>Attend</h2>
-            <Link href="/tickets">Tickets</Link>
-            {showAgenda && <Link href="/agenda">Agenda</Link>}
-            {showSpeakers && <Link href="/speakers">Speakers</Link>}
+            <SiteLink href="/tickets" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Tickets</SiteLink>
+            {showAgenda && <SiteLink href="/agenda" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Agenda</SiteLink>}
+            {showSpeakers && <SiteLink href="/speakers" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speakers</SiteLink>}
             {/* An attendee-facing directory of who is in the hall, so it sits
                 with the programme rather than under Participate with the
                 packages that sell a booth. */}
-            <Link href="/exhibitors">Exhibitors</Link>
+            <SiteLink href="/exhibitors" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Exhibitors</SiteLink>
             {/* The organizers' own broadcasts and the ungated handouts. Both
                 read the collections the dashboard writes, so they belong beside
                 the programme rather than under Participate — this column is the
                 things an attendee looks up, not the things they buy. */}
-            <Link href="/announcements">Announcements</Link>
-            <Link href="/documents">Documents</Link>
-            <Link href="/past-speakers">Past speakers</Link>
+            <SiteLink href="/announcements" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Announcements</SiteLink>
+            <SiteLink href="/documents" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Documents</SiteLink>
+            <SiteLink href="/past-speakers" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Past speakers</SiteLink>
           </div>
 
           <div>
             <h2>Participate</h2>
-            <Link href="/sponsor">Sponsor KGC</Link>
-            <Link href="/sponsor#speak">Speak at KGC</Link>
-            <Link href="/call-for-posters">Poster track</Link>
-            <Link href="/startup-pitch">Startup pitch</Link>
+            <SiteLink href="/sponsor" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Sponsor KGC</SiteLink>
+            <SiteLink href="/sponsor#speak" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speak at KGC</SiteLink>
+            <SiteLink href="/call-for-posters" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Poster track</SiteLink>
+            <SiteLink href="/startup-pitch" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Startup pitch</SiteLink>
           </div>
 
           <div>
@@ -114,8 +119,8 @@ export function SiteFooter({
             (2026-09-28).
           */}
           <span className="legal">
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/code-of-conduct">Code of conduct</Link>
+            <SiteLink href="/privacy" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Privacy</SiteLink>
+            <SiteLink href="/code-of-conduct" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Code of conduct</SiteLink>
           </span>
           <span>
             {datesShort} ·{' '}
