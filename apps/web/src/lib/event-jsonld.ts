@@ -317,6 +317,18 @@ export function eventJsonLd(input: EventJsonLdInput): JsonLd | null {
   };
 
   if (attendanceMode) node.eventAttendanceMode = attendanceMode;
+  /*
+   * Google's Event guidelines: a mixed event lists both its Place and a
+   * VirtualLocation, an online one only the VirtualLocation. The virtual
+   * attendee's way in is a ticket, so its URL is the tickets page on this
+   * site's own origin.
+   */
+  const online = { '@type': 'VirtualLocation', url: `${origin}/tickets` };
+  if (attendanceMode === 'https://schema.org/MixedEventAttendanceMode') {
+    node.location = [node.location, online];
+  } else if (attendanceMode === 'https://schema.org/OnlineEventAttendanceMode') {
+    node.location = online;
+  }
   if (tiers.length > 0) node.offers = offers(tiers, origin);
   if (input.includeSessions) {
     const subEvents = sessionEvents(input.agenda, pageUrl, event.timeZone);
