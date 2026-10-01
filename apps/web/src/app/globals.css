@@ -3112,10 +3112,18 @@ a.logo-card:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   margin-bottom: 10px;
+  /* Nothing drawn inside the item may cross its rounded edge. `clip`, not
+     `hidden`, so the item never becomes a scroll container. */
+  overflow: clip;
 }
 
 .kgc-faq summary {
   cursor: pointer;
+  /* The item's own corners, less its 1px border, so the hover wash and the
+     focus ring follow the curve instead of squaring it off. */
+  border-radius: calc(var(--radius) - 1px);
+  /* iOS draws its own grey rectangle on tap; the wash below is the feedback. */
+  -webkit-tap-highlight-color: transparent;
   padding: 16px 18px;
   font-weight: 700;
   color: var(--heading);
@@ -3151,6 +3159,10 @@ a.logo-card:hover {
 .kgc-faq details[open] summary::after {
   margin-bottom: -4px;
   transform: rotate(-135deg);
+}
+
+.kgc-faq details[open] summary {
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
 
 .kgc-faq summary:focus-visible {
@@ -3880,7 +3892,11 @@ a.logo-card:hover {
   .kgc-faq summary::after {
     width: 7px;
     height: 7px;
-    margin: 0;
+    /* The edge and the object node are box-shadows reaching 20px past the
+       subject node, and a shadow takes up no room in the layout. This margin is
+       that room; without it the orange node landed on the item's right border
+       when a question opened. */
+    margin: 0 20px 0 0;
     border: 0;
     border-radius: 50%;
     background: var(--highlight);
@@ -3893,7 +3909,7 @@ a.logo-card:hover {
   }
 
   .kgc-faq details[open] summary::after {
-    margin: 0;
+    margin: 0 20px 0 0;
     transform: none;
     box-shadow:
       9px 0 0 -3px var(--highlight),
