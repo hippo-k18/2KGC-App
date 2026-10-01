@@ -74,3 +74,13 @@ export function oldSiteTarget(path: string): string | null {
   }
   return null;
 }
+
+/**
+ * The old WordPress (Yoast) sitemaps: `sitemap_index.xml` and every
+ * `<type>-sitemap.xml` / `<type>-sitemap2.xml` it listed (page, post,
+ * speaker, category and so on). They all go to this site's one `/sitemap.xml`
+ * in a single 301, so a search engine or tool holding the old address finds
+ * the new map (SEO review, 2026-09-28). `/sitemap.xml` itself is not matched.
+ */
+export const oldSitemap = (path: string): boolean =>
+  /^\/(?:sitemap_index|[a-z0-9_]+(?:-[a-z0-9_]+)*-sitemap\d*)\.xml$/i.test(path);

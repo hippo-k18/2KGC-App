@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
-import { oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
+import { oldSitemap, oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
 import { REFERRAL_MAX_AGE, referralCookiesFrom } from '@/lib/referral-capture';
 import { mainHostIndexable, NOINDEX_HEADER } from '@/lib/indexing-core';
 
@@ -53,9 +53,13 @@ function route(request: NextRequest): NextResponse {
   const url = request.nextUrl;
   const path = url.pathname;
 
+  const blogHost = isBlogHost(request.headers.get('host'));
+
+  // Before `passesThrough`, which lets every `/<name>.xml` through untouched.
+  if (!blogHost && oldSitemap(path)) return NextResponse.redirect(`${selfOrigin(request)}/sitemap.xml`, 301);
+
   if (passesThrough(path)) return NextResponse.next();
 
-  const blogHost = isBlogHost(request.headers.get('host'));
   const blogOrigin = process.env.BLOG_ORIGIN?.replace(/\/$/, '');
   const bare = path.length > 1 ? path.replace(/\/+$/, '') : path;
   const isBlogPath = (p: string) => p === '/blog' || p.startsWith('/blog/') || p.startsWith('/blog?');
