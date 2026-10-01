@@ -153,6 +153,7 @@ export const REDIRECTED_PAGE_SLUGS: readonly string[] = [
   "kgc-2022-home",
   "kgc-2022-partner",
   "kgc-2022-program",
+  "kgc-2022-startup-pitch",
   "kgc-2022-tutorial-a-beginners-guide-to-reasoning-how-to-reason-your-way-to-better-data",
   "kgc-2022-tutorial-advancing-un-city-resilience-efforts-using-relational-knowledge-graphs-for-risk-modeling",
   "kgc-2022-tutorial-analysis-of-the-impact-of-covid-19-ontologies",

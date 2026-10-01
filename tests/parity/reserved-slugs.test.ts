@@ -27,6 +27,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { REDIRECTED_PAGE_SLUGS, RESERVED_PAGE_SLUGS, slugProblem } from '@kgc/shared';
+import { EXACT, SECTIONS } from '../../apps/web/src/lib/old-site-map';
 
 const ROOT = resolve(__dirname, '../..');
 
@@ -40,22 +41,23 @@ function siteRoutes(): string[] {
 }
 
 /**
- * Every single-segment source in the redirect map.
+ * Every single-segment source the website redirects.
  *
  * Only single-segment ones can collide: `/kgc-2022/program` cannot be a page
- * address, because a page address has no slash in it.
+ * address, because a page address has no slash in it. Read from what the
+ * middleware actually uses (`lib/old-site-map.ts` and the SEO review's
+ * `lib/old-content-redirects.json`), not the Netlify `_redirects` file the
+ * map was generated from, which no longer exists.
  */
 function singleSegmentRedirects(): string[] {
-  const text = readFileSync(resolve(ROOT, 'apps/web/public/_redirects'), 'utf8');
+  const table = JSON.parse(readFileSync(resolve(ROOT, 'apps/web/src/lib/old-content-redirects.json'), 'utf8')) as Record<string, string>;
+  const sources = [...Object.keys(EXACT), ...SECTIONS.map(([prefix]) => prefix), ...Object.keys(table)];
   const out: string[] = [];
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const from = line.split(/\s+/)[0] ?? '';
+  for (const from of sources) {
     const m = /^\/([a-z0-9][a-z0-9-]*)\/?$/.exec(from);
     if (m?.[1]) out.push(m[1]);
   }
-  return out;
+  return [...new Set(out)];
 }
 
 describe('a custom page cannot claim an address the site already answers', () => {

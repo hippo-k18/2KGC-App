@@ -24,7 +24,8 @@ describe('old WordPress addresses', () => {
   });
 
   it('sends a whole section, and the section itself, to one page', () => {
-    expect(oldSiteTarget('/conference-2019/')).toBe('/previous-events');
+    // The section root has an archive copy (the SEO review's map); a page under it with none keeps the hub.
+    expect(oldSiteTarget('/conference-2019/')).toBe('https://archive.knowledgegraph.tech/conference-2019/');
     expect(oldSiteTarget('/conference-2019/speakers/someone/')).toBe('/previous-events');
     expect(oldSiteTarget('/conference-20199')).toBeNull();
   });
@@ -66,10 +67,13 @@ describe('old WordPress addresses', () => {
     for (const p of archived) expect(oldSiteTarget(p)).toBe(`https://archive.knowledgegraph.tech${p.replace(/\/?$/, '/')}`);
   });
 
-  it('keeps the section roots and category pages on their hub, since the archive has no copy of the roots', () => {
+  it('keeps the section roots, and categories with no archive copy, on their hub', () => {
     expect(oldSiteTarget('/blog/agenda/')).toBe('/previous-events');
     expect(oldSiteTarget('/blog/partners')).toBe('/exhibitors');
-    expect(oldSiteTarget('/blog/agenda-category/2021/')).toBe('/previous-events');
+    expect(oldSiteTarget('/blog/agenda-category/2021/')).toBe('https://archive.knowledgegraph.tech/blog/agenda-category/2021/');
+    // No archive copy (one of the review's 20): the hub, in one hop.
+    expect(oldSiteTarget('/blog/agenda-category/2021/day1/track2/')).toBe('/previous-events');
+    expect(oldSiteTarget('/blog/partners-category/2021-partners/2021-gold/')).toBe('/exhibitors');
   });
 
   it('sends speakers to their past-speaker page before any archive rule', () => {
@@ -79,5 +83,44 @@ describe('old WordPress addresses', () => {
   it('points the old feeds at the blog feed', () => {
     expect(oldSiteTarget('/feed/')).toBe('https://blog.knowledgegraph.tech/feed.xml');
     expect(oldSiteTarget('/blog/feed/')).toBe('https://blog.knowledgegraph.tech/feed.xml');
+  });
+});
+
+describe('the SEO review redirect map (old-content-redirects.json)', () => {
+  const TABLE = JSON.parse(readFileSync(join(import.meta.dirname, 'old-content-redirects.json'), 'utf8')) as Record<string, string>;
+  const entries = Object.entries(TABLE);
+
+  it('holds the imported rows', () => expect(entries.length).toBeGreaterThan(100));
+
+  it('is what oldSiteTarget answers for each source, with or without the slash', () => {
+    for (const [from, to] of entries) {
+      expect(oldSiteTarget(from), from).toBe(to);
+      expect(oldSiteTarget(`${from}/`), `${from}/`).toBe(to);
+    }
+  });
+
+  it('is one hop: no target is itself an old address, and every local target is a page here', () => {
+    for (const [from, to] of entries) {
+      if (/^https:\/\//.test(to)) {
+        // The archive serves the slash form with a 200; the slashless form would 301 again.
+        if (to.startsWith('https://archive.knowledgegraph.tech/')) expect(to.endsWith('/'), `${from} -> ${to}`).toBe(true);
+        continue;
+      }
+      const path = to.split(/[?#]/)[0];
+      expect(oldSiteTarget(path), `${from} -> ${to} chains`).toBeNull();
+      const first = path.split('/')[1] ?? '';
+      expect(first === '' || ROUTES.has(first) || path === '/sitemap.xml', `${from} -> ${to}`).toBe(true);
+      expect(TABLE[path], `${from} -> ${to} is another source`).toBeUndefined();
+    }
+  });
+
+  it('never shadows a page this site serves, and leaves speakers to /past-speakers', () => {
+    for (const from of Object.keys(TABLE)) {
+      const first = from.split('/')[1] ?? '';
+      expect(from === `/${first}` && ROUTES.has(first), `${from} is a live route`).toBe(false);
+      expect(/^\/blog\/speakers\//.test(from), from).toBe(false);
+    }
+    expect(oldSiteTarget('/blog/speakers/ora-lassila/')).toBe('/past-speakers/ora-lassila');
+    expect(oldSiteTarget('/blog/speakers-category/2022-keynote/')).toBe('/past-speakers?year=2022');
   });
 });

@@ -8,15 +8,27 @@
  *
  * Takes the rows whose `action` is CHANGE, FIX-CHAIN or ADD and whose
  * `recommended_target` is set. Skips:
- *   - speaker addresses (/blog/speakers*, the speaker year pages): they move
- *     onto this site in T040, which owns their redirects;
- *   - rows the archive patterns in old-site.ts already send to the same place;
- *   - rule rows that are not a single path (wildcards, the media folder).
+ *   - the past-speaker addresses (/blog/speakers/<slug>/, the four speaker year
+ *     pages, /blog/speakers-category/<year>/): `pastSpeakerTarget` in
+ *     src/lib/old-site.ts owns them and is checked first anyway;
+ *   - rows the archive patterns or the feed rule in old-site.ts already send to
+ *     the same place (a different CSV target is imported, and reported);
+ *   - addresses this site serves itself (/blog, /tickets, ...): an old-address
+ *     redirect must never shadow a live page;
+ *   - rule rows that are not a single path (wildcards, the media folder, which
+ *     Apache serves; see the T044 cutover runbook).
+ * Rewrites:
+ *   - a speaker category for one year's subset (/blog/speakers-category/2022-keynote/
+ *     and the like) goes to that year's list, /past-speakers?year=2022, which holds
+ *     everyone in it, rather than to an archive listing or the events hub;
+ *   - a target on www.knowledgegraph.tech becomes a relative path, so it is one
+ *     hop on whichever host the site answers (staging today, www after cutover);
+ *   - an archive target gets the trailing slash the archive serves without a
+ *     second redirect.
  * Paths are stored without their trailing slash, which is how old-site.ts looks
- * them up. Targets are written as given, so an archive target should carry the
- * trailing slash the archive serves without a second redirect.
+ * them up.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,7 +40,11 @@ if (!file) {
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'lib', 'old-content-redirects.json');
 const ARCHIVE = 'https://archive.knowledgegraph.tech';
 const ARCHIVED_SECTIONS = ['/blog/agenda/', '/blog/partners/', '/blog/portfolio/'];
-const SPEAKERS = [/^\/blog\/speakers(-category)?(\/|$)/, /^\/conference-2019\/speakers(\/|$)/, /^\/speakers-2021(\/|$)/, /^\/speakers-2022-page(\/|$)/, /^\/kgc-2023-speakers(\/|$)/, /^\/2026-speakers(\/|$)/, /^\/speakers(\/|$)/];
+const PAST_SPEAKERS = [/^\/blog\/speakers(\/|$)/, /^\/blog\/speakers-category\/\d{4}(\/page\/\d+)?$/, /^\/conference-2019\/speakers$/, /^\/speakers-2021$/, /^\/speakers-2022-page$/, /^\/kgc-2023-speakers$/];
+const YEAR_SUBSET = /^\/blog\/speakers-category\/(\d{4})-[^/]+$/;
+const WWW = /^https:\/\/(www\.)?knowledgegraph\.tech(?=\/|$)/;
+/** Top-level routes of this site (src/app), whose own address must not be redirected. */
+const LIVE = new Set(readdirSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app')).filter((n) => !n.includes('.') && !n.startsWith('[')).map((n) => `/${n}`));
 
 /** RFC 4180 enough for a spreadsheet export: quoted fields, doubled quotes, CRLF. */
 function parseCsv(text) {
@@ -62,7 +78,9 @@ if (iAction < 0 || iTarget < 0) {
 }
 
 const out = {};
-const skipped = { speakers: 0, pattern: 0, rule: 0, noTarget: 0, otherAction: 0 };
+const skipped = { pastSpeakers: 0, pattern: 0, feedPattern: 0, liveRoute: 0, rule: 0, noTarget: 0, otherAction: 0 };
+const rewritten = [];
+const live = [];
 for (const r of rows) {
   const action = (r[iAction] ?? '').trim().toUpperCase();
   if (!['CHANGE', 'FIX-CHAIN', 'ADD'].includes(action)) { skipped.otherAction++; continue; }
@@ -72,13 +90,25 @@ for (const r of rows) {
   try { if (/^https?:/.test(path)) path = new URL(path).pathname; } catch {}
   if (!path.startsWith('/') || /[*?]/.test(path) || path.startsWith('/wp-content/')) { skipped.rule++; continue; }
   const p = path.length > 1 ? path.replace(/\/+$/, '') : path;
-  if (SPEAKERS.some((re) => re.test(p))) { skipped.speakers++; continue; }
-  if (ARCHIVED_SECTIONS.some((s) => (p + '/').startsWith(s) && p + '/' !== s) && target.replace(/\/?$/, '/') === `${ARCHIVE}${p}/`) { skipped.pattern++; continue; }
-  out[p] = target;
+  if (PAST_SPEAKERS.some((re) => re.test(p))) { skipped.pastSpeakers++; continue; }
+  if (LIVE.has(p) || p === '/') { skipped.liveRoute++; live.push(`${p} (CSV: ${target})`); continue; }
+  if (ARCHIVED_SECTIONS.some((s) => (p + '/').startsWith(s) && p + '/' !== s)) {
+    if (target.replace(/\/?$/, '/') === `${ARCHIVE}${p}/`) { skipped.pattern++; continue; }
+    console.log(`  ! pattern mismatch, importing the CSV target: ${p} -> ${target}`);
+  }
+  if ((p === '/feed' || p === '/blog/feed') && /\/feed\.xml$/.test(target)) { skipped.feedPattern++; continue; }
+  const year = YEAR_SUBSET.exec(p);
+  let to = target;
+  if (year) { to = `/past-speakers?year=${year[1]}`; rewritten.push(`${p}: ${target} -> ${to}`); }
+  else if (WWW.test(to)) to = to.replace(WWW, '') || '/';
+  else if (to.startsWith(ARCHIVE)) to = to.replace(/\/?$/, '/');
+  out[p] = to;
 }
 
 const sorted = Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 console.log(`${Object.keys(sorted).length} addresses; skipped ${JSON.stringify(skipped)}`);
+for (const r of rewritten) console.log(`  rewritten ${r}`);
+for (const r of live) console.log(`  live route kept: ${r}`);
 if (flag === '--check') {
   for (const [k, v] of Object.entries(sorted)) console.log(`  ${k} -> ${v}`);
 } else {
