@@ -13,37 +13,43 @@ export const metadata: Metadata = {
  *
  * The recipient list is the live page's own, checked against the archived
  * WordPress page on 2026-09-27: the 2026 recipients and every past year back to
- * 2020. That page has names only, no citations, and links each name to its
- * Wikipedia article, which this does too.
+ * 2020. That page has names only, no citations, and linked each name to its
+ * Wikipedia article.
+ *
+ * A recipient who spoke at KGC now links to their own KGC speaker page under
+ * /past-speakers instead (the team, 2026-10-01). The four with no KGC speaker
+ * page (Hendler, Berners-Lee, Musen, Lenat) keep their Wikipedia link.
  *
  * The biographies are the recipients' own KGC speaker pages, verbatim, from the
  * WordPress export (2026-09-28). Only five recipients spoke at KGC and so have
  * one; the others have no KGC biography, and none is written for them here.
  */
 
-type Recipient = { name: string; wikipedia: string };
+/** `external` is a Wikipedia article, opened in a new tab; otherwise a page on this site. */
+type Recipient = { name: string; href: string; external?: boolean };
 
-const wiki = (article: string) => `https://en.wikipedia.org/wiki/${article}`;
+const wiki = (article: string) => ({ href: `https://en.wikipedia.org/wiki/${article}`, external: true });
+const speaker = (slug: string) => ({ href: `/past-speakers/${slug}` });
 
 const CURRENT = {
   year: 2026,
   recipients: [
-    { name: 'James Hendler', wikipedia: wiki('James_Hendler') },
-    { name: 'Ora Lassila', wikipedia: wiki('Ora_Lassila') },
-    { name: 'Tim Berners-Lee', wikipedia: wiki('Tim_Berners-Lee') },
+    { name: 'James Hendler', ...wiki('James_Hendler') },
+    { name: 'Ora Lassila', ...speaker('ora-lassila') },
+    { name: 'Tim Berners-Lee', ...wiki('Tim_Berners-Lee') },
   ] as Recipient[],
 };
 
 const PAST: { year: number; recipients: Recipient[] }[] = [
-  { year: 2025, recipients: [{ name: 'Mark Musen', wikipedia: wiki('Mark_Musen') }] },
-  { year: 2024, recipients: [{ name: 'Doug Lenat', wikipedia: wiki('Douglas_Lenat') }] },
-  { year: 2023, recipients: [{ name: 'Denny Vrandečić', wikipedia: wiki('Denny_Vrande%C4%8Di%C4%87') }] },
-  { year: 2022, recipients: [{ name: 'Deborah McGuinness', wikipedia: wiki('Deborah_McGuinness') }] },
+  { year: 2025, recipients: [{ name: 'Mark Musen', ...wiki('Mark_Musen') }] },
+  { year: 2024, recipients: [{ name: 'Doug Lenat', ...wiki('Douglas_Lenat') }] },
+  { year: 2023, recipients: [{ name: 'Denny Vrandečić', ...speaker('denny-vrandecic-2') }] },
+  { year: 2022, recipients: [{ name: 'Deborah McGuinness', ...speaker('deborah-mcguinness') }] },
   {
     year: 2021,
-    recipients: [{ name: 'Albert-László Barabási', wikipedia: wiki('Albert-L%C3%A1szl%C3%B3_Barab%C3%A1si') }],
+    recipients: [{ name: 'Albert-László Barabási', ...speaker('albert-laszlo-barabasi') }],
   },
-  { year: 2020, recipients: [{ name: 'John F. Sowa', wikipedia: wiki('John_F._Sowa') }] },
+  { year: 2020, recipients: [{ name: 'John F. Sowa', ...speaker('john-f-sowa') }] },
 ];
 
 /**
@@ -95,6 +101,19 @@ const BIOS: { name: string; year: number; slug: string; paragraphs: string[] }[]
   }
 ];
 
+/** A recipient's name: their KGC speaker page, or Wikipedia in a new tab. */
+function RecipientLink({ recipient, className }: { recipient: Recipient; className?: string }) {
+  return recipient.external ? (
+    <a className={className} href={recipient.href} target="_blank" rel="noreferrer">
+      {recipient.name}
+    </a>
+  ) : (
+    <Link className={className} href={recipient.href}>
+      {recipient.name}
+    </Link>
+  );
+}
+
 /** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
 export const revalidate = 30;
 
@@ -134,9 +153,7 @@ export default async function AwardsPage() {
           </h2>
           <div className="laureates">
             {CURRENT.recipients.map((r) => (
-              <a key={r.name} className="laureate" href={r.wikipedia} target="_blank" rel="noreferrer">
-                {r.name}
-              </a>
+              <RecipientLink key={r.name} recipient={r} className="laureate" />
             ))}
           </div>
         </div>
@@ -153,9 +170,7 @@ export default async function AwardsPage() {
               {p.recipients.map((r, i) => (
                 <span key={r.name}>
                   {i > 0 ? ', ' : ''}
-                  <a href={r.wikipedia} target="_blank" rel="noreferrer">
-                    {r.name}
-                  </a>
+                  <RecipientLink recipient={r} />
                 </span>
               ))}
             </p>
