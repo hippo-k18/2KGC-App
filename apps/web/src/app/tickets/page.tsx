@@ -259,7 +259,7 @@ export default async function TicketsPage({
             <summary>Can I transfer my ticket to someone else?</summary>
             <div className="answer">
               <p>
-                Yes, up to a week before the conference. Mail{' '}
+                Yes, until April 26, 2027, a week before the conference. Mail{' '}
                 <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the new
                 attendee’s details and we will move the registration.
                 {terms && (

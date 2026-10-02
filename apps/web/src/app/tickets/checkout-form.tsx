@@ -778,7 +778,7 @@ function OrderRail({
           </span>
           Card details are handled by Stripe and never touch this site.
         </li>
-        <li>Names can be changed up to a week before the conference.</li>
+        <li>Names can be changed until April 26, 2027, a week before the conference.</li>
         <li>
           Need a PO number? <Link href="/tickets/invoice">Pay by invoice instead</Link>.
         </li>
