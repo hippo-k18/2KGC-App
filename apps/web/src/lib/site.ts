@@ -25,6 +25,12 @@ import { EVENT } from '@kgc/shared';
 export const SLACK_WORKSPACE = 'https://knowledgegraphconf.slack.com/';
 
 /**
+ * The conference's YouTube channel, read by the footer socials, /about and
+ * /community. The handle has "the" in it: @knowledgegraphconference is a 404.
+ */
+export const YOUTUBE_CHANNEL = 'https://www.youtube.com/@theknowledgegraphconference';
+
+/**
  * Facts about the event that the marketing pages repeat, in one place.
  *
  * The name, venue and time zone come from `@kgc/shared` so the website and the
@@ -72,7 +78,7 @@ export const SITE = {
   social: [
     { label: 'LinkedIn', href: 'https://www.linkedin.com/company/knowledge-graph-conference/' },
     { label: 'X', href: 'https://x.com/KGConference' },
-    { label: 'YouTube', href: 'https://www.youtube.com/@knowledgegraphconference' },
+    { label: 'YouTube', href: YOUTUBE_CHANNEL },
     { label: 'Slack', href: SLACK_WORKSPACE },
   ],
 } as const;

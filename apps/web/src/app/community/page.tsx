@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { NEWSLETTER_SIGNUP, RESOURCE_HUB, SLACK_WORKSPACE } from '@/lib/site';
+import { NEWSLETTER_SIGNUP, RESOURCE_HUB, SLACK_WORKSPACE, YOUTUBE_CHANNEL } from '@/lib/site';
 import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
@@ -51,7 +51,7 @@ const LIBRARIES = [
   {
     name: 'YouTube channel',
     body: 'Keynotes, panel discussions, workshops and tutorials from the conference, across every track.',
-    href: 'https://www.youtube.com/@knowledgegraphconference',
+    href: YOUTUBE_CHANNEL,
   },
   {
     /*

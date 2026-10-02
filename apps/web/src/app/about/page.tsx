@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { siteEvent, ticketSalesOpen } from '@/lib/data';
+import { YOUTUBE_CHANNEL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'About the Knowledge Graph Conference',
@@ -39,7 +40,7 @@ export default async function AboutPage() {
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
             <a
               className="btn btn-accent btn-kgc"
-              href="https://www.youtube.com/@knowledgegraphconference"
+              href={YOUTUBE_CHANNEL}
               target="_blank"
               rel="noreferrer"
             >
