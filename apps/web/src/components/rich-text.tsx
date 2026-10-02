@@ -48,16 +48,16 @@ function Spans({ spans }: { spans: InlineSpan[] }) {
   );
 }
 
-function Block({ block }: { block: RichBlock }) {
+function Block({ block, id }: { block: RichBlock; id?: string }) {
   if (block.kind === 'heading') {
     // Level 2 and 3 only. The page's `<h1>` is its title, drawn by the route,
     // so `parseRichText` demotes everything an organizer types.
     return block.level === 2 ? (
-      <h2>
+      <h2 id={id}>
         <Spans spans={block.spans} />
       </h2>
     ) : (
-      <h3>
+      <h3 id={id}>
         <Spans spans={block.spans} />
       </h3>
     );
@@ -80,10 +80,19 @@ function Block({ block }: { block: RichBlock }) {
 }
 
 export function RichText({ body }: { body: string }) {
+  return <RichBlocks blocks={parseRichText(body)} />;
+}
+
+/**
+ * Already-parsed blocks, with an optional anchor id per heading (in order), so
+ * a page can be deep-linked. `/terms` uses it; see `lib/terms-parse.ts`.
+ */
+export function RichBlocks({ blocks, headingIds = [] }: { blocks: RichBlock[]; headingIds?: string[] }) {
+  let h = 0;
   return (
     <>
-      {parseRichText(body).map((b, i) => (
-        <Block key={i} block={b} />
+      {blocks.map((b, i) => (
+        <Block key={i} block={b} id={b.kind === 'heading' ? headingIds[h++] : undefined} />
       ))}
     </>
   );

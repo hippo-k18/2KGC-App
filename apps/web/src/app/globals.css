@@ -10472,3 +10472,12 @@ body:has([data-home-venue]) .venue-home {
     height: 140px;
   }
 }
+
+/*
+ * /terms headings are deep-link targets (`/terms#refunds` from checkout and
+ * the FAQ). Without this the sticky header covers the heading the link names.
+ */
+.terms-body h2[id],
+.terms-body h3[id] {
+  scroll-margin-top: calc(var(--header-h) + 16px);
+}

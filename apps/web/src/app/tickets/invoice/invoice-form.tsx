@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { formatPrice, type Tier } from '@/lib/tickets';
@@ -29,7 +30,14 @@ interface Seat {
 
 const MAX_SEATS = 10;
 
-export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
+export function InvoiceForm({
+  tiers,
+  termsPublished = false,
+}: {
+  tiers: Tier[];
+  /** Show the consent line naming the terms. Off until they are approved; see `lib/terms-core.ts`. */
+  termsPublished?: boolean;
+}) {
   const [state, action] = useActionState<InvoiceState, FormData>(requestInvoice, {});
 
   const sellable = tiers.filter((t) => t.onSale);
@@ -229,6 +237,19 @@ export function InvoiceForm({ tiers }: { tiers: Tier[] }) {
         </span>
         <span>{formatPrice(subtotal, currency)}</span>
       </div>
+
+      {/*
+        The same statement checkout makes, drawn only once the terms are
+        published: before then there are no terms to agree to, and the form
+        shipped without a consent line.
+      */}
+      {termsPublished && (
+        <p className="hint" style={{ marginBottom: 12 }}>
+          By requesting an invoice you agree to the <Link href="/terms">terms</Link> and the{' '}
+          <Link href="/code-of-conduct">code of conduct</Link>, and to how your details are
+          handled, set out in the <Link href="/privacy">privacy notice</Link>.
+        </p>
+      )}
 
       <SubmitButton />
 

@@ -16,7 +16,10 @@ export function SiteFooter({
   showSpeakers = false,
   mainOrigin,
   blogOrigin,
+  termsPublished = false,
 }: {
+  /** Show the Terms link. Off until the terms are approved; see `lib/terms-core.ts`. */
+  termsPublished?: boolean;
   contactEmail?: string;
   /** From Content > Basics, resolved in the root layout. The defaults are the constants. */
   datesShort?: string;
@@ -121,6 +124,9 @@ export function SiteFooter({
           <span className="legal">
             <SiteLink href="/privacy" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Privacy</SiteLink>
             <SiteLink href="/code-of-conduct" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Code of conduct</SiteLink>
+            {termsPublished && (
+              <SiteLink href="/terms" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Terms</SiteLink>
+            )}
           </span>
           <span>
             {datesShort} ·{' '}

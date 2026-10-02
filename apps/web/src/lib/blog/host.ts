@@ -33,7 +33,7 @@ export const MAIN_SITE_ROUTES = new Set([
   'community', 'consent', 'documents', 'exhibitor', 'exhibitors', 'hcls',
   'kgc-lifetime-achievement-awards', 'learn', 'order', 'past-speakers', 'previous-events', 'privacy', 'r',
   'review', 'rooms', 'search', 'speaker', 'speakers', 'sponsor', 'startup-pitch', 'submit',
-  'team', 'ticket', 'tickets', 'u',
+  'team', 'terms', 'ticket', 'tickets', 'u',
 ]);
 
 /** Paths that pass through untouched on either host. */

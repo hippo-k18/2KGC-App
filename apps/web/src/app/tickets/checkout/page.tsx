@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { termsPublished } from '@/lib/terms-core';
 import Link from 'next/link';
 import { buyerFeePercent, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
@@ -80,6 +81,7 @@ export default async function CheckoutPage({
 
         {tiers.length > 0 ? (
           <CheckoutForm
+            termsPublished={termsPublished()}
             tiers={tiers}
             initialTier={initialTier}
             tierLocked={byId.has(params.tier ?? '')}

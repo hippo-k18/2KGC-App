@@ -78,7 +78,10 @@ export function CheckoutForm({
   questions = [],
   titleAs = 'h2',
   buyerFeePercent,
+  termsPublished = false,
 }: {
+  /** Name the terms in the consent line. Off until they are approved; see `lib/terms-core.ts`. */
+  termsPublished?: boolean;
   /**
    * The catalogue, passed in rather than imported.
    *
@@ -545,12 +548,21 @@ export function CheckoutForm({
           not real. The two policies it names are linked, because a policy
           somebody is told they agreed to and cannot open is not one they read.
         */}
-        <p className="hint" style={{ marginBottom: 12 }}>
-          By registering you agree to the{' '}
-          <Link href="/code-of-conduct">code of conduct</Link> and to how your details are handled,
-          set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a copy of
-          your data or have it deleted at any time.
-        </p>
+        {termsPublished ? (
+          <p className="hint" style={{ marginBottom: 12 }}>
+            By registering you agree to the <Link href="/terms">terms</Link> and the{' '}
+            <Link href="/code-of-conduct">code of conduct</Link>, and to how your details are
+            handled, set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a
+            copy of your data or have it deleted at any time.
+          </p>
+        ) : (
+          <p className="hint" style={{ marginBottom: 12 }}>
+            By registering you agree to the{' '}
+            <Link href="/code-of-conduct">code of conduct</Link> and to how your details are handled,
+            set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a copy of
+            your data or have it deleted at any time.
+          </p>
+        )}
 
         <SubmitButton stripeReady={stripeReady} price={formatPrice(totalCents, selected.currency)} />
 

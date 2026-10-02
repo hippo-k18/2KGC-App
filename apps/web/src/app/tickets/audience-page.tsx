@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { termsPublished } from '@/lib/terms-core';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { tiersOrNull } from '@/lib/catalogue';
@@ -173,6 +174,7 @@ export async function AudienceTicketsPage({
 
           {tiers.length > 0 ? (
             <CheckoutForm
+            termsPublished={termsPublished()}
               tiers={tiers}
               initialTier={preselected}
               stripeReady={stripeEnabled()}

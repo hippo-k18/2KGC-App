@@ -1,4 +1,5 @@
 import { EXACT, SECTIONS } from './old-site-map';
+import { OLD_TERMS_PATHS, termsPublished } from './terms-core';
 import OLD_CONTENT from './old-content-redirects.json';
 import PAST_SPEAKER_REDIRECTS from '../content/past-speakers/redirects.json';
 import PAST_YEARS from '../content/past-speakers/years.json';
@@ -58,8 +59,11 @@ function blogFeed(): string {
   return `${(process.env.BLOG_ORIGIN || 'https://blog.knowledgegraph.tech').replace(/\/$/, '')}/feed.xml`;
 }
 
-export function oldSiteTarget(path: string): string | null {
+export function oldSiteTarget(path: string, env: Record<string, string | undefined> = process.env): string | null {
   const p = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  // The old terms pages go to /terms once it is published, and to /tickets
+  // (Ted's entries in `old-site-map.ts`, left as they are) until then.
+  if (OLD_TERMS_PATHS.has(p) && termsPublished(env)) return '/terms';
   const past = pastSpeakerTarget(p);
   if (past) return past;
   const listed = (OLD_CONTENT as Record<string, string>)[p];

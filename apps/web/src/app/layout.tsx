@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { SiteFooter } from '@/components/site-footer';
+import { termsPublished } from '@/lib/terms-core';
 import { mainSiteOrigin } from '@/lib/blog/host';
 import { SiteHeader } from '@/components/site-header';
 import { ConsentNotice } from '@/components/consent-notice';
@@ -175,6 +176,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         <main>{children}</main>
         <SiteFooter
+          termsPublished={termsPublished()}
           contactEmail={branding.supportEmail || SITE.contactEmail}
           datesShort={ev.datesShort}
           venue={ev.venue}

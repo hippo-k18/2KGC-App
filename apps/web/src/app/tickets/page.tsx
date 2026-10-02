@@ -7,6 +7,7 @@ import { formatPrice, type Tier } from '@/lib/tickets';
 import { monthName } from '@kgc/shared';
 import s from './tickets.module.css';
 import { TicketSalesClosed } from './sales-closed';
+import { termsPublished } from '@/lib/terms-core';
 
 export const metadata: Metadata = {
   title: 'Knowledge Graph Conference Tickets',
@@ -178,6 +179,8 @@ export default async function TicketsPage({
 }) {
   if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const ev = await siteEvent();
+  // Links to /terms only once it is published. See `lib/terms-core.ts`.
+  const terms = termsPublished();
   const params = await searchParams;
 
   /**
@@ -259,9 +262,27 @@ export default async function TicketsPage({
                 Yes, up to a week before the conference. Mail{' '}
                 <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the new
                 attendee’s details and we will move the registration.
+                {terms && (
+                  <>
+                    {' '}
+                    The <Link href="/terms#transfers">terms</Link> have the details.
+                  </>
+                )}
               </p>
             </div>
           </details>
+
+          {terms && (
+            <details>
+              <summary>Can I get a refund?</summary>
+              <div className="answer">
+                <p>
+                  Refunds and cancellations are set out in the{' '}
+                  <Link href="/terms#refunds">terms</Link>.
+                </p>
+              </div>
+            </details>
+          )}
 
           <details>
             <summary>Is there a student rate?</summary>

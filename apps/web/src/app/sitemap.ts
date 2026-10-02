@@ -3,6 +3,7 @@ import { listPublicPages, siteVisibility } from '@/lib/data';
 import { publicPosts } from '@/lib/blog/public';
 import { requestHost } from '@/lib/indexing';
 import { PAST_SPEAKERS, PAST_YEARS } from '@/lib/past-speakers';
+import { termsPublished } from '@/lib/terms-core';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(show.agenda ? ['/agenda'] : []),
     ...(show.speakers ? ['/speakers'] : []),
     ...pages.map((p) => `/${p.slug}`),
+    // Only once the terms are published; until then `/terms` is a 404.
+    ...(termsPublished() ? ['/terms'] : []),
   ];
   return [
     ...paths.map((p) => ({ url: p === '/' ? origin : origin + p, priority: p === '/' ? 1 : p === '/tickets' ? 0.9 : 0.6 })),

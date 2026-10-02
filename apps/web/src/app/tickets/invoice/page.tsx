@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { termsPublished } from '@/lib/terms-core';
 import Link from 'next/link';
 import { tiersOrNull } from '@/lib/catalogue';
 import { SITE } from '@/lib/site';
@@ -68,7 +69,7 @@ export default async function InvoicePage() {
                 whose submit can only refuse is twelve fields of wasted effort.
               */}
               {open ? (
-                <InvoiceForm tiers={tiers} />
+                <InvoiceForm tiers={tiers} termsPublished={termsPublished()} />
               ) : (
                 <p className="notice">
                   Invoicing is not open yet. Email{' '}

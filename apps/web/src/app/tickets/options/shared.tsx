@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { termsPublished } from '@/lib/terms-core';
 import type { ReactNode } from 'react';
 import chrome from './options.module.css';
 import { SITE } from '@/lib/site';
@@ -65,6 +66,7 @@ export function BuyBand({ data }: { data: OptionData }) {
       <div className="wrap">
         {data.tiers.length > 0 ? (
           <CheckoutForm
+            termsPublished={termsPublished()}
             tiers={data.tiers}
             initialTier={data.preselected}
             stripeReady={data.stripeReady}
