@@ -190,7 +190,9 @@ export function SiteHeader({
               <Link
                 key={item.href}
                 href={to(item.href)}
-                aria-current={path === item.href ? 'page' : undefined}
+                // A section's own pages count too: a speaker's page is under
+                // Past Speakers.
+                aria-current={path === item.href || path.startsWith(`${item.href}/`) ? 'page' : undefined}
                 onClick={() => setOpen(false)}
               >
                 {item.label}
