@@ -43,6 +43,15 @@ export const MAIN_SITE_ROUTES = new Set([
   'team', 'terms', 'ticket', 'tickets', 'u',
 ]);
 
+/**
+ * Archive posts whose slug is also an address in the old-site map. On the blog
+ * host `/<slug>` was the post, so once the blog moves these still go to the
+ * post and not to the map's target. `host.test.ts` keeps the list in step with
+ * `lib/posts.ts` and `lib/old-site.ts`; it is not computed here so the
+ * middleware does not carry the whole archive.
+ */
+export const POSTS_OVER_OLD_SITE: ReadonlySet<string> = new Set(['call-for-speakers']);
+
 /** Paths that pass through untouched on either host. */
 export const passesThrough = (path: string) =>
   path.startsWith('/_next/') ||

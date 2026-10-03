@@ -1,7 +1,9 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isBlogHost, mainSiteLink, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough } from './host';
+import { oldSiteTarget } from '../old-site';
+import { POSTS } from '../posts';
+import { isBlogHost, mainSiteLink, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough, POSTS_OVER_OLD_SITE } from './host';
 
 describe('blog host routing', () => {
   it('knows every top-level page of the main site, so none is mistaken for a post', () => {
@@ -11,6 +13,10 @@ describe('blog host routing', () => {
       .map((d) => d.name)
       .filter((n) => !['blog', 'blog-media', 'api'].includes(n));
     expect([...MAIN_SITE_ROUTES].sort()).toEqual(dirs.sort());
+  });
+  it('lists every archive post whose slug is also an old-site address', () => {
+    const shadowed = POSTS.map((p) => p.slug).filter((slug) => oldSiteTarget(`/${slug}`));
+    expect([...POSTS_OVER_OLD_SITE].sort()).toEqual(shadowed.sort());
   });
   it('recognises the blog host', () => {
     expect(isBlogHost('blog.knowledgegraph.tech')).toBe(true);

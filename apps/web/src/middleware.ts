@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { separateBlogOrigin } from '@kgc/shared';
 // Relative rather than `@/`, so `middleware.test.ts` can import this under
 // Vitest, whose `@` is the Expo app's.
-import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough } from './lib/blog/host';
+import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough, POSTS_OVER_OLD_SITE } from './lib/blog/host';
 import { oldSitemap, oldSiteTarget, PAST_SPEAKER_YEARS } from './lib/old-site';
 import { REFERRAL_MAX_AGE, referralCookiesFrom } from './lib/referral-capture';
 import { mainHostIndexable, NOINDEX_HEADER } from './lib/indexing-core';
@@ -135,35 +135,50 @@ function route(request: NextRequest): NextResponse {
 
 /**
  * blog.knowledgegraph.tech once the blog is `/blog` on the main site
- * (`BLOG_ORIGIN` unset). Every address there is a 301 to its new one on the main
- * site, in one hop and keeping the query (`?tag=`, `?category=`, `?page=`):
+ * (`BLOG_ORIGIN` unset). Every address there is one 301 to its final address on
+ * the main site, keeping the query (`?tag=`, `?category=`, `?page=`):
  *
- *   /                  → /blog
- *   /<slug>, /write/…  → /blog/<slug>, /blog/write/…
- *   /feed.xml          → /blog/feed.xml
- *   /blog/…            → /blog/…   (old links that already had the prefix)
- *   /tickets, /about…  → the same page, not under /blog
- *   /robots.txt, files → the same file
+ *   /                    → /blog
+ *   /feed.xml            → /blog/feed.xml
+ *   /write/…, sign-ins   → /blog/write/…
+ *   /blog/…              → /blog/…   (old links that already had the prefix)
+ *   /tickets, files…     → the same address, not under /blog (or its old-site target)
+ *   an old WP address    → where it goes on the main site (`oldSiteTarget`)
+ *   /<slug>              → /blog/<slug>
+ *   anything else        → the same address
  *
- * An old WordPress address among them (a speaker page, a category) goes where
- * it goes on the main site. Only `/_next/` and `/api/` are still served, for a
- * page that was open when the blog moved.
+ * The old-site map is read before a single segment is taken for a post, so
+ * `/speakers-2021` or `/about-kgc` goes to its page rather than a missing post.
+ * The archive posts whose slug is also an old address win over the map
+ * (`POSTS_OVER_OLD_SITE`). A post written in the editor is not known here, so
+ * any other single segment still goes under `/blog`. Only `/_next/` and `/api/`
+ * are still served, for a page that was open when the blog moved.
  */
 function movedBlog(request: NextRequest): NextResponse {
   const { pathname: path, search } = request.nextUrl;
   if (path.startsWith('/_next/') || path.startsWith('/api/')) return NextResponse.next();
   const bare = path.length > 1 ? path.replace(/\/+$/, '') : path;
-  const first = bare.split('/')[1] ?? '';
-  let to: string;
-  if (bare === '/') to = '/blog';
-  else if (bare === '/feed.xml') to = '/blog/feed.xml';
-  else if (SIGN_IN_ALIASES.has(bare)) to = '/blog/write';
-  else if (first === '__site') to = bare.slice(7) || '/';
-  else if (first === 'blog' || MAIN_SITE_ROUTES.has(first) || passesThrough(bare)) to = bare;
-  else to = `/blog${bare}`;
-  const old = oldSiteTarget(to);
-  if (old) return NextResponse.redirect(/^https?:\/\//.test(old) ? old : `${mainOrigin()}${old}`, 301);
-  return NextResponse.redirect(`${mainOrigin()}${to}${search}`, 301);
+  const segments = bare.split('/').slice(1);
+  const first = segments[0] ?? '';
+  const go = (to: string, keepQuery = true) =>
+    NextResponse.redirect(/^https?:\/\//.test(to) ? to : `${mainOrigin()}${to}${keepQuery ? search : ''}`, 301);
+
+  if (bare === '/') return go('/blog');
+  if (bare === '/feed.xml') return go('/blog/feed.xml');
+  if (SIGN_IN_ALIASES.has(bare)) return go('/blog/write');
+  if (first === 'write') return go(`/blog${bare}`);
+  if (first === '__site') return go(bare.slice(7) || '/');
+  if (first === 'blog') return oldTarget(bare) ?? go(bare);
+  // `/speakers/<old-slug>` is a main-site route and an old speaker page.
+  if (MAIN_SITE_ROUTES.has(first) || passesThrough(bare)) return oldTarget(bare) ?? go(bare);
+  if (segments.length === 1 && POSTS_OVER_OLD_SITE.has(first)) return go(`/blog${bare}`);
+  // `/category/kgc-2022` was only ever an address under `/blog`.
+  return oldTarget(bare) ?? oldTarget(`/blog${bare}`) ?? go(segments.length === 1 ? `/blog${bare}` : bare);
+
+  function oldTarget(p: string): NextResponse | null {
+    const to = oldSiteTarget(p);
+    return to ? go(to, false) : null;
+  }
 }
 
 /**

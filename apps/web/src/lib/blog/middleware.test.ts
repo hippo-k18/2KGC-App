@@ -68,6 +68,31 @@ describe('blog at /blog on the main site (BLOG_ORIGIN unset)', () => {
     }
   });
 
+  it('sends old WordPress and past-speaker addresses on the blog host to their page, not under /blog', () => {
+    setup();
+    const cases: [string, string][] = [
+      ['/speakers-2021/', '/past-speakers?year=2021'],
+      ['/speakers-2021', '/past-speakers?year=2021'],
+      ['/kgc-2023-speakers/', '/past-speakers?year=2023'],
+      ['/conference-2019/speakers/', '/past-speakers?year=2019'],
+      ['/speakers-2022-page', '/past-speakers?year=2022'],
+      ['/about-kgc/', '/about'],
+      ['/speakers/heather-hedden-2/', '/past-speakers/heather-hedden'],
+      ['/category/kgc-2022', '/blog?category=KGC%202022'],
+      // A post whose slug is also an old address stays the post.
+      ['/call-for-speakers', '/blog/call-for-speakers'],
+      // An unknown single segment may be a post written in the editor.
+      ['/a-new-post', '/blog/a-new-post'],
+      // Anything else unknown goes to the same address on www.
+      ['/no/such/page/', '/no/such/page'],
+    ];
+    for (const [from, to] of cases) {
+      const r = hit(BLOG, from);
+      expect(r.status, from).toBe(301);
+      expect(r.location, from).toBe(`${WWW}${to}`);
+    }
+  });
+
   it('lands old WordPress blog addresses on www in at most one hop', () => {
     setup();
     const slash = hit(WWW, '/blog/some-post/');
