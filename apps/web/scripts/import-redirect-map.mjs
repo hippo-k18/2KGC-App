@@ -43,6 +43,9 @@ const ARCHIVED_SECTIONS = ['/blog/agenda/', '/blog/partners/', '/blog/portfolio/
 const PAST_SPEAKERS = [/^\/blog\/speakers(\/|$)/, /^\/blog\/speakers-category\/\d{4}(\/page\/\d+)?$/, /^\/conference-2019\/speakers$/, /^\/speakers-2021$/, /^\/speakers-2022-page$/, /^\/kgc-2023-speakers$/];
 const YEAR_SUBSET = /^\/blog\/speakers-category\/(\d{4})-[^/]+$/;
 const WWW = /^https:\/\/(www\.)?knowledgegraph\.tech(?=\/|$)/;
+// The blog is `/blog` on the main site; the middleware sends it on to the blog
+// host while `BLOG_ORIGIN` gives it one. No target names the blog host itself.
+const BLOG = /^https:\/\/blog\.knowledgegraph\.tech(?=\/|$)/;
 /** Top-level routes of this site (src/app), whose own address must not be redirected. */
 const LIVE = new Set(readdirSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app')).filter((n) => !n.includes('.') && !n.startsWith('[')).map((n) => `/${n}`));
 
@@ -101,6 +104,7 @@ for (const r of rows) {
   let to = target;
   if (year) { to = `/past-speakers?year=${year[1]}`; rewritten.push(`${p}: ${target} -> ${to}`); }
   else if (WWW.test(to)) to = to.replace(WWW, '') || '/';
+  else if (BLOG.test(to)) to = `/blog${to.replace(BLOG, '').replace(/^\/$/, '')}`;
   else if (to.startsWith(ARCHIVE)) to = to.replace(/\/?$/, '/');
   out[p] = to;
 }

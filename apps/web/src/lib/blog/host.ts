@@ -1,3 +1,5 @@
+import { separateBlogOrigin } from '@kgc/shared';
+
 /**
  * The blog lives at blog.knowledgegraph.tech, served by this same app from its
  * `/blog` routes. The rewrites are in `next.config.ts` and the redirects in
@@ -18,6 +20,11 @@
  *
  * Everywhere else, `/blog/...` is served as it always was, unless `BLOG_ORIGIN`
  * is set, in which case it redirects to the blog host.
+ *
+ * All of that is while `BLOG_ORIGIN` names the blog host. Unset (or naming the
+ * main site), the blog is `/blog` on the main site and every address on the
+ * blog host is a 301 there (`movedBlog` in `middleware.ts`). See
+ * `separateBlogOrigin` in `@kgc/shared`.
  */
 
 export const isBlogHost = (host: string | null | undefined) => /^blog\./i.test(host ?? '');
@@ -69,7 +76,7 @@ export const mainSiteOrigin = () =>
  * returned as it was.
  */
 export function mainSiteLink(href: string): string {
-  if (!process.env.BLOG_ORIGIN || !href.startsWith('/') || href.startsWith('//')) return href;
+  if (!separateBlogOrigin() || !href.startsWith('/') || href.startsWith('//')) return href;
   const first = href.slice(1).split(/[/?#]/)[0] ?? '';
   return MAIN_SITE_ROUTES.has(first) ? `${mainSiteOrigin()}${href}` : href;
 }

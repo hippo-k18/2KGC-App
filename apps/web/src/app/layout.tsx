@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { SiteFooter } from '@/components/site-footer';
 import { termsPublished } from '@/lib/terms-core';
+import { separateBlogOrigin } from '@kgc/shared';
 import { mainSiteOrigin } from '@/lib/blog/host';
 import { SiteHeader } from '@/components/site-header';
 import { ConsentNotice } from '@/components/consent-notice';
@@ -171,7 +172,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
           showTickets={branding.showTickets}
-          blogOrigin={process.env.BLOG_ORIGIN?.replace(/\/$/, '') || undefined}
+          blogOrigin={separateBlogOrigin()}
           mainOrigin={mainSiteOrigin()}
         />
         <main>{children}</main>
@@ -183,7 +184,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
           mainOrigin={mainSiteOrigin()}
-          blogOrigin={process.env.BLOG_ORIGIN?.replace(/\/$/, '') || undefined}
+          blogOrigin={separateBlogOrigin()}
         />
         {analytics && <ConsentNotice />}
         <ReferenceOverlay />

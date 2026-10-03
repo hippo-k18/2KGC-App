@@ -10,6 +10,7 @@ import { Email, GapPanel, PageHeader, Panel, Table, Tag } from '../../ui';
 import { AdminSettingsForm } from './form';
 import { InviteForm, MemberActions, type RoleOption } from './team';
 import { BlogInviteForm, BlogRowActions } from './blog';
+import { blogPublicOrigin } from '@kgc/shared';
 import { listBlogPeople } from '@/lib/blog-access';
 
 export const dynamic = 'force-dynamic';
@@ -167,8 +168,8 @@ export default async function AdminSettingsPage() {
         <h2 className="section-header">Blog</h2>
         <p className="body-2">
           Everyone who can sign in to the blog editor at{' '}
-          <a href="https://blog.knowledgegraph.tech/write" target="_blank" rel="noreferrer">
-            blog.knowledgegraph.tech/write
+          <a href={`${blogPublicOrigin()}/write`} target="_blank" rel="noreferrer">
+            {`${blogPublicOrigin().replace(/^https?:\/\//, '')}/write`}
           </a>
           . Writers see only their own posts, and an editor reviews each one before it is published.
         </p>

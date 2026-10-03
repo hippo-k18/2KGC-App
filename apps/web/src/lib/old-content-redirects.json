@@ -28,7 +28,7 @@
   "/blog/speakers-category/2022-tutorial": "/past-speakers?year=2022",
   "/blog/speakers-category/2022-w-t": "/past-speakers?year=2022",
   "/blog/speakers-category/2022-workshop": "/past-speakers?year=2022",
-  "/comments/feed": "https://blog.knowledgegraph.tech/feed.xml",
+  "/comments/feed": "/blog/feed.xml",
   "/conference-2019": "https://archive.knowledgegraph.tech/conference-2019/",
   "/conference-2019/about-us": "https://archive.knowledgegraph.tech/conference-2019/about-us/",
   "/conference-2019/gallery": "https://archive.knowledgegraph.tech/conference-2019/gallery/",

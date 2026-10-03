@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, publicSiteOrigin, type BlogMemberDoc } from '@kgc/shared';
+import { COLLECTIONS, blogPublicOrigin, type BlogMemberDoc } from '@kgc/shared';
 import { sendBlogInvitation } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
@@ -9,7 +9,7 @@ import { db } from './firestore';
 import { looksLikeEmail, newNonce } from './team-core';
 
 /**
- * Who can write for the blog at blog.knowledgegraph.tech, managed from
+ * Who can write for the blog (its own host or `/blog`, see `blogPublicOrigin`), managed from
  * Attendees › Admin Settings.
  *
  * The blog editor (`apps/web/src/lib/blog/auth.ts`) reads `blogMembers` on
@@ -48,7 +48,7 @@ export function fixedBlogEditors(): string[] {
  * the website); getting in still takes an emailed code.
  */
 function signInLink(email: string, inviteToken?: string): string {
-  const origin = (process.env.BLOG_ORIGIN ?? `${publicSiteOrigin()}/blog`).replace(/\/$/, '');
+  const origin = blogPublicOrigin();
   const params = new URLSearchParams({ email });
   if (inviteToken) params.set('invite', inviteToken);
   return `${origin}/write/sign-in?${params}`;

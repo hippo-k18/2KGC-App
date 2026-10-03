@@ -116,9 +116,29 @@ test('the tab icon is served', async ({ page, request }) => {
   expect(res.headers()['content-type']).toMatch(/^image\//);
 });
 
-test('/blog is sent to the blog host in one hop @smoke', async ({ request, baseURL }) => {
+/*
+ * Either configuration is right: the blog on its own host (`BLOG_ORIGIN` set,
+ * `/blog` redirects there) or the blog at `/blog` (unset, the blog host
+ * redirects here). What must not happen is a chain, or the two pointing at
+ * each other.
+ */
+test('/blog and the blog host agree, one hop either way @smoke', async ({ request, baseURL }) => {
   test.skip(/localhost|127\.0\.0\.1/.test(baseURL!), 'the blog host only exists on the droplet');
   const res = await request.get('/blog', { maxRedirects: 0 });
-  expect(res.status()).toBe(308);
-  expect(res.headers().location).toBe('https://blog.knowledgegraph.tech/');
+  if (res.status() === 308) {
+    expect(res.headers().location).toBe('https://blog.knowledgegraph.tech/');
+    return;
+  }
+  expect(res.status(), '/blog is served here').toBe(200);
+  const origin = new URL(baseURL!).origin;
+  for (const [from, to] of [
+    ['/', '/blog'],
+    ['/some-post?x=1', '/blog/some-post?x=1'],
+    ['/feed.xml', '/blog/feed.xml'],
+    ['/tickets', '/tickets'],
+  ]) {
+    const moved = await request.get(`https://blog.knowledgegraph.tech${from}`, { maxRedirects: 0 });
+    expect(moved.status(), `blog host ${from}`).toBe(301);
+    expect(moved.headers().location, `blog host ${from}`).toBe(`${origin}${to}`);
+  }
 });

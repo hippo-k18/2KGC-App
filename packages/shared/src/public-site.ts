@@ -69,6 +69,32 @@ export function publicSiteOrigin(): string {
   return (configured ?? DEFAULT_ORIGIN).replace(/\/$/, "");
 }
 
+const hostOf = (origin: string) => /^[a-z]+:\/\/([^/?#]+)/i.exec(origin)?.[1]?.toLowerCase();
+
+/**
+ * The blog's own origin when it has a host of its own, else `undefined`.
+ *
+ * `BLOG_ORIGIN` set to another host (`https://blog.knowledgegraph.tech`) gives
+ * the blog that host. Unset, or naming the main site's host, the blog is
+ * `/blog` on the main site and blog.knowledgegraph.tech only redirects there.
+ * Moving the blog is then an env change and nothing else. Every reader of
+ * `BLOG_ORIGIN` goes through this, so the two configurations cannot disagree.
+ */
+export function separateBlogOrigin(
+  env: Record<string, string | undefined> | undefined = typeof process === "undefined" ? undefined : process?.env,
+): string | undefined {
+  const own = env?.BLOG_ORIGIN?.trim().replace(/\/+$/, "");
+  if (!own) return undefined;
+  const main = (env?.WEB_PUBLIC_ORIGIN ?? DEFAULT_ORIGIN).replace(/\/$/, "");
+  return hostOf(own) === hostOf(main) ? undefined : own;
+}
+
+/** The blog's public address, with no trailing slash: its own host, or the main site's `/blog`. */
+export function blogPublicOrigin(env?: Record<string, string | undefined>): string {
+  const e = env ?? (typeof process === "undefined" ? undefined : process?.env);
+  return separateBlogOrigin(e) ?? `${(e?.WEB_PUBLIC_ORIGIN ?? DEFAULT_ORIGIN).replace(/\/$/, "")}/blog`;
+}
+
 /**
  * How an attendee actually gets the app, stated as one editable sentence.
  *

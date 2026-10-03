@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough } from '@/lib/blog/host';
-import { oldSitemap, oldSiteTarget, PAST_SPEAKER_YEARS } from '@/lib/old-site';
-import { REFERRAL_MAX_AGE, referralCookiesFrom } from '@/lib/referral-capture';
-import { mainHostIndexable, NOINDEX_HEADER } from '@/lib/indexing-core';
+import { separateBlogOrigin } from '@kgc/shared';
+// Relative rather than `@/`, so `middleware.test.ts` can import this under
+// Vitest, whose `@` is the Expo app's.
+import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough } from './lib/blog/host';
+import { oldSitemap, oldSiteTarget, PAST_SPEAKER_YEARS } from './lib/old-site';
+import { REFERRAL_MAX_AGE, referralCookiesFrom } from './lib/referral-capture';
+import { mainHostIndexable, NOINDEX_HEADER } from './lib/indexing-core';
 
 /**
  * This request's own origin. Not `nextUrl.origin`, which reports the droplet's
@@ -12,7 +15,7 @@ import { mainHostIndexable, NOINDEX_HEADER } from '@/lib/indexing-core';
  */
 function selfOrigin(request: NextRequest): string {
   const host = request.headers.get('host') ?? 'localhost';
-  for (const o of [process.env.WEB_PUBLIC_ORIGIN, process.env.BLOG_ORIGIN]) {
+  for (const o of [process.env.WEB_PUBLIC_ORIGIN, separateBlogOrigin()]) {
     try {
       if (o && new URL(o).host === host) return o.replace(/\/$/, '');
     } catch {}
@@ -26,7 +29,8 @@ function selfOrigin(request: NextRequest): string {
  * here so an old address is one hop, not two), and the redirects half of
  * serving blog.knowledgegraph.tech; the rewrites are in `next.config.ts` (see
  * `lib/blog/host.ts` for why). Requests to any other host are untouched, except
- * `/blog` when `BLOG_ORIGIN` names the blog host.
+ * `/blog` when `BLOG_ORIGIN` names the blog host. Without it the blog is `/blog`
+ * here and the blog host only redirects (`movedBlog`).
  */
 /** The main site's origin, as the blog host links to it. See `mainSiteOrigin`. */
 const mainOrigin = mainSiteOrigin;
@@ -54,13 +58,14 @@ function route(request: NextRequest): NextResponse {
   const path = url.pathname;
 
   const blogHost = isBlogHost(request.headers.get('host'));
+  const blogOrigin = separateBlogOrigin();
+  if (blogHost && !blogOrigin) return movedBlog(request);
 
   // Before `passesThrough`, which lets every `/<name>.xml` through untouched.
   if (!blogHost && oldSitemap(path)) return NextResponse.redirect(`${selfOrigin(request)}/sitemap.xml`, 301);
 
   if (passesThrough(path)) return NextResponse.next();
 
-  const blogOrigin = process.env.BLOG_ORIGIN?.replace(/\/$/, '');
   const bare = path.length > 1 ? path.replace(/\/+$/, '') : path;
   const isBlogPath = (p: string) => p === '/blog' || p.startsWith('/blog/') || p.startsWith('/blog?');
 
@@ -87,7 +92,7 @@ function route(request: NextRequest): NextResponse {
     // `/blog` targets go straight to the blog host, not through the 308 below,
     // so an old address is one hop.
     const target = oldSiteTarget(path);
-    // Absolute targets (the archive, the blog feed) are already one hop.
+    // Absolute targets (the archive) are already one hop.
     if (target && /^https?:\/\//.test(target)) return NextResponse.redirect(target, 301);
     if (target) {
       const to = blogOrigin && isBlogPath(target) ? `${blogOrigin}${target.slice(5) || '/'}` : `${selfOrigin(request)}${target}`;
@@ -126,6 +131,39 @@ function route(request: NextRequest): NextResponse {
   }
 
   return NextResponse.next();
+}
+
+/**
+ * blog.knowledgegraph.tech once the blog is `/blog` on the main site
+ * (`BLOG_ORIGIN` unset). Every address there is a 301 to its new one on the main
+ * site, in one hop and keeping the query (`?tag=`, `?category=`, `?page=`):
+ *
+ *   /                  → /blog
+ *   /<slug>, /write/…  → /blog/<slug>, /blog/write/…
+ *   /feed.xml          → /blog/feed.xml
+ *   /blog/…            → /blog/…   (old links that already had the prefix)
+ *   /tickets, /about…  → the same page, not under /blog
+ *   /robots.txt, files → the same file
+ *
+ * An old WordPress address among them (a speaker page, a category) goes where
+ * it goes on the main site. Only `/_next/` and `/api/` are still served, for a
+ * page that was open when the blog moved.
+ */
+function movedBlog(request: NextRequest): NextResponse {
+  const { pathname: path, search } = request.nextUrl;
+  if (path.startsWith('/_next/') || path.startsWith('/api/')) return NextResponse.next();
+  const bare = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  const first = bare.split('/')[1] ?? '';
+  let to: string;
+  if (bare === '/') to = '/blog';
+  else if (bare === '/feed.xml') to = '/blog/feed.xml';
+  else if (SIGN_IN_ALIASES.has(bare)) to = '/blog/write';
+  else if (first === '__site') to = bare.slice(7) || '/';
+  else if (first === 'blog' || MAIN_SITE_ROUTES.has(first) || passesThrough(bare)) to = bare;
+  else to = `/blog${bare}`;
+  const old = oldSiteTarget(to);
+  if (old) return NextResponse.redirect(/^https?:\/\//.test(old) ? old : `${mainOrigin()}${old}`, 301);
+  return NextResponse.redirect(`${mainOrigin()}${to}${search}`, 301);
 }
 
 /**

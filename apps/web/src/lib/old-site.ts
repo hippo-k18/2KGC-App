@@ -42,7 +42,8 @@ export const PAST_SPEAKER_YEARS: ReadonlySet<string> = new Set(PAST_YEARS.map((y
  * 2. `old-content-redirects.json`: one row per old address, from the SEO
  *    review's redirect-map.csv (`scripts/import-redirect-map.mjs` writes it).
  * 3. The feeds, to the blog's real feed rather than its home page, which feed
- *    readers cannot parse.
+ *    readers cannot parse. `/blog/feed.xml`, which the middleware sends on to
+ *    the blog host when the blog has one.
  * 4. Old content with a copy on archive.knowledgegraph.tech: sessions
  *    (`/blog/agenda/*`), 2019–2021 partner pages (`/blog/partners/*`) and 2019
  *    photos (`/blog/portfolio/*`) go to the same address there, with the
@@ -53,11 +54,7 @@ export const PAST_SPEAKER_YEARS: ReadonlySet<string> = new Set(PAST_YEARS.map((y
 export const ARCHIVE_ORIGIN = 'https://archive.knowledgegraph.tech';
 export const ARCHIVED_SECTIONS = ['/blog/agenda', '/blog/partners', '/blog/portfolio'];
 
-const FEEDS = new Set(['/feed', '/blog/feed']);
-
-function blogFeed(): string {
-  return `${(process.env.BLOG_ORIGIN || 'https://blog.knowledgegraph.tech').replace(/\/$/, '')}/feed.xml`;
-}
+const FEEDS = new Set(['/feed', '/blog/feed', '/comments/feed']);
 
 export function oldSiteTarget(path: string, env: Record<string, string | undefined> = process.env): string | null {
   const p = path.length > 1 ? path.replace(/\/+$/, '') : path;
@@ -68,7 +65,7 @@ export function oldSiteTarget(path: string, env: Record<string, string | undefin
   if (past) return past;
   const listed = (OLD_CONTENT as Record<string, string>)[p];
   if (listed) return listed;
-  if (FEEDS.has(p)) return blogFeed();
+  if (FEEDS.has(p)) return '/blog/feed.xml';
   for (const prefix of ARCHIVED_SECTIONS) {
     if (p.startsWith(prefix + '/')) return `${ARCHIVE_ORIGIN}${p}/`;
   }

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { separateBlogOrigin } from '@kgc/shared';
 import { listPublicPages, siteVisibility } from '@/lib/data';
 import { publicPosts } from '@/lib/blog/public';
 import { requestHost } from '@/lib/indexing';
@@ -16,7 +17,9 @@ const PAGES = [
 
 /**
  * One sitemap per host: the blog's posts on blog.knowledgegraph.tech, the
- * site's pages everywhere else. Empty on a host that is not indexable, so the
+ * site's pages everywhere else. Without a separate `BLOG_ORIGIN` the blog is
+ * `/blog` here, so its home and posts join the site's map, and the blog host's
+ * `/sitemap.xml` is a 301 to this one. Empty on a host that is not indexable, so the
  * disallow in `robots.ts` is not contradicted.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -31,7 +34,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
   }
 
-  const [show, pages] = await Promise.all([siteVisibility(), listPublicPages()]);
+  const [show, pages, posts] = await Promise.all([
+    siteVisibility(),
+    listPublicPages(),
+    separateBlogOrigin() ? [] : publicPosts(),
+  ]);
   const paths = [
     ...PAGES,
     ...(show.agenda ? ['/agenda'] : []),
@@ -51,5 +58,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.4,
       ...(s.modified ? { lastModified: s.modified } : {}),
     })),
+    ...(separateBlogOrigin()
+      ? []
+      : [
+          { url: `${origin}/blog`, changeFrequency: 'weekly' as const, priority: 0.8 },
+          ...posts.map((p) => ({ url: `${origin}/blog/${p.slug}`, lastModified: p.date })),
+        ]),
   ];
 }

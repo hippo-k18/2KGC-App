@@ -8,8 +8,9 @@ import { test as base, expect, type Page } from '@playwright/test';
  * `/agenda`, `/rooms` and `/speakers` can be switched off from the dashboard, which is
  * why `optional` pages may be off (see `switchedOff`) but must never answer 5xx.
  *
- * `/blog` is not here: since 2026-09-26 it redirects to blog.knowledgegraph.tech,
- * a separate host that this origin-bound gate does not cover.
+ * `/blog` is not here: while `BLOG_ORIGIN` is set it redirects to
+ * blog.knowledgegraph.tech, a separate host that this origin-bound gate does
+ * not cover. `01-pages.spec.ts` checks it in either configuration.
  */
 export const ROUTES: { path: string; optional?: boolean }[] = [
   { path: '/' },

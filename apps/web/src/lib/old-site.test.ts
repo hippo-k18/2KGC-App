@@ -38,7 +38,7 @@ describe('old WordPress addresses', () => {
     for (const path of LIVE) {
       const to = oldSiteTarget(path);
       if (!to) continue;
-      if (/^https:\/\//.test(to)) continue; // the archive and the blog feed, checked below
+      if (/^https:\/\//.test(to)) continue; // the archive, checked below
       const first = to.split(/[/?#]/)[1] ?? '';
       expect(first === '' || ROUTES.has(first), `${path} -> ${to}`).toBe(true);
     }
@@ -81,8 +81,13 @@ describe('old WordPress addresses', () => {
   });
 
   it('points the old feeds at the blog feed', () => {
-    expect(oldSiteTarget('/feed/')).toBe('https://blog.knowledgegraph.tech/feed.xml');
-    expect(oldSiteTarget('/blog/feed/')).toBe('https://blog.knowledgegraph.tech/feed.xml');
+    for (const p of ['/feed/', '/blog/feed/', '/comments/feed/']) expect(oldSiteTarget(p)).toBe('/blog/feed.xml');
+  });
+
+  it('never points at the blog host, which the middleware reaches from /blog when it is configured', () => {
+    for (const to of Object.values(JSON.parse(readFileSync(join(import.meta.dirname, 'old-content-redirects.json'), 'utf8')))) {
+      expect(to).not.toMatch(/blog\.knowledgegraph\.tech/);
+    }
   });
 });
 

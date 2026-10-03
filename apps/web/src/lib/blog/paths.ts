@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { headers } from 'next/headers';
-import { publicSiteOrigin } from '@kgc/shared';
+import { blogPublicOrigin, separateBlogOrigin } from '@kgc/shared';
 import { isBlogHost } from './host';
 
 /**
@@ -14,7 +14,7 @@ export async function blogBase(): Promise<string> {
 
 /** Did this request come in on the blog host? `next.config.ts` rewrites it, keeping the Host. */
 export async function isBlogRequest(): Promise<boolean> {
-  return isBlogHost((await headers()).get('host'));
+  return Boolean(separateBlogOrigin()) && isBlogHost((await headers()).get('host'));
 }
 
 export async function blogPath(path: string): Promise<string> {
@@ -22,11 +22,11 @@ export async function blogPath(path: string): Promise<string> {
   return base + (path === '/' ? (base ? '' : '/') : path);
 }
 
-/** The blog's absolute address, for emails. */
-export function blogOrigin(): string {
-  const own = process.env.BLOG_ORIGIN?.replace(/\/$/, '');
-  return own || `${publicSiteOrigin()}/blog`;
-}
+/**
+ * The blog's absolute address, for canonicals, the feed, share links and
+ * emails: its own host, or the main site's `/blog`.
+ */
+export const blogOrigin = () => blogPublicOrigin();
 
 export const blogUrl = (path: string) => blogOrigin() + (path === '/' ? '' : path);
 
