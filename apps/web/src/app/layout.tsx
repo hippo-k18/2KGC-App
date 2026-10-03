@@ -11,6 +11,7 @@ import { brandPalette, isHexColor, mixHex } from '@kgc/shared';
 import { brandingSettings, siteEvent } from '@/lib/data';
 import { canonicalOrigin } from '@/lib/event-jsonld';
 import { SITE } from '@/lib/site';
+import { openSans, roboto } from '@/fonts';
 import './globals.css';
 
 /**
@@ -160,7 +161,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const analytics = analyticsConfig();
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${openSans.variable} ${roboto.variable}`}>
       <head>
         <BrandStyle brandColor={branding.brandColor} accentColor={branding.accentColor} />
         {analytics && <script dangerouslySetInnerHTML={{ __html: analyticsBootScript(analytics) }} />}

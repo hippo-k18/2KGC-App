@@ -168,57 +168,20 @@
 }
 
 /*
- * Self-hosted, exactly as the real site serves them — not Google Fonts. The live
- * site serves these from its own origin, and adding a third-party font request
- * to a page that already has to show a cookie-consent banner would be adding a
- * consent problem in order to solve a typography one.
+ * The fonts are declared in `src/fonts/index.ts` (`next/font/local`), which
+ * preloads Open Sans, hashes the files for a long cache and gives each family a
+ * size-matched fallback so text does not move when the font arrives. The files
+ * and their descriptors are the ones this block used to declare:
+ *
+ * Open Sans as two variable faces, `wght` 300–800, upright and italic. The file
+ * those replaced was named `open-sans-400.woff2` and was really Open Sans Bold
+ * (`usWeightClass: 700`, checked with fontTools), so the whole site rendered at
+ * one heavy weight; keep the variable faces. Roboto 400, for the navigation
+ * only, which is the one family change on the real site.
+ *
+ * Still self-hosted rather than linked from Google: no third-party request for
+ * a typeface.
  */
-/*
- * Open Sans, self-hosted, as two variable files.
- *
- * The file this replaces was the problem behind "fix the fonts". It was named
- * `open-sans-400.woff2` and declared at `font-weight: 400`, and it was **Open
- * Sans Bold** — `usWeightClass: 700`, subfamily "Bold", checked with fontTools.
- * So every word of body copy on the site was being set in the Bold cut, and
- * every heading asking for 700 or 800 got that same Bold file with nothing left
- * to escalate to. The whole site rendered at one heavy weight, which is exactly
- * the flat, blunt look it had: no contrast between a paragraph and the heading
- * above it, because there was only ever one weight on the page.
- *
- * These two are the genuine variable faces, `wght` axis 300–800, one upright and
- * one italic. That makes the `300 800` descriptor correct — an earlier commit
- * removed exactly that range and was right to at the time, because the file it
- * described was static and claiming a range it could not serve. The file has
- * changed; the descriptor follows it.
- *
- * Still self-hosted rather than linked from Google: the site ships a
- * cookie-consent banner and a third-party font request is another entry in it.
- */
-@font-face {
-  font-family: 'Open Sans';
-  src: url('/kgc/fonts/open-sans-var.woff2') format('woff2-variations');
-  font-weight: 300 800;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Open Sans';
-  src: url('/kgc/fonts/open-sans-var-italic.woff2') format('woff2-variations');
-  font-weight: 300 800;
-  font-style: italic;
-  font-display: swap;
-}
-
-/* The navigation, and only the navigation, changes family on the real site. */
-@font-face {
-  font-family: 'Roboto';
-  src: url('/kgc/fonts/roboto-400.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -251,7 +214,7 @@ body {
   color: var(--body);
   /* `--palette-8`, not white: the real site's page background is faintly blue. */
   background: var(--palette-8);
-  font: 1rem/1.6 'Open Sans', sans-serif;
+  font: 1rem/1.6 var(--font-open-sans), sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -456,7 +419,7 @@ section.tint {
 /* Roboto here, and nowhere else. The one family change on the whole site. */
 .site-header nav a {
   color: var(--white);
-  font-family: Roboto, sans-serif;
+  font-family: var(--font-roboto), sans-serif;
   text-decoration: none;
   /*
    * 15px/24 weight 400 — the live nav's measured values, in px because they are
@@ -2067,7 +2030,7 @@ body.nav-open {
 
 .tier-title {
   /* Roboto 24 700 #333, centred — the widget's `section_title_style`. */
-  font-family: Roboto, sans-serif;
+  font-family: var(--font-roboto), sans-serif;
   font-size: 24px;
   font-weight: 700;
   line-height: 1.5;
@@ -5430,7 +5393,7 @@ section.tint {
 }
 
 .about-mission .mission-copy {
-  font-family: Roboto, sans-serif;
+  font-family: var(--font-roboto), sans-serif;
   font-size: 26px;
   line-height: 42px;
   color: var(--heading);
@@ -6075,7 +6038,7 @@ a.li-icon::after {
 }
 
 .learn-roster .role {
-  font-family: Roboto, sans-serif;
+  font-family: var(--font-roboto), sans-serif;
   font-size: 17px;
   font-weight: 500;
   line-height: 27px;
