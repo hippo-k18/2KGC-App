@@ -62,6 +62,10 @@ export function SiteHeader({
     if (blogOrigin && /^\/blog(\/|\?|$)/.test(href)) return `${blogOrigin}${href.slice(5) || '/'}`;
     return onBlog && href.startsWith('/') ? `${mainOrigin}${href}` : href;
   };
+  /** On this page or one of its subpages. Links with a query never match. */
+  const under = (href: string) => !href.includes('?') && (path === href || path.startsWith(`${href}/`));
+  // About KGC reads as current on any of its menu's own pages, as it does on /about.
+  const aboutChild = ABOUT_MENU.some((item) => !item.external && under(item.href));
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -212,7 +216,7 @@ export function SiteHeader({
               <Link
                 href={to('/about')}
                 className="menu-parent"
-                aria-current={path.startsWith('/about') ? 'page' : undefined}
+                aria-current={path.startsWith('/about') || aboutChild ? 'page' : undefined}
                 aria-haspopup="true"
                 onClick={() => setOpen(false)}
               >
@@ -227,7 +231,12 @@ export function SiteHeader({
                       {item.label}
                     </a>
                   ) : (
-                    <Link key={item.href} href={to(item.href)} onClick={() => setOpen(false)}>
+                    <Link
+                      key={item.href}
+                      href={to(item.href)}
+                      aria-current={under(item.href) ? 'page' : undefined}
+                      onClick={() => setOpen(false)}
+                    >
                       {item.label}
                     </Link>
                   ),

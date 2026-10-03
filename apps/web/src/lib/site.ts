@@ -232,12 +232,6 @@ export const NAV = [
    * not be two interactions away.
    */
   { href: '/agenda', label: 'Agenda' },
-  /*
-   * The 348 speakers from 2019 to 2024, at the owner's request (2026-10-01).
-   * Title case like the rest of this row. `Previous Events` stays in the
-   * About KGC menu.
-   */
-  { href: '/past-speakers', label: 'Past Speakers' },
   { href: '/sponsor', label: 'Sponsor KGC' },
   { href: '/blog', label: 'Blog' },
   { href: '/learn', label: 'Learn' },
@@ -284,6 +278,11 @@ export const ABOUT_MENU: readonly NavChild[] = [
    * for why they are not rebuilt here.
    */
   { href: '/previous-events', label: 'Previous Events' },
+  /*
+   * Beside Previous Events, the other way into past editions. It was a
+   * top-level item for a day (2026-10-01); the owner moved it here.
+   */
+  { href: '/past-speakers', label: 'Past Speakers' },
   {
     href: 'https://the-knowledge-graph-conference.myspreadshop.com/',
     label: 'KGC Store',

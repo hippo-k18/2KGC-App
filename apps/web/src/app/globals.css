@@ -480,22 +480,6 @@ section.tint {
 }
 
 /*
- * Between the hamburger (900px and down) and 1024 the row is tight: with
- * Agenda and Past Speakers both shown it wrapped onto two lines from 901 to
- * about 965px. Narrower side padding and gap in that band alone keep it on one
- * line down to the breakpoint; from 1024 up nothing changes.
- */
-@media (900px < width < 1024px) {
-  .site-header nav {
-    gap: 2px;
-  }
-
-  .site-header nav a:not(.btn) {
-    padding-inline: 7px;
-  }
-}
-
-/*
  * The header's "Register now" is a `.btn.btn-primary.btn-sm` that lives *inside*
  * `.site-header nav`, and the two rules above were quietly eating it.
  *
@@ -5829,6 +5813,12 @@ section.tint {
 .site-header nav .submenu a:hover {
   background: var(--palette-4);
   color: var(--palette-1);
+}
+
+/* The current page inside the menu: a bar at the left edge rather than the
+   top level's underline, which in a list read as a divider between two items. */
+.site-header nav .submenu a[aria-current='page'] {
+  box-shadow: inset 3px 0 0 var(--palette-4);
 }
 
 /* Listed so the live menu's shape is visible, but deliberately not a link. */
