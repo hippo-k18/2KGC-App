@@ -60,6 +60,13 @@ export const MONEY_ROUTES = ['/tickets', '/tickets/checkout', '/tickets/invoice'
  */
 export const SALES = (process.env.PREPUBLISH_SALES ?? 'open') as 'open' | 'closed' | 'off';
 
+/**
+ * `PREPUBLISH_ALLOW_WRITES=1` lets through the checks that create something in
+ * Stripe. Off by default, because the default target is the live site and its
+ * live key: a gate run must leave no customers, sessions or invoices behind.
+ */
+export const ALLOW_WRITES = process.env.PREPUBLISH_ALLOW_WRITES === '1';
+
 /** Text a visitor should never be able to read. Checked against rendered text. */
 export const BROKEN_TEXT: RegExp[] = [
   /\bundefined\b/,

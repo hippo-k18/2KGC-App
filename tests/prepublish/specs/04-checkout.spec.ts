@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { SALES, expect, fakeEmail, horizontalOverflow, parsePrice, readTiers, test } from '../helpers';
+import { ALLOW_WRITES, SALES, expect, fakeEmail, horizontalOverflow, parsePrice, readTiers, test } from '../helpers';
 
 /**
  * /tickets/checkout — the page that takes money.
@@ -306,7 +306,12 @@ test.describe(`sales are ${SALES} @tickets`, () => {
 /**
  * With sales open, the server is exercised for real. Each check here stops
  * before Stripe is asked for anything, except the last two, which create a
- * Checkout session (nothing is charged, and an unvisited session expires).
+ * Checkout session (nothing is charged, and an unvisited session expires) and
+ * so only run with PREPUBLISH_ALLOW_WRITES=1 (and PREPUBLISH_PAY=1 for the last).
+ *
+ * "Refuses two attendees on one address" was removed on 2026-10-03: the rule
+ * went on 2026-09-26, and from then on the test posted a valid form and opened
+ * a live Checkout Session on every run.
  */
 test.describe('server-side checks with sales open @tickets', () => {
   test.skip(SALES !== 'open', 'needs PREPUBLISH_SALES=open');
@@ -342,18 +347,6 @@ test.describe('server-side checks with sales open @tickets', () => {
     await expect(page.getByLabel('Attendee name')).toHaveValue('Ada Lovelace');
   });
 
-  test('refuses two attendees on one address', async ({ page }) => {
-    await openForm(page, 2);
-    const shared = fakeEmail('dup');
-    await page.getByLabel('Attendee name').fill('Ada Lovelace');
-    await page.getByLabel('Email address').first().fill(shared);
-    await page.locator('input[name="seatName"]').first().fill('Grace Hopper');
-    await page.locator('input[name="seatEmail"]').first().fill(shared.toUpperCase());
-    await answerQuestions(page);
-    await page.locator('form.checkout button.btn-primary').click();
-    await expect(alert(page)).toContainText(/appears twice/i);
-  });
-
   test('refuses an extra attendee with no name', async ({ page }) => {
     await openForm(page, 2);
     await page.getByLabel('Attendee name').fill('Ada Lovelace');
@@ -381,6 +374,7 @@ test.describe('server-side checks with sales open @tickets', () => {
   });
 
   test('hands off to Stripe for the right amount, with the email filled in', async ({ page }) => {
+    test.skip(!ALLOW_WRITES, 'creates a Stripe Checkout Session; set PREPUBLISH_ALLOW_WRITES=1');
     const tier = await openForm(page);
     const cents = await total(page);
     const email = fakeEmail('stripe');
@@ -400,7 +394,7 @@ test.describe('server-side checks with sales open @tickets', () => {
   });
 
   test('completes a purchase with the Stripe test card @pay', async ({ page }) => {
-    test.skip(process.env.PREPUBLISH_PAY !== '1', 'set PREPUBLISH_PAY=1 to pay with the 4242 test card');
+    test.skip(!ALLOW_WRITES || process.env.PREPUBLISH_PAY !== '1', 'set PREPUBLISH_ALLOW_WRITES=1 and PREPUBLISH_PAY=1 to pay with the 4242 test card');
     test.setTimeout(120_000);
     const tier = await openForm(page);
     const email = fakeEmail('paid');

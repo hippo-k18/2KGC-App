@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { postalCodeRequired, regionRequired } from '@/lib/invoice-core';
+import { SITE } from '@/lib/site';
 import { formatPrice, type Tier } from '@/lib/tickets';
 import { requestInvoice, type InvoiceState } from './actions';
 
@@ -32,9 +34,16 @@ const MAX_SEATS = 10;
 
 export function InvoiceForm({
   tiers,
+  countries,
   termsPublished = false,
 }: {
   tiers: Tier[];
+  /**
+   * The country picker, named on the server. Built here instead, the names came
+   * from two different ICU builds (Node's and the browser's), which disagree on
+   * a few, and the mismatch failed hydration.
+   */
+  countries: { code: string; name: string }[];
   /** Show the consent line naming the terms. Off until they are approved; see `lib/terms-core.ts`. */
   termsPublished?: boolean;
 }) {
@@ -50,7 +59,19 @@ export function InvoiceForm({
   const [nextKey, setNextKey] = useState(2);
   // The payer's fields too, for the same reason. The seats were controlled and
   // these were not, so one mistake cleared the company name and billing email.
-  const [payer, setPayer] = useState({ company: '', billingEmail: '', po: '', netDays: '30', note: '' });
+  const [payer, setPayer] = useState({
+    company: '',
+    billingEmail: '',
+    country: 'US',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    po: '',
+    netDays: '30',
+    note: '',
+  });
   const bind = (field: keyof typeof payer) => ({
     value: payer[field],
     onChange: (e: { target: { value: string } }) => setPayer((p) => ({ ...p, [field]: e.target.value })),
@@ -69,8 +90,8 @@ export function InvoiceForm({
       <h2 style={{ fontSize: '1.4rem' }}>Request an invoice</h2>
 
       {state.error && (
-        <p className="notice bad" role="alert">
-          {state.error}
+        <p className="notice bad" role="alert" style={{ overflowWrap: 'anywhere' }}>
+          {state.contact ? <WithContactLink text={state.error} /> : state.error}
         </p>
       )}
 
@@ -205,6 +226,84 @@ export function InvoiceForm({
         <p className="hint">Where the invoice goes. Often accounts payable, not you.</p>
       </div>
 
+      <h3 style={{ fontSize: '1.05rem', marginTop: 10 }}>Billing address</h3>
+      <p className="hint" style={{ marginTop: 0 }}>
+        Printed on the invoice. Stripe also uses it to work out the tax.
+      </p>
+
+      <div className="field">
+        <label htmlFor="country">Country</label>
+        <select id="country" name="country" autoComplete="billing country" {...bind('country')}>
+          {countries.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="addressLine1">Street address</label>
+        <input
+          id="addressLine1"
+          name="addressLine1"
+          required
+          maxLength={200}
+          autoComplete="billing address-line1"
+          {...bind('addressLine1')}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="addressLine2">Suite, floor or building (optional)</label>
+        <input
+          id="addressLine2"
+          name="addressLine2"
+          maxLength={200}
+          autoComplete="billing address-line2"
+          {...bind('addressLine2')}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="city">City</label>
+        <input
+          id="city"
+          name="city"
+          required
+          maxLength={200}
+          autoComplete="billing address-level2"
+          {...bind('city')}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="state">{regionLabel(payer.country)}</label>
+        <input
+          id="state"
+          name="state"
+          required={regionRequired(payer.country)}
+          maxLength={200}
+          autoComplete="billing address-level1"
+          {...bind('state')}
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="postalCode">
+          {payer.country === 'US' ? 'ZIP code' : 'Postal code'}
+          {postalCodeRequired(payer.country) ? '' : ' (optional)'}
+        </label>
+        <input
+          id="postalCode"
+          name="postalCode"
+          required={postalCodeRequired(payer.country)}
+          maxLength={12}
+          autoComplete="billing postal-code"
+          {...bind('postalCode')}
+        />
+      </div>
+
       <div className="field">
         <label htmlFor="po">Purchase order number (optional)</label>
         <input id="po" name="po" placeholder="PO-2027-0481" maxLength={30} {...bind('po')} />
@@ -258,6 +357,25 @@ export function InvoiceForm({
         subtotal above.
       </p>
     </form>
+  );
+}
+
+function regionLabel(country: string): string {
+  if (country === 'US') return 'State';
+  if (country === 'CA') return 'Province';
+  return 'State or region (optional)';
+}
+
+/** The error text with the contact address in it made into a link. */
+function WithContactLink({ text }: { text: string }) {
+  const at = text.indexOf(SITE.contactEmail);
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+      {text.slice(at + SITE.contactEmail.length)}
+    </>
   );
 }
 

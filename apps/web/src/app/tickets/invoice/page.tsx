@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { termsPublished } from '@/lib/terms-core';
 import Link from 'next/link';
 import { tiersOrNull } from '@/lib/catalogue';
+import { countryOptions } from '@/lib/invoice-core';
 import { SITE } from '@/lib/site';
 import { stripeEnabled } from '@/lib/stripe';
 import { InvoiceForm } from './invoice-form';
@@ -69,7 +70,7 @@ export default async function InvoicePage() {
                 whose submit can only refuse is twelve fields of wasted effort.
               */}
               {open ? (
-                <InvoiceForm tiers={tiers} termsPublished={termsPublished()} />
+                <InvoiceForm tiers={tiers} countries={countryOptions()} termsPublished={termsPublished()} />
               ) : (
                 <p className="notice">
                   Invoicing is not open yet. Email{' '}

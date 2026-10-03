@@ -14,7 +14,7 @@
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\"",
     "seed": "npm run seed --workspace=@kgc/scripts --",
     "import:whova": "npm run import:whova --workspace=@kgc/scripts --",
-    "test": "vitest run scripts/src app/src packages/shared apps/organizer/src/lib apps/web/src/lib/blog apps/web/src/lib/old-site apps/web/src/lib/indexing-core apps/web/src/lib/terms tests/qr tests/programme tests/parity tests/referrals",
+    "test": "vitest run scripts/src app/src packages/shared apps/organizer/src/lib apps/web/src/lib/blog apps/web/src/lib/old-site apps/web/src/lib/indexing-core apps/web/src/lib/terms apps/web/src/lib/invoice-core tests/qr tests/programme tests/parity tests/referrals",
     "test:functions": "npm run build --workspace=functions && firebase emulators:exec --only firestore,auth,functions \"npm run seed && vitest run tests/functions --no-file-parallelism\"",
     "claims": "npm run claims --workspace=@kgc/scripts --",
     "reconcile:sold": "npx tsx scripts/ops/reconcile-sold-counts.ts",
@@ -33,6 +33,7 @@
     "avatars:speakers": "npm run avatars:speakers --workspace=@kgc/scripts --",
     "rebuild:programme": "npm run rebuild:programme --workspace=@kgc/scripts --",
     "test:prepublish": "cd tests/prepublish && npx playwright test",
+    "test:invoice-e2e": "bash tests/prepublish/invoice-e2e/run.sh",
     "publish:web": "bash scripts/publish-web.sh"
   },
   "devDependencies": {

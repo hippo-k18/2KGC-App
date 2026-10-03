@@ -147,13 +147,13 @@ what gets tested):
 
 - A blank name is refused.
 - A malformed email is refused, and what was typed is kept.
-- Two attendees on one address are refused, including when the case differs.
 - An extra attendee with no name is refused, naming "Attendee 2".
 - A tier id that does not exist, posted directly, is refused.
-- A valid single-seat order reaches `checkout.stripe.com` showing "KGC 2027:
-  <tier>", the same amount the site showed, and the buyer's email. Nothing is
-  charged and the unvisited session expires.
-- With `PREPUBLISH_PAY=1` only: pays with the `4242` test card and expects the
+- With `PREPUBLISH_ALLOW_WRITES=1` only: a valid single-seat order reaches
+  `checkout.stripe.com` showing "KGC 2027: <tier>", the same amount the site
+  showed, and the buyer's email. Nothing is charged, but it creates a Checkout
+  Session, which on the live site is a live Stripe object.
+- With `PREPUBLISH_ALLOW_WRITES=1` and `PREPUBLISH_PAY=1` only: pays with the `4242` test card and expects the
   order page with the buyer's name and tier. It refuses to type a card unless
   Stripe shows **Test mode**, so it cannot run against a live key.
 
@@ -163,9 +163,12 @@ what gets tested):
 - Open: every field is labelled, payment terms are Net 14/30/45/60 with 30
   preselected, the PO field caps at 30 characters. Attendees add and remove,
   the subtotal follows, a seat's own ticket reprices only that seat, and the
-  form stops at ten. The server refuses a missing company, a bad billing email
-  and a duplicate attendee. A valid invoice is never submitted, because that
-  raises a real Stripe invoice and emails it.
+  form stops at ten. The billing address fields are there. The server refuses a
+  missing company, a bad billing email, a missing street address and a bad ZIP
+  code. A valid invoice is never submitted (every submit also carries an
+  invalid attendee), because that raises a real Stripe invoice and emails it.
+  The valid path, and the clean-up when Stripe refuses to finalize, are tested
+  against a fake Stripe by `tests/prepublish/invoice-e2e/run.sh`.
 
 **Sponsor and exhibitor packages (`/tickets/sponsor`, `/tickets/exhibitor`)**
 

@@ -14,11 +14,16 @@ import { defineConfig, devices } from '@playwright/test';
  *                     A mismatch fails the run, because a lost Stripe key and a
  *                     newly added one are both things to find out before
  *                     publishing, not after.
+ *   PREPUBLISH_ALLOW_WRITES  `1` runs the checks that create Stripe objects (a
+ *                     Checkout Session). Off by default: against the live site
+ *                     that is a live object on every run.
  *   PREPUBLISH_PAY    `1` completes a Stripe purchase with the 4242 test card,
  *                     and refuses to unless the Stripe page is in test mode.
+ *                     Needs PREPUBLISH_ALLOW_WRITES=1 as well.
  *
- * The default run never writes to Firestore and never sends an email. The
- * `local-fulfilment` project is the one exception and only runs on localhost.
+ * The default run never creates anything in Stripe and never sends an email.
+ * (The sign-in endpoint checks can write rate-limit counters for the test
+ * machine's IP.) The `local-fulfilment` project only runs on localhost.
  */
 const baseURL = (process.env.PREPUBLISH_URL ?? 'https://www.knowledgegraph.tech').replace(/\/$/, '');
 const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(baseURL);

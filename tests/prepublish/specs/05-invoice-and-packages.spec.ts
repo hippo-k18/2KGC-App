@@ -5,7 +5,8 @@ import { SALES, expect, fakeEmail, parsePrice, test } from '../helpers';
  * exhibitor package pages.
  *
  * ⚠️ The invoice form is only drawn with sales open, and a valid request raises a real Stripe invoice and
- * emails it, so the open-sales checks here only ever submit invalid forms.
+ * emails it, so the open-sales checks here only ever submit invalid forms. The valid path is covered
+ * against a fake Stripe in `tests/prepublish/invoice-e2e`.
  */
 
 test.describe('pay by invoice @tickets', () => {
@@ -27,7 +28,7 @@ test.describe('pay by invoice @tickets', () => {
     const form = page.locator('form#invoice');
     await expect(form).toBeVisible();
     await expect(form.getByRole('heading', { name: 'Request an invoice' })).toBeVisible();
-    for (const label of ['Full name', 'Email address', 'Ticket', 'Company name', 'Billing email', 'Payment terms']) {
+    for (const label of ['Full name', 'Email address', 'Ticket', 'Company name', 'Billing email', 'Country', 'Street address', 'City', 'ZIP code', 'Payment terms']) {
       await expect(form.getByLabel(label, { exact: false }).first(), label).toBeVisible();
     }
     const terms = await page.getByLabel('Payment terms').locator('option').allInnerTexts();
@@ -74,15 +75,21 @@ test.describe('pay by invoice @tickets', () => {
   });
 
 
-  test('refuses a missing company, bad billing email and duplicate attendees', async ({ page }) => {
+  /**
+   * Refusals only. Every submit here leaves the attendee invalid as well, so
+   * even if one of the server's checks went missing the request would still
+   * stop before Stripe. Until 2026-10-03 the last submit was a valid form (its
+   * duplicate-attendee rule was removed on 2026-09-26), and every gate run
+   * raised four live customers and draft invoices.
+   */
+  test('refuses a missing company, bad billing email and missing address', async ({ page }) => {
     test.skip(SALES !== 'open', 'server checks only run with sales open');
     const form = page.locator('form#invoice');
     await form.evaluate((f) => f.setAttribute('novalidate', ''));
     const alert = form.locator('[role="alert"]');
     const submit = page.getByRole('button', { name: 'Request invoice' });
 
-    await page.locator('input[name="seatName"]').first().fill('Prepublish Check');
-    await page.locator('input[name="seatEmail"]').first().fill(fakeEmail('inv'));
+    await page.locator('input[name="seatEmail"]').first().fill('not-an-email');
     await page.getByLabel('Billing email').fill(fakeEmail('ap'));
     await submit.click();
     await expect(alert).toContainText(/company name/i);
@@ -93,12 +100,16 @@ test.describe('pay by invoice @tickets', () => {
     await expect(alert).toContainText(/billing email/i);
 
     await page.getByLabel('Billing email').fill(fakeEmail('ap'));
-    await page.getByRole('button', { name: '+ Add another attendee' }).click();
-    const shared = await page.locator('input[name="seatEmail"]').first().inputValue();
-    await page.locator('input[name="seatName"]').nth(1).fill('Second Person');
-    await page.locator('input[name="seatEmail"]').nth(1).fill(shared);
     await submit.click();
-    await expect(alert).toContainText(/appears twice/i);
+    await expect(alert).toContainText(/street address/i);
+
+    await page.getByLabel('Street address').fill('1065 Avenue of the Americas');
+    await page.getByLabel('City').fill('New York');
+    await page.getByLabel('State', { exact: true }).fill('NY');
+    await page.getByLabel('ZIP code').fill('1001');
+    await submit.click();
+    await expect(alert).toContainText(/valid ZIP code/i);
+    await expect(page).toHaveURL(/\/tickets\/invoice/);
   });
 });
 

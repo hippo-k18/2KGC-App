@@ -3,7 +3,9 @@
 import { redirect } from 'next/navigation';
 import { tierById } from '@/lib/catalogue';
 import { sendInvoiceRaised } from '@/lib/email';
-import { raiseInvoice } from '@/lib/invoicing';
+import { addressProblemMessage, validateBillingAddress } from '@/lib/invoice-core';
+import { InvoiceError, raiseInvoice } from '@/lib/invoicing';
+import { SITE } from '@/lib/site';
 import { recordInvoiceOrder } from '@/lib/registrations';
 import { stripeEnabled } from '@/lib/stripe';
 import { ticketSalesOpen } from '@/lib/data';
@@ -15,7 +17,8 @@ import { EMAIL, MAX_SEATS, collectSeats, validateSeats } from '../seats-core';
  * The order of operations here is the whole design, and it is deliberate:
  *
  *   1. price every seat **on the server**, from the tier id;
- *   2. raise and send the invoice through Stripe;
+ *   2. set the billing address on the Stripe customer, then raise and send
+ *      the invoice (a failure before it is final deletes what it made);
  *   3. record it as a `pending` order so the dashboard can chase it;
  *   4. email the requester what happens next.
  *
@@ -32,6 +35,8 @@ import { EMAIL, MAX_SEATS, collectSeats, validateSeats } from '../seats-core';
 
 export interface InvoiceState {
   error?: string;
+  /** Show the contact address after the error: the buyer cannot fix this one. */
+  contact?: boolean;
 }
 
 export async function requestInvoice(
@@ -53,6 +58,19 @@ export async function requestInvoice(
   if (companyName.length < 2) return { error: 'Enter the company name to invoice.' };
   if (!EMAIL.test(billingEmail)) {
     return { error: 'Enter a valid billing email address.' };
+  }
+  const checked = validateBillingAddress({
+    line1: String(form.get('addressLine1') ?? ''),
+    line2: String(form.get('addressLine2') ?? ''),
+    city: String(form.get('city') ?? ''),
+    state: String(form.get('state') ?? ''),
+    postalCode: String(form.get('postalCode') ?? ''),
+    country: String(form.get('country') ?? ''),
+  });
+  if ('problem' in checked) {
+    return {
+      error: addressProblemMessage(checked.problem, String(form.get('country') ?? '').toUpperCase()),
+    };
   }
   if (![14, 30, 45, 60].includes(daysUntilDue)) return { error: 'Choose payment terms.' };
 
@@ -140,6 +158,7 @@ export async function requestInvoice(
     invoice = await raiseInvoice({
       billingEmail,
       companyName,
+      address: checked.address,
       seats,
       currency: invoiceCurrency,
       purchaseOrder: purchaseOrder || undefined,
@@ -147,11 +166,22 @@ export async function requestInvoice(
       note: note || undefined,
     });
   } catch (err) {
-    console.error('[invoice] Stripe invoice creation failed', err);
+    console.error('[invoice] Stripe invoice creation failed', err instanceof InvoiceError ? err.cause : err);
+    // Nothing is left in Stripe either way: raiseInvoice deletes the draft, and
+    // the customer if it made one, before it throws.
+    if (err instanceof InvoiceError && err.kind === 'address') {
+      return {
+        error:
+          'Stripe could not confirm that billing address for tax. Check the postal code and ' +
+          `country and try again, or email ${SITE.contactEmail} and we will raise the invoice by hand.`,
+        contact: true,
+      };
+    }
     return {
       error:
-        'We could not raise the invoice. Nothing has been charged or committed. ' +
-        'Please try again, or email us and we will do it by hand.',
+        'We could not raise the invoice. Nothing has been charged. Try again, or email ' +
+        `${SITE.contactEmail} and we will raise it by hand.`,
+      contact: true,
     };
   }
 
