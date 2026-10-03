@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
@@ -25,29 +27,84 @@ export const metadata: Metadata = {
  * one; the others have no KGC biography, and none is written for them here.
  */
 
-/** `external` is a Wikipedia article, opened in a new tab; otherwise a page on this site. */
-type Recipient = { name: string; href: string; external?: boolean };
+/**
+ * `external` is a Wikipedia article, opened in a new tab; otherwise a page on this site.
+ *
+ * `photo` is a square under `public/kgc/`, shown round. Where each came from
+ * (2026-10-03):
+ *
+ *   - Lassila, Vrandečić, McGuinness, Barabási, Sowa: their KGC speaker photos
+ *     (`/past-speakers`), as the old site published them.
+ *   - Hendler: cropped from KGC's own photograph of the 2026 award (the archived
+ *     awards page, `wp-content/uploads/2026/06/DSC07401`). He is holding his
+ *     certificate in it.
+ *   - Musen: cropped from KGC's own photograph of his 2025 award, from the old
+ *     site's media library (backup of 2026-09-26).
+ *   - Berners-Lee and Lenat: KGC has no photograph of either, so these are from
+ *     Wikimedia Commons under the licences in `credit`, which those licences
+ *     require to be shown with the photo.
+ */
+type Recipient = { name: string; href: string; external?: boolean; photo: string; credit?: ReactNode };
 
 const wiki = (article: string) => ({ href: `https://en.wikipedia.org/wiki/${article}`, external: true });
-const speaker = (slug: string) => ({ href: `/past-speakers/${slug}` });
+const speaker = (slug: string) => ({ href: `/past-speakers/${slug}`, photo: `/kgc/past-speakers/${slug}.webp` });
+const award = (file: string) => `/kgc/awards/${file}.webp`;
+
+const CC_BY_4 = 'https://creativecommons.org/licenses/by/4.0/';
+const CC_BY_SA_4 = 'https://creativecommons.org/licenses/by-sa/4.0/';
 
 const CURRENT = {
   year: 2026,
   recipients: [
-    { name: 'James Hendler', ...wiki('James_Hendler') },
+    { name: 'James Hendler', ...wiki('James_Hendler'), photo: award('james-hendler') },
     { name: 'Ora Lassila', ...speaker('ora-lassila') },
-    { name: 'Tim Berners-Lee', ...wiki('Tim_Berners-Lee') },
+    {
+      name: 'Tim Berners-Lee',
+      ...wiki('Tim_Berners-Lee'),
+      photo: award('tim-berners-lee'),
+      credit: (
+        <>
+          Photo:{' '}
+          <a href="https://commons.wikimedia.org/wiki/File:Tim_Berners-Lee_at_the_2025_Web_Summit_(Cropped).jpg">
+            Sam Barnes/Web Summit
+          </a>
+          , <a href={CC_BY_4}>CC BY 4.0</a>, cropped
+        </>
+      ),
+    },
   ] as Recipient[],
 };
 
 const PAST: { year: number; recipients: Recipient[] }[] = [
-  { year: 2025, recipients: [{ name: 'Mark Musen', ...wiki('Mark_Musen') }] },
-  { year: 2024, recipients: [{ name: 'Doug Lenat', ...wiki('Douglas_Lenat') }] },
+  { year: 2025, recipients: [{ name: 'Mark Musen', ...wiki('Mark_Musen'), photo: award('mark-musen') }] },
+  {
+    year: 2024,
+    recipients: [
+      {
+        name: 'Doug Lenat',
+        ...wiki('Douglas_Lenat'),
+        photo: award('doug-lenat'),
+        credit: (
+          <>
+            Photo: <a href="https://commons.wikimedia.org/wiki/File:Dbl-smiling.jpg">LordRedthorn</a>, cropped,{' '}
+            <a href={CC_BY_SA_4}>CC BY-SA 4.0</a>
+          </>
+        ),
+      },
+    ],
+  },
   { year: 2023, recipients: [{ name: 'Denny Vrandečić', ...speaker('denny-vrandecic-2') }] },
   { year: 2022, recipients: [{ name: 'Deborah McGuinness', ...speaker('deborah-mcguinness') }] },
   {
     year: 2021,
-    recipients: [{ name: 'Albert-László Barabási', ...speaker('albert-laszlo-barabasi') }],
+    recipients: [
+      {
+        name: 'Albert-László Barabási',
+        ...speaker('albert-laszlo-barabasi'),
+        // The photographer, as the old site's file name gave it.
+        credit: 'Photo: Lábady István, Hamu és Gyémánt',
+      },
+    ],
   },
   { year: 2020, recipients: [{ name: 'John F. Sowa', ...speaker('john-f-sowa') }] },
 ];
@@ -114,6 +171,20 @@ function RecipientLink({ recipient, className }: { recipient: Recipient; classNa
   );
 }
 
+/** One recipient: their photo, their name as a link, the year, and any photo credit. */
+function Laureate({ recipient: r, year }: { recipient: Recipient; year?: number }) {
+  return (
+    <figure className="laureate">
+      <Image className="laureate-photo" src={r.photo} alt={r.name} width={480} height={480} sizes="(width < 520px) 120px, 160px" />
+      <figcaption>
+        <RecipientLink recipient={r} className="laureate-name" />
+        {year ? <span className="laureate-year">{year}</span> : null}
+        {r.credit ? <span className="laureate-credit">{r.credit}</span> : null}
+      </figcaption>
+    </figure>
+  );
+}
+
 /** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
 export const revalidate = 30;
 
@@ -153,7 +224,7 @@ export default async function AwardsPage() {
           </h2>
           <div className="laureates">
             {CURRENT.recipients.map((r) => (
-              <RecipientLink key={r.name} recipient={r} className="laureate" />
+              <Laureate key={r.name} recipient={r} />
             ))}
           </div>
         </div>
@@ -164,17 +235,9 @@ export default async function AwardsPage() {
           <h2 className="kgc-h2-sm" style={{ marginBottom: 26 }}>
             Past recipients
           </h2>
-          {PAST.map((p) => (
-            <p key={p.year} className="learn-intro" style={{ marginBottom: 14 }}>
-              <strong>{p.year}:</strong>{' '}
-              {p.recipients.map((r, i) => (
-                <span key={r.name}>
-                  {i > 0 ? ', ' : ''}
-                  <RecipientLink recipient={r} />
-                </span>
-              ))}
-            </p>
-          ))}
+          <div className="laureates laureates-past">
+            {PAST.flatMap((p) => p.recipients.map((r) => <Laureate key={r.name} recipient={r} year={p.year} />))}
+          </div>
 
           {salesOpen && (
             <div style={{ marginTop: 40 }}>
