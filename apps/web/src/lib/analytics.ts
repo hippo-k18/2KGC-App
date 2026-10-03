@@ -41,7 +41,9 @@ export function analyticsConfig(env: Record<string, string | undefined> = proces
 /**
  * The inline boot script: consent check, the gtag stub, GA4 config, then both
  * loaders. `cookie_flags` makes the `_ga` cookies `Secure`, which gtag does not
- * do by default; the site is HTTPS-only, so nothing is lost. Runs while the page parses, before anything hydrates, so a purchase
+ * do by default; the site is HTTPS-only, so nothing is lost. `Lax` rather than
+ * the `None` gtag would pair with it: the cookies are first-party and have no
+ * reason to travel on another site's requests (the pentest spec checks this). Runs while the page parses, before anything hydrates, so a purchase
  * event queued by the order page lands in the same `dataLayer`.
  */
 export function analyticsBootScript({ ga4, gtm }: AnalyticsConfig): string {
@@ -49,7 +51,7 @@ export function analyticsBootScript({ ga4, gtm }: AnalyticsConfig): string {
 var off=n.doNotTrack==='1'||w.doNotTrack==='1'||n.msDoNotTrack==='1'||n.globalPrivacyControl===true;
 w.kgcAnalytics=!off;if(off)return;
 w.dataLayer=w.dataLayer||[];function gtag(){w.dataLayer.push(arguments);}w.gtag=gtag;
-gtag('js',new Date());gtag('config','${ga4}',{cookie_flags:'SameSite=None;Secure'});
+gtag('js',new Date());gtag('config','${ga4}',{cookie_flags:'SameSite=Lax;Secure'});
 function load(src){var s=d.createElement('script');s.async=true;s.src=src;d.head.appendChild(s);}
 load('https://www.googletagmanager.com/gtag/js?id=${ga4}');
 w.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
