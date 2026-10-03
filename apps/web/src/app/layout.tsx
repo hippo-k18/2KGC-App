@@ -6,7 +6,7 @@ import { separateBlogOrigin } from '@kgc/shared';
 import { mainSiteOrigin } from '@/lib/blog/host';
 import { SiteHeader } from '@/components/site-header';
 import { ConsentNotice } from '@/components/consent-notice';
-import { analyticsBootScript, analyticsConfig } from '@/lib/analytics';
+import { analyticsBootScript, analyticsConfig, consentNoticeOn } from '@/lib/analytics';
 import { brandPalette, isHexColor, mixHex } from '@kgc/shared';
 import { brandingSettings, siteEvent } from '@/lib/data';
 import { canonicalOrigin } from '@/lib/event-jsonld';
@@ -186,7 +186,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           mainOrigin={mainSiteOrigin()}
           blogOrigin={separateBlogOrigin()}
         />
-        {analytics && <ConsentNotice />}
+        {consentNoticeOn() && <ConsentNotice />}
         <ReferenceOverlay />
       </body>
     </html>

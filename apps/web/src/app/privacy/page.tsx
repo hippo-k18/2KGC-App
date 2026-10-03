@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { consentNoticeOn } from '@/lib/analytics';
 import { SITE } from '@/lib/site';
 
 /**
@@ -263,9 +264,16 @@ export default function PrivacyPage() {
             </p>
             <p>
               Analytics runs unless your browser sends Do Not Track or Global Privacy Control, in
-              which case none of it loads. A notice at the bottom of the page says the site uses
-              cookies. Choosing Accept or closing it hides it for a year; that choice is kept in
-              your browser, not in a cookie, and does not change what loads.
+              which case none of it loads.
+              {/* Only while the notice is shown (`consentNoticeOn`). */}
+              {consentNoticeOn() && (
+                <>
+                  {' '}
+                  A notice at the bottom of the page says the site uses cookies. Choosing Accept or
+                  closing it hides it for a year; that choice is kept in your browser, not in a
+                  cookie, and does not change what loads.
+                </>
+              )}
             </p>
           </>
         ) : (

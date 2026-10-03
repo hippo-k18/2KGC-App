@@ -15,8 +15,10 @@
  *
  * Consent follows the old site's Complianz setup: US opt-out. Tracking loads
  * unless the browser sends Do Not Track (Complianz honoured it) or Global
- * Privacy Control, and a notice with an Accept button sits in the corner until
- * it is dismissed. See `components/consent-notice.tsx`.
+ * Privacy Control. The old site's corner notice with an Accept button is in
+ * `components/consent-notice.tsx`, off since 2026-10-03 at the owner's request
+ * ("get rid of the cookie notice for now"); `consentNoticeOn()` brings it back.
+ * It never changed what loads.
  *
  * Server-side only by convention (this app has no NEXT_PUBLIC_* variables); the
  * layout passes the resolved ids down.
@@ -24,6 +26,15 @@
 export interface AnalyticsConfig {
   ga4: string;
   gtm: string;
+}
+
+/**
+ * Whether the cookie notice is shown: `CONSENT_NOTICE=on`, and only while
+ * analytics is on. The layout renders the notice and `/privacy` describes it
+ * from this one switch, so the page cannot describe a notice nobody sees.
+ */
+export function consentNoticeOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.CONSENT_NOTICE === 'on' && analyticsConfig(env) !== null;
 }
 
 const GA4 = /^G-[A-Z0-9]{4,16}$/;
