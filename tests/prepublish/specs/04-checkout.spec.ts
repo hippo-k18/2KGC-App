@@ -99,17 +99,25 @@ test.describe('checkout form @tickets', () => {
     await expect(page).toHaveURL(/\/tickets$/);
   });
 
-  test('no tier, or an unknown tier, shows a working picker', async ({ page }) => {
+  /*
+   * With no tier, or one that does not exist, the page falls back to the first
+   * tier in the catalogue (All Access today) with the picker open, rather than
+   * erroring (`checkout/page.tsx`). The radios are `tierChoice`; the posted
+   * `tier` is a hidden input that follows them.
+   */
+  test('no tier, or an unknown tier, defaults to the first tier with a working picker', async ({ page }) => {
     for (const url of ['/tickets/checkout', '/tickets/checkout?tier=not-a-real-tier']) {
       await test.step(url, async () => {
         await page.goto(url);
-        const radios = page.locator('fieldset.tier-choice input[type="radio"][name="tier"]');
+        const radios = page.locator('fieldset.tier-choice input[type="radio"][name="tierChoice"]');
         expect(await radios.count(), 'one radio per tier').toBeGreaterThanOrEqual(tiers.length);
         await expect(radios.and(page.locator(':checked'))).toHaveCount(1);
+        await expect(radios.and(page.locator(':checked'))).toHaveValue(tiers[0].id);
+        await expect(page.locator('input[type="hidden"][name="tier"]')).toHaveValue(tiers[0].id);
 
         // Picking each on-sale tier moves the rail and the total with it.
         for (const tier of tiers) {
-          await page.locator(`fieldset.tier-choice input[value="${tier.id}"]`).check();
+          await radios.and(page.locator(`[value="${tier.id}"]`)).check();
           await expect(page.locator('.order-rail .rail-tier')).toHaveText(tier.name);
           expect(await total(page)).toBe(tier.cents);
         }
@@ -137,7 +145,9 @@ test.describe('checkout form @tickets', () => {
     await expect(page.locator('.order-rail')).toContainText('Plus 2 more attendees');
 
     // Extra seats default to the buyer's tier.
-    for (const sel of await page.locator('select[name="seatTier"]').all()) await expect(sel).toHaveValue(t.id);
+    const seatTiers = page.locator('.seat-card select[id^="seatTier-"]');
+    await expect(seatTiers).toHaveCount(2);
+    for (const sel of await seatTiers.all()) await expect(sel).toHaveValue(t.id);
 
     // Typed values survive shrinking and growing again.
     await page.locator('input[name="seatName"]').first().fill('Grace Hopper');
@@ -163,7 +173,9 @@ test.describe('checkout form @tickets', () => {
     const [a, b] = tiers;
     await page.goto(`/tickets/checkout?tier=${a.id}`);
     await page.getByLabel('How many tickets?').selectOption('3');
-    await page.locator('select[name="seatTier"]').nth(1).selectOption(b.id);
+    // Extra seats' pickers are the selects in their cards; the posted
+    // `seatTier` is a hidden input beside each.
+    await page.locator('.seat-card select[id^="seatTier-"]').nth(1).selectOption(b.id);
     expect(await total(page), `${a.name} ×2 + ${b.name} ×1`).toBe(a.cents * 2 + b.cents);
     expect(await summaryTotal(page)).toBe(a.cents * 2 + b.cents);
   });
@@ -361,12 +373,12 @@ test.describe('server-side checks with sales open @tickets', () => {
     await openForm(page);
     await page.getByLabel('Attendee name').fill('Mallory Example');
     await page.getByLabel('Email address').first().fill(fakeEmail('forged'));
-    // Last, and on the input that is actually posted: the checked radio, or the
-    // hidden input when the tier is locked. React writes a controlled input's
-    // value back on every render, so a forgery made before typing is undone by
-    // the typing, and this test used to walk straight through to Stripe.
+    // Last, and on the input that is actually posted: the hidden `tier`, with
+    // the picker open or locked. React writes a controlled input's value back
+    // on every render, so a forgery made before typing is undone by the
+    // typing, and this test used to walk straight through to Stripe.
     await page
-      .locator('input[type="radio"][name="tier"]:checked, input[type="hidden"][name="tier"]')
+      .locator('input[type="hidden"][name="tier"]')
       .first()
       .evaluate((i) => ((i as HTMLInputElement).value = 'free-ticket'));
     await page.locator('form.checkout button.btn-primary').click();
