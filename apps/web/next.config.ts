@@ -37,6 +37,19 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: '4mb' } },
 
   /**
+   * Metadata in `<head>` for every reader, never streamed into `<body>`.
+   *
+   * On a page rendered per request (`/blog`, a blog post), Next sends the head
+   * first and streams the title, description and canonical into the body
+   * later, unless the user agent is on its list of bots that cannot run
+   * JavaScript. Googlebot and Lighthouse (whose mobile run sends a plain Chrome
+   * user agent) are not on that list, so Lighthouse reported the blog posts as
+   * having no meta description. Matching every user agent turns the streaming
+   * off; the static pages are unaffected, since theirs is in the head already.
+   */
+  htmlLimitedBots: /.*/,
+
+  /**
    * blog.knowledgegraph.tech is this app's `/blog` routes. Before the filesystem
    * check, so the blog host's `/` is the blog and not the home page. Paths with
    * a dot are files in `public/` and pass through; post slugs never have one.
