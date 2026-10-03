@@ -865,15 +865,23 @@ body.nav-open {
 /* ------------------------------------------------------------------- hero - */
 
 /*
- * Bryant Park from the Empire State Building, the 2027 venue. The crop keeps the
- * park and the midtown skyline in frame.
+ * Bryant Park from the Empire State Building, the 2027 venue: `.hero-photo`, an
+ * optimised `next/image` (see the home page). The crop keeps the park and the
+ * midtown skyline in frame. A banner saved on App Branding is set inline as
+ * the background instead, and then the photograph is not rendered.
  */
 .hero {
   position: relative;
   color: var(--white);
-  background: var(--palette-1) url('/kgc/bryant-park/from-empire-state-building.jpg') center 45% / cover no-repeat;
+  background: var(--palette-1) center 45% / cover no-repeat;
   padding: 0;
   isolation: isolate;
+}
+
+.hero-photo {
+  z-index: -2;
+  object-fit: cover;
+  object-position: center 45%;
 }
 
 /*

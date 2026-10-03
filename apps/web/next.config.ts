@@ -95,6 +95,15 @@ const nextConfig: NextConfig = {
    */
   distDir: process.env.WEB_DIST_DIR || '.next',
 
+  /**
+   * AVIF first, then WebP, for `next/image`. The home page's hero photograph is
+   * the largest thing on a phone's first screen, and AVIF is a third smaller
+   * than WebP at the same look. Quality 50 is the hero's (it sits under a 62%
+   * scrim, where 75 and 50 look the same at about 40% of the bytes); 75 is
+   * Next's default, for every other image.
+   */
+  images: { formats: ['image/avif', 'image/webp'], qualities: [50, 75] },
+
   /** The workspace packages ship raw `.ts`, so webpack has to compile them. */
   transpilePackages: ['@kgc/shared', '@kgc/scripts'],
 

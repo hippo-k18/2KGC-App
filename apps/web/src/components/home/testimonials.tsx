@@ -63,7 +63,7 @@ export function Testimonials({ heading, items }: { heading: string; items: Testi
                     </blockquote>
                     <figcaption>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={faceOf(t.file)} alt="" width={120} height={120} />
+                      <img src={faceOf(t.file)} alt="" width={120} height={120} loading="lazy" decoding="async" />
                       <span>
                         <strong>{name}</strong>
                         {employer && <b>{employer}</b>}

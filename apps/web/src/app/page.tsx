@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import {
   brandingSettings,
@@ -229,6 +230,31 @@ export default async function HomePage() {
             : undefined
         }
       >
+        {/*
+          The photograph as an image rather than a CSS background, so it is
+          resized and served as AVIF or WebP for the screen, and preloaded: it
+          is the largest thing on the first screen of a phone. On a portrait
+          screen the photograph covers a viewport-tall hero, so it is drawn
+          about 134vh wide; `sizes` asks for 83vh, a little over half that, and
+          the scrim over it hides the difference (checked side by side with the
+          original JPEG at Lighthouse's 412px, 1.75x phone). Quality 50 for the
+          same reason (see `images` in `next.config.ts`). Together they make a
+          phone's hero 113 KiB instead of the original's 1,452. `priority`
+          preloads it but does not raise its fetch priority, hence
+          `fetchPriority`.
+        */}
+        {!branding.bannerUrl && (
+          <Image
+            src="/kgc/bryant-park/from-empire-state-building.jpg"
+            alt=""
+            fill
+            priority
+            fetchPriority="high"
+            quality={50}
+            sizes="(max-aspect-ratio: 4/3) 83vh, 100vw"
+            className="hero-photo"
+          />
+        )}
         {/* The node-and-edge field over the photograph — see `graph-field.tsx`. */}
         <GraphField />
         <div className="wrap">

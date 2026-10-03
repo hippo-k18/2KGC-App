@@ -168,6 +168,9 @@ export function SiteHeader({
                 alt="Knowledge Graph Conference"
                 width={2048}
                 height={763}
+                // 56px tall in the stylesheet, so 151px wide. Without `sizes`
+                // every page fetched the 3840px rendition for it.
+                sizes="151px"
                 priority
               />
             )}
