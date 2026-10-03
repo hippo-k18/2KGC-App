@@ -118,7 +118,15 @@ const IGNORED_CONSOLE: RegExp[] = [
  * these hosts in its text; an error from anywhere else, first-party included,
  * still fails the test.
  */
-const THIRD_PARTY_HOSTS = ['aplo-evnt.com', 'apollo.io', 'googletagmanager.com', 'google-analytics.com'];
+const THIRD_PARTY_HOSTS = [
+  'aplo-evnt.com',
+  'apollo.io',
+  'googletagmanager.com',
+  'google-analytics.com',
+  // GA4's collect endpoints.
+  'analytics.google.com',
+  'stats.g.doubleclick.net',
+];
 
 const isThirdPartyHost = (host: string) =>
   THIRD_PARTY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
