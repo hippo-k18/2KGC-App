@@ -110,6 +110,33 @@ const IGNORED_CONSOLE: RegExp[] = [
   /\[Fast Refresh\]/,
 ];
 
+/**
+ * Third-party analytics and marketing hosts, loaded by the owner's Google Tag
+ * Manager container rather than by this site. Their console errors (Apollo's
+ * `aplo-evnt.com` pixel answers 400 on every page) are the vendor's, so they
+ * are not counted. Matched on the host the error came from, or a URL of one of
+ * these hosts in its text; an error from anywhere else, first-party included,
+ * still fails the test.
+ */
+const THIRD_PARTY_HOSTS = ['aplo-evnt.com', 'apollo.io', 'googletagmanager.com', 'google-analytics.com'];
+
+const isThirdPartyHost = (host: string) =>
+  THIRD_PARTY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+
+/** Did this console error come from one of `THIRD_PARTY_HOSTS`? */
+export function fromThirdParty(text: string, sourceUrl: string): boolean {
+  const hosts = [sourceUrl, ...(text.match(/https?:\/\/[^\s'"),]+/g) ?? [])].flatMap((u) => {
+    try {
+      return [new URL(u).hostname];
+    } catch {
+      return [];
+    }
+  });
+  // An error whose text names a URL is about that URL, wherever it was logged.
+  const named = hosts.slice(1);
+  return named.length ? named.every(isThirdPartyHost) : hosts.some(isThirdPartyHost);
+}
+
 export interface PageProblems {
   consoleErrors: string[];
   pageErrors: string[];
@@ -139,6 +166,7 @@ export const test = base.extend<{
         if (msg.type() !== 'error') return;
         const text = msg.text();
         if (IGNORED_CONSOLE.some((re) => re.test(text))) return;
+        if (fromThirdParty(text, msg.location().url)) return;
         // A 404 the test asked for also logs "Failed to load resource".
         if (/Failed to load resource: the server responded with a status of (\d+)/.test(text)) {
           const code = Number(RegExp.$1);
