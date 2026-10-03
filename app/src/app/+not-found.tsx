@@ -11,12 +11,13 @@ export default function NotFoundScreen() {
       <Screen grouped>
         <EmptyState
           icon="exclamationmark.triangle"
-          title="This screen doesn't exist"
-          message="The route you followed isn't part of the app."
+          title="Page not found"
         />
-        <Link href="/agenda" style={{ textAlign: 'center' }}>
+        {/* Padded to `HIT_TARGET`: drawn as bare text this is a 22pt line, and
+            it is the only way off the screen. */}
+        <Link href="/home" style={{ textAlign: 'center', paddingVertical: 11 }}>
           <Text tone="tint" variant="heading">
-            Go to the agenda
+            Go to Home
           </Text>
         </Link>
       </Screen>

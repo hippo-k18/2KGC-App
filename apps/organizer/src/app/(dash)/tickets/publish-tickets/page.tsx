@@ -3,9 +3,13 @@ import { requireOrganizer } from '@/lib/auth';
 import { listOrders, listTicketTypes, money } from '@/lib/commerce';
 import { getForm } from '@/lib/question-forms';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
+import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { publicUrl } from '@/lib/webpages';
+import { setSiteVisibilityAction } from '../../marketing/event-website/actions';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { Banner, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { wrapCol } from '../wrap-col';
+import { salesWindowText } from '@/lib/sales-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,11 +46,13 @@ interface Check {
 export default async function PublishTicketsPage() {
   await requireOrganizer();
 
-  const [tickets, orders, form] = await Promise.all([
+  const [tickets, orders, form, branding] = await Promise.all([
     listTicketTypes(),
     listOrders(),
     getForm('attendee'),
+    readSettings(SETTINGS_KEYS.branding),
   ]);
+  const salesOpen = branding.showTickets;
 
   const attendee = tickets.filter((t) => t.audience === 'attendee');
   const listed = attendee.filter((t) => t.visible);
@@ -56,7 +62,8 @@ export default async function PublishTicketsPage() {
     (t) =>
       !(t.salesOpenAt && new Date(t.salesOpenAt).getTime() > now) &&
       !(t.salesCloseAt && new Date(t.salesCloseAt).getTime() < now) &&
-      !(typeof t.quantityTotal === 'number' && t.quantitySold >= t.quantityTotal),
+      !(typeof t.quantityTotal === 'number' && t.quantitySold >= t.quantityTotal) &&
+      !t.offSale,
   );
 
   const freeAndVisible = listed.filter((t) => t.priceCents === 0);
@@ -93,16 +100,15 @@ export default async function PublishTicketsPage() {
           every one of them. It fails closed now, and this says so.
         */
         <>
-          <code>STRIPE_SECRET_KEY</code> is unset, so nothing can be bought. The pay button on{' '}
-          <code>/tickets</code> is disabled and checkout refuses before it reads a tier, no sale
-          completes without a processor.
+          No payment processor is connected, so nothing can be bought. The pay button on the
+          ticket page is disabled.
         </>
       ) : stripeIsLive() ? (
         <>Live key. Cards will be charged.</>
       ) : (
         <>
-          Test key (<code>sk_test_…</code>). Real cards are declined; test cards succeed and take no
-          money. This is the right state for everything except selling.
+          Stripe is in test mode. Real cards are declined and test cards take no money. Switch to
+          live before selling.
         </>
       ),
     },
@@ -111,13 +117,12 @@ export default async function PublishTicketsPage() {
       state: emailEnabled() ? 'pass' : 'fail',
       detail: emailEnabled() ? (
         <>
-          <code>RESEND_API_KEY</code> is set. Receipts carry the claim code that turns a purchase
-          into an app account.
+          Receipts carry the claim code that turns a purchase into an app account.
         </>
       ) : (
         <>
-          No provider configured. Every send is logged as <code>skipped</code>, so a buyer gets a
-          ticket and <strong>no claim code</strong>, which is a support ticket per sale.
+          No email provider is connected, so a buyer gets a ticket and{' '}
+          <strong>no claim code</strong>.
         </>
       ),
     },
@@ -140,17 +145,16 @@ export default async function PublishTicketsPage() {
       detail:
         form.fields.length === 0 ? (
           <>
-            No questions are asked. Dietary requirements and accessibility needs are catering and
-            venue decisions with a deadline.{' '}
-            <Link href="/tickets/ticket-setup/1-2-question-forms">Worth asking before you sell</Link>
-            , because collecting them afterwards means chasing everybody.
+            No questions are asked.{' '}
+            <Link href="/tickets/ticket-setup/1-2-question-forms">Add dietary and accessibility questions</Link>{' '}
+            before you sell.
           </>
         ) : form.active ? (
           <>{form.fields.length} questions are asked before checkout.</>
         ) : (
           <>
             {form.fields.length} questions are written but switched off, so nobody is asked. Turn
-            them on before the first sale or the answers are lost for everybody who buys early.
+            them on before the first sale.
           </>
         ),
     },
@@ -182,7 +186,7 @@ export default async function PublishTicketsPage() {
         ) : (
           <>
             {demoOrders} demo {demoOrders === 1 ? 'order is' : 'orders are'} in the ledger. They
-            carry <code>channel: &apos;demo&apos;</code> and are excluded from every takings figure. Real, visible, and not counted as money.
+            are left out of every sales figure.
           </>
         ),
     },
@@ -197,12 +201,10 @@ export default async function PublishTicketsPage() {
         title="Publish Tickets"
         info={
           <>
-            <strong>There is no publish button</strong>
+            <strong>Ticket sales switch</strong>
             <p>
-              A tier with <code>visible: true</code> is on the public page at the next request, no
-              deploy and no switch. A button here would either do nothing or become a fourth place
-              that decides whether a ticket is on sale. The pre-flight below is what a publish step
-              is actually for.
+              While ticket sales are open, a ticket goes on sale as soon as it is listed in Create
+              Tickets. Use the checks below before you open sales or list one.
             </p>
           </>
         }
@@ -238,15 +240,41 @@ export default async function PublishTicketsPage() {
             {blockers.length} blocking {blockers.length === 1 ? 'problem' : 'problems'} on the live
             ticket page.
           </strong>{' '}
-          Tickets are on sale now, so somebody can hand over money while{' '}
+          {salesOpen ? 'Tickets are on sale now' : 'Fix before opening sales'}, or somebody can hand over money while{' '}
           {blockers.length === 1 ? 'this is' : 'these are'} unfixed. Each one is marked{' '}
           <strong>stop</strong> in the pre-flight below.
         </Banner>
       )}
 
+      <Panel>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 15, margin: 0 }}>Ticket sales on the website</h2>
+          <Tag color={salesOpen ? 'green' : 'grey'} small>
+            {salesOpen ? 'open' : 'closed'}
+          </Tag>
+          <form action={setSiteVisibilityAction} style={{ marginLeft: 'auto' }}>
+            <input type="hidden" name="field" value="showTickets" />
+            <input type="hidden" name="show" value={salesOpen ? '0' : '1'} />
+            <button type="submit" className={`whova-btn-main ${salesOpen ? 'secondary' : 'primary'}`}>
+              {salesOpen ? 'Close ticket sales' : 'Open ticket sales'}
+            </button>
+          </form>
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
+          {salesOpen
+            ? 'Listed tickets can be bought on the website.'
+            : 'The website shows no prices and no "Register now" buttons, and the ticket pages say sales have not opened.'}{' '}
+          A change reaches the website within a minute.
+        </p>
+      </Panel>
+
       <StatTiles
         tiles={[
-          { label: 'Buyable now', value: openNow.length, sub: `of ${attendee.length} tiers` },
+          {
+            label: 'Buyable now',
+            value: salesOpen ? openNow.length : 0,
+            sub: salesOpen ? `of ${attendee.length} tiers` : 'ticket sales are closed',
+          },
           { label: 'Blocking', value: blockers.length, sub: blockers.length ? 'money will go wrong' : 'none' },
           { label: 'Warnings', value: warnings.length, sub: 'works, looks unfinished' },
           {
@@ -267,7 +295,7 @@ export default async function PublishTicketsPage() {
             { key: 'c', label: 'Check', className: 'cell-md' },
             { key: 'd', label: '', className: 'cell-fill' },
           ]}
-          rows={checks.map((c) => [
+          rows={wrapCol(checks.map((c) => [
             <Tag
               key="s"
               small
@@ -279,12 +307,11 @@ export default async function PublishTicketsPage() {
             <span key="d" style={{ fontSize: 13 }}>
               {c.detail}
             </span>,
-          ])}
+          ]), 2)}
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           <strong>stop</strong> means somebody will pay and something will go wrong.{' '}
-          <strong>look</strong> means it will work and look unfinished. Collapsing the two into one
-          &ldquo;ready&rdquo; light is how a real blocker gets clicked past.
+          <strong>look</strong> means it will work and look unfinished.
         </p>
       </Panel>
 
@@ -308,9 +335,7 @@ export default async function PublishTicketsPage() {
               </span>
             ),
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {t.salesOpenAtLocal || t.salesCloseAtLocal
-                ? `${t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} → ${t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}`
-                : 'always'}
+              {salesWindowText(t)}
             </span>,
           ])}
           empty="Nothing is buyable right now. See the pre-flight above."

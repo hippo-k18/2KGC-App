@@ -1,0 +1,562 @@
+{
+  "features": [
+    {
+      "area": "Tickets",
+      "feature": "See sponsor packages and prices",
+      "path": "/tickets/sponsor-ticket-setup/sponsor-tickets",
+      "what": "Lists each sponsor package with price, sold count and sales window, with an Edit link to the ticket form.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Sponsor Tickets.",
+        "Click Edit on a package. It opens the form on 1.1 Create Tickets.",
+        "Change name, price or capacity.",
+        "Click Save changes."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-catalogue.tsx",
+        "apps/organizer/src/app/(dash)/tickets/sponsor-ticket-setup/sponsor-tickets/page.tsx"
+      ],
+      "statusNote": "The form is the attendee ticket form. It has no sponsor fields such as banner placement."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Set free passes per sponsor package",
+      "path": "/tickets/sponsor-ticket-setup/sponsor-tickets",
+      "what": "Sets how many complimentary passes each sponsor package includes.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Sponsor Tickets.",
+        "Scroll to Complimentary passes each package includes.",
+        "Pick the Package. Enter Complimentary passes.",
+        "Click Save pass count."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/sponsor-ticket-setup/sponsor-tickets/actions.ts",
+        "apps/organizer/src/lib/comp-passes.ts"
+      ],
+      "statusNote": "The count saves. No pass can be issued yet because no sponsor order can be made."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Issue a sponsor pass to a named person",
+      "path": "/tickets/sponsor-ticket-setup/sponsor-tickets",
+      "what": "Turns one of a sponsor's included passes into a real registration for a named person.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Sponsor Tickets.",
+        "Under Passes to be named, click Name N more on the sponsorship.",
+        "Enter Attendee name and Email address. Leave Email them their ticket ticked to send the confirmation.",
+        "Click Issue pass.",
+        "To fix a typo, edit the name on the seat and click Save."
+      ],
+      "status": "blocked",
+      "statusNote": "Needs a sponsor order and none can be made. Sponsor checkout waits on a payment account, and 2.6 Offline Payment lists exhibitor packages only, so a sponsor order cannot be recorded by hand. Passes to be named is empty.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/sponsor-ticket-setup/sponsor-tickets/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/sponsor-ticket-setup/sponsor-tickets/[orderId]/page.tsx",
+        "apps/organizer/src/lib/comp-passes.ts",
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-6-offline-payment/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Ask sponsors questions at checkout",
+      "path": "/tickets/sponsor-ticket-setup/question-forms",
+      "what": "Builds the question form sponsors fill in when they buy, and switches it on or off.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Question Forms.",
+        "Under Add a question, enter the Question and pick an Answer type.",
+        "Tick Required if needed. Pick packages under Ask only on, or select none for all.",
+        "Click Add question.",
+        "Click Start asking to turn the form on.",
+        "Click Move up to reorder. Click Remove to delete a question."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/question-form-actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/question-form-screen.tsx",
+        "apps/organizer/src/lib/question-forms.ts",
+        "apps/web/src/lib/question-forms.ts"
+      ],
+      "statusNote": "Questions save and the form switches on, and a question can depend on an earlier answer. No sponsor can finish checkout until a payment account is connected, so no answers come in."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Check sponsor receipt emails",
+      "path": "/tickets/sponsor-ticket-setup/confirmation-emails",
+      "what": "Shows every receipt sent to a sponsor buyer and whether it failed.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Confirmation Emails.",
+        "Read the Status column. Click Transaction History for the failure reason."
+      ],
+      "status": "view-only",
+      "statusNote": "The email wording cannot be edited and a failed receipt cannot be resent from here.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-registration.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Sponsor discount codes",
+      "path": "/tickets/sponsor-ticket-setup/discount-codes",
+      "what": "Points to the single discount code list that all checkouts share.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Discount Codes.",
+        "Click Discount Codes (all audiences)."
+      ],
+      "status": "view-only",
+      "statusNote": "No sponsor-only codes. The page is a link to Ticket Setup > Discount Codes.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/sponsor-ticket-setup/discount-codes/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Check sponsor sales windows and caps",
+      "path": "/tickets/sponsor-ticket-setup/registration-settings",
+      "what": "Shows open date, close date, capacity and listing state for each sponsor package.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Registration Settings.",
+        "To change a value, click Edit on Sponsor Tickets and change the package."
+      ],
+      "status": "view-only",
+      "statusNote": "Nothing is editable here. Settings are changed on the ticket form.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-registration.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Preview the sponsor registration page",
+      "path": "/tickets/sponsor-ticket-setup/registration-page",
+      "what": "Shows which sponsor packages the public page lists, in what order, and links to the live page.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Registration Page.",
+        "Click View the live page."
+      ],
+      "status": "view-only",
+      "statusNote": "Page copy and layout cannot be edited from the dashboard.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-registration.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Get a sponsor registration link for partners",
+      "path": "/tickets/sponsor-ticket-setup/registration-widget",
+      "what": "Gives the plain link to the sponsor page and points to tracked links.",
+      "steps": [
+        "Open Tickets > Sponsor Ticket Setup > Registration Widget.",
+        "Copy the Plain link.",
+        "For a credited link, click Campaign Link Tracking and create a code."
+      ],
+      "status": "view-only",
+      "statusNote": "There is no embeddable widget, only a link to copy.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-registration.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "See payouts and balance",
+      "path": "/tickets/payout",
+      "what": "Shows Stripe balance, pending amount and the list of payouts to the bank.",
+      "steps": [
+        "Open Tickets > Payout.",
+        "Read Available, Pending and the Payouts table.",
+        "Click Stripe payouts to open Stripe."
+      ],
+      "status": "blocked",
+      "statusNote": "Waiting on a payment account, so the balance and payouts show a dash and the table is empty.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/payout/page.tsx",
+        "apps/organizer/src/lib/payouts.ts",
+        "apps/organizer/src/lib/stripe.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Pre-flight check before selling tickets",
+      "path": "/tickets/publish-tickets",
+      "what": "Runs checks on the live ticket page and lists what would go wrong for a buyer.",
+      "steps": [
+        "Open Tickets > Publish Tickets.",
+        "Read the Pre-flight table. Fix every row marked stop.",
+        "Click The live page to see what buyers see."
+      ],
+      "status": "view-only",
+      "statusNote": "There is no publish switch. Tickets go live when a tier is visible. The check reports stop because no payment account is connected, so nobody can pay.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/publish-tickets/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Send a ticket email campaign",
+      "path": "/tickets/ticket-marketing/email-campaign",
+      "what": "Sends a plain-text email to a contact list, with a test send first.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Email Campaign.",
+        "Click the list tab you want.",
+        "Enter Subject and Message.",
+        "Tick Send me a test first, enter your address, click Send test.",
+        "Untick it. Type the recipient count, enter the Dashboard passphrase, click Send to N."
+      ],
+      "status": "partial",
+      "statusNote": "Only mail to the account owner is delivered until the event has its own sending address, so only a test send to that address arrives. Every other recipient fails.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/email-campaign/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/email-campaign/campaign-form.tsx",
+        "apps/organizer/src/lib/campaigns.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Import and manage marketing contacts",
+      "path": "/tickets/ticket-marketing/campaign-contact-list",
+      "what": "Imports a CSV of contacts into a named list and unsubscribes or re-subscribes people.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Campaign Contact List.",
+        "Enter a List name.",
+        "Choose a CSV file or paste the rows. It needs an Email column.",
+        "Click Check the file. Review the preview.",
+        "Click Import N contacts.",
+        "Click Unsubscribe on a row to stop mailing that person. Click Re-subscribe to undo."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/campaign-contact-list/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/campaign-contact-list/import-form.tsx",
+        "apps/organizer/src/lib/campaigns.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Create tracked links",
+      "path": "/tickets/ticket-marketing/campaign-link-tracking",
+      "what": "Creates short /r/ links that count clicks and credit ticket orders to a campaign.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Campaign Link Tracking.",
+        "Under New link, enter a Code and a Label.",
+        "Pick the page under Goes to.",
+        "Click Create link.",
+        "Click Retire to switch a link off, Restore to bring it back."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/link-actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/campaign-link-tracking/page.tsx",
+        "apps/web/src/app/r/[code]/route.ts"
+      ],
+      "statusNote": "Links save and clicks count. Orders are credited at checkout, which waits on a payment account, so the orders column stays at 0."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Run a referral leaderboard",
+      "path": "/tickets/ticket-marketing/referral-contest",
+      "what": "Gives a speaker or partner their own link and ranks referrers by orders.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Referral Contest.",
+        "Under Give somebody a referral link, enter Code, Label and Referrer.",
+        "Click Create link. Send the /r/ link to that person.",
+        "Read the Leaderboard."
+      ],
+      "status": "partial",
+      "statusNote": "Links save and clicks count. The leaderboard ranks by orders, and no order can be credited until a payment account is connected. No prizes. Referrers cannot see their own numbers.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/referral-contest/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/link-actions.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Make links for social posts",
+      "path": "/tickets/ticket-marketing/social-sharing",
+      "what": "Creates one tracked link per social channel and shows clicks by channel.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Social Sharing.",
+        "Under New channel link, enter Code and Label, pick the page and the Channel.",
+        "Click Create link. Paste the /r/ link into your post.",
+        "Read By channel for results."
+      ],
+      "status": "partial",
+      "statusNote": "It only makes links. Nothing is posted or scheduled. Order credit waits on a payment account.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/social-sharing/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/link-actions.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Event listing copy",
+      "path": "/tickets/ticket-marketing/event-listing",
+      "what": "Shows the event name, dates, venue and links to paste into calendar submissions.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Event Listing.",
+        "Copy the values under What a listing would say."
+      ],
+      "status": "view-only",
+      "statusNote": "There is no marketplace listing. The page is reference copy only.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/event-listing/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Check the website before a campaign",
+      "path": "/tickets/ticket-marketing/event-website",
+      "what": "Lists what looks unfinished on the public site, such as draft sessions and speakers with no photo.",
+      "steps": [
+        "Open Tickets > Ticket Marketing > Event Website.",
+        "Read Data-driven pages for problems.",
+        "Click Open the site to check."
+      ],
+      "status": "view-only",
+      "statusNote": "Site pages cannot be edited here.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-marketing/event-website/page.tsx",
+        "apps/organizer/src/lib/webpages.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "See ticket revenue",
+      "path": "/tickets/orders-and-transactions/summary",
+      "what": "Shows net revenue, tickets sold, refunds, unpaid invoices and sales by ticket type and day.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Summary."
+      ],
+      "status": "view-only",
+      "statusNote": "Read only by design. Test purchases are excluded, so every figure is $0 today.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/summary/page.tsx",
+        "apps/organizer/src/lib/commerce.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Find an order and export orders",
+      "path": "/tickets/orders-and-transactions/attendee-orders",
+      "what": "Searches and filters all orders and downloads them as CSV.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Attendee Orders.",
+        "Type a name, email, company or PO number. Click Search.",
+        "Click Paid, Unpaid, Part refunded, Refunded or Cancelled to filter.",
+        "Click Export CSV."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/page.tsx",
+        "apps/organizer/src/app/export/[kind]/route.ts"
+      ],
+      "statusNote": "Only 2 test purchases exist today."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Refund an order",
+      "path": "/tickets/orders-and-transactions/attendee-orders",
+      "what": "Refunds a card order in full and cancels the ticket.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Attendee Orders.",
+        "Click Refund on the order.",
+        "Type the amount to confirm. Enter the Dashboard passphrase and a reason.",
+        "Click Refund $N."
+      ],
+      "status": "blocked",
+      "statusNote": "Waiting on a payment account, so refunds are disabled. Full refunds only, even once one is connected.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/order-actions.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Mark an invoice paid",
+      "path": "/tickets/orders-and-transactions/attendee-orders",
+      "what": "Marks a pending invoice as paid by wire or cheque and issues the tickets.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Attendee Orders.",
+        "Click Unpaid.",
+        "Click Mark paid on the invoice.",
+        "Enter the PO number or who approved it, and the Dashboard passphrase.",
+        "Click Issue tickets now."
+      ],
+      "status": "blocked",
+      "statusNote": "Invoices are raised by the payment account, and none is connected, so no invoice exists to mark paid. Unpaid shows 0.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/attendee-orders/actions.ts",
+        "apps/organizer/src/lib/invoice-admin.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "See exhibitor orders",
+      "path": "/tickets/orders-and-transactions/exhibitor-orders",
+      "what": "Lists orders that contain exhibitor packages and the share of revenue from them.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Exhibitor Orders.",
+        "Click an order to open it in Attendee Orders."
+      ],
+      "status": "view-only",
+      "statusNote": "Refund and mark paid live on Attendee Orders.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-orders.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "See sponsor orders",
+      "path": "/tickets/orders-and-transactions/sponsor-orders",
+      "what": "Lists orders that contain sponsor packages and the share of revenue from them.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Sponsor Orders.",
+        "Click an order to open it in Attendee Orders."
+      ],
+      "status": "view-only",
+      "statusNote": "Refund and mark paid live on Attendee Orders.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/audience-orders.tsx",
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/sponsor-orders/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Transaction and email log",
+      "path": "/tickets/orders-and-transactions/transaction-history",
+      "what": "Shows every purchase, refund, invoice and email in one timeline, with failures.",
+      "steps": [
+        "Open Tickets > Orders and Transactions > Transaction History.",
+        "Type a name, email or subject. Click Search.",
+        "Click Purchases, Refunds, Invoices or Emails to filter."
+      ],
+      "status": "view-only",
+      "statusNote": "A failed email cannot be resent from here.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/transaction-history/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Compare ticket tiers",
+      "path": "/tickets/attendee-customization/ticket-tiering",
+      "what": "Shows every ticket with price, sold count and what it includes.",
+      "steps": [
+        "Open Tickets > Attendee Customization > Ticket Tiering.",
+        "To change a tier, open Tickets > Ticket Setup > 1.1 Create Tickets."
+      ],
+      "status": "view-only",
+      "statusNote": "No editing here and no scheduled price changes.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/attendee-customization/ticket-tiering/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Give a ticket type its own attendee category",
+      "path": "/tickets/attendee-customization/attendee-categories",
+      "what": "Sets a rule so that buying a given ticket puts that person in a category. A category set by hand is never overwritten by a rule.",
+      "steps": [
+        "Open Tickets > Attendee Customization > Attendee Categories.",
+        "Pick the ticket type.",
+        "Pick the category it should assign.",
+        "Click Save.",
+        "Check somebody’s row on Attendees > Manage Attendees > Attendees."
+      ],
+      "status": "works",
+      "statusNote": "",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/attendee-customization/attendee-categories/page.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Get registrations into HubSpot, MemberClicks or another CRM",
+      "path": "/tickets/hubspot-connection-guide",
+      "what": "Explains how to move attendee data into a CRM by CSV.",
+      "steps": [
+        "Open Tickets > HubSpot connection guide (or MemberClicks connection guide, or Export to AMS/CRM).",
+        "Click Analytics & Exports.",
+        "Download the attendee, order or speaker CSV.",
+        "Import the file in the CRM."
+      ],
+      "status": "view-only",
+      "statusNote": "No live sync. These three pages are instructions for a manual CSV export.",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/hubspot-connection-guide/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/memberclicks-connection-guide/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/export-to-ams-crm/page.tsx",
+        "apps/organizer/src/app/(dash)/integration-guide.tsx"
+      ]
+    }
+  ],
+  "uiIssues": [
+    {
+      "path": "/tickets/orders-and-transactions/transaction-history",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "Failed emails print the raw provider response in the table: '403 {\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails...\"}'.",
+      "fix": "Show a short reason such as \"Sending domain not verified\" and keep the raw response behind a details toggle.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-b/s1280/tickets_orders_and_transactions_transaction_history-1280-s0.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/orders-and-transactions/transaction-history/page.tsx"
+    },
+    {
+      "path": "/tickets/ticket-marketing/email-campaign",
+      "width": 1280,
+      "severity": "medium",
+      "type": "spacing",
+      "issue": "Subject is a 150px unstyled box that cuts off its own placeholder, and the message box is 180px wide on a 1000px panel. The confirm label reads \"Type3to confirm\" with no spaces.",
+      "fix": "Use the standard form input style at full width, and add spaces around the count in the label.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-b/s1280/tickets_ticket_marketing_email_campaign-1280-s0.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/ticket-marketing/email-campaign/campaign-form.tsx"
+    },
+    {
+      "path": "/tickets/export-to-ams-crm",
+      "width": 1280,
+      "severity": "medium",
+      "type": "other",
+      "issue": "The Export to AMS/CRM page is titled for AMS/CRM but talks about Zapier and says \"Import it into Zapier with their own import tool\", which makes no sense. The MemberClicks page title says \"export guide\" while the menu says \"connection guide\".",
+      "fix": "Write this page for a generic CRM export and match the page title to the menu label.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-b/b/tickets_export_to_ams_crm-1280.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/export-to-ams-crm/page.tsx"
+    },
+    {
+      "path": "/tickets/payout",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "Banner text runs two words together: \"what was soldrather than what has landed\".",
+      "fix": "Add the missing space after the italic word.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-b/a/tickets_payout-1280.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/payout/page.tsx"
+    },
+    {
+      "path": "/tickets/sponsor-ticket-setup/registration-settings",
+      "width": 1280,
+      "severity": "low",
+      "type": "hierarchy",
+      "issue": "Empty Opens and Closes cells show two long dashes run together, with no gap between the columns.",
+      "fix": "Show \"Always\" or leave the cell blank, and add cell padding.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-b/a/tickets_sponsor_ticket_setup_registration_settings-1280.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/audience-registration.tsx"
+    },
+    {
+      "path": "/tickets/ticket-marketing/referral-contest",
+      "width": 1280,
+      "severity": "low",
+      "type": "ai-voice",
+      "issue": "Seeded link labels use long dashes, for example \"Speaker referral\" then a dash then \"Ada Lovelace\". Also on campaign-link-tracking and campaign-contact-list.",
+      "fix": "Replace the dashes in the demo data with a colon or comma.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-b/a/tickets_ticket_marketing_referral_contest-1280.png"
+    },
+    {
+      "path": "/tickets/payout",
+      "width": 390,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "In \"Why sold and paid out differ\" whole sentences sit inside a sideways-scrolling column and are cut mid-line. The last column header also sits past the right edge with no name.",
+      "fix": "Take the explanation out of the table and name the last column.",
+      "source": "round one review, remaining problem 4"
+    }
+  ],
+  "verified": true
+}

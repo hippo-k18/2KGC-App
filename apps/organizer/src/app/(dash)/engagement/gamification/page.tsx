@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { eventAnalytics } from '@/lib/exports';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles } from '../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel, StatTiles } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,12 +39,7 @@ export default async function GamificationPage() {
         info={
           <>
             <strong>Nothing is scored yet</strong>
-            <p>
-              A score has to be written by something the scorer does not control, which means a
-              Firestore trigger. Those are written and tested, and deploying them needs one IAM
-              grant only the project owner can make.
-            </p>
-            <p>Check-in is the one event already recorded server-side and safe to score.</p>
+            <p>Points, scoring rules and the leaderboard are not available yet.</p>
           </>
         }
         links={[
@@ -59,8 +54,8 @@ export default async function GamificationPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Points awarded', value: 0, sub: 'not inputted yet' },
-          { label: 'Scoring rules', value: 0, sub: 'not inputted yet' },
+          { label: 'Points awarded', value: 0 },
+          { label: 'Scoring rules', value: 0 },
           {
             label: 'Could appear on a leaderboard',
             value: a.ticketHoldersSignedIn,
@@ -71,12 +66,10 @@ export default async function GamificationPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Leaderboard</h2>
-        <NotInputted what="scoring rules" />
-        <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          Of the four things a conference normally awards points for, one (turning up at the door) is recorded server-side and could be scored honestly today. A leaderboard built on that
-          single signal ranks attendees by attendance, which is a list the{' '}
-          <Link href="/attendees/check-in-and-checkout/check-in">check-in desk</Link> already has.
-        </p>
+        <EmptyState>
+          <p className="empty-title">No leaderboard yet</p>
+          <p className="empty-sub">Points and scoring rules are not available yet.</p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

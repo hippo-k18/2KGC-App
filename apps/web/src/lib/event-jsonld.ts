@@ -1,4 +1,4 @@
-import { EVENT, localWallClockToIso, publicSiteOrigin } from '@kgc/shared';
+import { EVENT, localWallClockToIso, publicSiteOrigin, type EventType } from '@kgc/shared';
 import type { AgendaDay } from './data';
 import type { Tier } from './tickets';
 
@@ -70,6 +70,12 @@ export interface EventJsonLdInput {
    * markup would be describing a page by its neighbour's contents.
    */
   includeSessions?: boolean;
+  /**
+   * The name, venue and time zone saved on Content > Basics, from `siteEvent()`.
+   * Omitted, the constants in `@kgc/shared` stand. `savedEventType` is set only
+   * when an organizer has chosen one, and then it decides the attendance mode.
+   */
+  event?: { name: string; venue: string; timeZone: string; savedEventType?: EventType };
 }
 
 /**
@@ -83,7 +89,7 @@ export interface EventJsonLdInput {
  * to feed a crawler is how a site ends up advertising the wrong week. A search
  * result with no rich card is a smaller failure than one with wrong dates.
  */
-function eventWindow(agenda: AgendaDay[]): { start: string; end: string } | null {
+function eventWindow(agenda: AgendaDay[], timeZone: string): { start: string; end: string } | null {
   /*
    * Only sessions whose wall clocks convert. One malformed record must not take
    * the whole block down — a conference losing its rich result because a single
@@ -93,8 +99,8 @@ function eventWindow(agenda: AgendaDay[]): { start: string; end: string } | null
   const starts: string[] = [];
   const ends: string[] = [];
   for (const s of agenda.flatMap((d) => d.sessions)) {
-    const start = localWallClockToIso(s.startsAtLocal, EVENT.timeZone);
-    const end = localWallClockToIso(s.endsAtLocal, EVENT.timeZone);
+    const start = localWallClockToIso(s.startsAtLocal, timeZone);
+    const end = localWallClockToIso(s.endsAtLocal, timeZone);
     if (!start || !end) continue;
     starts.push(start);
     ends.push(end);
@@ -117,33 +123,60 @@ function eventWindow(agenda: AgendaDay[]): { start: string; end: string } | null
 }
 
 /**
- * Where the conference is, as far as this project actually knows.
+ * Street addresses for the venues this event has used, keyed by venue name.
  *
- * `EVENT.venue` is `'Cornell Tech, Roosevelt Island, New York, NY'` — one
- * string, shared by the app and both websites so they cannot disagree. It is
- * split for the `PostalAddress` rather than being restated, because a second
- * copy of the venue is a second thing to update and the one that gets forgotten
- * is always the invisible one.
+ * `EVENT.venue` is `'Jay Conference Bryant Park, New York, NY'`, one string
+ * shared by the app and both websites, and it holds no street address. Search
+ * engines want one (the SEO review found the venue name in `streetAddress`),
+ * so the address is looked up here by the venue's name. A venue the organizers
+ * type into Content > Basics that is not in this table gets the old split of the
+ * string, without a street number, rather than somebody else's address.
+ *
+ * Source: Jay Conference's own Bryant Park brochure
+ * (jaysuites.com/wp-content/uploads/2025/05/jay-conference-brochure-bryant-park.pdf):
+ * "109 West 39th Street, 2nd Floor & Concourse Level, New York, NY 10018".
  */
-function venue(): JsonLd {
-  const parts = EVENT.venue.split(',').map((p) => p.trim());
+const VENUE_ADDRESSES: Record<string, { streetAddress: string; addressLocality: string; addressRegion: string; postalCode: string }> = {
+  'jay conference bryant park': {
+    streetAddress: '109 West 39th Street, 2nd Floor & Concourse Level',
+    addressLocality: 'New York',
+    addressRegion: 'NY',
+    postalCode: '10018',
+  },
+};
+
+function venue(venueName: string): JsonLd {
+  const parts = venueName.split(',').map((p) => p.trim());
+  const known = VENUE_ADDRESSES[parts[0].toLowerCase()];
+  if (known) {
+    return {
+      '@type': 'Place',
+      name: parts[0],
+      address: { '@type': 'PostalAddress', ...known, addressCountry: 'US' },
+    };
+  }
   const region = parts.length > 1 ? parts[parts.length - 1] : undefined;
   const locality = parts.length > 2 ? parts[parts.length - 2] : undefined;
   const street = parts.slice(0, Math.max(1, parts.length - 2)).join(', ');
 
   return {
     '@type': 'Place',
-    name: EVENT.venue,
+    name: venueName,
     address: {
       '@type': 'PostalAddress',
-      // No postcode and no street number: nothing in this repo holds one, and
-      // schema.org would rather have three true fields than five with two guesses.
       streetAddress: street,
       addressLocality: locality,
       addressRegion: region,
       addressCountry: 'US',
     },
   };
+}
+
+/** The last day a phase price holds: the day before the next phase starts. */
+function dayBefore(day: string): string | undefined {
+  const t = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(t)) return undefined;
+  return new Date(t - 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -157,7 +190,7 @@ function venue(): JsonLd {
  * availability comes from the same field the disabled button does, and the two
  * cannot drift.
  *
- * `price` is `priceCents / 100` and the currency is upper-cased — Stripe stores
+ * `price` is the current phase's `priceCents / 100` and the currency is upper-cased — Stripe stores
  * `usd` and schema.org wants ISO 4217's `USD`.
  */
 function offers(tiers: Tier[], origin: string): JsonLd[] {
@@ -172,6 +205,9 @@ function offers(tiers: Tier[], origin: string): JsonLd[] {
     // The tier id travels in this query parameter already — it is what the
     // ticket cards link to and what `startCheckout` reads back.
     url: `${origin}/tickets?tier=${encodeURIComponent(t.id)}`,
+    // `priceCents` is the current phase's price (`catalogue.ts`), so the offer
+    // steps up with the tickets page; this says until when it holds.
+    ...(t.risesOn && dayBefore(t.risesOn) ? { priceValidUntil: dayBefore(t.risesOn) } : {}),
   }));
 }
 
@@ -184,11 +220,11 @@ function offers(tiers: Tier[], origin: string): JsonLd[] {
  * a second format, exactly the names already visible on the page. A crawler and
  * a reader seeing different speakers for the same talk would be the defect.
  */
-function sessionEvents(agenda: AgendaDay[], pageUrl: string): JsonLd[] {
+function sessionEvents(agenda: AgendaDay[], pageUrl: string, timeZone: string): JsonLd[] {
   return agenda.flatMap((day) =>
     day.sessions.flatMap((s): JsonLd[] => {
-      const startDate = localWallClockToIso(s.startsAtLocal, EVENT.timeZone);
-      const endDate = localWallClockToIso(s.endsAtLocal, EVENT.timeZone);
+      const startDate = localWallClockToIso(s.startsAtLocal, timeZone);
+      const endDate = localWallClockToIso(s.endsAtLocal, timeZone);
       // A session whose wall clock will not parse is dropped rather than
       // published with an empty `startDate`. It still renders on the page, where
       // a person can see the times are wrong; a crawler cannot.
@@ -222,7 +258,8 @@ function sessionEvents(agenda: AgendaDay[], pageUrl: string): JsonLd[] {
  * rather than as two conferences with the same name.
  */
 export function eventJsonLd(input: EventJsonLdInput): JsonLd | null {
-  const window = eventWindow(input.agenda);
+  const event = input.event ?? EVENT;
+  const window = eventWindow(input.agenda, event.timeZone);
   if (!window) return null;
 
   const { origin, pageUrl, tiers, description } = input;
@@ -236,8 +273,14 @@ export function eventJsonLd(input: EventJsonLdInput): JsonLd | null {
    */
   const hasVirtual = tiers.some((t) => !t.inPerson);
   const hasInPerson = tiers.some((t) => t.inPerson);
-  const attendanceMode =
-    hasVirtual && hasInPerson
+  const saved = input.event?.savedEventType;
+  const attendanceMode = saved
+    ? {
+        hybrid: 'https://schema.org/MixedEventAttendanceMode',
+        virtual: 'https://schema.org/OnlineEventAttendanceMode',
+        'in-person': 'https://schema.org/OfflineEventAttendanceMode',
+      }[saved]
+    : hasVirtual && hasInPerson
       ? 'https://schema.org/MixedEventAttendanceMode'
       : hasVirtual
         ? 'https://schema.org/OnlineEventAttendanceMode'
@@ -249,12 +292,12 @@ export function eventJsonLd(input: EventJsonLdInput): JsonLd | null {
     '@context': 'https://schema.org',
     '@type': 'Event',
     '@id': `${origin}/#event`,
-    name: EVENT.name,
+    name: event.name,
     description,
     startDate: window.start,
     endDate: window.end,
     eventStatus: 'https://schema.org/EventScheduled',
-    location: venue(),
+    location: venue(event.venue),
     image: [`${origin}/hero-kgc.png`],
     url: `${origin}/`,
     mainEntityOfPage: pageUrl,
@@ -274,9 +317,21 @@ export function eventJsonLd(input: EventJsonLdInput): JsonLd | null {
   };
 
   if (attendanceMode) node.eventAttendanceMode = attendanceMode;
+  /*
+   * Google's Event guidelines: a mixed event lists both its Place and a
+   * VirtualLocation, an online one only the VirtualLocation. The virtual
+   * attendee's way in is a ticket, so its URL is the tickets page on this
+   * site's own origin.
+   */
+  const online = { '@type': 'VirtualLocation', url: `${origin}/tickets` };
+  if (attendanceMode === 'https://schema.org/MixedEventAttendanceMode') {
+    node.location = [node.location, online];
+  } else if (attendanceMode === 'https://schema.org/OnlineEventAttendanceMode') {
+    node.location = online;
+  }
   if (tiers.length > 0) node.offers = offers(tiers, origin);
   if (input.includeSessions) {
-    const subEvents = sessionEvents(input.agenda, pageUrl);
+    const subEvents = sessionEvents(input.agenda, pageUrl, event.timeZone);
     if (subEvents.length > 0) node.subEvent = subEvents;
   }
 

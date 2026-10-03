@@ -3,8 +3,10 @@ import type { ReactNode } from 'react';
 import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, recentEmails } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { stampOfInstant } from '@/lib/time';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 import { PUBLIC_PAGE } from './audience-catalogue';
+import { wrapCol } from './wrap-col';
 
 /**
  * The registration page, widget, settings and confirmation screens, for one
@@ -75,11 +77,11 @@ export async function AudienceRegistrationPage({
         title={title}
         info={
           <>
-            <strong>The page is data; the copy is code</strong>
+            <strong>What updates on this page</strong>
             <p>
-              Packages, prices, inclusion lists, sold-out state and sales windows are read from{' '}
-              <code>ticketTypes</code> on every request. Headings and the surrounding argument are
-              React components in <code>apps/web</code> and change with a deploy.
+              Packages, prices, inclusion lists, sold-out state and sales windows update as soon as
+              they are edited in Create Tickets. Headings and other wording cannot be edited from
+              the dashboard yet.
             </p>
           </>
         }
@@ -104,7 +106,7 @@ export async function AudienceRegistrationPage({
           <strong>
             <code>{path}</code> is live and has nothing to sell.
           </strong>{' '}
-          A visitor reaching it is offered an email address instead of a package. List a tier in{' '}
+          Visitors see a contact email address instead of a package. List a tier in{' '}
           <Link href={ROUTES.createTickets}>Create Tickets</Link> to open sales.
         </Banner>
       )}
@@ -209,12 +211,8 @@ export async function AudienceRegistrationWidget({
         title={title}
         info={
           <>
-            <strong>There is no embed snippet</strong>
-            <p>
-              The marketing site and the checkout are one deployment, so anywhere a widget would go,
-              a link to <code>{path}</code> goes instead. A partner site selling KGC packages is
-              what would need a real embed, and the requirements would come from that partner.
-            </p>
+            <strong>An embeddable widget is not available yet</strong>
+            <p>Link to the registration page instead.</p>
           </>
         }
         tags={<Tag color="grey">No embed</Tag>}
@@ -240,7 +238,7 @@ export async function AudienceRegistrationWidget({
             { key: 'w', label: 'What', className: 'cell-md' },
             { key: 'v', label: 'Use this', className: 'cell-fill' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Plain link',
               <a key="v" href={`${publicSiteOrigin()}${path}`} target="_blank" rel="noreferrer">
@@ -251,15 +249,14 @@ export async function AudienceRegistrationWidget({
             [
               'Credited link',
               <span key="v">
-                Give the partner their own <code>/r/</code> code on{' '}
+                Give the partner their own tracked link on{' '}
                 <Link href="/tickets/ticket-marketing/campaign-link-tracking">
                   Campaign Link Tracking
                 </Link>
-                . Clicks are counted by the redirect and a purchase within thirty days is credited
-                back to it.
+                . Clicks are counted, and a purchase within thirty days is credited to the link.
               </span>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 
@@ -297,7 +294,7 @@ export async function AudienceRegistrationSettings({
   const noun = AUDIENCE_LABEL[audience];
   const tiers = (await listTicketTypes()).filter((t) => t.audience === audience);
   // The event's wall clock, not the UTC instant — see `TicketTypeRow`.
-  const fmt = (local?: string) => (local ? local.slice(0, 10) : '—');
+  const fmt = (local?: string) => (local ? local.slice(0, 10) : 'Always');
 
   return (
     <>
@@ -305,12 +302,10 @@ export async function AudienceRegistrationSettings({
         title={title}
         info={
           <>
-            <strong>These settings live on the package, not on the event</strong>
+            <strong>These settings are set per package</strong>
             <p>
-              Sales windows, capacity and visibility are per tier, checked on every catalogue read
-              and again at checkout. Edit them in{' '}
-              <Link href={ROUTES.createTickets}>Create Tickets</Link>; there is deliberately no
-              second editor here.
+              Sales windows, capacity and visibility belong to each package. Edit them in{' '}
+              <Link href={ROUTES.createTickets}>Create Tickets</Link>.
             </p>
           </>
         }
@@ -324,45 +319,46 @@ export async function AudienceRegistrationSettings({
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Per-package settings that are enforced</h2>
-        <Table
-          cols={[
-            { key: 'n', label: 'Package', className: 'cell-md' },
-            { key: 'o', label: 'Opens', className: 'cell-sm' },
-            { key: 'c', label: 'Closes', className: 'cell-sm' },
-            { key: 'q', label: 'Capacity', className: 'cell-sm' },
-            { key: 'v', label: 'Listing', className: 'cell-fill' },
-          ]}
-          rows={tiers.map((t) => [
-            t.name,
-            fmt(t.salesOpenAtLocal),
-            fmt(t.salesCloseAtLocal),
-            typeof t.quantityTotal === 'number' ? (
-              <span key="q">
-                {t.quantitySold}/{t.quantityTotal}
-              </span>
-            ) : (
-              <span key="q" className="muted">
-                unlimited
-              </span>
-            ),
-            t.visible ? (
-              <Tag key="v" color="green" small>
-                listed
-              </Tag>
-            ) : (
-              <Tag key="v" color="grey" small>
-                link only
-              </Tag>
-            ),
-          ])}
-          empty={<NotInputted what={`${noun} packages`} compact />}
-        />
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Per-package settings</h2>
+        {tiers.length === 0 ? (
+          <NotInputted what={`${noun} packages`} compact />
+        ) : (
+          <Table
+            cols={[
+              { key: 'n', label: 'Package', className: 'cell-md' },
+              { key: 'o', label: 'Opens', className: 'cell-sm' },
+              { key: 'c', label: 'Closes', className: 'cell-sm' },
+              { key: 'q', label: 'Capacity', className: 'cell-sm' },
+              { key: 'v', label: 'Listing', className: 'cell-fill' },
+            ]}
+            rows={tiers.map((t) => [
+              t.name,
+              fmt(t.salesOpenAtLocal),
+              fmt(t.salesCloseAtLocal),
+              typeof t.quantityTotal === 'number' ? (
+                <span key="q">
+                  {t.quantitySold}/{t.quantityTotal}
+                </span>
+              ) : (
+                <span key="q" className="muted">
+                  unlimited
+                </span>
+              ),
+              t.visible ? (
+                <Tag key="v" color="green" small>
+                  listed
+                </Tag>
+              ) : (
+                <Tag key="v" color="grey" small>
+                  link only
+                </Tag>
+              ),
+            ])}
+          />
+        )}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Sold out is <code>quantitySold &gt;= quantityTotal</code>, and <code>quantitySold</code>{' '}
-          is incremented server-side at fulfilment, not from a client, and not from a count of
-          orders that would double-count a partially refunded one. ⚠️ It is a counter, not a
-          reservation: two buyers can pass the check and both pay for the last one.
+          A package sells out when the number sold reaches its capacity. Seats are not held during
+          checkout, so two buyers at the same moment can both get the last one.
         </p>
       </Panel>
 
@@ -444,10 +440,8 @@ export async function AudienceConfirmationEmails({
           <>
             <strong>One set of templates, shared by every audience</strong>
             <p>
-              A {noun} purchase goes through the same checkout, webhook and{' '}
-              <code>sendPurchaseConfirmation</code> as an attendee one, so it carries the same claim
-              code and writes the same per-recipient row to <code>emailLog</code>. The wording is
-              TypeScript in <code>scripts/src/lib/email.ts</code>.
+              A {noun} purchase sends the same receipt as an attendee one, with the same claim
+              code. The wording cannot be edited from the dashboard yet.
             </p>
           </>
         }
@@ -486,38 +480,42 @@ export async function AudienceConfirmationEmails({
           <strong>
             {failed.length} {failed.length === 1 ? 'receipt' : 'receipts'} did not reach the buyer.
           </strong>{' '}
-          Each failed row below names the reason. Somebody has paid and has no claim code, so they
-          cannot create their account until the address is corrected and fulfilment re-run.
+          Each failed row below names the reason. The buyer has paid and has no claim code, so
+          they cannot create their account until the address is corrected and the receipt is sent
+          again.
         </Banner>
       )}
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Receipts for {noun} packages</h2>
-        <Table
-          cols={[
-            { key: 'to', label: 'To', className: 'cell-md' },
-            { key: 'tt', label: 'Package', className: 'cell-md' },
-            { key: 's', label: 'Status', className: 'cell-sm' },
-            { key: 'w', label: 'When', className: 'cell-fill' },
-          ]}
-          rows={mine.map((e) => [
-            e.to,
-            packagesFor(e.orderId),
-            <Tag
-              key="s"
-              color={e.status === 'sent' ? 'green' : e.status === 'failed' ? 'red' : 'grey'}
-              small
-            >
-              {e.status}
-            </Tag>,
-            <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {e.at.slice(0, 16).replace('T', ' ')}
-              {e.error ? <span style={{ color: '#c0392b' }}> · {e.error}</span> : null}
-              {e.reason ? <span> · {e.reason}</span> : null}
-            </span>,
-          ])}
-          empty={<NotInputted what={`${noun} receipts`} compact />}
-        />
+        {mine.length === 0 ? (
+          <NotInputted what={`${noun} receipts`} compact />
+        ) : (
+          <Table
+            cols={[
+              { key: 'to', label: 'To', className: 'cell-md' },
+              { key: 'tt', label: 'Package', className: 'cell-md' },
+              { key: 's', label: 'Status', className: 'cell-sm' },
+              { key: 'w', label: 'When', className: 'cell-fill' },
+            ]}
+            rows={mine.map((e) => [
+              e.to,
+              packagesFor(e.orderId),
+              <Tag
+                key="s"
+                color={e.status === 'sent' ? 'green' : e.status === 'failed' ? 'red' : 'grey'}
+                small
+              >
+                {e.status}
+              </Tag>,
+              <span key="w" className="muted" style={{ fontSize: 12 }}>
+                {stampOfInstant(e.at)}
+                {e.error ? <span style={{ color: '#c0392b' }}> · {e.error}</span> : null}
+                {e.reason ? <span> · {e.reason}</span> : null}
+              </span>,
+            ])}
+          />
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

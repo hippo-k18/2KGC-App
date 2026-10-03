@@ -9,6 +9,8 @@ import {
   type TicketAudience,
   type TicketTypeDoc,
   type WithId,
+  priceNow,
+  type PricePhase,
 } from '@kgc/shared';
 import {
   outstandingSeatsByTier,
@@ -16,6 +18,7 @@ import {
   type SoldCountOrder,
 } from '@kgc/scripts/src/lib/sold-counts';
 import { db } from './firestore';
+import { salesByCode, type CodeSplit } from './sales-core';
 import { toWallClockInZone } from './time';
 
 /**
@@ -211,6 +214,12 @@ export interface SalesSummary {
   outstandingCents: number;
   ticketsSold: number;
   byTier: TierSales[];
+  /**
+   * What each discount code was worth, over the same settled orders as
+   * `byTier`. Empty until a buyer uses one, which cannot happen before there is
+   * a payment account to create codes on.
+   */
+  byCode: CodeSplit;
   /** ISO date → net cents, ascending. Drives the sales-over-time strip. */
   daily: { date: string; netCents: number; orders: number }[];
   /** Test purchases, counted separately so they never pollute revenue. */
@@ -292,6 +301,9 @@ export async function salesSummary(): Promise<SalesSummary> {
     outstandingCents: sum(outstanding, (o) => o.totalCents),
     ticketsSold: sum(counted, (o) => o.seatCount),
     byTier: [...byTierMap.values()].sort((a, b) => b.netCents - a.netCents),
+    // The same `settled` rows the tier split and the daily strip read, so the
+    // three panels on Summary cannot disagree about which orders exist.
+    byCode: salesByCode(settled),
     daily: [...dailyMap.entries()]
       .map(([date, v]) => ({ date, ...v }))
       .sort((a, b) => a.date.localeCompare(b.date)),
@@ -306,7 +318,31 @@ export async function salesSummary(): Promise<SalesSummary> {
 export interface TicketTypeRow {
   id: string;
   name: string;
+  /** Set on an add-on sold only inside a bundle, never by itself. */
+  addOnFor?: string;
+  /**
+   * What the website charges today: the current price phase's price, or for a
+   * bundle the sum of its parts. Every list in the dashboard prints this, so
+   * none of them shows a price the website stopped charging on 1 December.
+   */
   priceCents: number;
+  /** The stored flat price, which the editor's Price box edits. */
+  flatPriceCents: number;
+  /** The price ladder, when the tier has one. */
+  pricePhases?: PricePhase[];
+  /** The current phase's name, "Early Bird". */
+  phase?: string;
+  /**
+   * Set when the price phases stop the website selling this tier right now:
+   * the current phase is marked off sale or has no price, or no phase has
+   * started. A bundle carries it when any of its parts does. The lists print it
+   * in place of the sales window, so an off-sale add-on does not read as on sale.
+   */
+  offSale?: string;
+  /** "Best value", over the ticket on the tickets page. */
+  badge?: string;
+  /** Set on a bundle: the tiers whose prices it adds up. */
+  bundleOf?: string[];
   currency: string;
   tagline: string;
   visible: boolean;
@@ -366,10 +402,18 @@ export interface TicketTypeRow {
 
 function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
   const zone = t.salesTimeZone ?? TIME_ZONE;
+  const now = priceNow(t, new Date(), zone);
   return {
     id,
     name: t.name,
-    priceCents: t.priceCents,
+    addOnFor: t.addOnFor,
+    priceCents: now.priceCents,
+    flatPriceCents: t.priceCents,
+    pricePhases: t.pricePhases,
+    phase: now.phase,
+    offSale: now.onSale ? undefined : now.unavailableReason,
+    badge: t.badge,
+    bundleOf: t.bundleOf,
     currency: t.currency,
     tagline: t.tagline ?? '',
     visible: t.visible !== false,
@@ -402,9 +446,17 @@ export async function listTicketTypes(): Promise<TicketTypeRow[]> {
     .collection(COLLECTIONS.ticketTypes)
     .where('eventId', '==', EVENT_ID)
     .get();
-  return snap.docs
-    .map((d) => toTicketRow(d.id, d.data() as TicketTypeDoc))
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const rows = snap.docs.map((d) => toTicketRow(d.id, d.data() as TicketTypeDoc));
+  // A bundle costs what its parts cost today, as the website works it out.
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  for (const row of rows) {
+    const parts = (row.bundleOf ?? []).map((id) => byId.get(id));
+    if (parts.length && parts.every(Boolean)) {
+      row.priceCents = parts.reduce((sum, p) => sum + p!.priceCents, 0);
+      row.offSale ??= parts.find((p) => p!.offSale)?.offSale;
+    }
+  }
+  return rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
 
 /**

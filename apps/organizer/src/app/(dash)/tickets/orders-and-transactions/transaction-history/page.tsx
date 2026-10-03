@@ -15,6 +15,7 @@ import {
   Table,
   Tag,
 } from '../../../ui';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,10 +46,23 @@ type Entry = {
   who: string;
   what: string;
   detail?: string;
+  /** The provider's full response for a failed email, shown behind a toggle. */
+  raw?: string;
   amount?: string;
   href?: string;
   tone: 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'purple';
 };
+
+/** A short reason for a failed send. The provider's own response is a JSON blob. */
+function shortEmailError(error?: string): string {
+  if (!error) return 'failed';
+  if (/testing emails|verify a domain|validation_error/i.test(error)) {
+    return 'Sending domain not verified';
+  }
+  if (/API_KEY|not set|unset/i.test(error)) return 'Email was not set up yet';
+  const message = /"message"\s*:\s*"([^"]+)"/.exec(error)?.[1] ?? error;
+  return message.length > 80 ? `${message.slice(0, 77)}...` : message;
+}
 
 export default async function TransactionHistoryPage({
   searchParams,
@@ -124,10 +138,11 @@ export default async function TransactionHistoryPage({
       what: e.subject,
       detail:
         e.status === 'sent'
-          ? e.template
+          ? 'sent'
           : e.status === 'skipped'
-            ? (e.reason ?? 'not sent')
-            : (e.error ?? 'failed'),
+            ? shortEmailError(e.reason ?? 'not sent')
+            : shortEmailError(e.error),
+      raw: e.status === 'failed' && e.error && e.error !== shortEmailError(e.error) ? e.error : undefined,
       tone: e.status === 'sent' ? 'blue' : e.status === 'skipped' ? 'grey' : 'red',
     });
   }
@@ -181,9 +196,8 @@ export default async function TransactionHistoryPage({
           <>
             <strong>One row per event, not per order</strong>
             <p>
-              A refund is timestamped when the money went back, not when it was taken, so it sits
-              three weeks later in the log rather than folded into the purchase. Email rows cover
-              the most recent 200 sends; orders are complete.
+              A refund is its own row, dated when the money went back. Email rows cover the most
+              recent 200 sends. Orders are complete.
             </p>
           </>
         }
@@ -240,6 +254,7 @@ export default async function TransactionHistoryPage({
             return (
               <Link
                 key={value || 'all'}
+                className="row-link"
                 href={`?${p.toString()}`}
                 style={{
                   fontSize: 12,
@@ -261,7 +276,7 @@ export default async function TransactionHistoryPage({
             { key: 'what', label: 'What', className: 'cell-fill' },
             { key: 'amt', label: 'Amount', className: 'cell-sm' },
           ]}
-          rows={rows.map((e) => [
+          rows={wrapCol(rows.map((e) => [
             <span key="w" className="muted" style={{ fontSize: 12 }}>
               {e.at.slice(0, 10)}
               <br />
@@ -288,11 +303,17 @@ export default async function TransactionHistoryPage({
                   {e.detail}
                 </div>
               )}
+              {e.raw && (
+                <details className="muted" style={{ fontSize: 11 }}>
+                  <summary>Details</summary>
+                  <span style={{ overflowWrap: 'anywhere' }}>{e.raw}</span>
+                </details>
+              )}
             </div>,
             <span key="a" style={{ fontSize: 13 }}>
               {e.amount ?? <span className="muted">—</span>}
             </span>,
-          ])}
+          ]), 3)}
           empty={
             q || kind ? 'Nothing matches that filter.' : <NotInputted what="transactions" compact />
           }
@@ -300,8 +321,7 @@ export default async function TransactionHistoryPage({
         <Pagination total={filtered.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
 
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          Stripe&rsquo;s own dashboard is the authority on payouts and fees, which are charged
-          against the payout rather than the order and are not visible here.
+          Payouts and processing fees are shown in Stripe, not here.
         </p>
       </Panel>
     </>

@@ -1,6 +1,19 @@
 import 'server-only';
 
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  type QuestionFieldDef,
+  type RegistrationDoc,
+  type TicketAudience,
+} from '@kgc/shared';
 import { toCsv, type Column } from './csv';
+import { answerColumns, formatAnswer, surveyAnswerRows } from './answer-exports-core';
+import { db } from './firestore';
+import { getForm } from './question-forms';
+import { sponsorReports } from './sponsor-report';
+import { dayOfInstant } from './time-core';
+import { surveyAnswerSources } from './surveys';
 import { allCheckIns, DEFAULT_LIST_ID, listRegistrations, listStations } from './checkin';
 import type { CheckInRow } from './checkin';
 import {
@@ -10,6 +23,7 @@ import {
   type SessionAttendanceRow,
 } from './attendance';
 import { listOrders, money, type OrderRow } from './commerce';
+import { inCategory } from './attendee-categories-core';
 import { listAttendees, listSessions, listSpeakers, listSponsors } from './data';
 import type { AttendeeRow, SessionRow, SpeakerRow, SponsorRow } from './data';
 
@@ -44,7 +58,10 @@ export type ExportKind =
   | 'catering'
   | 'checked-in'
   | 'session-attendance'
-  | 'attendance-hours';
+  | 'attendance-hours'
+  | 'survey-answers'
+  | 'registration-answers'
+  | 'sponsor-report';
 
 export interface ExportDef {
   kind: ExportKind;
@@ -53,7 +70,20 @@ export interface ExportDef {
   purpose: string;
   /** Named so an organizer knows what they are about to hand over. */
   contains: string;
-  build: () => Promise<{ csv: string; rows: number }>;
+  /** `category` narrows the two attendee files to one category, as the list's filter does. */
+  build: (opts?: ExportOptions) => Promise<{ csv: string; rows: number }>;
+}
+
+export interface ExportOptions {
+  category?: string;
+  /**
+   * Narrows the survey answer file to one survey, as the Results view offers.
+   *
+   * The only export option besides `category`, and both arrive on the query
+   * string. Absent means every survey, which is what the Analytics & Exports
+   * screen downloads — that screen lists the exports and has no survey in hand.
+   */
+  surveyId?: string;
 }
 
 function def<T>(
@@ -61,7 +91,7 @@ function def<T>(
   title: string,
   purpose: string,
   contains: string,
-  load: () => Promise<T[]>,
+  load: (opts: ExportOptions) => Promise<T[]>,
   columns: Column<T>[],
 ): ExportDef {
   return {
@@ -69,8 +99,8 @@ function def<T>(
     title,
     purpose,
     contains,
-    build: async () => {
-      const rows = await load();
+    build: async (opts = {}) => {
+      const rows = await load(opts);
       return { csv: toCsv(rows, columns), rows: rows.length };
     },
   };
@@ -78,13 +108,16 @@ function def<T>(
 
 const yesNo = (b: boolean) => (b ? 'yes' : 'no');
 
+/** The three question forms, so the answer export covers all of them at once. */
+const AUDIENCES: TicketAudience[] = ['attendee', 'exhibitor', 'sponsor'];
+
 export const EXPORTS: ExportDef[] = [
   def<AttendeeRow>(
     'attendees',
     'Attendee list',
     'The everyday one: badge printing, catering numbers, a delegate list.',
-    'Name, email, title, company, ticket type, and whether they have the app.',
-    listAttendees,
+    'Name, email, title, company, ticket type, category, and whether they have the app.',
+    async ({ category }) => (await listAttendees()).filter((a) => inCategory(a, category)),
     [
       { header: 'Name', value: (a) => a.name },
       { header: 'Email', value: (a) => a.email },
@@ -92,7 +125,7 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Company', value: (a) => a.company ?? '' },
       { header: 'Ticket', value: (a) => a.ticketType ?? '' },
       { header: 'Ticket status', value: (a) => a.registrationStatus ?? '' },
-      { header: 'Category', value: (a) => a.roles.join('; ') },
+      { header: 'Category', value: (a) => a.category ?? '' },
       { header: 'Signed into app', value: (a) => yesNo(a.signedIn) },
       { header: 'In directory', value: (a) => yesNo(a.visibleInDirectory) },
       { header: 'Interests', value: (a) => a.interests.join('; ') },
@@ -103,17 +136,18 @@ export const EXPORTS: ExportDef[] = [
     'catering',
     'Badge and catering list',
     'The one you send to a supplier. Deliberately the narrowest export here.',
-    'Name and company only, no email, no ticket price, nothing personal.',
-    async () => {
+    'Name, company, ticket and badge category. No email, no ticket price, nothing personal.',
+    async ({ category }) => {
       const all = await listAttendees();
       // Refunded tickets are excluded: this list becomes a headcount somebody
       // is invoiced for, and a cancelled registration is not a lunch.
-      return all.filter((a) => a.registrationStatus !== 'cancelled');
+      return all.filter((a) => a.registrationStatus !== 'cancelled' && inCategory(a, category));
     },
     [
       { header: 'Name', value: (a) => a.name },
       { header: 'Company', value: (a) => a.company ?? '' },
       { header: 'Ticket', value: (a) => a.ticketType ?? '' },
+      { header: 'Category', value: (a) => a.category ?? '' },
     ],
   ),
 
@@ -291,6 +325,124 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Sessions', value: (r) => r.sessions.map((s) => s.title).join('; ') },
     ],
   ),
+
+  /**
+   * What people actually said, in a survey and in session feedback.
+   *
+   * Long format — one row per answer — because surveys differ from each other in
+   * every question they ask. `answer-exports-core.ts` carries the full argument
+   * for that and for why the response number is a position rather than an id.
+   *
+   * The screen it is downloaded from passes `surveyId`; the exports list here
+   * has no survey in hand and takes the lot.
+   */
+  {
+    kind: 'survey-answers',
+    title: 'Survey and feedback answers',
+    purpose: 'Reading the free text, and handing a speaker what their room said.',
+    contains: 'Survey, session, a response number, the question and the answer. No names.',
+    build: async (opts = {}) => {
+      const rows = surveyAnswerRows(await surveyAnswerSources(opts.surveyId));
+      return {
+        csv: toCsv(rows, [
+          { header: 'Survey', value: (r) => r.survey },
+          { header: 'Session', value: (r) => r.session },
+          { header: 'Response', value: (r) => r.response },
+          { header: 'Question', value: (r) => r.question },
+          { header: 'Answer type', value: (r) => r.kind },
+          { header: 'Answer', value: (r) => r.answer },
+        ]),
+        rows: rows.length,
+      };
+    },
+  },
+
+  /**
+   * The registration questions, one person per row.
+   *
+   * Read from `registrations` rather than through `listAttendees()`, because the
+   * answers live on the registration and only there — see `RegistrationDoc`,
+   * which explains why they are not on the order. It also means this file is
+   * unaffected by whatever the profile join does or does not find.
+   *
+   * ⚠️ Cancelled registrations are kept, unlike the catering list. That file is
+   * a headcount somebody is invoiced for; this one is a record of what people
+   * told us, and a refund does not unsay a dietary requirement that a badge or a
+   * visa letter may still have been produced from.
+   */
+  {
+    kind: 'registration-answers',
+    title: 'Registration form answers',
+    purpose: 'Catering, accessibility and t-shirt sizes, everything the form asked for.',
+    contains: 'Name, email, ticket, status, and a column for every question on the form.',
+    build: async () => {
+      const [forms, snap] = await Promise.all([
+        Promise.all(AUDIENCES.map(async (audience) => (await getForm(audience)).fields)),
+        db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+      ]);
+
+      /*
+       * One column set across all three audiences' forms, de-duplicated by id.
+       * An attendee file and an exhibitor file would be two exports of the same
+       * shape that an organizer then has to join, and most questions are only on
+       * one form anyway, so the other audiences' columns are simply empty.
+       */
+      const fields: QuestionFieldDef[] = [];
+      for (const audience of forms) {
+        for (const f of audience) if (!fields.some((k) => k.id === f.id)) fields.push(f);
+      }
+
+      const rows = snap.docs
+        .map((d) => d.data() as RegistrationDoc)
+        .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email));
+
+      const answered = new Set<string>();
+      for (const r of rows) for (const id of Object.keys(r.answers ?? {})) answered.add(id);
+
+      const columns: Column<RegistrationDoc>[] = [
+        { header: 'Name', value: (r) => r.name ?? '' },
+        { header: 'Email', value: (r) => r.email },
+        { header: 'Ticket', value: (r) => r.ticketType ?? '' },
+        { header: 'Ticket status', value: (r) => r.status },
+        ...answerColumns(fields, answered).map((c) => ({
+          header: c.header,
+          value: (r: RegistrationDoc) => formatAnswer((r.answers ?? {})[c.id]),
+        })),
+      ];
+
+      return { csv: toCsv(rows, columns), rows: rows.length };
+    },
+  },
+
+  /**
+   * One row per sponsor, with what has actually been counted against them.
+   *
+   * The columns are deliberately few, because the recorded surface is few. See
+   * `sponsor-report.ts` for what is measured, what is not, and why an unmeasured
+   * column is absent rather than zero.
+   */
+  {
+    kind: 'sponsor-report',
+    title: 'Sponsor report',
+    purpose: 'What a sponsor gets back at the end: their links, their clicks, their leads.',
+    contains: 'Name, tier, booth, tracked links and clicks, purchases attributed, and leads.',
+    build: async () => {
+      const rows = await sponsorReports();
+      return {
+        csv: toCsv(rows, [
+          { header: 'Sponsor', value: (r) => r.name },
+          { header: 'Tier', value: (r) => r.tier },
+          { header: 'Booth', value: (r) => r.boothLocation ?? '' },
+          { header: 'Tracked links', value: (r) => r.links.length },
+          { header: 'Link clicks', value: (r) => r.clicks },
+          { header: 'Purchases through their links', value: (r) => r.orders },
+          { header: 'Leads', value: (r) => r.leads },
+          { header: 'Last click', value: (r) => dayOfInstant(r.lastClickAt) },
+        ]),
+        rows: rows.length,
+      };
+    },
+  },
 ];
 
 export function exportByKind(kind: string): ExportDef | undefined {

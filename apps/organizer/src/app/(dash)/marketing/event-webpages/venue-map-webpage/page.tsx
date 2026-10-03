@@ -47,12 +47,8 @@ export default async function VenueMapWebpagePage() {
         title="Venue Map Webpage"
         info={
           <>
-            <strong>Pins without a picture</strong>
-            <p>
-              <code>RoomDoc.mapX</code> and <code>mapY</code> hold a position as a fraction of each
-              axis, which survives any image size. Nothing uploads a floorplan for them to be
-              fractions of, so no map is drawn on the site or in the app.
-            </p>
+            <strong>No venue map yet</strong>
+            <p>A venue map is not available on the site or in the app yet.</p>
           </>
         }
         tags={
@@ -61,8 +57,8 @@ export default async function VenueMapWebpagePage() {
           </Tag>
         }
         actions={
-          <a href={publicUrl('/about')} target="_blank" rel="noreferrer" className="whova-btn-main">
-            Nearest live page: /about ↗
+          <a href={publicUrl('/about')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
+            View /about ↗
           </a>
         }
         links={[
@@ -77,8 +73,16 @@ export default async function VenueMapWebpagePage() {
 
       <StatTiles
         tiles={[
-          { label: 'Venue', value: EVENT.venue, sub: 'one building, one plan' },
-          { label: 'Rooms', value: rooms.length, sub: 'each a pin, once there is a map' },
+          {
+            label: 'Venue',
+            // Body size: the address is a sentence, not a number.
+            value: (
+              <span style={{ display: 'block', fontSize: 15, lineHeight: '20px', padding: '7px 0' }}>
+                {EVENT.venue}
+              </span>
+            ),
+          },
+          { label: 'Rooms', value: rooms.length, sub: 'one pin each' },
           {
             label: 'Pins placed',
             value: pinned,
@@ -93,7 +97,7 @@ export default async function VenueMapWebpagePage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Rooms a map would have to show</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Rooms</h2>
         <Table
           cols={[
             { key: 'n', label: 'Room', className: 'cell-fill' },
@@ -139,8 +143,7 @@ export default async function VenueMapWebpagePage() {
           // with no room is a person standing in a corridor, and a map is
           // exactly the thing they would have reached for.
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-            {unroomed} session{unroomed === 1 ? ' has' : 's have'} no room assigned, so no pin would
-            help anyone looking for {unroomed === 1 ? 'it' : 'them'}.{' '}
+            {unroomed} session{unroomed === 1 ? ' has' : 's have'} no room assigned.{' '}
             <Link href={ROUTES.sessionManager}>Fix in Session Manager</Link>.
           </p>
         ) : null}

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import { termsPublished } from '@/lib/terms-core';
 import Link from 'next/link';
+import { buyerFeePercent, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -7,8 +9,11 @@ import { activeForm } from '@/lib/question-forms';
 import { stripeEnabled } from '@/lib/stripe';
 import type { TicketId } from '@/lib/tickets';
 import { CheckoutForm } from '../checkout-form';
+import { TicketSalesClosed } from '../sales-closed';
 
 export const metadata: Metadata = {
+  // Checkout, not a landing page: the site-wide noindex goes away at cutover, this stays.
+  robots: { index: false, follow: false },
   title: 'Checkout',
   description: 'Register for the Knowledge Graph Conference 2027.',
 };
@@ -44,6 +49,7 @@ export const metadata: Metadata = {
  * statically prerendered — a build-time snapshot would bake in whichever mode
  * the build machine happened to be in.
  */
+/** Per-request, and it has to be. Prices and the buyer's own selection. */
 export const dynamic = 'force-dynamic';
 
 export default async function CheckoutPage({
@@ -51,6 +57,8 @@ export default async function CheckoutPage({
 }: {
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
+  const ev = await siteEvent();
   const params = await searchParams;
 
   const [catalogue, form] = await Promise.all([tiersOrNull(), activeForm('attendee')]);
@@ -62,7 +70,9 @@ export default async function CheckoutPage({
     <section className="band">
       <div className="wrap">
         <p style={{ margin: '0 0 1rem' }}>
-          <Link href="/tickets">← All tickets</Link>
+          <Link href="/tickets" className="btn btn-ghost-quiet btn-sm">
+            ← All tickets
+          </Link>
         </p>
 
         {params.cancelled && (
@@ -71,17 +81,21 @@ export default async function CheckoutPage({
 
         {tiers.length > 0 ? (
           <CheckoutForm
+            termsPublished={termsPublished()}
             tiers={tiers}
             initialTier={initialTier}
+            tierLocked={byId.has(params.tier ?? '')}
             stripeReady={stripeEnabled()}
             demoReady={await demoCheckoutAllowed()}
             questions={form.fields}
+            titleAs="h1"
+            buyerFeePercent={await buyerFeePercent()}
           />
         ) : (
           <div className="checkout checkout-closed">
-            <h2 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h2>
+            <h1 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h1>
             <p className="notice warn">
-              Ticket sales for {SITE.name} have not opened. Everything else on this site is
+              Ticket sales for {ev.name} have not opened. Everything else on this site is
               current.
             </p>
             <p>

@@ -21,6 +21,7 @@ import {
   EVENT_ID,
   SUBCOLLECTIONS,
   communityCategoryLabel,
+  replyIsVisible,
   type CommunityPostDoc,
   type CommunityReplyDoc,
   type WithId,
@@ -112,6 +113,10 @@ export function useReplyCounts(posts: Post[] | null): Record<string, number> | n
   return useSubcollectionCounts(
     posts?.map((p) => p.id) ?? null,
     (id) => [COLLECTIONS.communityPosts, id, SUBCOLLECTIONS.replies],
+    [],
+    // A count is a query, and the rules refuse an unfiltered one on replies.
+    // Counting the visible ones is also the number the board should print.
+    (c) => query(c, where('status', '==', 'visible')),
   ).counts;
 }
 
@@ -148,6 +153,21 @@ export function useReplies(postId: string | undefined) {
     () =>
       query(
         collection(getDb(), COLLECTIONS.communityPosts, postId ?? '_', SUBCOLLECTIONS.replies),
+        /*
+         * This filter is not a courtesy — it is the only query the server will
+         * answer. `firestore.rules` has a separate `allow list` on replies that
+         * reads `resource.data.status`, and a query is measured against the
+         * fields it constrains: name `status` and it passes, leave it out and
+         * the whole query is refused. Hiding a reply is therefore enforced for
+         * every reader, not only for this file.
+         *
+         * Two earlier versions were not. The rule read `status` with a default
+         * of 'visible', which on a query returns the default whatever the
+         * documents say, so any client that skipped this line read every
+         * hidden reply. Do not replace this with a filter applied after the
+         * fetch; there would be nothing to fetch.
+         */
+        where('status', '==', 'visible'),
         orderBy('createdAt', 'asc'),
         // The most recent page, still in reading order — see `PAGE_SIZE`.
         limitToLast(PAGE_SIZE),
@@ -155,7 +175,24 @@ export function useReplies(postId: string | undefined) {
     [postId],
     (id, d) => ({ id, ...d }) as Reply,
   );
-  return { replies: data ?? [], error, retry };
+  /**
+   * Kept, although the query now does the same job on the server.
+   *
+   * Two filters rather than one because they fail differently: the query is
+   * the one that is enforced, and this is the one that still holds if a future
+   * edit loosens it. It costs a pass over at most `PAGE_SIZE` rows.
+   *
+   * ⚠️ One consequence of filtering in the query, stated plainly: a reply
+   * written before `status` existed cannot appear on the board, because
+   * Firestore has no way to ask for a field that is absent. Every reply the
+   * seed writes and every reply `addReply` writes carries `status: 'visible'`,
+   * the rules now refuse a create without it, and
+   * `scripts/ops/backfill-reply-status.ts` fills in anything older. That set is
+   * empty in this database; it would not be in one restored from an old backup,
+   * which is what the script is for.
+   */
+  const replies = (data ?? []).filter(replyIsVisible);
+  return { replies, error, retry };
 }
 
 export async function createPost(input: {
@@ -196,6 +233,19 @@ export async function editPost(
   );
 }
 
+/**
+ * `status` is written here, and it is written as `visible`.
+ *
+ * The field arrived on `CommunityReplyDoc` with moderation, after the first
+ * replies were already in the database, and nothing in the app set it — so
+ * every reply an attendee wrote was one more document `useReplies` had to treat
+ * as "no status means visible". `firestore.rules` now requires the field on
+ * create and requires it to say `visible`, so a reply can neither arrive
+ * already hidden — moderation state is not the author's to set, the same as a
+ * question's `state` — nor arrive with no state at all, which would put it in
+ * no list and no count while leaving it readable one at a time: a reply that is
+ * neither on the board nor off it.
+ */
 export async function addReply(
   postId: string,
   authorId: string,
@@ -205,6 +255,7 @@ export async function addReply(
     addDoc(collection(getDb(), COLLECTIONS.communityPosts, postId, SUBCOLLECTIONS.replies), {
       authorId,
       body,
+      status: 'visible',
       createdAt: serverTimestamp(),
     }),
   );

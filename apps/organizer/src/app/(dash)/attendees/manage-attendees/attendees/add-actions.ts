@@ -1,10 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS } from '@kgc/shared';
 import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import { registrationId } from '@kgc/scripts/src/lib/ids';
+import { emailNote, sendAttendeeConfirmation } from '@/lib/attendee-admin';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit } from '@/lib/audit';
+import { sendRequiredLinksTo } from '@/lib/consents';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
@@ -31,7 +35,7 @@ import { ROUTES } from '@/lib/nav';
  * ⚠️ Note the transaction inside it uses a native `Date` rather than a
  * `FieldValue` sentinel, because `@kgc/scripts` resolves its own copy of
  * `firebase-admin` and a sentinel built there fails `instanceof` against a store
- * created here. Nothing in this file constructs one either.
+ * created here. The one sentinel in this file is built here and written here.
  *
  * ── An added attendee has no order, deliberately ────────────────────────────
  *
@@ -39,6 +43,14 @@ import { ROUTES } from '@/lib/nav';
  * an order would put money in the revenue figures that nobody received. They
  * get a registration, appear on the attendee list, can be checked in, and
  * Attendee Orders correctly shows nothing for them.
+ *
+ * ── They are told, with the email a buyer gets ──────────────────────────────
+ *
+ * The claim code is how a ticket holder reaches the app, and nobody added here
+ * had been sent one. A new registration now gets the purchase confirmation at
+ * zero, the way a complimentary pass does. Re-adding an address that is already
+ * on the list does not mail it again; that is what Send confirmation again on
+ * the edit panel is for.
  */
 
 export interface AddAttendeeState {
@@ -71,6 +83,17 @@ export async function addAttendeeAction(
   if (!name) return { error: 'Enter a name. It goes on the badge.' };
 
   try {
+    // `ensureRegistration` revives whatever it finds, which is right for a
+    // buyer who was refunded and bought again and wrong here: it would undo an
+    // organizer's cancellation without giving the seat or the app access back.
+    const existing = await db().collection(COLLECTIONS.registrations).doc(registrationId(email)).get();
+    // A `transferred` one is different: that person gave a ticket away and is
+    // being given a new one, which is exactly what reviving it means.
+    const status = existing.data()?.status;
+    if (status === 'cancelled') {
+      return { error: `${email} is on the list with a cancelled ticket. Open it from the list to reinstate it.` };
+    }
+
     const result = await ensureRegistration(db(), {
       email,
       name,
@@ -88,14 +111,43 @@ export async function addAttendeeAction(
       after: { email, name, ticketType: ticketType || 'Added by organizer' },
     });
 
+    if (status === 'transferred') {
+      await existing.ref.update({ transferredTo: FieldValue.delete() });
+    }
+
+    let consentForms = 0;
+    if (result.created || status === 'transferred') {
+      await sendAttendeeConfirmation({
+        registrationId: result.registrationId,
+        email: result.email,
+        name,
+        ticketType: ticketType || 'Added by organizer',
+        claimCode: result.claimCode,
+      });
+      // Somebody added by hand has no account, so the app is not a way to reach
+      // a release they are required to sign. Their own link is.
+      consentForms = await sendRequiredLinksTo({
+        registrationId: result.registrationId,
+        email: result.email,
+        name,
+        actor,
+      });
+    }
+
     revalidatePath(ROUTES.attendees);
     revalidatePath(ROUTES.checkIn);
     revalidatePath(ROUTES.analyticsExports);
 
+    const consentLine =
+      consentForms > 0
+        ? ` A link to sign ${consentForms === 1 ? 'the form they have to sign' : `the ${consentForms} forms they have to sign`} went with it.`
+        : '';
+
     return {
       ok: true,
-      message: result.created
-        ? `Added ${name}. They can be checked in at the door now; their claim code reaches them when you send it.`
+      message: result.created || status === 'transferred'
+        ? `Added ${name}. They can be checked in at the door now.` +
+          (emailNote() || ` Their confirmation and claim code went to ${result.email}.${consentLine}`)
         : `${email} was already on the list. The name and ticket type were updated rather than duplicated.`,
     };
   } catch (err) {

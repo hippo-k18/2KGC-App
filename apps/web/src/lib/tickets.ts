@@ -68,6 +68,54 @@ export interface Tier {
    * information — `txcd_20030000` is in Stripe's own published table.
    */
   taxCode: string;
+  /**
+   * The extras offered at checkout, such as the $199 Workshops add-on on Main
+   * Conference. Each is its own hidden ticket type, sold only inside a bundle;
+   * `priceCents` is what ticking it adds.
+   */
+  addOns?: AddOn[];
+  /**
+   * Which ticket a seat actually buys for each combination of ticked add-ons.
+   * "Main Conference + Workshops" is an ordinary hidden tier, so a seat posts
+   * its id and the server prices it from its parts. Only combinations on sale
+   * right now are listed.
+   */
+  bundles?: { tierId: TicketId; addOnIds: TicketId[] }[];
+  /** The current price phase, "Early Bird", when the tier has phases. */
+  phase?: string;
+  /** Earlier phases, shown struck through: Super Early Bird, "Sold Out". */
+  earlierPhases?: { name: string; priceCents: number; soldOut: boolean }[];
+  /** `YYYY-MM-DD` the next, dearer phase starts. Never its price. */
+  risesOn?: string;
+  /** "Best value", over the ticket on the tickets page. */
+  badge?: string;
+  /** Set on a bundle: the tier it was built on, whose registration questions it answers. */
+  baseTierId?: TicketId;
+  /**
+   * The Stripe product this tier sells as, once a discount code has been
+   * limited to it. Not a secret: it is only an id, and Stripe shows it to the
+   * buyer's browser on the payment page anyway.
+   */
+  stripeProductId?: string;
+}
+
+/** One extra a seat can tick at checkout. `id` is its own ticket type. */
+export interface AddOn {
+  id: TicketId;
+  name: string;
+  tagline: string;
+  priceCents: number;
+}
+
+/**
+ * The ticket a seat posts: the base tier with nothing ticked, or the bundle
+ * that holds exactly the ticked add-ons. `undefined` when no bundle does,
+ * which the form prevents by disabling a box that would lead there.
+ */
+export function bundleFor(tier: Tier, ticked: readonly TicketId[]): TicketId | undefined {
+  if (ticked.length === 0) return tier.id;
+  const want = [...ticked].sort().join('|');
+  return tier.bundles?.find((b) => [...b.addOnIds].sort().join('|') === want)?.tierId;
 }
 
 /** `119900` → `$1,199`. Whole dollars, because every tier is a whole number. */

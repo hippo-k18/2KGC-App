@@ -40,11 +40,11 @@ export default async function LogisticsWebpagePage() {
   // because nothing enumerates the prose inside a static page.
   const WHERE = [
     { need: 'Venue and address', at: '/about', how: 'static page' },
-    { need: 'Dates and times', at: '/agenda', how: 'live from this dashboard' },
-    { need: 'Registration desk and badge', at: '/tickets', how: 'live from this dashboard' },
+    { need: 'Dates and times', at: '/agenda', how: 'live from Session Manager' },
+    { need: 'Registration desk and badge', at: '/tickets', how: 'live from Create Tickets' },
     { need: 'Travel, parking, hotels', at: '/about', how: 'static page' },
     { need: 'Accessibility and conduct', at: '/code-of-conduct', how: 'static page' },
-    { need: 'Wifi, room changes, on-the-day corrections', at: '—', how: 'nowhere on the site' },
+    { need: 'Wifi, room changes, on-the-day corrections', at: '—', how: 'not on the site' },
   ];
 
   return (
@@ -53,18 +53,17 @@ export default async function LogisticsWebpagePage() {
         title="Logistics Webpage"
         info={
           <>
-            <strong>Prose, not a form</strong>
+            <strong>Not editable here</strong>
             <p>
-              Travel, parking and venue detail are written into <code>/about</code>, so changing
-              them is a pull request. For a correction on the day use{' '}
-              <Link href="/engagement/announcements">Announcements</Link>. It reaches phones, and a
-              page nobody reloads does not.
+              Travel, parking and venue details are on the About page. Ask the developer to change
+              them. For a correction on the day use{' '}
+              <Link href="/engagement/announcements">Announcements</Link>.
             </p>
           </>
         }
-        tags={<Tag color="orange" fill="outline">prose, not a form</Tag>}
+        tags={<Tag color="orange" fill="outline">not editable here</Tag>}
         actions={
-          <a href={publicUrl('/about')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/about')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View /about ↗
           </a>
         }
@@ -80,28 +79,37 @@ export default async function LogisticsWebpagePage() {
 
       <StatTiles
         tiles={[
-          { label: 'Venue', value: EVENT.venue, sub: 'as the app and the site name it' },
-          { label: 'Rooms on file', value: rooms.length, sub: 'named, and used by the agenda' },
+          {
+            label: 'Venue',
+            // Body size: the address is a sentence, not a number.
+            value: (
+              <span style={{ display: 'block', fontSize: 15, lineHeight: '20px', padding: '7px 0' }}>
+                {EVENT.venue}
+              </span>
+            ),
+            sub: 'shown in the app and on the site',
+          },
+          { label: 'Rooms on file', value: rooms.length, sub: 'used by the agenda' },
           {
             /*
               Counted rather than typed. The tile read a hardcoded 3 while the
               table beside it listed the pages, so the two could disagree the
               first time a row was added.
             */
-            label: 'Pages carrying an answer',
+            label: 'Pages with an answer',
             value: new Set(WHERE.filter((w) => w.at !== '—').map((w) => w.at)).size,
-            sub: 'of the six things a visitor asks',
+            sub: 'for the six questions below',
           },
           {
-            label: 'Questions with nowhere to go',
+            label: 'Questions with no page',
             value: WHERE.filter((w) => w.at === '—').length,
-            sub: 'an announcement is the channel',
+            sub: 'use an announcement',
           },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where a visitor finds each answer today</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where visitors find each answer</h2>
         <Table
           cols={[
             { key: 'n', label: 'What they need', className: 'cell-fill' },
@@ -119,7 +127,7 @@ export default async function LogisticsWebpagePage() {
                 <code style={{ fontSize: 12 }}>{w.at}</code> ↗
               </a>
             ),
-            w.how === 'nowhere on the site' ? (
+            w.how === 'not on the site' ? (
               <Tag key="h" color="red" fill="outline" small>
                 {w.how}
               </Tag>
@@ -129,7 +137,7 @@ export default async function LogisticsWebpagePage() {
               </Tag>
             ) : (
               <span key="h" className="muted" style={{ fontSize: 12 }}>
-                {w.how}. Needs a deploy
+                Ask the developer
               </span>
             ),
           ])}

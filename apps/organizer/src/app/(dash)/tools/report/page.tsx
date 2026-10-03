@@ -6,10 +6,10 @@ import { DEFAULT_LIST_ID, countCheckIns, scanThroughput } from '@/lib/checkin';
 import { money, salesSummary } from '@/lib/commerce';
 import { countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
-import { targetDescription } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
-import { clockOf, todayInEventZone } from '@/lib/time';
-import { NotInputted, PageHeader, Panel, StatTiles, StatusTag, Table, Tag } from '../../ui';
+import { clockOf, dayLabel, todayInEventZone } from '@/lib/time';
+import { eventTimeZone } from '@/lib/event';
+import { EmptyState, PageHeader, Panel, StatTiles, StatusTag, Table, Tag } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,10 +29,101 @@ export const dynamic = 'force-dynamic';
  * Nothing here polls. A page that silently goes stale during an incident is
  * worse than one that obviously needs a refresh.
  */
+/** An ISO instant as a date and time in the event's zone. */
+function stamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: EVENT.timeZone,
+  }).format(d);
+}
+
+/**
+ * `attendee.reinstate` → "Reinstated an attendee".
+ *
+ * The log is written in the vocabulary the code uses, which is right for the
+ * documents and wrong for the one screen a person reads them on: the column
+ * said `questionForm.update` beside a Firestore path, and an organizer looking
+ * for who cancelled somebody's ticket could not find it.
+ *
+ * Built from the two halves of the action rather than from a table of all
+ * hundred-odd verbs, so an action added later reads sensibly without anybody
+ * remembering to come back here. Only the verbs whose past tense is not "+d"
+ * are listed.
+ */
+const AUDIT_VERB: Record<string, string> = {
+  add: 'Added',
+  adjustSold: 'Corrected the sold count for',
+  assign: 'Assigned',
+  block: 'Blocked',
+  cancel: 'Cancelled',
+  category: 'Set the category on',
+  complimentaryPasses: 'Set the complimentary passes on',
+  confirmation: 'Resent the confirmation for',
+  decide: 'Decided on',
+  erase: 'Erased everything held about',
+  exclude: 'Kept a reviewer away from',
+  form: 'Changed the questions on',
+  hold: 'Held',
+  import: 'Imported',
+  invite: 'Invited',
+  manual: 'Recorded a payment on',
+  markPaid: 'Marked paid',
+  newLink: 'Issued a new link for',
+  portalApprove: 'Approved what a speaker sent for',
+  portalReject: 'Rejected what a speaker sent for',
+  portalRevoke: 'Revoked the portal link for',
+  portalSend: 'Sent a portal link for',
+  promote: 'Put on the agenda',
+  qaSettings: 'Changed the Q&A settings on',
+  publish: 'Published',
+  publishTally: 'Published the tally for',
+  reconcile: 'Rebuilt',
+  refund: 'Refunded',
+  release: 'Released',
+  remove: 'Removed',
+  rename: 'Renamed',
+  roles: 'Changed the roles on',
+  rubric: 'Changed the scoring criteria on',
+  send: 'Sent',
+  sendInvitation: 'Sent an invitation for',
+  setPassphrase: 'Set a passphrase for',
+  setStatus: 'Changed the status of',
+  setSold: 'Corrected the sold count for',
+  ticketType: 'Changed the ticket on',
+  transfer: 'Transferred',
+  unblock: 'Unblocked',
+  undo: 'Undid',
+  undoDecision: 'Took back the decision on',
+};
+
+/** `questionForm` → `question form`, for the end of the sentence. */
+function nounWords(part: string): string {
+  return part
+    .replace(/\./g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\bcheckin\b/gi, 'check-in')
+    .toLowerCase();
+}
+
+function describeAction(action: string): string {
+  const parts = action.split('.');
+  // The verb is the last segment, not the second: `desk.message.send` has three.
+  const verb = parts.length > 1 ? parts[parts.length - 1] : '';
+  if (!verb) return action;
+  const said = AUDIT_VERB[verb] ?? `${verb.charAt(0).toUpperCase()}${verb.slice(1)}d`;
+  return `${said} ${nounWords(parts.slice(0, -1).join(' '))}`;
+}
+
 export default async function ReportPage() {
   await requireOrganizer();
 
-  const today = todayInEventZone();
+  const today = todayInEventZone(new Date(), await eventTimeZone());
   const [
     attendees,
     announcements,
@@ -80,11 +171,8 @@ export default async function ReportPage() {
         title="Report"
         info={
           <>
-            <strong>Live, and only as fresh as this page load</strong>
-            <p>
-              Nothing here polls: refresh to update. Every figure is a Firestore read against{' '}
-              {EVENT.name}; a number that cannot be computed is left off rather than shown as zero.
-            </p>
+            <strong>Figures are from when the page loaded</strong>
+            <p>Refresh to update.</p>
           </>
         }
         links={[
@@ -92,10 +180,7 @@ export default async function ReportPage() {
             Tools
           </Link>,
           <span key="d" className="muted">
-            today is {today} in {EVENT.timeZone}
-          </span>,
-          <span key="e" className="muted">
-            {targetDescription()}
+            Today is {dayLabel(today, true)}, {EVENT.timeZone.split('/').pop()?.replace(/_/g, ' ')} time
           </span>,
         ]}
       />
@@ -124,14 +209,15 @@ export default async function ReportPage() {
           Door throughput
         </h2>
         {scans.total === 0 ? (
-          <NotInputted
-            what="scans"
+          <EmptyState
             action={
-              <Link className="whova-btn-main" href={ROUTES.checkIn}>
+              <Link className="whova-btn-main secondary" href={ROUTES.checkIn}>
                 Open the scanner
               </Link>
             }
-          />
+          >
+            <p className="empty-title">No scans yet</p>
+          </EmptyState>
         ) : (
           <>
             <StatTiles
@@ -177,10 +263,11 @@ export default async function ReportPage() {
                 />,
                 <strong key="n">{b.count}</strong>,
               ])}
+              stackSm={false}
             />
             <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
               Peak {scans.peakPerQuarterHour} scans in a quarter hour. Last scan{' '}
-              {scans.lastScanAt?.slice(11, 16) ?? '—'} UTC.
+              {scans.lastScanAt ? stamp(scans.lastScanAt) : '—'}.
             </p>
           </>
         )}
@@ -191,14 +278,16 @@ export default async function ReportPage() {
           Money taken
         </h2>
         {sales.paidOrders === 0 && sales.refundedOrders === 0 ? (
-          <NotInputted
-            what="orders"
+          <EmptyState
             action={
-              <Link className="whova-btn-main" href={ROUTES.ordersSummary}>
+              <Link className="whova-btn-main secondary" href={ROUTES.ordersSummary}>
                 Orders &amp; Transactions
               </Link>
             }
-          />
+          >
+            <p className="empty-title">No orders yet</p>
+            <p className="empty-sub">Test orders are not counted.</p>
+          </EmptyState>
         ) : (
           <>
             <StatTiles
@@ -245,11 +334,13 @@ export default async function ReportPage() {
 
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
-          Sessions today ({today})
+          Sessions today ({dayLabel(today)})
         </h2>
         {todaysSessions.length === 0 ? (
           <p className="body-2 muted">
-            Nothing scheduled today: the event runs {days[0] ?? '—'} to {days[days.length - 1] ?? '—'}.
+            {days.length === 0
+              ? 'No sessions yet.'
+              : `Nothing scheduled today. The event runs ${dayLabel(days[0])} to ${dayLabel(days[days.length - 1])}.`}
           </p>
         ) : (
           <Table
@@ -291,30 +382,24 @@ export default async function ReportPage() {
         <h2 className="section-header" style={{ marginTop: 0 }}>
           Audit trail ({audit.length})
         </h2>
-        <p className="body-2">
-          Every write this dashboard has made, newest first. The Admin SDK bypasses{' '}
-          <code>firestore.rules</code> entirely, which is the correct posture for an organizer tool
-          and is exactly why the writes have to be recorded somewhere a human can read them.
-        </p>
+        <p className="body-2">Every change made from this dashboard, newest first.</p>
         <Table
           cols={[
             { key: 'w', label: 'When', className: 'cell-mdsm' },
             { key: 'a', label: 'Actor', className: 'cell-mdsm' },
-            { key: 'x', label: 'Action', className: 'cell-sm' },
-            { key: 't', label: 'Target', className: 'cell-fill' },
+            { key: 'x', label: 'Action', className: 'cell-md' },
+            { key: 't', label: 'What', className: 'cell-fill' },
           ]}
           empty="No writes yet"
           rows={audit.map((a) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {a.at ?? '—'}
+              {a.at ? stamp(a.at) : '—'}
             </span>,
             a.actor,
             <Tag key="x" color={a.action === 'checkin.undo' ? 'orange' : 'blue'}>
-              {a.action}
+              {describeAction(a.action)}
             </Tag>,
-            <code key="t" style={{ fontSize: 12 }}>
-              {a.targetPath}
-            </code>,
+            a.subject,
           ])}
         />
       </Panel>
@@ -323,28 +408,30 @@ export default async function ReportPage() {
         <h2 className="section-header" style={{ marginTop: 0 }}>
           Recent errors ({errors.length})
         </h2>
-        <p className="body-2">
-          An in-process ring buffer: it empties on restart and does not survive a second server
-          process, so an empty table means this process has not recorded one, not that nothing has
-          ever failed.
-        </p>
-        <Table
-          cols={[
-            { key: 'w', label: 'When', className: 'cell-mdsm' },
-            { key: 'c', label: 'Where', className: 'cell-mdsm' },
-            { key: 'm', label: 'Message', className: 'cell-fill' },
-          ]}
-          empty="No errors recorded"
-          rows={errors.map((e) => [
-            <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {e.at}
-            </span>,
-            e.context,
-            <span key="m" style={{ color: 'var(--danger)' }}>
-              {e.message}
-            </span>,
-          ])}
-        />
+        <p className="body-2">Errors since the dashboard last restarted.</p>
+        {errors.length === 0 ? (
+          <p className="body-2 muted" style={{ marginBottom: 0 }}>
+            No errors recorded.
+          </p>
+        ) : (
+          <Table
+            cols={[
+              { key: 'w', label: 'When', className: 'cell-mdsm' },
+              { key: 'c', label: 'Where', className: 'cell-mdsm' },
+              { key: 'm', label: 'Message', className: 'cell-fill' },
+            ]}
+            empty="No errors recorded"
+            rows={errors.map((e) => [
+              <span key="w" style={{ whiteSpace: 'nowrap' }}>
+                {stamp(e.at)}
+              </span>,
+              e.context,
+              <span key="m" style={{ color: 'var(--danger)' }}>
+                {e.message}
+              </span>,
+            ])}
+          />
+        )}
       </Panel>
     </>
   );

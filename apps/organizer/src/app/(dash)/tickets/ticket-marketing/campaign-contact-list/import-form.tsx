@@ -41,9 +41,8 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
           </ul>
         )}
         <p className="muted" style={{ fontSize: 12 }}>
-          Contacts are <strong>not</strong> registrations. Nobody imported here holds a ticket or
-          appears on the attendee list. They are people to email, and folding them together would
-          put non-attendees into the collection that decides who gets through the door.
+          Contacts are people to email. They do not hold a ticket and do not appear on the
+          attendee list.
         </p>
       </>
     );
@@ -59,7 +58,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
 
       {state.stage === 'idle' && (
         <form action={previewAction}>
-          <div className="whova-form-row">
+          <div className="whova-form-group">
             <label className="whova-form-label" htmlFor="list">
               List name
             </label>
@@ -70,6 +69,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
               maxLength={60}
               placeholder="KGC 2026 attendees"
               list="existing-lists"
+              className="whova-text-input"
               style={{ maxWidth: 320 }}
             />
             <datalist id="existing-lists">
@@ -77,26 +77,24 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
                 <option key={l} value={l} />
               ))}
             </datalist>
-            <p className="muted" style={{ fontSize: 12 }}>
-              Contacts can be on several lists at once, and re-importing{' '}
-              <strong>adds</strong> to their lists rather than replacing them, so somebody on last
-              year&rsquo;s list who also joins the workshop waitlist stays on both.
+            <p className="whova-form-description">
+              A contact can be on several lists. Importing again adds them to this list and keeps
+              their other lists.
             </p>
           </div>
 
-          <div className="whova-form-row">
+          <div className="whova-form-group">
             <label className="whova-form-label" htmlFor="file">
               CSV file
             </label>
             <input id="file" name="file" type="file" accept=".csv,text/csv" />
-            <p className="muted" style={{ fontSize: 12 }}>
-              Needs an <strong>Email</strong> column and nothing else. Name, company and source are
-              used if present. Column names are matched loosely, so &ldquo;E-mail Address&rdquo; and
-              &ldquo;Organisation&rdquo; both work.
+            <p className="whova-form-description">
+              Needs an <strong>Email</strong> column. Name, company and source are used if present.
+              Headings like &ldquo;E-mail Address&rdquo; and &ldquo;Organisation&rdquo; also work.
             </p>
           </div>
 
-          <div className="whova-form-row">
+          <div className="whova-form-group">
             <label className="whova-form-label" htmlFor="pasted">
               …or paste it
             </label>
@@ -105,6 +103,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
               name="pasted"
               rows={5}
               placeholder={'Email,Name,Company\nada@example.com,Ada Nakamura,Acme'}
+              className="whova-text-input"
               style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }}
             />
           </div>
@@ -124,8 +123,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
           {state.sample && state.sample.length > 0 && (
             <>
               <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
-                The first rows, as the importer understood them. Check the values landed under the
-                right headings.
+                The first rows. Check the values are under the right headings.
               </p>
               <div className="whova-table-wrapper">
                 <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
@@ -175,9 +173,7 @@ export function ContactImportForm({ existingLists }: { existingLists: string[] }
           )}
 
           <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-            ⚠️ Anyone in this file who has already unsubscribed <strong>stays unsubscribed</strong>.
-            An import cannot clear a suppression. That is how a conference loses its sending domain,
-            and the damage lands on the ticket receipts rather than on the newsletter that caused it.
+            Anyone in this file who has already unsubscribed <strong>stays unsubscribed</strong>.
           </p>
 
           <form action={commitAction} style={{ marginTop: 14 }}>

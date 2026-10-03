@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
+import { stampOfInstant } from '@/lib/time';
 import { PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -51,11 +52,7 @@ export default async function SelfCheckInPage() {
         info={
           <>
             <strong>Attendees cannot check themselves in</strong>
-            <p>
-              Every client write under <code>checkInLists</code> is denied by{' '}
-              <code>firestore.rules</code>, on purpose: a check-in is a fact witnessed by staff, not
-              a claim made by whoever holds a phone. Use a kiosk station instead.
-            </p>
+            <p>Check-in is done by staff or at a kiosk station. Set up a kiosk for an unattended door.</p>
           </>
         }
         links={[
@@ -73,31 +70,17 @@ export default async function SelfCheckInPage() {
 
       <StatTiles
         tiles={[
-          {
-            label: 'Checked in',
-            value: checkedIn,
-            sub: checkedIn ? 'every one at a staffed or organizer-run station' : 'not inputted yet',
-          },
-          { label: 'Active registrations', value: active, sub: 'the denominator at the door' },
-          { label: 'Self check-ins', value: 0, sub: 'the rule denies the write' },
+          { label: 'Checked in', value: checkedIn },
+          { label: 'Active registrations', value: active },
         ]}
       />
 
       <Panel>
-        <h2 className="section-header">Unattended check-in, the way it works here</h2>
-        <p className="body-2">
-          <Link href="/attendees/check-in-and-checkout/kiosk-check-in">Kiosk Check-in</Link> is the
-          scanner with the operator&rsquo;s half removed: no attendee list, no addresses, no
-          identifiers, and a verdict that clears itself. Set the station name, leave the device at
-          the entrance, and it counts people into the door list.{' '}
-          <Link href="/attendees/check-in-and-checkout/session-self-check-in">Room doors</Link> is
-          the same station pointed at one session.
-        </p>
-        <p className="body-2">
-          The difference from Whova&rsquo;s poster is who the write belongs to. A kiosk records
-          what the organizer&rsquo;s station saw; a poster scanned on a personal phone records what
-          the phone claimed. Only the first is evidence, and a certificate of attendance is
-          eventually computed from it.
+        <p className="body-2" style={{ margin: 0 }}>
+          Self check-in is not available yet. For a door with no staff, use{' '}
+          <Link href="/attendees/check-in-and-checkout/kiosk-check-in">Kiosk Check-in</Link>. For a
+          single session, use{' '}
+          <Link href="/attendees/check-in-and-checkout/session-self-check-in">Room doors</Link>.
         </p>
       </Panel>
 
@@ -112,7 +95,7 @@ export default async function SelfCheckInPage() {
           empty="Nobody has checked in yet"
           rows={recent.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt ? stampOfInstant(c.checkedInAt) : '—'}
             </span>,
             <strong key="n">{c.name}</strong>,
             c.stationLabel || <span className="muted">—</span>,

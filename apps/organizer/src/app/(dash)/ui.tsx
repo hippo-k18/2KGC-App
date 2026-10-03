@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { gapNotesVisible } from '@/lib/gap-notes';
 
 /**
@@ -32,6 +32,15 @@ import { gapNotesVisible } from '@/lib/gap-notes';
  * and in the one direction nobody checks. Import from `./form` inside a form
  * component, and from here everywhere else.
  */
+
+/** Row actions are text links; this gives them a finger-sized box. */
+export const ROW_ACTION = {
+  alignItems: 'center',
+  display: 'inline-flex',
+  fontSize: 12,
+  minHeight: 32,
+  padding: '0 6px',
+} as const;
 
 export function PageHeader({
   title,
@@ -89,9 +98,18 @@ export function PageHeader({
   );
 }
 
-export function Panel({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
+export function Panel({
+  children,
+  id,
+  style,
+}: {
+  children: ReactNode;
+  /** An anchor target, for a link that has to land on this panel rather than the page. */
+  id?: string;
+  style?: React.CSSProperties;
+}) {
   return (
-    <div className="panel" style={style}>
+    <div className="panel" id={id} style={style}>
       {children}
     </div>
   );
@@ -100,7 +118,7 @@ export function Panel({ children, style }: { children: ReactNode; style?: React.
 /** Whova's three stat tiles: uppercase letter-spaced label over a large numeral. */
 export function StatTiles({ tiles }: { tiles: { label: string; value: ReactNode; sub?: string }[] }) {
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+    <div className="stat-tiles" style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
       {tiles.map((t) => (
         <div
           key={t.label}
@@ -113,8 +131,14 @@ export function StatTiles({ tiles }: { tiles: { label: string; value: ReactNode;
           }}
         >
           <div
+            className="stat-tile-label"
             style={{
               color: 'var(--muted)',
+              // 11px here and 12 on a phone, where uppercase and letter-spaced
+              // at 11 was the smallest thing on the screen. The phone size is
+              // in `globals.css`, inside the `max-width: 767px` block: this
+              // component is on 99 screens and the desktop dashboard does not
+              // move for a legibility problem that only exists on a phone.
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.8px',
@@ -147,6 +171,18 @@ export type Col = {
 };
 
 /**
+ * A cell whose whole content is one address, and nothing else.
+ *
+ * Deliberately strict. `Email` inserts break points, which is right for an
+ * address on its own and wrong inside a sentence, so a cell reading "Sent to
+ * ada@example.com on Tuesday" is left alone. No spaces, one `@`, a dot after
+ * it: that is the shape that pushes a stacked card off the screen.
+ */
+function looksLikeAddress(cell: ReactNode): cell is string {
+  return typeof cell === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cell);
+}
+
+/**
  * Whova's table is flexbox, not `<table>` — `.whova-table-row` is a flex row and
  * the width classes (`cell-sm` 136px, `cell-md` 272px, `cell-fill` grow) are
  * fixed pixel min/max pairs rather than percentages. Reproduced literally,
@@ -163,16 +199,41 @@ export function Table({
   rows,
   empty,
   sort,
+  stackSm = true,
 }: {
   cols: Col[];
   rows: ReactNode[][];
   empty?: ReactNode;
+  /**
+   * Under 768px, lay each row out as a card: one cell per line with its column
+   * name above it, so nothing in the row waits behind a sideways swipe. Wider
+   * screens are untouched.
+   *
+   * On by default, and that default is the fix rather than a convenience. It
+   * was opt-in for its first three rounds and roughly a third of the tables
+   * opted in, which is the wrong third: the tables nobody remembered were the
+   * ones whose last column is a sentence or whose row actions are the only way
+   * to act on the row, and on a phone both sat off the right edge with nothing
+   * on screen to say so. An author cannot be relied on to notice, because the
+   * screen looks right on the laptop they are building it on.
+   *
+   * Pass `stackSm={false}` for a table that is genuinely a grid — a few short
+   * numeric columns that read across — where a card per row is the worse shape.
+   * A ledger of four lines becomes twenty, and a poll with four options becomes
+   * a 700px block that says no more than the 120px one did. Those tables get
+   * `read-across-sm` instead, which shrinks the columns to the frame rather
+   * than letting them run off the right edge.
+   */
+  stackSm?: boolean;
   /** Current sort state plus the query string to build header links from. */
   sort?: { by?: string; dir?: 'asc' | 'desc'; baseParams: URLSearchParams };
 }) {
   return (
     <div className="whova-table-wrapper">
-      <div className="whova-table" role="table">
+      <div
+        className={`whova-table${rows.length === 0 ? ' is-empty' : ''}${stackSm ? ' stack-rows-sm' : ' read-across-sm'}`}
+        role="table"
+      >
         <div className="whova-table-head" role="rowgroup">
           <div className="whova-table-row" role="row">
             {cols.map((c) => {
@@ -228,8 +289,18 @@ export function Table({
                     key={cols[j]?.key ?? j}
                     className={`whova-table-cell ${cols[j]?.className ?? 'cell-fill'}`}
                     role="cell"
+                    data-label={typeof cols[j]?.label === 'string' ? cols[j].label : undefined}
                   >
-                    {cell}
+                    {/*
+                      A cell that is nothing but an address is wrapped here
+                      rather than at the call site. `Email` was added as an
+                      opt-in and reached ten of the places that needed it; the
+                      ones it missed are the ones nobody thought of as an email
+                      column — an actor, a buyer, a contact. A plain string is
+                      unambiguous and costs one test per cell, so the table
+                      does it and no author has to remember.
+                    */}
+                    {looksLikeAddress(cell) ? <Email address={cell} /> : cell}
                   </div>
                 ))}
               </div>
@@ -381,8 +452,8 @@ export function NotInputted({
 }) {
   return (
     <EmptyState icon="◌" action={action} compact={compact}>
-      <p className="empty-title">Not inputted yet</p>
-      {what ? <p className="empty-sub">No {what} has been entered for this event.</p> : null}
+      <p className="empty-title">Nothing here yet</p>
+      {what ? <p className="empty-sub">No {what} yet.</p> : null}
     </EmptyState>
   );
 }
@@ -741,6 +812,34 @@ export function ProgressBar({ pct }: { pct: number }) {
     >
       <div className="progress-bar-estimated" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
     </div>
+  );
+}
+
+/**
+ * An email address that breaks where a reader expects it to.
+ *
+ * Table cells carry `overflow-wrap: anywhere`, which they need — an address or
+ * an id has no space in it and would otherwise push the column off the screen.
+ * The cost is that on a phone, where a cell is half a card wide, the break
+ * lands mid-word: one line ends `example.t` and the next starts `est`, which
+ * reads as a truncation rather than a wrap.
+ *
+ * A `<wbr>` after the `@` and each dot gives the line breaker somewhere sane to
+ * go. It only falls back to breaking mid-word when even one segment will not
+ * fit, which is the case the rule was there for. Nothing is added to the text
+ * itself: a copy of the element yields the address unchanged.
+ */
+export function Email({ address }: { address: string }) {
+  const parts = address.split(/(?<=[@.])/);
+  return (
+    <>
+      {parts.map((part, i) => (
+        <Fragment key={i}>
+          {part}
+          {i < parts.length - 1 ? <wbr /> : null}
+        </Fragment>
+      ))}
+    </>
   );
 }
 

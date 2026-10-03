@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import type { TicketAudience } from '@kgc/shared';
+import { pricePhasesToText, type TicketAudience } from '@kgc/shared';
 import type { TicketTypeRow } from '@/lib/commerce';
 import {
   CheckboxField,
@@ -83,12 +83,6 @@ export function TicketForm({
         hint={
           <>
             Printed on the badge and shown on the website.
-            {existing && (
-              <>
-                {' '}
-                Id <code>{existing.id}</code> stays the same. Orders point at it.
-              </>
-            )}
           </>
         }
       />
@@ -97,16 +91,61 @@ export function TicketForm({
         name="price"
         label="Price"
         required
-        defaultValue={existing ? wholeUnits(existing.priceCents) : ''}
+        defaultValue={existing ? wholeUnits(existing.flatPriceCents) : ''}
         currencyName="currency"
         currencyDefault={existing?.currency ?? 'usd'}
+        hint={
+          existing?.pricePhases?.length ? (
+            <>
+              Only used while the price phases below are empty. Today the website charges{' '}
+              {existing.phase ? `the ${existing.phase} price, ` : ''}
+              {wholeUnits(existing.priceCents)}.
+            </>
+          ) : undefined
+        }
+      />
+
+      {/*
+        The price ladder. A text box, like the grouped list below, because the
+        whole ladder is four short lines and reads at a glance. The website
+        charges whichever phase is current, so nobody has to edit prices on the
+        morning a phase changes.
+      */}
+      <Textarea
+        name="pricePhases"
+        label="Price phases"
+        rows={5}
+        defaultValue={existing ? pricePhasesToText(existing.pricePhases) : ''}
+        placeholder={
+          'Super Early Bird: 599, sold out\n' +
+          'Early Bird: 699, from 2026-09-15\n' +
+          'Standard: 899, from 2026-12-01\n' +
+          'Extended: 1099, from 2027-03-01'
+        }
+        hint={
+          <>
+            One phase per line: a name, a price in dollars and the day it starts (New York time).
+            Each phase runs until the next one starts. Add <strong>sold out</strong> to show a
+            phase crossed out, or <strong>off sale</strong> to stop selling during it. Leave empty
+            to sell at the price above.
+          </>
+        }
+      />
+
+      <Field
+        name="badge"
+        label="Badge"
+        defaultValue={existing?.badge}
+        placeholder="Best value"
+        maxLength={24}
+        hint={<>A short label over the ticket on the tickets page. Leave empty for none.</>}
       />
 
       <Field
         name="tagline"
         label="Tagline"
         defaultValue={existing?.tagline}
-        placeholder="Wednesday to Friday at Cornell Tech."
+        placeholder="Wednesday to Friday at Jay Conference Bryant Park."
         maxLength={120}
         width="lg"
       />
@@ -121,9 +160,8 @@ export function TicketForm({
         }
         hint={
           <>
-            One bullet per line. Shown on the checkout order rail, on the smaller ticket cards, and
-            on the ticket panel, <strong>unless</strong> the grouped list below has something in
-            it, in which case the panel shows that instead.
+            One bullet per line. Shown at checkout and on the ticket cards. The two headline panels
+            show the grouped list below instead, when it has something in it.
           </>
         }
       />
@@ -160,8 +198,8 @@ export function TicketForm({
         hint={
           <>
             <strong>This is what the two headline panels on the website show.</strong> A line with
-            no dash is a heading; a line starting <code>-</code> is a bullet under it. A heading on
-            its own is a group with no bullets. Leave it empty to fall back to the flat list above.
+            no dash is a heading. A line starting with a dash is a bullet under it. Leave it empty
+            to use the list above.
           </>
         }
       />
@@ -182,9 +220,8 @@ export function TicketForm({
         hint={
           <>
             Blank for unlimited. {existing ? `${existing.quantitySold} sold so far. ` : ''}
-            This closes the tier when it is reached, but it is{' '}
-            <strong>not a hard reservation</strong>. Two people can pass the check at the same
-            moment and both pay.
+            Sales close when it is reached, but it is <strong>not a hard reservation</strong>. Two
+            people buying at the same moment can both get through.
           </>
         }
       />
@@ -236,9 +273,7 @@ export function TicketForm({
         ]}
         hint={
           <>
-            ⚠️ Only <strong>attendee</strong> tiers appear on the public website.{' '}
-            <code>catalogue.ts</code> filters to them. An exhibitor or sponsor tier is recorded here
-            and has nothing selling it yet.
+            Only <strong>attendee</strong> tickets appear on the public tickets page.
           </>
         }
       />
@@ -274,13 +309,13 @@ export function TicketForm({
         <CheckboxField
           name="inPerson"
           label="In-person ticket"
-          description="Splits the catalogue on Virtual & Hybrid › Setup and Attendee Customization › Ticket Tiering. Nothing on the public site renders it."
+          description="Used by Virtual & Hybrid › Setup and Attendee Customization › Ticket Tiering. Not shown on the website."
           defaultChecked={existing ? existing.inPerson : true}
         />
         <CheckboxField
           name="featured"
           label="Highlight on the tickets page"
-          description="Draws the dark, emphasised panel on /tickets/exhibitor and /tickets/sponsor."
+          description="Draws this ticket as the dark, larger panel."
           defaultChecked={existing?.featured ?? false}
         />
         {/*
@@ -295,12 +330,21 @@ export function TicketForm({
           label="Admits the workshop sessions"
           defaultChecked={existing?.includesWorkshops ?? false}
         />
+        {/*
+          Both boxes are entitlements, and this one is now read twice: at
+          fulfilment, where it grants the video-library entitlement, and when a
+          recording is restricted to particular tiers — every tier with this
+          ticked is added back to that restriction, so a tier sold a library
+          cannot be locked out of one. Session Manager is where the links go.
+        */}
         <CheckboxField
           name="includesVideoLibrary"
           label={
             <>
               Includes the video library
-              <span className="muted">. Sold, but nothing serves it yet</span>
+              <span className="muted">
+                . Recordings restricted to other tiers still admit this one
+              </span>
             </>
           }
           defaultChecked={existing?.includesVideoLibrary ?? false}

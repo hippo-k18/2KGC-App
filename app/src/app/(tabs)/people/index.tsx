@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, ScrollView, View } from 'react-native';
+import { FlatList, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { threadIdFor } from '@kgc/shared';
+import { groupSponsorsByTier, threadIdFor } from '@kgc/shared';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -28,6 +28,7 @@ import {
 } from '@/lib/data/directory';
 import { useExhibitors, type ExhibitorListing } from '@/lib/data/exhibitors';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 
 /**
  * Four now, where the segmented control's own note says "two or three".
@@ -83,6 +84,22 @@ const EMPTY = [
  * this value now contradicts.)
  */
 const ROW_AVATAR = 44;
+/**
+ * Slop around the bookmark star and "Say Hi", the two controls stacked at the
+ * right of a directory row.
+ *
+ * The star is a 20pt glyph, so it needs 12 on every side to reach 44; "Say Hi"
+ * is 28 tall, so it needs 8. Nothing on its left: the row's own target ends
+ * where this column begins, and slop reaching back over it would swallow taps
+ * meant for the name beside it.
+ *
+ * The two sums also set `ROW_ACTION_GAP` below: 12 under the star and 8 over
+ * "Say Hi" is 20, and any gap smaller than that has one target lying on the
+ * other.
+ */
+const STAR_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
+const SAY_HI_SLOP = { top: Spacing.sm, bottom: Spacing.sm, left: 0, right: Spacing.sm };
+const ROW_ACTION_GAP = STAR_SLOP.bottom + SAY_HI_SLOP.top;
 /**
  * Drawn width of the A–Z rail.
  *
@@ -145,6 +162,9 @@ export default function PeopleScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user, profile } = useAuth();
+  // The organizers' event-wide switch. Off, every Say Hi goes with it, because
+  // the rules refuse the thread it would open.
+  const { messagingEnabled } = useAppAccess();
   /**
    * Which segment to open on, from `?segment=speakers|sponsors|exhibitors`.
    *
@@ -166,7 +186,7 @@ export default function PeopleScreen() {
   // Whova's "Bookmarked" chip. Real, because the bookmark itself is real.
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const { speakers, error: speakersError, retry: retrySpeakers } = useSpeakers();
-  const { sponsors, error: sponsorsError, retry: retrySponsors } = useSponsors();
+  const { sponsors, tiers, error: sponsorsError, retry: retrySponsors } = useSponsors();
   const { exhibitors, error: exhibitorsError, retry: retryExhibitors } = useExhibitors();
 
   // One segment is visible at a time, and each reads a different collection, so
@@ -235,10 +255,14 @@ export default function PeopleScreen() {
       };
     }
     if (segment === 2) {
-      return {
-        rows: visibleSponsors.map<Row>((s) => ({ kind: 'sponsor', key: s.id, sponsor: s })),
-        letterIndex: new Map<string, number>(),
-      };
+      // One band per tier, in the order and under the names the organizer set on
+      // the dashboard. The band is the attendee list's letter band, reused.
+      const out: Row[] = [];
+      for (const g of groupSponsorsByTier(tiers, visibleSponsors)) {
+        out.push({ kind: 'index', key: `tier-${g.tier.id}`, letter: g.tier.name });
+        for (const s of g.sponsors) out.push({ kind: 'sponsor', key: s.id, sponsor: s });
+      }
+      return { rows: out, letterIndex: new Map<string, number>() };
     }
     if (segment === 3) {
       return {
@@ -260,7 +284,7 @@ export default function PeopleScreen() {
       out.push({ kind: 'attendee', key: person.id, person });
     }
     return { rows: out, letterIndex: index };
-  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors, visibleExhibitors]);
+  }, [segment, visiblePeople, visibleSpeakers, visibleSponsors, visibleExhibitors, tiers]);
 
   const count = rows.filter((r) => r.kind !== 'index').length;
 
@@ -291,14 +315,18 @@ export default function PeopleScreen() {
         userName={profile?.name ?? 'You'}
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me')}
-        actions={[
-          {
-            icon: 'envelope.fill',
-            label: 'Messages',
-            // `from` names the tab to come back to — see `messages/index.tsx`.
-            onPress: () => router.push({ pathname: '/messages', params: { from: 'people' } }),
-          },
-        ]}
+        actions={
+          messagingEnabled
+            ? [
+                {
+                  icon: 'envelope.fill',
+                  label: 'Messages',
+                  // `from` names the tab to come back to — see `messages/index.tsx`.
+                  onPress: () => router.push({ pathname: '/messages', params: { from: 'people' } }),
+                },
+              ]
+            : []
+        }
         search={{
           value: search,
           onChangeText: (next) => {
@@ -423,8 +451,12 @@ export default function PeopleScreen() {
               60,
             );
           }}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             if (item.kind === 'index') return <IndexHeader letter={item.letter} />;
+
+            // Last of its band, so the hairline does not hang below the group
+            // into the grey with nothing after it.
+            const last = index === rows.length - 1 || rows[index + 1]?.kind === 'index';
 
             if (item.kind === 'speaker') {
               const s = item.speaker;
@@ -450,6 +482,7 @@ export default function PeopleScreen() {
                       ? () => router.push({ pathname: '/people/[uid]', params: { uid: s.userId! } })
                       : () => router.push({ pathname: '/people/speaker/[id]', params: { id: s.id } })
                   }
+                  last={last}
                 />
               );
             }
@@ -472,6 +505,7 @@ export default function PeopleScreen() {
                   onPress={() =>
                     router.push({ pathname: '/people/exhibitor/[id]', params: { id: e.id } })
                   }
+                  last={last}
                 />
               );
             }
@@ -482,14 +516,15 @@ export default function PeopleScreen() {
                 <DirectoryRow
                   name={s.name}
                   logoURL={s.logoURL}
-                  lines={[
-                    s.tier[0].toUpperCase() + s.tier.slice(1),
-                    s.boothLocation ? `Booth ${s.boothLocation}` : undefined,
-                  ]}
+                  // No tier here: the band above the row is the tier, under the
+                  // organizer's own name for it, and printing it again put
+                  // "Platinum" three times in the first six centimetres.
+                  lines={[s.boothLocation ? `Booth ${s.boothLocation}` : undefined]}
                   tags={s.offers?.slice(0, 2) ?? []}
                   onPress={() =>
                     router.push({ pathname: '/people/sponsor/[id]', params: { id: s.id } })
                   }
+                  last={last}
                 />
               );
             }
@@ -504,7 +539,7 @@ export default function PeopleScreen() {
                 tags={p.interests ?? []}
                 onPress={() => router.push({ pathname: '/people/[uid]', params: { uid: p.uid } })}
                 onSayHi={
-                  user && !isMe
+                  user && !isMe && messagingEnabled
                     ? // Pushing out of the tab group into `messages` hoists the
                       // params onto the root-level `messages` route as well as
                       // the leaf, so expo-router serialises the id twice:
@@ -523,6 +558,7 @@ export default function PeopleScreen() {
                 sayHiName={p.name}
                 bookmarked={isSaved(p.uid)}
                 onBookmark={user && p.uid !== user.uid ? () => toggleBookmark(p.uid) : undefined}
+                last={last}
               />
             );
           }}
@@ -572,10 +608,10 @@ export default function PeopleScreen() {
  * "+N more" tail, because a data scientist with nine interests would otherwise
  * push the next attendee off the screen.
  *
- * "Say Hi" is a `Pressable` inside the row's own `Pressable`. That nests two
- * targets, so the inner one gets no `hitSlop` on its left edge — slop there
- * would extend the message affordance under the company name, and tapping a
- * name is meant to open a profile.
+ * "Say Hi" and the star are `Pressable`s *beside* the row's own `Pressable`,
+ * not inside it. Inside, they were a button within a button, which the browser
+ * rejects; beside, the two areas do not overlap and neither control takes
+ * `hitSlop` on its left edge, where the name is.
  *
  * ## The row does not make room for the A–Z rail
  *
@@ -598,6 +634,7 @@ function DirectoryRow({
   sayHiName,
   onBookmark,
   bookmarked,
+  last,
 }: {
   name: string;
   photoURL?: string;
@@ -614,24 +651,19 @@ function DirectoryRow({
   sayHiName?: string;
   onBookmark?: () => void;
   bookmarked?: boolean;
+  /** Last row of its band: no rule, so none hangs under the group. */
+  last?: boolean;
 }) {
   const colors = useTheme();
   const shown = tags.slice(0, 2);
   const extra = tags.length - shown.length;
   const detail = lines.filter(Boolean) as string[];
 
-  const body = (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: Spacing.sm + Spacing.xs,
-        paddingLeft: Spacing.md,
-        paddingRight: Spacing.md,
-        // 12 with a 44pt avatar gives a 68pt row; it was 16 with 52, which is
-        // 84 — half again as tall as the directory row Whova draws.
-        paddingVertical: Spacing.md - Spacing.xs,
-      }}>
+  const [pressed, setPressed] = useState(false);
+
+  /** The part the row's own tap covers: the face, the name and the detail. */
+  const main = (
+    <>
       {logoURL === undefined ? (
         <Avatar name={name} photoURL={photoURL} size={ROW_AVATAR} />
       ) : (
@@ -691,58 +723,78 @@ function DirectoryRow({
           </View>
         ) : null}
       </View>
+    </>
+  );
 
-      <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', gap: Spacing.md }}>
-        {onPress ? (
-          <View {...DECORATIVE}>
-            <Chevron />
-          </View>
-        ) : (
-          <View style={{ width: 16 }} {...DECORATIVE} />
-        )}
+  /** The chevron, the star and "Say Hi", stacked at the right-hand end. */
+  const actions = (
+    <View
+      style={{
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        gap: ROW_ACTION_GAP,
+        paddingLeft: Spacing.sm + Spacing.xs,
+        paddingRight: Spacing.md,
+        paddingVertical: Spacing.md - Spacing.xs,
+      }}>
+      {onPress ? (
+        <View {...DECORATIVE}>
+          <Chevron />
+        </View>
+      ) : (
+        <View style={{ width: 16 }} {...DECORATIVE} />
+      )}
 
-        {onBookmark ? (
-          <Pressable
-            onPress={onBookmark}
-            accessibilityRole="button"
-            accessibilityState={{ selected: bookmarked }}
-            accessibilityLabel={
-              bookmarked
-                ? `Remove ${sayHiName ?? 'this attendee'} from your bookmarks`
-                : `Bookmark ${sayHiName ?? 'this attendee'}`
-            }
-            hitSlop={Spacing.sm}
-            style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
-            <Icon
-              name={bookmarked ? 'star.fill' : 'star'}
-              size={20}
-              color={bookmarked ? colors.tint : colors.textTertiary}
-            />
-          </Pressable>
-        ) : null}
+      {onBookmark ? (
+        <Pressable
+          onPress={onBookmark}
+          accessibilityRole="button"
+          accessibilityState={{ selected: bookmarked }}
+          accessibilityLabel={
+            bookmarked
+              ? `Remove ${sayHiName ?? 'this attendee'} from your bookmarks`
+              : `Bookmark ${sayHiName ?? 'this attendee'}`
+          }
+          // A 20pt glyph repeated down the whole list, and the smallest
+          // control in the app. 12 each side takes it to 44, and `webSlop`
+          // is what makes that true in a phone browser as well.
+          hitSlop={STAR_SLOP}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.4 : 1,
+            ...webSlop({}, STAR_SLOP),
+          })}>
+          <Icon
+            name={bookmarked ? 'star.fill' : 'star'}
+            size={20}
+            color={bookmarked ? colors.tint : colors.textTertiary}
+          />
+        </Pressable>
+      ) : null}
 
-        {onSayHi ? (
-          <Pressable
-            onPress={onSayHi}
-            accessibilityRole="button"
-            accessibilityLabel={sayHiName ? `Say hi to ${sayHiName}` : 'Say hi'}
-            accessibilityHint="Opens a message thread"
-            hitSlop={{ top: Spacing.sm, bottom: Spacing.sm, left: 0, right: Spacing.sm }}
-            style={({ pressed }) => ({
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: Spacing.xs + 2,
-              paddingVertical: Spacing.xs,
-              minHeight: HIT_TARGET - Spacing.md,
-              opacity: pressed ? 0.4 : 1,
-            })}>
-            <Icon name="bubble.left" size={16} color={colors.tint} />
-            <Text variant="subhead" tone="tint" numberOfLines={1}>
-              Say Hi
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      {onSayHi ? (
+        <Pressable
+          onPress={onSayHi}
+          accessibilityRole="button"
+          accessibilityLabel={sayHiName ? `Say hi to ${sayHiName}` : 'Say hi'}
+          accessibilityHint="Opens a message thread"
+          hitSlop={SAY_HI_SLOP}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: Spacing.xs + 2,
+            paddingVertical: Spacing.xs,
+            minHeight: HIT_TARGET - Spacing.md,
+            opacity: pressed ? 0.4 : 1,
+            // 64x28 in a phone browser without this, because
+            // react-native-web drops `hitSlop`. See `webSlop`.
+            ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, SAY_HI_SLOP),
+          })}>
+          <Icon name="bubble.left" size={16} color={colors.tint} />
+          <Text variant="subhead" tone="tint" numberOfLines={1}>
+            Say Hi
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -751,7 +803,7 @@ function DirectoryRow({
     one separator rule. A `borderBottomWidth` on the row itself cannot be inset,
     which is why this is a drawn hairline rather than a border.
   */
-  const rule = (
+  const rule = last ? null : (
     <View
       style={{
         height: HAIRLINE,
@@ -763,26 +815,50 @@ function DirectoryRow({
     />
   );
 
-  if (!onPress) {
-    return (
-      <View style={{ backgroundColor: colors.surface }}>
-        {body}
-        {rule}
-      </View>
-    );
-  }
+  /*
+    Avatar, name and detail. 12 above and below with a 44pt avatar gives a 68pt
+    row; it was 16 with 52, which is 84 — half again as tall as the directory
+    row Whova draws.
+  */
+  const mainStyle = {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm + Spacing.xs,
+    paddingLeft: Spacing.md,
+    paddingVertical: Spacing.md - Spacing.xs,
+  } as const;
 
+  /*
+    The row and its two controls are siblings, not one inside the other.
+
+    "Say Hi" and the bookmark star used to sit inside the row's own `Pressable`.
+    In the browser that is a real button inside a real button, which is invalid
+    and which React reports as a hydration error on every screen the directory
+    stays mounted behind — nine of the ten. Side by side, each control owns its
+    own strip and the row owns the rest, and the press tint is held here so that
+    pressing the row still lights the whole row rather than two thirds of it.
+  */
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={[name, ...detail, ...tags].join(', ')}
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? colors.surfacePressed : colors.surface,
-      })}>
-      {body}
+    <View style={{ backgroundColor: pressed ? colors.surfacePressed : colors.surface }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        {onPress ? (
+          <Pressable
+            onPress={onPress}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
+            accessibilityRole="button"
+            accessibilityLabel={[name, ...detail, ...tags].join(', ')}
+            style={mainStyle}>
+            {main}
+          </Pressable>
+        ) : (
+          <View style={mainStyle}>{main}</View>
+        )}
+        {actions}
+      </View>
       {rule}
-    </Pressable>
+    </View>
   );
 }
 
@@ -853,7 +929,6 @@ function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter:
         right: 0,
         width: RAIL_WIDTH,
         alignItems: 'center',
-        justifyContent: 'space-evenly',
       }}>
       {letters.map((letter) => (
         <Pressable
@@ -861,9 +936,20 @@ function AlphabetRail({ letters, onJump }: { letters: string[]; onJump: (letter:
           onPress={() => onJump(letter)}
           accessibilityRole="button"
           accessibilityLabel={`Jump to ${letter === '#' ? 'other' : letter}`}
-          hitSlop={{ top: 0, bottom: 0, left: HIT_TARGET - RAIL_WIDTH, right: 0 }}
+          hitSlop={{ left: HIT_TARGET - RAIL_WIDTH }}
           style={({ pressed }) => ({
-            width: RAIL_WIDTH,
+            // `border-box` on web, so the width has to grow with `webSlop`'s padding.
+            width: Platform.OS === 'web' ? HIT_TARGET : RAIL_WIDTH,
+            ...webSlop({}, { left: HIT_TARGET - RAIL_WIDTH }),
+            /*
+             * The letters share edges rather than being spread with
+             * `space-evenly`, which is what the paragraph above always claimed
+             * and what the rail never did: with 20 letters over 430pt each got
+             * 21pt of space and 13pt of target, and the 8pt between them
+             * pressed nothing at all. `flex: 1` hands each letter its share of
+             * the rail, so the target is the strip.
+             */
+            flex: 1,
             minHeight: RAIL_LETTER_HEIGHT,
             alignItems: 'center',
             justifyContent: 'center',

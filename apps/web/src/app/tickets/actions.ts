@@ -4,11 +4,14 @@ import { randomUUID } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
+import { brandingSettings, ticketSalesOpen } from '@/lib/data';
+import { buyerFeeCents } from '@kgc/shared';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { tierById, tierFulfilment } from '@/lib/catalogue';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
+import { readReferralCookies, referralMetadata, type CapturedReferral } from '@/lib/referral-capture';
 import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import type { Tier } from '@/lib/tickets';
@@ -104,7 +107,14 @@ type Prepared =
       primary: Tier;
       answersRef?: string;
       campaignCode?: string;
+      /** An attendee's invite code and UTMs, from the cookies the middleware set. */
+      referral: CapturedReferral;
       origin: string;
+      /**
+       * The buyer fee, or 0. Only charged while `settings/branding.
+       * chargeBuyerFee` is on, which it is not by default.
+       */
+      feeCents: number;
     };
 
 async function prepareCheckout(form: FormData): Promise<Prepared> {
@@ -193,11 +203,6 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
         return {
           error: who ? `${who}enter a valid email address.` : 'Enter a valid email address.',
         };
-      case 'duplicate':
-        return {
-          error:
-            `${problem.email} appears twice. Each attendee needs their own address.`,
-        };
     }
   }
 
@@ -277,7 +282,7 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
     posted[f.id] = f.kind === 'multi-choice' ? values : values[0];
   }
 
-  const checked = validateAnswers(fields, primary.id, posted);
+  const checked = validateAnswers(fields, primary.baseTierId ?? primary.id, posted);
   if (!checked.ok) {
     return {
       error: 'Some of the registration questions need an answer.',
@@ -313,10 +318,56 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
    * merely because we put them there. An unparseable value is dropped rather
    * than carried into Stripe metadata.
    */
-  const ref = (await cookies()).get(ATTRIBUTION_COOKIE)?.value ?? '';
+  const jar = await cookies();
+  const ref = jar.get(ATTRIBUTION_COOKIE)?.value ?? '';
   const campaignCode = validCode(ref) ? ref : undefined;
+  // The same reasoning for an attendee's invite: cookies, re-validated.
+  const referral = readReferralCookies((cookieName) => jar.get(cookieName)?.value);
 
-  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, origin };
+  /**
+   * The buyer fee, worked out on the ticket subtotal here on the server, like
+   * every other figure on this path. Off unless an organizer has switched it on.
+   */
+  const subtotalCents = seats.reduce((sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0), 0);
+  const feeCents = (await brandingSettings()).chargeBuyerFee ? buyerFeeCents(subtotalCents) : 0;
+
+  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents };
+}
+
+/** The buyer fee as its own Stripe line, so the receipt shows it apart from the tickets. */
+function feeLine(feeCents: number, primary: Tier) {
+  return {
+    quantity: 1,
+    price_data: {
+      currency: primary.currency,
+      unit_amount: feeCents,
+      product_data: { name: 'Buyer fee', tax_code: primary.taxCode },
+    },
+  };
+}
+
+/**
+ * How a ticket is described to Stripe when it has no product of its own.
+ */
+function productData(tier: Tier) {
+  return {
+    name: `KGC 2027: ${tier.name}`,
+    description: tier.tagline,
+    /**
+     * `txcd_20030000` is Stripe's "General - Services" code, which is
+     * what their own ticketing guide specifies for admission.
+     *
+     * The subtlety worth knowing: an event ticket is taxed where the
+     * *event happens*, not where the buyer lives — unlike almost
+     * everything else Stripe Tax handles. KGC is at Jay Conference Bryant Park,
+     * New York, so the relevant jurisdiction is New York, and
+     * a buyer in Berlin owes New York's treatment rather than German
+     * VAT. That is configured on the Stripe side by setting the
+     * event's location; getting it wrong is a filing problem, not a
+     * display bug.
+     */
+    tax_code: tier.taxCode,
+  };
 }
 
 export async function startCheckout(
@@ -336,15 +387,17 @@ export async function startCheckout(
   if (!stripeEnabled()) {
     console.error('[checkout] refused: STRIPE_SECRET_KEY is not set, so no payment can be taken');
     return {
-      error:
-        'Ticket sales are not configured on this deployment. STRIPE_SECRET_KEY is not set, ' +
-        'so no payment can be taken. Nothing was charged and no registration was created.',
+      error: 'Ticket sales are not open yet. Nothing was charged.',
     };
+  }
+  // Switched off under Marketing > Event Website.
+  if (!(await ticketSalesOpen())) {
+    return { error: 'Ticket sales are not open yet. Nothing was charged.' };
   }
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents } = prepared;
 
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card
@@ -366,40 +419,38 @@ export async function startCheckout(
 
   let sessionId: string;
   let url: string | null;
+  /**
+   * Sell each tier as its own Stripe product when it has one.
+   *
+   * A tier gets `stripeProductId` the first time the dashboard limits a
+   * discount code to it, and Stripe matches that restriction by product. The
+   * product is what makes "20% off Main Conference" come off the Main
+   * Conference line and nothing else. Without one, Stripe mints a throwaway
+   * product per session and a restricted code has nothing to match.
+   */
+  let useProducts = true;
   try {
-    const session = await stripe().checkout.sessions.create({
+    const create = () => stripe().checkout.sessions.create({
       mode: 'payment',
       customer_email: email,
-      line_items: lines.map((line) => {
-        // Non-null: every tier id in `lines` came from `seats`, and the loop
-        // above returned an error for any seat whose tier failed to load.
-        const tier = tiers.get(line.tierId)!;
-        return {
-          quantity: line.quantity,
-          price_data: {
-            currency: tier.currency,
-            unit_amount: tier.priceCents,
-            product_data: {
-              name: `KGC 2027: ${tier.name}`,
-              description: tier.tagline,
-              /**
-               * `txcd_20030000` is Stripe's "General - Services" code, which is
-               * what their own ticketing guide specifies for admission.
-               *
-               * The subtlety worth knowing: an event ticket is taxed where the
-               * *event happens*, not where the buyer lives — unlike almost
-               * everything else Stripe Tax handles. KGC is at Cornell Tech on
-               * Roosevelt Island, so the relevant jurisdiction is New York, and
-               * a buyer in Berlin owes New York's treatment rather than German
-               * VAT. That is configured on the Stripe side by setting the
-               * event's location; getting it wrong is a filing problem, not a
-               * display bug.
-               */
-              tax_code: tier.taxCode,
+      line_items: [
+        ...lines.map((line) => {
+          // Non-null: every tier id in `lines` came from `seats`, and the loop
+          // above returned an error for any seat whose tier failed to load.
+          const tier = tiers.get(line.tierId)!;
+          return {
+            quantity: line.quantity,
+            price_data: {
+              currency: tier.currency,
+              unit_amount: tier.priceCents,
+              ...(useProducts && tier.stripeProductId
+                ? { product: tier.stripeProductId }
+                : { product_data: productData(tier) }),
             },
-          },
-        };
-      }),
+          };
+        }),
+        ...(feeCents > 0 ? [feeLine(feeCents, primary)] : []),
+      ],
 
       /**
        * Let Stripe compute tax rather than us.
@@ -449,6 +500,8 @@ export async function startCheckout(
         name,
         seats: String(seats.length),
         ...(campaignCode ? { campaignCode } : {}),
+        ...referralMetadata(referral),
+        ...(feeCents > 0 ? { buyerFeeCents: String(feeCents) } : {}),
         // A reference, not the answers themselves: metadata caps at 500
         // characters per value, and a long-text answer would silently truncate.
         ...(answersRef ? { answersRef } : {}),
@@ -459,6 +512,23 @@ export async function startCheckout(
       // everything the buyer typed and show them a price list instead.
       cancel_url: `${origin}/tickets/checkout?tier=${encodeURIComponent(primary.id)}&cancelled=1`,
     });
+
+    let session;
+    try {
+      session = await create();
+    } catch (err) {
+      /*
+       * A product archived or deleted in Stripe's own dashboard would otherwise
+       * stop every sale of that ticket. The retry describes the ticket inline,
+       * as before products existed, so it still sells at the right price. The
+       * only loss is that a code limited to that product will not apply, which
+       * errs toward full price rather than a discount nobody meant to give.
+       */
+      if (!lines.some((line) => tiers.get(line.tierId)?.stripeProductId)) throw err;
+      console.error('[checkout] Stripe refused a ticket product; retrying without products', err);
+      useProducts = false;
+      session = await create();
+    }
     sessionId = session.id;
     url = session.url;
   } catch (err) {
@@ -508,6 +578,7 @@ export async function startCheckout(
         seats: cartSeats,
         currency: primary.currency,
         campaignCode,
+        feeCents,
       });
     } catch (err) {
       console.error('[checkout] could not record the seat list for', sessionId, err);
@@ -579,7 +650,7 @@ export async function completeDemoCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, origin } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents } = prepared;
 
   /**
    * A synthetic id where a Stripe Checkout Session id would be.
@@ -601,10 +672,11 @@ export async function completeDemoCheckout(
    * inventing a plausible tax line would put a number on the dashboard that
    * nothing could reconcile.
    */
-  const amountCents = seats.reduce(
+  const subtotalCents = seats.reduce(
     (sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0),
     0,
   );
+  const amountCents = subtotalCents + feeCents;
 
   /**
    * The seat list, written before fulfilment for the same reason the Stripe
@@ -635,6 +707,7 @@ export async function completeDemoCheckout(
         currency: primary.currency,
         campaignCode,
         channel: 'demo',
+        feeCents,
       });
     } catch (err) {
       console.error('[demo-checkout] could not record the seat list for', externalId, err);
@@ -658,10 +731,12 @@ export async function completeDemoCheckout(
       tierId: primary.id,
       amountCents,
       currency: primary.currency,
-      subtotalCents: amountCents,
+      subtotalCents,
       taxCents: 0,
       discountCents: 0,
       campaignCode,
+      referralCode: referral.referralCode,
+      utm: referral.utm,
       answersRef,
       channel: 'demo',
       origin,

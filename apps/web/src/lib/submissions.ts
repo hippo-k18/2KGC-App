@@ -245,6 +245,14 @@ export async function openCallFor(sessionType: SessionFormat): Promise<OpenCall 
 }
 
 /** One submission and its author, for the page behind a capability link. */
+/**
+ * The three statuses that are a committee's decision. The waiting list is one
+ * of them: the text the reviewers scored must not change under that decision
+ * any more than under an acceptance.
+ */
+const isDecided = (status: SubmissionStatus): status is 'accepted' | 'rejected' | 'waitlisted' =>
+  status === 'accepted' || status === 'rejected' || status === 'waitlisted';
+
 export interface OwnSubmission {
   id: string;
   call: PublicCall;
@@ -267,7 +275,7 @@ export interface OwnSubmission {
   };
   /** Whether an edit would be accepted right now. The window, not a preference. */
   editable: boolean;
-  decided?: 'accepted' | 'rejected';
+  decided?: 'accepted' | 'rejected' | 'waitlisted';
 }
 
 /**
@@ -332,9 +340,8 @@ export async function loadOwnSubmission(submissionId: string): Promise<OwnSubmis
        * the close in every sense that matters — the reviewers read the current
        * text, not the text as it stood at the deadline.
        */
-      editable: call.refusal === null && sub.status !== 'withdrawn',
-      decided:
-        sub.status === 'accepted' ? 'accepted' : sub.status === 'rejected' ? 'rejected' : undefined,
+      editable: call.refusal === null && sub.status !== 'withdrawn' && !isDecided(sub.status),
+      decided: isDecided(sub.status) ? sub.status : undefined,
     };
   } catch (err) {
     console.error('[submissions] could not load submission', submissionId, err);
@@ -492,7 +499,7 @@ export async function saveSubmission(
     }
     const before = existing?.exists ? (existing.data() as SubmissionDoc) : undefined;
 
-    if (before && (before.status === 'accepted' || before.status === 'rejected')) {
+    if (before && isDecided(before.status)) {
       return {
         ok: false,
         error: 'A decision has been made on this submission, so it can no longer be edited.',
@@ -651,7 +658,14 @@ export async function withdrawSubmission(submissionId: string): Promise<boolean>
     const sub = snap.data() as SubmissionDoc;
     if (sub.status === 'accepted' || sub.status === 'rejected') return false;
 
-    await ref.update({ status: 'withdrawn', updatedAt: Timestamp.now() });
+    await ref.update({
+      status: 'withdrawn',
+      // Only a waiting-list place can be withdrawn from after a decision, and
+      // the decision goes with it: a withdrawn submission holding one could be
+      // "undone" on the dashboard back into review.
+      decision: FieldValue.delete(),
+      updatedAt: Timestamp.now(),
+    });
     return true;
   } catch (err) {
     console.error('[submissions] could not withdraw', submissionId, err);

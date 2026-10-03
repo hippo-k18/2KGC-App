@@ -3,13 +3,15 @@ import 'server-only';
 import {
   COLLECTIONS,
   EVENT_ID,
+  TIME_ZONE,
+  priceNow,
   type EntitlementDoc,
   type TicketAudience,
   type TicketTypeDoc,
 } from '@kgc/shared';
 import { db } from './firestore';
 import { entitlementKinds } from './app-account-core';
-import type { Tier } from './tickets';
+import type { AddOn, Tier } from './tickets';
 
 /**
  * Reading the ticket catalogue out of Firestore.
@@ -48,6 +50,25 @@ function optional<T>(value: T | undefined): T | undefined {
  * true.
  */
 function availability(t: TicketTypeDoc, now: Date): Pick<Tier, 'onSale' | 'unavailableReason'> {
+  // An add-on on its own is two workshop days for $199 without the conference
+  // they belong to. It is only ever bought inside its bundle.
+  if (t.addOnFor) return { onSale: false, unavailableReason: 'Sold only as an add-on' };
+  return windowAndCapacity(t, now);
+}
+
+/** The price phase in force on `now`, read in the tier's own sales zone. */
+function phaseNow(t: TicketTypeDoc, now: Date) {
+  return priceNow(t, now, t.salesTimeZone ?? TIME_ZONE);
+}
+
+/**
+ * The clock, the price phase and the seat count, without the add-on rule. A
+ * bundle checks its parts with this.
+ */
+function windowAndCapacity(
+  t: TicketTypeDoc,
+  now: Date,
+): Pick<Tier, 'onSale' | 'unavailableReason'> {
   if (t.salesOpenAt && t.salesOpenAt.toDate() > now) {
     return { onSale: false, unavailableReason: 'Not on sale yet' };
   }
@@ -57,14 +78,50 @@ function availability(t: TicketTypeDoc, now: Date): Pick<Tier, 'onSale' | 'unava
   if (typeof t.quantityTotal === 'number' && (t.quantitySold ?? 0) >= t.quantityTotal) {
     return { onSale: false, unavailableReason: 'Sold out' };
   }
+  // A phase with no agreed price, or one marked off sale, sells nothing.
+  const phase = phaseNow(t, now);
+  if (!phase.onSale) return { onSale: false, unavailableReason: phase.unavailableReason };
   return { onSale: true };
 }
 
-function toTier(id: string, t: TicketTypeDoc, now: Date): Tier {
+/**
+ * A bundle's price and state, from its parts.
+ *
+ * The price is the sum of the parts' current phase prices, so "Main
+ * Conference + Workshops" follows Main Conference up the price ladder without
+ * anybody editing a second document. It is on sale only while every part is inside its window and under
+ * its cap: a closed Main Conference must close the bundle too. A missing part
+ * closes it rather than pricing it at whatever is left, because a partial sum
+ * is a price nobody set.
+ */
+function bundlePricing(
+  t: TicketTypeDoc,
+  parts: Map<string, TicketTypeDoc>,
+  now: Date,
+): Pick<Tier, 'priceCents' | 'onSale' | 'unavailableReason'> {
+  const ids = t.bundleOf ?? [];
+  const docs = ids.map((id) => parts.get(id));
+  if (docs.length === 0 || docs.some((d) => !d || d.currency !== t.currency)) {
+    return { priceCents: t.priceCents, onSale: false, unavailableReason: 'Unavailable' };
+  }
+  const priceCents = docs.reduce((sum, d) => sum + phaseNow(d!, now).priceCents, 0);
+  for (const state of [windowAndCapacity(t, now), ...docs.map((d) => windowAndCapacity(d!, now))]) {
+    if (!state.onSale) return { priceCents, ...state };
+  }
+  return { priceCents, onSale: true };
+}
+
+function toTier(
+  id: string,
+  t: TicketTypeDoc,
+  now: Date,
+  parts: Map<string, TicketTypeDoc> = new Map(),
+): Tier {
+  const phase = phaseNow(t, now);
   return {
     id,
     name: t.name,
-    priceCents: t.priceCents,
+    priceCents: phase.priceCents,
     currency: t.currency,
     tagline: t.tagline ?? '',
     includes: t.includes ?? [],
@@ -75,7 +132,62 @@ function toTier(id: string, t: TicketTypeDoc, now: Date): Tier {
     // attendee tiers, which is the only slice that was sellable at the time.
     audience: t.audience ?? 'attendee',
     taxCode: t.taxCode ?? 'txcd_20030000',
+    stripeProductId: optional(t.stripeProductId),
+    phase: optional(phase.phase),
+    earlierPhases: phase.earlier.length ? phase.earlier : undefined,
+    risesOn: optional(phase.risesOn),
+    badge: t.badge?.trim() || undefined,
     ...availability(t, now),
+    ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(t, parts, now) } : {}),
+  };
+}
+
+/**
+ * The add-ons offered on a tier's checkout, and the bundle each combination buys.
+ *
+ * Found through the bundles rather than stored on the base tier, so the
+ * documents cannot disagree: a bundle names the base tier first and its add-ons
+ * after, and every add-on names the base tier in `addOnFor`. So Main Conference
+ * with Workshops and Continuing education units needs three bundles, one per
+ * combination, and a combination with no bundle simply cannot be ticked.
+ *
+ * Only bundles on sale count, which is what keeps an add-on off the checkout
+ * while its own price phase is off sale. An add-on's price is its own current
+ * phase price, which is exactly what its bundle adds.
+ */
+function addOnsFor(
+  baseId: string,
+  rows: { id: string; doc: TicketTypeDoc }[],
+  byId: Map<string, TicketTypeDoc>,
+  now: Date,
+): Pick<Tier, 'addOns' | 'bundles'> {
+  const addOns = new Map<string, AddOn>();
+  const bundles: NonNullable<Tier['bundles']> = [];
+  for (const { id, doc } of rows) {
+    const [base, ...extras] = doc.bundleOf ?? [];
+    if (base !== baseId || extras.length === 0) continue;
+    const parts = extras.map((e) => byId.get(e));
+    if (parts.some((p) => !p || p.addOnFor !== baseId)) continue;
+    if (!toTier(id, doc, now, byId).onSale) continue;
+    bundles.push({ tierId: id, addOnIds: extras });
+    extras.forEach((extra, i) => {
+      const part = parts[i]!;
+      if (!addOns.has(extra)) {
+        addOns.set(extra, {
+          id: extra,
+          name: part.name,
+          tagline: part.tagline ?? '',
+          priceCents: phaseNow(part, now).priceCents,
+        });
+      }
+    });
+  }
+  if (bundles.length === 0) return {};
+  // In catalogue order, so Workshops sits above Continuing education units.
+  const order = (id: string) => byId.get(id)?.sortOrder ?? 0;
+  return {
+    addOns: [...addOns.values()].sort((a, b) => order(a.id) - order(b.id)),
+    bundles,
   };
 }
 
@@ -149,6 +261,7 @@ export async function listTiers(audience: TicketAudience = 'attendee'): Promise<
     );
   }
 
+  const byId = new Map(rows.map(({ id, doc }) => [id, doc]));
   return rows
     .filter(({ doc }) => (doc.audience ?? 'attendee') === audience)
     .filter(({ doc }) => doc.visible !== false)
@@ -156,7 +269,7 @@ export async function listTiers(audience: TicketAudience = 'attendee'): Promise<
       (a, b) =>
         (a.doc.sortOrder ?? 0) - (b.doc.sortOrder ?? 0) || a.doc.name.localeCompare(b.doc.name),
     )
-    .map(({ id, doc }) => toTier(id, doc, now));
+    .map(({ id, doc }) => ({ ...toTier(id, doc, now, byId), ...addOnsFor(id, rows, byId, now) }));
 }
 
 /**
@@ -172,7 +285,15 @@ export async function tierById(id: string): Promise<Tier | undefined> {
   if (!doc.exists) return undefined;
   const data = doc.data() as TicketTypeDoc;
   if (data.eventId !== EVENT_ID) return undefined;
-  return toTier(doc.id, data, new Date());
+  const parts = new Map<string, TicketTypeDoc>();
+  if (data.bundleOf?.length) {
+    const refs = data.bundleOf.map((part) => db().collection(COLLECTIONS.ticketTypes).doc(part));
+    for (const snap of await db().getAll(...refs)) {
+      const part = snap.data() as TicketTypeDoc | undefined;
+      if (part && part.eventId === EVENT_ID) parts.set(snap.id, part);
+    }
+  }
+  return toTier(doc.id, data, new Date(), parts);
 }
 
 /**

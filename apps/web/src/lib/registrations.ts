@@ -13,7 +13,11 @@ import {
 // copy of `registrationId` would drift, and the day it drifted the importer
 // and this site would start writing two documents per attendee.
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { ensureRegistration as sharedEnsureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import {
+  currentHolder,
+  ensureRegistration as sharedEnsureRegistration,
+  stillPaidElsewhere,
+} from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
 import { decideRefund } from './refund-core';
 
@@ -47,6 +51,8 @@ export interface FulfilledRegistration {
   name?: string;
   ticketType?: string;
   claimCode: string;
+  /** `orders/{orderId}`, when the ticket came from a purchase. */
+  orderId?: string;
   /** True when this purchase created the registration rather than updating one. */
   created: boolean;
 }
@@ -111,7 +117,7 @@ export interface FulfilInput {
  * the only event handled, so "one id per session" and "one id per event" are
  * the same statement.
  */
-function orderIdFor(externalId: string): string {
+export function orderIdFor(externalId: string): string {
   // Hashed rather than used raw: `cs_test_…` ids are long and are a Stripe
   // implementation detail, and the id ends up in a Firestore path. Hashed
   // here rather than with `emailHash`, which lowercases first — Stripe ids are
@@ -140,6 +146,8 @@ export function ensureRegistration(input: {
   email: string;
   name: string;
   ticketType: string;
+  /** The paid order and seat. See `EnsureRegistrationInput.purchase`. */
+  purchase?: { orderId: string; seat: number };
 }): Promise<FulfilledRegistration> {
   return sharedEnsureRegistration(db(), input);
 }
@@ -152,15 +160,18 @@ export function ensureRegistration(input: {
  */
 export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegistration> {
   const email = normaliseEmail(input.email);
-  const rid = registrationId(email);
   const oid = orderIdFor(input.externalId);
   const orderRef = db().collection(COLLECTIONS.orders).doc(oid);
 
+  // Seat 0 is the buyer. A second purchase by the same address is a second
+  // ticket, not an update of the first (2026-09-26).
   const result = await ensureRegistration({
     email,
     name: input.name,
     ticketType: input.ticketType,
+    purchase: { orderId: oid, seat: 0 },
   });
+  const rid = result.registrationId;
 
   /**
    * The registration questions, merged onto the registration.
@@ -170,8 +181,8 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
    * `qrSecret` and `claimCode` — widening it to carry form answers would put a
    * marketing concern inside the one function that must never change shape.
    *
-   * Merged, not replaced: a second purchase by the same person must not blank
-   * the dietary requirement they gave the first time. And it can never throw
+   * Merged, not replaced: a replay must not blank an answer already stored.
+   * And it can never throw
    * upward — the ticket is already valid, and losing an answer must not lose a
    * registration.
    */
@@ -291,6 +302,7 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
     name: r.name,
     ticketType: r.ticketType,
     claimCode: r.claimCode ?? '',
+    ...(r.orderId ? { orderId: r.orderId } : {}),
     created: false,
   };
 }
@@ -318,8 +330,20 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
 export interface RefundOutcome {
   registrationId: string | null;
   orderId: string;
-  /** Whose ticket it was, so the caller can email them. Null if unknown. */
+  /** Who paid, so the caller can send them the receipt. Null if unknown. */
   email: string | null;
+  /**
+   * The address of the registration that was actually cancelled.
+   *
+   * The same as `email` on every order nobody transferred. After a transfer the
+   * buyer paid and somebody else holds the seat, so the receipt still goes to
+   * `email` while anything that follows the *ticket* — app access, entitlements,
+   * and the mail saying a badge has stopped working — has to follow this
+   * instead.
+   */
+  holderEmail?: string;
+  /** The holder's own name, for greeting them in that mail. */
+  holderName?: string;
   name?: string;
   ticketType?: string;
   /** Cumulative refunded total after this event, in minor units. */
@@ -445,43 +469,54 @@ export async function cancelRegistrationByOrder(input: {
   /**
    * Only withdraw the registration if this order is the reason it exists.
    *
-   * Someone who bought twice — a workshop upgrade after a main-conference
-   * ticket — has one registration backed by two orders, and refunding the
-   * first must not revoke a ticket the second still pays for. So the
-   * registration is cancelled only when no other paid order shares its email.
+   * Since 2026-09-26 a second purchase by the same address is a separate
+   * ticket, so refunding one order withdraws that order's ticket and leaves
+   * the other. The check below still matters for older registrations that two
+   * orders were merged into: one is cancelled only when no other paid order
+   * paid for it, asked about the buyer and the holder alike.
+   *
+   * ── And it may not be the buyer's registration any more ────────────────────
+   *
+   * `registrationId(order.email)` is the buyer's document, and after a transfer
+   * that document is already dead while the ticket is somebody else's.
+   * Cancelling the buyer's id would take the money back and leave the new
+   * holder's badge scanning, so the forward link is followed to whoever holds
+   * the seat now. No registration at the end of it means there is no ticket to
+   * withdraw, which is a skip rather than an update that would throw.
    */
-  const rid = registrationId(order.email);
+  // The ticket this order paid for. One address can hold several, so the
+  // order's own record says which; older orders fall back to the address.
+  const startId = order.registrationIds?.[0] ?? registrationId(order.email);
+  const holder = await currentHolder(db(), startId);
+  if (!holder) return { ...details, registrationId: null };
+  const rid = holder.id;
 
   /**
-   * Status is filtered in memory, not in the query.
-   *
-   * `partially_refunded` still paid for a ticket, so the set that keeps a
-   * registration alive is two statuses rather than one — and `where('status',
-   * 'in', [...])` would be a third filter shape to reason about against
-   * `firestore.indexes.json`. One person has a handful of orders; filtering
-   * after the read costs nothing and cannot fail with `failed-precondition`.
+   * Both addresses are asked, and the order being refunded is left out of the
+   * answer. The buyer's other order still pays for the seat they passed on, and
+   * the holder's own purchase still pays for the seat they were handed; either
+   * one keeps the ticket alive. `stillPaidElsewhere` states the rule in full
+   * and `cancelExtraSeats` in the webhook asks it the same way, so the two
+   * cannot drift.
    */
-  const sameEmail = await db()
-    .collection(COLLECTIONS.orders)
-    .where('eventId', '==', EVENT_ID)
-    .where('email', '==', order.email)
-    .get();
-
-  const stillPaidElsewhere = sameEmail.docs
-    .filter((d) => d.id !== oid)
-    .some((d) => {
-      const o = d.data() as OrderDoc;
-      return o.status === 'paid' || o.status === 'partially_refunded';
-    });
-
-  if (stillPaidElsewhere) return { ...details, registrationId: null };
+  if (await stillPaidElsewhere(db(), [order.email, holder.email], oid, [startId, rid])) {
+    // `registrationId: null` is "nothing was withdrawn", and the holder is
+    // still reported: the receipt has to know whether the ticket it is talking
+    // about is the buyer's own.
+    return { ...details, registrationId: null, holderEmail: holder.email, holderName: holder.name };
+  }
 
   await db()
     .collection(COLLECTIONS.registrations)
     .doc(rid)
     .update({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
 
-  return { ...details, registrationId: rid };
+  return {
+    ...details,
+    registrationId: rid,
+    holderEmail: holder.email,
+    holderName: holder.name,
+  };
 }
 
 // ---------------------------------------------------------------------------

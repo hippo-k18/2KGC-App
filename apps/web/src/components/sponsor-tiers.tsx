@@ -15,13 +15,10 @@ import type { SponsorTier } from '@kgc/shared';
  * link. See that block for where the numbers come from.
  */
 
-/** Title case for the band heading. Tiers are stored lower case. */
-function tierLabel(tier: SponsorTier): string {
-  return tier[0].toUpperCase() + tier.slice(1);
-}
-
 export interface SponsorBand {
+  /** The tier's id. The heading is `name`, which an organizer can change. */
   tier: SponsorTier;
+  name: string;
   size: 1 | 2 | 3;
   sponsors: SponsorCard[];
 }
@@ -69,15 +66,63 @@ function Logo({ sponsor, size }: { sponsor: SponsorCard; size: 1 | 2 | 3 }) {
   );
 }
 
-export function SponsorTiers({ bands }: { bands: SponsorBand[] }) {
+/**
+ * How loudly each band names its tier.
+ *
+ * `heading` is the live widget's own title: Roboto 24 bold, centred, one per
+ * band. The homepage keeps it, because nothing above the wall there has named
+ * the tiers.
+ *
+ * `label` is for `/sponsor`, where the packages section directly above lists
+ * Bronze, Silver, Gold and Platinum as headings with prices. A second set of
+ * headings at the same weight, in the opposite order, read as the same list
+ * printed twice. The small caps label says which row is which tier without
+ * competing with the section heading over it.
+ *
+ * `.section-sub` and not `.eyebrow`, which was the first try: every eyebrow on
+ * the site carries a 28px orange rule under it, and four of them down one page
+ * put four orange marks on a page whose only accent should be the button.
+ * `.section-sub` is the same size and weight in the muted grey, and it is
+ * already the home page's label under a centred heading.
+ */
+type TierTitles = 'heading' | 'label';
+
+export function SponsorTiers({
+  bands,
+  titles = 'heading',
+  blend = false,
+}: {
+  bands: SponsorBand[];
+  titles?: TierTitles;
+  /* Logos straight on the page background, no white tile. The homepage keeps
+     the tiles, which match the live widget. */
+  blend?: boolean;
+}) {
   if (bands.length === 0) return null;
 
   return (
-    <div className="sponsor-tiers">
+    <div className={blend ? 'sponsor-tiers is-blend' : 'sponsor-tiers'}>
       {bands.map((band) => (
-        <section className="tier-band" key={band.tier} aria-labelledby={`tier-${band.tier}`}>
-          <h3 className="tier-title" id={`tier-${band.tier}`}>
-            {tierLabel(band.tier)}
+        <section
+          className="tier-band"
+          key={band.tier}
+          aria-labelledby={`tier-${band.tier}`}
+          /* A band is a `<section>`, so it inherits the page sections' 64px of
+             top and bottom padding: 136px between two rows of logos, which is
+             more air than `/sponsor` puts between its own sections. The
+             homepage keeps it — that spacing is measured against the live
+             widget — and the quiet variant does not. */
+          style={titles === 'label' ? { paddingBlock: 0 } : undefined}
+        >
+          <h3
+            className={titles === 'label' ? 'section-sub' : 'tier-title'}
+            id={`tier-${band.tier}`}
+            /* `.tier-title` carries its own 32px of space above it and
+               `.section-sub` carries none, so the bands need it back here
+               rather than through a second rule in the stylesheet. */
+            style={titles === 'label' ? { margin: '40px 0 14px' } : undefined}
+          >
+            {band.name}
           </h3>
           <div className="logo-row">
             {band.sponsors.map((s) => (

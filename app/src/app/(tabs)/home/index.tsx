@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { combineFailures, DataErrorBanner } from '@/components/data-error';
 import { Icon } from '@/components/icon';
 import { ListRow } from '@/components/list-row';
@@ -10,12 +10,14 @@ import { SectionCard } from '@/components/section-card';
 import { SessionCard } from '@/components/session-card';
 import { Text } from '@/components/text';
 import { WhovaHeader } from '@/components/whova-header';
-import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useAnnouncements, useNowNext } from '@/lib/data/announcements';
+import { useAppAccess } from '@/lib/data/app-access';
 import { totalUnread, useThreads } from '@/lib/data/messages';
+import { unreadNotices, useNotifications } from '@/lib/data/notifications';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { useDays, useSessions } from '@/lib/data/sessions';
 
@@ -75,6 +77,13 @@ const BADGE_DOT = 14;
 const DESCRIPTION_COLLAPSED_LINES = 4;
 /** Drawn height of the "See more" link; `hitSlop` takes it to 44. */
 const LINK_HEIGHT = 28;
+/** The invisible part of that target. `webSlop` repeats it for the browser. */
+const LINK_SLOP = {
+  top: (HIT_TARGET - LINK_HEIGHT) / 2,
+  bottom: (HIT_TARGET - LINK_HEIGHT) / 2,
+  left: Spacing.sm,
+  right: Spacing.sm,
+};
 
 /**
  * The event blurb.
@@ -154,6 +163,11 @@ export default function HomeScreen() {
   const { isSaved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads } = useThreads(user?.uid);
   const unread = totalUnread(threads, user?.uid);
+  // Off event-wide, and the rules refuse the write as well as the app hiding
+  // the button — so this is not a curtain over something that still works.
+  const { messagingEnabled } = useAppAccess();
+  const { notices, markRead } = useNotifications();
+  const unreadNotes = unreadNotices(notices);
 
   const [expanded, setExpanded] = useState(false);
 
@@ -179,16 +193,20 @@ export default function HomeScreen() {
         userName={profile?.name ?? 'Attendee'}
         userPhotoURL={profile?.photoURL}
         onProfilePress={() => router.push('/me/profile')}
-        actions={[
-          {
-            icon: 'envelope.fill',
-            // The count lives in the label because `WhovaHeader` takes icon
-            // names, not nodes, so `MessagesButton`'s drawn badge cannot come
-            // along. The Messages tile in the grid below carries the visible dot.
-            label: unread ? `Messages, ${unread} unread` : 'Messages',
-            onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
-          },
-        ]}
+        actions={
+          messagingEnabled
+            ? [
+                {
+                  icon: 'envelope.fill',
+                  // The count lives in the label because `WhovaHeader` takes icon
+                  // names, not nodes, so `MessagesButton`'s drawn badge cannot come
+                  // along. The Messages tile in the grid below carries the visible dot.
+                  label: unread ? `Messages, ${unread} unread` : 'Messages',
+                  onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
+                },
+              ]
+            : []
+        }
       />
 
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl, gap: SECTION_GAP }}>
@@ -246,6 +264,38 @@ export default function HomeScreen() {
           </SectionCard>
         ) : null}
 
+        {/*
+          What has changed on this attendee's own schedule, above the
+          organizers' broadcast to everybody.
+
+          It is above Announcements on purpose: an announcement is addressed to
+          a thousand people and this is addressed to the handful who saved the
+          session that moved, which makes it the more urgent of the two for
+          whoever is looking at it. Only the unread ones are drawn — a notice
+          about a room change is news once, and a permanent list of every
+          change of the week is a second agenda nobody asked for.
+        */}
+        {unreadNotes.length ? (
+          <SectionCard title="Changes to your schedule" inset={false} style={FULL_BLEED}>
+            {unreadNotes.slice(0, 4).map((n, i, arr) => (
+              <ListRow
+                key={n.id}
+                title={n.body ?? n.title}
+                last={i === arr.length - 1}
+                onPress={() => {
+                  markRead(n.id);
+                  // `href` is written by the server as `/agenda/{sessionId}`,
+                  // and it is the only route these carry. Parsed rather than
+                  // pushed as a bare string so a malformed one opens nothing
+                  // instead of pushing the app somewhere it has no screen for.
+                  const id = n.href?.startsWith('/agenda/') ? n.href.slice('/agenda/'.length) : '';
+                  if (id) openSession(id);
+                }}
+              />
+            ))}
+          </SectionCard>
+        ) : null}
+
         {announcements.length ? (
           <SectionCard
             title="Announcements"
@@ -262,7 +312,7 @@ export default function HomeScreen() {
           </SectionCard>
         ) : null}
 
-        <ResourceGrid unread={unread} />
+        <ResourceGrid unread={unread} messagingEnabled={messagingEnabled} />
 
         <SectionCard title="Event Description" style={FULL_BLEED}>
           <Text
@@ -283,18 +333,14 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={expanded ? 'See less of the event description' : 'See more of the event description'}
             accessibilityState={{ expanded }}
-            hitSlop={{
-              top: (HIT_TARGET - LINK_HEIGHT) / 2,
-              bottom: (HIT_TARGET - LINK_HEIGHT) / 2,
-              left: Spacing.sm,
-              right: Spacing.sm,
-            }}
+            hitSlop={LINK_SLOP}
             style={({ pressed }) => ({
               alignSelf: 'flex-start',
               justifyContent: 'center',
               paddingVertical: Spacing.xs,
               minHeight: LINK_HEIGHT,
               opacity: pressed ? 0.4 : 1,
+              ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, LINK_SLOP),
             })}>
             <Text
               variant="subhead"
@@ -321,14 +367,21 @@ export default function HomeScreen() {
  * scheme-invariant white — the same reasoning that has `whova-header.tsx` reach
  * for `Brand.blueDark` instead of a themed fill.
  */
-function EventBanner({ dateRange }: { dateRange: string }) {
+function EventBanner({ dateRange: agendaDates }: { dateRange: string }) {
   const colors = useTheme();
+  const { event, branding } = useEventSettings();
+  // The dates saved on the dashboard lead. The agenda's own span is the older
+  // source and still answers while the settings document is on its way.
+  const dateRange = event.datesSaved ? event.datesShort : agendaDates || event.datesShort;
 
   return (
     <View style={{ backgroundColor: colors.surface }}>
       <View>
+        {/* The banner saved on the dashboard's App Branding, else the built-in picture. */}
         <Image
-          source={require('@/assets/images/hero-kgc.png')}
+          source={
+            branding.bannerUrl ? { uri: branding.bannerUrl } : require('@/assets/images/hero-kgc.png')
+          }
           style={{ width: '100%', height: HERO_HEIGHT }}
           resizeMode="cover"
           {...DECORATIVE}
@@ -344,7 +397,9 @@ function EventBanner({ dateRange }: { dateRange: string }) {
             backgroundColor: colors.onHeader,
           }}>
           <Image
-            source={require('@/assets/images/kgc-logo.png')}
+            source={
+              branding.logoUrl ? { uri: branding.logoUrl } : require('@/assets/images/kgc-logo.png')
+            }
             style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }}
             resizeMode="contain"
             // The name is spelled out in live text immediately below, so the
@@ -362,10 +417,10 @@ function EventBanner({ dateRange }: { dateRange: string }) {
       */}
       <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 2 }}>
         <Text variant="title2" accessibilityRole="header">
-          {EVENT.name}
+          {event.name}
         </Text>
         <Text variant="subhead" tone="secondary">
-          {EVENT.venue}
+          {event.venue}
         </Text>
         {dateRange ? (
           <Text variant="subhead" tone="secondary">
@@ -458,7 +513,13 @@ interface Resource {
  * window instead, subtracting the two gutters this card sits inside, the card's
  * own padding, and the two gaps between three tiles.
  */
-function ResourceGrid({ unread }: { unread: number }) {
+function ResourceGrid({
+  unread,
+  messagingEnabled,
+}: {
+  unread: number;
+  messagingEnabled: boolean;
+}) {
   const colors = useTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -493,11 +554,18 @@ function ResourceGrid({ unread }: { unread: number }) {
     { label: 'Attendees', onPress: () => router.push('/people') },
     { label: 'Community', onPress: () => router.push('/community') },
     { label: 'My schedule', onPress: () => router.push('/me/schedule') },
-    {
-      label: 'Messages',
-      onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
-      badge: unread ? `${unread} unread` : undefined,
-    },
+    // Dropped from the grid rather than drawn disabled when the organizer has
+    // switched messaging off for the event: a tile that opens a screen saying
+    // the feature is off is the product narrating its own settings.
+    ...(messagingEnabled
+      ? [
+          {
+            label: 'Messages',
+            onPress: () => router.push({ pathname: '/messages', params: { from: 'home' } }),
+            badge: unread ? `${unread} unread` : undefined,
+          } as Resource,
+        ]
+      : []),
     { label: 'My profile', onPress: () => router.push('/me/profile') },
     // Was a `notBuilt` tile saying this lived "on an event document that does
     // not exist yet — there is no events collection to read it from". Both
@@ -514,6 +582,10 @@ function ResourceGrid({ unread }: { unread: number }) {
     // header, and the only one of them that needed a decision rather than a
     // capability nobody has.
     { label: 'Documents', onPress: () => router.push('/home/documents') },
+    // Always drawn, even on a day when nothing is online: the screen behind it
+    // says so in a sentence, and a tile that appears and disappears with the
+    // programme is a tile nobody learns where to find.
+    { label: 'Watch', onPress: () => router.push('/home/watch') },
   ];
 
   return (

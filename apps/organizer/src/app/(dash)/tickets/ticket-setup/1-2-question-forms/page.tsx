@@ -35,10 +35,8 @@ export default async function QuestionFormsPage({
       ]}
       intro={
         <p className="body-2" style={{ marginTop: 0 }}>
-          Dietary requirements and accessibility needs are the two worth asking, and both are
-          <strong> catering and venue decisions with a deadline</strong>. Ask them here, before the
-          payment, rather than on the confirmation page. A buyer who has already been told
-          &ldquo;you&rsquo;re registered&rdquo; has no reason left to answer anything.
+          Dietary requirements and accessibility needs are the two worth asking. Buyers answer
+          before they pay.
         </p>
       }
     />

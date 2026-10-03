@@ -67,11 +67,14 @@ export async function markInvoicePaidOutOfBand(input: {
   const minted: { email: string; name: string; ticketType: string; rid: string; code: string }[] =
     [];
 
-  for (const seat of payable) {
+  for (const [i, seat] of payable.entries()) {
     const result = await ensureRegistration(db(), {
       email: seat.attendeeEmail as string,
       name: seat.attendeeName ?? '',
       ticketType: seat.ticketTypeName,
+      // Same numbering as the website's `invoice.paid` webhook, so whichever
+      // runs second lands on the same tickets.
+      purchase: { orderId: order.id, seat: i + 1 },
     });
     registrationIds.push(result.registrationId);
     minted.push({

@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { programmeCounts } from '@/lib/data';
+import { programmeCounts, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Healthcare & Life Sciences Symposium',
   description:
-    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Cornell Tech.',
+    'The HCLS Symposium, co-located with the Knowledge Graph Conference 2027 at Jay Conference Bryant Park, New York.',
 };
 
 /**
@@ -51,14 +51,13 @@ const OBJECTIVES = [
  * the noun has to say whether the number was counted or stated, because these
  * three cards sit in a row and two of them were counted.
  */
-function stats(counts: { speakers: number; sponsors: number }) {
+function stats(counts: { speakers: number; sponsors: number }, salesOpen: boolean) {
   return [
     {
       n: ATTENDEES_EXPECTED,
       label: 'Attendees expected',
       body: 'Leading experts and award winners across hybrid AI, LLMs, NLP, machine learning and data management make an annual visit to the conference.',
-      href: '/tickets',
-      cta: 'Get tickets →',
+      ...(salesOpen ? { href: '/tickets', cta: 'Get tickets →' } : {}),
     },
     {
       n: String(counts.sponsors),
@@ -89,10 +88,26 @@ function stats(counts: { speakers: number; sponsors: number }) {
  * because every number on it was typed; two of them are now measurements, and a
  * measurement cached at build time is a measurement that goes stale silently.
  */
-export const dynamic = 'force-dynamic';
+/**
+ * Rendered once and reused for up to a minute, rather than from scratch on
+ * every visit. Two of the numbers on this page are measurements of what is in Firestore.
+ *
+ * Every page on this site was `force-dynamic`, so nothing was ever cached by
+ * anybody: the agenda took 0.81 to 0.95 seconds to first byte on the live site
+ * against 0.06 for a page that read nothing. No visitor now pays for a query
+ * another visitor has already made.
+ *
+ * Thirty seconds and not sixty, because this window sits on top of the one in
+ * `shared()` and the two add up. See `SHARED_SECONDS` in `lib/data.ts`: thirty
+ * over thirty is a change on the site inside a minute, which is what an
+ * organizer who saves and switches tab is waiting for.
+ */
+export const revalidate = 30;
 
 export default async function HclsPage() {
+  const ev = await siteEvent();
   const counts = await programmeCounts();
+  const salesOpen = await ticketSalesOpen();
 
   return (
     <>
@@ -109,12 +124,14 @@ export default async function HclsPage() {
               Symposium (HCLS)
             </h1>
             <p className="when">
-              {SITE.datesLong} | {SITE.venueShort} + Virtual
+              {ev.datesShort} | {ev.venueShort} + Virtual
             </p>
             <div className="cta">
-              <Link href="/tickets" className="btn btn-primary">
-                Grab a seat now
-              </Link>
+              {salesOpen && (
+                <Link href="/tickets" className="btn btn-primary">
+                  Grab a seat now
+                </Link>
+              )}
               {/* The call for speakers, not the roster — see `stats()`. */}
               <Link href="/sponsor#speak" className="btn btn-outline">
                 Become a speaker
@@ -136,7 +153,7 @@ export default async function HclsPage() {
           <h2>About the event</h2>
           <p style={{ margin: 0 }}>
             The Healthcare and Life Sciences Symposium is co-located with the{' '}
-            {SITE.name}.
+            {ev.name}.
           </p>
         </div>
       </section>
@@ -178,13 +195,13 @@ export default async function HclsPage() {
           <p className="lede">We’d love to see you here in May.</p>
 
           <div className="stat-cards">
-            {stats(counts).map((s) => (
+            {stats(counts, salesOpen).map((s) => (
               <div key={s.label} className="stat-card">
                 <h3>
                   <strong>{s.n}</strong> {s.label}
                 </h3>
                 <p>{s.body}</p>
-                <Link href={s.href}>{s.cta}</Link>
+                {s.href && <Link href={s.href}>{s.cta}</Link>}
               </div>
             ))}
           </div>
@@ -193,7 +210,7 @@ export default async function HclsPage() {
 
       <section className="band band-wash band-centred">
         <div className="wrap narrow">
-          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {SITE.year}</h2>
+          <h2 style={{ fontStyle: 'italic' }}>Become our partner for {ev.year}</h2>
           <p className="lede" style={{ marginBottom: 24 }}>
             Below you’ll find our partners. We welcome any enquiries or feedback.
           </p>
@@ -226,7 +243,7 @@ export default async function HclsPage() {
               </div>
               <div>
                 <p className="k">Address</p>
-                <p className="v">Cornell Tech &amp; globally online</p>
+                <p className="v">Jay Conference Bryant Park &amp; globally online</p>
               </div>
             </div>
           </div>

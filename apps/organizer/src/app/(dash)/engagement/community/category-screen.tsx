@@ -75,8 +75,8 @@ export async function CategoryScreen({
       <StatTiles
         tiles={[
           { label: 'Posts', value: posts.length, sub: `${posts.length - visible.length} hidden` },
-          { label: 'Replies', value: replies, sub: 'counted, not RSVPs' },
-          { label: 'Reactions', value: reactions, sub: 'counted at read time' },
+          { label: 'Replies', value: replies },
+          { label: 'Reactions', value: reactions },
           { label: 'People replying', value: people, sub: 'distinct attendees' },
         ]}
       />
@@ -115,7 +115,7 @@ function PostRow({ post }: { post: CommunityPostRow }) {
         padding: '12px 0',
       }}
     >
-      <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+      <div className="card-head" style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
         <Tag color="blue" small>
           {CATEGORY_LABEL[post.category]}
         </Tag>

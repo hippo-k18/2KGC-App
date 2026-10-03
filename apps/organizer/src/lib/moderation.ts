@@ -186,18 +186,31 @@ export interface QaQuestion {
   authorName: string;
   state: SessionQuestionDoc['state'];
   answered: boolean;
+  /** Upvote documents actually present. This is the true number. */
   upvoteCount: number;
+  /** `SessionQuestionDoc.upvoteCount` as stored — trigger-owned, and frozen. */
+  storedUpvotes: number;
   createdAt: string;
 }
 
 /**
  * Sessions with their Q&A settings and question counts.
  *
- * ⚠️ `upvoteCount` is maintained by a Cloud Function trigger that does not exist
- * (Spark plan), so it reads whatever the seed wrote and does not move. The
- * ordering here is therefore by time, not by votes — sorting a moderation queue
- * by a number that is frozen would be actively misleading. `gaps.ts` records
- * the same limitation against this screen.
+ * ── The votes are counted here, never read off the question ─────────────────
+ *
+ * `SessionQuestionDoc.upvoteCount` is written by the `onQuestionUpvoteWrite`
+ * trigger, and the triggers in `functions/` are written, tested and undeployed
+ * (`OWNER-ACTIONS.md` §3). So that field holds whatever the seed wrote and does
+ * not move, while the upvotes themselves land correctly, one document per voter,
+ * in the `upvotes` subcollection. This screen read the frozen field, which is
+ * why a moderator watched a question collect votes and saw zero.
+ *
+ * Counted instead, the same way `lib/polls.ts` counts ballots and the app's
+ * `useUpvoteCounts` counts these: one `count()` aggregation per question, which
+ * returns a number rather than the documents and so costs nothing at question
+ * volumes. The stored figure comes back alongside as `storedUpvotes`, because
+ * it is a genuinely different fact — it is what a phone that reads the question
+ * document shows — and the queue orders by the counted one.
  */
 export async function listQaSessions(): Promise<{ sessions: QaSessionRow[]; questions: QaQuestion[] }> {
   const [sessionSnap, names] = await Promise.all([
@@ -220,7 +233,11 @@ export async function listQaSessions(): Promise<{ sessions: QaSessionRow[]; ques
 
       let pending = 0;
       let hidden = 0;
-      for (const q of qSnap.docs) {
+      const upvotes = await Promise.all(
+        qSnap.docs.map((q) => q.ref.collection(SUBCOLLECTIONS.upvotes).count().get()),
+      );
+
+      qSnap.docs.forEach((q, i) => {
         const doc = q.data() as SessionQuestionDoc;
         if (doc.state === 'pending') pending++;
         if (doc.state === 'hidden') hidden++;
@@ -232,10 +249,11 @@ export async function listQaSessions(): Promise<{ sessions: QaSessionRow[]; ques
           authorName: names.get(doc.authorId) ?? doc.authorId,
           state: doc.state ?? 'pending',
           answered: Boolean(doc.answered),
-          upvoteCount: doc.upvoteCount ?? 0,
+          upvoteCount: upvotes[i].data().count,
+          storedUpvotes: doc.upvoteCount ?? 0,
           createdAt: iso(doc.createdAt),
         });
-      }
+      });
 
       sessions.push({
         id: d.id,
@@ -252,6 +270,14 @@ export async function listQaSessions(): Promise<{ sessions: QaSessionRow[]; ques
     }),
   );
 
+  /*
+   * Newest first, still, now that the counts are real and could be sorted on.
+   * A moderation queue answers "what just came in and is anybody waiting on
+   * me", and the vote ranking is the *speaker's* question — the app already
+   * ranks the approved board by votes, so ordering this list the same way would
+   * bury a question asked thirty seconds ago beneath one that has been up for
+   * an hour, which is the only thing a moderator is here to act on.
+   */
   return {
     sessions: sessions.sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal)),
     questions: questions.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,16 +33,6 @@ export default async function AttendanceGamificationPage() {
     <>
       <PageHeader
         title="Attendance Gamification"
-        info={
-          <>
-            <strong>No scoring rules have been chosen</strong>
-            <p>
-              Attendance is measured (every session check-in is a real badge scan) but nothing
-              scores it. What points are worth, and whether a leaderboard may name people who did
-              not opt in, are decisions nobody has made.
-            </p>
-          </>
-        }
         links={[
           <Link key="a" href={ROUTES.analyticsExports}>
             Analytics &amp; Exports
@@ -57,14 +47,12 @@ export default async function AttendanceGamificationPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="points, prizes or a leaderboard"
-          action={
-            <Link href="/virtual-and-hybrid/attendee-activity" className="whova-btn-main">
-              See attendance without a score
-            </Link>
-          }
-        />
+        <EmptyState>
+          <p className="empty-title">Not available yet</p>
+          <p className="empty-sub">
+            Points, prizes and a leaderboard are not available yet. Attendee Activity shows who attended what.
+          </p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -66,7 +66,7 @@ export function AssignBoothForm({
         <label className="whova-form-label" htmlFor="boothId">
           Booth
         </label>
-        <select id="boothId" name="boothId" required style={{ maxWidth: 320 }}>
+        <select className="whova-text-input" id="boothId" name="boothId" required style={{ maxWidth: 320 }}>
           {assignable.map((b) => (
             <option key={b.id} value={b.id}>
               {b.number} · {b.size}
@@ -82,6 +82,7 @@ export function AssignBoothForm({
           Exhibitor
         </label>
         <select
+          className="whova-text-input"
           id="exhibitorId"
           name="exhibitorId"
           required
@@ -106,20 +107,18 @@ export function AssignBoothForm({
         <label className="whova-form-label" htmlFor="orderId">
           Order id
         </label>
-        <input id="orderId" name="orderId" placeholder="optional" style={{ maxWidth: 320 }} />
+        <input className="whova-text-input" id="orderId" name="orderId" placeholder="optional" style={{ maxWidth: 320 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Links the space to the purchase that paid for it. Leave blank for an allocation made by
-          hand. The audit entry still records who made it.
+          Links the space to the order that paid for it. Leave blank if there is no order.
         </p>
       </div>
 
       <div className="whova-form-row">
-        <label className="whova-form-label" htmlFor="hold">
-          Hold only
-        </label>
-        <label style={{ fontSize: 13 }}>
-          <input id="hold" type="checkbox" name="hold" /> Promised, not paid: keeps it off the
-          available list without counting it as sold
+        {/* The group heading is a `div`: the tick box already has a label round it. */}
+        <div className="whova-form-label">Hold only</div>
+        <label className="whova-checkbox-label">
+          <input id="hold" className="whova-checkbox-input" type="checkbox" name="hold" />
+          <span>Promised, not paid: keeps it off the available list without counting it as sold</span>
         </label>
       </div>
 
@@ -146,6 +145,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
           Number
         </label>
         <input
+          className="whova-text-input"
           id="number"
           name="number"
           required
@@ -154,8 +154,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
           style={{ maxWidth: 140 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          As printed on the floor plan. It is also the document id, so adding{' '}
-          <code>A12</code> twice edits it rather than creating a second one.
+          As printed on the floor plan. Adding a number that already exists updates that booth.
         </p>
       </div>
 
@@ -163,16 +162,16 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
         <label className="whova-form-label" htmlFor="size">
           Size
         </label>
-        <input id="size" name="size" required placeholder="3m × 2m" style={{ maxWidth: 220 }} />
+        <input className="whova-text-input" id="size" name="size" required placeholder="3m × 2m" style={{ maxWidth: 220 }} />
       </div>
 
       <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="zone">
           Zone
         </label>
-        <input id="zone" name="zone" placeholder="Main aisle" style={{ maxWidth: 220 }} />
+        <input className="whova-text-input" id="zone" name="zone" placeholder="Main aisle" style={{ maxWidth: 220 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Groups a long list into something walkable. Booths sort by zone, then naturally by number. A2 before A10, which a plain sort gets backwards.
+          Booths are listed by zone, then by number.
         </p>
       </div>
 
@@ -180,7 +179,7 @@ export function AddBoothForm({ packages }: { packages: { id: string; name: strin
         <label className="whova-form-label" htmlFor="ticketTypeId">
           Sold as
         </label>
-        <select id="ticketTypeId" name="ticketTypeId" style={{ maxWidth: 320 }}>
+        <select className="whova-text-input" id="ticketTypeId" name="ticketTypeId" style={{ maxWidth: 320 }}>
           <option value="">Not decided yet…</option>
           {packages.map((p) => (
             <option key={p.id} value={p.id}>

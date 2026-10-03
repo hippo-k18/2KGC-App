@@ -32,7 +32,7 @@ export function AddAttendeeForm({ ticketTypes }: { ticketTypes: string[] }) {
           required
           placeholder="Ada Lovelace"
           autoComplete="off"
-          hint="What gets printed on the badge."
+          hint="Printed on the badge."
         />
         <Field
           label="Email"
@@ -41,14 +41,14 @@ export function AddAttendeeForm({ ticketTypes }: { ticketTypes: string[] }) {
           required
           placeholder="ada@example.com"
           autoComplete="off"
-          hint="The registration is keyed on this. Re-adding the same address updates rather than duplicates."
+          hint="Adding the same email again updates that attendee."
         />
         <Select
           label="Ticket type"
           name="ticketType"
           placeholder="Added by organizer…"
           options={ticketTypes.map((t) => ({ value: t, label: t }))}
-          hint="No order is created. This person did not pay through us."
+          hint="No order or payment is recorded."
         />
       </FormGrid>
 

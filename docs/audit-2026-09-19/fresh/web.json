@@ -1,0 +1,124 @@
+{
+  "uiIssues": [
+    {
+      "path": "/tickets/checkout",
+      "width": 375,
+      "severity": "high",
+      "type": "broken",
+      "issue": "On the checkout form the two consent boxes (\"I have read the code of conduct *\" and \"You may use photographs of me in KGC marketing\") render as a 13px-tall strip stretched across the whole column, so the tick box floats alone in the middle of a blank line above its label and is far too small to hit; it looks the same at 768.",
+      "fix": "Stop the shared field rule from sizing check boxes: give the check box a fixed 20px square, auto width and an inline-flex label so the box sits beside its text.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/checkbox-zoom.png",
+      "source": "apps/web/src/app/globals.css:1718 (.field input width:100%) rendering apps/web/src/app/tickets/questions.tsx:183"
+    },
+    {
+      "path": "/speakers",
+      "width": 375,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "Tapping \"View all speakers\" gives one card per row, each about 285px tall with a 150px initials circle and no photo, so the roster of 45 runs to roughly 11,000px of near-identical circles.",
+      "fix": "Put the full roster in two columns on a phone with a smaller avatar, the way the featured five already go two-up at 768.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/spx1.png",
+      "source": "apps/web/src/components/speaker-grid.tsx"
+    },
+    {
+      "path": "/tickets/invoice",
+      "width": 375,
+      "severity": "medium",
+      "type": "empty-state",
+      "issue": "Invoicing is closed so the form is replaced by an email notice, but the copy beside it still walks through a form that is not on the page: \"You list who is coming and who pays\" and \"This form handles up to ten people\".",
+      "fix": "When invoicing is closed, swap those two passages for wording about the email request, or hide the how-it-works column until the form is back.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/tickets_invoice-375_sheet0.png",
+      "source": "apps/web/src/app/tickets/invoice/page.tsx:54-105"
+    },
+    {
+      "path": "/",
+      "width": 375,
+      "severity": "medium",
+      "type": "other",
+      "issue": "The magnifying glass in the header, sitting next to the menu button on every page, is not a search box at all: tapping it just loads the agenda at the top of the page with nothing focused.",
+      "fix": "Either open a search field from that button or drop the icon and leave the agenda's own search where it is.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/search-open.png",
+      "source": "apps/web/src/components (site header, a.search with href=\"/agenda\")"
+    },
+    {
+      "path": "/hcls",
+      "width": 375,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "The long body paragraphs are centre-aligned, so the eighteen-line \"We seek original contributions\" block and the four numbered objectives have a ragged left edge that is hard to read on a phone.",
+      "fix": "Left-align the body copy in those bands and keep the centring for headings and short lines.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/hcls-375_sheet0.png",
+      "source": "apps/web/src/app/hcls/page.tsx (band-centred sections)"
+    },
+    {
+      "path": "/",
+      "width": 375,
+      "severity": "low",
+      "type": "spacing",
+      "issue": "In the open FAQ answer on the home page the sentence about discounted room blocks butts straight onto the last hotel bullet with no gap, so it reads as another list item.",
+      "fix": "Give the list inside a FAQ answer a bottom margin so the paragraph after it is clearly separate.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/home-375_sheet1.png",
+      "source": "apps/web/src/app/globals.css:2837 (.kgc-faq .answer ul { margin: 0 })"
+    },
+    {
+      "path": "/sponsor",
+      "width": 375,
+      "severity": "low",
+      "type": "other",
+      "issue": "Every sponsor tile below platinum is the same size but the logos inside are not: Bloomberg and fluree fill their card while Process Tempo, TopQuadrant, RDFOX and gdotv sit at about a third of the width and are too small to read; the same wall appears on the home page.",
+      "fix": "Trim the empty margin baked into those logo files, or set a minimum rendered width so every mark lands at a similar size.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/sponsor-375_sheet0.png",
+      "source": "apps/web/public/kgc/sponsors/*.png"
+    },
+    {
+      "path": "/documents",
+      "width": 375,
+      "severity": "low",
+      "type": "broken",
+      "issue": "Two of the three document cards, the venue map and the travel notes, show \"example.invalid\" where the other shows a real address, so they read as dead links.",
+      "fix": "Point those two entries at real files, or leave them out until the files exist.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/documents-375_sheet0.png",
+      "source": "seeded documents data, not code"
+    },
+    {
+      "path": "/agenda",
+      "width": 375,
+      "severity": "low",
+      "type": "clipped",
+      "issue": "The track filter is a single row that is 1,965px wide inside a 375px screen, so eleven of the twelve tracks are off to the right behind a chip cut in half at the edge and nothing says the row scrolls.",
+      "fix": "Wrap the track chips onto several lines, or add a fade and a count so it is clear there is more to the right.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/agenda-375_sheet0.png",
+      "source": "apps/web/src/app/agenda (filter-options row)"
+    },
+    {
+      "path": "/",
+      "width": 375,
+      "severity": "low",
+      "type": "other",
+      "issue": "The menu lists both \"Blog\" and, under About KGC, \"KGC Talks\", and the two go to the same page.",
+      "fix": "Point KGC Talks at the talks tag on the blog, or take it out of the menu.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/nav-top.png",
+      "source": "apps/web/src/components (site nav)"
+    },
+    {
+      "path": "/submit/kgc-2027-call-for-abstracts",
+      "width": 375,
+      "severity": "low",
+      "type": "other",
+      "issue": "The deadline is printed as \"2026-12-15 23:59 (America/New_York)\", which reads like a machine field rather than a date.",
+      "fix": "Write it as 15 December 2026, 23:59 New York time.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/submit_kgc_2027_call_for_abstracts-375_sheet0.png",
+      "source": "apps/web/src/app/submit/[callId]/page.tsx"
+    },
+    {
+      "path": "/previous-events",
+      "width": 375,
+      "severity": "low",
+      "type": "other",
+      "issue": "The opening line uses a straight typewriter apostrophe in \"that year's speakers\" where every other page on the site uses a curved one.",
+      "fix": "Use the same curved apostrophe the rest of the site uses.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/fresh/web2/previous_events-375_sheet0.png",
+      "source": "apps/web/src/app/previous-events/page.tsx:46"
+    }
+  ]
+}

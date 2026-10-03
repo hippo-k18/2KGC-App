@@ -70,7 +70,7 @@ export function CallForm({
         rows={8}
         defaultValue={existing?.instructions}
         placeholder={
-          'What are you asking for, and what will happen to it?\n\nBlank lines separate paragraphs. Plain text only. This is rendered into a public page, and markup pasted from a word processor into a page people are asked to trust is an injection into exactly the wrong page.'
+          'What are you asking for, and what will happen to it?\n\nBlank lines separate paragraphs. Plain text only.'
         }
         hint="Plain text; blank lines separate paragraphs. Say how long an abstract should be and how many reviewers will read it."
       />
@@ -119,7 +119,7 @@ export function CallForm({
             { value: 'single-blind', label: 'Single-blind: reviewers see the author' },
             { value: 'double-blind', label: 'Double-blind: the author is hidden' },
           ]}
-          hint="Stored either way. This only decides what a screen loads, and can be changed later."
+          hint="Decides what reviewers see. It can be changed later."
         />
       </FormGrid>
 
@@ -175,7 +175,7 @@ export function CallForm({
           name="reminderDaysBefore"
           defaultValue={(existing?.reminderDaysBefore ?? [14, 7, 3]).join(', ')}
           placeholder="14, 7, 3"
-          hint="Days before the deadline. Nothing sends on a schedule; these are when the dashboard offers you the button."
+          hint="Days before the deadline. Reminders are not sent on their own. On these days the dashboard offers you a send button."
           width="lg"
         />
       </FormGrid>

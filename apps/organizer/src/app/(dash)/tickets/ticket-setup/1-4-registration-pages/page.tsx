@@ -40,18 +40,17 @@ export default async function RegistrationPagesPage() {
         title="1.4 Registration Pages"
         info={
           <>
-            <strong>The page is data; the copy is code</strong>
+            <strong>The tickets page follows your price list</strong>
             <p>
-              Prices, tiers and availability are read live from <code>ticketTypes</code>. Edit them
-              in <Link href={ROUTES.createTickets}>Create Tickets</Link> and the public page changes
-              on the next request. Headings and surrounding copy are React components in{' '}
-              <code>apps/web</code> and change with a deploy.
+              Edit prices, tickets and availability in{' '}
+              <Link href={ROUTES.createTickets}>Create Tickets</Link> and the public page updates
+              right away. Headings and other wording on the page cannot be edited here yet.
             </p>
           </>
         }
         tags={
           <Tag color={visible.length > 0 ? 'green' : 'grey'} fill="outline">
-            {visible.length} tiers live
+            {visible.length} tickets live
           </Tag>
         }
         links={[
@@ -69,8 +68,8 @@ export default async function RegistrationPagesPage() {
 
       {attendeeVisible === 0 && (
         <Banner kind="warning">
-          <strong>Nothing is listed, so the public page has nothing to sell.</strong> A visitor
-          reaching <code>/tickets</code> is shown no purchasable tier. List one in{' '}
+          <strong>Nothing is listed, so the public page has nothing to sell.</strong> Show a
+          ticket in{' '}
           <Link href={ROUTES.createTickets}>Create Tickets</Link> to open sales.
         </Banner>
       )}
@@ -79,7 +78,7 @@ export default async function RegistrationPagesPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What the buyer sees right now</h2>
         <Table
           cols={[
-            { key: 'n', label: 'Tier', className: 'cell-md' },
+            { key: 'n', label: 'Ticket', className: 'cell-md' },
             { key: 'p', label: 'Price', className: 'cell-sm' },
             { key: 'o', label: 'Order', className: 'cell-sm' },
             { key: 's', label: 'State', className: 'cell-fill' },
@@ -100,7 +99,7 @@ export default async function RegistrationPagesPage() {
             t.sortOrder,
             t.visible ? (
               <span key="s">
-                In the catalogue
+                On the tickets page
                 {typeof t.quantityTotal === 'number' ? (
                   <span className="muted">
                     {' '}
@@ -110,7 +109,7 @@ export default async function RegistrationPagesPage() {
               </span>
             ) : (
               <span key="s" className="muted">
-                Hidden: purchasable by direct link only
+                Hidden. Sold by direct link only
               </span>
             ),
           ])}

@@ -138,8 +138,8 @@ export async function sendBulkMessageAction(
     };
   }
 
-  if (!reauthenticate(passphrase)) {
-    return { error: 'That passphrase is not correct. Nothing has been sent.', keep };
+  if (!(await reauthenticate(passphrase))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.', keep };
   }
 
   if (Number(confirmCount) !== recipients.length) {

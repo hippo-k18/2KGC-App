@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
-import { formatPrice, type Tier, type TicketId } from '@/lib/tickets';
+import { SITE } from '@/lib/site';
+import { bundleFor, formatPrice, type AddOn, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
 import { MAX_SEATS } from './seats-core';
@@ -64,15 +65,23 @@ interface ExtraSeat {
   name: string;
   email: string;
   tierId: TicketId;
+  /** The add-ons this seat ticked. Any its tier does not offer are ignored. */
+  addOns: TicketId[];
 }
 
 export function CheckoutForm({
   tiers,
   initialTier,
+  tierLocked = false,
   stripeReady,
   demoReady = false,
   questions = [],
+  titleAs = 'h2',
+  buyerFeePercent,
+  termsPublished = false,
 }: {
+  /** Name the terms in the consent line. Off until they are approved; see `lib/terms-core.ts`. */
+  termsPublished?: boolean;
   /**
    * The catalogue, passed in rather than imported.
    *
@@ -82,6 +91,12 @@ export function CheckoutForm({
    */
   tiers: Tier[];
   initialTier: TicketId;
+  /**
+   * The buyer arrived by pressing one ticket's button, so that is the ticket.
+   * The picker is replaced by a line naming it, with a way back to choose
+   * another.
+   */
+  tierLocked?: boolean;
   /**
    * Whether `STRIPE_SECRET_KEY` is set on the server, passed down because
    * `stripeEnabled()` is `server-only` and this component runs in the browser.
@@ -108,7 +123,21 @@ export function CheckoutForm({
    * component with no Admin SDK, and it must not gain one.
    */
   questions?: QuestionFieldDef[];
+  /**
+   * `h1` on `/tickets/checkout`, where "Register" is the page's own title, and
+   * `h2` on the sponsor and exhibitor pages, which already have an `h1` above
+   * this form. A page with no `h1` is one a screen reader cannot jump to the
+   * top of, and the pre-publish gate refuses it.
+   */
+  titleAs?: 'h1' | 'h2';
+  /**
+   * The buyer fee, when an organizer has switched it on. Undefined means no
+   * fee, which is the default. Display only: `startCheckout` works the fee out
+   * again on the server.
+   */
+  buyerFeePercent?: number;
 }) {
+  const Title = titleAs;
   const [state, action] = useActionState<CheckoutState, FormData>(startCheckout, {});
   /**
    * The rehearsal button gets its own state because it is a second action on
@@ -128,6 +157,7 @@ export function CheckoutForm({
   // least inclined to.
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [addOns, setAddOns] = useState<TicketId[]>([]);
   /**
    * The extra seats, seat two onward. Seat one is the buyer, whose name and
    * address are the two fields above — kept out of this list because moving
@@ -182,9 +212,28 @@ export function CheckoutForm({
    * still not be what lands on the card. It exists because a quantity control
    * with no total beside it is a control people are afraid to touch.
    */
-  const priceOf = (id: TicketId) => tiers.find((t) => t.id === id)?.priceCents ?? 0;
+  const tierOf = (id: TicketId) => tiers.find((t) => t.id === id);
+  /** The ticked add-ons a tier actually offers, so a change of tier drops the rest. */
+  const addOnsOf = (id: TicketId, ticked: readonly TicketId[]): AddOn[] =>
+    (tierOf(id)?.addOns ?? []).filter((a) => ticked.includes(a.id));
+  const priceOf = (id: TicketId, ticked: readonly TicketId[]) =>
+    (tierOf(id)?.priceCents ?? 0) + addOnsOf(id, ticked).reduce((sum, a) => sum + a.priceCents, 0);
+  /**
+   * The id a seat posts. With add-ons ticked that is the bundle holding exactly
+   * those add-ons, an ordinary hidden tier the server prices from its parts, so
+   * the add-ons need no second field for the server to reconcile against the
+   * first.
+   */
+  const postedTier = (id: TicketId, ticked: readonly TicketId[]) => {
+    const t = tierOf(id);
+    if (!t) return id;
+    return bundleFor(t, addOnsOf(id, ticked).map((a) => a.id)) ?? id;
+  };
   const quantity = extras.length + 1;
-  const totalCents = priceOf(tier) + extras.reduce((sum, e) => sum + priceOf(e.tierId), 0);
+  const ticketCents =
+    priceOf(tier, addOns) + extras.reduce((sum, e) => sum + priceOf(e.tierId, e.addOns), 0);
+  const feeCents = buyerFeePercent ? Math.round((ticketCents * buyerFeePercent) / 100) : 0;
+  const totalCents = ticketCents + feeCents;
 
   /**
    * Growing and shrinking the seat list from one number.
@@ -202,7 +251,7 @@ export function CheckoutForm({
       const grown = [...prev];
       while (grown.length < wanted) {
         nextKey.current += 1;
-        grown.push({ key: nextKey.current, name: '', email: '', tierId: tier });
+        grown.push({ key: nextKey.current, name: '', email: '', tierId: tier, addOns });
       }
       return grown;
     });
@@ -213,10 +262,17 @@ export function CheckoutForm({
 
   return (
     <div className="buy-layout">
-      <OrderRail tier={selected} quantity={quantity} totalCents={totalCents} />
+      <OrderRail
+        tier={selected}
+        addOns={addOnsOf(selected.id, addOns)}
+        quantity={quantity}
+        totalCents={totalCents}
+        feeCents={feeCents}
+        buyerFeePercent={buyerFeePercent}
+      />
 
       <form action={action} className="checkout">
-        <h2 className="checkout-title">Register</h2>
+        <Title className="checkout-title">Register</Title>
 
         {shown.error && (
           <p className="notice bad" role="alert">
@@ -225,15 +281,28 @@ export function CheckoutForm({
         )}
 
         {/*
-          Fail closed, and say which variable. This is the same refusal
-          `startCheckout` returns if the form is posted anyway — stated here so
-          it is read before the typing rather than after it.
+          Fail closed. This is the same refusal `startCheckout` returns if the
+          form is posted anyway — stated here so it is read before the typing
+          rather than after it. The variable name goes to the server log, not
+          to the buyer.
+        */}
+        {/*
+          And a way out. The round-one review's complaint about `/tickets/
+          invoice` was that a page could say "not open yet" and then leave the
+          reader with nowhere to go; the same sentence was doing the same thing
+          here, above a form the buyer is about to fill in for nothing.
+        */}
+        {/*
+          "Email us", not the address itself. This form is 299px wide in the
+          exhibitor and sponsor pages' two-column band, and
+          `contact@knowledgegraph.tech` has no break opportunity in it — spelled
+          out here it ran 291px inside a 245px paragraph and pushed the whole
+          document 14px wider than the window.
         */}
         {!stripeReady ? (
-          <p className="notice bad" role="alert">
-            <strong>Ticket sales are not configured on this deployment.</strong>{' '}
-            <code>STRIPE_SECRET_KEY</code> is not set, so no payment can be taken and no ticket can
-            be issued. Nothing below will complete a purchase.
+          <p className="notice">
+            Ticket sales are not open yet.{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>Email us</a> and we will hold a place for you.
           </p>
         ) : null}
 
@@ -295,8 +364,21 @@ export function CheckoutForm({
               `seatTier`, and the server is still the only thing that turns any
               of those ids into money.
             */}
+            {tierLocked && selected.onSale ? (
+              <div className="tier-chosen">
+                <input type="hidden" name="tier" value={postedTier(selected.id, addOns)} />
+                <span className="tier-chosen-label">Ticket</span>
+                <strong>{selected.name}</strong>
+                <span>
+                  {selected.phase ? `${selected.phase} ` : ''}
+                  {formatPrice(selected.priceCents, selected.currency)}
+                </span>
+                <Link href="/tickets">Change</Link>
+              </div>
+            ) : (
             <fieldset className="tier-choice">
               <legend>Ticket</legend>
+              <input type="hidden" name="tier" value={postedTier(tier, addOns)} />
               {tiers.map((t) => (
                 <label
                   key={t.id}
@@ -306,7 +388,7 @@ export function CheckoutForm({
                 >
                   <input
                     type="radio"
-                    name="tier"
+                    name="tierChoice"
                     value={t.id}
                     checked={t.id === tier}
                     disabled={!t.onSale}
@@ -321,6 +403,9 @@ export function CheckoutForm({
                 </label>
               ))}
             </fieldset>
+            )}
+
+            <AddOnChoice tier={selected} ticked={addOns} onChange={setAddOns} id="addOn" />
 
             <div className="field">
               <label htmlFor="name">Attendee name</label>
@@ -376,9 +461,9 @@ export function CheckoutForm({
               */}
               <div className="field">
                 <label htmlFor={`seatTier-${seat.key}`}>Ticket</label>
+                <input type="hidden" name="seatTier" value={postedTier(seat.tierId, seat.addOns)} />
                 <select
                   id={`seatTier-${seat.key}`}
-                  name="seatTier"
                   value={seat.tierId}
                   onChange={(e) => updateExtra(seat.key, { tierId: e.target.value })}
                 >
@@ -390,6 +475,13 @@ export function CheckoutForm({
                   ))}
                 </select>
               </div>
+
+              <AddOnChoice
+                tier={tierOf(seat.tierId)}
+                ticked={seat.addOns}
+                onChange={(next) => updateExtra(seat.key, { addOns: next })}
+                id={`seatAddOn-${seat.key}`}
+              />
 
               <div className="field">
                 <label htmlFor={`seatName-${seat.key}`}>Full name</label>
@@ -432,12 +524,45 @@ export function CheckoutForm({
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={shown.fieldErrors} />
 
+        {feeCents > 0 && (
+          <div className="summary summary-fee">
+            <span>Buyer fee ({buyerFeePercent}%)</span>
+            <span>{formatPrice(feeCents, selected.currency)}</span>
+          </div>
+        )}
         <div className="summary">
           <span>
-            {quantity === 1 ? selected.name : `${quantity} tickets`}
+            {quantity === 1 ? railName(selected, addOnsOf(selected.id, addOns)) : `${quantity} tickets`}
           </span>
           <span>{formatPrice(totalCents, selected.currency)}</span>
         </div>
+
+        {/*
+          Above the button, not under it.
+
+          This is the sentence a buyer is agreeing to by pressing pay, so it has
+          to be readable before the press rather than after it. It is a
+          statement rather than a tick box because nothing here is optional: a
+          ticket cannot be issued without holding the name and the address, and
+          a checkbox that must be ticked to continue asks for consent that is
+          not real. The two policies it names are linked, because a policy
+          somebody is told they agreed to and cannot open is not one they read.
+        */}
+        {termsPublished ? (
+          <p className="hint" style={{ marginBottom: 12 }}>
+            By registering you agree to the <Link href="/terms">terms</Link> and the{' '}
+            <Link href="/code-of-conduct">code of conduct</Link>, and to how your details are
+            handled, set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a
+            copy of your data or have it deleted at any time.
+          </p>
+        ) : (
+          <p className="hint" style={{ marginBottom: 12 }}>
+            By registering you agree to the{' '}
+            <Link href="/code-of-conduct">code of conduct</Link> and to how your details are handled,
+            set out in the <Link href="/privacy">privacy notice</Link>. You can ask for a copy of
+            your data or have it deleted at any time.
+          </p>
+        )}
 
         <SubmitButton stripeReady={stripeReady} price={formatPrice(totalCents, selected.currency)} />
 
@@ -454,12 +579,72 @@ export function CheckoutForm({
           <DemoButton action={demoAction} price={formatPrice(totalCents, selected.currency)} />
         )}
 
-        <p className="hint" style={{ marginTop: 12 }}>
-          {stripeReady
-            ? 'You pay on Stripe. Card details never touch this site.'
-            : 'No ticket can be bought until a payment processor is configured.'}
-        </p>
+        {stripeReady && (
+          <p className="hint" style={{ marginTop: 12 }}>
+            You pay on Stripe. Card details never touch this site.
+          </p>
+        )}
       </form>
+    </div>
+  );
+}
+
+/** "Main Conference + Workshops" once the add-on is ticked. */
+function railName(tier: Tier, addOns: AddOn[] = []): string {
+  return [tier.name, ...addOns.map((a) => a.name)].join(' + ');
+}
+
+/**
+ * The add-on tick boxes, under the ticket they belong to.
+ *
+ * Drawn only when the seat's tier offers any, so a Virtual seat never shows a
+ * workshop option it cannot take. Tick boxes rather than more radio buttons,
+ * because an add-on is sold with Main Conference and never instead of it.
+ *
+ * A box is disabled when ticking or unticking it would leave a combination no
+ * bundle sells. With every combination on sale that never happens; it is what
+ * stops the form posting a mix the server would price as the base ticket alone.
+ */
+function AddOnChoice({
+  tier,
+  ticked,
+  onChange,
+  id,
+}: {
+  tier: Tier | undefined;
+  ticked: readonly TicketId[];
+  onChange: (next: TicketId[]) => void;
+  id: string;
+}) {
+  const offered = tier?.onSale ? (tier.addOns ?? []) : [];
+  if (!tier || offered.length === 0) return null;
+  const current = offered.filter((a) => ticked.includes(a.id)).map((a) => a.id);
+  return (
+    <div className="addon-choices">
+      {offered.map((addOn) => {
+        const on = current.includes(addOn.id);
+        const next = on ? current.filter((x) => x !== addOn.id) : [...current, addOn.id];
+        const reachable = bundleFor(tier, next) !== undefined;
+        const boxId = `${id}-${addOn.id}`;
+        return (
+          <label className="addon-choice" htmlFor={boxId} key={addOn.id}>
+            <input
+              id={boxId}
+              type="checkbox"
+              checked={on}
+              disabled={!reachable}
+              onChange={() => onChange(next)}
+            />
+            <span className="addon-choice-text">
+              <span className="addon-choice-name">Add {addOn.name}</span>
+              {addOn.tagline ? (
+                <span className="addon-choice-tagline">{addOn.tagline}</span>
+              ) : null}
+            </span>
+            <span className="addon-choice-price">+{formatPrice(addOn.priceCents, tier.currency)}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }
@@ -502,10 +687,18 @@ function SeatCard({ label, children }: { label: string | null; children: ReactNo
  */
 function OrderRail({
   tier,
+  addOns,
   quantity,
   totalCents,
+  feeCents,
+  buyerFeePercent,
 }: {
   tier: Tier;
+  /** The add-ons the buyer ticked on their own seat. */
+  addOns: AddOn[];
+  /** The buyer fee in the total, or 0. */
+  feeCents: number;
+  buyerFeePercent?: number;
   /** Seats on this purchase, the buyer included. */
   quantity: number;
   /**
@@ -519,7 +712,7 @@ function OrderRail({
     <aside className="order-rail" aria-label="Your order">
       <div className="rail-card">
         <p className="rail-eyebrow">Your order</p>
-        <h2 className="rail-tier">{tier.name}</h2>
+        <h2 className="rail-tier">{railName(tier, addOns)}</h2>
         {tier.tagline ? <p className="rail-tagline">{tier.tagline}</p> : null}
         {quantity > 1 ? (
           /*
@@ -541,6 +734,7 @@ function OrderRail({
               {tier.includes.map((line) => (
                 <li key={line}>{line}</li>
               ))}
+              {addOns.map((a) => (a.tagline ? <li key={a.id}>{a.tagline}</li> : null))}
             </ul>
           </>
         )}
@@ -551,7 +745,11 @@ function OrderRail({
         </div>
         <p className="rail-note">
           {quantity === 1 ? 'One ticket' : `${quantity} tickets`}, in{' '}
-          {tier.currency.toUpperCase()}. Sales tax, where it applies, is added at payment.
+          {tier.currency.toUpperCase()}.
+          {feeCents > 0
+            ? ` Includes a ${buyerFeePercent}% buyer fee of ${formatPrice(feeCents, tier.currency)}.`
+            : ''}{' '}
+          Sales tax, where it applies, is added at payment.
         </p>
       </div>
 
@@ -580,7 +778,7 @@ function OrderRail({
           </span>
           Card details are handled by Stripe and never touch this site.
         </li>
-        <li>Names can be changed up to a week before the conference.</li>
+        <li>Names can be changed until April 26, 2027, a week before the conference.</li>
         <li>
           Need a PO number? <Link href="/tickets/invoice">Pay by invoice instead</Link>.
         </li>
@@ -627,11 +825,16 @@ function DemoButton({
       >
         {pending ? 'Working…' : `Skip payment and register (demo)`}
       </button>
+      {/*
+        No file path here. This block cannot render off localhost, but it is
+        still copy on a page that takes money, and naming a maintenance script
+        on it is the same defect the audit found on a dozen dashboard screens.
+        Anyone who needs the undo already knows where it lives.
+      */}
       <p className="hint" style={{ marginTop: 8 }}>
         Localhost only. Issues a real ticket for {price} without charging: registration, order,
         app account, entitlements, sold count and confirmation email, exactly as a paid purchase
-        does. The order is marked <code>demo</code>, so{' '}
-        <code>scripts/ops/reset-demo-sales.mjs</code> undoes it.
+        does. The order is marked <code>demo</code> so it can be undone.
       </p>
     </>
   );
@@ -649,15 +852,18 @@ function SubmitButton({ stripeReady, price }: { stripeReady: boolean; price: str
       disabled={pending || !stripeReady}
     >
       {/*
-        "Payments open soon" rather than "Payments unavailable".
+        One label, whatever the state.
 
-        The two say the same thing to the code and opposite things to a buyer:
-        unavailable reads as broken and sends them away, open soon reads as a
-        date they have not been told yet and keeps the page worth returning to.
-        The key was removed deliberately on 2026-09-09, so this is the state the
-        deployed site is in — not a fault to be reported.
+        The button used to read "Payments open soon" while the notice at the top
+        of this form said "Ticket sales are not open yet" — the same fact stated
+        twice, four inches apart, in two different sets of words. The notice
+        keeps it, because it is read before the typing rather than after it and
+        because it carries the way out; the button goes back to naming its own
+        action. Nothing here is hard coded: `stripeReady` still greys the button
+        out and still draws the notice, and both clear themselves the moment a
+        key is set.
       */}
-      {pending ? 'Redirecting…' : stripeReady ? `Pay ${price} with Stripe` : 'Payments open soon'}
+      {pending ? 'Redirecting…' : `Pay ${price} with Stripe`}
     </button>
   );
 }

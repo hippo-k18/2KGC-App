@@ -80,19 +80,19 @@ export default async function ExhibitorWebpagePage() {
   // find, then a blurb that says nothing, then a dead link.
   const gaps = [
     {
-      label: 'no logo. Leaves a hole in the grid',
+      label: 'No logo',
       count: listed.filter((r) => !exhibitorLogoRenders(r.logoURL)).length,
     },
     {
-      label: 'no booth on the floor plan, not findable in the hall',
+      label: 'No booth on the floor plan',
       count: listed.filter((r) => !assignedBooths.has(r.id)).length,
     },
     {
-      label: 'no description. The card would be a name only',
+      label: 'No description',
       count: listed.filter((r) => !r.description).length,
     },
     {
-      label: 'no website link. Nowhere for a visitor to go next',
+      label: 'No website link',
       count: listed.filter((r) => !r.website).length,
     },
   ].filter((g) => g.count > 0);
@@ -109,17 +109,16 @@ export default async function ExhibitorWebpagePage() {
         title="Exhibitor Webpage"
         info={
           <>
-            <strong>The web half only</strong>
+            <strong>On the website only</strong>
             <p>
-              <code>/exhibitors</code> publishes the confirmed records grouped by aisle. The app has
-              no exhibitor surface, so somebody standing in the hall cannot look one up on their
-              phone.
+              Confirmed exhibitors show on the public Exhibitors page, grouped by aisle. The app
+              does not list exhibitors yet.
             </p>
           </>
         }
         tags={<Tag color="green" fill="outline">live at /exhibitors</Tag>}
         actions={
-          <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live page ↗
           </a>
         }
@@ -144,7 +143,7 @@ export default async function ExhibitorWebpagePage() {
         <a href={publicUrl('/exhibitors')} target="_blank" rel="noreferrer">
           /exhibitors
         </a>{' '}
-        right now, grouped by aisle, and a status change there takes effect on the next request.
+        now. A status change in Exhibitor Manager shows there right away.
       </Banner>
 
       <StatTiles
@@ -158,29 +157,28 @@ export default async function ExhibitorWebpagePage() {
                 : 'every confirmed exhibitor',
           },
           {
-            label: 'In the collection',
+            label: 'All exhibitors',
             value: summary.total,
             sub: summary.cancelled > 0 ? `${summary.cancelled} cancelled` : 'none cancelled',
           },
           {
-            label: 'Would render cleanly',
+            label: 'Complete listings',
             value: `${ready}/${listed.length}`,
-            sub: 'all four public fields present',
+            sub: 'logo, booth, description and link',
           },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What is wrong with the page today?</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Missing details</h2>
         {listed.length === 0 ? (
           <p className="muted" style={{ marginBottom: 0 }}>
-            Nothing, no exhibitor is confirmed yet, so the page shows an empty hall. Confirm them
-            in Exhibitor Manager first.
+            No exhibitor is confirmed yet, so the public page is empty. Confirm them in Exhibitor
+            Manager.
           </p>
         ) : gaps.length === 0 ? (
           <p className="muted" style={{ marginBottom: 0 }}>
-            Nothing. Every exhibitor has a logo, a booth, a description and a link, so the listing
-            renders complete.
+            Nothing is missing.
           </p>
         ) : (
           <>
@@ -200,20 +198,20 @@ export default async function ExhibitorWebpagePage() {
               ])}
             />
             <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-              Ordered by how obvious each one would be to a visitor, not by how many there are.
+              Most visible to a visitor first.
             </p>
           </>
         )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The hall as it stands</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Exhibitors</h2>
         <Table
           cols={[
             { key: 'b', label: 'Booth', className: 'cell-sm' },
             { key: 'n', label: 'Exhibitor', className: 'cell-fill' },
             { key: 's', label: 'Status', className: 'cell-sm' },
-            { key: 'p', label: 'Public fields', className: 'cell-md' },
+            { key: 'p', label: 'Listing', className: 'cell-md' },
           ]}
           rows={rows.map((r) => {
             const assigned = assignedBooths.get(r.id) ?? [];

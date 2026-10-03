@@ -6,7 +6,13 @@ import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import { speakerId as mintSpeakerId } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
-import { getSpeaker } from '@/lib/data';
+import { getSpeaker, listSpeakers } from '@/lib/data';
+import {
+  approveSubmission,
+  rejectSubmission,
+  revokePortalLinks,
+  sendPortalLink,
+} from '@/lib/speaker-portal';
 import { fanOutSpeakerRename, summariseFanOut } from '@/lib/denormalise';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
@@ -173,7 +179,7 @@ export async function saveSpeakerAction(
     const clash = await getSpeaker(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” already uses the id “${docId}”. If this is a different person, add their company to tell the two apart.`,
+        error: `A speaker called “${clash.name}” is already on the list. If this is a different person, add their company to tell the two apart.`,
       };
     }
   }
@@ -302,10 +308,134 @@ export async function saveSpeakerAction(
 
   return {
     ok: true,
-    message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+    message: existing ? `Saved ${name}.` : `Added ${name}.`,
     fanOut,
     fanOutOk,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Self-service links
+// ---------------------------------------------------------------------------
+
+/**
+ * Send one speaker, or a group, the link to fill in their own profile. The same
+ * form is the reminder.
+ *
+ * `__incomplete` and `__all` rather than a checkbox column, which is the shape
+ * the reviewers screen already uses for the same job: the two groups an
+ * organizer actually sends to are "everybody who is missing something" and
+ * "everybody", and a selection UI is a lot of table state for a choice that has
+ * two useful answers.
+ *
+ * ⚠️ A speaker with no address is skipped and counted, never silently dropped.
+ * "Sent to 137" when 22 of them could not be reached is the sentence that makes
+ * an organizer believe the chase is done.
+ */
+export async function sendSpeakerLinkAction(
+  _prev: SpeakerState,
+  formData: FormData,
+): Promise<SpeakerState> {
+  const actor = await requireOrganizer();
+
+  const target = String(formData.get('speakerId') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim();
+  if (!target) return { error: 'Choose who to send it to.' };
+
+  try {
+    if (target !== '__all' && target !== '__incomplete') {
+      const result = await sendPortalLink({ speakerId: target, note, actor });
+      revalidatePath(ROUTES.speakerManager);
+      return result.ok ? { ok: true, message: result.message } : { error: result.error };
+    }
+
+    const speakers = await listSpeakers();
+    const audience = speakers.filter((s) => {
+      if (!s.contactEmail) return false;
+      return target === '__all' || !s.hasBio || !s.hasPhoto;
+    });
+    const noAddress = speakers.filter(
+      (s) => !s.contactEmail && (target === '__all' || !s.hasBio || !s.hasPhoto),
+    ).length;
+
+    if (audience.length === 0) {
+      return {
+        error: noAddress
+          ? `Nobody in that group has an address on file, so there is nowhere to send to. ${noAddress} ${noAddress === 1 ? 'speaker needs' : 'speakers need'} one adding first.`
+          : 'Nobody is in that group.',
+      };
+    }
+
+    let sent = 0;
+    let failed = 0;
+    for (const s of audience) {
+      const result = await sendPortalLink({ speakerId: s.id, note, actor });
+      if (result.ok) sent += 1;
+      else failed += 1;
+    }
+
+    revalidatePath(ROUTES.speakerManager);
+    return {
+      ok: true,
+      message:
+        `Sent to ${sent} ${sent === 1 ? 'speaker' : 'speakers'}.` +
+        (noAddress ? ` ${noAddress} skipped with no address on file.` : '') +
+        (failed ? ` ${failed} failed.` : ''),
+    };
+  } catch (err) {
+    recordError('speaker.portalSend', err);
+    return { error: err instanceof Error ? err.message : 'Could not send the link.' };
+  }
+}
+
+/**
+ * Approve or turn down what one speaker sent back.
+ *
+ * One action with two submit buttons rather than two actions, because the panel
+ * is one form: the note belongs to the rejection and the organizer types it
+ * before deciding which button to press.
+ */
+export async function decideSpeakerProfileAction(
+  _prev: SpeakerState,
+  formData: FormData,
+): Promise<SpeakerState> {
+  const actor = await requireOrganizer();
+
+  const speakerId = String(formData.get('speakerId') ?? '').trim();
+  const decision = String(formData.get('decision') ?? '');
+  if (!speakerId) return { error: 'That speaker is no longer on the list.' };
+
+  const result =
+    decision === 'approve'
+      ? await approveSubmission({ speakerId, actor })
+      : await rejectSubmission({ speakerId, note: String(formData.get('note') ?? ''), actor });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(ROUTES.speakerManager);
+  if (decision === 'approve') {
+    // An approved bio changes the agenda's cached speaker panel and the session
+    // a slides link landed on, and both are read by other screens.
+    revalidatePath(ROUTES.sessionManager);
+  }
+  return { ok: true, message: result.message };
+}
+
+/** Stop every link this speaker holds. One field write; `speaker-portal.ts` says why. */
+export async function revokeSpeakerLinkAction(
+  _prev: SpeakerState,
+  formData: FormData,
+): Promise<SpeakerState> {
+  const actor = await requireOrganizer();
+
+  const speakerId = String(formData.get('speakerId') ?? '').trim();
+  if (!speakerId) return { error: 'Choose a speaker.' };
+
+  const result = await revokePortalLinks({ speakerId, actor });
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(ROUTES.speakerManager);
+  return { ok: true, message: result.message };
 }
 
 // ---------------------------------------------------------------------------

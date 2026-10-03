@@ -4,6 +4,7 @@ import { money, salesSummary } from '@/lib/commerce';
 import { payoutSummary } from '@/lib/payouts';
 import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { wrapCol } from '../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,9 +48,8 @@ export default async function PayoutPage() {
           <>
             <strong>Stripe pays out to KGC&rsquo;s bank on its own schedule</strong>
             <p>
-              The account is KGC&rsquo;s own, so there is nothing to request and nobody to request
-              it from. Bank details, the schedule and verification stay in Stripe&rsquo;s dashboard
-              behind Stripe&rsquo;s authentication. Nothing on this screen writes.
+              Bank details, the payout schedule and verification are managed in Stripe. This
+              screen is read only.
             </p>
           </>
         }
@@ -59,7 +59,7 @@ export default async function PayoutPage() {
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key</Tag>
+            <Tag color="grey">Stripe not connected</Tag>
           )
         }
         links={[
@@ -77,17 +77,18 @@ export default async function PayoutPage() {
 
       {payouts.unavailable ? (
         <Banner kind="warning">
-          <strong>No live figures: Stripe could not be read.</strong> {payouts.unavailable} The
-          figures below come from our own order records instead, which is what was <em>sold</em>
-          rather than what has <em>landed</em>.
+          <strong>No live figures.</strong>{' '}
+          {stripeEnabled() ? payouts.unavailable : 'Stripe is not connected yet.'} The figures below
+          come from our own order records, so they show what was sold, not what has reached the
+          bank.
         </Banner>
       ) : failed.length > 0 ? (
         <Banner kind="danger">
           <strong>
             {failed.length} {failed.length === 1 ? 'payout has' : 'payouts have'} failed.
           </strong>{' '}
-          Money that was taken has not reached the bank. Stripe&rsquo;s reason is in the table below
-          and almost always names the fix, usually a bank detail to correct in Stripe, not here.
+          Money that was taken has not reached the bank. Stripe&rsquo;s reason is in the table
+          below. The fix is usually a bank detail to correct in Stripe.
         </Banner>
       ) : null}
 
@@ -143,7 +144,7 @@ export default async function PayoutPage() {
           ])}
           empty={
             payouts.unavailable ? (
-              'Nothing to list: Stripe could not be read. The reason is in the banner above.'
+              'No payouts to list yet.'
             ) : (
               <NotInputted what="payouts" compact />
             )
@@ -152,25 +153,26 @@ export default async function PayoutPage() {
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Why these numbers do not match</h2>
-        <p className="body-2" style={{ marginTop: 0 }}>
-          &ldquo;Sold&rdquo; and &ldquo;paid out&rdquo; are different quantities and always will be.
-          Naming the gaps is more useful than reconciling them into one figure that is wrong in a
-          way nobody can see.
-        </p>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Why sold and paid out differ</h2>
         <Table
           cols={[
             { key: 'g', label: 'Gap', className: 'cell-md' },
             { key: 'w', label: 'Why', className: 'cell-fill' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Processing fees',
-              'Charged against the payout, not the order. Roughly 2.9% + 30¢ per card payment, and only Stripe knows the exact figure per transaction.',
+              <span key="w">
+                Taken out of the payout, not the order. Roughly 2.9% + 30¢ per card payment. Stripe
+                has the exact figure.
+              </span>,
             ],
             [
               'Stripe’s rolling hold',
-              'A new account waits several days before its first payout and then settles on a rolling schedule. Money taken today is not money available today.',
+              <span key="w">
+                A new account waits several days before its first payout, then settles on a rolling
+                schedule.
+              </span>,
             ],
             [
               'Manual orders',
@@ -179,19 +181,22 @@ export default async function PayoutPage() {
                 <Link href="/tickets/exhibitor-ticket-setup/2-6-offline-payment">
                   Offline Payment
                 </Link>{' '}
-                appear in our takings and never touch Stripe. A reconciliation comes up short by
-                exactly their total, and that is correct.
+                count as sales here but are not paid through Stripe.
               </span>,
             ],
             [
               'Demo orders',
-              'Excluded from every takings figure in this dashboard. No money was ever asked for, so there is none to pay out.',
+              <span key="w">
+                Left out of every sales figure. No money was taken.
+              </span>,
             ],
             [
               'Disputes',
-              'A chargeback withdraws money after the fact and adds a fee. Nothing here sees one. Stripe’s dashboard is the only place they appear.',
+              <span key="w">
+                A chargeback takes money back and adds a fee. Disputes only show in Stripe.
+              </span>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

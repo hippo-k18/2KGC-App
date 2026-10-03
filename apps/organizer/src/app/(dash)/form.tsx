@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import type {
   CSSProperties,
   InputHTMLAttributes,
@@ -107,6 +107,40 @@ function inputClass(width: FieldWidth | undefined, invalid: boolean): string {
 }
 
 /**
+ * A prefix for the ids of the fields inside it.
+ *
+ * A field's id falls back to its `name`, which is right until one screen
+ * carries two forms. The attendee panel has an edit form and a transfer form,
+ * each with `name`, `email`, `title` and `company`; the reviewers screen has
+ * one "add a criterion" form and an inline editor per criterion, so `label`,
+ * `min`, `max` and `description` appear four times over. Every
+ * `<label for="email">` on such a page then points at the *first* `email` on
+ * the page: clicking the label beside the second form focuses a box in the
+ * first, and a screen reader announces the field's name twice over.
+ *
+ * Wrap each form in one of these with a word for that form, and its fields get
+ * `<scope>-<name>`. Readable ids, stable across renders, and unique per form —
+ * where `useId` alone would give `:r7:-email`, which is a valid id that cannot
+ * be written into a CSS selector without escaping it.
+ *
+ * An explicit `id` still wins: `CharCount` finds its field by id, so a screen
+ * has to be able to name one.
+ */
+const FieldScope = createContext('');
+
+export function FieldIdScope({ scope, children }: { scope: string; children: ReactNode }) {
+  return <FieldScope.Provider value={scope}>{children}</FieldScope.Provider>;
+}
+
+function useFieldId(id: string | undefined, name: string | undefined): string {
+  const scope = useContext(FieldScope);
+  const fallback = useId();
+  if (id) return id;
+  if (!name) return fallback;
+  return scope ? `${scope}-${name}` : name;
+}
+
+/**
  * Label, control, error, hint — in that order, and always in that order.
  *
  * The error goes *above* the hint rather than below it because the hint is
@@ -184,8 +218,7 @@ export function Field({
   required,
   ...rest
 }: FieldProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   return (
     <FieldFrame
       htmlFor={fieldId}
@@ -223,8 +256,7 @@ export function Textarea({
   rows = 6,
   ...rest
 }: TextareaProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   return (
     <FieldFrame
       htmlFor={fieldId}
@@ -280,8 +312,7 @@ export function Select({
   children,
   ...rest
 }: SelectProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   return (
     <FieldFrame
       htmlFor={fieldId}
@@ -355,7 +386,7 @@ export function DateTimeField({
         timeZoneNote ? (
           <>
             {hint ? <>{hint} </> : null}
-            Wall clock in {timeZoneNote}.
+            Time in {timeZoneNote}.
           </>
         ) : (
           hint
@@ -434,8 +465,7 @@ export function MoneyField({
   currencyDefault = 'usd',
   currencies = ['usd', 'eur', 'gbp'],
 }: MoneyFieldProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   const [amount, setAmount] = useState(defaultValue);
   const [currency, setCurrency] = useState(currencyDefault);
 

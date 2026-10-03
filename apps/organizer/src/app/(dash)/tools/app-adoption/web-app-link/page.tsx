@@ -43,9 +43,9 @@ export default async function WebAppLinkPage() {
           <>
             <strong>There is no browser version of the attendee app</strong>
             <p>
-              This app is React Native and exports for iOS and Android only. The badge QR, messages
-              and session Q&amp;A have no browser equivalent; the agenda and speakers do, and those
-              links are below.
+              The app runs on iOS and Android only. The agenda and speakers are also on the website,
+              and those links are below. The badge QR, messages and session Q&amp;A are in the app
+              only.
             </p>
           </>
         }
@@ -81,10 +81,10 @@ export default async function WebAppLinkPage() {
             [
               'Their own ticket',
               <span key="u" className="muted">
-                the <code>/order</code> link in their confirmation email
+                the link in their confirmation email
               </span>,
               <span key="n" className="muted" style={{ fontSize: 12 }}>
-                per-buyer, so it cannot be published here
+                different for every buyer
               </span>,
             ],
             [
@@ -93,7 +93,7 @@ export default async function WebAppLinkPage() {
                 app only
               </span>,
               <span key="n" className="muted" style={{ fontSize: 12 }}>
-                <Link href="/attendees/name-badges">printed badges</Link> cover the door case
+                <Link href="/attendees/name-badges">printed badges</Link> work at the door
               </span>,
             ],
           ]}
@@ -106,8 +106,7 @@ export default async function WebAppLinkPage() {
           <div style={{ flex: '1 1 320px', minWidth: 0 }}>
             <h2 style={{ fontSize: 15, marginTop: 0 }}>The agenda, for a sign or a slide</h2>
             <p className="body-2">
-              The one link worth putting on a wall for somebody without the app: it needs no
-              account, no install and no ticket to read.
+              Anyone can open the agenda link. It needs no account, app or ticket.
             </p>
             <Snippet title="Plain text" text={`KGC 2027 agenda: ${origin}/agenda`} />
           </div>

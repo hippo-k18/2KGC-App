@@ -78,7 +78,7 @@ export default function ExhibitorScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="this exhibitor"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View style={{ alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm }}>
               <SkeletonBlock width={LOGO} height={LOGO} radius={Radius.pill} />
               <SkeletonBlock width="45%" height={22} />

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
+import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
 /**
  * Exhibitor Orders and Sponsor Orders.
@@ -101,11 +101,10 @@ export async function AudienceOrders({
         title={title}
         info={
           <>
-            <strong>Attributed by line, not by order</strong>
+            <strong>Only the {noun} share is shown</strong>
             <p>
-              An order carries no audience; each line points at a ticket type and the type carries
-              one. The money column shows only this audience&rsquo;s share, so the three ledgers sum
-              to the takings rather than exceeding them.
+              An order can mix attendee, exhibitor and sponsor tickets. The Share column counts
+              only the {noun} part of each order.
             </p>
           </>
         }
@@ -136,76 +135,77 @@ export async function AudienceOrders({
           {
             label: 'Unattributable',
             value: unattributable,
-            sub: unattributable ? 'orders with no tier id' : 'none',
+            sub: unattributable ? 'orders with no ticket type' : 'none',
           },
         ]}
       />
 
       <Panel>
-        <Table
-          cols={[
-            { key: 'order', label: 'Order', className: 'cell-fill' },
-            { key: 'buyer', label: 'Buyer', className: 'cell-md' },
-            { key: 'pkg', label: 'Packages', className: 'cell-md' },
-            { key: 'st', label: 'Status', className: 'cell-sm' },
-            { key: 'total', label: 'Share', className: 'cell-sm' },
-          ]}
-          rows={matched.map((m) => [
-            <div key="o">
-              <Link href={`${ROUTES.attendeeOrders}?order=${m.order.id}`}>
-                <code>{m.order.id.slice(0, 18)}</code>
+        {matched.length === 0 ? (
+          <NotInputted
+            what={`${noun} orders`}
+            compact
+            action={
+              <Link className="btn btn-primary" href={catalogueHref}>
+                {catalogueLabel}
               </Link>
-              <div className="muted" style={{ fontSize: 11 }}>
-                {m.order.purchasedAt.slice(0, 10)} · {m.order.channel}
-              </div>
-            </div>,
-
-            <div key="b">
-              <div>{m.order.buyerName || m.order.email}</div>
-              {m.order.companyName ? (
-                <div className="muted" style={{ fontSize: 11 }}>
-                  {m.order.companyName}
-                </div>
-              ) : null}
-            </div>,
-
-            <span key="p" style={{ fontSize: 12 }}>
-              {m.order.ticketNames
-                .filter((_, i) => audienceOf.get(m.order.ticketTypeIds[i]) === audience)
-                .join(', ') || <em className="muted">—</em>}
-            </span>,
-
-            <Tag
-              key="s"
-              small
-              color={
-                m.order.status === 'paid' ? 'green' : m.order.status === 'refunded' ? 'red' : 'grey'
-              }
-            >
-              {m.order.status}
-            </Tag>,
-
-            <strong key="t">
-              {money(m.share, m.order.currency)}
-              {m.lines < m.order.ticketTypeIds.length ? (
-                <div className="muted" style={{ fontSize: 11, fontWeight: 400 }}>
-                  {m.lines} of {m.order.ticketTypeIds.length} lines
-                </div>
-              ) : null}
-            </strong>,
-          ])}
-          empty={
-            <NotInputted
-              what={`${noun} orders`}
-              compact
-              action={
-                <Link className="btn btn-primary" href={catalogueHref}>
-                  {catalogueLabel}
+            }
+          />
+        ) : (
+          <Table
+            cols={[
+              { key: 'order', label: 'Order', className: 'cell-fill' },
+              { key: 'buyer', label: 'Buyer', className: 'cell-md' },
+              { key: 'pkg', label: 'Packages', className: 'cell-md' },
+              { key: 'st', label: 'Status', className: 'cell-sm' },
+              { key: 'total', label: 'Share', className: 'cell-sm' },
+            ]}
+            rows={matched.map((m) => [
+              <div key="o">
+                <Link href={`${ROUTES.attendeeOrders}?order=${m.order.id}`}>
+                  <code>{m.order.id.slice(0, 18)}</code>
                 </Link>
-              }
-            />
-          }
-        />
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {m.order.purchasedAt.slice(0, 10)} · {m.order.channel}
+                </div>
+              </div>,
+
+              <div key="b">
+                <div>{m.order.buyerName || <Email address={m.order.email} />}</div>
+                {m.order.companyName ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {m.order.companyName}
+                  </div>
+                ) : null}
+              </div>,
+
+              <span key="p" style={{ fontSize: 12 }}>
+                {m.order.ticketNames
+                  .filter((_, i) => audienceOf.get(m.order.ticketTypeIds[i]) === audience)
+                  .join(', ') || <em className="muted">—</em>}
+              </span>,
+
+              <Tag
+                key="s"
+                small
+                color={
+                  m.order.status === 'paid' ? 'green' : m.order.status === 'refunded' ? 'red' : 'grey'
+                }
+              >
+                {m.order.status}
+              </Tag>,
+
+              <strong key="t">
+                {money(m.share, m.order.currency)}
+                {m.lines < m.order.ticketTypeIds.length ? (
+                  <div className="muted" style={{ fontSize: 11, fontWeight: 400 }}>
+                    {m.lines} of {m.order.ticketTypeIds.length} lines
+                  </div>
+                ) : null}
+              </strong>,
+            ])}
+          />
+        )}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

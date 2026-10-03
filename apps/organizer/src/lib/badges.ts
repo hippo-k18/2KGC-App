@@ -40,6 +40,9 @@ export interface BadgeRow {
   title?: string;
   ticketType?: string;
   status: RegistrationDoc['status'];
+  /** The organizer's label. Prints as the coloured band along the foot of the badge. */
+  categoryId?: string;
+  category?: string;
   /** The whole QR payload. Never rendered as text. */
   qrSecret: string;
 }
@@ -87,6 +90,8 @@ export async function listBadgeRows(): Promise<BadgeRow[]> {
         title: p?.title,
         ticketType: r.ticketType,
         status: r.status,
+        categoryId: r.categoryId,
+        category: r.category,
         qrSecret: r.qrSecret,
       };
     })

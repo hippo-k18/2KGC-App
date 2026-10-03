@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
+import { termsPublished } from '@/lib/terms-core';
 import Link from 'next/link';
 import { tiersOrNull } from '@/lib/catalogue';
+import { countryOptions } from '@/lib/invoice-core';
 import { SITE } from '@/lib/site';
 import { stripeEnabled } from '@/lib/stripe';
 import { InvoiceForm } from './invoice-form';
+import { TicketSalesClosed } from '../sales-closed';
+import { ticketSalesOpen } from '@/lib/data';
 
 /**
  * Tickets › Invoice a company.
@@ -19,16 +23,30 @@ import { InvoiceForm } from './invoice-form';
  * every other Firestore-backed page here. Without this the build tries to reach
  * the database and fails with `ECONNREFUSED` on a machine with no emulator.
  */
+/** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. */
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
+  // Checkout, not a landing page: the site-wide noindex goes away at cutover, this stays.
+  robots: { index: false, follow: false },
   title: `Invoice a company | ${SITE.name}`,
   description:
     'Register a group for the Knowledge Graph Conference and pay by invoice on net terms, with a purchase order number.',
 };
 
 export default async function InvoicePage() {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
   const tiers = (await tiersOrNull()) ?? [];
+  /*
+   * The form and the column beside it have to agree.
+   *
+   * With invoicing closed the form is replaced by an email notice, and the
+   * how-it-works list carried on describing a form that was not on the page:
+   * "You list who is coming and who pays", "This form handles up to ten
+   * people". Two steps change wording; the rest of the sequence is the same
+   * either way.
+   */
+  const open = stripeEnabled();
 
   return (
     <>
@@ -45,25 +63,31 @@ export default async function InvoicePage() {
 
       <section className="band">
         <div className="wrap" style={{ display: 'grid', gap: 40, gridTemplateColumns: 'minmax(0,1fr)' }}>
-          {!stripeEnabled() && (
-            <p className="notice warn">
-              <strong>Test mode.</strong> No payment processor is configured on this deployment, so
-              invoices cannot be raised here. On the live site this form emails a payable Stripe
-              invoice.
-            </p>
-          )}
-
-          <div style={{ display: 'grid', gap: 36, gridTemplateColumns: 'minmax(0,420px) minmax(0,1fr)' }}>
+          <div className="invoice-cols">
             <div>
-              <InvoiceForm tiers={tiers} />
+              {/*
+                Fail closed, and before the typing rather than after it: a form
+                whose submit can only refuse is twelve fields of wasted effort.
+              */}
+              {open ? (
+                <InvoiceForm tiers={tiers} countries={countryOptions()} termsPublished={termsPublished()} />
+              ) : (
+                <p className="notice">
+                  Invoicing is not open yet. Email{' '}
+                  <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will raise
+                  one by hand.
+                </p>
+              )}
             </div>
 
             <div>
               <h2 style={{ fontSize: '1.25rem' }}>How it works</h2>
               <ol style={{ lineHeight: 1.7, paddingLeft: '1.1rem' }}>
                 <li>
-                  You list who&rsquo;s coming and who pays. Nothing is charged and nobody is
-                  registered yet.
+                  {open
+                    ? 'You list who\u2019s coming and who pays.'
+                    : 'You email us who\u2019s coming and who pays.'}{' '}
+                  Nothing is charged and nobody is registered yet.
                 </li>
                 <li>
                   We raise the invoice through Stripe and email it to your billing contact, with the
@@ -74,7 +98,7 @@ export default async function InvoicePage() {
                 </li>
                 <li>
                   <strong>When it clears</strong>, every attendee on the invoice gets their own
-                  confirmation email with a claim code for the app.
+                  confirmation email with their ticket.
                 </li>
               </ol>
 
@@ -96,8 +120,17 @@ export default async function InvoicePage() {
 
               <h3 style={{ fontSize: '1.05rem', marginTop: 26 }}>Larger groups</h3>
               <p>
-                This form handles up to ten people. For more than that, or for a sponsor allocation,
-                email us and we&rsquo;ll set it up directly.
+                {open ? (
+                  <>
+                    This form handles up to ten people. For more than that, or for a sponsor
+                    allocation, email us and we&rsquo;ll set it up directly.
+                  </>
+                ) : (
+                  <>
+                    Ten people or a hundred, put the names in the same email. Sponsor allocations
+                    go the same way.
+                  </>
+                )}
               </p>
             </div>
           </div>

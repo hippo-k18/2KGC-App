@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel, Table } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +26,8 @@ export default async function ModerateSessionChatsPage() {
         title="Session Chats"
         info={
           <>
-            <strong>Sessions have no chat channel</strong>
-            <p>
-              A live chat is a companion to a stream, and nothing streams. What an attendee can
-              write during a talk is a Q&amp;A question, and that has a real queue.
-            </p>
+            <strong>Sessions have no chat</strong>
+            <p>During a talk attendees can ask a Q&amp;A question, and those can be moderated.</p>
           </>
         }
         links={[
@@ -44,49 +41,24 @@ export default async function ModerateSessionChatsPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="session chat messages"
+        <EmptyState
           action={
-            <Link href="/tools/moderator-tools/moderate-session-qanda" className="whova-btn-main">
+            <Link href="/tools/moderator-tools/moderate-session-qanda" className="whova-btn-main secondary">
               Moderate Session Q&amp;A
             </Link>
           }
-        />
+        >
+          <p className="empty-title">Session chat is not available yet</p>
+        </EmptyState>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where attendee text actually goes</h2>
-        <Table
-          cols={[
-            { key: 'w', label: 'Channel', className: 'cell-md' },
-            { key: 'm', label: 'Moderation', className: 'cell-fill' },
-          ]}
-          rows={[
-            [
-              'Session Q&A',
-              <span key="m">
-                Hide and mark answered, at{' '}
-                <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link>.
-              </span>,
-            ],
-            [
-              'Community board',
-              <span key="m">
-                Posts and replies: hide, restore and delete, at{' '}
-                <Link href={ROUTES.moderateBoard}>Community Board</Link>.
-              </span>,
-            ],
-            [
-              'Direct messages',
-              <span key="m">
-                Deliberately <strong>not</strong> moderated. Thread membership comes from{' '}
-                <code>participantIds</code> and the rules deny everyone else. A moderator inbox
-                over private messages would mean loosening that, which is a much larger decision
-                than a screen.
-              </span>,
-            ],
-          ]}
-        />
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>What you can moderate</h2>
+        <p className="body-2" style={{ marginBottom: 0 }}>
+          Session questions at <Link href={ROUTES.qaManager}>Session Q&amp;A Manager</Link>, and
+          posts and replies at <Link href={ROUTES.moderateBoard}>Community Board</Link>. Direct
+          messages are private and are not moderated.
+        </p>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

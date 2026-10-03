@@ -3,17 +3,20 @@ import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import {
   DEFAULT_LIST_ID,
+  allCheckIns,
   listCheckInLists,
   listRegistrations,
   listStations,
   recentCheckIns,
   recentScanEvents,
 } from '@/lib/checkin';
+import { doorDashboard, type DoorBar } from '@/lib/door-dashboard-core';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
-import { Banner, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
+import { clockOfInstant, dayOfInstant } from '@/lib/time';
+import { Banner, Email, GapPanel, PageHeader, Panel, ProgressBar, Table, Tag } from '../../../ui';
 import { Dropdown } from '../../../menu';
 import { DeskTable, type DeskRow } from './desk-table';
 import { CreateListForm } from './list-form';
@@ -58,6 +61,7 @@ export default async function CheckInPage({
   await requireOrganizer();
 
   const { list: listParam } = await searchParams;
+  // Lists made before the rename carry a long dash in their name.
   const lists = await listCheckInLists();
 
   /**
@@ -93,10 +97,22 @@ export default async function CheckInPage({
   ]);
   const rows = registrations.map((r) => r.row);
 
-  const [{ rows: checkIns, total: checkedIn }, scans] = await Promise.all([
+  /*
+   * `everyCheckIn` is a second pass over the same subcollection, and it is the
+   * honest cost of the two charts below. `recentCheckIns` answers its two
+   * questions — how many, and who came through last — with a `count()` and a
+   * twenty-document query, neither of which reads the rest. Splitting people by
+   * ticket and by hour needs every document there is. The subcollection tops
+   * out at one entry per registration, which is why `allCheckIns` carries no
+   * limit in the first place.
+   */
+  const [{ rows: checkIns, total: checkedIn }, scans, everyCheckIn] = await Promise.all([
     recentCheckIns(selected.id, rows, stations),
     recentScanEvents(selected.id),
+    allCheckIns(selected.id, rows, stations),
   ]);
+
+  const door = doorDashboard(everyCheckIn, EVENT.timeZone);
 
   /**
    * The scope pickers behind the Day and Session Start buttons.
@@ -211,7 +227,9 @@ export default async function CheckInPage({
           >
             Event check-in
           </div>
-          <div style={{ alignItems: 'center', display: 'flex', gap: 24, padding: '16px 14px' }}>
+          <div
+            style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 24, padding: '16px 14px' }}
+          >
             <div style={{ flex: '1 1 240px' }}>
               <strong>Check-in for the event</strong>
               <div className="muted" style={{ fontSize: 13 }}>
@@ -264,16 +282,10 @@ export default async function CheckInPage({
               </div>
               <DayScopeForm options={dayOptions} defaultValue={suggested?.day} />
             </div>
-            <div
-              style={{
-                borderLeft: '1px solid var(--hairline)',
-                flex: '1 1 260px',
-                padding: 14,
-              }}
-            >
+            <div className="scope-split" style={{ flex: '1 1 260px', padding: 14 }}>
               <strong>Check-in for the session</strong>
               <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-                Counts people into one room. Same scanner, same badge. A different list.
+                Count attendees into one session.
               </div>
               <SessionScopeForm options={sessionOptions} defaultValue={suggested?.id} />
             </div>
@@ -314,17 +326,15 @@ export default async function CheckInPage({
         {scopeSession ? (
           <Banner kind="info">
             <strong>You are scanning into {scopeSession.title}</strong>, not the
-            main door, {scopeSession.day} {scopeSession.startsAtLocal.slice(11, 16)}–
+            main door, {scopeSession.day} {scopeSession.startsAtLocal.slice(11, 16)} to{' '}
             {scopeSession.endsAtLocal.slice(11, 16)}
-            {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. A badge scanned here is
-            counted into this room and <em>not</em> into the event door list; the same person can be
-            scanned at both, which is the point. Switch back with the{' '}
-            <em>KGC 2027: Main Door</em> chip above.
+            {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. Scans here do not count
+            toward the main door. Switch back with the <em>KGC 2027: Main Door</em> chip above.
           </Banner>
         ) : rows.length - active > 0 ? (
           <Banner kind="warning">
-            {rows.length - active} registrations are cancelled or transferred and are excluded from
-            the denominator above.
+            {rows.length - active} registrations are cancelled or transferred and are not counted
+            above.
           </Banner>
         ) : null}
 
@@ -334,12 +344,63 @@ export default async function CheckInPage({
       <Panel>
         <h2 className="section-header">Check in by name</h2>
         <p className="body-2">
-          The scanner needs a code off the attendee&apos;s phone. This does not. Find the person
-          and press the button. A queue of a thousand reliably contains a flat battery, and this is
-          the row Whova puts an inline <strong>Check in</strong> button on for that reason. Same
-          idempotent write as a scan, so a double click cannot double count.
+          For an attendee without a badge code. Find the person and press Check in.
         </p>
         <DeskTable listId={selected.id} rows={deskRows} />
+      </Panel>
+
+      {/*
+        The live door dashboard. Two charts, because the progress bar above
+        answers "how far through the queue are we" and cannot answer either of
+        these: whether the queue is moving, and which tickets are still
+        outside. Both are read off the check-ins on this list, so switching to a
+        session door re-draws them for that room.
+      */}
+      <Panel>
+        <h2 className="section-header" style={{ marginTop: 0 }}>
+          Arrivals
+        </h2>
+        {door.total === 0 ? (
+          <p className="body-2">
+            Nobody has checked in on this list yet. The charts appear with the first arrival.
+          </p>
+        ) : (
+          <>
+            <div className="form-row" style={{ alignItems: 'flex-start', display: 'flex', gap: 24 }}>
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>By ticket type</h3>
+                <BarChart
+                  firstLabel="Ticket"
+                  barLabel="Checked in"
+                  bars={door.byTicket}
+                  empty="No tickets recorded"
+                />
+              </div>
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>By hour</h3>
+                <BarChart
+                  firstLabel="Hour"
+                  barLabel="Arrivals"
+                  bars={door.byHour}
+                  empty="No arrival times recorded"
+                />
+              </div>
+            </div>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
+              {door.busiestHour
+                ? `Busiest hour ${door.busiestHour.label} with ${door.busiestHour.count} ${door.busiestHour.count === 1 ? 'arrival' : 'arrivals'}. `
+                : ''}
+              {door.lastAt ? `Last arrival ${venueClock(door.lastAt)}. ` : ''}
+              {door.undated > 0
+                ? `${door.undated} ${door.undated === 1 ? 'check-in has' : 'check-ins have'} no time on them, so they are counted by ticket only. `
+                : ''}
+              {door.skippedGaps > 0
+                ? 'Long quiet stretches are left out, so two bars side by side are not always two hours in a row. '
+                : ''}
+              Hours are {VENUE_CITY} time.
+            </p>
+          </>
+        )}
       </Panel>
 
       <Panel>
@@ -349,25 +410,29 @@ export default async function CheckInPage({
             { key: 'w', label: 'When', className: 'cell-mdsm' },
             { key: 'n', label: 'Attendee', className: 'cell-md' },
             { key: 't', label: 'Ticket', className: 'cell-sm' },
-            { key: 's', label: 'Station', className: 'cell-mdsm' },
-            { key: 'r', label: 'Registration', className: 'cell-fill' },
+            /*
+              No registration id column. It printed `reg_f36950d41bacf1d0…`
+              beside every arrival, which is how the badge and this dashboard
+              address a ticket and is nothing a person at the desk reads. The
+              attendee's name and address identify the row.
+            */
+            { key: 's', label: 'Station', className: 'cell-fill' },
           ]}
           empty="Nobody has checked in yet"
           rows={checkIns.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt
+                ? `${dayOfInstant(c.checkedInAt)} ${clockOfInstant(c.checkedInAt)}`
+                : '—'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {c.email}
+                <Email address={c.email} />
               </div>
             </span>,
             c.ticketType ?? <span className="muted">—</span>,
             c.stationLabel || <span className="muted">—</span>,
-            <code key="r" style={{ fontSize: 12 }}>
-              {c.registrationId}
-            </code>,
           ])}
         />
       </Panel>
@@ -375,11 +440,7 @@ export default async function CheckInPage({
       <Panel>
         <h2 className="section-header">Scan log ({scans.length})</h2>
         <p className="body-2">
-          Every scan, including the rejected ones. A duplicate is not an error state to recover
-          from. The write is a <code>create</code> keyed by registration, so the second one fails
-          with <code>already-exists</code> and <em>that failure is the mechanism</em>. The row below
-          telling you someone was already checked in at 09:12 at Front desk 1 is also the only way
-          a photographed badge gets noticed.
+          Every scan, including duplicates and rejected codes.
         </p>
         <Table
           cols={[
@@ -391,7 +452,9 @@ export default async function CheckInPage({
           empty="No scans yet"
           rows={scans.map((s) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {s.scannedAt ? s.scannedAt.slice(0, 16).replace('T', ' ') : '—'}
+              {s.scannedAt
+                ? `${dayOfInstant(s.scannedAt)} ${clockOfInstant(s.scannedAt)}`
+                : '—'}
             </span>,
             <Tag key="r" color={s.result === 'ok' ? 'green' : s.result === 'duplicate' ? 'orange' : 'red'}>
               {s.result}
@@ -449,5 +512,83 @@ export default async function CheckInPage({
         </ul>
       </GapPanel>
     </>
+  );
+}
+
+/**
+ * "America/New_York" → "New York". The zone named the way somebody says it.
+ *
+ * The charts below are bucketed in the venue's zone rather than the reader's,
+ * and an organizer watching the door from another country has to be told which
+ * clock the hours are on. The zone id is the accurate way to say it and the
+ * wrong way to write it on a screen.
+ */
+const VENUE_CITY = (EVENT.timeZone.split('/').pop() ?? EVENT.timeZone).replace(/_/g, ' ');
+
+/** One instant, on the venue's clock, for a line of prose beside the charts. */
+function venueClock(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '—';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: EVENT.timeZone,
+  }).format(new Date(t));
+}
+
+/**
+ * A bar per row, and no chart library.
+ *
+ * Tools › Report draws the scan-throughput chart exactly this way, and the two
+ * screens should not carry two ideas of what a chart looks like. Widths are a
+ * share of the busiest bar, so the axis is the peak and needs no label; the
+ * count sits outside the bar because a bar with no number on it is a shape.
+ *
+ * `aria-hidden` on the bar itself: it is the number beside it, drawn. A screen
+ * reader announcing both reads every row twice.
+ */
+function BarChart({
+  bars,
+  firstLabel,
+  barLabel,
+  empty,
+}: {
+  bars: DoorBar[];
+  firstLabel: string;
+  barLabel: string;
+  empty: string;
+}) {
+  return (
+    <Table
+      cols={[
+        { key: 'l', label: firstLabel, className: 'cell-mdsm' },
+        { key: 'b', label: barLabel, className: 'cell-fill' },
+        { key: 'n', label: '', className: 'cell-xs cell-end-align' },
+      ]}
+      empty={empty}
+      rows={bars.map((b) => [
+        <span key="l" style={{ whiteSpace: 'nowrap' }}>
+          {b.label}
+        </span>,
+        <span
+          key="b"
+          aria-hidden="true"
+          style={{
+            background: 'var(--accent, #2180b2)',
+            borderRadius: 2,
+            display: 'block',
+            height: 12,
+            // A zero bar is drawn as nothing at all. A one-pixel sliver for an
+            // hour nobody arrived in reads as an arrival.
+            width: `${b.pct}%`,
+          }}
+        />,
+        <strong key="n">{b.count}</strong>,
+      ])}
+      stackSm={false}
+    />
   );
 }

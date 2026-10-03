@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { termsPublished } from '@/lib/terms-core';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { tiersOrNull } from '@/lib/catalogue';
+import { buyerFeePercent, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import type { TicketId } from '@/lib/tickets';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
@@ -9,6 +11,7 @@ import { stripeEnabled } from '@/lib/stripe';
 import { activeForm } from '@/lib/question-forms';
 import { CheckoutForm } from './checkout-form';
 import { TierCard } from './tier-card';
+import { TicketSalesClosed } from './sales-closed';
 
 /**
  * The exhibitor and sponsor registration pages.
@@ -60,6 +63,8 @@ export async function AudienceTicketsPage({
   copy: AudiencePageCopy;
   searchParams: Promise<{ tier?: string; cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
+  const ev = await siteEvent();
   const params = await searchParams;
   const [catalogue, form] = await Promise.all([
     tiersOrNull(copy.audience),
@@ -77,10 +82,10 @@ export async function AudienceTicketsPage({
     <>
       <section className="band band-navy">
         <div className="wrap">
-          <p className="kicker">{SITE.shortName} {SITE.year}</p>
+          <p className="kicker">{ev.shortName} {ev.year}</p>
           <h1>{copy.heading}</h1>
           <p className="when">
-            {SITE.datesLong} | {SITE.venueShort}
+            {ev.datesShort} | {ev.venueShort}
           </p>
           <p className="lede" style={{ maxWidth: '46rem' }}>
             {copy.lede}
@@ -142,9 +147,13 @@ export async function AudienceTicketsPage({
           }}
         >
           <div>
-            <p className="eyebrow">What you get</p>
-            <h2>{copy.heading}</h2>
-            <ol className="steps" style={{ marginTop: 22 }}>
+            {/*
+              No heading here. It carried `copy.heading` — the same words as the
+              h1 six hundred pixels above it — so the page introduced itself
+              twice and named nothing. The numbered points already say what they
+              are, and the column opposite keeps its own "Register".
+            */}
+            <ol className="steps">
               {copy.points.map((p) => (
                 <li key={p.title}>
                   <strong>{p.title}</strong>
@@ -155,7 +164,7 @@ export async function AudienceTicketsPage({
             <p style={{ marginTop: 28 }}>
               <strong>Paying by invoice?</strong>{' '}
               <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60, with a PO
-              number, which is how most {copy.noun} budgets are actually spent.
+              number.
             </p>
             <p>
               <strong>Questions?</strong>{' '}
@@ -165,11 +174,13 @@ export async function AudienceTicketsPage({
 
           {tiers.length > 0 ? (
             <CheckoutForm
+            termsPublished={termsPublished()}
               tiers={tiers}
               initialTier={preselected}
               stripeReady={stripeEnabled()}
               demoReady={await demoCheckoutAllowed()}
               questions={form.fields}
+              buyerFeePercent={await buyerFeePercent()}
             />
           ) : (
             /*

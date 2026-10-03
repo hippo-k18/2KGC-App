@@ -165,10 +165,6 @@ export function EventSchedule({
         })}
       </div>
 
-      <p className="schedule-zone">
-        Displaying the agenda in the event timezone ({SITE.timeZone.replace('_', ' ')}).
-      </p>
-
       <div
         className="schedule-list"
         role="tabpanel"

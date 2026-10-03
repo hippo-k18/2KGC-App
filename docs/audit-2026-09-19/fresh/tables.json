@@ -1,0 +1,2412 @@
+[
+ {
+  "path": "/content/agenda-center/track-manager",
+  "tables": [
+   {
+    "over": 295,
+    "clientW": 336,
+    "scrollW": 631,
+    "heads": [
+     {
+      "label": "",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Track ⇅",
+      "hidden": 0,
+      "w": 213
+     },
+     {
+      "label": "Sessions ⇅",
+      "hidden": 46,
+      "w": 80
+     },
+     {
+      "label": "Published ⇅",
+      "hidden": 126,
+      "w": 80
+     },
+     {
+      "label": "Primary ⇅",
+      "hidden": 206,
+      "w": 80
+     },
+     {
+      "label": "",
+      "hidden": 286,
+      "w": 80
+     }
+    ],
+    "rows": 11
+   }
+  ]
+ },
+ {
+  "path": "/content/agenda-center/session-qanda-manager",
+  "tables": [
+   {
+    "over": 323,
+    "clientW": 336,
+    "scrollW": 659,
+    "heads": [
+     {
+      "label": "Session",
+      "hidden": 0,
+      "w": 273
+     },
+     {
+      "label": "When",
+      "hidden": 50,
+      "w": 104
+     },
+     {
+      "label": "Questions",
+      "hidden": 154,
+      "w": 104
+     },
+     {
+      "label": "Q&A",
+      "hidden": 234,
+      "w": 80
+     },
+     {
+      "label": "Polls",
+      "hidden": 314,
+      "w": 80
+     }
+    ],
+    "rows": 72
+   },
+   {
+    "over": 443,
+    "clientW": 336,
+    "scrollW": 779,
+    "heads": [
+     {
+      "label": "Question",
+      "hidden": 0,
+      "w": 273
+     },
+     {
+      "label": "Session",
+      "hidden": 98,
+      "w": 152
+     },
+     {
+      "label": "Votes",
+      "hidden": 178,
+      "w": 80
+     },
+     {
+      "label": "State",
+      "hidden": 282,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 434,
+      "w": 152
+     }
+    ],
+    "rows": 13
+   }
+  ]
+ },
+ {
+  "path": "/content/speaker-center/message-speakers",
+  "tables": [
+   {
+    "over": 199,
+    "clientW": 336,
+    "scrollW": 535,
+    "heads": [
+     {
+      "label": "Name",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Email",
+      "hidden": 38,
+      "w": 213
+     },
+     {
+      "label": "",
+      "hidden": 190,
+      "w": 152
+     }
+    ],
+    "rows": 45
+   },
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "When",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Subject",
+      "hidden": 50,
+      "w": 273
+     },
+     {
+      "label": "By",
+      "hidden": 202,
+      "w": 152
+     },
+     {
+      "label": "Result",
+      "hidden": 354,
+      "w": 152
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/content/call-for-speakers-abstracts",
+  "tables": [
+   {
+    "over": 467,
+    "clientW": 336,
+    "scrollW": 803,
+    "heads": [
+     {
+      "label": "Call",
+      "hidden": 0,
+      "w": 273
+     },
+     {
+      "label": "Window",
+      "hidden": 98,
+      "w": 152
+     },
+     {
+      "label": "Submissions",
+      "hidden": 202,
+      "w": 104
+     },
+     {
+      "label": "Questions",
+      "hidden": 306,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 458,
+      "w": 152
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/content/exhibitor-center/exhibitor-manager",
+  "tables": [
+   {
+    "over": 499,
+    "clientW": 336,
+    "scrollW": 835,
+    "heads": [
+     {
+      "label": "Booth ⇅",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Company ⇅",
+      "hidden": 26,
+      "w": 273
+     },
+     {
+      "label": "Contact",
+      "hidden": 178,
+      "w": 152
+     },
+     {
+      "label": "Passes ⇅",
+      "hidden": 282,
+      "w": 104
+     },
+     {
+      "label": "Status ⇅",
+      "hidden": 386,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 490,
+      "w": 104
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/content/exhibitor-center/message-exhibitors",
+  "tables": [
+   {
+    "over": 242,
+    "clientW": 336,
+    "scrollW": 578,
+    "heads": [
+     {
+      "label": "Name",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Email",
+      "hidden": 81,
+      "w": 256
+     },
+     {
+      "label": "",
+      "hidden": 233,
+      "w": 152
+     }
+    ],
+    "rows": 5
+   },
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "When",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Subject",
+      "hidden": 50,
+      "w": 273
+     },
+     {
+      "label": "By",
+      "hidden": 202,
+      "w": 152
+     },
+     {
+      "label": "Result",
+      "hidden": 354,
+      "w": 152
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/content/sponsor-center/sponsor-tiering",
+  "tables": [
+   {
+    "over": 155,
+    "clientW": 336,
+    "scrollW": 491,
+    "heads": [
+     {
+      "label": "Tier",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Sponsors",
+      "hidden": 0,
+      "w": 96
+     },
+     {
+      "label": "Who",
+      "hidden": 146,
+      "w": 273
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/content/sponsor-center/message-sponsors",
+  "tables": [
+   {
+    "over": 259,
+    "clientW": 336,
+    "scrollW": 595,
+    "heads": [
+     {
+      "label": "Name",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Email",
+      "hidden": 98,
+      "w": 273
+     },
+     {
+      "label": "",
+      "hidden": 250,
+      "w": 152
+     }
+    ],
+    "rows": 18
+   },
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "When",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Subject",
+      "hidden": 50,
+      "w": 273
+     },
+     {
+      "label": "By",
+      "hidden": 202,
+      "w": 152
+     },
+     {
+      "label": "Result",
+      "hidden": 354,
+      "w": 152
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/content/sponsor-center/advanced-banners",
+  "tables": [
+   {
+    "over": 127,
+    "clientW": 336,
+    "scrollW": 463,
+    "heads": [
+     {
+      "label": "Tier",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Weight",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Sponsors",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Share of impressions",
+      "hidden": 118,
+      "w": 157
+     }
+    ],
+    "rows": 4
+   },
+   {
+    "over": 225,
+    "clientW": 336,
+    "scrollW": 561,
+    "heads": [
+     {
+      "label": "#",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Sponsor",
+      "hidden": 0,
+      "w": 207
+     },
+     {
+      "label": "Tier",
+      "hidden": 64,
+      "w": 104
+     },
+     {
+      "label": "Ready",
+      "hidden": 216,
+      "w": 152
+     }
+    ],
+    "rows": 18
+   }
+  ]
+ },
+ {
+  "path": "/content/project-management/message-team-members",
+  "tables": [
+   {
+    "over": 18,
+    "clientW": 336,
+    "scrollW": 354,
+    "heads": [
+     {
+      "label": "Name",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Open tasks",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Contactable",
+      "hidden": 9,
+      "w": 104
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/content/documents-and-videos/documents",
+  "tables": [
+   {
+    "over": 499,
+    "clientW": 336,
+    "scrollW": 835,
+    "heads": [
+     {
+      "label": "Document",
+      "hidden": 0,
+      "w": 273
+     },
+     {
+      "label": "Kind",
+      "hidden": 26,
+      "w": 80
+     },
+     {
+      "label": "Hosted at",
+      "hidden": 178,
+      "w": 152
+     },
+     {
+      "label": "Visible to",
+      "hidden": 330,
+      "w": 152
+     },
+     {
+      "label": "Status",
+      "hidden": 410,
+      "w": 80
+     },
+     {
+      "label": "",
+      "hidden": 490,
+      "w": 80
+     }
+    ],
+    "rows": 5
+   }
+  ]
+ },
+ {
+  "path": "/content/documents-and-videos/attendee-video-access",
+  "tables": [
+   {
+    "over": 13,
+    "clientW": 336,
+    "scrollW": 349,
+    "heads": [
+     {
+      "label": "Ticket type",
+      "hidden": 0,
+      "w": 123
+     },
+     {
+      "label": "Sold",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Video library",
+      "hidden": 4,
+      "w": 104
+     }
+    ],
+    "rows": 11
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-setup/ticket-add-ons",
+  "tables": [
+   {
+    "over": 141,
+    "clientW": 336,
+    "scrollW": 477,
+    "heads": [
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Workshops",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Video library",
+      "hidden": 132,
+      "w": 99
+     }
+    ],
+    "rows": 11
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-setup/member-and-invite-only-ticketing",
+  "tables": [
+   {
+    "over": 211,
+    "clientW": 336,
+    "scrollW": 547,
+    "heads": [
+     {
+      "label": "Method",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "State",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "What it does",
+      "hidden": 202,
+      "w": 273
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-setup/1-4-registration-pages",
+  "tables": [
+   {
+    "over": 251,
+    "clientW": 336,
+    "scrollW": 587,
+    "heads": [
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Order",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "State",
+      "hidden": 242,
+      "w": 209
+     }
+    ],
+    "rows": 11
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-setup/1-5-registration-widgets",
+  "tables": [
+   {
+    "over": 107,
+    "clientW": 336,
+    "scrollW": 443,
+    "heads": [
+     {
+      "label": "What",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Use this",
+      "hidden": 98,
+      "w": 273
+     }
+    ],
+    "rows": 2
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-setup/1-7-registration-settings",
+  "tables": [
+   {
+    "over": 242,
+    "clientW": 336,
+    "scrollW": 578,
+    "heads": [
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Opens",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Closes",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Capacity",
+      "hidden": 137,
+      "w": 104
+     },
+     {
+      "label": "Visibility",
+      "hidden": 233,
+      "w": 96
+     }
+    ],
+    "rows": 11
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-1-exhibitor-tickets",
+  "tables": [
+   {
+    "over": 406,
+    "clientW": 336,
+    "scrollW": 742,
+    "heads": [
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 236
+     },
+     {
+      "label": "Price",
+      "hidden": 13,
+      "w": 104
+     },
+     {
+      "label": "Sold",
+      "hidden": 165,
+      "w": 152
+     },
+     {
+      "label": "On sale",
+      "hidden": 317,
+      "w": 152
+     },
+     {
+      "label": "",
+      "hidden": 397,
+      "w": 80
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-2-question-forms",
+  "tables": [
+   {
+    "over": 211,
+    "clientW": 336,
+    "scrollW": 547,
+    "heads": [
+     {
+      "label": "Removed question",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Registrations",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 202,
+      "w": 273
+     }
+    ],
+    "rows": 5
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-3-booth-selection",
+  "tables": [
+   {
+    "over": 523,
+    "clientW": 336,
+    "scrollW": 859,
+    "heads": [
+     {
+      "label": "Booth",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Zone",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Sold as",
+      "hidden": 33,
+      "w": 152
+     },
+     {
+      "label": "Occupant",
+      "hidden": 306,
+      "w": 273
+     },
+     {
+      "label": "Status",
+      "hidden": 410,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 514,
+      "w": 104
+     }
+    ],
+    "rows": 14
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-4-confirmation-emails",
+  "tables": [
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "To",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Status",
+      "hidden": 81,
+      "w": 104
+     },
+     {
+      "label": "When",
+      "hidden": 354,
+      "w": 273
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-5-ticket-add-ons",
+  "tables": [
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "Exhibitor",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Booth",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Passes",
+      "hidden": 81,
+      "w": 152
+     },
+     {
+      "label": "",
+      "hidden": 354,
+      "w": 273
+     }
+    ],
+    "rows": 6
+   },
+   {
+    "over": 211,
+    "clientW": 336,
+    "scrollW": 547,
+    "heads": [
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "What’s included",
+      "hidden": 202,
+      "w": 273
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-6-offline-payment",
+  "tables": [
+   {
+    "over": 335,
+    "clientW": 336,
+    "scrollW": 671,
+    "heads": [
+     {
+      "label": "Buyer",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Amount",
+      "hidden": 81,
+      "w": 104
+     },
+     {
+      "label": "Recorded by",
+      "hidden": 326,
+      "w": 245
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/pre-paid-exhibitors",
+  "tables": [
+   {
+    "over": 376,
+    "clientW": 336,
+    "scrollW": 712,
+    "heads": [
+     {
+      "label": "Exhibitor",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Order",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Booth",
+      "hidden": 81,
+      "w": 104
+     },
+     {
+      "label": "Passes",
+      "hidden": 185,
+      "w": 104
+     },
+     {
+      "label": "What is missing",
+      "hidden": 367,
+      "w": 182
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/registration-settings",
+  "tables": [
+   {
+    "over": 242,
+    "clientW": 336,
+    "scrollW": 578,
+    "heads": [
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Opens",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Closes",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Capacity",
+      "hidden": 137,
+      "w": 104
+     },
+     {
+      "label": "Listing",
+      "hidden": 233,
+      "w": 96
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-7-registration-page",
+  "tables": [
+   {
+    "over": 161,
+    "clientW": 336,
+    "scrollW": 497,
+    "heads": [
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Order",
+      "hidden": 9,
+      "w": 80
+     },
+     {
+      "label": "State",
+      "hidden": 152,
+      "w": 143
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/exhibitor-ticket-setup/2-8-registration-widget",
+  "tables": [
+   {
+    "over": 92,
+    "clientW": 336,
+    "scrollW": 428,
+    "heads": [
+     {
+      "label": "What",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Use this",
+      "hidden": 83,
+      "w": 258
+     }
+    ],
+    "rows": 2
+   }
+  ]
+ },
+ {
+  "path": "/tickets/sponsor-ticket-setup/sponsor-tickets",
+  "tables": [
+   {
+    "over": 406,
+    "clientW": 336,
+    "scrollW": 742,
+    "heads": [
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 236
+     },
+     {
+      "label": "Price",
+      "hidden": 13,
+      "w": 104
+     },
+     {
+      "label": "Sold",
+      "hidden": 165,
+      "w": 152
+     },
+     {
+      "label": "On sale",
+      "hidden": 317,
+      "w": 152
+     },
+     {
+      "label": "",
+      "hidden": 397,
+      "w": 80
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/tickets/sponsor-ticket-setup/question-forms",
+  "tables": [
+   {
+    "over": 211,
+    "clientW": 336,
+    "scrollW": 547,
+    "heads": [
+     {
+      "label": "Removed question",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Registrations",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 202,
+      "w": 273
+     }
+    ],
+    "rows": 5
+   }
+  ]
+ },
+ {
+  "path": "/tickets/sponsor-ticket-setup/registration-settings",
+  "tables": [
+   {
+    "over": 242,
+    "clientW": 336,
+    "scrollW": 578,
+    "heads": [
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Opens",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Closes",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Capacity",
+      "hidden": 137,
+      "w": 104
+     },
+     {
+      "label": "Listing",
+      "hidden": 233,
+      "w": 96
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/tickets/sponsor-ticket-setup/registration-page",
+  "tables": [
+   {
+    "over": 153,
+    "clientW": 336,
+    "scrollW": 489,
+    "heads": [
+     {
+      "label": "Package",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Order",
+      "hidden": 9,
+      "w": 80
+     },
+     {
+      "label": "State",
+      "hidden": 144,
+      "w": 135
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/tickets/sponsor-ticket-setup/registration-widget",
+  "tables": [
+   {
+    "over": 92,
+    "clientW": 336,
+    "scrollW": 428,
+    "heads": [
+     {
+      "label": "What",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Use this",
+      "hidden": 83,
+      "w": 258
+     }
+    ],
+    "rows": 2
+   }
+  ]
+ },
+ {
+  "path": "/tickets/payout",
+  "tables": [
+   {
+    "over": 92,
+    "clientW": 336,
+    "scrollW": 428,
+    "heads": [
+     {
+      "label": "Gap",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Why",
+      "hidden": 83,
+      "w": 258
+     }
+    ],
+    "rows": 5
+   }
+  ]
+ },
+ {
+  "path": "/tickets/publish-tickets",
+  "tables": [
+   {
+    "over": 172,
+    "clientW": 336,
+    "scrollW": 508,
+    "heads": [
+     {
+      "label": "",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Check",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "",
+      "hidden": 163,
+      "w": 258
+     }
+    ],
+    "rows": 7
+   },
+   {
+    "over": 138,
+    "clientW": 336,
+    "scrollW": 474,
+    "heads": [
+     {
+      "label": "Tier",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Left",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Window",
+      "hidden": 129,
+      "w": 96
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/email-campaign",
+  "tables": [
+   {
+    "over": 203,
+    "clientW": 336,
+    "scrollW": 539,
+    "heads": [
+     {
+      "label": "Address",
+      "hidden": 0,
+      "w": 217
+     },
+     {
+      "label": "Name",
+      "hidden": 42,
+      "w": 152
+     },
+     {
+      "label": "Company",
+      "hidden": 194,
+      "w": 152
+     }
+    ],
+    "rows": 3
+   },
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "Subject",
+      "hidden": 0,
+      "w": 273
+     },
+     {
+      "label": "When",
+      "hidden": 98,
+      "w": 152
+     },
+     {
+      "label": "By",
+      "hidden": 250,
+      "w": 152
+     },
+     {
+      "label": "Result",
+      "hidden": 354,
+      "w": 104
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/campaign-contact-list",
+  "tables": [
+   {
+    "over": 168,
+    "clientW": 336,
+    "scrollW": 504,
+    "heads": [
+     {
+      "label": "List",
+      "hidden": 0,
+      "w": 174
+     },
+     {
+      "label": "Contacts",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Mailable",
+      "hidden": 55,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 159,
+      "w": 104
+     }
+    ],
+    "rows": 4
+   },
+   {
+    "over": 433,
+    "clientW": 336,
+    "scrollW": 769,
+    "heads": [
+     {
+      "label": "Contact",
+      "hidden": 0,
+      "w": 239
+     },
+     {
+      "label": "Company",
+      "hidden": 64,
+      "w": 152
+     },
+     {
+      "label": "Lists",
+      "hidden": 216,
+      "w": 152
+     },
+     {
+      "label": "Status",
+      "hidden": 320,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 424,
+      "w": 104
+     }
+    ],
+    "rows": 8
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/campaign-link-tracking",
+  "tables": [
+   {
+    "over": 367,
+    "clientW": 336,
+    "scrollW": 703,
+    "heads": [
+     {
+      "label": "Link",
+      "hidden": 0,
+      "w": 269
+     },
+     {
+      "label": "Clicks",
+      "hidden": 46,
+      "w": 104
+     },
+     {
+      "label": "Orders",
+      "hidden": 150,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 254,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 358,
+      "w": 104
+     }
+    ],
+    "rows": 8
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/referral-contest",
+  "tables": [
+   {
+    "over": 175,
+    "clientW": 336,
+    "scrollW": 511,
+    "heads": [
+     {
+      "label": "#",
+      "hidden": 0,
+      "w": 80
+     },
+     {
+      "label": "Referrer",
+      "hidden": 0,
+      "w": 101
+     },
+     {
+      "label": "Clicks",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Orders",
+      "hidden": 62,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 166,
+      "w": 104
+     }
+    ],
+    "rows": 3
+   },
+   {
+    "over": 470,
+    "clientW": 336,
+    "scrollW": 806,
+    "heads": [
+     {
+      "label": "Link",
+      "hidden": 0,
+      "w": 220
+     },
+     {
+      "label": "Credit",
+      "hidden": 45,
+      "w": 152
+     },
+     {
+      "label": "Clicks",
+      "hidden": 149,
+      "w": 104
+     },
+     {
+      "label": "Orders",
+      "hidden": 253,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 357,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 461,
+      "w": 104
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/social-sharing",
+  "tables": [
+   {
+    "over": 367,
+    "clientW": 336,
+    "scrollW": 703,
+    "heads": [
+     {
+      "label": "Link",
+      "hidden": 0,
+      "w": 269
+     },
+     {
+      "label": "Clicks",
+      "hidden": 46,
+      "w": 104
+     },
+     {
+      "label": "Orders",
+      "hidden": 150,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 254,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 358,
+      "w": 104
+     }
+    ],
+    "rows": 3
+   },
+   {
+    "over": 196,
+    "clientW": 336,
+    "scrollW": 532,
+    "heads": [
+     {
+      "label": "Check",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Why",
+      "hidden": 83,
+      "w": 258
+     },
+     {
+      "label": "",
+      "hidden": 187,
+      "w": 104
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/event-listing",
+  "tables": [
+   {
+    "over": 196,
+    "clientW": 336,
+    "scrollW": 532,
+    "heads": [
+     {
+      "label": "Channel",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "What it needs",
+      "hidden": 83,
+      "w": 258
+     },
+     {
+      "label": "State",
+      "hidden": 187,
+      "w": 104
+     }
+    ],
+    "rows": 4
+   },
+   {
+    "over": 44,
+    "clientW": 336,
+    "scrollW": 380,
+    "heads": [
+     {
+      "label": "Field",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Value",
+      "hidden": 35,
+      "w": 258
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/tickets/ticket-marketing/event-website",
+  "tables": [
+   {
+    "over": 135,
+    "clientW": 336,
+    "scrollW": 471,
+    "heads": [
+     {
+      "label": "Page",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Live",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "What a visitor would not",
+      "hidden": 126,
+      "w": 197
+     }
+    ],
+    "rows": 3
+   },
+   {
+    "over": 64,
+    "clientW": 336,
+    "scrollW": 400,
+    "heads": [
+     {
+      "label": "Page",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "On sale",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "State",
+      "hidden": 55,
+      "w": 126
+     }
+    ],
+    "rows": 3
+   }
+  ]
+ },
+ {
+  "path": "/tickets/orders-and-transactions/summary",
+  "tables": [
+   {
+    "over": 221,
+    "clientW": 336,
+    "scrollW": 557,
+    "heads": [
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 123
+     },
+     {
+      "label": "Sold",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Refunded",
+      "hidden": 4,
+      "w": 104
+     },
+     {
+      "label": "Gross",
+      "hidden": 108,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 212,
+      "w": 104
+     }
+    ],
+    "rows": 2
+   }
+  ]
+ },
+ {
+  "path": "/tickets/orders-and-transactions/attendee-orders",
+  "tables": [
+   {
+    "over": 575,
+    "clientW": 336,
+    "scrollW": 911,
+    "heads": [
+     {
+      "label": "Buyer ⇅",
+      "hidden": 0,
+      "w": 173
+     },
+     {
+      "label": "Ticket",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Total ⇅",
+      "hidden": 102,
+      "w": 104
+     },
+     {
+      "label": "Net ⇅",
+      "hidden": 206,
+      "w": 104
+     },
+     {
+      "label": "Status ⇅",
+      "hidden": 310,
+      "w": 104
+     },
+     {
+      "label": "Purchased ⇅",
+      "hidden": 414,
+      "w": 104
+     },
+     {
+      "label": "",
+      "hidden": 566,
+      "w": 152
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/tickets/orders-and-transactions/exhibitor-orders",
+  "tables": [
+   {
+    "over": 361,
+    "clientW": 336,
+    "scrollW": 697,
+    "heads": [
+     {
+      "label": "Order",
+      "hidden": 0,
+      "w": 167
+     },
+     {
+      "label": "Buyer",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Packages",
+      "hidden": 144,
+      "w": 152
+     },
+     {
+      "label": "Status",
+      "hidden": 248,
+      "w": 104
+     },
+     {
+      "label": "Share",
+      "hidden": 352,
+      "w": 104
+     }
+    ],
+    "rows": 1
+   }
+  ]
+ },
+ {
+  "path": "/tickets/orders-and-transactions/transaction-history",
+  "tables": [
+   {
+    "over": 404,
+    "clientW": 336,
+    "scrollW": 740,
+    "heads": [
+     {
+      "label": "When",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Event",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Who",
+      "hidden": 33,
+      "w": 152
+     },
+     {
+      "label": "What",
+      "hidden": 291,
+      "w": 258
+     },
+     {
+      "label": "Amount",
+      "hidden": 395,
+      "w": 104
+     }
+    ],
+    "rows": 25
+   }
+  ]
+ },
+ {
+  "path": "/tickets/attendee-customization/ticket-tiering",
+  "tables": [
+   {
+    "over": 258,
+    "clientW": 336,
+    "scrollW": 594,
+    "heads": [
+     {
+      "label": "Tier",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Price",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Sold",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Entitlements",
+      "hidden": 249,
+      "w": 216
+     }
+    ],
+    "rows": 11
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-webpages/agenda-webpage/special-purpose",
+  "tables": [
+   {
+    "over": 242,
+    "clientW": 336,
+    "scrollW": 578,
+    "heads": [
+     {
+      "label": "Kind",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Shows",
+      "hidden": 0,
+      "w": 200
+     },
+     {
+      "label": "URL",
+      "hidden": 129,
+      "w": 152
+     },
+     {
+      "label": "Sessions",
+      "hidden": 233,
+      "w": 104
+     }
+    ],
+    "rows": 16
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-webpages/sponsor-webpage/sponsor-banner",
+  "tables": [
+   {
+    "over": 249,
+    "clientW": 336,
+    "scrollW": 585,
+    "heads": [
+     {
+      "label": "",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Sponsor",
+      "hidden": 0,
+      "w": 207
+     },
+     {
+      "label": "Tier",
+      "hidden": 88,
+      "w": 104
+     },
+     {
+      "label": "Shown on",
+      "hidden": 240,
+      "w": 152
+     }
+    ],
+    "rows": 18
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-webpages/exhibitor-webpage",
+  "tables": [
+   {
+    "over": 188,
+    "clientW": 336,
+    "scrollW": 524,
+    "heads": [
+     {
+      "label": "Booth",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Exhibitor",
+      "hidden": 0,
+      "w": 146
+     },
+     {
+      "label": "Status",
+      "hidden": 27,
+      "w": 104
+     },
+     {
+      "label": "Listing",
+      "hidden": 179,
+      "w": 152
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-webpages/artifact-webpage",
+  "tables": [
+   {
+    "over": 299,
+    "clientW": 336,
+    "scrollW": 635,
+    "heads": [
+     {
+      "label": "Title",
+      "hidden": 0,
+      "w": 209
+     },
+     {
+      "label": "Kind",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Hosted at",
+      "hidden": 138,
+      "w": 152
+     },
+     {
+      "label": "Visibility",
+      "hidden": 290,
+      "w": 152
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-webpages/logistics-webpage",
+  "tables": [
+   {
+    "over": 259,
+    "clientW": 336,
+    "scrollW": 595,
+    "heads": [
+     {
+      "label": "What they need",
+      "hidden": 0,
+      "w": 273
+     },
+     {
+      "label": "Page",
+      "hidden": 98,
+      "w": 152
+     },
+     {
+      "label": "How it is maintained",
+      "hidden": 250,
+      "w": 152
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-webpages/venue-map-webpage",
+  "tables": [
+   {
+    "over": 271,
+    "clientW": 336,
+    "scrollW": 607,
+    "heads": [
+     {
+      "label": "Room",
+      "hidden": 0,
+      "w": 229
+     },
+     {
+      "label": "Floor",
+      "hidden": 6,
+      "w": 104
+     },
+     {
+      "label": "Sessions",
+      "hidden": 110,
+      "w": 104
+     },
+     {
+      "label": "Pin",
+      "hidden": 262,
+      "w": 152
+     }
+    ],
+    "rows": 8
+   }
+  ]
+ },
+ {
+  "path": "/marketing/event-website",
+  "tables": [
+   {
+    "over": 202,
+    "clientW": 336,
+    "scrollW": 538,
+    "heads": [
+     {
+      "label": "Page",
+      "hidden": 0,
+      "w": 216
+     },
+     {
+      "label": "Address",
+      "hidden": 41,
+      "w": 152
+     },
+     {
+      "label": "Edited from",
+      "hidden": 193,
+      "w": 152
+     }
+    ],
+    "rows": 22
+   }
+  ]
+ },
+ {
+  "path": "/marketing/organizer-co-promo",
+  "tables": [
+   {
+    "over": 366,
+    "clientW": 336,
+    "scrollW": 702,
+    "heads": [
+     {
+      "label": "Link",
+      "hidden": 0,
+      "w": 220
+     },
+     {
+      "label": "Credited to",
+      "hidden": 45,
+      "w": 152
+     },
+     {
+      "label": "Clicks",
+      "hidden": 149,
+      "w": 104
+     },
+     {
+      "label": "Orders",
+      "hidden": 253,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 357,
+      "w": 104
+     }
+    ],
+    "rows": 4
+   },
+   {
+    "over": 338,
+    "clientW": 336,
+    "scrollW": 674,
+    "heads": [
+     {
+      "label": "Channel",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Reach",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "How it is tracked",
+      "hidden": 177,
+      "w": 248
+     },
+     {
+      "label": "",
+      "hidden": 329,
+      "w": 152
+     }
+    ],
+    "rows": 4
+   }
+  ]
+ },
+ {
+  "path": "/marketing/whova-listing/my-event-listing",
+  "tables": [
+   {
+    "over": 259,
+    "clientW": 336,
+    "scrollW": 595,
+    "heads": [
+     {
+      "label": "What people see",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Where it comes from",
+      "hidden": 98,
+      "w": 273
+     },
+     {
+      "label": "Maintained in",
+      "hidden": 250,
+      "w": 152
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/marketing/whova-listing/traffic-analytics",
+  "tables": [
+   {
+    "over": 402,
+    "clientW": 336,
+    "scrollW": 738,
+    "heads": [
+     {
+      "label": "Link",
+      "hidden": 0,
+      "w": 224
+     },
+     {
+      "label": "Channel",
+      "hidden": 1,
+      "w": 104
+     },
+     {
+      "label": "Clicks",
+      "hidden": 81,
+      "w": 80
+     },
+     {
+      "label": "Orders",
+      "hidden": 161,
+      "w": 80
+     },
+     {
+      "label": "Revenue",
+      "hidden": 265,
+      "w": 104
+     },
+     {
+      "label": "Last click",
+      "hidden": 393,
+      "w": 128
+     }
+    ],
+    "rows": 8
+   }
+  ]
+ },
+ {
+  "path": "/marketing/social-wall/social-wall-customization",
+  "tables": [
+   {
+    "over": 34,
+    "clientW": 336,
+    "scrollW": 370,
+    "heads": [
+     {
+      "label": "Category",
+      "hidden": 0,
+      "w": 96
+     },
+     {
+      "label": "Posts",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "On a screen",
+      "hidden": 25,
+      "w": 152
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ },
+ {
+  "path": "/marketing/social-wall/activity-stream-webpage",
+  "tables": [
+   {
+    "over": 240,
+    "clientW": 336,
+    "scrollW": 576,
+    "heads": [
+     {
+      "label": "Stream",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Who writes it",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Public page",
+      "hidden": 231,
+      "w": 254
+     }
+    ],
+    "rows": 2
+   }
+  ]
+ },
+ {
+  "path": "/marketing/social-media-center/social-media-manager",
+  "tables": [
+   {
+    "over": 250,
+    "clientW": 336,
+    "scrollW": 586,
+    "heads": [
+     {
+      "label": "Channel",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "Links",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Clicks",
+      "hidden": 33,
+      "w": 104
+     },
+     {
+      "label": "Orders",
+      "hidden": 137,
+      "w": 104
+     },
+     {
+      "label": "Net",
+      "hidden": 241,
+      "w": 104
+     }
+    ],
+    "rows": 2
+   },
+   {
+    "over": 275,
+    "clientW": 336,
+    "scrollW": 611,
+    "heads": [
+     {
+      "label": "Link",
+      "hidden": 0,
+      "w": 233
+     },
+     {
+      "label": "Channel",
+      "hidden": 10,
+      "w": 104
+     },
+     {
+      "label": "Clicks",
+      "hidden": 114,
+      "w": 104
+     },
+     {
+      "label": "Last click",
+      "hidden": 266,
+      "w": 152
+     }
+    ],
+    "rows": 2
+   }
+  ]
+ },
+ {
+  "path": "/marketing/social-media-center/content-library",
+  "tables": [
+   {
+    "over": 363,
+    "clientW": 336,
+    "scrollW": 699,
+    "heads": [
+     {
+      "label": "Asset",
+      "hidden": 0,
+      "w": 152
+     },
+     {
+      "label": "On file",
+      "hidden": 0,
+      "w": 104
+     },
+     {
+      "label": "Screen",
+      "hidden": 81,
+      "w": 152
+     },
+     {
+      "label": "",
+      "hidden": 354,
+      "w": 273
+     }
+    ],
+    "rows": 6
+   }
+  ]
+ }
+]

@@ -43,10 +43,85 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    /**
+     * The access window, read from `settings/appAccess`.
+     *
+     * ── The sixth access call, and why it is worth one ──────────────────────
+     *
+     * Everything else in this file decides from the token. This one reads a
+     * document, because the thing it has to know — when the organizer said the
+     * app closes — is editable from a screen and cannot be in the token. The
+     * alternative was a date written into this file, which is a deploy every
+     * time an organizer changes their mind.
+     *
+     * It is ONE call for the whole request whatever uses it: access calls are
+     * cached per request and path, so `isRegistered()` on a fifty-document
+     * query costs one, not fifty.
+     *
+     * ⚠️ The budget, re-counted 2026-09-23. This used to read "the heaviest
+     * path in this file is a seat write at five; with this it is six" and it
+     * had stopped being true: the heaviest path is now a `get` on a **gated
+     * `watch` document**, at seven of the ten a single-document request is
+     * allowed. This call is one of them, the ticket pointer costs an `exists`
+     * and a `get` on the profile and the same pair on the registration, and
+     * the published check costs a pair on the session. Nothing on that path
+     * may grow by two. `windowIsOpen()` reads `request.time` for exactly that
+     * reason and costs nothing.
+     *
+     * ⚠️ It fails OPEN, deliberately, in three ways: an absent document, an
+     * absent field and a `0` all mean "never closes". The app is the schedule,
+     * and an unwritten projection must not lock a thousand people out of it in
+     * a corridor. The dashboard writes the document on every save of the access
+     * settings or the event dates.
+     *
+     * Epoch milliseconds, compared against `request.time`, because that is the
+     * only clock this language has and it cannot parse a date.
+     * `packages/shared/src/app-access.ts` does the same comparison on the
+     * phone, from the same two numbers, so the two cannot disagree.
+     */
+    function appAccess() {
+      return get(/databases/$(database)/documents/settings/appAccess);
+    }
+
+    function appAccessValues() {
+      return appAccess() == null ? {} : appAccess().data.get('values', {});
+    }
+
+    /** Whether the app opens at all. */
+    function appOpen() {
+      return appAccessValues().get('closesAtMs', 0) == 0
+        || request.time.toMillis() < appAccessValues().get('closesAtMs', 0);
+    }
+
+    /**
+     * Whether an attendee may write anything at all right now.
+     *
+     * Used on the paths the organizer's own checkbox names — posts, replies,
+     * reactions, messages and questions — and not on the rest. Saving a session
+     * to your own agenda after the event is not something "read-only
+     * afterwards" was ever meant to stop.
+     */
+    function appTakesWrites() {
+      return appOpen()
+        && (appAccessValues().get('readOnlyFromMs', 0) == 0
+            || request.time.toMillis() < appAccessValues().get('readOnlyFromMs', 0));
+    }
+
+    /** The event-wide attendee-messaging switch. Absent means on. */
+    function messagingOn() {
+      return appAccessValues().get('messagingEnabled', true) == true;
+    }
+
     // Being signed in is not enough — anyone can create a Firebase account.
     // `registered` is set by the sign-in function only for ticket holders.
+    //
+    // The window is folded in here rather than repeated on a hundred rules
+    // below, which is the same argument `requireAccess()` makes in the
+    // dashboard: one gate, so a path added later cannot forget it. When the
+    // window closes, a ticket holder stops being able to read the event —
+    // which is what "access ends" has to mean if it is to mean anything.
     function isRegistered() {
-      return signedIn() && request.auth.token.registered == true;
+      return signedIn() && request.auth.token.registered == true && appOpen();
     }
 
     function hasRole(role) {
@@ -67,6 +142,12 @@ service cloud.firestore {
     /** The set of top-level fields this write changes. */
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    /** A session with a cap or a ticket list. 0 means uncapped, like absent. */
+    function sessionIsGated(session) {
+      return session.get('capacity', 0) > 0
+        || session.get('eligibleTicketTypes', []).size() > 0;
     }
 
     /** The signed-in address, folded to lower case the way registrations store it. */
@@ -302,14 +383,34 @@ service cloud.firestore {
       // happens in Firebase Auth, which rules cannot see. It is a flag the
       // attendee's own client lowers after `updatePassword` resolves, and the
       // thing it protects is the prompt, not the credential.
+      //
+      // `joinedAt` is on the allowlist and travels in one direction too: it is
+      // the record that this attendee has been asked for the event code, so
+      // the prompt does not come back on every launch. It is not a credential
+      // and it is not checked by anything here — the code is a formality read
+      // out from a stage and the gate is the ticket claim — so a client
+      // writing its own is writing a note to itself. What the rule does stop
+      // is a later write moving it, which would be a client deciding it had
+      // never joined.
+      //
+      // `registrationId` is on the allowlist and is deliberately NOT verified
+      // here. It is the pointer the watch rules follow to find out which ticket
+      // this account holds, and the check is made where it is read, not where
+      // it is written: `mayWatch()` loads the registration it names and then
+      // requires `registrationIsMine()`. So the worst a client can do by
+      // writing somebody else's id is refuse itself a video. Verifying it here
+      // instead would mean a `get()` on every profile edit — a read cost, and
+      // an access call, paid on the wrong path.
       allow update: if isSelf(uid)
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
           'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
-          'notificationPrefs', 'mustChangePassword', 'updatedAt',
+          'notificationPrefs', 'mustChangePassword', 'joinedAt',
+          'registrationId', 'updatedAt',
         ])
         && (!('mustChangePassword' in changed())
             || request.resource.data.mustChangePassword == false)
+        && (!('joinedAt' in changed()) || !('joinedAt' in resource.data))
         && (!('photoURL' in changed())
             || !('photoURL' in request.resource.data)
             || isFirebaseStorageUrl(request.resource.data.photoURL));
@@ -322,9 +423,25 @@ service cloud.firestore {
       // the conference. `isRegistered()` costs a ticket; the field allowlists
       // stop a document being used as a bucket.
       match /savedSessions/{sessionId} {
+        /**
+         * A capped or ticket-restricted session goes on a schedule only with a
+         * seat, or a waitlist place, in `sessionSeats`. `existsAfter` because
+         * the app writes both in one transaction. Without this the seat rules
+         * below would guard a counter while the schedule ignored it.
+         *
+         * A session that does not exist is still a plain bookmark, as before.
+         */
+        function seatHeldIfGated() {
+          let path = /databases/$(database)/documents/sessions/$(sessionId);
+          return !exists(path)
+            || !sessionIsGated(get(path).data)
+            || existsAfter(/databases/$(database)/documents/sessionSeats/$(sessionId)/seats/$(uid));
+        }
+
         allow read, delete: if isSelf(uid) && isRegistered();
         allow create, update: if isSelf(uid) && isRegistered()
-          && request.resource.data.keys().hasOnly(['sessionId', 'savedAt', 'remind']);
+          && request.resource.data.keys().hasOnly(['sessionId', 'savedAt', 'remind'])
+          && seatHeldIfGated();
       }
       match /savedContacts/{contactUid} {
         allow read, delete: if isSelf(uid) && isRegistered();
@@ -339,8 +456,16 @@ service cloud.firestore {
         // Written only by functions; the owner may mark them read. `hasOnly`
         // is the whole point of the branch — "mark read" must not be a way to
         // rewrite the title and body of a notification the server sent.
-        allow read: if isSelf(uid);
-        allow update: if isSelf(uid) && changed().hasOnly(['read']);
+        //
+        // `isRegistered()` rather than `isSelf()` alone, added 2026-09-20.
+        // These were the one read in the file outside the access window: once
+        // the event had closed every other read was refused and the phone
+        // showed the "has ended" screen, while the titles and bodies of agenda
+        // changes stayed readable by that account for ever. The window is
+        // either the rule or it is not, and a notification is event content
+        // like the session it is about.
+        allow read: if isSelf(uid) && isRegistered();
+        allow update: if isSelf(uid) && isRegistered() && changed().hasOnly(['read']);
         allow create, delete: if false;
       }
       match /fcmTokens/{token} {
@@ -452,7 +577,7 @@ service cloud.firestore {
         // question that arrives `approved` is on the keynote screen without a
         // moderator ever having seen it, which is the entire point of having
         // the field. Every question starts life pending.
-        allow create: if isRegistered()
+        allow create: if isRegistered() && appTakesWrites()
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.upvoteCount == 0
           && request.resource.data.answered == false
@@ -475,7 +600,7 @@ service cloud.firestore {
         // or remove their own vote. A trigger derives the count.
         match /upvotes/{uid} {
           allow read: if isRegistered();
-          allow create: if isSelf(uid) && isRegistered()
+          allow create: if isSelf(uid) && isRegistered() && appTakesWrites()
             && request.resource.data.uid == request.auth.uid;
           allow delete: if isSelf(uid);
           allow update: if false;
@@ -532,6 +657,7 @@ service cloud.firestore {
           allow read: if isSelf(uid) || isOrganizer();
           allow create, update: if isSelf(uid)
             && isRegistered()
+            && appTakesWrites()
             && request.resource.data.uid == request.auth.uid
             // One of the four access calls in this file. It is on a write path
             // rather than every read, and it does double duty: closing a poll has to
@@ -542,6 +668,298 @@ service cloud.firestore {
             && validBallot(get(/databases/$(database)/documents/sessions/$(sessionId)/polls/$(pollId)).data);
           allow delete: if false;
         }
+      }
+
+      // ---------------------------------------------------------------------
+      // Where to watch this session, and who may. Two fixed ids: `stream` and
+      // `recording`.
+      //
+      // Its own documents rather than fields on the session, because rules
+      // filter documents and not fields. Every registered attendee may read a
+      // published session, so a stream URL stored on one is a stream URL every
+      // attendee has, whatever tier it was sold with. The session keeps only
+      // `streamState`, `hasRecording` and `watchRestricted` — enough for an
+      // agenda row to say a talk is live, not enough to watch it.
+      //
+      // Written by the dashboard with the Admin SDK, which bypasses all of
+      // this, so every client write is refused outright rather than validated.
+      // ---------------------------------------------------------------------
+      match /watch/{watchId} {
+        /**
+         * The caller's ticket type, or '' when it cannot be established.
+         *
+         * Nothing in the token carries the ticket type, and the registration
+         * cannot be addressed from the token either: its id is
+         * `reg_` + sha256(email) and this language has no hash function. The
+         * seat rules solve the same problem by having the client name the
+         * registration in the write; a read has no such field, only the path,
+         * so the app stores the pointer on its own profile instead.
+         *
+         * That pointer is untrusted, and does not need to be trusted:
+         * `registrationIsMine()` requires the registration it names to carry
+         * the caller's own address. Naming somebody else's gets a refusal, not
+         * their ticket.
+         *
+         * ⚠️ The address is folded to lower case on BOTH sides, which is the
+         * part to keep. This project has been bitten twice by comparing one
+         * folded side against one verbatim side — a badge that refused at the
+         * door, and a ticket that could not be found in an export. Here it
+         * would be a video that plays for most people and is refused for
+         * whoever signed up with a capital letter, reported as "streaming is
+         * broken" by one attendee out of forty.
+         */
+        function myTicketType() {
+          let profile = /databases/$(database)/documents/users/$(request.auth.uid);
+          let rid = exists(profile) ? get(profile).data.get('registrationId', '-') : '-';
+          let regPath = /databases/$(database)/documents/registrations/$(rid);
+          let reg = exists(regPath)
+            ? get(regPath).data
+            : {'email': '', 'altEmails': [], 'status': 'none', 'ticketType': ''};
+          return (registrationIsMine(reg) && reg.get('status', '') == 'active')
+            ? reg.get('ticketType', '')
+            : '';
+        }
+
+        /**
+         * Empty means every ticket type, exactly as `mayWatch()` in
+         * `stream-core.ts` reads it — and the writer always stores the array,
+         * so an empty list is a decision and not a missing field.
+         *
+         * `||` short-circuits, so an unrestricted stream costs no access calls
+         * at all and only a gated one pays for the two lookups above.
+         */
+        function mayWatchThis() {
+          let allowed = resource.data.get('allowedTicketTypes', []);
+          return allowed.size() == 0 || myTicketType() in allowed;
+        }
+
+        /**
+         * The availability window, as a boundary rather than a caption.
+         *
+         * `availableFrom` / `availableUntil` are what "three months of the KGC
+         * Video Library" is sold as, and until this function existed they were
+         * enforced in `stream-core.ts` on three clients and nowhere else. An
+         * attendee whose ticket covered a recording could `get()` the document
+         * the day after the library closed and read the URL; the app merely
+         * declined to draw it. A purchased entitlement that expires has to
+         * expire in the one place that is the security boundary.
+         *
+         * Absent means open, in both directions, which is the reading
+         * `recordingWindow()` and the dashboard's own field hints already take:
+         * no start means it is up as soon as it is saved, no end means it
+         * stays up. The stream document carries neither, so it is unaffected.
+         *
+         * `request.time` and not a client value: this is the one clock in the
+         * request a caller cannot choose. It costs no access call.
+         *
+         * ⚠️ A reader who is inside the window when the page loads keeps the
+         * URL they were given. This closes the library, it does not reach into
+         * a player that is already running, and no scheme short of signed media
+         * URLs would.
+         */
+        function windowIsOpen() {
+          let from = resource.data.get('availableFrom', null);
+          let until = resource.data.get('availableUntil', null);
+          return (from == null || request.time >= from)
+            && (until == null || request.time < until);
+        }
+
+        /** An unpublished session's stream is not on the agenda yet either. */
+        function sessionIsPublished() {
+          let path = /databases/$(database)/documents/sessions/$(sessionId);
+          return exists(path) && get(path).data.status == 'published';
+        }
+
+        allow get: if isOrganizer()
+          || (isRegistered() && sessionIsPublished() && windowIsOpen() && mayWatchThis());
+        // No `list`. Both ids are fixed, so a reader fetches the one it wants.
+        // A collection-group query over these would be refused outright the
+        // moment one session in range is restricted — a video library that
+        // fails for exactly the people it was sold to.
+        allow list: if false;
+        allow write: if false;
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Session seats: capacity, ticket eligibility and the waitlist.
+    //
+    // There is no server in this path, so the arithmetic is restated here. The
+    // app writes the counter and the seat in one transaction; each rule looks at
+    // the other document with `getAfter()`, so neither can be written alone and
+    // a hand-built request cannot take seat 41 of 40, jump the waitlist or seat
+    // a ticket the session is not for. The same cases, as code, are in
+    // `packages/shared/src/session-seats.ts`. Keep the two in step.
+    //
+    // The waitlist is an ordered list of uids on the counter because a rule
+    // cannot run a query, and "who is first in line" has to be one field read.
+    //
+    // The dashboard removes people and raises caps with the Admin SDK, which
+    // bypasses all of this.
+    // -----------------------------------------------------------------------
+
+    match /sessionSeats/{sessionId} {
+      function session() {
+        return get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      }
+      function cap() {
+        return session().get('capacity', 0);
+      }
+      function seatPath(uid) {
+        return /databases/$(database)/documents/sessionSeats/$(sessionId)/seats/$(uid);
+      }
+      function me() {
+        return request.auth.uid;
+      }
+      /** The counter before this write. The first seat creates the document. */
+      function before() {
+        return resource == null ? {'taken': 0, 'waitlist': []} : resource.data;
+      }
+      function after() {
+        return request.resource.data;
+      }
+      // Everybody after the first. A range past the end is an error, not [].
+      function rest(list) {
+        return list.size() > 1 ? list[1:list.size()] : [];
+      }
+      function validCounter() {
+        return after().keys().hasOnly(['eventId', 'sessionId', 'taken', 'waitlist', 'updatedAt'])
+          && after().eventId == session().eventId
+          && after().sessionId == sessionId
+          && after().taken is int && after().taken >= 0
+          && after().waitlist is list;
+      }
+
+      // A free seat, and nobody queueing for it.
+      function takesSeat() {
+        return after().taken == before().taken + 1
+          && after().waitlist == before().waitlist
+          && before().waitlist.size() == 0
+          && (cap() == 0 || after().taken <= cap())
+          && !exists(seatPath(me()))
+          && getAfter(seatPath(me())).data.status == 'seated';
+      }
+      function joinsWaitlist() {
+        return after().taken == before().taken
+          && ((cap() > 0 && before().taken >= cap()) || before().waitlist.size() > 0)
+          && !(me() in before().waitlist)
+          && after().waitlist == before().waitlist.concat([me()])
+          && !exists(seatPath(me()))
+          && getAfter(seatPath(me())).data.status == 'waitlisted';
+      }
+      // Whether a seat given up now belongs to the first person waiting.
+      function owesPromotion() {
+        return before().waitlist.size() > 0 && (cap() == 0 || before().taken <= cap());
+      }
+      function gaveUpMySeat() {
+        return get(seatPath(me())).data.status == 'seated' && !existsAfter(seatPath(me()));
+      }
+      function leavesSeat() {
+        return after().taken == before().taken - 1
+          && after().waitlist == before().waitlist
+          && !owesPromotion()
+          && gaveUpMySeat();
+      }
+      function leavesAndPromotes() {
+        return after().taken == before().taken
+          && owesPromotion()
+          && after().waitlist == rest(before().waitlist)
+          && gaveUpMySeat()
+          && get(seatPath(before().waitlist[0])).data.status == 'waitlisted'
+          && getAfter(seatPath(before().waitlist[0])).data.status == 'seated';
+      }
+      function leavesWaitlist() {
+        return after().taken == before().taken
+          && me() in before().waitlist
+          && after().waitlist == before().waitlist.removeAll([me()])
+          && !existsAfter(seatPath(me()));
+      }
+      // First in line takes a seat that opened without anybody leaving, which
+      // is what a raised cap looks like from here.
+      function claimsSeat() {
+        return before().waitlist.size() > 0
+          && before().waitlist[0] == me()
+          && (cap() == 0 || before().taken < cap())
+          && after().taken == before().taken + 1
+          && after().waitlist == rest(before().waitlist)
+          && get(seatPath(me())).data.status == 'waitlisted'
+          && getAfter(seatPath(me())).data.status == 'seated';
+      }
+
+      // The count and the queue length are what the agenda shows. The list
+      // holds uids and nothing else.
+      allow read: if isRegistered();
+      allow create, update: if isRegistered()
+        && validCounter()
+        && (takesSeat() || joinsWaitlist() || leavesSeat()
+            || leavesAndPromotes() || leavesWaitlist() || claimsSeat());
+      allow delete: if false;
+
+      match /seats/{uid} {
+        function counterPath() {
+          return /databases/$(database)/documents/sessionSeats/$(sessionId);
+        }
+        function counterBefore() {
+          return exists(counterPath()) ? get(counterPath()).data : {'taken': 0, 'waitlist': []};
+        }
+        function counterAfter() {
+          return getAfter(counterPath()).data;
+        }
+        function validSeat() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['eventId', 'sessionId', 'uid', 'registrationId', 'status', 'createdAt'])
+            && d.eventId == session().eventId
+            && d.sessionId == sessionId
+            && d.uid == uid
+            && d.registrationId is string
+            && d.status in ['seated', 'waitlisted']
+            && d.createdAt == request.time;
+        }
+        /**
+         * The ticket check. The registration is read because the ticket type is
+         * not a claim, and it has to be the caller's own and still active. A
+         * session with no list takes every ticket.
+         */
+        function eligible() {
+          let reg = get(/databases/$(database)/documents/registrations/$(request.resource.data.registrationId)).data;
+          let allowed = session().get('eligibleTicketTypes', []);
+          return session().status == 'published'
+            && registrationIsMine(reg)
+            && reg.status == 'active'
+            && (allowed.size() == 0 || reg.get('ticketType', '') in allowed);
+        }
+        // Tied to the counter, which is where the cap and the order are checked.
+        function counterTakesMe() {
+          return request.resource.data.status == 'seated'
+            ? counterAfter().taken == counterBefore().taken + 1
+            : counterAfter().waitlist == counterBefore().waitlist.concat([uid]);
+        }
+        function counterReleasesMe() {
+          return resource.data.status == 'seated'
+            ? (counterAfter().taken == counterBefore().taken - 1
+               || (counterAfter().taken == counterBefore().taken
+                   && counterBefore().waitlist.size() > 0
+                   && counterAfter().waitlist == rest(counterBefore().waitlist)))
+            : !(uid in counterAfter().waitlist);
+        }
+        // Waitlisted to seated, for the first in line only. Whoever gives up a
+        // seat writes this for the next person, so it is not limited to the
+        // owner; the counter rule decides whether the caller really left.
+        function promotes() {
+          return changed().hasOnly(['status', 'promotedAt'])
+            && resource.data.status == 'waitlisted'
+            && request.resource.data.status == 'seated'
+            && request.resource.data.promotedAt == request.time
+            && counterBefore().waitlist.size() > 0
+            && counterBefore().waitlist[0] == uid
+            && counterAfter().waitlist == rest(counterBefore().waitlist);
+        }
+
+        allow get: if (isSelf(uid) && isRegistered()) || isOrganizer();
+        allow list: if isOrganizer();
+        allow create: if isSelf(uid) && isRegistered() && validSeat() && eligible() && counterTakesMe();
+        allow update: if isRegistered() && promotes();
+        allow delete: if isSelf(uid) && isRegistered() && counterReleasesMe();
       }
     }
 
@@ -603,8 +1021,48 @@ service cloud.firestore {
      * because a predicate that works on a `get` and denies a `list` is exactly
      * how the inbox broke once, and here that asymmetry is load-bearing.
      */
+    /**
+     * ── Three more keys, and these are public ──────────────────────────────
+     *
+     * `branding`, `event` and `sponsorTiers` hold the brand colour, logo and
+     * tagline, the event's name, dates and venue, and the sponsor tier names.
+     * Every value in them is printed on the public website for anybody, and the
+     * app needs them on the sign-in screen, before there is a token to check.
+     * So they are readable signed out. The list is `PUBLIC_SETTINGS_KEYS` in
+     * `@kgc/shared`; a field that is not fit to publish does not belong in one
+     * of these three bags. A `list` stays denied for the reason above.
+     */
+    /**
+     * ── And `appAccess`, which is read by a signed-in phone and by this file ─
+     *
+     * The projection the window is enforced from. It is deliberately NOT
+     * behind `isRegistered()`: that predicate now ends with `appOpen()`, so a
+     * closed app would be unable to read the one document that tells it it is
+     * closed, and an attendee would get a server error instead of a sentence.
+     *
+     * It carries four derived values and nothing else — `staffNote` stays in
+     * `settings/access`, which no client may read.
+     *
+     * ── And `appJoinCode`, which is the code itself, kept apart ─────────────
+     *
+     * The code used to sit in `appAccess`, where anybody who could create a
+     * Firebase account could read it: sign up with any address, read one
+     * document, and you hold the string the organizer reads out from the
+     * stage. It is a prompt rather than a lock — the gate is the ticket claim
+     * and these rules never look at the code — but handing it to an account
+     * that holds no ticket is still handing it to the one population it was
+     * meant to greet rather than admit.
+     *
+     * So it is its own document, behind `isRegistered()`, and the window
+     * document stays behind `signedIn()`. A closed app can still read the
+     * sentence that says it is closed; a stranger cannot read the code. The
+     * split is the same answer `directory/{uid}` gives for `users/{uid}`:
+     * rules filter documents, not fields.
+     */
     match /settings/{key} {
-      allow read: if isRegistered() && key == 'logistics';
+      allow read: if (isRegistered() && key in ['logistics', 'appJoinCode'])
+        || (signedIn() && key == 'appAccess')
+        || key in ['branding', 'event', 'sponsorTiers'];
       // Admin SDK only, like every other settings write. The dashboard's
       // `saveSettings` runs server-side and bypasses rules; an organizer is a
       // client with a role, and a client that could write this could put an
@@ -706,6 +1164,31 @@ service cloud.firestore {
       // rules; an organizer is a client with a role, and a client that could
       // write this could put an attacker-chosen `url` in front of every
       // attendee — a document tile is a link people are told to tap.
+      allow write: if false;
+    }
+
+    /**
+     * Custom content pages — the venue note, travel directions, the FAQ.
+     *
+     * The same shape as `documents` above and `surveys` below, minus the second
+     * predicate: a page has no ticket restriction, because its whole body is on
+     * the public website at `/{slug}` as well. There is nothing here that an
+     * attendee could be shown and a visitor could not, so the only thing the
+     * rule has to decide is whether the organizer has published it.
+     *
+     * `published` is a boolean rather than a `PublishStatus`, so the `list`
+     * predicate a client must carry is `published == true` — the app's
+     * `usePages` carries it, and the suite pins the `get` and the `list`
+     * separately for the reason the `documents` block gives: a permitted `get`
+     * proves nothing about a query.
+     *
+     * Admin SDK only for writes, like every other authored collection. The body
+     * is rendered on a page a thousand people open, and a client that could
+     * write it could put text of its choosing in front of all of them.
+     */
+    match /pages/{pageId} {
+      allow read: if isRegistered()
+        && (resource.data.published == true || isOrganizer());
       allow write: if false;
     }
 
@@ -842,6 +1325,15 @@ service cloud.firestore {
        * response has no `uid` field and dereferencing an absent field throws,
        * which Firestore reports as permission-denied. The signer would see their
        * own signature refused with an error naming nothing.
+       *
+       * ⚠️ A default inside a rule that also covers `list` is the mistake that
+       * kept hidden community replies readable, so this one is stated rather
+       * than assumed safe. On a query `resource.data` holds only the fields the
+       * query constrains, so a query that does not name `uid` reads the default
+       * — and the default here is `''`, which is not a uid and matches nobody.
+       * The only query that passes is `where('uid', '==', <your own uid>)`. It
+       * is safe *because* the default cannot satisfy the comparison; the reply
+       * rule's default was `'visible'`, which could.
        */
       match /responses/{responseId} {
         function form() {
@@ -933,7 +1425,10 @@ service cloud.firestore {
 
     match /communityPosts/{postId} {
       allow read: if isRegistered();
-      allow create: if isRegistered()
+      // `appTakesWrites()` on the client branch and not on the organizer one:
+      // read-only is a rule about attendees, and moderating a board after the
+      // event is exactly when a takedown request arrives.
+      allow create: if isRegistered() && appTakesWrites()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.replyCount == 0
         && request.resource.data.reactionCount == 0;
@@ -946,16 +1441,81 @@ service cloud.firestore {
       // Moderation here is `status`, plus redacting the text.
       allow update: if (isOrganizer()
             && changed().hasOnly(['status', 'title', 'body', 'editedAt', 'updatedAt']))
-        || (isRegistered() && resource.data.authorId == request.auth.uid
+        || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
             && changed().hasOnly(['title', 'body', 'editedAt']));
 
       // Soft delete via `status`, so replies and reactions do not orphan.
       allow delete: if false;
 
       match /replies/{id} {
-        allow read: if isRegistered();
-        allow create: if isRegistered()
-          && request.resource.data.authorId == request.auth.uid;
+        /**
+         * A hidden reply is not readable, on a `get` OR on a query.
+         *
+         * ── Two verbs, two rules, because `resource.data` means two things ──
+         *
+         * On a `get` the whole document is bound, so a predicate over it is a
+         * statement about that document. On a `list` Firestore binds
+         * `resource.data` to **the fields the query constrains** and evaluates
+         * the rule once against the query, so a predicate over it is a
+         * statement about the query — and a field the query does not name is
+         * not there to read.
+         *
+         * So the two verbs are written separately. Nothing here tries to tell
+         * them apart at evaluation time; `allow get` and `allow list` are how
+         * Firestore already does that.
+         *
+         *   • `get` — decided by the document. `.get('status', 'visible')`
+         *     because a reply written before the field existed is a visible
+         *     reply and not an unreadable one. An author reaches their own
+         *     hidden reply here.
+         *
+         *   • `list` — decided by the query. A bare `resource.data.status`, so
+         *     the only query that passes is one carrying
+         *     `where('status', '==', 'visible')`. Anything else refuses the
+         *     whole query, which is the intent. That is the query
+         *     `app/src/lib/data/community.ts` sends, and the one its count
+         *     sends too.
+         *
+         * ⚠️ Two earlier versions of this rule were wrong in the same place, so
+         * the trap is worth naming. `.get('status', 'visible')` under a single
+         * `allow read` returns the **default** on a query, so an unfiltered
+         * `getDocs` pulled back every hidden reply. Guarding it with
+         * `resource.data.keys().size() > 0` looked like it separated the verbs
+         * and did not: any query with one equality filter on any field — say
+         * `where('eventId', '==', …)` — binds a key, so the size test passed,
+         * the default was returned again and the whole hidden set came back.
+         * A default that is the permissive value can never be safe inside a
+         * `list`.
+         *
+         * An organizer reaches everything, including an unfiltered list,
+         * because `isOrganizer()` short-circuits before any of it. An author's
+         * own hidden reply is reachable one at a time and not by query; the
+         * board has no screen that asks for it, and a `list` branch on
+         * `authorId` would be a second way to read this collection to keep
+         * correct.
+         */
+        allow get: if isRegistered()
+          && (resource == null
+              || isOrganizer()
+              || resource.data.get('status', 'visible') == 'visible'
+              || resource.data.authorId == request.auth.uid);
+
+        allow list: if isRegistered()
+          && (isOrganizer() || resource.data.status == 'visible');
+
+        // A reply may not arrive already hidden — moderation state is not the
+        // author's to set, the same rule a question's `state` follows.
+        //
+        // The field is REQUIRED rather than defaulted. The only reply query an
+        // attendee may run filters on `status`, and Firestore cannot ask for a
+        // field that is absent — so a reply created without one is in no list
+        // and in no count, while still being readable one at a time by anyone
+        // holding its id. That is a reply which is neither shown nor hidden,
+        // and no moderator action can move it either way for the people
+        // reading the board. Requiring the field leaves exactly two states.
+        allow create: if isRegistered() && appTakesWrites()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.status == 'visible';
         // A reply was the one piece of user-generated text on the board that no
         // organizer could touch: not hide, not redact, not remove. An abusive
         // reply under a legitimate post had no answer short of the Admin SDK.
@@ -967,7 +1527,7 @@ service cloud.firestore {
         // cleanly rather than being permanently untouchable.
         allow update: if (isOrganizer()
               && changed().hasOnly(['status', 'body', 'editedAt']))
-          || (isRegistered() && resource.data.authorId == request.auth.uid
+          || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
               && changed().hasOnly(['body', 'editedAt']));
 
         // Unlike a post, a reply has nothing hanging off it, so there is
@@ -980,7 +1540,7 @@ service cloud.firestore {
       // One document per reacting user, keyed by uid.
       match /reactions/{uid} {
         allow read: if isRegistered();
-        allow create, update: if isSelf(uid) && isRegistered()
+        allow create, update: if isSelf(uid) && isRegistered() && appTakesWrites()
           && request.resource.data.uid == request.auth.uid;
         allow delete: if isSelf(uid);
       }
@@ -1070,11 +1630,23 @@ service cloud.firestore {
       // to come from the id itself: you must be one of the two participants,
       // and the id must be the one those two produce. That is what stops a
       // thread being minted between two other people.
-      allow create: if isRegistered()
+      //
+      // `messagingOn()` is the organizer's event-wide switch, and it is here
+      // rather than only in the app because a hidden button is a curtain. Note
+      // what it does NOT touch: `read` above. Turning messaging off stops new
+      // conversations and new messages; it does not reach into conversations
+      // people have already had and take their words away from them.
+      allow create: if isRegistered() && appTakesWrites() && messagingOn()
         && request.resource.data.participantIds.size() == 2
         && request.auth.uid in request.resource.data.participantIds
         && idMatchesParticipants(request.resource.data.participantIds);
       // Participants may not rewrite who is in the thread.
+      //
+      // Deliberately NOT gated on `messagingOn()` or `appTakesWrites()`: the
+      // only thing this rule permits is the inbox metadata, and zeroing your
+      // own unread badge on a conversation you can still read has to keep
+      // working — otherwise switching messaging off leaves a badge nobody can
+      // clear sitting on every phone in the event.
       allow update: if isParticipant()
         && changed().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'unread'])
         && metadataWriteIsSane();
@@ -1128,7 +1700,7 @@ service cloud.firestore {
         }
 
         allow read: if inThreadOrUnstarted();
-        allow create: if inThread()
+        allow create: if inThread() && appTakesWrites() && messagingOn()
           && request.resource.data.senderId == request.auth.uid;
         // Immutable once sent. Moderation is a function's job.
         allow update, delete: if false;

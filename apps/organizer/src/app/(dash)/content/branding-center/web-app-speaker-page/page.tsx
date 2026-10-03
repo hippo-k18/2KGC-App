@@ -31,11 +31,10 @@ export default async function WebAppSpeakerPagePage() {
         title="Web App Speaker Page"
         info={
           <>
-            <strong>There is no web app to brand</strong>
+            <strong>No web app yet</strong>
             <p>
-              Attendees get a native iOS and Android build; <code>apps/web</code> sells tickets and
-              has no signed-in event surface. The same speaker records do render on the public
-              speakers page and in the app&rsquo;s People tab, and the figures below are theirs.
+              A web app speaker page is not available yet. Speakers show on the public speakers page
+              and in the app&rsquo;s People tab.
             </p>
           </>
         }
@@ -56,22 +55,21 @@ export default async function WebAppSpeakerPagePage() {
           {
             label: 'Missing a photo',
             value: speakers.problems.find((p) => p.label === 'no photo')?.count ?? 0,
-            sub: 'the most visible gap on any speaker grid',
+            sub: 'shows as a blank portrait',
           },
           {
             label: 'Missing a bio',
             value: speakers.problems.find((p) => p.label === 'no bio')?.count ?? 0,
-            sub: 'chased through Message Speakers',
+            sub: 'ask through Message Speakers',
           },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where this content does render</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where speakers show</h2>
         <p className="body-2">
-          The same speaker records already render in two places that exist: the People tab of the
-          mobile app, and the public speakers page at <code>{publicUrl(speakers.path)}</code>. Both
-          read the identical documents, so the numbers above are the ones a visitor would see today.
+          Speakers show in the People tab of the app and on the public speakers page at{' '}
+          <code>{publicUrl(speakers.path)}</code>.
         </p>
         {speakers.problems.length > 0 ? (
           <ul className="body-2" style={{ paddingLeft: 18 }}>

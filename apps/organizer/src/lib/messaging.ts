@@ -65,6 +65,16 @@ export interface Audience {
   title: string;
   /** Plural noun for prose: "45 speakers". */
   noun: string;
+  /**
+   * The worked example in the empty compose box: a subject and a body.
+   *
+   * Per audience, because the form is one component and the example was not.
+   * Every screen offered the same suggestion — "Your KGC 2027 slides are due 20
+   * April" over "Thanks again for speaking at KGC 2027" — so an organizer
+   * writing to exhibitors was shown a letter to a speaker, which reads as the
+   * wrong screen rather than as a placeholder.
+   */
+  example: { subject: string; body: string };
   /** Filters an organizer can narrow the send to. */
   segments: { id: string; label: string; describe: string }[];
 }
@@ -74,6 +84,10 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
     id: 'speakers',
     title: 'Message Speakers',
     noun: 'speakers',
+    example: {
+      subject: 'Your KGC 2027 slides are due 20 April',
+      body: 'Thanks again for speaking at KGC 2027.\n\nWe need your slides by 20 April so the AV team can load them.\n\nUpload here: …',
+    },
     segments: [
       { id: 'all', label: 'Everyone', describe: 'Every speaker with an email address on file' },
       {
@@ -90,6 +104,10 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
     id: 'sponsors',
     title: 'Message Sponsors',
     noun: 'sponsors',
+    example: {
+      subject: 'Your KGC 2027 logo and booth details',
+      body: 'Thanks again for sponsoring KGC 2027.\n\nWe need your logo by 20 April so it is on the site and in the app before doors open.\n\nSend it here: …',
+    },
     segments: [
       { id: 'all', label: 'Everyone', describe: 'Every sponsor contact on file' },
       { id: 'no-logo', label: 'Missing a logo', describe: 'Sponsors with no logo uploaded' },
@@ -109,6 +127,10 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
     id: 'exhibitors',
     title: 'Message Exhibitors',
     noun: 'exhibitors',
+    example: {
+      subject: 'Setting up your KGC 2027 booth on 2 May',
+      body: 'Thanks again for exhibiting at KGC 2027.\n\nThe hall opens for setup at 14:00 on 2 May and closes at 19:00. Tell us how many staff passes you need by 20 April.\n\nFloor plan: …',
+    },
     segments: [
       { id: 'all', label: 'Everyone', describe: 'Every exhibitor still on the floor plan' },
       { id: 'no-booth', label: 'No booth assigned', describe: 'Exhibitors with no booth number' },

@@ -6,7 +6,8 @@ import { requireOrganizer } from '@/lib/auth';
 import { createDiscountCode, setDiscountCodeActive } from '@/lib/discount-codes';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
-import { stripeEnabled } from '@/lib/stripe';
+import { discountsEnabled } from '@/lib/stripe';
+import { fromWallClock } from '@/lib/time';
 
 /**
  * Creating and retiring discount codes.
@@ -30,8 +31,8 @@ export async function createDiscountCodeAction(
 ): Promise<CodeState> {
   const actor = await requireOrganizer();
 
-  if (!stripeEnabled()) {
-    return { error: 'No Stripe key is configured, so codes cannot be created from here.' };
+  if (!discountsEnabled()) {
+    return { error: 'No Stripe discount key is configured, so codes cannot be created from here.' };
   }
 
   const code = String(formData.get('code') ?? '').trim();
@@ -39,6 +40,7 @@ export async function createDiscountCodeAction(
   const valueRaw = String(formData.get('value') ?? '').trim();
   const maxRaw = String(formData.get('maxRedemptions') ?? '').trim();
   const expiresRaw = String(formData.get('expiresAt') ?? '').trim();
+  const tierIds = [...new Set(formData.getAll('tier').map((v) => String(v)).filter(Boolean))];
 
   if (!CODE.test(code)) {
     return { error: 'Use 3–40 letters, digits, hyphens or underscores, no spaces.' };
@@ -58,7 +60,9 @@ export async function createDiscountCodeAction(
 
   let expiresAt: Date | undefined;
   if (expiresRaw) {
-    expiresAt = new Date(expiresRaw);
+    // Typed as New York wall time. A bare `new Date()` on the UTC droplet
+    // would end a code four or five hours early.
+    expiresAt = fromWallClock(expiresRaw).toDate();
     if (Number.isNaN(expiresAt.getTime())) return { error: 'That expiry date is not valid.' };
     if (expiresAt.getTime() < Date.now()) return { error: 'That expiry date is in the past.' };
   }
@@ -73,6 +77,7 @@ export async function createDiscountCodeAction(
       currency: 'usd',
       maxRedemptions,
       expiresAt,
+      tierIds,
     });
 
     await appendAudit({
@@ -81,7 +86,14 @@ export async function createDiscountCodeAction(
       targetPath: `stripe/promotionCodes/${created}`,
       targetId: created,
       before: {},
-      after: { code: created, kind, value, maxRedemptions, expiresAt: expiresRaw || null },
+      after: {
+        code: created,
+        kind,
+        value,
+        maxRedemptions,
+        expiresAt: expiresRaw || null,
+        tierIds,
+      },
     });
 
     revalidatePath(ROUTES.discountCodes);
@@ -98,7 +110,7 @@ export async function toggleDiscountCodeAction(formData: FormData): Promise<void
   const actor = await requireOrganizer();
   const id = String(formData.get('id') ?? '').trim();
   const active = String(formData.get('active') ?? '') === 'true';
-  if (!id || !stripeEnabled()) return;
+  if (!id || !discountsEnabled()) return;
 
   try {
     await setDiscountCodeActive(id, !active);

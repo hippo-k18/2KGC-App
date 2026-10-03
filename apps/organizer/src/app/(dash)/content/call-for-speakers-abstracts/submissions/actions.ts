@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
-import { decideSubmission, undoDecision } from '@/lib/submissions';
+import { decideMany, decideSubmission, undoDecision } from '@/lib/submissions';
+import { excludeReviewer, liftExclusion } from '@/lib/reviewers';
 import { recordError } from '@/lib/errors';
 import type { FormState } from '../../../form';
 import { CFA_BASE } from '../routes';
@@ -33,12 +34,15 @@ export async function decideAction(_prev: FormState, formData: FormData): Promis
   const id = String(formData.get('id') ?? '');
   const verdict = String(formData.get('verdict') ?? '');
   if (!id) return { error: 'No submission was named.' };
-  if (verdict !== 'accept' && verdict !== 'reject') return { error: 'Choose accept or reject.' };
+  if (verdict !== 'accept' && verdict !== 'reject' && verdict !== 'waitlist') {
+    return { error: 'Choose accept, waitlist or reject.' };
+  }
 
   try {
     const result = await decideSubmission({
       id,
       accept: verdict === 'accept',
+      waitlist: verdict === 'waitlist',
       note: String(formData.get('note') ?? '') || undefined,
       /*
        * The checkbox is the *only* thing that sends mail. It is unticked by
@@ -89,4 +93,74 @@ export async function undoDecisionAction(formData: FormData): Promise<void> {
     );
   }
   redirect(`${CFA_BASE}/submissions/${id}?undo=ok`);
+}
+
+/**
+ * The same decision for every ticked row.
+ *
+ * The ids arrive from checkboxes in the table, tied to this form by the HTML
+ * `form` attribute, so the table stays a table and the bar stays one form. The
+ * notify box has the same default and the same warning as the single decision:
+ * here it is one press for many inboxes.
+ */
+export async function bulkDecideAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireOrganizer();
+
+  const ids = formData.getAll('ids').map(String).filter(Boolean);
+  const verdict = String(formData.get('verdict') ?? '');
+  if (ids.length === 0) return { error: 'Tick at least one submission first.' };
+  if (verdict !== 'accept' && verdict !== 'reject' && verdict !== 'waitlist') {
+    return { error: 'Choose accept, waitlist or reject.' };
+  }
+
+  try {
+    const result = await decideMany({
+      ids,
+      accept: verdict === 'accept',
+      waitlist: verdict === 'waitlist',
+      note: String(formData.get('note') ?? '') || undefined,
+      notify: formData.get('notify') === 'on',
+      actor,
+    });
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`${CFA_BASE}/submissions`);
+    revalidatePath(CFA_BASE);
+    return { ok: true, message: result.message };
+  } catch (err) {
+    recordError('submission.bulkDecide', err);
+    return { error: err instanceof Error ? err.message : 'Could not record the decisions.' };
+  }
+}
+
+/** Keep one reviewer away from this submission, whether or not they hold it yet. */
+export async function excludeReviewerAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireOrganizer();
+  const submissionId = String(formData.get('submissionId') ?? '');
+  const reviewerId = String(formData.get('reviewerId') ?? '');
+  if (!submissionId || !reviewerId) return { error: 'Choose a reviewer.' };
+
+  const result = await excludeReviewer({
+    submissionId,
+    reviewerId,
+    note: String(formData.get('note') ?? '') || undefined,
+    actor,
+  });
+  if (!result.ok) return { error: result.error };
+
+  revalidate(submissionId);
+  revalidatePath(`${CFA_BASE}/reviewers`);
+  return { ok: true, message: result.message };
+}
+
+export async function liftExclusionAction(formData: FormData): Promise<void> {
+  const actor = await requireOrganizer();
+  const submissionId = String(formData.get('submissionId') ?? '');
+  const reviewerId = String(formData.get('reviewerId') ?? '');
+  if (!submissionId || !reviewerId) return;
+
+  const result = await liftExclusion({ submissionId, reviewerId, actor });
+  if (!result.ok) recordError('reviewer.liftExclusion', new Error(result.error));
+  revalidate(submissionId);
+  revalidatePath(`${CFA_BASE}/reviewers`);
 }
