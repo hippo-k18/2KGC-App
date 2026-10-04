@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { ManualOrderState } from './manual-order-actions';
 import { recordManualOrderAction } from './manual-order-actions';
@@ -40,6 +40,12 @@ export function ManualOrderForm({
   compHint: string;
 }) {
   const [state, action] = useActionState<ManualOrderState, FormData>(recordManualOrderAction, {});
+  // One id per order being entered: a double-click posts the same one and
+  // records one order, and the next order after a success gets a fresh one.
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  useEffect(() => {
+    if (state.ok) setRequestId(crypto.randomUUID());
+  }, [state]);
 
   if (packages.length === 0) {
     return (
@@ -51,6 +57,7 @@ export function ManualOrderForm({
 
   return (
     <form action={action}>
+      <input type="hidden" name="requestId" value={requestId} />
       {state.error && (
         <p className="error" role="alert">
           {state.error}

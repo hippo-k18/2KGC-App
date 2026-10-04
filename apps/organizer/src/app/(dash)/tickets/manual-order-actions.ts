@@ -40,6 +40,7 @@ export async function recordManualOrderAction(
     companyName: String(form.get('companyName') ?? '') || undefined,
     poNumber: String(form.get('poNumber') ?? '') || undefined,
     silent: form.get('silent') === 'on',
+    requestId: String(form.get('requestId') ?? '') || undefined,
     actor,
   });
 
