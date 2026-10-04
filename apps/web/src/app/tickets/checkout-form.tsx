@@ -758,7 +758,7 @@ function OrderRail({
       </div>
 
       {/*
-        Three lines, and only three.
+        Two lines and the invoice row.
 
         Each answers a question that otherwise stops a purchase dead: where the
         card number goes, whether the name can change, and whether a company that
@@ -783,10 +783,13 @@ function OrderRail({
           Card details are handled by Stripe and never touch this site.
         </li>
         <li>Names can be changed until April 26, 2027, a week before the conference.</li>
-        <li>
-          Need a PO number? <Link href="/tickets/invoice">Pay by invoice instead</Link>.
-        </li>
       </ul>
+
+      {/* Its own row rather than a third line of small print (T147). */}
+      <p className="rail-invoice">
+        <span>Need a PO number?</span>
+        <Link href="/tickets/invoice">Pay by invoice</Link>
+      </p>
     </aside>
   );
 }

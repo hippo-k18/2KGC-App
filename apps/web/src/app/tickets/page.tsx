@@ -226,16 +226,33 @@ export default async function TicketsPage({
         </header>
 
         {ranked.length > 0 ? (
-          <div className={s.cards}>
-            {ranked.map((t, i) => (
-              <TicketCard
-                key={t.id}
-                tier={t}
-                featured={i === 0}
-                layout={i === 0 ? 'wide' : i === 1 ? 'narrow' : 'row'}
-              />
-            ))}
-          </div>
+          <>
+            <div className={s.cards}>
+              {ranked.map((t, i) => (
+                <TicketCard
+                  key={t.id}
+                  tier={t}
+                  featured={i === 0}
+                  layout={i === 0 ? 'wide' : i === 1 ? 'narrow' : 'row'}
+                />
+              ))}
+            </div>
+            {/*
+              The invoice route, on the page rather than only in the questions
+              below (T147). A company that cannot pay by card did not find it
+              at the bottom of an FAQ; one quiet row under the cards, the same
+              shape as them, so it does not compete with Choose.
+            */}
+            <div className={s.invoice}>
+              <p className={s.invoiceText}>
+                <strong>Buying for a team?</strong> Pay by invoice with a PO number, on net 14
+                to 60 terms.
+              </p>
+              <Link className={s.cta} href="/tickets/invoice">
+                Pay by invoice
+              </Link>
+            </div>
+          </>
         ) : (
           <p className={s.empty}>
             Ticket sales for {ev.name} have not opened yet. Write to{' '}

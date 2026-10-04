@@ -6593,6 +6593,44 @@ a.li-icon::after {
   color: var(--highlight);
 }
 
+/* The invoice route under the trust lines: a bordered row with the link as a
+   pill, so a buyer who cannot pay by card sees a way through (T147). */
+.rail-invoice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.rail-invoice a {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.rail-invoice a:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.rail-invoice a:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
 .rail-lock {
   display: inline-flex;
   vertical-align: -2px;
