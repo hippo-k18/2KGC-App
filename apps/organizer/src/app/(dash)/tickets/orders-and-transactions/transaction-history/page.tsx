@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listOrders, money, recentEmails } from '@/lib/commerce';
+import { listOrders, money, recentEmails, recentIgnoredStripe } from '@/lib/commerce';
 import { clockOfInstant, dayOfInstant } from '@/lib/time-core';
 import { ROUTES } from '@/lib/nav';
 import { stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
@@ -74,7 +74,7 @@ export default async function TransactionHistoryPage({
   const sp = await searchParams;
   const { page, baseParams } = listParams(sp);
 
-  const [orders, emails] = await Promise.all([listOrders(), recentEmails(200)]);
+  const [orders, emails, ignored] = await Promise.all([listOrders(), recentEmails(200), recentIgnoredStripe(50)]);
 
   const entries: Entry[] = [];
 
@@ -324,6 +324,44 @@ export default async function TransactionHistoryPage({
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
           Payouts and processing fees are shown in Stripe, not here.
         </p>
+      </Panel>
+
+      {/*
+        The Stripe account also takes sponsorships, Payment Links and invoices
+        raised by hand. Ticketing ignores them by design (T142); they are listed
+        here only so a ticket bought the wrong way can be spotted.
+      */}
+      <Panel style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Stripe payments not from ticketing (ignored)</h2>
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+          The KGC Stripe account is used for more than tickets. These payments, refunds and disputes
+          reached the ticketing system and changed nothing in it. If one of them was meant to be a
+          ticket, record it on Offline Payment.
+        </p>
+        <Table
+          cols={[
+            { key: 'w', label: 'When', className: 'cell-sm' },
+            { key: 'k', label: 'What', className: 'cell-sm' },
+            { key: 'p', label: 'Payer', className: 'cell-md' },
+            { key: 'a', label: 'Amount', className: 'cell-sm' },
+            { key: 'd', label: 'Stripe', className: 'cell-fill' },
+          ]}
+          rows={wrapCol(
+            ignored.map((e) => [
+              <span key="w" className="muted" style={{ fontSize: 12 }}>
+                {dayOfInstant(e.at)}
+              </span>,
+              <span key="k">{e.kind}</span>,
+              <span key="p">{e.name || e.email || '—'}</span>,
+              money(e.amountCents, e.currency),
+              <span key="d" className="muted" style={{ fontSize: 12 }}>
+                {[e.description, e.stripeId].filter(Boolean).join(' · ')}
+              </span>,
+            ]),
+            4,
+          )}
+          empty="Nothing from outside ticketing yet."
+        />
       </Panel>
     </>
   );

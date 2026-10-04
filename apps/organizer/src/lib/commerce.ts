@@ -6,6 +6,7 @@ import {
   TIME_ZONE,
   type EmailLogDoc,
   type OrderDoc,
+  type StripeIgnoredDoc,
   type TicketAudience,
   type TicketTypeDoc,
   type WithId,
@@ -17,6 +18,7 @@ import {
   soldByTier,
   type SoldCountOrder,
 } from '@kgc/scripts/src/lib/sold-counts';
+import { recordError } from './errors';
 import { db } from './firestore';
 import { salesByCode, type CodeSplit } from './sales-core';
 import { toWallClockInZone } from './time';
@@ -256,7 +258,12 @@ export interface SalesSummary {
 export async function salesSummary(): Promise<SalesSummary> {
   const orders = await listOrders();
 
-  const real = orders.filter((o) => o.channel !== 'demo');
+  // Ticket orders only. Demo orders took no money, and a record with no ticket
+  // line is not a sale: an order stub written for a refund before T136 had
+  // only a refunded amount, which would count as negative revenue (T142).
+  const real = orders.filter(
+    (o) => o.channel !== 'demo' && (o.ticketNames.length > 0 || o.ticketTypeIds.length > 0),
+  );
   const demoOrders = orders.length - real.length;
 
   const counted = real.filter((o) => o.status === 'paid' || o.status === 'partially_refunded');
@@ -568,6 +575,54 @@ export async function recentEmails(limit = 100): Promise<EmailRow[]> {
     })
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, limit);
+}
+
+export interface IgnoredStripeRow {
+  id: string;
+  kind: StripeIgnoredDoc['kind'];
+  eventType: string;
+  stripeId: string;
+  amountCents: number;
+  currency: string;
+  email?: string;
+  name?: string;
+  description?: string;
+  at: string;
+}
+
+/**
+ * Stripe activity the ticketing webhook saw and ignored, newest first.
+ *
+ * The KGC Stripe account also takes sponsorships, Payment Links and invoices
+ * raised by hand, and all of it reaches the ticketing webhook. None of it is
+ * an error, so it is not in the audit log; it is listed here, quietly, in case
+ * somebody paid for a ticket the wrong way (T142).
+ */
+export async function recentIgnoredStripe(limit = 50): Promise<IgnoredStripeRow[]> {
+  try {
+    const snap = await db().collection(COLLECTIONS.stripeIgnored).where('eventId', '==', EVENT_ID).get();
+    return snap.docs
+      .map((d) => {
+        const e = d.data() as StripeIgnoredDoc;
+        return {
+          id: d.id,
+          kind: e.kind,
+          eventType: e.eventType,
+          stripeId: e.stripeId,
+          amountCents: e.amountCents ?? 0,
+          currency: e.currency ?? 'usd',
+          email: e.email ?? undefined,
+          name: e.name ?? undefined,
+          description: e.description ?? undefined,
+          at: iso(e.at) ?? new Date(0).toISOString(),
+        };
+      })
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, limit);
+  } catch (err) {
+    recordError('commerce.recentIgnoredStripe', err);
+    return [];
+  }
 }
 
 /** `119900` → `$1,199.00`. Cents shown here, unlike the public site: this is a ledger. */

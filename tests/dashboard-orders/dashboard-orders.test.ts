@@ -36,7 +36,7 @@ async function wipe(collection: string) {
 beforeEach(async () => {
   delete process.env.RESEND_API_KEY;
   await Promise.all(
-    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, COLLECTIONS.emailLog, COLLECTIONS.users].map(wipe),
+    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, COLLECTIONS.emailLog, COLLECTIONS.users, COLLECTIONS.stripeIgnored].map(wipe),
   );
   for (const [id, name, total] of [
     ['main-conference', 'Main Conference', 100],
@@ -178,5 +178,31 @@ describe('abandoned checkouts (TK-303)', () => {
   it('leaves out every other status', () => {
     expect(isAbandoned(row({ status: 'paid' }))).toBe(false);
     expect(isAbandoned(row({ status: 'pending' }))).toBe(false);
+  });
+});
+
+describe('sales figures count ticket orders only (T142)', () => {
+  it('leaves a refund stub with no ticket line out of revenue', async () => {
+    await manual({ requestId: 'req-sale-000001' });
+    // What a Payment Link refund wrote before T136: no lines, only a refunded amount.
+    await db.collection(COLLECTIONS.orders).doc('ord_stub').set({
+      eventId: EVENT_ID, externalId: 'cs_plink', provider: 'stripe', email: '', status: 'refunded',
+      totalCents: 0, refundedCents: 17_500, currency: 'usd', purchasedAt: new Date(),
+    });
+    const { salesSummary } = await import('@/lib/commerce');
+    const sales = await salesSummary();
+    expect(sales.grossCents).toBe(50_000);
+    expect(sales.refundedCents).toBe(0);
+    expect(sales.netCents).toBe(50_000);
+  });
+
+  it('lists ignored Stripe activity, newest first, and none of it as an order', async () => {
+    await db.collection(COLLECTIONS.stripeIgnored).doc('a').set({ eventId: EVENT_ID, eventType: 'invoice.paid', kind: 'invoice', stripeId: 'in_1', amountCents: 500_000, currency: 'usd', email: null, at: new Date('2026-10-01T12:00:00Z') });
+    await db.collection(COLLECTIONS.stripeIgnored).doc('b').set({ eventId: EVENT_ID, eventType: 'checkout.session.completed', kind: 'payment', stripeId: 'cs_1', amountCents: 250_000, currency: 'usd', email: 'sponsor@example.com', at: new Date('2026-10-02T12:00:00Z') });
+    const { recentIgnoredStripe, listOrders } = await import('@/lib/commerce');
+    const rows = await recentIgnoredStripe();
+    expect(rows.map((r) => r.stripeId)).toEqual(['cs_1', 'in_1']);
+    expect(rows[1].email).toBeUndefined();
+    expect(await listOrders()).toHaveLength(0);
   });
 });

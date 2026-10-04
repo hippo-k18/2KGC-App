@@ -6,7 +6,7 @@ describe('describeAction', () => {
   it('reads the website’s warnings as whole phrases, not "Undeliveredd" (T135B, TK-300)', () => {
     expect(describeAction('confirmation.undelivered')).toBe('Confirmation email could not be delivered');
     expect(describeAction('invoice.oversold')).toBe('Invoice paid for more seats than were left');
-    expect(describeAction('checkout.notFromWebsite')).toBe('Payment taken outside the website');
+    expect(describeAction('checkout.notFromWebsite')).toBe('Stripe payment not from ticketing (ignored)');
   });
 
   it('never invents a past tense for a verb that does not end in "e"', () => {

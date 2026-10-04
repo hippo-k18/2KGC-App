@@ -86,11 +86,12 @@ function nounWords(part: string): string {
  * and read better whole.
  */
 const WEBSITE_ACTION: Record<string, string> = {
-  'checkout.notFromWebsite': 'Payment taken outside the website',
+  // Rows written before T142; new ones go to `stripeIgnored`, not the audit log.
+  'checkout.notFromWebsite': 'Stripe payment not from ticketing (ignored)',
   'confirmation.undelivered': 'Confirmation email could not be delivered',
   'invoice.oversold': 'Invoice paid for more seats than were left',
   'invoice.seatWithoutTicket': 'Invoice seat with no ticket type',
-  'refund.notFromWebsite': 'Refund of a payment taken outside the website',
+  'refund.notFromWebsite': 'Stripe refund not from ticketing (ignored)',
 };
 
 export function describeAction(action: string): string {

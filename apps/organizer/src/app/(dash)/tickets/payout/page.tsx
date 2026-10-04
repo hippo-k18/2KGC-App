@@ -97,7 +97,7 @@ export default async function PayoutPage() {
           {
             label: 'Available',
             value: payouts.unavailable ? '—' : money(payouts.availableCents, payouts.currency),
-            sub: 'cleared, awaiting payout',
+            sub: 'whole Stripe account, not only tickets',
           },
           {
             label: 'Pending',
@@ -105,9 +105,9 @@ export default async function PayoutPage() {
             sub: 'taken, still settling',
           },
           {
-            label: 'Sold, net of refunds',
+            label: 'Tickets sold, net of refunds',
             value: money(sales.netCents, sales.currency),
-            sub: 'our records, before fees',
+            sub: 'ticket orders only, before fees',
           },
           { label: 'Payouts listed', value: payouts.payouts.length, sub: 'most recent first' },
         ]}
@@ -172,6 +172,14 @@ export default async function PayoutPage() {
               <span key="w">
                 A new account waits several days before its first payout, then settles on a rolling
                 schedule.
+              </span>,
+            ],
+            [
+              'Other Stripe income',
+              <span key="w">
+                The Stripe account is used for more than tickets. Sponsorships, Payment Links and
+                invoices raised by hand are in the balance and the payouts above, and never in the
+                ticket sales figure. Transaction History lists what reached ticketing.
               </span>,
             ],
             [
