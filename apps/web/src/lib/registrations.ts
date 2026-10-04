@@ -465,7 +465,13 @@ export async function cancelRegistrationByOrder(input: {
     // A chargeback holds the money rather than returning it, so it is not
     // written as a refunded amount (T135B, N3). `disputedAt` is what tells a
     // disputed sale from an abandoned checkout, both being `cancelled`.
-    ...(input.reason === 'disputed' ? { disputedAt: Timestamp.now() } : { refundedCents: refunded }),
+    // Stamped by the delivery that cancelled the order, not by Stripe's replays
+    // of it (T138B, TK-258).
+    ...(input.reason === 'disputed'
+      ? decision.newlyRefunded
+        ? { disputedAt: Timestamp.now() }
+        : {}
+      : { refundedCents: refunded }),
     ...(decision.stampRefundedAt ? { refundedAt: Timestamp.now() } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });

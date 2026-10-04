@@ -406,7 +406,11 @@ describe('refunds and disputes reach the right order', () => {
     expect(await sold('main-conference')).toBe(1);
     const dispute = { id: 'dp_2', object: 'dispute', payment_intent: c.pi, amount: 10_000 };
     await deliver('charge.dispute.created', dispute);
+    const first = (await order(c.oid))?.disputedAt;
+    await new Promise((r) => setTimeout(r, 20));
     await deliver('charge.dispute.created', dispute);
+    // A replay changes nothing, the date included (T138B, TK-258).
+    expect((await order(c.oid))?.disputedAt).toEqual(first);
     expect(await sold('main-conference')).toBe(0);
     const o = await order(c.oid);
     expect(o).toMatchObject({ status: 'cancelled', refundedCents: 0 });
