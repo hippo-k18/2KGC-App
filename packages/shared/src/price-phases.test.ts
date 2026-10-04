@@ -92,6 +92,33 @@ describe("priceNow", () => {
   });
 });
 
+describe("a phase marked sold out (T135, TK-014)", () => {
+  const phases: PricePhase[] = [
+    { name: "Early", priceCents: 100, startsOn: "2026-01-01" },
+    { name: "Regular", priceCents: 200, startsOn: "2026-06-01", soldOut: true },
+  ];
+
+  it("does not hand the sale back to the cheaper phase before it", () => {
+    const p = priceNow({ priceCents: 1, pricePhases: phases }, at("2026-10-01T12:00:00Z"), NY);
+    expect(p.onSale).toBe(false);
+    expect(p.unavailableReason).toBe("Sold out");
+    expect(p.phase).toBeUndefined();
+  });
+
+  it("is not on sale until the next phase starts, then sells it", () => {
+    const withNext: PricePhase[] = [...phases, { name: "Late", priceCents: 300, startsOn: "2026-12-01" }];
+    const before = priceNow({ priceCents: 1, pricePhases: withNext }, at("2026-10-01T12:00:00Z"), NY);
+    expect(before).toMatchObject({ onSale: false, unavailableReason: "Not on sale yet", priceCents: 300 });
+    const after = priceNow({ priceCents: 1, pricePhases: withNext }, at("2026-12-02T12:00:00Z"), NY);
+    expect(after).toMatchObject({ onSale: true, phase: "Late", priceCents: 300 });
+  });
+
+  it("still skips a sold-out phase that never started, as Super Early Bird is", () => {
+    const p = priceNow({ priceCents: 1, pricePhases: ALL_ACCESS }, at("2026-10-01T12:00:00Z"), NY);
+    expect(p).toMatchObject({ onSale: true, phase: "Early Bird" });
+  });
+});
+
 describe("the dashboard text box", () => {
   it("round-trips the grid", () => {
     const text = pricePhasesToText(CEU);

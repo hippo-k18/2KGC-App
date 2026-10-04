@@ -93,7 +93,9 @@ export function dayInZone(now: Date, timeZone: string): string {
  * A ticket with no phases sells at its flat `priceCents`, which is every
  * ticket written before phases existed, and every exhibitor and sponsor
  * package. With phases, the current one is the last phase in the list that has
- * started and is not sold out.
+ * started. If that phase is sold out, nothing is on sale until the next one
+ * starts: marking Regular sold out used to make the cheaper Early phase
+ * current again and put tickets back on sale at the old price (T135, TK-014).
  */
 export function priceNow(
   t: { priceCents: number; pricePhases?: PricePhase[] },
@@ -108,8 +110,9 @@ export function priceNow(
 
   let current = -1;
   phases.forEach((p, i) => {
-    if (started(p) && !p.soldOut) current = i;
+    if (started(p)) current = i;
   });
+  if (current !== -1 && phases[current].soldOut) current = -1;
 
   const earlierOf = (upTo: number) =>
     phases

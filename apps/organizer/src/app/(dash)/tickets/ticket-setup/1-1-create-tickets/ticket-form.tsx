@@ -125,9 +125,10 @@ export function TicketForm({
         hint={
           <>
             One phase per line: a name, a price in dollars and the day it starts (New York time).
-            Each phase runs until the next one starts. Add <strong>sold out</strong> to show a
-            phase crossed out, or <strong>off sale</strong> to stop selling during it. Leave empty
-            to sell at the price above.
+            Each phase runs until the next one starts. Add <strong>sold out</strong> to close a
+            phase early: it shows crossed out and nothing sells until the next phase starts. Add{' '}
+            <strong>off sale</strong> to stop selling during a phase. Leave empty to sell at the
+            price above.
           </>
         }
       />
