@@ -1657,6 +1657,10 @@ export interface OrderDoc extends BaseDoc {
    * and either may be replayed or run at the same moment; this is what makes it
    * one email per seat rather than one per delivery, and what tells the webhook
    * an email has not gone out yet. See `fulfil-order.ts`.
+   *
+   * An invoice's seats are keyed the same way. The refund receipt is keyed
+   * `refund:{refundedCents}` and the withdrawn-ticket mail `withdrawn:{rid}`,
+   * so a redelivered `charge.refunded` sends neither again.
    */
   confirmations?: Record<string, OrderConfirmation>;
 

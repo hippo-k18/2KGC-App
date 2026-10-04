@@ -431,3 +431,69 @@ describe('confirmation rows name the order (TK-202)', () => {
     for (const m of mocks.sent) expect(m.orderId).toBe(c.oid);
   });
 });
+
+describe('replays send nothing twice (S10/TK-255, TK-230)', () => {
+  async function invoice(invoiceId: string) {
+    await recordInvoiceOrder({
+      invoiceId,
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    return { id: invoiceId, object: 'invoice', total: 20_000, currency: 'usd', metadata: {} };
+  }
+
+  it('a replayed invoice.paid emails each seat once', async () => {
+    const inv = await invoice('in_replayed');
+    for (let i = 0; i < 3; i += 1) expect((await deliver('invoice.paid', inv)).status).toBe(200);
+    expect(mocks.sent.map((m) => m.to).sort()).toEqual(['ada@example.com', 'ben@example.com']);
+    for (const m of mocks.sent) expect(m.orderId).toBe(invoiceOrderId('in_replayed'));
+  });
+
+  it('a replayed invoice.paid after the invoice was refunded issues and sends nothing', async () => {
+    const inv = await invoice('in_refunded_replay');
+    mocks.invoiceByIntent.set('pi_in_refunded_replay', 'in_refunded_replay');
+    await deliver('invoice.paid', inv);
+    await refunded('pi_in_refunded_replay', 20_000);
+    const res = await deliver('invoice.paid', inv);
+    expect(res.status).toBe(200);
+    expect(await statuses(invoiceOrderId('in_refunded_replay'))).toEqual(['cancelled', 'cancelled']);
+    expect(mocks.sent).toHaveLength(2);
+  });
+
+  it('a redelivered charge.refunded sends the refund receipt once', async () => {
+    const c = await checkout([ADA], 'cs_refund_replayed');
+    await completed(c.sessionId);
+    for (let i = 0; i < 3; i += 1) expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect(mocks.refunds).toEqual([{ to: 'ada@example.com', amountCents: 10_000 }]);
+  });
+
+  it('a second refund that completes a partial one still gets its receipt', async () => {
+    const c = await checkout([ADA], 'cs_refund_partial_then_full');
+    await completed(c.sessionId);
+    await refunded(c.pi, 4_000);
+    await refunded(c.pi, 10_000);
+    await refunded(c.pi, 10_000);
+    expect(mocks.refunds).toEqual([{ to: 'ada@example.com', amountCents: 10_000 }]);
+  });
+});
+
+describe('an invoice seat that names no ticket (S11, TK-256)', () => {
+  it('is not registered as Main Conference; organizers are told', async () => {
+    const res = await deliver('invoice.paid', {
+      id: 'in_untyped',
+      object: 'invoice',
+      total: 20_000,
+      currency: 'usd',
+      metadata: { attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Virtual' }, { n: 'Ben Olsen', e: 'ben@example.com' }]) },
+    });
+    expect(res.status).toBe(200);
+    const regs = (await db.collection(COLLECTIONS.registrations).get()).docs.map((d) => d.data() as RegistrationDoc);
+    expect(regs.map((r) => [r.email, r.ticketType])).toEqual([['ada@example.com', 'Virtual']]);
+    const warned = await db.collection(COLLECTIONS.auditLog).where('action', '==', 'invoice.seatWithoutTicket').get();
+    expect(warned.size).toBe(1);
+    expect(warned.docs[0].data().after.seats).toEqual(['ben@example.com']);
+  });
+});

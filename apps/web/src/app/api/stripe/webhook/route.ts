@@ -292,28 +292,48 @@ export async function POST(req: NextRequest) {
       const buyerRegistrationId = outcome.email ? registrationId(outcome.email) : undefined;
       const transferred = Boolean(outcome.holderEmail && outcome.holderEmail !== outcome.email);
 
+      /**
+       * Once each, however many times Stripe delivers this refund (T135B,
+       * TK-230). Keyed by the cumulative amount, so a second refund that
+       * completes a partial one still gets its receipt, and claimed with the
+       * same `confirmations` map as a purchase. Not retried through a 5xx: the
+       * refund has already happened and the dashboard can resend.
+       */
+      const once = async (key: string, to: string, send: () => Promise<SendOutcome>) => {
+        const attempt = await claimConfirmation(outcome.orderId, key, { evenIfSettled: true });
+        if (attempt === null) return;
+        await sendClaimed({ orderId: outcome.orderId, rid: key, attempts: attempt, to }, send);
+      };
+
       if (outcome.fullyRefunded && outcome.email) {
-        await sendRefundConfirmation({
-          to: outcome.email,
-          name: outcome.name,
-          ticketType: outcome.ticketType,
-          amountCents: outcome.refundedCents,
-          currency: outcome.currency,
-          orderId: outcome.orderId,
-          registrationId: buyerRegistrationId,
-          ticketCancelled: Boolean(outcome.registrationId),
-          transferred,
-        });
+        const to = outcome.email;
+        await once(`refund:${outcome.refundedCents}`, to, () =>
+          sendRefundConfirmation({
+            to,
+            name: outcome.name,
+            ticketType: outcome.ticketType,
+            amountCents: outcome.refundedCents,
+            currency: outcome.currency,
+            orderId: outcome.orderId,
+            registrationId: buyerRegistrationId,
+            ticketCancelled: Boolean(outcome.registrationId),
+            transferred,
+          }),
+        );
       }
 
       if (outcome.fullyRefunded && outcome.registrationId && transferred && outcome.holderEmail) {
-        await sendTicketWithdrawn({
-          to: outcome.holderEmail,
-          name: outcome.holderName,
-          ticketType: outcome.ticketType,
-          orderId: outcome.orderId,
-          registrationId: outcome.registrationId,
-        });
+        const to = outcome.holderEmail;
+        const rid = outcome.registrationId;
+        await once(`withdrawn:${rid}`, to, () =>
+          sendTicketWithdrawn({
+            to,
+            name: outcome.holderName,
+            ticketType: outcome.ticketType,
+            orderId: outcome.orderId,
+            registrationId: rid,
+          }),
+        );
       }
 
       return NextResponse.json({
