@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   provisionPurchaserAccount: vi.fn(),
   sendPurchaseConfirmation: vi.fn(),
   incrementSold: vi.fn(),
+  countOrderSeatsOnce: vi.fn(async () => 0),
   tierFulfilment: vi.fn(),
   sessionsRetrieve: vi.fn(),
   fulfilPurchase: vi.fn(),
@@ -84,6 +85,7 @@ vi.mock('@/lib/email', () => ({
   sendTicketWithdrawn: vi.fn(),
 }));
 // Every order read finds nothing: the invoice has not been refunded.
+vi.mock('@kgc/scripts/src/lib/order-claims', () => ({ countOrderSeatsOnce: mocks.countOrderSeatsOnce }));
 vi.mock('@/lib/firestore', () => ({
   db: () => ({ collection: () => ({ doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) }) }),
 }));
@@ -313,7 +315,9 @@ describe('invoice.paid is unchanged', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ registered: 2, orderId: 'ord_in_1' });
     expect(mocks.ensureRegistration).toHaveBeenCalledTimes(2);
-    expect(mocks.incrementSold).toHaveBeenCalledTimes(2);
+    // Counted once for the order, shared with the dashboard's mark-paid (T139, N2).
+    expect(mocks.countOrderSeatsOnce).toHaveBeenCalledTimes(1);
+    expect(mocks.countOrderSeatsOnce.mock.calls[0].slice(1)).toEqual(['ord_in_1', ['main-conference', 'main-conference']]);
     expect(mocks.sendPurchaseConfirmation).toHaveBeenCalledTimes(2);
     expect(mocks.markInvoiceOrderPaid).toHaveBeenCalledTimes(1);
   });
