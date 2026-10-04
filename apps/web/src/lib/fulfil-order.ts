@@ -1,15 +1,14 @@
 import 'server-only';
 
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
-import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
+import { COLLECTIONS, type EntitlementDoc, type OrderConfirmation, type OrderDoc } from '@kgc/shared';
 import { attachSeatRegistrations, cartLines } from '@/app/tickets/cart-order';
 import { seatsToCount, splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import { grantOrderEntitlements } from '@/lib/app-account-core';
 import { incrementSold, tierFulfilment } from '@/lib/catalogue';
 import { sendPurchaseConfirmation, type SendOutcome } from '@/lib/email';
-import { recordError } from '@/lib/errors';
+import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 import { mintOrderToken } from '@/lib/order-token';
 import { claimAnswers } from '@/lib/question-forms';
@@ -100,6 +99,12 @@ export interface FulfilOrderResult {
   seatsCounted: number;
   seatAccountsCreated: number;
   seatAccountsFailed: number;
+  /**
+   * Registrations on this order whose confirmation has not gone out and is
+   * still worth another try, including one another run is sending right now.
+   * The webhook answers 5xx while this is non-empty so Stripe comes back.
+   */
+  confirmationsOutstanding: string[];
 }
 
 /**
@@ -134,76 +139,161 @@ async function grantSeatEntitlements(
 }
 
 /**
- * Whether this run is the one that sends `rid` its purchase confirmation.
+ * How many times one person's confirmation is tried before the webhook stops
+ * asking Stripe to come back for it.
+ *
+ * Five, because what fails five times in a row is not going to start working:
+ * an address Resend refuses fails the same way every time, and Stripe's own
+ * backoff spaces five deliveries over roughly an hour or more, which outlasts
+ * an ordinary Resend blip. Without a limit a bad address would answer 5xx for
+ * the three days Stripe retries, and an endpoint that fails for days is one
+ * Stripe disables, taking every other purchase's fulfilment with it. After the
+ * fifth failure organizers get an `auditLog` warning, the `emailLog` row stays
+ * `failed`, and "Resend confirmation" on the attendee is the way out.
+ */
+export const CONFIRMATION_ATTEMPTS = 5;
+
+/**
+ * How long a `pending` claim stands before another run may take it over.
+ *
+ * A send takes seconds; a claim still pending after five minutes belongs to a
+ * run that crashed or was restarted mid-send, and would otherwise block that
+ * email for good. Long enough that no live send is still in flight, so taking
+ * it over cannot double-send.
+ */
+const STALE_PENDING_MS = 5 * 60_000;
+
+/**
+ * Whether this run is the one that sends `rid` its purchase confirmation: the
+ * attempt number if it is, `null` if not.
  *
  * A card purchase is fulfilled by the return redirect and by the webhook, in
  * either order or at the same moment, and Stripe may redeliver the webhook for
  * days. Registrations and capacity are idempotent on their own; an email is
- * not, so each one is claimed on the order in a transaction before it is sent.
- * The first run to claim a registration sends; every other run skips it.
+ * not, so each one is claimed on the order in a transaction before it is sent:
+ * `confirmations[rid]` becomes `pending`, and only after the provider accepts
+ * it does it become `sent` (`sendClaimed`). A run that finds it `pending`,
+ * `sent` or `skipped`, or `failed` too many times, leaves it alone.
  *
- * Claimed before sending, not after: a crash between the two loses one email,
- * where the other order would send it again to everyone on every replay. If
- * the claim itself fails the email is sent anyway, because a missing ticket
- * email is the worse outcome. A send that fails is released again by
- * `sendClaimed`, so only a crash can lose one.
+ * Claimed before sending, not after: a crash between the two strands a
+ * `pending` claim, which is reclaimed once stale, where the other order would
+ * send it again to everyone on every replay. If the claim itself fails the
+ * email is sent anyway, because a missing ticket email is the worse outcome.
  */
-async function claimConfirmation(orderId: string, rid: string): Promise<boolean> {
+async function claimConfirmation(orderId: string, rid: string): Promise<number | null> {
   try {
     const ref = db().collection(COLLECTIONS.orders).doc(orderId);
     return await db().runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      const sent = (snap.data() as OrderDoc | undefined)?.confirmationsSent ?? [];
-      if (sent.includes(rid)) return false;
-      tx.set(ref, { confirmationsSent: FieldValue.arrayUnion(rid) }, { merge: true });
-      return true;
+      const order = (await tx.get(ref)).data() as OrderDoc | undefined;
+      if (order?.confirmationsSent?.includes(rid)) return null;
+      const prev = order?.confirmations?.[rid];
+      if (!claimable(prev, Date.now())) return null;
+      const attempts = (prev?.attempts ?? 0) + 1;
+      tx.set(ref, { confirmations: { [rid]: { state: 'pending', at: Date.now(), attempts } } }, { merge: true });
+      return attempts;
     });
   } catch (err) {
     await recordError('order.confirmationClaim', err, { path: 'orders', id: orderId });
-    return true;
+    return 1;
   }
 }
 
+function claimable(c: OrderConfirmation | undefined, now: number): boolean {
+  if (!c) return true;
+  if (c.state === 'sent' || c.state === 'skipped') return false;
+  if (c.state === 'pending') return now - c.at > STALE_PENDING_MS;
+  return c.attempts < CONFIRMATION_ATTEMPTS;
+}
+
 /**
- * Send a claimed confirmation, and give the claim back if it did not go out.
+ * Whether the webhook still owes Stripe a retry for this confirmation: it has
+ * not gone out, and it has not used up its attempts. A `pending` one counts,
+ * because the run holding it may yet fail, and the webhook is the only caller
+ * that can be retried.
+ */
+function outstanding(c: OrderConfirmation | undefined): boolean {
+  if (!c) return true;
+  if (c.state === 'sent' || c.state === 'skipped') return false;
+  if (c.state === 'pending') return true;
+  return c.attempts < CONFIRMATION_ATTEMPTS;
+}
+
+/**
+ * Send a claimed confirmation and record what happened to it.
  *
- * A claim that outlives a failed send is worse than no claim at all: every
- * later delivery (the redirect, the webhook, Stripe's retries) finds it and
- * skips, so the email is never tried again. For seats two and up that email is
- * their only ticket link and claim code (T130). So on `'failed'` (Resend
- * refused it, or the network did) or a throw, the registration is taken off
- * `confirmationsSent` and the next delivery sends it.
+ * `sent` is written only after the provider took the email, so "claimed" and
+ * "delivered" are never confused. `'failed'` (Resend refused it, or the
+ * network did) and a throw record `failed`, which the next run may claim
+ * again, and on the webhook keep Stripe redelivering until it goes out (T130,
+ * T132). The attempt that uses up the last of `CONFIRMATION_ATTEMPTS` warns
+ * organizers instead.
  *
- * `'skipped'` keeps the claim. It means no email provider is configured, which
- * is a property of the deployment rather than of this send: every retry would
- * skip as well, and add another `skipped` row to `emailLog` each time.
+ * `'skipped'` means no email provider is configured, a property of the
+ * deployment rather than of this send: every retry would skip as well and add
+ * another `emailLog` row, so it is recorded as final.
  *
- * A throw is passed on after the release, as it always was. On the webhook
+ * A throw is passed on after it is recorded, as it always was. On the webhook
  * that is a 5xx, which is what makes Stripe deliver the event again.
  */
 async function sendClaimed(
-  orderId: string,
-  rid: string,
+  claim: { orderId: string; rid: string; attempts: number; to: string },
   send: () => Promise<SendOutcome>,
 ): Promise<void> {
   let outcome: SendOutcome;
   try {
     outcome = await send();
   } catch (err) {
-    await releaseConfirmation(orderId, rid);
+    await settleConfirmation(claim, 'failed');
     throw err;
   }
-  if (outcome === 'failed') await releaseConfirmation(orderId, rid);
+  await settleConfirmation(claim, outcome);
 }
 
-async function releaseConfirmation(orderId: string, rid: string): Promise<void> {
+/**
+ * Record the outcome. A plain write, not a transaction: only the holder of a
+ * `pending` claim settles it, so nobody else is writing this entry, and a
+ * transaction here was one more lock on the order document that the
+ * registrations' own transactions wait behind.
+ */
+async function settleConfirmation(
+  claim: { orderId: string; rid: string; attempts: number; to: string },
+  outcome: SendOutcome,
+): Promise<void> {
+  const { orderId, rid, attempts, to } = claim;
+  const state: OrderConfirmation['state'] = outcome;
   try {
     await db()
       .collection(COLLECTIONS.orders)
       .doc(orderId)
-      .update({ confirmationsSent: FieldValue.arrayRemove(rid) });
+      .set({ confirmations: { [rid]: { state, at: Date.now(), attempts } } }, { merge: true });
   } catch (err) {
-    await recordError('order.confirmationRelease', err, { path: 'orders', id: orderId });
+    await recordError('order.confirmationSettle', err, { path: 'orders', id: orderId });
+    return;
+  }
+  if (state === 'failed' && attempts >= CONFIRMATION_ATTEMPTS) {
+    await recordWarning(
+      'confirmation.undelivered',
+      {
+        registrationId: rid,
+        email: to,
+        attempts,
+        note: 'The purchase confirmation could not be sent and will not be retried. Use Resend confirmation on the attendee.',
+      },
+      { path: 'orders', id: orderId },
+    );
+  }
+}
+
+/** Every one of `rids` whose confirmation has not gone out and is still worth retrying. */
+async function confirmationsOutstanding(orderId: string, rids: string[]): Promise<string[]> {
+  try {
+    const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
+    return [...new Set(rids)].filter(
+      (rid) => !order?.confirmationsSent?.includes(rid) && outstanding(order?.confirmations?.[rid]),
+    );
+  } catch (err) {
+    await recordError('order.confirmationCheck', err, { path: 'orders', id: orderId });
+    return [];
   }
 }
 
@@ -335,8 +425,9 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     // Their own claim code, to their own address. The buyer's copy of the
     // receipt does not get a colleague into the app. Once per seat, however
     // many times this purchase is fulfilled.
-    if (!(await claimConfirmation(oid, seat.registrationId))) continue;
-    await sendClaimed(oid, seat.registrationId, async () =>
+    const seatAttempt = await claimConfirmation(oid, seat.registrationId);
+    if (seatAttempt === null) continue;
+    await sendClaimed({ orderId: oid, rid: seat.registrationId, attempts: seatAttempt, to: seat.email }, async () =>
       sendPurchaseConfirmation({
         to: seat.email,
         name: seat.name ?? line.attendeeName ?? '',
@@ -422,8 +513,9 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     if (tier) await grantSeatEntitlements(account.uid, tier.entitlements);
   }
 
-  if (await claimConfirmation(oid, result.registrationId)) {
-    await sendClaimed(oid, result.registrationId, async () =>
+  const buyerAttempt = await claimConfirmation(oid, result.registrationId);
+  if (buyerAttempt !== null) {
+    await sendClaimed({ orderId: oid, rid: result.registrationId, attempts: buyerAttempt, to: result.email }, async () =>
       sendPurchaseConfirmation({
         to: result.email,
         name: result.name ?? '',
@@ -448,5 +540,6 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     seatsCounted: [...soldPerTier.values()].reduce((a, b) => a + b, 0),
     seatAccountsCreated,
     seatAccountsFailed,
+    confirmationsOutstanding: await confirmationsOutstanding(oid, registrationIds),
   };
 }

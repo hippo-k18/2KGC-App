@@ -618,6 +618,28 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
 
   const outcome = await fulfilCheckoutSession({ session, ours, email, origin });
 
+  /**
+   * Somebody's confirmation has not gone out yet, so ask Stripe to come back.
+   *
+   * The ticket exists either way. What is missing is the email carrying its
+   * link and claim code, which for seats two and up is the only one they get.
+   * It may have failed in this run, or be in flight in the return redirect
+   * running alongside, which cannot be retried itself; in both cases Stripe's
+   * redelivery, minutes later, finds it failed (and sends it) or sent (and
+   * answers 200). Bounded by `CONFIRMATION_ATTEMPTS`, so a bad address does
+   * not fail the endpoint for days.
+   */
+  if (outcome.confirmationsOutstanding.length > 0) {
+    return NextResponse.json(
+      {
+        error: 'confirmation email not sent yet',
+        registrationId: outcome.registrationId,
+        confirmationsOutstanding: outcome.confirmationsOutstanding,
+      },
+      { status: 503 },
+    );
+  }
+
   return NextResponse.json({
     received: true,
     eventId: event.id,

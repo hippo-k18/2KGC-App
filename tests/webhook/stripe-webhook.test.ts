@@ -125,6 +125,7 @@ const fulfilled = {
   seatsCounted: 1,
   seatAccountsCreated: 0,
   seatAccountsFailed: 0,
+  confirmationsOutstanding: [] as string[],
 };
 
 beforeEach(() => {
@@ -384,3 +385,19 @@ describe('/checkout/return applies the same rule', () => {
     expect(mocks.fulfilOrder).not.toHaveBeenCalled();
   });
 });
+
+describe('a confirmation that has not gone out', () => {
+  it('answers 503 so Stripe delivers the event again', async () => {
+    mocks.fulfilOrder.mockResolvedValue({ ...fulfilled, confirmationsOutstanding: ['reg_2'] });
+    const res = await deliver({
+      id: 'evt_unsent',
+      type: 'checkout.session.completed',
+      data: {
+        object: session({ source: CHECKOUT_SOURCE, tier: 'virtual', ticketType: 'Virtual', name: 'Ada Buyer' }),
+      },
+    });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ confirmationsOutstanding: ['reg_2'] });
+  });
+});
+

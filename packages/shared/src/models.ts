@@ -1573,6 +1573,20 @@ export interface OrderLine {
  * invoice-plus-seat-index), so a webhook replay rewrites one document instead
  * of creating a second. See `orderIdFor()` in `apps/web/src/lib/registrations.ts`.
  */
+/** One purchase confirmation's progress. See `OrderDoc.confirmations`. */
+export interface OrderConfirmation {
+  /**
+   * `pending` while a run is sending it, `sent` only once the provider took it,
+   * `failed` after a failed attempt (claimable again), and `skipped` when no
+   * email provider is configured.
+   */
+  state: 'pending' | 'sent' | 'failed' | 'skipped';
+  /** Epoch milliseconds of the last change, so a stale `pending` can be reclaimed. */
+  at: number;
+  /** Sends attempted so far. */
+  attempts: number;
+}
+
 export interface OrderDoc extends BaseDoc {
   externalId: string;
   provider: "cvent" | "stripe" | "tito" | "manual";
@@ -1635,10 +1649,18 @@ export interface OrderDoc extends BaseDoc {
   registrationIds?: string[];
 
   /**
-   * The registrations whose purchase confirmation has been sent, claimed in a
-   * transaction just before sending. A card purchase is fulfilled by both the
-   * return redirect and the webhook, either of which may be replayed; this is
-   * what makes it one email per seat rather than one per delivery.
+   * Each registration's purchase confirmation, keyed by registration id.
+   *
+   * A card purchase is fulfilled by both the return redirect and the webhook,
+   * and either may be replayed or run at the same moment; this is what makes it
+   * one email per seat rather than one per delivery, and what tells the webhook
+   * an email has not gone out yet. See `fulfil-order.ts`.
+   */
+  confirmations?: Record<string, OrderConfirmation>;
+
+  /**
+   * The first shape of `confirmations`: ids whose email was claimed. Written
+   * only by a build that never reached production; read as `sent` for safety.
    */
   confirmationsSent?: string[];
 

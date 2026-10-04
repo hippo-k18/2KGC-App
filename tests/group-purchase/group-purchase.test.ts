@@ -28,6 +28,13 @@ const mocks = vi.hoisted(() => {
     /** Addresses whose next confirmation fails, and how. Consumed once each. */
     failNext: new Map<string, 'failed' | 'throw' | 'skipped'>(),
     attempts: [] as string[],
+    /**
+     * Addresses whose next send says it has started and then waits to be let
+     * go, so a test can run the other fulfilment while it is in flight.
+     */
+    hold: new Map<string, { started: () => void; released: Promise<void> }>(),
+    /** Addresses every send to fails, like an address Resend refuses. */
+    failAlways: new Set<string>(),
   };
 });
 
@@ -54,6 +61,13 @@ vi.mock('@/lib/email', () => ({
   // throw stands in for a crash or a bug between the claim and the send.
   sendPurchaseConfirmation: async (input: { to: string; ticketType: string; registrationId?: string }) => {
     mocks.attempts.push(input.to);
+    const held = mocks.hold.get(input.to);
+    if (held) {
+      mocks.hold.delete(input.to);
+      held.started();
+      await held.released;
+    }
+    if (mocks.failAlways.has(input.to)) return 'failed';
     const fail = mocks.failNext.get(input.to);
     if (fail) {
       mocks.failNext.delete(input.to);
@@ -78,7 +92,7 @@ vi.mock('@/lib/analytics', () => ({
 import { NextRequest } from '../../apps/web/node_modules/next/server.js';
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
-import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
+import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { POST as webhook } from '@/app/api/stripe/webhook/route';
 import { GET as checkoutReturn } from '@/app/checkout/return/route';
 import { recordCartOrder, type CartSeat } from '@/app/tickets/cart-order';
@@ -117,8 +131,10 @@ beforeEach(async () => {
   mocks.sent.length = 0;
   mocks.failNext.clear();
   mocks.attempts.length = 0;
+  mocks.hold.clear();
+  mocks.failAlways.clear();
   await Promise.all(
-    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, 'referralCodes'].map(wipe),
+    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, 'referralCodes'].map(wipe),
   );
   for (const [id, name] of Object.entries(TIERS)) {
     await db.collection(COLLECTIONS.ticketTypes).doc(id).set({
@@ -186,7 +202,7 @@ async function paidCart(party: Omit<Party, 'sessionId'>, sessionId: string): Pro
   return { ...party, sessionId };
 }
 
-async function deliverWebhook(sessionId: string) {
+async function deliverWebhook(sessionId: string, expectStatus = 200) {
   const res = await webhook(
     new NextRequest('https://www.knowledgegraph.tech/api/stripe/webhook', {
       method: 'POST',
@@ -198,8 +214,34 @@ async function deliverWebhook(sessionId: string) {
       }),
     }),
   );
-  expect(res.status).toBe(200);
+  expect(res.status).toBe(expectStatus);
   return res.json();
+}
+
+/**
+ * A webhook delivery as Stripe makes it: when the route answers 503 because a
+ * confirmation is still in flight in the redirect running alongside, Stripe
+ * delivers the event again a few minutes later, by which time it has settled.
+ */
+async function stripeDelivers(sessionId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    // Stripe's "minutes later", shortened.
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 250));
+    const res = await webhook(
+      new NextRequest('https://www.knowledgegraph.tech/api/stripe/webhook', {
+        method: 'POST',
+        headers: { 'stripe-signature': 't=1,v1=x' },
+        body: JSON.stringify({
+          id: `evt_${sessionId}`,
+          type: 'checkout.session.completed',
+          data: { object: mocks.sessions.get(sessionId) },
+        }),
+      }),
+    );
+    if (res.status === 200) return res.json();
+    expect(res.status).toBe(503);
+  }
+  throw new Error('the webhook kept answering 503');
 }
 
 async function buyerReturns(sessionId: string) {
@@ -271,7 +313,7 @@ describe.each([
 
   it('is fully fulfilled when both arrive at the same moment', async () => {
     const p = await paidCart(party, `cs_test_${label}_together`);
-    await Promise.all([buyerReturns(p.sessionId), deliverWebhook(p.sessionId)]);
+    await Promise.all([buyerReturns(p.sessionId), stripeDelivers(p.sessionId)]);
     await expectFullyFulfilled(p);
   });
 
@@ -281,7 +323,7 @@ describe.each([
     await deliverWebhook(p.sessionId);
     await deliverWebhook(p.sessionId);
     await buyerReturns(p.sessionId);
-    await Promise.all([deliverWebhook(p.sessionId), buyerReturns(p.sessionId)]);
+    await Promise.all([stripeDelivers(p.sessionId), buyerReturns(p.sessionId)]);
     await expectFullyFulfilled(p);
   });
 
@@ -330,7 +372,8 @@ describe('a confirmation that fails to send', () => {
   it('is sent by the return redirect after it failed on the webhook, and not again on replay', async () => {
     const p = await paidCart({ seats: [seat('Dee Park', 'dee@example.com', 'virtual')] }, 'cs_test_fail_webhook');
     mocks.failNext.set('dee@example.com', 'failed');
-    await deliverWebhook(p.sessionId);
+    // Not sent, so Stripe is told to come back.
+    await deliverWebhook(p.sessionId, 503);
     expect(mocks.sent).toHaveLength(0);
     await buyerReturns(p.sessionId);
     await deliverWebhook(p.sessionId);
@@ -369,3 +412,75 @@ describe('a confirmation that fails to send', () => {
     expect(mocks.attempts).toEqual(['dee@example.com']);
   });
 });
+
+describe('the webhook keeps Stripe coming back until every confirmation is sent', () => {
+  const rid = (email: string) => registrationId(normaliseEmail(email));
+  const confirmation = async (sessionId: string, email: string) => {
+    const order = (await db.collection(COLLECTIONS.orders).doc(orderIdFor(sessionId)).get()).data() as OrderDoc;
+    return order.confirmations?.[rid(email)];
+  };
+
+  it.each([
+    ['the buyer', 'ada@example.com'],
+    ['seat two', 'ben@example.com'],
+  ])("sends %s's email on Stripe's redelivery when the overlapping run's send failed", async (_who, email) => {
+    // T132: the redirect claims this email and is still sending it when the
+    // webhook runs and sees the claim. The send then fails. Neither run sent
+    // it, so the webhook must not have answered 200.
+    const p = await paidCart(TWO, `cs_test_overlap_${email}`);
+    let started!: () => void;
+    const inFlight = new Promise<void>((r) => (started = r));
+    let release!: () => void;
+    const released = new Promise<void>((r) => (release = r));
+    mocks.hold.set(email, { started, released });
+    mocks.failNext.set(email, 'failed');
+
+    const redirect = buyerReturns(p.sessionId);
+    await inFlight;
+    const hook = await deliverWebhook(p.sessionId, 503);
+    expect(hook).toMatchObject({ confirmationsOutstanding: [rid(email)] });
+    release();
+    await redirect;
+    expect(mocks.sent.map((m) => m.to)).not.toContain(email);
+
+    // Stripe redelivers a few minutes later.
+    await deliverWebhook(p.sessionId);
+    await deliverWebhook(p.sessionId);
+    await expectFullyFulfilled(p);
+  });
+
+  it('gives up after five failed attempts, answers 200, and tells organizers once', async () => {
+    const p = await paidCart(TWO, 'cs_test_bad_address');
+    mocks.failAlways.add('ben@example.com');
+    for (let i = 0; i < 4; i += 1) await deliverWebhook(p.sessionId, 503);
+    const fifth = await deliverWebhook(p.sessionId);
+    expect(fifth.confirmationsOutstanding).toBeUndefined();
+    await deliverWebhook(p.sessionId);
+    await buyerReturns(p.sessionId);
+
+    expect(mocks.attempts.filter((a) => a === 'ben@example.com')).toHaveLength(5);
+    expect(mocks.sent.map((m) => m.to)).toEqual(['ada@example.com']);
+    expect(await confirmation(p.sessionId, 'ben@example.com')).toMatchObject({ state: 'failed', attempts: 5 });
+    const warnings = await db.collection(COLLECTIONS.auditLog).where('action', '==', 'confirmation.undelivered').get();
+    expect(warnings.size).toBe(1);
+  });
+
+  it('reclaims a send left pending by a crash once it is stale, and not before', async () => {
+    const p = await paidCart(TWO, 'cs_test_stale');
+    const oid = orderIdFor(p.sessionId);
+    // A run claimed Ben's email and died before recording the outcome.
+    await db.collection(COLLECTIONS.orders).doc(oid).update({
+      [`confirmations.${rid('ben@example.com')}`]: { state: 'pending', at: Date.now(), attempts: 1 },
+    });
+    await deliverWebhook(p.sessionId, 503);
+    expect(mocks.attempts).not.toContain('ben@example.com');
+
+    await db.collection(COLLECTIONS.orders).doc(oid).update({
+      [`confirmations.${rid('ben@example.com')}.at`]: Date.now() - 10 * 60_000,
+    });
+    await deliverWebhook(p.sessionId);
+    await deliverWebhook(p.sessionId);
+    await expectFullyFulfilled(p);
+  });
+});
+
