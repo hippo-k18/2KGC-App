@@ -15,6 +15,7 @@ import { claimAnswers } from '@/lib/question-forms';
 import { ensureRegistration, fulfilPurchase, orderIdFor } from '@/lib/registrations';
 import { ensureReferralCode, recordReferral, type ReferralUtm } from '@kgc/scripts/src/lib/referrals';
 import { isOrderSettledError } from '@kgc/scripts/src/lib/fulfilment';
+import { CONFIRMATION_ATTEMPTS, claimOnOrder, isSettledOrder } from '@kgc/scripts/src/lib/order-claims';
 
 /**
  * Turning a settled purchase into everything a purchase produces.
@@ -158,17 +159,17 @@ async function grantSeatEntitlements(
  * fifth failure organizers get an `auditLog` warning, the `emailLog` row stays
  * `failed`, and "Resend confirmation" on the attendee is the way out.
  */
-export const CONFIRMATION_ATTEMPTS = 5;
+export { CONFIRMATION_ATTEMPTS };
 
 /**
- * How long a `pending` claim stands before another run may take it over.
+ * How long a `pending` claim stands before another run may take it over
+ * (`STALE_PENDING_MS` in `@kgc/scripts` order-claims).
  *
  * A send takes seconds; a claim still pending after five minutes belongs to a
  * run that crashed or was restarted mid-send, and would otherwise block that
  * email for good. Long enough that no live send is still in flight, so taking
  * it over cannot double-send.
  */
-const STALE_PENDING_MS = 5 * 60_000;
 
 /**
  * Whether this run is the one that sends `rid` its purchase confirmation: the
@@ -197,35 +198,16 @@ export async function claimConfirmation(
   opts: { evenIfSettled?: boolean } = {},
 ): Promise<number | null> {
   try {
-    const ref = db().collection(COLLECTIONS.orders).doc(orderId);
-    return await db().runTransaction(async (tx) => {
-      const order = (await tx.get(ref)).data() as OrderDoc | undefined;
-      // No confirmation for a ticket whose money has gone back (T135, TK-163).
-      if (isSettled(order) && !opts.evenIfSettled) return null;
-      if (order?.confirmationsSent?.includes(rid)) return null;
-      const prev = order?.confirmations?.[rid];
-      if (!claimable(prev, Date.now())) return null;
-      const attempts = (prev?.attempts ?? 0) + 1;
-      tx.set(ref, { confirmations: { [rid]: { state: 'pending', at: Date.now(), attempts } } }, { merge: true });
-      return attempts;
-    });
+    // Shared with the dashboard's mark-paid, which claims an invoice's seats
+    // on the same map (T139, TK-288).
+    return await claimOnOrder(db(), orderId, rid, opts);
   } catch (err) {
     await recordError('order.confirmationClaim', err, { path: 'orders', id: orderId });
     return 1;
   }
 }
 
-/** Refunded or cancelled: an order that issues and confirms nothing more. */
-function isSettled(order: Pick<OrderDoc, 'status'> | undefined): boolean {
-  return order?.status === 'refunded' || order?.status === 'cancelled';
-}
-
-function claimable(c: OrderConfirmation | undefined, now: number): boolean {
-  if (!c) return true;
-  if (c.state === 'sent' || c.state === 'skipped') return false;
-  if (c.state === 'pending') return now - c.at > STALE_PENDING_MS;
-  return c.attempts < CONFIRMATION_ATTEMPTS;
-}
+const isSettled = isSettledOrder;
 
 /**
  * Whether the webhook still owes Stripe a retry for this confirmation: it has

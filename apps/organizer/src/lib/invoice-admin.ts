@@ -120,7 +120,20 @@ export async function markInvoicePaidOutOfBand(input: {
   const origin = publicSiteOrigin();
 
   for (const m of minted) {
-    await sendPurchaseConfirmation(db(), {
+    /**
+     * Claimed on the order with the same map the website uses, so a later
+     * `invoice.paid` does not email every seat again (T138B, TK-288), and a
+     * second press here does not either. A failed claim still sends: a
+     * missing ticket email is the worse outcome.
+     */
+    let attempt: number | null = 1;
+    try {
+      attempt = await claimOnOrder(db(), order.id, m.rid);
+    } catch (err) {
+      recordError('invoice.markPaid claim', err);
+    }
+    if (attempt === null) continue;
+    const outcome = await sendPurchaseConfirmation(db(), {
       to: m.email,
       name: m.name,
       ticketType: m.ticketType,
@@ -134,6 +147,11 @@ export async function markInvoicePaidOutOfBand(input: {
       orderId: order.id,
       registrationId: m.rid,
     });
+    try {
+      await settleOnOrder(db(), order.id, m.rid, attempt, outcome);
+    } catch (err) {
+      recordError('invoice.markPaid settle', err);
+    }
   }
 
   return registrationIds;
