@@ -1,8 +1,7 @@
 import 'server-only';
 
 import { COLLECTIONS } from '@kgc/shared';
-import { ipCounterId, tickWindow, type WindowCounterDoc } from '@kgc/scripts/src/lib/rate-limit';
-import { recordError } from './errors';
+import { ipCounterId } from '@kgc/scripts/src/lib/rate-limit';
 import { db } from './firestore';
 
 /**
@@ -37,29 +36,56 @@ export function checkoutCallerIp(headers: { get(name: string): string | null }):
 /**
  * Count one checkout start for `ip`, and say whether it may go ahead.
  *
- * Fails open: with no address to count, or a counter that cannot be written,
- * the buyer is let through and the error is recorded. Refusing a paying
- * customer because the limiter broke is the worse outcome.
+ * ── Slots, not a counter ────────────────────────────────────────────────────
+ *
+ * The first version kept one counter document per address and moved it in a
+ * transaction. Under a burst every request fought for that one document,
+ * Firestore aborted most of the transactions, and the limiter, failing open,
+ * let them all through: 200 requests at once made 200 sessions (T138B,
+ * TK-401), and each abort wrote an auditLog row that pushed real alerts off
+ * Tools > Report.
+ *
+ * Now each window has `CHECKOUT_STARTS_PER_WINDOW` slot documents per address,
+ * and a start is allowed only if it creates one of them. `create` is atomic
+ * and needs no transaction: it either writes or fails with ALREADY_EXISTS, so
+ * however many requests arrive together, exactly that many succeed. The
+ * window is fixed (aligned to the clock), which is enough to stop a flood.
+ *
+ * Still fails open on an unexpected error, because refusing a paying buyer
+ * over a broken limiter is the worse outcome, but only to the server log.
  */
-export async function checkoutStartAllowed(ip: string | undefined): Promise<boolean> {
+export async function checkoutStartAllowed(ip: string | undefined, now = Date.now()): Promise<boolean> {
   if (!ip) return true;
+  const window = Math.floor(now / CHECKOUT_WINDOW_MS);
+  const base = `${ipCounterId('startCheckout', ip)}_w${window}`;
+  const col = db().collection(COLLECTIONS.rateLimits);
+  const slots = Array.from({ length: CHECKOUT_STARTS_PER_WINDOW }, (_, i) => col.doc(`${base}_${i}`));
+
   try {
-    const ref = db().collection(COLLECTIONS.rateLimits).doc(ipCounterId('startCheckout', ip));
-    return await db().runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      const next = tickWindow(
-        snap.data() as WindowCounterDoc | undefined,
-        'startCheckout-ip',
-        new Date(),
-        CHECKOUT_WINDOW_MS,
-        CHECKOUT_STARTS_PER_WINDOW,
-      );
-      if (!next) return false;
-      tx.set(ref, next);
-      return true;
-    });
+    // One read to skip the slots already taken, then try the free ones from a
+    // random starting point, so a burst does not queue on slot 0.
+    const taken = new Set((await db().getAll(...slots)).filter((d) => d.exists).map((d) => d.id));
+    const free = slots.filter((s) => !taken.has(s.id));
+    const start = Math.floor(Math.random() * Math.max(1, free.length));
+    for (let k = 0; k < free.length; k += 1) {
+      const slot = free[(start + k) % free.length];
+      try {
+        await slot.create({
+          kind: 'startCheckout-slot',
+          windowStart: new Date(window * CHECKOUT_WINDOW_MS),
+          // For the TTL policy on `rateLimits`; see `@kgc/scripts` rate-limit.ts.
+          expiresAt: new Date((window + 1) * CHECKOUT_WINDOW_MS),
+        });
+        return true;
+      } catch (err) {
+        // ALREADY_EXISTS: somebody else in this burst took it. Try the next.
+        if ((err as { code?: unknown }).code === 6) continue;
+        throw err;
+      }
+    }
+    return false;
   } catch (err) {
-    await recordError('checkout.rateLimit', err, { path: 'rateLimits', id: 'startCheckout' });
+    console.error('[checkout] rate limiter failed, letting the request through', err);
     return true;
   }
 }

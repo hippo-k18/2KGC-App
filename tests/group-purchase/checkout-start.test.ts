@@ -46,7 +46,7 @@ vi.mock('@/lib/stripe', () => ({
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import { startCheckout } from '@/app/tickets/actions';
-import { CHECKOUT_STARTS_PER_WINDOW } from '@/lib/checkout-limit';
+import { CHECKOUT_STARTS_PER_WINDOW, CHECKOUT_WINDOW_MS, checkoutStartAllowed } from '@/lib/checkout-limit';
 import { db as webDb } from '@/lib/firestore';
 
 let db: Firestore;
@@ -122,6 +122,25 @@ describe('a flood of checkouts from one connection (S7, TK-401)', () => {
     mocks.ip = '203.0.113.8';
     expect((await submit(twoSeats())).url).toBeDefined();
   });
+});
+
+describe('a burst from one connection (T138B, TK-401)', () => {
+  it('lets exactly the limit through when 200 arrive at once, and logs nothing to the audit trail', async () => {
+    const results = await Promise.all(Array.from({ length: 200 }, () => submit(twoSeats())));
+    expect(results.filter((r) => r.url)).toHaveLength(CHECKOUT_STARTS_PER_WINDOW);
+    expect(mocks.created).toHaveLength(CHECKOUT_STARTS_PER_WINDOW);
+    expect((await db.collection(COLLECTIONS.orders).get()).size).toBe(CHECKOUT_STARTS_PER_WINDOW);
+    expect((await db.collection(COLLECTIONS.auditLog).get()).size).toBe(0);
+  }, 120_000);
+
+  it('holds for repeated bursts against the limiter itself, and opens again next window', async () => {
+    const now = Date.UTC(2026, 9, 4, 12, 0, 0);
+    for (let burst = 0; burst < 3; burst += 1) {
+      const allowed = await Promise.all(Array.from({ length: 200 }, () => checkoutStartAllowed('198.51.100.9', now)));
+      expect(allowed.filter(Boolean)).toHaveLength(burst === 0 ? CHECKOUT_STARTS_PER_WINDOW : 0);
+    }
+    expect(await checkoutStartAllowed('198.51.100.9', now + CHECKOUT_WINDOW_MS)).toBe(true);
+  }, 120_000);
 });
 
 describe('a crafted tier id (TK-404)', () => {
