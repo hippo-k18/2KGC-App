@@ -664,6 +664,11 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
       ? { seatAccountsCreated: outcome.seatAccountsCreated }
       : {}),
     ...(outcome.seatAccountsFailed > 0 ? { seatAccountsFailed: outcome.seatAccountsFailed } : {}),
+  // Refunded or cancelled before this delivery: acknowledged, nothing issued.
+  if (outcome.settled) {
+    return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${outcome.settled}` });
+  }
+
   });
 }
 

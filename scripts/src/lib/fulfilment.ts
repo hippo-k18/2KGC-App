@@ -64,6 +64,29 @@ import {
  * immaterial for audit fields written by a trusted server we control.
  */
 
+/** Order statuses that never issue or re-activate a ticket. */
+const SETTLED: string[] = ["refunded", "cancelled"];
+
+/**
+ * Thrown by `ensureRegistration` when the order it is asked to issue a ticket
+ * for has been refunded or cancelled. Recognise it by `code`, not
+ * `instanceof`: each app resolves its own copy of this package's dependencies.
+ */
+export class OrderSettledError extends Error {
+  readonly code = "order-settled";
+  constructor(
+    readonly orderId: string,
+    readonly status: string,
+  ) {
+    super(`Order ${orderId} is ${status}, so no ticket was issued for it.`);
+    this.name = "OrderSettledError";
+  }
+}
+
+export function isOrderSettledError(err: unknown): err is OrderSettledError {
+  return (err as { code?: unknown } | null)?.code === "order-settled";
+}
+
 /** What a caller needs back. Never includes `qrSecret`. */
 export interface FulfilledRegistration {
   registrationId: string;
@@ -156,16 +179,26 @@ export async function ensureRegistration(
      * the registration names this order and seat, or (for one written before
      * `orderId` existed) this order already lists it.
      */
+    /**
+     * A refunded or cancelled order issues nothing, ever: not a new ticket and
+     * not the old one back. A replayed sale, the buyer reopening the return
+     * page from history, or a refund that reached us before the sale itself all
+     * land here with the money already gone back, and an `active` write would
+     * hand them a ticket the check-in desk accepts (T135, S12/S13). Re-enabling
+     * a refunded or disputed ticket is an organizer's decision, made on the
+     * dashboard.
+     */
+    if (purchase && SETTLED.includes((order?.data() as OrderDoc | undefined)?.status ?? "")) {
+      throw new OrderSettledError(purchase.orderId, (order!.data() as OrderDoc).status);
+    }
+
     let snap = base;
     if (purchase && base.exists) {
       const prev = base.data() as RegistrationDoc;
       const listed = ((order?.data() as OrderDoc | undefined)?.registrationIds ?? []).includes(baseId);
       const sameSeat =
         prev.orderId === undefined ? listed : prev.orderId === purchase.orderId && (prev.seat ?? 0) === purchase.seat;
-      // A replay of an order that has since been refunded or cancelled never
-      // mints a new ticket; it falls back to the old one-per-address update.
-      const settled = ["refunded", "cancelled"].includes((order?.data() as OrderDoc | undefined)?.status ?? "");
-      if (prev.status === "active" && !sameSeat && !settled) {
+      if (prev.status === "active" && !sameSeat) {
         snap = await tx.get(regs.doc(purchaseRegistrationId(email, purchase.orderId, purchase.seat)));
       }
     }

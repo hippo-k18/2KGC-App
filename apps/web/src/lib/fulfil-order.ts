@@ -14,6 +14,7 @@ import { mintOrderToken } from '@/lib/order-token';
 import { claimAnswers } from '@/lib/question-forms';
 import { ensureRegistration, fulfilPurchase, orderIdFor } from '@/lib/registrations';
 import { ensureReferralCode, recordReferral, type ReferralUtm } from '@kgc/scripts/src/lib/referrals';
+import { isOrderSettledError } from '@kgc/scripts/src/lib/fulfilment';
 
 /**
  * Turning a settled purchase into everything a purchase produces.
@@ -105,6 +106,12 @@ export interface FulfilOrderResult {
    * The webhook answers 5xx while this is non-empty so Stripe comes back.
    */
   confirmationsOutstanding: string[];
+  /**
+   * Set when the order had already been refunded or cancelled, and so nothing
+   * was issued, re-activated or emailed. `registrationId` is then the order's
+   * first ticket, now cancelled, or `''` when it never had one.
+   */
+  settled?: OrderDoc['status'];
 }
 
 /**
@@ -185,6 +192,8 @@ async function claimConfirmation(orderId: string, rid: string): Promise<number |
     const ref = db().collection(COLLECTIONS.orders).doc(orderId);
     return await db().runTransaction(async (tx) => {
       const order = (await tx.get(ref)).data() as OrderDoc | undefined;
+      // No confirmation for a ticket whose money has gone back (T135, TK-163).
+      if (isSettled(order)) return null;
       if (order?.confirmationsSent?.includes(rid)) return null;
       const prev = order?.confirmations?.[rid];
       if (!claimable(prev, Date.now())) return null;
@@ -196,6 +205,11 @@ async function claimConfirmation(orderId: string, rid: string): Promise<number |
     await recordError('order.confirmationClaim', err, { path: 'orders', id: orderId });
     return 1;
   }
+}
+
+/** Refunded or cancelled: an order that issues and confirms nothing more. */
+function isSettled(order: Pick<OrderDoc, 'status'> | undefined): boolean {
+  return order?.status === 'refunded' || order?.status === 'cancelled';
 }
 
 function claimable(c: OrderConfirmation | undefined, now: number): boolean {
@@ -288,6 +302,7 @@ async function settleConfirmation(
 async function confirmationsOutstanding(orderId: string, rids: string[]): Promise<string[]> {
   try {
     const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
+    if (isSettled(order)) return [];
     return [...new Set(rids)].filter(
       (rid) => !order?.confirmationsSent?.includes(rid) && outstanding(order?.confirmations?.[rid]),
     );
@@ -297,8 +312,49 @@ async function confirmationsOutstanding(orderId: string, rids: string[]): Promis
   }
 }
 
+/**
+ * What a run reports for an order that was refunded or cancelled before it got
+ * here: nothing issued, nothing counted, nothing owed.
+ */
+async function settledResult(orderId: string): Promise<FulfilOrderResult> {
+  const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
+  return {
+    registrationId: order?.registrationIds?.[0] ?? '',
+    created: false,
+    account: 'existing',
+    seats: Math.max(1, order?.items?.length ?? 1),
+    seatsRegistered: 0,
+    seatsCounted: 0,
+    seatAccountsCreated: 0,
+    seatAccountsFailed: 0,
+    confirmationsOutstanding: [],
+    settled: order?.status ?? 'cancelled',
+  };
+}
+
 export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderResult> {
   const { externalId, tierId, origin } = input;
+  const oid = orderIdFor(externalId);
+
+  /**
+   * A refunded or cancelled order is finished. Stripe redelivering the sale,
+   * the buyer reopening `/checkout/return` from their history, or a refund
+   * that overtook the sale all arrive here after the money went back, and
+   * every one of them used to put the tickets back to `active` and send the
+   * confirmation again (T135, S12/S13). `ensureRegistration` refuses the same
+   * thing inside its transaction, which covers a refund landing mid-run.
+   */
+  const before = (await db().collection(COLLECTIONS.orders).doc(oid).get()).data() as OrderDoc | undefined;
+  if (isSettled(before)) return settledResult(oid);
+
+  /**
+   * Every confirmation carries a signed `/order/` link, and signing needs
+   * `WEB_ORDER_SECRET`. Without it this used to write the tickets and then
+   * throw at the first email, leaving active tickets nobody was told about
+   * (T135, TK-326). Minting one up front throws before anything is written;
+   * the webhook answers 5xx and Stripe redelivers once the setting is fixed.
+   */
+  mintOrderToken({ rid: 'preflight' });
 
   /**
    * Who else is on this purchase — read **before** fulfilment, not after.
@@ -316,27 +372,33 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    */
   const cart = await cartLines(externalId);
 
-  const result = await fulfilPurchase({
-    email: input.email,
-    name: input.name,
-    ticketType: input.ticketType,
-    externalId,
-    amountCents: input.amountCents,
-    currency: input.currency,
-    paid: true,
-    channel: input.channel,
-    tierId,
-    buyerName: input.buyerName,
-    subtotalCents: input.subtotalCents,
-    taxCents: input.taxCents,
-    discountCents: input.discountCents,
-    promotionCode: input.promotionCode,
-    campaignCode: input.campaignCode,
-    answers: await claimAnswers(input.answersRef),
-    stripeCustomerId: input.stripeCustomerId,
-    stripePaymentIntentId: input.stripePaymentIntentId,
-    stripeChargeId: input.stripeChargeId,
-  });
+  let result: Awaited<ReturnType<typeof fulfilPurchase>>;
+  try {
+    result = await fulfilPurchase({
+      email: input.email,
+      name: input.name,
+      ticketType: input.ticketType,
+      externalId,
+      amountCents: input.amountCents,
+      currency: input.currency,
+      paid: true,
+      channel: input.channel,
+      tierId,
+      buyerName: input.buyerName,
+      subtotalCents: input.subtotalCents,
+      taxCents: input.taxCents,
+      discountCents: input.discountCents,
+      promotionCode: input.promotionCode,
+      campaignCode: input.campaignCode,
+      answers: await claimAnswers(input.answersRef),
+      stripeCustomerId: input.stripeCustomerId,
+      stripePaymentIntentId: input.stripePaymentIntentId,
+      stripeChargeId: input.stripeChargeId,
+    });
+  } catch (err) {
+    if (isOrderSettledError(err)) return settledResult(oid);
+    throw err;
+  }
 
   /**
    * What each seat cost, from one figure reported for the whole payment.
@@ -369,7 +431,6 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    * rather than overwriting that one. One address may hold several tickets
    * since 2026-09-26; the dashboard flags it.
    */
-  const oid = orderIdFor(externalId);
   let buyerSeen = false;
   const registrationIds = [result.registrationId];
   const entitlementsFor = new Map<string, Awaited<ReturnType<typeof tierFulfilment>>>();
@@ -390,13 +451,20 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
       continue;
     }
 
-    const seat = await ensureRegistration({
-      email: seatEmail,
-      name: line.attendeeName ?? '',
-      ticketType: line.ticketTypeName,
-      // Seat 0 is the buyer's, in `fulfilPurchase`; cart positions start at 1.
-      purchase: { orderId: oid, seat: i + 1 },
-    });
+    let seat: Awaited<ReturnType<typeof ensureRegistration>>;
+    try {
+      seat = await ensureRegistration({
+        email: seatEmail,
+        name: line.attendeeName ?? '',
+        ticketType: line.ticketTypeName,
+        // Seat 0 is the buyer's, in `fulfilPurchase`; cart positions start at 1.
+        purchase: { orderId: oid, seat: i + 1 },
+      });
+    } catch (err) {
+      // Refunded while this run was walking the seats.
+      if (isOrderSettledError(err)) return settledResult(oid);
+      throw err;
+    }
     registrationIds.push(seat.registrationId);
     seatsRegistered += 1;
     seatOutcomes.push({ created: seat.created, ticketTypeId: line.ticketTypeId });
