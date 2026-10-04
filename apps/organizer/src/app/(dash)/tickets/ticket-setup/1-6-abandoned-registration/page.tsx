@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listOrders, money } from '@/lib/commerce';
+import { isAbandoned, listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stampOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
@@ -14,8 +14,9 @@ export const dynamic = 'force-dynamic';
  *
  * Stripe emits `checkout.session.expired` when a Checkout session is left
  * unpaid (24 hours by default), and the webhook in `apps/web` already handles
- * it: `cancelRegistrationByOrder({ reason: 'payment_failed' })` moves the order
- * to `cancelled`, so an abandonment stops saying `pending` for ever. Those
+ * it: `cancelUnpaidOrder` moves a pending order to `cancelled`, so an
+ * abandonment stops saying `pending` for ever. A disputed sale is `cancelled`
+ * too, and is left out here (`isAbandoned`). Those
  * orders are visible in Attendee Orders under the `cancelled` filter. This
  * screen is that same set, framed as what it is.
  *
@@ -23,8 +24,8 @@ export const dynamic = 'force-dynamic';
  *
  * A **single-seat** card purchase writes no order at checkout time — the order
  * document is created at fulfilment, from the webhook. So when one of those
- * expires there is nothing to update, and `cancelRegistrationByOrder` takes its
- * not-found branch: it writes the order anyway, deliberately, so the finance
+ * expires there is nothing to update, and `cancelUnpaidOrder` writes the order
+ * anyway, deliberately, so the finance
  * trail is complete, with `email: ''` and `totalCents: 0`.
  *
  * ⚠️ A **multi-seat** cart is the exception, as of 2026-08-31. It writes a
@@ -44,7 +45,7 @@ export default async function AbandonedRegistrationPage() {
   await requireOrganizer();
   const orders = await listOrders();
 
-  const abandoned = orders.filter((o) => o.status === 'cancelled');
+  const abandoned = orders.filter(isAbandoned);
   const withEmail = abandoned.filter((o) => o.email);
   const orphans = abandoned.length - withEmail.length;
   const pendingInvoices = orders.filter((o) => o.status === 'pending' && o.channel === 'invoice');

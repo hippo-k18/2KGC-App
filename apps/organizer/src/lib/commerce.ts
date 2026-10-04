@@ -83,6 +83,8 @@ export interface OrderRow {
   /** ISO 8601, so the client can format without a Timestamp class. */
   purchasedAt: string;
   refundedAt?: string;
+  /** Set when a chargeback cancelled the order. */
+  disputedAt?: string;
   promotionCode?: string;
   /** The tracked link this purchase came through. See `OrderDoc.campaignCode`. */
   campaignCode?: string;
@@ -140,6 +142,7 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     currency: o.currency,
     purchasedAt: iso(o.purchasedAt) ?? new Date(0).toISOString(),
     refundedAt: iso(o.refundedAt),
+    disputedAt: iso(o.disputedAt),
     promotionCode: o.promotionCode,
     campaignCode: o.campaignCode,
     poNumber: o.poNumber,
@@ -171,6 +174,16 @@ function toRow(id: string, o: OrderDoc): OrderRow {
 }
 
 /** Every order for this event, newest purchase first. */
+/**
+ * A checkout that was started and never paid: `cancelled` with no ticket ever
+ * issued. A paid order that a chargeback cancelled is also `cancelled`, and
+ * was listed on Abandoned Registration as "No money moved" (T135B, TK-303);
+ * it has `disputedAt` since T136 and issued tickets either way.
+ */
+export function isAbandoned(o: Pick<OrderRow, 'status' | 'disputedAt' | 'registrationIds'>): boolean {
+  return o.status === 'cancelled' && !o.disputedAt && o.registrationIds.length === 0;
+}
+
 export async function listOrders(): Promise<OrderRow[]> {
   const snap = await db().collection(COLLECTIONS.orders).where('eventId', '==', EVENT_ID).get();
   return snap.docs

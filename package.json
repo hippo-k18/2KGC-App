@@ -26,6 +26,7 @@
     "test:commerce": "firebase emulators:exec --only firestore,auth \"vitest run tests/commerce --no-file-parallelism\"",
     "test:webhook": "vitest run --config tests/webhook/vitest.config.mts",
     "test:group-purchase": "firebase emulators:exec --only firestore \"vitest run --config tests/group-purchase/vitest.config.mts\"",
+    "test:dashboard-orders": "firebase emulators:exec --only firestore,auth \"vitest run --config tests/dashboard-orders/vitest.config.mts\"",
     "test:cfa": "firebase emulators:exec --only firestore --config firebase.cfa-test.json --project kgc-cfa-test \"vitest run --config vitest.cfa.mts\"",
     "test:denormalise": "firebase emulators:exec --only firestore \"vitest run tests/denormalise\"",
     "test:attendance": "firebase emulators:exec --only firestore \"vitest run tests/attendance\"",
