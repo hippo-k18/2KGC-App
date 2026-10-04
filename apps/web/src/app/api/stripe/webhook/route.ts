@@ -22,6 +22,7 @@ import {
 } from '@/lib/email';
 import { claimConfirmation, confirmationsOutstanding, sendClaimed } from '@/lib/fulfil-order';
 import { isOrderSettledError } from '@kgc/scripts/src/lib/fulfilment';
+import { countOrderSeatsOnce } from '@kgc/scripts/src/lib/order-claims';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
@@ -550,7 +551,6 @@ export async function POST(req: NextRequest) {
         }
         registered.push(result.registrationId);
 
-        if (seat.ticketTypeId && result.created) await incrementSold(seat.ticketTypeId);
 
         /**
          * One account per attendee, not one per order.
@@ -596,6 +596,19 @@ export async function POST(req: NextRequest) {
             }),
           );
         }
+      }
+
+      /**
+       * Capacity, once for the whole invoice. Counting only the seats this
+       * delivery created missed every seat the dashboard's mark-paid had
+       * already registered, so those were never counted at all (T135B, N2).
+       * `countOrderSeatsOnce` is shared with mark-paid and counts the order
+       * once, whichever of the two runs first.
+       */
+      try {
+        await countOrderSeatsOnce(db(), oid, seats.map((s) => s.ticketTypeId));
+      } catch (err) {
+        await recordError('invoice.count', err, { path: 'orders', id: oid });
       }
 
       if (oversold.length > 0) {

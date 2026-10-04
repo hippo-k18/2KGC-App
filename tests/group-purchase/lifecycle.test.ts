@@ -501,3 +501,62 @@ describe('an invoice seat that names no ticket (S11, TK-256)', () => {
     expect(warned.docs[0].data().after.seats).toEqual(['ben@example.com']);
   });
 });
+
+describe('an invoice marked paid on the dashboard, then paid in Stripe (T138B, N2/TK-288)', () => {
+  async function markedPaid(invoiceId: string) {
+    await recordInvoiceOrder({
+      invoiceId,
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    // The dashboard's own code, against the same emulator.
+    const { markInvoicePaidOutOfBand } = await import('../../apps/organizer/src/lib/invoice-admin');
+    const oid = invoiceOrderId(invoiceId);
+    await markInvoicePaidOutOfBand({
+      order: { id: oid, totalCents: 20_000, currency: 'usd', poNumber: 'PO-1' } as Parameters<
+        typeof markInvoicePaidOutOfBand
+      >[0]['order'],
+      actor: 'organizer@example.com',
+      note: 'Wire received',
+    });
+    return oid;
+  }
+  const invoicePaid = (id: string) =>
+    deliver('invoice.paid', { id, object: 'invoice', total: 20_000, currency: 'usd', metadata: {} });
+
+  it('counts each seat once, whichever path ran (N2)', async () => {
+    const oid = await markedPaid('in_marked');
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('virtual')).toBe(1);
+    expect((await invoicePaid('in_marked')).status).toBe(200);
+    expect((await invoicePaid('in_marked')).status).toBe(200);
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('virtual')).toBe(1);
+    expect(await statuses(oid)).toEqual(['active', 'active']);
+  });
+
+  it('emails each seat once between the dashboard and Stripe (TK-288)', async () => {
+    const oid = await markedPaid('in_marked_mail');
+    expect((await db.collection(COLLECTIONS.emailLog).where('orderId', '==', oid).get()).size).toBe(2);
+    expect((await invoicePaid('in_marked_mail')).status).toBe(200);
+    expect((await invoicePaid('in_marked_mail')).status).toBe(200);
+    expect(mocks.sent).toHaveLength(0);
+  });
+
+  it('counts an invoice paid only in Stripe once, however often it is delivered', async () => {
+    await recordInvoiceOrder({
+      invoiceId: 'in_stripe_only',
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    for (let i = 0; i < 3; i += 1) expect((await invoicePaid('in_stripe_only')).status).toBe(200);
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('virtual')).toBe(1);
+  });
+});

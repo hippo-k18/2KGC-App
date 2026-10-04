@@ -1626,6 +1626,12 @@ export interface OrderDoc extends BaseDoc {
    * leave `registrationIds`, and their seat is in `releasedSeats` (T135B, TK-502).
    */
   erasedRegistrationIds?: string[];
+  /**
+   * When this order's seats were counted in `quantitySold`. Written in the same
+   * transaction as the counts, so the dashboard's mark-paid and Stripe's
+   * `invoice.paid` count an invoice once between them (T139, N2).
+   */
+  seatsCountedAt?: Timestamp;
 
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;

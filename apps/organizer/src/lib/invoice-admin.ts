@@ -5,6 +5,8 @@ import { COLLECTIONS, publicSiteOrigin } from '@kgc/shared';
 import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
 import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
+import { claimOnOrder, countOrderSeatsOnce, settleOnOrder } from '@kgc/scripts/src/lib/order-claims';
+import { recordError } from './errors';
 import type { OrderRow } from './commerce';
 import { db } from './firestore';
 
@@ -50,6 +52,7 @@ export async function markInvoicePaidOutOfBand(input: {
   if (!snap.exists) throw new Error('That order no longer exists.');
 
   const seats = (snap.data()?.items ?? []) as {
+    ticketTypeId?: string;
     ticketTypeName: string;
     attendeeName?: string;
     attendeeEmail?: string;
@@ -85,6 +88,14 @@ export async function markInvoicePaidOutOfBand(input: {
       code: result.claimCode,
     });
   }
+
+  /**
+   * The seats against capacity, once for the order. Mark-paid counted nothing,
+   * and the later `invoice.paid` counted only seats it created, which by then
+   * was none (T135B, N2). Before the status changes, which is what tells
+   * `countOrderSeatsOnce` this is not an order the webhook already counted.
+   */
+  await countOrderSeatsOnce(db(), order.id, payable.map((s) => s.ticketTypeId ?? ''));
 
   await orderRef.update({
     status: 'paid',
