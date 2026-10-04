@@ -43,7 +43,13 @@ vi.mock('@/lib/stripe', () => ({
     checkout: { sessions: { retrieve: mocks.sessionsRetrieve, list: vi.fn() } },
   }),
 }));
-vi.mock('@/lib/fulfil-order', () => ({ fulfilOrder: mocks.fulfilOrder }));
+vi.mock('@/lib/fulfil-order', () => ({
+  fulfilOrder: mocks.fulfilOrder,
+  // The invoice path claims each seat's email the same way a card purchase does.
+  claimConfirmation: async () => 1,
+  sendClaimed: async (_claim: unknown, send: () => Promise<unknown>) => void (await send()),
+  confirmationsOutstanding: async () => [],
+}));
 vi.mock('@/lib/errors', () => ({
   recordWarning: mocks.recordWarning,
   recordError: mocks.recordError,
@@ -77,7 +83,10 @@ vi.mock('@/lib/email', () => ({
   sendRefundConfirmation: vi.fn(),
   sendTicketWithdrawn: vi.fn(),
 }));
-vi.mock('@/lib/firestore', () => ({ db: vi.fn() }));
+// Every order read finds nothing: the invoice has not been refunded.
+vi.mock('@/lib/firestore', () => ({
+  db: () => ({ collection: () => ({ doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) }) }),
+}));
 vi.mock('@/lib/order-token', () => ({ mintOrderToken: () => 'token' }));
 vi.mock('@/app/tickets/cart-order', () => ({ cartLines: vi.fn() }));
 
