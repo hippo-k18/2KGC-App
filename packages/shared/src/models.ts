@@ -1635,6 +1635,14 @@ export interface OrderDoc extends BaseDoc {
   registrationIds?: string[];
 
   /**
+   * The registrations whose purchase confirmation has been sent, claimed in a
+   * transaction just before sending. A card purchase is fulfilled by both the
+   * return redirect and the webhook, either of which may be replayed; this is
+   * what makes it one email per seat rather than one per delivery.
+   */
+  confirmationsSent?: string[];
+
+  /**
    * Seats an organizer gave back by cancelling an attendee without refunding
    * the order, as `registrationId → ticketTypeId`.
    *

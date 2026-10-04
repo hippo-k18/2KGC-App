@@ -21,10 +21,9 @@ import {
 } from '@/lib/email';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
-import { fulfilOrder } from '@/lib/fulfil-order';
+import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
-import { referralFromMetadata } from '@/lib/referral-capture';
 import {
   cancelRegistrationByOrder,
   ensureRegistration,
@@ -559,45 +558,13 @@ async function sessionIdForPaymentIntent(
 }
 
 /**
- * Everything about a Checkout session the order record wants, fetched in one
- * call.
- *
- * The event payload carries most of it, but not the charge id — that lives two
- * hops away on the payment intent, and it is the id an organizer needs to find
- * the payment in the Stripe dashboard or to issue a refund against it. One
- * retrieve with an expansion beats three round trips, and a failure here is
- * survivable: the order simply records less.
- */
-async function sessionDetail(session: Stripe.Checkout.Session): Promise<{
-  chargeId?: string;
-  promotionCode?: string;
-}> {
-  try {
-    const full = await stripe().checkout.sessions.retrieve(session.id, {
-      expand: ['payment_intent', 'discounts.promotion_code'],
-    });
-    const pi = full.payment_intent;
-    const latest = typeof pi === 'string' ? undefined : pi?.latest_charge;
-    const promo = full.discounts?.[0]?.promotion_code;
-
-    return {
-      chargeId: typeof latest === 'string' ? latest : latest?.id,
-      promotionCode: typeof promo === 'string' ? promo : (promo?.code ?? undefined),
-    };
-  } catch (err) {
-    console.error('[webhook] could not expand session', session.id, err);
-    return {};
-  }
-}
-
-/**
  * Turn a paid Checkout session into a registration.
  *
- * Everything Stripe-shaped happens here; everything that writes to Firestore,
- * provisions an account or sends a receipt happens in `lib/fulfil-order.ts`.
- * The split exists because there is now a second caller — the localhost-only
- * rehearsal button on the tickets page — and the only way a rehearsal proves
- * anything is by running the same fulfilment the real purchase runs.
+ * The checks that decide *whether* to fulfil are here; the fulfilment itself
+ * is `fulfilCheckoutSession`, which `/checkout/return` runs too, so whichever
+ * of the two arrives first does the whole job and the other finds it done.
+ * Everything that writes to Firestore, provisions an account or sends a
+ * receipt is behind that, in `lib/fulfil-order.ts`.
  */
 async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, origin: string) {
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
@@ -649,55 +616,7 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     return NextResponse.json({ received: true, skipped: 'not a website checkout session' });
   }
 
-  const detail = await sessionDetail(session);
-  const customer = session.customer;
-  const paymentIntent = session.payment_intent;
-
-  const outcome = await fulfilOrder({
-    externalId: session.id,
-    email,
-    name: session.metadata?.name ?? session.customer_details?.name ?? '',
-    buyerName: session.customer_details?.name ?? undefined,
-    ticketType: ours.ticketType,
-    tierId: ours.tierId,
-    amountCents: session.amount_total ?? 0,
-    currency: session.currency ?? 'usd',
-    // Stripe's own arithmetic, kept rather than recomputed — the dashboard
-    // should show the same subtotal and tax the buyer's receipt shows.
-    subtotalCents: session.amount_subtotal ?? undefined,
-    taxCents: session.total_details?.amount_tax ?? 0,
-    discountCents: session.total_details?.amount_discount ?? 0,
-    promotionCode: detail.promotionCode,
-    /**
-     * The tracked link this purchase came through, put into metadata by
-     * `startCheckout` and coming back out here — the only way across the Stripe
-     * redirect, because the buyer left our origin entirely.
-     *
-     * Undefined when the buyer arrived directly, which is most of them.
-     * Undefined is *unattributed*, not organic: an ad blocker, a cleared
-     * cookie, or a link shared onward as plain text all land here too.
-     */
-    campaignCode: session.metadata?.campaignCode || undefined,
-    /**
-     * An attendee's invite code and UTMs, put into metadata by `startCheckout`
-     * from the cookies the personal link set. Re-validated on the way out;
-     * fulfilment ignores a code that does not resolve or is the buyer's own.
-     */
-    ...referralFromMetadata(session.metadata),
-    /**
-     * The registration questions, answered on our page before the redirect and
-     * held in `pendingAnswers` until now. Claimed inside `fulfilOrder`, so a
-     * replay finds nothing there and leaves the answers already on the
-     * registration untouched.
-     */
-    answersRef: session.metadata?.answersRef,
-    channel: 'checkout',
-    origin,
-    stripeCustomerId: typeof customer === 'string' ? customer : (customer?.id ?? undefined),
-    stripePaymentIntentId:
-      typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),
-    stripeChargeId: detail.chargeId,
-  });
+  const outcome = await fulfilCheckoutSession({ session, ours, email, origin });
 
   return NextResponse.json({
     received: true,

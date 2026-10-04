@@ -1,8 +1,9 @@
 import 'server-only';
 
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
-import type { EntitlementDoc, OrderDoc } from '@kgc/shared';
-import { cartLines, restoreCartOrder } from '@/app/tickets/cart-order';
+import { FieldValue } from 'firebase-admin/firestore';
+import { COLLECTIONS, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
+import { attachSeatRegistrations, cartLines } from '@/app/tickets/cart-order';
 import { seatsToCount, splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import { grantOrderEntitlements } from '@/lib/app-account-core';
@@ -132,6 +133,35 @@ async function grantSeatEntitlements(
   }
 }
 
+/**
+ * Whether this run is the one that sends `rid` its purchase confirmation.
+ *
+ * A card purchase is fulfilled by the return redirect and by the webhook, in
+ * either order or at the same moment, and Stripe may redeliver the webhook for
+ * days. Registrations and capacity are idempotent on their own; an email is
+ * not, so each one is claimed on the order in a transaction before it is sent.
+ * The first run to claim a registration sends; every other run skips it.
+ *
+ * Claimed before sending, not after: a crash between the two loses one email,
+ * where the other order would send it again to everyone on every replay. If the claim itself fails the
+ * email is sent anyway, because a missing ticket email is the worse outcome.
+ */
+async function claimConfirmation(orderId: string, rid: string): Promise<boolean> {
+  try {
+    const ref = db().collection(COLLECTIONS.orders).doc(orderId);
+    return await db().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const sent = (snap.data() as OrderDoc | undefined)?.confirmationsSent ?? [];
+      if (sent.includes(rid)) return false;
+      tx.set(ref, { confirmationsSent: FieldValue.arrayUnion(rid) }, { merge: true });
+      return true;
+    });
+  } catch (err) {
+    await recordError('order.confirmationClaim', err, { path: 'orders', id: orderId });
+    return true;
+  }
+}
+
 export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderResult> {
   const { externalId, tierId, origin } = input;
 
@@ -144,11 +174,8 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    * has already proved what a truncated attendee list costs: it parses to
    * nothing and nobody gets registered.
    *
-   * ⚠️ The ordering is load-bearing. `fulfilPurchase` below writes `items` as a
-   * single line describing the buyer, and a Firestore merge replaces an array
-   * rather than merging into it — so reading this afterwards would find seats
-   * two and three already gone. `restoreCartOrder` puts them back once the
-   * registrations exist.
+   * `fulfilPurchase` below keeps this list as it is; it used to overwrite it
+   * with the buyer's line, which is why this is still read first.
    *
    * Empty for an ordinary single-seat purchase, which is most of them.
    */
@@ -261,7 +288,9 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     }
 
     // Their own claim code, to their own address. The buyer's copy of the
-    // receipt does not get a colleague into the app.
+    // receipt does not get a colleague into the app. Once per seat, however
+    // many times this purchase is fulfilled.
+    if (!(await claimConfirmation(oid, seat.registrationId))) continue;
     await sendPurchaseConfirmation({
       to: seat.email,
       name: seat.name ?? line.attendeeName ?? '',
@@ -282,22 +311,16 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
   for (const [id, count] of soldPerTier) await incrementSold(id, count);
 
   /**
-   * Put the seat list back, and attach every registration the payment bought.
+   * Attach every registration the payment bought to the order.
    *
-   * `fulfilPurchase` has just overwritten `items` with the buyer's single line,
-   * because a Firestore merge replaces an array rather than merging into it.
-   * Without this the order would remember one seat out of three: the dashboard
-   * would show `seatCount: 1`, and a refund would give one seat back to
-   * `quantitySold` and cancel one of the three tickets.
-   *
-   * Swallowed rather than surfaced, per the rule at the top of this file — the
-   * three registrations already exist and are valid. ⚠️ But recorded loudly,
-   * because a retry cannot repair it: the next run reads `items` and finds the
-   * clobbered single line, so this is the only chance to write the list down.
+   * Added to the list rather than written over it, so the return redirect and
+   * the webhook running at once cannot cut each other's seats out of it.
+   * Swallowed rather than surfaced, per the rule at the top of this file: the
+   * registrations already exist and are valid, and the next run adds them again.
    */
   if (cart.length > 1) {
     try {
-      await restoreCartOrder({ sessionId: externalId, lines: cart, registrationIds });
+      await attachSeatRegistrations({ sessionId: externalId, registrationIds });
     } catch (err) {
       await recordError('order.seats', err, { path: 'orders', id: externalId });
     }
@@ -352,18 +375,20 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     if (tier) await grantSeatEntitlements(account.uid, tier.entitlements);
   }
 
-  await sendPurchaseConfirmation({
-    to: result.email,
-    name: result.name ?? '',
-    ticketType: result.ticketType ?? '',
-    amountCents: buyerShare,
-    currency: input.currency,
-    orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
-    claimCode: result.claimCode,
-    registrationId: result.registrationId,
-    temporaryPassword: account.temporaryPassword,
-    referralCode: await referralCodeFor(result.registrationId),
-  });
+  if (await claimConfirmation(oid, result.registrationId)) {
+    await sendPurchaseConfirmation({
+      to: result.email,
+      name: result.name ?? '',
+      ticketType: result.ticketType ?? '',
+      amountCents: buyerShare,
+      currency: input.currency,
+      orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
+      claimCode: result.claimCode,
+      registrationId: result.registrationId,
+      temporaryPassword: account.temporaryPassword,
+      referralCode: await referralCodeFor(result.registrationId),
+    });
+  }
 
   return {
     registrationId: result.registrationId,

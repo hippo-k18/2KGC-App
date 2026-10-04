@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
 import { websiteCheckout } from '@/lib/checkout-source';
 import { mintOrderToken } from '@/lib/order-token';
-import { fulfilPurchase, orderIdFor } from '@/lib/registrations';
+import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
+import { orderIdFor } from '@/lib/registrations';
 import { analyticsConfig, encodePurchase, PURCHASE_COOKIE, type PurchasePayload } from '@/lib/analytics';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 
@@ -19,10 +20,15 @@ import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
  *    but not synchronous, and without this the buyer can land on a
  *    confirmation page a moment before their registration exists.
  *
- * Running both is safe precisely because `fulfilPurchase` is idempotent —
- * the registration id is derived from the email and the order id from the
- * Checkout Session, so whichever path arrives second overwrites the same two
- * documents with the same values.
+ * Both run the same fulfilment, `fulfilCheckoutSession`, so whichever arrives
+ * first does the whole job: every seat of a group purchase is registered,
+ * counted and emailed, and the second caller (or a replay) finds it done. This
+ * route used to run a one-seat `fulfilPurchase` instead, and on a group
+ * purchase that write erased the seat list the webhook needed, so seats two and
+ * up got nothing whenever the buyer was back first (T129). Running all of it
+ * here makes the redirect slower by the time a group's accounts and emails
+ * take; the buyer is waiting on a confirmation either way, and this is the
+ * one that names everybody.
  *
  * The payment status is re-read from Stripe here rather than trusted from the
  * URL. A `session_id` in a query string is attacker-supplied; only Stripe's
@@ -79,18 +85,7 @@ export async function GET(req: NextRequest) {
   const ours = websiteCheckout(session.metadata);
   if (!ours) return NextResponse.redirect(back);
 
-  const result = await fulfilPurchase({
-    email,
-    name: session.metadata?.name ?? session.customer_details?.name ?? '',
-    ticketType: ours.ticketType,
-    // Without it the order line was written with `ticketTypeId: ''` whenever
-    // this redirect beat the webhook to the order document.
-    tierId: ours.tierId,
-    externalId: session.id,
-    amountCents: session.amount_total ?? 0,
-    currency: session.currency ?? 'usd',
-    paid: true,
-  });
+  const result = await fulfilCheckoutSession({ session, ours, email, origin });
 
   const res = NextResponse.redirect(
     new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, origin),

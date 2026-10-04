@@ -182,14 +182,6 @@ export async function recordCartOrder(input: {
 /**
  * The seat lines a Checkout session covers, read back at fulfilment.
  *
- * Returns the raw `OrderLine[]` rather than the tidier shape `seatsFromOrder`
- * produces, because the webhook does not merely read these — it has to **write
- * them back**. `fulfilPurchase` sets `items` to a single line describing the
- * buyer, and a Firestore merge replaces an array wholesale rather than merging
- * into it, so the other seats would be erased by the very write that fulfils
- * them. Handing back the lines verbatim is what lets the webhook restore them
- * unchanged instead of reconstructing prices it no longer has.
- *
  * An empty list means an ordinary single-seat purchase — no cart order was
  * written — and the caller falls back to the buyer alone.
  */
@@ -201,44 +193,29 @@ export async function cartLines(sessionId: string): Promise<OrderLine[]> {
 }
 
 /**
- * Put the seat list back after fulfilment has overwritten it.
+ * Attach a group purchase's registrations to its order.
  *
- * ── The failure this exists to prevent ──────────────────────────────────────
+ * An `arrayUnion`, not a `set` of the list: the return redirect and the webhook
+ * can fulfil the same purchase at the same moment, and two whole-list writes
+ * race to leave whichever one finished last. A union is idempotent across
+ * replays (Stripe redelivers for up to three days) and commutes across
+ * concurrent callers, because both add the same ids.
  *
- * `fulfilPurchase` writes the order with `set(…, { merge: true })` and sets
- * `items` to a **single** line describing the buyer, because a Checkout session
- * was one ticket for one person when it was written. A Firestore merge treats
- * an array as one value and replaces it wholesale rather than merging into it,
- * so the very write that fulfils a three-seat purchase erases the record of who
- * seats two and three are — along with the two `OrderLine`s that
- * `decideRefund` would have turned back into seats to return to `quantitySold`,
- * and the two rows the dashboard counts as `seatCount`. A refund would then
- * give back one seat out of three, permanently, and no screen could correct it.
- *
- * So the webhook reads the lines before fulfilment and writes them back after.
- *
- * ⚠️ **Idempotent by construction.** Both fields are set to a value rather than
- * appended to, so a redelivered `checkout.session.completed` writes the same
- * array again. That matters: Stripe retries for up to three days, and an
- * `arrayUnion` here would have been correct on the first delivery and quietly
- * wrong on the second.
- *
- * The correct home for this is a `seats` parameter on `fulfilPurchase` itself,
- * which would let one write do the whole job. It lives here instead because
- * `registrations.ts` is owned elsewhere; folding it in is a small, safe change
- * and this comment is the note asking for it.
+ * This used to also write `items` back, because `fulfilPurchase` replaced the
+ * seat list with the buyer's line. It no longer does (see `cartItems` there),
+ * which is what lets the redirect, usually first, leave the list intact for the
+ * webhook.
  */
-export async function restoreCartOrder(input: {
+export async function attachSeatRegistrations(input: {
   sessionId: string;
-  lines: OrderLine[];
   registrationIds: string[];
 }): Promise<void> {
+  if (input.registrationIds.length === 0) return;
   await db()
     .collection(COLLECTIONS.orders)
     .doc(orderIdForSession(input.sessionId))
     .update({
-      items: input.lines,
-      registrationIds: input.registrationIds,
+      registrationIds: FieldValue.arrayUnion(...input.registrationIds),
       updatedAt: FieldValue.serverTimestamp(),
     });
 }

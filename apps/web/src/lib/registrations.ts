@@ -219,8 +219,19 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
   const prevOrder = existingOrder.exists ? (existingOrder.data() as OrderDoc) : null;
   const TERMINAL: OrderDoc['status'][] = ['refunded', 'partially_refunded', 'cancelled'];
   const settled = prevOrder && TERMINAL.includes(prevOrder.status);
+  /**
+   * A group purchase's seat list, written by `recordCartOrder` before the buyer
+   * went to pay. It is the only record of who seats two and up are, so it is
+   * kept as it is rather than replaced by the buyer's line.
+   *
+   * This used to be overwritten here and put back by the webhook afterwards.
+   * That held only while the webhook was the sole caller: `/checkout/return`
+   * usually arrives first, and its write left the webhook reading a one-seat
+   * order, so the other seats got no ticket and nothing was counted.
+   */
+  const cartItems = prevOrder && (prevOrder.items?.length ?? 0) > 1 ? prevOrder.items : null;
 
-  const order: Omit<OrderDoc, 'createdAt' | 'updatedAt' | 'purchasedAt'> = {
+  const order: Omit<OrderDoc, 'createdAt' | 'updatedAt' | 'purchasedAt' | 'registrationIds'> = {
     eventId: EVENT_ID,
     externalId: input.externalId,
     provider: 'stripe',
@@ -236,7 +247,7 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
      * a company asks for, and retrofitting a list onto a scalar means
      * rewriting every reader.
      */
-    items: [
+    items: cartItems ?? [
       {
         ticketTypeId: input.tierId ?? '',
         // Denormalised deliberately: the tier can be renamed or deleted after
@@ -275,11 +286,15 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
     hostedInvoiceUrl: input.hostedInvoiceUrl,
     invoicePdfUrl: input.invoicePdfUrl,
     poNumber: input.poNumber,
-    registrationIds: [rid],
   };
   await orderRef.set(
     {
       ...order,
+      // Added to, never replaced. On a group purchase the other seats'
+      // registrations are attached by `fulfilOrder`, and a second caller
+      // (the return redirect, a webhook replay) must not cut the list back to
+      // the buyer alone. A union is also what two concurrent callers agree on.
+      registrationIds: FieldValue.arrayUnion(rid),
       // First write wins. A retry three days later must not restamp the sale.
       purchasedAt: prevOrder?.purchasedAt ?? Timestamp.now(),
       createdAt: prevOrder ? undefined : FieldValue.serverTimestamp(),

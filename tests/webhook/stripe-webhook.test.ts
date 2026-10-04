@@ -355,19 +355,23 @@ describe('/checkout/return applies the same rule', () => {
     );
   }
 
-  it('fulfils a website session with its tier, so the order line is not left blank', async () => {
+  it('fulfils a website session the same way the webhook does, with its tier', async () => {
     mocks.sessionsRetrieve.mockResolvedValue(
       session({ source: CHECKOUT_SOURCE, tier: 'vip', ticketType: 'All Access (VIP)', name: 'Ada' }),
     );
+    mocks.fulfilOrder.mockResolvedValue({ registrationId: 'reg_1' });
     const res = await visit('cs_live_test');
 
     expect(res.headers.get('location')).toContain('/order/token');
-    expect(mocks.fulfilPurchase).toHaveBeenCalledTimes(1);
-    expect(mocks.fulfilPurchase.mock.calls[0][0]).toMatchObject({
+    // The full fulfilment, not the one-seat `fulfilPurchase` it used to run,
+    // which erased a group purchase's seat list before the webhook read it.
+    expect(mocks.fulfilPurchase).not.toHaveBeenCalled();
+    expect(mocks.fulfilOrder).toHaveBeenCalledTimes(1);
+    expect(mocks.fulfilOrder.mock.calls[0][0]).toMatchObject({
       externalId: 'cs_live_test',
       tierId: 'vip',
       ticketType: 'All Access (VIP)',
-      paid: true,
+      channel: 'checkout',
     });
   });
 
@@ -377,5 +381,6 @@ describe('/checkout/return applies the same rule', () => {
 
     expect(res.headers.get('location')).toBe('https://www.knowledgegraph.tech/tickets/checkout');
     expect(mocks.fulfilPurchase).not.toHaveBeenCalled();
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
   });
 });
