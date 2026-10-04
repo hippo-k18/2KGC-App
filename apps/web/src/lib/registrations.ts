@@ -53,6 +53,8 @@ export interface FulfilledRegistration {
   claimCode: string;
   /** `orders/{orderId}`, when the ticket came from a purchase. */
   orderId?: string;
+  /** Read back by `getRegistration`, so the order page can tell a cancelled ticket from a live one. */
+  status?: RegistrationDoc['status'];
   /** True when this purchase created the registration rather than updating one. */
   created: boolean;
 }
@@ -317,6 +319,7 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
     name: r.name,
     ticketType: r.ticketType,
     claimCode: r.claimCode ?? '',
+    status: r.status,
     ...(r.orderId ? { orderId: r.orderId } : {}),
     created: false,
   };

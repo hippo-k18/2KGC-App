@@ -63,6 +63,12 @@ if [ "$DEPLOY" = 1 ]; then
   # No check for a deploy already running: deploy.sh holds a lock and refuses.
 
   # ── 1. Static checks ──────────────────────────────────────────────────────
+  # A paid checkout without WEB_ORDER_SECRET writes the ticket and then cannot
+  # mint the link in its email (T135, TK-326). The check prints names only.
+  step "Required settings on the droplet"
+  ssh -o BatchMode=yes -o ConnectTimeout=15 "$DROPLET" 'bash -s' < "$ROOT/scripts/ops/check-web-env.sh" \
+    || fail "a required setting is missing from /opt/kgc/shared/web.env (named above)."
+
   step "No secrets in the repo"
   # Tracked files only; .env.local and friends are gitignored and stay local.
   if git -C "$ROOT" grep -nIE '(sk|rk)_live_[A-Za-z0-9]{8}|(sk|rk)_test_[A-Za-z0-9]{20}|whsec_[A-Za-z0-9]{20}|-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ':!*.md' ':!tests/prepublish/**'; then

@@ -4,6 +4,7 @@ import { websiteCheckout } from '@/lib/checkout-source';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
 import { orderIdFor } from '@/lib/registrations';
+import { recordError } from '@/lib/errors';
 import { analyticsConfig, encodePurchase, PURCHASE_COOKIE, type PurchasePayload } from '@/lib/analytics';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 
@@ -85,11 +86,31 @@ export async function GET(req: NextRequest) {
   const ours = websiteCheckout(session.metadata);
   if (!ours) return NextResponse.redirect(back);
 
-  const result = await fulfilCheckoutSession({ session, ours, email, origin });
+  /**
+   * From here on the buyer has paid, so nothing may end in a 500 page.
+   *
+   * If fulfilment throws (Firestore or Auth unreachable, a missing secret) the
+   * error is recorded and the buyer is told the payment arrived and the ticket
+   * follows by email. That is true: the webhook runs the same fulfilment, and
+   * Stripe redelivers it until it succeeds (T135, S5).
+   */
+  let location: string;
+  let settled = false;
+  try {
+    const result = await fulfilCheckoutSession({ session, ours, email, origin });
+    settled = Boolean(result.settled);
+    location =
+      result.registrationId
+        ? `/order/${mintOrderToken({ rid: result.registrationId })}`
+        : '/checkout/received?state=refunded';
+  } catch (err) {
+    await recordError('checkout.return', err, { path: 'stripe', id: session.id });
+    return NextResponse.redirect(new URL('/checkout/received', origin));
+  }
 
-  const res = NextResponse.redirect(
-    new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, origin),
-  );
+  const res = NextResponse.redirect(new URL(location, origin));
+  // A refunded order's page says so; no purchase event for it.
+  if (settled) return res;
   if (analyticsConfig()) {
     // Carries the GA4 `purchase` event to the confirmation page, which sends it
     // once. Only this redirect sets it, so the event fires for the buyer who just

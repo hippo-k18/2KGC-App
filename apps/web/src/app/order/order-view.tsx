@@ -200,3 +200,35 @@ export function OrderView({ ev, reg }: { ev: SiteEvent; reg: OrderViewRegistrati
     </section>
   );
 }
+
+/**
+ * A link to a ticket that is no longer valid: refunded, disputed, cancelled by
+ * an organizer, or handed on to somebody else.
+ *
+ * The link in the confirmation email keeps working after a refund, so this is
+ * what it opens. Showing the pass there would tell the holder the ticket is
+ * still good when the door will refuse it (T135, S4).
+ */
+export function OrderVoidView({ reg }: { reg: OrderViewRegistration & { status?: string } }) {
+  const transferred = reg.status === 'transferred';
+  return (
+    <section className="order-page">
+      <ScrollToTop />
+      <div className="wrap narrow order-wrap">
+        <p className="eyebrow">{transferred ? 'Transferred' : 'Cancelled'}</p>
+        <h1 className="order-headline">
+          {transferred ? 'This ticket now belongs to someone else.' : 'This ticket was cancelled.'}
+        </h1>
+        <p className="notice">
+          {transferred
+            ? `The ticket issued to ${reg.email} was transferred, so it will not get you in. The new holder has their own link.`
+            : `The ticket issued to ${reg.email} is no longer valid and will not get you in. If the order was refunded, the money goes back to the card you paid with.`}
+        </p>
+        <p className="muted order-fine">
+          If you think this is a mistake, email{' '}
+          <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+        </p>
+      </div>
+    </section>
+  );
+}
