@@ -1717,6 +1717,35 @@ export interface OrderDoc extends BaseDoc {
  * webhook that triggered it — a non-2xx makes Stripe retry the event for ever
  * and eventually disable the endpoint, taking fulfilment down with it.
  */
+/**
+ * A Stripe event about money that is not a ticket, which the webhook ignored.
+ *
+ * The KGC Stripe account is shared: sponsorships, Payment Links, invoices
+ * raised by hand in the Stripe dashboard and anything else the account takes
+ * all reach the ticketing webhook. Ticketing acts only on what its own code
+ * created (T142), and records the rest here: informational, never an alarm,
+ * and kept out of `auditLog` so a sponsorship payment does not push real
+ * warnings off Tools › Report. Enough is kept to spot a ticket bought the
+ * wrong way. Keyed `{eventType}_{stripeObjectId}`, so a redelivery rewrites
+ * its own row.
+ */
+export interface StripeIgnoredDoc {
+  eventId: string;
+  /** The Stripe event type, e.g. `checkout.session.completed`. */
+  eventType: string;
+  /** What it was, in a word: `payment`, `invoice`, `refund` or `dispute`. */
+  kind: "payment" | "invoice" | "refund" | "dispute";
+  /** The Stripe object the event is about (session, invoice, charge or dispute id). */
+  stripeId: string;
+  amountCents: number;
+  currency: string;
+  email?: string;
+  name?: string;
+  /** Stripe's own description, Payment Link id or invoice number, when there is one. */
+  description?: string;
+  at: Timestamp;
+}
+
 export interface EmailLogDoc {
   eventId: string;
   to: string;

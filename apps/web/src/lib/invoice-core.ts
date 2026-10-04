@@ -307,6 +307,10 @@ export async function raiseInvoiceWith(
       // Same reasoning as Checkout: admission is taxed where the event is.
       automatic_tax: { enabled: true },
       metadata: {
+        // The ticketing marker. The Stripe account invoices other things too,
+        // and the webhook registers attendees only from an invoice carrying it
+        // (`ticketingInvoice`, T142).
+        source: 'kgc-web',
         kgcKind: 'group-registration',
         seats: String(req.seats.length),
         /**

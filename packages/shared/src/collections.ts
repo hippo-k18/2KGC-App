@@ -150,6 +150,13 @@ export const COLLECTIONS = {
   otpCodes: "otpCodes",
   rateLimits: "rateLimits",
   auditLog: "auditLog",
+  /**
+   * Server-only. Stripe activity the ticketing webhook saw and deliberately
+   * ignored, because the KGC Stripe account also takes money that is not
+   * tickets (sponsorships, Payment Links, invoices raised by hand). See
+   * `StripeIgnoredDoc`.
+   */
+  stripeIgnored: "stripeIgnored",
   /** Seat counters for capped or ticket-restricted sessions. See `SessionSeatsDoc`. */
   sessionSeats: "sessionSeats",
   /**

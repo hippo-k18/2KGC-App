@@ -123,7 +123,7 @@ beforeEach(async () => {
   mocks.provisionThrows = false;
   process.env.WEB_ORDER_SECRET = ORDER_SECRET;
   await Promise.all(
-    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, 'referralCodes'].map(wipe),
+    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, COLLECTIONS.stripeIgnored, COLLECTIONS.emailLog, 'referralCodes'].map(wipe),
   );
   for (const [id, name] of Object.entries(TIERS)) {
     await db.collection(COLLECTIONS.ticketTypes).doc(id).set({
@@ -417,13 +417,13 @@ describe('refunds and disputes reach the right order', () => {
     expect(o?.disputedAt).toBeDefined();
   });
 
-  it('a refund of a payment the website did not take writes no order, only a warning (S9, TK-251)', async () => {
+  it('a refund of a payment the website did not take writes no order, only a quiet note (S9, TK-251, T142)', async () => {
     const c = await checkout([ADA], 'cs_payment_link', true, {});
     const res = await refunded(c.pi, 17_500);
     expect(res.status).toBe(200);
     expect(await order(c.oid)).toBeUndefined();
-    const warned = await db.collection(COLLECTIONS.auditLog).where('action', '==', 'refund.notFromWebsite').get();
-    expect(warned.size).toBe(1);
+    expect((await db.collection(COLLECTIONS.auditLog).get()).size).toBe(0);
+    expect((await db.collection(COLLECTIONS.stripeIgnored).get()).size).toBe(1);
   });
 });
 
@@ -491,7 +491,8 @@ describe('an invoice seat that names no ticket (S11, TK-256)', () => {
       object: 'invoice',
       total: 20_000,
       currency: 'usd',
-      metadata: { attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Virtual' }, { n: 'Ben Olsen', e: 'ben@example.com' }]) },
+      // Our marker, so this is a ticketing invoice whose order record was lost.
+      metadata: { source: 'kgc-web', attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Virtual' }, { n: 'Ben Olsen', e: 'ben@example.com' }]) },
     });
     expect(res.status).toBe(200);
     const regs = (await db.collection(COLLECTIONS.registrations).get()).docs.map((d) => d.data() as RegistrationDoc);
@@ -558,5 +559,101 @@ describe('an invoice marked paid on the dashboard, then paid in Stripe (T138B, N
     for (let i = 0; i < 3; i += 1) expect((await invoicePaid('in_stripe_only')).status).toBe(200);
     expect(await sold('main-conference')).toBe(1);
     expect(await sold('virtual')).toBe(1);
+  });
+});
+
+describe('the KGC Stripe account is shared: non-ticket activity changes nothing (T142)', () => {
+  /** Everything ticketing owns, which must stay empty. */
+  async function untouched() {
+    expect((await db.collection(COLLECTIONS.registrations).get()).size, 'registrations').toBe(0);
+    expect((await db.collection(COLLECTIONS.orders).get()).size, 'orders').toBe(0);
+    expect((await db.collection(COLLECTIONS.auditLog).get()).size, 'auditLog').toBe(0);
+    expect((await db.collection(COLLECTIONS.emailLog).get()).size, 'emailLog').toBe(0);
+    expect(mocks.sent).toHaveLength(0);
+    expect(mocks.refunds).toHaveLength(0);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await sold('virtual')).toBe(0);
+  }
+  const ignored = async () =>
+    (await db.collection(COLLECTIONS.stripeIgnored).get()).docs.map((d) => d.data() as Record<string, unknown>);
+
+  it('a Payment Link sale is noted once, quietly, however often Stripe delivers it', async () => {
+    const c = await checkout([ADA], 'cs_plink_sale', true, {});
+    const s = mocks.sessions.get(c.sessionId) as Record<string, unknown>;
+    s.payment_link = 'plink_sponsor';
+    s.amount_total = 250_000;
+    for (let i = 0; i < 3; i += 1) expect((await completed(c.sessionId)).status).toBe(200);
+    await untouched();
+    const rows = await ignored();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'payment', stripeId: c.sessionId, amountCents: 250_000, email: 'ada@example.com', description: 'plink_sponsor' });
+  });
+
+  it('a session with a tier and ticket name but no marker is not a ticket', async () => {
+    const c = await checkout([ADA], 'cs_unmarked', true, { tier: 'main-conference', ticketType: 'Main Conference' });
+    expect((await completed(c.sessionId)).status).toBe(200);
+    expect(await buyerReturns(c.sessionId)).toMatch(/\/tickets\/checkout$/);
+    await untouched();
+  });
+
+  it('an expired Payment Link session writes no order', async () => {
+    const c = await checkout([ADA], 'cs_plink_expired', false, {});
+    expect((await deliver('checkout.session.expired', mocks.sessions.get(c.sessionId))).status).toBe(200);
+    expect((await deliver('checkout.session.async_payment_failed', mocks.sessions.get(c.sessionId))).status).toBe(200);
+    await untouched();
+    expect(await ignored()).toHaveLength(0);
+  });
+
+  it.each([
+    ['with attendee-like metadata', { attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Main Conference' }]) }],
+    ['without metadata', {}],
+  ])('an invoice raised by hand in Stripe, %s, registers nobody', async (_label, metadata) => {
+    const inv = { id: 'in_by_hand', object: 'invoice', total: 500_000, amount_paid: 500_000, currency: 'usd', customer_email: 'finance@sponsor.example', number: 'KGC-0042', metadata };
+    for (let i = 0; i < 2; i += 1) expect((await deliver('invoice.paid', inv)).status).toBe(200);
+    expect((await deliver('invoice.payment_failed', inv)).status).toBe(200);
+    await untouched();
+    const rows = await ignored();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'invoice', stripeId: 'in_by_hand', amountCents: 500_000, description: 'KGC-0042' });
+  });
+
+  it('a refund and a dispute of a Payment Link charge write no order and move no seat', async () => {
+    const c = await checkout([ADA], 'cs_plink_refund', true, {});
+    await completed(c.sessionId);
+    expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect((await deliver('charge.dispute.created', { id: 'dp_plink', object: 'dispute', payment_intent: c.pi, amount: 10_000, currency: 'usd', reason: 'fraudulent' })).status).toBe(200);
+    await untouched();
+    expect((await ignored()).map((r) => r.kind).sort()).toEqual(['dispute', 'payment', 'refund']);
+  });
+
+  it('a refund of a manual charge, and of an invoice raised by hand, change nothing', async () => {
+    // No session and no invoice behind this payment intent at all.
+    expect((await refunded('pi_manual_charge', 5_000)).status).toBe(200);
+    // An invoice ticketing never raised and holds no order for.
+    mocks.invoiceByIntent.set('pi_hand_invoice', 'in_hand_refunded');
+    expect((await refunded('pi_hand_invoice', 500_000)).status).toBe(200);
+    expect((await deliver('charge.dispute.created', { id: 'dp_hand', object: 'dispute', payment_intent: 'pi_hand_invoice', amount: 500_000, currency: 'usd' })).status).toBe(200);
+    await untouched();
+    expect(await ignored()).toHaveLength(3);
+  });
+
+  it('still refunds a ticket sold before the session marker existed, found by its order', async () => {
+    const c = await checkout([ADA], 'cs_pre_marker');
+    await completed(c.sessionId);
+    // As a session from before 2026-10-03 looked: no `source`.
+    (mocks.sessions.get(c.sessionId) as { metadata: Record<string, string> }).metadata = { tier: 'main-conference', ticketType: 'Main Conference' };
+    expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect(await statuses(c.oid)).toEqual(['cancelled']);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await ignored()).toHaveLength(0);
+  });
+
+  it('still registers a marked invoice that has no order record', async () => {
+    const res = await deliver('invoice.paid', {
+      id: 'in_marked_no_order', object: 'invoice', total: 10_000, currency: 'usd',
+      metadata: { kgcKind: 'group-registration', attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Virtual' }]) },
+    });
+    expect(res.status).toBe(200);
+    expect(await statuses(invoiceOrderId('in_marked_no_order'))).toEqual(['active']);
   });
 });

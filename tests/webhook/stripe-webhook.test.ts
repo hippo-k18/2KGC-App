@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   sendPurchaseConfirmation: vi.fn(),
   incrementSold: vi.fn(),
   countOrderSeatsOnce: vi.fn(async () => 0),
+  noteIgnoredStripe: vi.fn(async () => undefined),
   tierFulfilment: vi.fn(),
   sessionsRetrieve: vi.fn(),
   fulfilPurchase: vi.fn(),
@@ -85,6 +86,7 @@ vi.mock('@/lib/email', () => ({
   sendTicketWithdrawn: vi.fn(),
 }));
 // Every order read finds nothing: the invoice has not been refunded.
+vi.mock('@/lib/stripe-ignored', () => ({ noteIgnoredStripe: mocks.noteIgnoredStripe }));
 vi.mock('@kgc/scripts/src/lib/order-claims', () => ({ countOrderSeatsOnce: mocks.countOrderSeatsOnce }));
 vi.mock('@/lib/firestore', () => ({
   db: () => ({ collection: () => ({ doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) }) }),
@@ -95,7 +97,7 @@ vi.mock('@/app/tickets/cart-order', () => ({ cartLines: vi.fn() }));
 import { POST } from '../../apps/web/src/app/api/stripe/webhook/route';
 import { GET as checkoutReturn } from '../../apps/web/src/app/checkout/return/route';
 import { NextRequest } from '../../apps/web/node_modules/next/server.js';
-import { CHECKOUT_SOURCE, websiteCheckout } from '../../apps/web/src/lib/checkout-source';
+import { CHECKOUT_SOURCE, ticketingInvoice, websiteCheckout } from '../../apps/web/src/lib/checkout-source';
 
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
 
@@ -188,7 +190,9 @@ describe('which Checkout sessions become tickets', () => {
     expect(mocks.recordWarning).not.toHaveBeenCalled();
   });
 
-  it('still fulfils a website session started before the source marker existed', async () => {
+  it('no longer fulfils a session without the source marker (T142)', async () => {
+    // Accepted for a day after the marker went live on 2026-10-03; sessions
+    // last 24 hours, and the shared account makes a bare tier meaningless.
     const res = await deliver({
       id: 'evt_2',
       type: 'checkout.session.completed',
@@ -196,11 +200,8 @@ describe('which Checkout sessions become tickets', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(mocks.fulfilOrder).toHaveBeenCalledTimes(1);
-    expect(mocks.fulfilOrder.mock.calls[0][0]).toMatchObject({
-      tierId: 'main-conference',
-      ticketType: 'Main Conference',
-    });
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
+    expect(mocks.noteIgnoredStripe).toHaveBeenCalledTimes(1);
   });
 
   it('fulfils a free website order ($0, no_payment_required)', async () => {
@@ -246,17 +247,17 @@ describe('which Checkout sessions become tickets', () => {
     expect(mocks.provisionPurchaserAccount).not.toHaveBeenCalled();
     expect(mocks.sendPurchaseConfirmation).not.toHaveBeenCalled();
     expect(mocks.incrementSold).not.toHaveBeenCalled();
-    // Organizers are told, with enough to find the payment.
-    expect(mocks.recordWarning).toHaveBeenCalledTimes(1);
-    const [context, detail, target] = mocks.recordWarning.mock.calls[0];
-    expect(context).toBe('checkout.notFromWebsite');
-    expect(detail).toMatchObject({
-      sessionId: 'cs_live_test',
+    // Noted quietly, not as a warning: the Stripe account takes non-ticket
+    // money as a matter of course (T142). Enough is kept to find the payment.
+    expect(mocks.recordWarning).not.toHaveBeenCalled();
+    expect(mocks.noteIgnoredStripe).toHaveBeenCalledTimes(1);
+    expect(mocks.noteIgnoredStripe.mock.calls[0][0]).toMatchObject({
+      kind: 'payment',
+      stripeId: 'cs_live_test',
       email: 'buyer@example.com',
       amountCents: 17500,
-      paymentLink: 'plink_1',
+      description: 'plink_1',
     });
-    expect(target).toEqual({ path: 'stripe', id: 'cs_live_test' });
   });
 
   it('does not fulfil a session whose metadata carries only a name, or another source', async () => {
@@ -274,7 +275,8 @@ describe('which Checkout sessions become tickets', () => {
       expect(res.status).toBe(200);
     }
     expect(mocks.fulfilOrder).not.toHaveBeenCalled();
-    expect(mocks.recordWarning).toHaveBeenCalledTimes(4);
+    expect(mocks.noteIgnoredStripe).toHaveBeenCalledTimes(4);
+    expect(mocks.recordWarning).not.toHaveBeenCalled();
   });
 
   it('says nothing about a foreign session until it is actually paid', async () => {
@@ -299,7 +301,8 @@ describe('invoice.paid is unchanged', () => {
       total_taxes: [],
       hosted_invoice_url: 'https://invoice.stripe.com/i/x',
       invoice_pdf: null,
-      metadata: {},
+      // Raised by `raiseInvoice`, so it carries the ticketing marker (T142).
+      metadata: { source: 'kgc-web', kgcKind: 'group-registration' },
       ...over,
     };
   }
@@ -329,7 +332,7 @@ describe('invoice.paid is unchanged', () => {
     const res = await deliver({
       id: 'evt_9',
       type: 'invoice.paid',
-      data: { object: invoice({ metadata: { attendees } }) },
+      data: { object: invoice({ metadata: { kgcKind: 'group-registration', attendees } }) },
     });
 
     expect(res.status).toBe(200);
@@ -357,6 +360,21 @@ describe('websiteCheckout', () => {
     expect(websiteCheckout(undefined)).toBeNull();
     expect(websiteCheckout({})).toBeNull();
     expect(websiteCheckout({ source: 'kgc-web', tier: ' ', ticketType: 'X' })).toBeNull();
+  });
+
+  it('requires the marker: a tier and ticket name alone are not a ticket (T142)', () => {
+    expect(websiteCheckout({ tier: 'vip', ticketType: 'VIP' })).toBeNull();
+    expect(websiteCheckout({ source: 'sponsor-portal', tier: 'vip', ticketType: 'VIP' })).toBeNull();
+  });
+});
+
+describe('ticketingInvoice (T142)', () => {
+  it('accepts our marker and the older kgcKind, and nothing else', () => {
+    expect(ticketingInvoice({ source: 'kgc-web' })).toBe(true);
+    expect(ticketingInvoice({ kgcKind: 'group-registration' })).toBe(true);
+    expect(ticketingInvoice({ attendees: '[{"n":"A","e":"a@example.com","t":"VIP"}]' })).toBe(false);
+    expect(ticketingInvoice({})).toBe(false);
+    expect(ticketingInvoice(null)).toBe(false);
   });
 });
 

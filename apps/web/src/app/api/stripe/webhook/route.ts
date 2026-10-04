@@ -5,7 +5,8 @@ import { COLLECTIONS, type EntitlementDoc, type OrderDoc, type RegistrationDoc }
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { currentHolder, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
-import { websiteCheckout } from '@/lib/checkout-source';
+import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
+import { noteIgnoredStripe } from '@/lib/stripe-ignored';
 import { splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import {
@@ -34,6 +35,7 @@ import {
   ensureRegistration,
   invoiceOrderId,
   markInvoiceOrderPaid,
+  orderIdFor,
   seatsFromOrder,
 } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -147,6 +149,11 @@ export async function POST(req: NextRequest) {
       // pending order changes; see `cancelUnpaidOrder` for what this used to
       // cancel by mistake.
       const session = event.data.object;
+      // A Payment Link or any other session in the shared account expires too.
+      // Only ours has an order to close (T142); the rest is not ticketing.
+      if (!websiteCheckout(session.metadata)) {
+        return NextResponse.json({ received: true, ignored: 'not a ticketing session' });
+      }
       const outcome = await cancelUnpaidOrder(session.id);
       return NextResponse.json({
         received: true,
@@ -162,25 +169,21 @@ export async function POST(req: NextRequest) {
       // which a charge carries directly; both are reachable through the
       // payment intent.
       const target = await paymentTarget(charge.payment_intent);
-      if (!target) {
-        return NextResponse.json({ received: true, skipped: 'no checkout session or invoice for charge' });
-      }
-      if (!target.ours) {
-        // A Payment Link or another integration: we issued nothing for it, so
-        // there is nothing to withdraw. Organizers are told; no order record
-        // is invented for it (T135, S9).
-        await recordWarning(
-          'refund.notFromWebsite',
-          {
-            sessionId: target.externalId,
-            paymentIntent: paymentIntentId(charge.payment_intent),
-            refundedCents: charge.amount_refunded,
-            currency: charge.currency,
-            note: 'Refund of a payment made outside the website. No ticket was affected.',
-          },
-          { path: 'stripe', id: target.externalId },
-        );
-        return NextResponse.json({ received: true, skipped: 'not a website payment' });
+      if (!target?.ours) {
+        // Not a ticket: a sponsorship, a Payment Link, a manual charge or an
+        // invoice raised by hand. Nothing to withdraw, no order invented, no
+        // seat moved; noted quietly rather than raised as a warning (T142).
+        await noteIgnoredStripe({
+          eventType: event.type,
+          kind: 'refund',
+          stripeId: charge.id,
+          amountCents: charge.amount_refunded,
+          currency: charge.currency,
+          email: charge.billing_details?.email ?? charge.receipt_email ?? undefined,
+          name: charge.billing_details?.name ?? undefined,
+          description: charge.description ?? target?.externalId ?? paymentIntentId(charge.payment_intent) ?? undefined,
+        });
+        return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
       }
       const sessionId = target.externalId;
 
@@ -363,8 +366,16 @@ export async function POST(req: NextRequest) {
       // the wrong opening move. The dashboard surfaces it for a human instead.
       const dispute = event.data.object;
       const target = await paymentTarget(dispute.payment_intent);
-      if (!target || !target.ours) {
-        return NextResponse.json({ received: true, skipped: 'no website order for dispute' });
+      if (!target?.ours) {
+        await noteIgnoredStripe({
+          eventType: event.type,
+          kind: 'dispute',
+          stripeId: dispute.id,
+          amountCents: dispute.amount,
+          currency: dispute.currency,
+          description: [dispute.reason, target?.externalId].filter(Boolean).join(' · ') || undefined,
+        });
+        return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
       }
       const sessionId = target.externalId;
       const outcome = await cancelRegistrationByOrder({
@@ -408,14 +419,41 @@ export async function POST(req: NextRequest) {
       const invoice = event.data.object;
 
       /**
+       * Only an invoice ticketing raised. The Stripe account also invoices
+       * sponsors and others by hand, and an invoice is ours only if our code
+       * marked it (`ticketingInvoice`) or we hold its order record. Metadata
+       * that merely looks like an attendee list registers nobody (T142).
+       */
+      const invoiceOrder = invoice.id
+        ? ((await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoice.id)).get()).data() as
+            | OrderDoc
+            | undefined)
+        : undefined;
+      if (!invoice.id || (!ticketingInvoice(invoice.metadata) && invoiceOrder?.channel !== 'invoice')) {
+        if (invoice.id) {
+          await noteIgnoredStripe({
+            eventType: event.type,
+            kind: 'invoice',
+            stripeId: invoice.id,
+            amountCents: invoice.amount_paid ?? invoice.total ?? 0,
+            currency: invoice.currency ?? 'usd',
+            email: invoice.customer_email ?? undefined,
+            name: invoice.customer_name ?? undefined,
+            description: invoice.number ?? invoice.description ?? undefined,
+          });
+        }
+        return NextResponse.json({ received: true, ignored: 'not a ticketing invoice' });
+      }
+
+      /**
        * Seats come from our own order record first, Stripe metadata second.
        *
        * Metadata is capped at 500 characters and `raiseInvoice` truncates the
        * attendee JSON to 480, so a large invoice yields a cut-off string that
        * fails to parse — and `seatsFromInvoice` returns an empty list by
        * design, which would register nobody for an invoice that has just been
-       * paid. The order document has no such limit. Metadata still covers the
-       * case of an invoice raised straight in the Stripe dashboard.
+       * paid. The order document has no such limit. Metadata covers a marked
+       * invoice whose order record failed to write when it was raised.
        */
       const listed = invoice.id
         ? await seatsFromOrder(invoice.id).then((rows) =>
@@ -452,9 +490,6 @@ export async function POST(req: NextRequest) {
        * A refunded or cancelled invoice issues nothing on a replay, the same
        * rule as a card purchase. Answered 200: there is nothing to retry.
        */
-      const invoiceOrder = (await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoice.id!)).get()).data() as
-        | OrderDoc
-        | undefined;
       if (invoiceOrder?.status === 'refunded' || invoiceOrder?.status === 'cancelled') {
         return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${invoiceOrder.status}` });
       }
@@ -679,22 +714,32 @@ function paymentIntentId(pi: string | Stripe.PaymentIntent | null): string | nul
  *
  * An invoice's payment intent has no Checkout session, and until T136 that
  * was the end of the lookup: refunding a paid invoice answered "no checkout
- * session for charge" and left every seat active (T135, S2). `ours` is false
- * for a session this site did not start, such as a Payment Link.
+ * session for charge" and left every seat active (T135, S2).
+ *
+ * `ours` is ticketing's own: a session carrying our marker, or a session or
+ * invoice we hold an order for. The order covers sales from before the
+ * session marker and every invoice our code raised. Everything else in the
+ * shared account (Payment Links, sponsorship invoices, manual charges) is not
+ * ours and changes nothing in ticketing (T142).
  */
 async function paymentTarget(
   pi: string | Stripe.PaymentIntent | null,
 ): Promise<{ externalId: string; ours: boolean } | null> {
   const id = paymentIntentId(pi);
   if (!id) return null;
+  const hasOrder = async (externalId: string) =>
+    (await db().collection(COLLECTIONS.orders).doc(orderIdFor(externalId)).get()).exists;
+
   const found = await stripe().checkout.sessions.list({ payment_intent: id, limit: 1 });
   const session = found.data[0];
-  if (session) return { externalId: session.id, ours: Boolean(websiteCheckout(session.metadata)) };
+  if (session) {
+    return { externalId: session.id, ours: Boolean(websiteCheckout(session.metadata)) || (await hasOrder(session.id)) };
+  }
 
   const paid = await stripe().invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: id }, limit: 1 });
   const invoice = paid.data[0]?.invoice;
   const invoiceId = typeof invoice === 'string' ? invoice : invoice?.id;
-  return invoiceId ? { externalId: invoiceId, ours: true } : null;
+  return invoiceId ? { externalId: invoiceId, ours: await hasOrder(invoiceId) } : null;
 }
 
 /**
@@ -730,29 +775,27 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
    * name. The owner's rule is that a ticket comes only from buying it on the
    * website. So a foreign session is acknowledged with a 200, which stops
    * Stripe retrying, and creates nothing: no order, registration, account,
-   * directory entry or email. Organizers are told through `auditLog`, which
-   * the dashboard renders, because the money has still arrived and somebody
-   * has to decide what it was for. There is no organizer alert address in
-   * this app to mail instead.
+   * directory entry or email. The KGC Stripe account takes sponsorships and
+   * other payments as a matter of course, so this is not an alarm: it is noted
+   * in `stripeIgnored`, which Transaction History lists as "Stripe payments not
+   * from ticketing (ignored)", with the amount, payer and Stripe id, so a
+   * ticket somebody bought the wrong way can still be spotted (T142).
    */
   const ours = websiteCheckout(session.metadata);
   if (!ours) {
-    await recordWarning(
-      'checkout.notFromWebsite',
-      {
-        sessionId: session.id,
-        email,
-        name: session.customer_details?.name ?? '',
-        amountCents: session.amount_total ?? 0,
-        currency: session.currency ?? 'usd',
-        paymentLink:
-          typeof session.payment_link === 'string'
-            ? session.payment_link
-            : (session.payment_link?.id ?? ''),
-        note: 'Paid outside the website tickets page. No ticket was issued.',
-      },
-      { path: 'stripe', id: session.id },
-    );
+    // Not a ticket. Noted quietly, not as a warning: the account takes
+    // sponsorships and other payments as a matter of course (T142).
+    await noteIgnoredStripe({
+      eventType: event.type,
+      kind: 'payment',
+      stripeId: session.id,
+      amountCents: session.amount_total ?? 0,
+      currency: session.currency ?? 'usd',
+      email,
+      name: session.customer_details?.name ?? undefined,
+      description:
+        typeof session.payment_link === 'string' ? session.payment_link : (session.payment_link?.id ?? undefined),
+    });
     return NextResponse.json({ received: true, skipped: 'not a website checkout session' });
   }
 
