@@ -17,6 +17,8 @@ export default defineConfig({
       'server-only': path.resolve(root, 'node_modules/server-only/empty.js'),
     },
   },
+  // The order page is a server component; `lifecycle.test.ts` renders it.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     include: ['tests/group-purchase/**/*.test.ts'],
     fileParallelism: false,
