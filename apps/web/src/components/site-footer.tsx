@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { SiteLink } from './site-link';
 import { SITE, homeVenue } from '@/lib/site';
+import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 
 /**
  * Copyright runs from the first conference to the current edition — 2019 is
@@ -61,7 +62,7 @@ export function SiteFooter({
           <div>
             <h2>Attend</h2>
             <SiteLink href="/tickets" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Tickets</SiteLink>
-            <SiteLink href="/tickets/invoice" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Pay by invoice</SiteLink>
+            {INVOICE_PUBLIC && <SiteLink href="/tickets/invoice" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Pay by invoice</SiteLink>}
             {showAgenda && <SiteLink href="/agenda" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Agenda</SiteLink>}
             {showSpeakers && <SiteLink href="/speakers" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speakers</SiteLink>}
             {/* An attendee-facing directory of who is in the hall, so it sits

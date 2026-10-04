@@ -8,6 +8,7 @@ import { monthName } from '@kgc/shared';
 import s from './tickets.module.css';
 import { TicketSalesClosed } from './sales-closed';
 import { termsPublished } from '@/lib/terms-core';
+import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 
 export const metadata: Metadata = {
   title: 'Knowledge Graph Conference Tickets',
@@ -237,21 +238,25 @@ export default async function TicketsPage({
                 />
               ))}
             </div>
-            {/*
-              The invoice route, on the page rather than only in the questions
-              below (T147). A company that cannot pay by card did not find it
-              at the bottom of an FAQ; one quiet row under the cards, the same
-              shape as them, so it does not compete with Choose.
-            */}
-            <div className={s.invoice}>
-              <p className={s.invoiceText}>
-                <strong>Buying for a team?</strong> Pay by invoice with a PO number, on net 14
-                to 60 terms.
-              </p>
-              <Link className={s.cta} href="/tickets/invoice">
-                Pay by invoice
-              </Link>
-            </div>
+            {INVOICE_PUBLIC && (
+              <>
+                {/*
+                  The invoice route, on the page rather than only in the questions
+                  below (T147). A company that cannot pay by card did not find it
+                  at the bottom of an FAQ; one quiet row under the cards, the same
+                  shape as them, so it does not compete with Choose.
+                */}
+                <div className={s.invoice}>
+                  <p className={s.invoiceText}>
+                    <strong>Buying for a team?</strong> Pay by invoice with a PO number, on net 14
+                    to 60 terms.
+                  </p>
+                  <Link className={s.cta} href="/tickets/invoice">
+                    Pay by invoice
+                  </Link>
+                </div>
+              </>
+            )}
           </>
         ) : (
           <p className={s.empty}>
@@ -328,10 +333,17 @@ export default async function TicketsPage({
           <details>
             <summary>Can we pay by invoice?</summary>
             <div className="answer">
-              <p>
-                Yes. <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60 terms,
-                with a PO number on the invoice.
-              </p>
+              {INVOICE_PUBLIC ? (
+                <p>
+                  Yes. <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60
+                  terms, with a PO number on the invoice.
+                </p>
+              ) : (
+                <p>
+                  Email us at <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> for
+                  group or invoice billing.
+                </p>
+              )}
             </div>
           </details>
         </div>

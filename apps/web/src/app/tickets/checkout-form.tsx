@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { QuestionFieldDef } from '@kgc/shared';
@@ -786,10 +787,12 @@ function OrderRail({
       </ul>
 
       {/* Its own row rather than a third line of small print (T147). */}
-      <p className="rail-invoice">
-        <span>Need a PO number?</span>
-        <Link href="/tickets/invoice">Pay by invoice</Link>
-      </p>
+      {INVOICE_PUBLIC && (
+        <p className="rail-invoice">
+          <span>Need a PO number?</span>
+          <Link href="/tickets/invoice">Pay by invoice</Link>
+        </p>
+      )}
     </aside>
   );
 }

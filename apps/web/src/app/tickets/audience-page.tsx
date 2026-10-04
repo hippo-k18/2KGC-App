@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 import { termsPublished } from '@/lib/terms-core';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
@@ -161,11 +162,19 @@ export async function AudienceTicketsPage({
                 </li>
               ))}
             </ol>
-            <p style={{ marginTop: 28 }}>
-              <strong>Paying by invoice?</strong>{' '}
-              <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60, with a PO
-              number.
-            </p>
+            {INVOICE_PUBLIC ? (
+              <p style={{ marginTop: 28 }}>
+                <strong>Paying by invoice?</strong>{' '}
+                <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60, with a PO
+                number.
+              </p>
+            ) : (
+              <p style={{ marginTop: 28 }}>
+                <strong>Paying as a group?</strong> Email us at{' '}
+                <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> for group or
+                invoice billing.
+              </p>
+            )}
             <p>
               <strong>Questions?</strong>{' '}
               <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
