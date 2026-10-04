@@ -123,9 +123,12 @@ function toRow(id: string, o: OrderDoc): OrderRow {
   return {
     id,
     externalId: o.externalId,
-    email: o.email,
-    buyerName: o.buyerName,
-    companyName: o.companyName,
+    // Erasure sets these to null (person-data-core.ts), and every screen that
+    // lists orders reads them as strings: one erased order took the whole of
+    // Attendee Orders down (T138B, TK-301).
+    email: o.email ?? '',
+    buyerName: o.buyerName ?? undefined,
+    companyName: o.companyName ?? undefined,
     status: o.status,
     // Orders written before the in-house move carry no channel. They all came
     // through Checkout, so that is the honest default rather than 'manual'.
@@ -552,7 +555,8 @@ export async function recentEmails(limit = 100): Promise<EmailRow[]> {
       const e = d.data() as EmailLogDoc;
       return {
         id: d.id,
-        to: e.to,
+        // Null once the recipient has been erased.
+        to: e.to ?? '',
         template: e.template,
         subject: e.subject,
         status: e.status,

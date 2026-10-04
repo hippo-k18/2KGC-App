@@ -5,7 +5,12 @@
  *
  * Run with: npm run test:dashboard-orders
  */
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/auth', () => ({
+  requireOrganizer: async () => 'organizer@example.com',
+  requirePassphrase: () => false,
+}));
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { registrationId } from '@kgc/scripts/src/lib/ids';
@@ -133,6 +138,28 @@ describe('erasing a person (TK-502)', () => {
     expect(order.erasedRegistrationIds).toEqual([rid]);
     expect(order.releasedSeats).toEqual({ [rid]: 'main-conference' });
     expect(order.email).toBeFalsy();
+  });
+
+  it('leaves Attendee Orders and the email log readable afterwards (T138B, TK-301)', async () => {
+    const res = await manual({ requestId: 'req-erase-0002' });
+    await manual({ requestId: 'req-other-0001', email: 'ben@example.com', name: 'Ben Olsen' });
+    const identity = await resolvePerson({ registrationId: res.registrationId! });
+    await erasePerson(identity!, 'ada@example.com', 'organizer@example.com');
+    // An emailLog row whose recipient was erased.
+    await db.collection(COLLECTIONS.emailLog).add({ eventId: EVENT_ID, to: null, template: 'purchase-confirmation', subject: 'x', status: 'sent', at: new Date() });
+
+    const { listOrders, recentEmails } = await import('@/lib/commerce');
+    const rows = await listOrders();
+    expect(rows.map((r) => typeof r.email)).toEqual(['string', 'string']);
+    expect((await recentEmails()).every((e) => typeof e.to === 'string')).toBe(true);
+
+    const { renderToStaticMarkup } = await import('../../apps/organizer/node_modules/react-dom/server.js');
+    const { default: AttendeeOrdersPage } = await import('@/app/(dash)/tickets/orders-and-transactions/attendee-orders/page');
+    for (const q of ['', 'ben']) {
+      const el = await AttendeeOrdersPage({ searchParams: Promise.resolve(q ? { q } : {}) });
+      const html = renderToStaticMarkup(el);
+      expect(html).toContain('ben@');
+    }
   });
 });
 

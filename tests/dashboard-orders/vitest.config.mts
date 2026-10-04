@@ -17,6 +17,8 @@ export default defineConfig({
       { find: /^@\//, replacement: path.resolve(root, 'apps/organizer/src') + '/' },
     ],
   },
+  // Attendee Orders is rendered as a server component in the erasure test.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     include: ['tests/dashboard-orders/**/*.test.ts'],
     env: { WEB_ORDER_SECRET: 'test-order-secret-test-order-secret-0123', WEB_PUBLIC_ORIGIN: 'http://localhost:3200' },

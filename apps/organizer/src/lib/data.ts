@@ -479,7 +479,8 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
           .map((id) => sessionById.get(id) ?? { id, title: id, day: '', startsAtLocal: '' })
           .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal)),
         userId: s.userId,
-        contactEmail: s.contactEmail,
+        // Null once the speaker has been erased (the talk stays on the programme).
+        contactEmail: s.contactEmail ?? undefined,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));

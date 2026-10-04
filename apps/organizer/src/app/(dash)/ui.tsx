@@ -829,7 +829,9 @@ export function ProgressBar({ pct }: { pct: number }) {
  * fit, which is the case the rule was there for. Nothing is added to the text
  * itself: a copy of the element yields the address unchanged.
  */
-export function Email({ address }: { address: string }) {
+export function Email({ address }: { address: string | null | undefined }) {
+  // An erased person's records keep the row and lose the address (`null`).
+  if (!address) return <span className="muted">—</span>;
   const parts = address.split(/(?<=[@.])/);
   return (
     <>

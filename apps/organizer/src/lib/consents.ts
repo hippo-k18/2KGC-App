@@ -339,9 +339,10 @@ async function signaturesFor(formId: string): Promise<SignatureRecord[]> {
     return {
       signatory: r.signatory,
       uid: r.uid,
-      email: r.email,
+      // Null once the signatory has been erased; the signature stays as evidence.
+      email: r.email ?? undefined,
       formVersion: r.formVersion,
-      signedName: r.signedName,
+      signedName: r.signedName ?? '',
       signedAt: iso(r.signedAt),
       channel: r.channel,
     };

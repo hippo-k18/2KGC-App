@@ -358,7 +358,8 @@ export async function campaignRecipients(campaignId: string): Promise<
   return snap.docs
     .map((d) => {
       const e = d.data() as EmailLogDoc;
-      return { to: e.to, status: e.status, error: e.error, reason: e.reason };
+      // `to` is null once the recipient has been erased.
+      return { to: e.to ?? '', status: e.status, error: e.error, reason: e.reason };
     })
     .sort((a, b) => a.to.localeCompare(b.to));
 }
