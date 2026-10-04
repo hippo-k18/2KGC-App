@@ -69,7 +69,6 @@ export const MAX_EMAIL = 254;
  * break in a name or company reached an email subject and Stripe (TK-227).
  */
 export function cleanText(value: string): string {
-  // eslint-disable-next-line no-control-regex
   return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
