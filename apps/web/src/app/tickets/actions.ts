@@ -11,6 +11,7 @@ import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { tierById, tierFulfilment } from '@/lib/catalogue';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
+import { CHECKOUT_SOURCE } from '@/lib/checkout-source';
 import { readReferralCookies, referralMetadata, type CapturedReferral } from '@/lib/referral-capture';
 import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
@@ -495,6 +496,8 @@ export async function startCheckout(
        * a cross-check the webhook can log against what it actually found.
        */
       metadata: {
+        // The webhook fulfils only sessions carrying this; see checkout-source.ts.
+        source: CHECKOUT_SOURCE,
         tier: primary.id,
         ticketType: primary.name,
         name,

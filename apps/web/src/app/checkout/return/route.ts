@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
+import { websiteCheckout } from '@/lib/checkout-source';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilPurchase, orderIdFor } from '@/lib/registrations';
 import { analyticsConfig, encodePurchase, PURCHASE_COOKIE, type PurchasePayload } from '@/lib/analytics';
@@ -69,10 +70,22 @@ export async function GET(req: NextRequest) {
   const email = session.customer_details?.email ?? session.customer_email;
   if (!email) return NextResponse.redirect(back);
 
+  // Only a session the tickets page started is a ticket, the same rule the
+  // webhook applies (see checkout-source.ts). The `session_id` is
+  // attacker-supplied, so without this anybody holding the id of any paid
+  // session in the account, a Payment Link's for one, could mint a ticket by
+  // visiting this URL. The webhook is what tells organizers about such a
+  // payment; this only declines to fulfil it.
+  const ours = websiteCheckout(session.metadata);
+  if (!ours) return NextResponse.redirect(back);
+
   const result = await fulfilPurchase({
     email,
     name: session.metadata?.name ?? session.customer_details?.name ?? '',
-    ticketType: session.metadata?.ticketType ?? 'Main Conference',
+    ticketType: ours.ticketType,
+    // Without it the order line was written with `ticketTypeId: ''` whenever
+    // this redirect beat the webhook to the order document.
+    tierId: ours.tierId,
     externalId: session.id,
     amountCents: session.amount_total ?? 0,
     currency: session.currency ?? 'usd',

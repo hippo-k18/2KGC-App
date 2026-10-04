@@ -24,6 +24,7 @@
     "android": "npm run android --workspace=app",
     "dev": "npm run start --workspace=app",
     "test:commerce": "firebase emulators:exec --only firestore,auth \"vitest run tests/commerce --no-file-parallelism\"",
+    "test:webhook": "vitest run --config tests/webhook/vitest.config.mts",
     "test:cfa": "firebase emulators:exec --only firestore --config firebase.cfa-test.json --project kgc-cfa-test \"vitest run --config vitest.cfa.mts\"",
     "test:denormalise": "firebase emulators:exec --only firestore \"vitest run tests/denormalise\"",
     "test:attendance": "firebase emulators:exec --only firestore \"vitest run tests/attendance\"",

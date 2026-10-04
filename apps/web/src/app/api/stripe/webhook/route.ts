@@ -5,6 +5,7 @@ import { COLLECTIONS, type EntitlementDoc, type OrderDoc, type RegistrationDoc }
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { currentHolder, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
+import { websiteCheckout } from '@/lib/checkout-source';
 import { splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import {
@@ -613,6 +614,41 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     return NextResponse.json({ received: true, skipped: 'no email on session' });
   }
 
+  /**
+   * Only a session the tickets page created becomes a ticket.
+   *
+   * Everything else paid in this Stripe account (a Payment Link, a session made
+   * in the Stripe dashboard, another integration) used to be fulfilled as a
+   * Main Conference ticket, because a missing `ticketType` fell back to that
+   * name. The owner's rule is that a ticket comes only from buying it on the
+   * website. So a foreign session is acknowledged with a 200, which stops
+   * Stripe retrying, and creates nothing: no order, registration, account,
+   * directory entry or email. Organizers are told through `auditLog`, which
+   * the dashboard renders, because the money has still arrived and somebody
+   * has to decide what it was for. There is no organizer alert address in
+   * this app to mail instead.
+   */
+  const ours = websiteCheckout(session.metadata);
+  if (!ours) {
+    await recordWarning(
+      'checkout.notFromWebsite',
+      {
+        sessionId: session.id,
+        email,
+        name: session.customer_details?.name ?? '',
+        amountCents: session.amount_total ?? 0,
+        currency: session.currency ?? 'usd',
+        paymentLink:
+          typeof session.payment_link === 'string'
+            ? session.payment_link
+            : (session.payment_link?.id ?? ''),
+        note: 'Paid outside the website tickets page. No ticket was issued.',
+      },
+      { path: 'stripe', id: session.id },
+    );
+    return NextResponse.json({ received: true, skipped: 'not a website checkout session' });
+  }
+
   const detail = await sessionDetail(session);
   const customer = session.customer;
   const paymentIntent = session.payment_intent;
@@ -622,8 +658,8 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     email,
     name: session.metadata?.name ?? session.customer_details?.name ?? '',
     buyerName: session.customer_details?.name ?? undefined,
-    ticketType: session.metadata?.ticketType ?? 'Main Conference',
-    tierId: session.metadata?.tier,
+    ticketType: ours.ticketType,
+    tierId: ours.tierId,
     amountCents: session.amount_total ?? 0,
     currency: session.currency ?? 'usd',
     // Stripe's own arithmetic, kept rather than recomputed — the dashboard
