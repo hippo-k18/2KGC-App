@@ -20,6 +20,8 @@ import {
 import { db } from './firestore';
 import { salesByCode, type CodeSplit } from './sales-core';
 import { toWallClockInZone } from './time';
+import { dayOfInstant } from './time-core';
+export { purchaseDay } from './time-core';
 
 /**
  * Every read the Tickets tab does.
@@ -279,7 +281,8 @@ export async function salesSummary(): Promise<SalesSummary> {
 
   const dailyMap = new Map<string, { netCents: number; orders: number }>();
   for (const o of settled) {
-    const date = o.purchasedAt.slice(0, 10);
+    // The New York date, not the UTC one: a 23:30 sale belongs to that day.
+    const date = dayOfInstant(o.purchasedAt);
     const entry = dailyMap.get(date) ?? { netCents: 0, orders: 0 };
     entry.netCents += o.netCents;
     entry.orders += 1;

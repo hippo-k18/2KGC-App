@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
-import { listOrders, listTicketTypes, money, type OrderRow } from '@/lib/commerce';
+import { listOrders, listTicketTypes, money, purchaseDay, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
@@ -166,7 +166,7 @@ export async function AudienceOrders({
                   <code>{m.order.id.slice(0, 18)}</code>
                 </Link>
                 <div className="muted" style={{ fontSize: 11 }}>
-                  {m.order.purchasedAt.slice(0, 10)} · {m.order.channel}
+                  {purchaseDay(m.order.purchasedAt)} · {m.order.channel}
                 </div>
               </div>,
 

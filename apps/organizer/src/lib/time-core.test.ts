@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clockOfInstant, dayOfInstant, stampOfInstant } from './time-core';
+import { clockOfInstant, dayOfInstant, purchaseDay, stampOfInstant } from './time-core';
 
 /**
  * The evening-scan case, pinned.
@@ -63,5 +63,16 @@ describe('stampOfInstant', () => {
     for (const bad of [undefined, null, '', 'not a date']) {
       expect(stampOfInstant(bad)).toBe('');
     }
+  });
+});
+
+describe('purchaseDay (T135B, TK-438)', () => {
+  it('puts a 23:30 New York sale on its New York day, not the next UTC day', () => {
+    // 23:30 EDT on 2 Oct 2026 is 03:30 UTC on 3 Oct.
+    expect(purchaseDay('2026-10-03T03:30:00.000Z')).toBe('2026-10-02');
+  });
+
+  it('shows a dash for a cart that has no purchase time yet, not 1970', () => {
+    expect(purchaseDay(new Date(0).toISOString())).toBe('—');
   });
 });

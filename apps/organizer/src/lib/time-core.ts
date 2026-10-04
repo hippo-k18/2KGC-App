@@ -103,3 +103,14 @@ function parse(iso: string | null | undefined): Date | null {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? null : at;
 }
+
+/**
+ * The day an order was bought, as a person in New York reads it, for every
+ * orders table. `purchasedAt.slice(0, 10)` printed the UTC date, so a 23:30
+ * sale showed under the next day (T135B, TK-438). A pending cart has no
+ * purchase time yet and is read back as the epoch; it shows a dash rather than
+ * 1970-01-01 (N6).
+ */
+export function purchaseDay(iso: string): string {
+  return iso === new Date(0).toISOString() ? '—' : dayOfInstant(iso);
+}

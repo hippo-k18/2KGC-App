@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listOrders, listTicketTypes, money } from '@/lib/commerce';
+import { listOrders, listTicketTypes, money, purchaseDay } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 import { ManualOrderForm } from '../../manual-order-form';
@@ -133,7 +133,7 @@ export default async function OfflinePaymentPage() {
 
             <span key="w" className="muted" style={{ fontSize: 12 }}>
               {o.markedPaidBy ? <Email address={o.markedPaidBy} /> : 'unknown'} ·{' '}
-              {o.purchasedAt.slice(0, 10)}
+              {purchaseDay(o.purchasedAt)}
               {o.poNumber ? ` · PO ${o.poNumber}` : ''}
             </span>,
           ])}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money, recentEmails } from '@/lib/commerce';
+import { clockOfInstant, dayOfInstant } from '@/lib/time-core';
 import { ROUTES } from '@/lib/nav';
 import { stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
 import {
@@ -278,9 +279,9 @@ export default async function TransactionHistoryPage({
           ]}
           rows={wrapCol(rows.map((e) => [
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {e.at.slice(0, 10)}
+              {dayOfInstant(e.at)}
               <br />
-              {e.at.slice(11, 16)}
+              {clockOfInstant(e.at)}
             </span>,
             <Tag key="k" color={e.tone} fill="outline" small>
               {e.kind === 'invoice-raised' ? 'invoice' : e.kind}

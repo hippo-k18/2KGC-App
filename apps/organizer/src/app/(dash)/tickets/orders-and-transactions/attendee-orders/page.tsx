@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
-import { listOrders, money, type OrderRow } from '@/lib/commerce';
+import { listOrders, money, purchaseDay, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
 import { Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
@@ -297,7 +297,7 @@ export default async function AttendeeOrdersPage({
             </div>,
 
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {o.purchasedAt.slice(0, 10)}
+              {purchaseDay(o.purchasedAt)}
             </span>,
 
             <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
