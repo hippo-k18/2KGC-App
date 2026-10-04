@@ -8,7 +8,7 @@ import { seatsToCount, splitAcrossSeats } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import { grantOrderEntitlements } from '@/lib/app-account-core';
 import { incrementSold, tierFulfilment } from '@/lib/catalogue';
-import { sendPurchaseConfirmation } from '@/lib/email';
+import { sendPurchaseConfirmation, type SendOutcome } from '@/lib/email';
 import { recordError } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 import { mintOrderToken } from '@/lib/order-token';
@@ -143,8 +143,10 @@ async function grantSeatEntitlements(
  * The first run to claim a registration sends; every other run skips it.
  *
  * Claimed before sending, not after: a crash between the two loses one email,
- * where the other order would send it again to everyone on every replay. If the claim itself fails the
- * email is sent anyway, because a missing ticket email is the worse outcome.
+ * where the other order would send it again to everyone on every replay. If
+ * the claim itself fails the email is sent anyway, because a missing ticket
+ * email is the worse outcome. A send that fails is released again by
+ * `sendClaimed`, so only a crash can lose one.
  */
 async function claimConfirmation(orderId: string, rid: string): Promise<boolean> {
   try {
@@ -159,6 +161,49 @@ async function claimConfirmation(orderId: string, rid: string): Promise<boolean>
   } catch (err) {
     await recordError('order.confirmationClaim', err, { path: 'orders', id: orderId });
     return true;
+  }
+}
+
+/**
+ * Send a claimed confirmation, and give the claim back if it did not go out.
+ *
+ * A claim that outlives a failed send is worse than no claim at all: every
+ * later delivery (the redirect, the webhook, Stripe's retries) finds it and
+ * skips, so the email is never tried again. For seats two and up that email is
+ * their only ticket link and claim code (T130). So on `'failed'` (Resend
+ * refused it, or the network did) or a throw, the registration is taken off
+ * `confirmationsSent` and the next delivery sends it.
+ *
+ * `'skipped'` keeps the claim. It means no email provider is configured, which
+ * is a property of the deployment rather than of this send: every retry would
+ * skip as well, and add another `skipped` row to `emailLog` each time.
+ *
+ * A throw is passed on after the release, as it always was. On the webhook
+ * that is a 5xx, which is what makes Stripe deliver the event again.
+ */
+async function sendClaimed(
+  orderId: string,
+  rid: string,
+  send: () => Promise<SendOutcome>,
+): Promise<void> {
+  let outcome: SendOutcome;
+  try {
+    outcome = await send();
+  } catch (err) {
+    await releaseConfirmation(orderId, rid);
+    throw err;
+  }
+  if (outcome === 'failed') await releaseConfirmation(orderId, rid);
+}
+
+async function releaseConfirmation(orderId: string, rid: string): Promise<void> {
+  try {
+    await db()
+      .collection(COLLECTIONS.orders)
+      .doc(orderId)
+      .update({ confirmationsSent: FieldValue.arrayRemove(rid) });
+  } catch (err) {
+    await recordError('order.confirmationRelease', err, { path: 'orders', id: orderId });
   }
 }
 
@@ -291,18 +336,20 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     // receipt does not get a colleague into the app. Once per seat, however
     // many times this purchase is fulfilled.
     if (!(await claimConfirmation(oid, seat.registrationId))) continue;
-    await sendPurchaseConfirmation({
-      to: seat.email,
-      name: seat.name ?? line.attendeeName ?? '',
-      ticketType: seat.ticketType ?? line.ticketTypeName,
-      amountCents: shares[i] ?? 0,
-      currency: input.currency,
-      orderUrl: `${origin}/order/${mintOrderToken({ rid: seat.registrationId })}`,
-      claimCode: seat.claimCode,
-      registrationId: seat.registrationId,
-      temporaryPassword: seatAccount.temporaryPassword,
-      referralCode: await referralCodeFor(seat.registrationId),
-    });
+    await sendClaimed(oid, seat.registrationId, async () =>
+      sendPurchaseConfirmation({
+        to: seat.email,
+        name: seat.name ?? line.attendeeName ?? '',
+        ticketType: seat.ticketType ?? line.ticketTypeName,
+        amountCents: shares[i] ?? 0,
+        currency: input.currency,
+        orderUrl: `${origin}/order/${mintOrderToken({ rid: seat.registrationId })}`,
+        claimCode: seat.claimCode,
+        registrationId: seat.registrationId,
+        temporaryPassword: seatAccount.temporaryPassword,
+        referralCode: await referralCodeFor(seat.registrationId),
+      }),
+    );
   }
 
   // Only count a seat the first time. A replay must not sell the same ticket
@@ -376,18 +423,20 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
   }
 
   if (await claimConfirmation(oid, result.registrationId)) {
-    await sendPurchaseConfirmation({
-      to: result.email,
-      name: result.name ?? '',
-      ticketType: result.ticketType ?? '',
-      amountCents: buyerShare,
-      currency: input.currency,
-      orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
-      claimCode: result.claimCode,
-      registrationId: result.registrationId,
-      temporaryPassword: account.temporaryPassword,
-      referralCode: await referralCodeFor(result.registrationId),
-    });
+    await sendClaimed(oid, result.registrationId, async () =>
+      sendPurchaseConfirmation({
+        to: result.email,
+        name: result.name ?? '',
+        ticketType: result.ticketType ?? '',
+        amountCents: buyerShare,
+        currency: input.currency,
+        orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
+        claimCode: result.claimCode,
+        registrationId: result.registrationId,
+        temporaryPassword: account.temporaryPassword,
+        referralCode: await referralCodeFor(result.registrationId),
+      }),
+    );
   }
 
   return {

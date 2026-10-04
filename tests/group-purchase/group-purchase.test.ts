@@ -25,6 +25,9 @@ const mocks = vi.hoisted(() => {
   return {
   sessions: new Map<string, unknown>(),
   sent: [] as { to: string; ticketType: string; registrationId?: string }[],
+    /** Addresses whose next confirmation fails, and how. Consumed once each. */
+    failNext: new Map<string, 'failed' | 'throw' | 'skipped'>(),
+    attempts: [] as string[],
   };
 });
 
@@ -47,9 +50,18 @@ vi.mock('@/lib/stripe', () => ({
   }),
 }));
 vi.mock('@/lib/email', () => ({
+  // The real one returns 'sent' | 'skipped' | 'failed' and never throws; the
+  // throw stands in for a crash or a bug between the claim and the send.
   sendPurchaseConfirmation: async (input: { to: string; ticketType: string; registrationId?: string }) => {
+    mocks.attempts.push(input.to);
+    const fail = mocks.failNext.get(input.to);
+    if (fail) {
+      mocks.failNext.delete(input.to);
+      if (fail === 'throw') throw new Error('send blew up');
+      return fail;
+    }
     mocks.sent.push({ to: input.to, ticketType: input.ticketType, registrationId: input.registrationId });
-    return { status: 'sent' };
+    return 'sent';
   },
   sendRefundConfirmation: async () => ({ status: 'sent' }),
   sendTicketWithdrawn: async () => ({ status: 'sent' }),
@@ -103,6 +115,8 @@ async function wipe(collection: string) {
 beforeEach(async () => {
   mocks.sessions.clear();
   mocks.sent.length = 0;
+  mocks.failNext.clear();
+  mocks.attempts.length = 0;
   await Promise.all(
     [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, 'referralCodes'].map(wipe),
   );
@@ -304,5 +318,54 @@ describe('a session the website did not start', () => {
     expect((await db.collection(COLLECTIONS.registrations).get()).size).toBe(0);
     expect((await db.collection(COLLECTIONS.orders).get()).size).toBe(0);
     expect(mocks.sent).toHaveLength(0);
+  });
+});
+
+describe('a confirmation that fails to send', () => {
+  /**
+   * The claim on the order stops a second delivery re-sending an email, so it
+   * must not also stop one from sending an email that never went out (T130).
+   * Each case ends with exactly one confirmation delivered to every person.
+   */
+  it('is sent by the return redirect after it failed on the webhook, and not again on replay', async () => {
+    const p = await paidCart({ seats: [seat('Dee Park', 'dee@example.com', 'virtual')] }, 'cs_test_fail_webhook');
+    mocks.failNext.set('dee@example.com', 'failed');
+    await deliverWebhook(p.sessionId);
+    expect(mocks.sent).toHaveLength(0);
+    await buyerReturns(p.sessionId);
+    await deliverWebhook(p.sessionId);
+    await expectFullyFulfilled(p);
+    expect(mocks.attempts).toEqual(['dee@example.com', 'dee@example.com']);
+  });
+
+  it("sends seat two's confirmation from the webhook after it failed on the return redirect", async () => {
+    const p = await paidCart(TWO, 'cs_test_fail_seat_two');
+    mocks.failNext.set('ben@example.com', 'failed');
+    await buyerReturns(p.sessionId);
+    expect(mocks.sent.map((m) => m.to)).toEqual(['ada@example.com']);
+    await deliverWebhook(p.sessionId);
+    await deliverWebhook(p.sessionId);
+    await expectFullyFulfilled(p);
+  });
+
+  it('is sent by the Stripe retry after the send threw on the webhook', async () => {
+    const p = await paidCart(THREE, 'cs_test_fail_throw');
+    mocks.failNext.set('ada@example.com', 'throw');
+    // The route errors, Stripe sees a failure and delivers the event again.
+    await expect(deliverWebhook(p.sessionId)).rejects.toThrow('send blew up');
+    await deliverWebhook(p.sessionId);
+    await deliverWebhook(p.sessionId);
+    await expectFullyFulfilled(p);
+  });
+
+  it('is not retried when it was skipped because no email provider is set up', async () => {
+    // A property of the deployment, not of the send: a retry would skip too,
+    // and log another row each time. So the claim stands.
+    const p = await paidCart({ seats: [seat('Dee Park', 'dee@example.com', 'virtual')] }, 'cs_test_skipped');
+    mocks.failNext.set('dee@example.com', 'skipped');
+    await deliverWebhook(p.sessionId);
+    await buyerReturns(p.sessionId);
+    await deliverWebhook(p.sessionId);
+    expect(mocks.attempts).toEqual(['dee@example.com']);
   });
 });
