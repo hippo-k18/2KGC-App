@@ -1619,6 +1619,8 @@ export interface OrderDoc extends BaseDoc {
 
   purchasedAt: Timestamp;
   refundedAt?: Timestamp;
+  /** When a chargeback cancelled the order. Tells a disputed sale from an abandoned checkout. */
+  disputedAt?: Timestamp;
 
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;

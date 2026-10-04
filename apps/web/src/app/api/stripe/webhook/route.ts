@@ -154,12 +154,31 @@ export async function POST(req: NextRequest) {
 
     case 'charge.refunded': {
       const charge = event.data.object;
-      // The order is keyed by the Checkout session id, which a charge does not
-      // carry directly — it is reachable through the payment intent.
-      const sessionId = await sessionIdForPaymentIntent(charge.payment_intent);
-      if (!sessionId) {
-        return NextResponse.json({ received: true, skipped: 'no checkout session for charge' });
+      // The order is keyed by the Checkout session or the invoice, neither of
+      // which a charge carries directly; both are reachable through the
+      // payment intent.
+      const target = await paymentTarget(charge.payment_intent);
+      if (!target) {
+        return NextResponse.json({ received: true, skipped: 'no checkout session or invoice for charge' });
       }
+      if (!target.ours) {
+        // A Payment Link or another integration: we issued nothing for it, so
+        // there is nothing to withdraw. Organizers are told; no order record
+        // is invented for it (T135, S9).
+        await recordWarning(
+          'refund.notFromWebsite',
+          {
+            sessionId: target.externalId,
+            paymentIntent: paymentIntentId(charge.payment_intent),
+            refundedCents: charge.amount_refunded,
+            currency: charge.currency,
+            note: 'Refund of a payment made outside the website. No ticket was affected.',
+          },
+          { path: 'stripe', id: target.externalId },
+        );
+        return NextResponse.json({ received: true, skipped: 'not a website payment' });
+      }
+      const sessionId = target.externalId;
 
       const outcome = await cancelRegistrationByOrder({
         externalId: sessionId,
@@ -319,10 +338,11 @@ export async function POST(req: NextRequest) {
       // in a dispute with us, and an automated "your ticket is cancelled" is
       // the wrong opening move. The dashboard surfaces it for a human instead.
       const dispute = event.data.object;
-      const sessionId = await sessionIdForPaymentIntent(dispute.payment_intent);
-      if (!sessionId) {
-        return NextResponse.json({ received: true, skipped: 'no checkout session for dispute' });
+      const target = await paymentTarget(dispute.payment_intent);
+      if (!target || !target.ours) {
+        return NextResponse.json({ received: true, skipped: 'no website order for dispute' });
       }
+      const sessionId = target.externalId;
       const outcome = await cancelRegistrationByOrder({
         externalId: sessionId,
         reason: 'disputed',
@@ -332,12 +352,22 @@ export async function POST(req: NextRequest) {
       const seatsCancelled = outcome.newlyRefunded
         ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
+      // The seats go back on sale while the tickets are withdrawn, once, for
+      // the same reason a refund gives them back (T135, S3).
+      const seatsReturned: string[] = [];
+      if (outcome.newlyRefunded) {
+        for (const line of outcome.lines) {
+          await incrementSold(line.ticketTypeId, -line.quantity);
+          seatsReturned.push(line.ticketTypeId);
+        }
+      }
       return NextResponse.json({
         received: true,
         eventId: event.id,
         orderId: outcome.orderId,
         registrationId: outcome.registrationId,
         seatsCancelled,
+        seatsReturned,
       });
     }
 
@@ -544,17 +574,33 @@ export async function POST(req: NextRequest) {
   }
 }
 
+function paymentIntentId(pi: string | Stripe.PaymentIntent | null): string | null {
+  return (typeof pi === 'string' ? pi : pi?.id) ?? null;
+}
+
 /**
- * A charge knows its payment intent; the order is keyed by the Checkout
- * session. One lookup bridges them.
+ * What a charge paid for, from its payment intent: a Checkout session or an
+ * invoice. Orders are keyed by a hash of either id (`orderIdFor`,
+ * `invoiceOrderId`), so the id is all a refund needs.
+ *
+ * An invoice's payment intent has no Checkout session, and until T136 that
+ * was the end of the lookup: refunding a paid invoice answered "no checkout
+ * session for charge" and left every seat active (T135, S2). `ours` is false
+ * for a session this site did not start, such as a Payment Link.
  */
-async function sessionIdForPaymentIntent(
+async function paymentTarget(
   pi: string | Stripe.PaymentIntent | null,
-): Promise<string | null> {
-  const id = typeof pi === 'string' ? pi : pi?.id;
+): Promise<{ externalId: string; ours: boolean } | null> {
+  const id = paymentIntentId(pi);
   if (!id) return null;
   const found = await stripe().checkout.sessions.list({ payment_intent: id, limit: 1 });
-  return found.data[0]?.id ?? null;
+  const session = found.data[0];
+  if (session) return { externalId: session.id, ours: Boolean(websiteCheckout(session.metadata)) };
+
+  const paid = await stripe().invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: id }, limit: 1 });
+  const invoice = paid.data[0]?.invoice;
+  const invoiceId = typeof invoice === 'string' ? invoice : invoice?.id;
+  return invoiceId ? { externalId: invoiceId, ours: true } : null;
 }
 
 /**
@@ -618,6 +664,11 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
 
   const outcome = await fulfilCheckoutSession({ session, ours, email, origin });
 
+  // Refunded or cancelled before this delivery: acknowledged, nothing issued.
+  if (outcome.settled) {
+    return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${outcome.settled}` });
+  }
+
   /**
    * Somebody's confirmation has not gone out yet, so ask Stripe to come back.
    *
@@ -664,11 +715,6 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
       ? { seatAccountsCreated: outcome.seatAccountsCreated }
       : {}),
     ...(outcome.seatAccountsFailed > 0 ? { seatAccountsFailed: outcome.seatAccountsFailed } : {}),
-  // Refunded or cancelled before this delivery: acknowledged, nothing issued.
-  if (outcome.settled) {
-    return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${outcome.settled}` });
-  }
-
   });
 }
 

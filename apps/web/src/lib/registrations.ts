@@ -462,7 +462,10 @@ export async function cancelRegistrationByOrder(input: {
 
   await orderRef.update({
     status: decision.status,
-    refundedCents: refunded,
+    // A chargeback holds the money rather than returning it, so it is not
+    // written as a refunded amount (T135B, N3). `disputedAt` is what tells a
+    // disputed sale from an abandoned checkout, both being `cancelled`.
+    ...(input.reason === 'disputed' ? { disputedAt: Timestamp.now() } : { refundedCents: refunded }),
     ...(decision.stampRefundedAt ? { refundedAt: Timestamp.now() } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -537,9 +540,6 @@ export async function cancelRegistrationByOrder(input: {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Invoicing
-//
 /**
  * A Checkout session that ended without payment: Stripe expired it, or a
  * delayed payment failed.
@@ -595,6 +595,9 @@ export async function cancelUnpaidOrder(externalId: string): Promise<{
   return { orderId: oid, outcome };
 }
 
+// ---------------------------------------------------------------------------
+// Invoicing
+//
 // An invoice is one payment for several tickets, so it gets **one** order with
 // several `items` — not one order per seat. Two things follow from that.
 //
