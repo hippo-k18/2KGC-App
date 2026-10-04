@@ -16,6 +16,8 @@ import { readReferralCookies, referralMetadata, type CapturedReferral } from '@/
 import { activeForm, stashAnswers } from '@/lib/question-forms';
 import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import type { Tier } from '@/lib/tickets';
+import { SITE } from '@/lib/site';
+import { checkoutCallerIp, checkoutStartAllowed } from '@/lib/checkout-limit';
 import { recordCartOrder, type CartSeat } from './cart-order';
 import {
   MAX_NAME,
@@ -402,6 +404,12 @@ export async function startCheckout(
   // Switched off under Marketing > Event Website.
   if (!(await ticketSalesOpen())) {
     return { error: 'Ticket sales are not open yet. Nothing was charged.' };
+  }
+  // Before anything is read or written: see `checkout-limit.ts`.
+  if (!(await checkoutStartAllowed(checkoutCallerIp(await headers())))) {
+    return {
+      error: 'Too many checkouts started from this connection. Wait a few minutes and try again. Nothing was charged.',
+    };
   }
 
   const prepared = await prepareCheckout(form);
