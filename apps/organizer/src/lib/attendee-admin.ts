@@ -519,6 +519,66 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
   };
 }
 
+/**
+ * What erasing a person does to the orders that paid for their ticket.
+ *
+ * Erasure deletes the registration, and the orders stay on the books, which
+ * is right. But they stayed `paid` with the deleted id in `registrationIds`
+ * and the seat still counted in `quantitySold`, so a capped tier lost a seat
+ * for good and the order named a ticket that no longer existed (T135B,
+ * TK-502). This gives the seat back the way a cancel does, through
+ * `releasedSeats`, so a later refund cannot return it twice, and records on
+ * each order that its ticket was erased.
+ *
+ * Two halves, because the erasure walk finds the orders to anonymise through
+ * `registrationIds`: the seat is released before the walk, and the id is
+ * moved to `erasedRegistrationIds` after it. No audit entry of its own; the
+ * erasure's entry is deliberately free of names, and a cancel's is not.
+ */
+export async function releaseSeatBeforeErasure(rid: string): Promise<{ tierName?: string } | null> {
+  const reg = await readRegistration(rid);
+  // A cancelled ticket gave its seat back when it was cancelled.
+  if (!reg || reg.status !== 'active') return null;
+
+  const orders = await ordersFor(reg.email, rid);
+  const seat = seatToRelease({ id: rid, email: reg.email, ticketType: reg.ticketType }, orders);
+  if (!seat) return null;
+
+  let tierName: string | undefined;
+  await db().runTransaction(async (tx) => {
+    const tierRef = db().collection(COLLECTIONS.ticketTypes).doc(seat.ticketTypeId);
+    const orderRef = db().collection(COLLECTIONS.orders).doc(seat.orderId);
+    const tier = (await tx.get(tierRef)).data() as TicketTypeDoc | undefined;
+    const order = (await tx.get(orderRef)).data() as OrderDoc | undefined;
+    if (order?.releasedSeats?.[rid]) return;
+    if (tier) {
+      tierName = tier.name;
+      tx.update(tierRef, {
+        quantitySold: Math.max(0, (tier.quantitySold ?? 0) - 1),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    tx.update(orderRef, { [`releasedSeats.${rid}`]: seat.ticketTypeId, updatedAt: FieldValue.serverTimestamp() });
+  });
+  return { tierName };
+}
+
+/** The second half: the erased id leaves `registrationIds` on every order that listed it. */
+export async function markOrdersErased(rid: string): Promise<number> {
+  // One filter, so it runs on the automatic single-field index; a second
+  // equality would need a composite one (AGENTS.md).
+  const snap = await db().collection(COLLECTIONS.orders).where('registrationIds', 'array-contains', rid).get();
+  const docs = snap.docs.filter((d) => (d.data() as OrderDoc).eventId === EVENT_ID);
+  for (const d of docs) {
+    await d.ref.update({
+      registrationIds: FieldValue.arrayRemove(rid),
+      erasedRegistrationIds: FieldValue.arrayUnion(rid),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return docs.length;
+}
+
 export async function reinstateAttendee(rid: string, actor: string): Promise<AttendeeActionResult> {
   const reg = await readRegistration(rid);
   if (!reg) return { ok: false, error: 'That attendee is no longer on the list.' };

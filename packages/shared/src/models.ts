@@ -1621,6 +1621,11 @@ export interface OrderDoc extends BaseDoc {
   refundedAt?: Timestamp;
   /** When a chargeback cancelled the order. Tells a disputed sale from an abandoned checkout. */
   disputedAt?: Timestamp;
+  /**
+   * Registrations this order paid for that were erased on the dashboard. They
+   * leave `registrationIds`, and their seat is in `releasedSeats` (T135B, TK-502).
+   */
+  erasedRegistrationIds?: string[];
 
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;

@@ -10,6 +10,7 @@ import type {
 import { COLLECTIONS, EVENT_ID, type RegistrationDoc, type SpeakerDoc, type UserDoc } from '@kgc/shared';
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from './audit';
+import { markOrdersErased, releaseSeatBeforeErasure } from './attendee-admin';
 import { db } from './firestore';
 import { recordError } from './errors';
 import {
@@ -463,6 +464,10 @@ export async function erasePerson(
     return { ok: false, error: 'Type the email address exactly as it is shown to confirm.' };
   }
 
+  // The seat goes back on sale before the ticket is deleted (T135B, TK-502).
+  const rid = identity.keys.registrationId;
+  const released = rid ? await releaseSeatBeforeErasure(rid) : null;
+
   const findings = await collectPerson(identity.keys);
   const outcomes: PlaceOutcome[] = [];
 
@@ -501,6 +506,16 @@ export async function erasePerson(
       changed += 1;
     }
     outcomes.push({ key: place.key, label: place.label, found: changed, did: 'anonymised' });
+  }
+
+  if (rid) {
+    const marked = await markOrdersErased(rid);
+    outcomes.push({
+      key: 'orderTickets',
+      label: released?.tierName ? `Their ticket on the order (one ${released.tierName} seat back on sale)` : 'Their ticket on the order',
+      found: marked,
+      did: 'anonymised',
+    });
   }
 
   // The one thing that is not a document. Without it the account still signs
