@@ -26,6 +26,7 @@ import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
 import {
   cancelRegistrationByOrder,
+  cancelUnpaidOrder,
   ensureRegistration,
   invoiceOrderId,
   markInvoiceOrderPaid,
@@ -138,17 +139,16 @@ export async function POST(req: NextRequest) {
     case 'checkout.session.async_payment_failed':
     case 'checkout.session.expired': {
       // Nothing was ever fulfilled for these, so there is no registration to
-      // withdraw — but the order should stop saying `pending` for ever.
+      // withdraw, but the order should stop saying `pending` for ever. Only a
+      // pending order changes; see `cancelUnpaidOrder` for what this used to
+      // cancel by mistake.
       const session = event.data.object;
-      const outcome = await cancelRegistrationByOrder({
-        externalId: session.id,
-        reason: 'payment_failed',
-      });
+      const outcome = await cancelUnpaidOrder(session.id);
       return NextResponse.json({
         received: true,
         eventId: event.id,
         orderId: outcome.orderId,
-        registrationId: outcome.registrationId,
+        outcome: outcome.outcome,
       });
     }
 

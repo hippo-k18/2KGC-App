@@ -540,6 +540,61 @@ export async function cancelRegistrationByOrder(input: {
 // ---------------------------------------------------------------------------
 // Invoicing
 //
+/**
+ * A Checkout session that ended without payment: Stripe expired it, or a
+ * delayed payment failed.
+ *
+ * Nothing was ever issued for such a session, so the only thing to change is
+ * the order, and only while it is still `pending`. This used to go through
+ * `cancelRegistrationByOrder`, which had two ways to cancel a ticket that had
+ * nothing to do with it (T135):
+ *
+ *  - A group cart is written as a `pending` order with no `registrationIds`,
+ *    so the cancel fell back to `registrationId(order.email)`, the buyer's own
+ *    ticket. An imported attendee, a comp holder or a speaker who started and
+ *    abandoned a group checkout lost the ticket they already had (S1).
+ *  - A late or replayed `expired` for a session that had been paid cancelled
+ *    the paid order and half its tickets (TK-144/145).
+ *
+ * With no order at all (a single-seat checkout writes none before payment) a
+ * `cancelled` record is written, as before, so the attempt shows on the
+ * dashboard's abandoned list.
+ */
+export async function cancelUnpaidOrder(externalId: string): Promise<{
+  orderId: string;
+  /** What happened: `cancelled`, or why nothing did. */
+  outcome: 'cancelled' | 'recorded' | `left ${OrderDoc['status']}`;
+}> {
+  const oid = orderIdFor(externalId);
+  const ref = db().collection(COLLECTIONS.orders).doc(oid);
+
+  const outcome = await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      tx.set(ref, {
+        eventId: EVENT_ID,
+        externalId,
+        provider: 'stripe',
+        email: '',
+        status: 'cancelled',
+        totalCents: 0,
+        refundedCents: 0,
+        currency: 'usd',
+        purchasedAt: Timestamp.now(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return 'recorded' as const;
+    }
+    const status = (snap.data() as OrderDoc).status;
+    if (status !== 'pending') return `left ${status}` as const;
+    tx.update(ref, { status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
+    return 'cancelled' as const;
+  });
+
+  return { orderId: oid, outcome };
+}
+
 // An invoice is one payment for several tickets, so it gets **one** order with
 // several `items` — not one order per seat. Two things follow from that.
 //
