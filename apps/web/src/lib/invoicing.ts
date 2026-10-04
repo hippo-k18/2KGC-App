@@ -64,7 +64,9 @@ export function seatsFromInvoice(
       .map((x) => ({
         name: x.n ?? '',
         email: x.e as string,
-        ticketType: x.t ?? 'Main Conference',
+        // No fallback tier. A seat that does not name its ticket is left for
+        // an organizer to decide, not registered as Main Conference (T135, S11).
+        ticketType: x.t?.trim() ?? '',
       }));
   } catch {
     console.error('[invoicing] unreadable attendee metadata on', invoice.id);

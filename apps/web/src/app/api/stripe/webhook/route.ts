@@ -18,7 +18,10 @@ import {
   sendPurchaseConfirmation,
   sendRefundConfirmation,
   sendTicketWithdrawn,
+  type SendOutcome,
 } from '@/lib/email';
+import { claimConfirmation, confirmationsOutstanding, sendClaimed } from '@/lib/fulfil-order';
+import { isOrderSettledError } from '@kgc/scripts/src/lib/fulfilment';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
 import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
@@ -393,7 +396,7 @@ export async function POST(req: NextRequest) {
        * paid. The order document has no such limit. Metadata still covers the
        * case of an invoice raised straight in the Stripe dashboard.
        */
-      const seats = invoice.id
+      const listed = invoice.id
         ? await seatsFromOrder(invoice.id).then((rows) =>
             rows.length > 0
               ? rows
@@ -401,8 +404,38 @@ export async function POST(req: NextRequest) {
           )
         : [];
 
+      /**
+       * A seat that names no ticket is not registered as anything. It used to
+       * become "Main Conference" by default, which is a ticket nobody chose
+       * (T135, S11). Organizers are told and register it by hand.
+       */
+      const untyped = listed.filter((s) => !s.ticketType);
+      const seats = listed.filter((s) => s.ticketType);
+      if (untyped.length > 0) {
+        await recordWarning(
+          'invoice.seatWithoutTicket',
+          {
+            invoiceId: invoice.id ?? '',
+            seats: untyped.map((s) => s.email),
+            note: 'These seats name no ticket type, so no ticket was issued. Register them by hand.',
+          },
+          { path: 'orders', id: invoice.id ?? '' },
+        );
+      }
+
       if (seats.length === 0) {
         return NextResponse.json({ received: true, skipped: 'no attendee list for invoice' });
+      }
+
+      /**
+       * A refunded or cancelled invoice issues nothing on a replay, the same
+       * rule as a card purchase. Answered 200: there is nothing to retry.
+       */
+      const invoiceOrder = (await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoice.id!)).get()).data() as
+        | OrderDoc
+        | undefined;
+      if (invoiceOrder?.status === 'refunded' || invoiceOrder?.status === 'cancelled') {
+        return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${invoiceOrder.status}` });
       }
 
       /**
@@ -461,6 +494,7 @@ export async function POST(req: NextRequest) {
       let accountsCreated = 0;
       let accountsFailed = 0;
 
+      const oid = invoiceOrderId(invoice.id!);
       for (const [i, seat] of seats.entries()) {
         const amountCents = shares[i] ?? 0;
         const tier = seat.ticketTypeId ? (tiers.get(seat.ticketTypeId) ?? null) : null;
@@ -477,14 +511,23 @@ export async function POST(req: NextRequest) {
           if (tier.remaining !== undefined) tier.remaining -= 1;
         }
 
-        const result = await ensureRegistration({
-          email: seat.email,
-          name: seat.name,
-          ticketType: seat.ticketType,
-          // Same numbering as the dashboard's mark-paid, so either path that
-          // runs second lands on the same tickets.
-          purchase: { orderId: invoiceOrderId(invoice.id!), seat: i + 1 },
-        });
+        let result: Awaited<ReturnType<typeof ensureRegistration>>;
+        try {
+          result = await ensureRegistration({
+            email: seat.email,
+            name: seat.name,
+            ticketType: seat.ticketType,
+            // Same numbering as the dashboard's mark-paid, so either path that
+            // runs second lands on the same tickets.
+            purchase: { orderId: oid, seat: i + 1 },
+          });
+        } catch (err) {
+          // Refunded while this delivery was walking the seats.
+          if (isOrderSettledError(err)) {
+            return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${err.status}` });
+          }
+          throw err;
+        }
         registered.push(result.registrationId);
 
         if (seat.ticketTypeId && result.created) await incrementSold(seat.ticketTypeId);
@@ -510,21 +553,29 @@ export async function POST(req: NextRequest) {
         if (account.uid && tier) await grantSeatEntitlements(account.uid, tier.entitlements);
 
         // Each seat is a person who needs their own claim code — the billing
-        // contact's copy of the invoice does not get them into the app.
-        await sendPurchaseConfirmation({
-          to: result.email,
-          name: result.name ?? '',
-          ticketType: result.ticketType ?? seat.ticketType,
-          amountCents,
-          currency: invoice.currency ?? 'usd',
-          orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
-          claimCode: result.claimCode,
-          registrationId: result.registrationId,
-          // Only ever the password this call actually generated. `null` on a
-          // redelivery, so a retried webhook does not mail a credential for an
-          // account that has since had its password changed.
-          temporaryPassword: account.temporaryPassword,
-        });
+        // contact's copy of the invoice does not get them into the app. Claimed
+        // on the order like a card purchase's, so a redelivered `invoice.paid`
+        // does not email every seat again (T135, S10/TK-255).
+        const attempt = await claimConfirmation(oid, result.registrationId);
+        if (attempt !== null) {
+          await sendClaimed({ orderId: oid, rid: result.registrationId, attempts: attempt, to: result.email }, () =>
+            sendPurchaseConfirmation({
+              to: result.email,
+              name: result.name ?? '',
+              ticketType: result.ticketType ?? seat.ticketType,
+              amountCents,
+              currency: invoice.currency ?? 'usd',
+              orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
+              claimCode: result.claimCode,
+              orderId: oid,
+              registrationId: result.registrationId,
+              // Only ever the password this call actually generated. `null` on a
+              // redelivery, so a retried webhook does not mail a credential for an
+              // account that has since had its password changed.
+              temporaryPassword: account.temporaryPassword,
+            }),
+          );
+        }
       }
 
       if (oversold.length > 0) {
@@ -544,6 +595,16 @@ export async function POST(req: NextRequest) {
         hostedInvoiceUrl: invoice.hosted_invoice_url ?? undefined,
         invoicePdfUrl: invoice.invoice_pdf ?? undefined,
       });
+
+      // As for a card purchase: Stripe comes back until every seat's
+      // confirmation has gone out or used up its attempts.
+      const outstanding = await confirmationsOutstanding(orderId, registered);
+      if (outstanding.length > 0) {
+        return NextResponse.json(
+          { error: 'confirmation email not sent yet', confirmationsOutstanding: outstanding },
+          { status: 503 },
+        );
+      }
 
       return NextResponse.json({
         received: true,

@@ -187,13 +187,21 @@ const STALE_PENDING_MS = 5 * 60_000;
  * send it again to everyone on every replay. If the claim itself fails the
  * email is sent anyway, because a missing ticket email is the worse outcome.
  */
-async function claimConfirmation(orderId: string, rid: string): Promise<number | null> {
+export async function claimConfirmation(
+  orderId: string,
+  rid: string,
+  /**
+   * For a mail about the refund itself, which is sent precisely because the
+   * order is settled. Everything else is refused once it is (T135, TK-163).
+   */
+  opts: { evenIfSettled?: boolean } = {},
+): Promise<number | null> {
   try {
     const ref = db().collection(COLLECTIONS.orders).doc(orderId);
     return await db().runTransaction(async (tx) => {
       const order = (await tx.get(ref)).data() as OrderDoc | undefined;
       // No confirmation for a ticket whose money has gone back (T135, TK-163).
-      if (isSettled(order)) return null;
+      if (isSettled(order) && !opts.evenIfSettled) return null;
       if (order?.confirmationsSent?.includes(rid)) return null;
       const prev = order?.confirmations?.[rid];
       if (!claimable(prev, Date.now())) return null;
@@ -249,7 +257,7 @@ function outstanding(c: OrderConfirmation | undefined): boolean {
  * A throw is passed on after it is recorded, as it always was. On the webhook
  * that is a 5xx, which is what makes Stripe deliver the event again.
  */
-async function sendClaimed(
+export async function sendClaimed(
   claim: { orderId: string; rid: string; attempts: number; to: string },
   send: () => Promise<SendOutcome>,
 ): Promise<void> {
@@ -299,7 +307,7 @@ async function settleConfirmation(
 }
 
 /** Every one of `rids` whose confirmation has not gone out and is still worth retrying. */
-async function confirmationsOutstanding(orderId: string, rids: string[]): Promise<string[]> {
+export async function confirmationsOutstanding(orderId: string, rids: string[]): Promise<string[]> {
   try {
     const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
     if (isSettled(order)) return [];
