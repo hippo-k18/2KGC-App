@@ -210,7 +210,33 @@ export function sendOutcomeMessage(input: {
  * outcome the screen reports and a log row support reads have to come from one
  * branch, or the two answers to "did it go?" drift apart.
  */
+/**
+ * How long Resend gets to answer before the send counts as `failed`.
+ *
+ * Without a limit a provider that accepts the connection and never answers
+ * held the webhook and the buyer's return redirect open for undici's five
+ * minutes, with the confirmation claim stuck `pending` all that time (T135B,
+ * TK-222). A send normally takes well under a second. `RESEND_TIMEOUT_MS`
+ * overrides it, for tests.
+ */
+export function sendTimeoutMs(): number {
+  const fromEnv = Number(process.env.RESEND_TIMEOUT_MS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 10_000;
+}
+
+/**
+ * One line of text for a header: control characters (CR and LF above all)
+ * become spaces, runs of whitespace collapse, and the ends are trimmed. A
+ * company name typed with a line break in it went into the subject line
+ * as-is (T135B, TK-227).
+ */
+export function headerText(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
+  input = { ...input, subject: headerText(input.subject) };
   const base = {
     to: input.to,
     subject: input.subject,
@@ -233,6 +259,8 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
   try {
     const res = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
+      // An abort throws, and the catch below records it as `failed`.
+      signal: AbortSignal.timeout(sendTimeoutMs()),
       headers: {
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
@@ -442,7 +470,7 @@ const BRING_YOUR_TEAM =
  */
 export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
   const price = formatPrice(input.amountCents, input.currency);
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const invite = await inviteFor(store, input);
 
   const html = shell(
@@ -610,7 +638,7 @@ export interface RefundEmailInput {
  */
 export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<SendOutcome> {
   const amount = formatPrice(input.amountCents, input.currency);
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const cancelled = input.ticketCancelled ?? true;
 
   const ticketHtml = !cancelled
@@ -673,7 +701,7 @@ export interface TicketWithdrawnInput {
  * of them would read as a refund they are owed, which it is not.
  */
 export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdrawnInput): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   const html = shell(
     'Your Knowledge Graph Conference ticket has been cancelled',
@@ -900,7 +928,7 @@ async function unsubscribeUrlFor(
  * code cannot keep.
  */
 export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const unsubscribe = await unsubscribeUrlFor(store, input.to);
 
   const paragraphs = input.body
@@ -938,7 +966,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
     : '';
 
-  const text = `${input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
+  const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
 
   return send(store, {
     to: input.to,
@@ -1006,7 +1034,7 @@ export async function sendSubmissionReceipt(
   store: Firestore,
   input: SubmissionReceiptInput,
 ): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const heading = input.draft
     ? 'Your abstract has been saved as a draft'
     : 'We have your abstract';
@@ -1112,7 +1140,7 @@ export async function sendSubmissionDecision(
   store: Firestore,
   input: SubmissionDecisionInput,
 ): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   if (input.waitlisted) return sendWaitlisted(store, input);
 
@@ -1186,7 +1214,7 @@ Knowledge Graph Conference 2027`;
  * to say clearly is that the author will hear either way.
  */
 async function sendWaitlisted(store: Firestore, input: SubmissionDecisionInput): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const opening = `thank you for submitting “${input.title}” to ${input.callTitle}. It is on our waiting list.`;
   const next =
     'The reviewers rated it well and the programme is full for now. If a place opens we will offer it to you, and we will write to you either way before the programme is final.';
@@ -1269,7 +1297,7 @@ export async function sendReviewerInvitation(
   store: Firestore,
   input: ReviewerInvitationInput,
 ): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const waiting =
     input.assigned === 0
       ? 'Nothing has been assigned to you yet. Submissions will appear on your page as they are.'
@@ -1360,7 +1388,7 @@ export async function sendSpeakerProfileRequest(
   store: Firestore,
   input: SpeakerProfileRequestInput,
 ): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const talks =
     input.sessionTitles.length === 0
       ? 'You are on the speaker list for Knowledge Graph Conference 2027.'
@@ -1434,7 +1462,7 @@ export interface TeamInvitationInput {
  * up: they sign in with this address and a code we email them each time.
  */
 export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   const html = shell(
     'Your organizer dashboard access',
@@ -1505,7 +1533,7 @@ export async function sendConsentRequest(
   store: Firestore,
   input: ConsentRequestInput,
 ): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const opening = input.resigning
     ? `the wording of ${esc(input.formTitle)} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
     : `please read and sign ${esc(input.formTitle)} for Knowledge Graph Conference 2027.`;
@@ -1577,7 +1605,7 @@ export async function sendExhibitorLeadLink(
   store: Firestore,
   input: ExhibitorLeadLinkInput,
 ): Promise<SendOutcome> {
-  const greeting = input.contactName ? `Hi ${esc(input.contactName.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.contactName) ? `Hi ${esc(firstNameOf(input.contactName))},` : 'Hi,';
   const booth = input.boothNumber
     ? `${esc(input.companyName)} is on stand ${esc(input.boothNumber)} at Knowledge Graph Conference 2027.`
     : `${esc(input.companyName)} is exhibiting at Knowledge Graph Conference 2027.`;
@@ -1692,6 +1720,8 @@ It expires in ${input.expiresLabel}. If you did not ask for it, ignore this emai
   try {
     const res = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
+      // An abort throws, and the catch below records it as `failed`.
+      signal: AbortSignal.timeout(sendTimeoutMs()),
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: fromAddress(),
@@ -1733,7 +1763,7 @@ export interface BlogInvitationInput {
 }
 
 export async function sendBlogInvitation(store: Firestore, input: BlogInvitationInput): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const html = shell(
     'Write for the KGC blog',
     `<p style="${P}">${greeting} ${esc(input.invitedBy)} has added you to the Knowledge Graph Conference blog as ${esc(input.roleLabel)}.</p>
@@ -1797,7 +1827,7 @@ export interface BlogReviewDecisionInput {
 }
 
 export async function sendBlogReviewDecision(store: Firestore, input: BlogReviewDecisionInput): Promise<SendOutcome> {
-  const greeting = input.name ? `Hi ${esc(input.name.split(' ')[0])},` : 'Hi,';
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const published = input.decision === 'published';
   const heading = published ? 'Your post is live' : 'Your post needs a few changes';
   const lead = published
