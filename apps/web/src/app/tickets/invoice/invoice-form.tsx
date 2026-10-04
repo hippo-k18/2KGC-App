@@ -6,6 +6,7 @@ import { useFormStatus } from 'react-dom';
 import { postalCodeRequired, regionRequired } from '@/lib/invoice-core';
 import { SITE } from '@/lib/site';
 import { formatPrice, type Tier } from '@/lib/tickets';
+import { MAX_EMAIL, MAX_NAME } from '../seats-core';
 import { requestInvoice, type InvoiceState } from './actions';
 
 /**
@@ -147,6 +148,7 @@ export function InvoiceForm({
               id={`seatName-${seat.key}`}
               name="seatName"
               required
+              maxLength={MAX_NAME}
               placeholder="Ada Nakamura"
               value={seat.name}
               onChange={(e) => update(seat.key, { name: e.target.value })}
@@ -160,6 +162,7 @@ export function InvoiceForm({
               name="seatEmail"
               type="email"
               required
+              maxLength={MAX_EMAIL}
               placeholder="ada@company.com"
               value={seat.email}
               onChange={(e) => update(seat.key, { email: e.target.value })}
@@ -209,7 +212,14 @@ export function InvoiceForm({
 
       <div className="field">
         <label htmlFor="company">Company name</label>
-        <input id="company" name="company" required placeholder="Acme Corporation" {...bind('company')} />
+        <input
+          id="company"
+          name="company"
+          required
+          maxLength={MAX_NAME}
+          placeholder="Acme Corporation"
+          {...bind('company')}
+        />
         <p className="hint">Exactly as it should appear on the invoice.</p>
       </div>
 
@@ -220,6 +230,7 @@ export function InvoiceForm({
           name="billingEmail"
           type="email"
           required
+          maxLength={MAX_EMAIL}
           placeholder="ap@company.com"
           {...bind('billingEmail')}
         />

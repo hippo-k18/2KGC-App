@@ -265,7 +265,10 @@ describe('the ticket rule sets a category at registration', () => {
 
 import { decideRefund as decide } from '../../apps/web/src/lib/refund-core.js';
 import {
+  MAX_EMAIL,
+  MAX_NAME,
   MAX_SEATS,
+  cleanText,
   collectSeats,
   groupSeatsIntoLines,
   seatsPerTier,
@@ -404,9 +407,13 @@ describe('two purchases by one address', () => {
     expect(again.registrationId).toBe(first.registrationId);
     expect(await statusOf(first.registrationId)).toBe('active');
 
-    // Stripe redelivers the refunded sale days later.
-    await purchase({ externalId: 'cs_main' });
+    // Stripe redelivers the refunded sale days later. It is refused outright
+    // (T136): it used to rewrite the reused ticket's `orderId` back to the
+    // refunded order, and to re-activate a ticket that was still cancelled.
+    await expect(purchase({ externalId: 'cs_main' })).rejects.toMatchObject({ code: 'order-settled' });
     expect(await ticketsFor(buyer.email)).toHaveLength(1);
+    const kept = (await db.collection(COLLECTIONS.registrations).doc(first.registrationId).get()).data() as RegistrationDoc;
+    expect(kept).toMatchObject({ status: 'active', orderId: orderIdFor('cs_again') });
   });
 
   it('still protects an older ticket that two orders were merged into', async () => {
@@ -665,6 +672,21 @@ describe('the seat rules that make a quantity possible', () => {
     const halfFilled = collectSeats([seat('Ada Nakamura', 'ada@example.com'), seat('Ben Ortiz', '')]);
     expect(halfFilled).toHaveLength(2);
     expect(validateSeats(halfFilled)).toEqual({ index: 1, kind: 'email' });
+  });
+
+  it('refuses a name too long for Stripe metadata before Stripe sees it (T135, TK-031)', () => {
+    // 600 characters reached Stripe, which refused the 500-character metadata
+    // value, and the buyer was told the processor could not be reached.
+    expect(validateSeats([seat('A'.repeat(600), 'ada@example.com')])).toEqual({ index: 0, kind: 'name-long' });
+    expect(validateSeats([seat('A'.repeat(MAX_NAME), 'ada@example.com')])).toBeNull();
+    const long = `${'a'.repeat(MAX_EMAIL)}@example.com`;
+    expect(validateSeats([seat('Ada Nakamura', 'ada@example.com'), seat('Ben Ortiz', long)])).toEqual({ index: 1, kind: 'email' });
+  });
+
+  it('makes a typed name one clean line (T135B, TK-227/228)', () => {
+    expect(cleanText('  Ada   Nakamura ')).toBe('Ada Nakamura');
+    expect(cleanText('Acme\r\nBcc: x@example.com')).toBe('Acme Bcc: x@example.com');
+    expect(collectSeats([seat('  Ben\tOrtiz\n', 'ben@example.com')])[0].name).toBe('Ben Ortiz');
   });
 });
 

@@ -50,6 +50,29 @@ export const MAX_SEATS = 10;
  */
 export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/**
+ * The longest name and address a seat may carry.
+ *
+ * A name goes into Stripe metadata, which refuses any value over 500
+ * characters; a 600-character name used to reach Stripe and come back as "We
+ * could not reach the payment processor", which was the wrong reason (T135,
+ * S6/TK-031). 120 is far beyond any real name. 254 is the longest address
+ * SMTP allows. The inputs carry the same `maxLength`.
+ */
+export const MAX_NAME = 120;
+export const MAX_EMAIL = 254;
+
+/**
+ * A name as typed, made safe to print anywhere: control characters (a pasted
+ * line break above all) become spaces, runs of spaces collapse, and the ends
+ * are trimmed. "  Ada" greeted its owner as "Hi ," (T135B, TK-228), and a line
+ * break in a name or company reached an email subject and Stripe (TK-227).
+ */
+export function cleanText(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 /** One person on one purchase. */
 export interface SeatInput {
   name: string;
@@ -71,7 +94,7 @@ export interface SeatInput {
 export interface SeatProblem {
   /** Zero-based. Seat 0 is the buyer on the Checkout form. */
   index: number;
-  kind: 'empty' | 'too-many' | 'name' | 'email';
+  kind: 'empty' | 'too-many' | 'name' | 'name-long' | 'email';
   /** The offending address, where there is one. */
   email?: string;
 }
@@ -88,7 +111,7 @@ export interface SeatProblem {
  */
 export function collectSeats(rows: SeatInput[]): SeatInput[] {
   return rows
-    .map((r) => ({ name: r.name.trim(), email: r.email.trim(), tierId: r.tierId.trim() }))
+    .map((r) => ({ name: cleanText(r.name), email: r.email.trim(), tierId: r.tierId.trim() }))
     .filter((r) => r.name || r.email);
 }
 
@@ -105,7 +128,8 @@ export function validateSeats(seats: SeatInput[]): SeatProblem | null {
 
   for (const [i, seat] of seats.entries()) {
     if (seat.name.length < 2) return { index: i, kind: 'name' };
-    if (!EMAIL.test(seat.email)) return { index: i, kind: 'email' };
+    if (seat.name.length > MAX_NAME) return { index: i, kind: 'name-long' };
+    if (seat.email.length > MAX_EMAIL || !EMAIL.test(seat.email)) return { index: i, kind: 'email' };
   }
 
   // A repeated address is allowed since 2026-09-26: each seat becomes its own

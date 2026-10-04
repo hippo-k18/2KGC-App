@@ -8,7 +8,7 @@ import { SITE } from '@/lib/site';
 import { bundleFor, formatPrice, type AddOn, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
-import { MAX_SEATS } from './seats-core';
+import { MAX_EMAIL, MAX_NAME, MAX_SEATS } from './seats-core';
 
 /**
  * The purchase step: an order summary and the form that pays for it.
@@ -414,6 +414,7 @@ export function CheckoutForm({
                 name="name"
                 autoComplete="name"
                 required
+                maxLength={MAX_NAME}
                 placeholder="Ada Nakamura"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -429,6 +430,7 @@ export function CheckoutForm({
                 type="email"
                 autoComplete="email"
                 required
+                maxLength={MAX_EMAIL}
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -489,6 +491,7 @@ export function CheckoutForm({
                   id={`seatName-${seat.key}`}
                   name="seatName"
                   required
+                  maxLength={MAX_NAME}
                   placeholder="Ada Nakamura"
                   value={seat.name}
                   onChange={(e) => updateExtra(seat.key, { name: e.target.value })}
@@ -502,6 +505,7 @@ export function CheckoutForm({
                   name="seatEmail"
                   type="email"
                   required
+                  maxLength={MAX_EMAIL}
                   placeholder="ada@company.com"
                   value={seat.email}
                   onChange={(e) => updateExtra(seat.key, { email: e.target.value })}

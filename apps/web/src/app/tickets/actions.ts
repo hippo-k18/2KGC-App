@@ -18,7 +18,9 @@ import { validateAnswers, type AnswerValue } from '@kgc/scripts/src/lib/question
 import type { Tier } from '@/lib/tickets';
 import { recordCartOrder, type CartSeat } from './cart-order';
 import {
+  MAX_NAME,
   MAX_SEATS,
+  cleanText,
   collectSeats,
   groupSeatsIntoLines,
   seatsPerTier,
@@ -119,7 +121,7 @@ type Prepared =
     };
 
 async function prepareCheckout(form: FormData): Promise<Prepared> {
-  const name = String(form.get('name') ?? '').trim();
+  const name = cleanText(String(form.get('name') ?? ''));
   const email = String(form.get('email') ?? '').trim();
   const tierId = String(form.get('tier') ?? '');
   /**
@@ -199,6 +201,12 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
       case 'name':
         return {
           error: who ? `${who}enter a full name.` : 'Enter the attendee’s full name.',
+        };
+      case 'name-long':
+        return {
+          error: who
+            ? `${who}the name is too long. Use at most ${MAX_NAME} characters.`
+            : `The name is too long. Use at most ${MAX_NAME} characters.`,
         };
       case 'email':
         return {

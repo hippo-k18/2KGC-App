@@ -9,7 +9,7 @@ import { SITE } from '@/lib/site';
 import { recordInvoiceOrder } from '@/lib/registrations';
 import { stripeEnabled } from '@/lib/stripe';
 import { ticketSalesOpen } from '@/lib/data';
-import { EMAIL, MAX_SEATS, collectSeats, validateSeats } from '../seats-core';
+import { EMAIL, MAX_EMAIL, MAX_NAME, MAX_SEATS, cleanText, collectSeats, validateSeats } from '../seats-core';
 
 /**
  * Requesting an invoice instead of paying by card.
@@ -49,14 +49,19 @@ export async function requestInvoice(
     };
   }
 
-  const companyName = String(form.get('company') ?? '').trim();
+  // One line each: these reach the email subject and the Stripe customer, and
+  // a line break in either is a header injection (T135B, TK-227).
+  const companyName = cleanText(String(form.get('company') ?? ''));
   const billingEmail = String(form.get('billingEmail') ?? '').trim();
-  const purchaseOrder = String(form.get('po') ?? '').trim();
+  const purchaseOrder = cleanText(String(form.get('po') ?? ''));
   const note = String(form.get('note') ?? '').trim();
   const daysUntilDue = Number(form.get('netDays') ?? 30);
 
   if (companyName.length < 2) return { error: 'Enter the company name to invoice.' };
-  if (!EMAIL.test(billingEmail)) {
+  if (companyName.length > MAX_NAME) {
+    return { error: `The company name is too long. Use at most ${MAX_NAME} characters.` };
+  }
+  if (billingEmail.length > MAX_EMAIL || !EMAIL.test(billingEmail)) {
     return { error: 'Enter a valid billing email address.' };
   }
   const checked = validateBillingAddress({
@@ -107,6 +112,8 @@ export async function requestInvoice(
         };
       case 'name':
         return { error: `Attendee ${problem.index + 1}: enter a full name.` };
+      case 'name-long':
+        return { error: `Attendee ${problem.index + 1}: the name is too long. Use at most ${MAX_NAME} characters.` };
       case 'email':
         return { error: `Attendee ${problem.index + 1}: enter a valid email address.` };
     }
