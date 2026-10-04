@@ -555,6 +555,13 @@ export async function startCheckout(
     // they can act on rather than a 500 page; the detail goes to the server
     // log, because a Stripe error message can name the account.
     console.error('[checkout] Stripe session creation failed', err);
+    // Stripe answered and refused the request: retrying the same form will
+    // not help, and "could not reach" would be the wrong reason (T135, S6).
+    if ((err as { type?: string }).type === 'StripeInvalidRequestError') {
+      return {
+        error: `The payment processor did not accept this checkout. Nothing was charged. Email ${SITE.contactEmail} and we will sort it out.`,
+      };
+    }
     return { error: 'We could not reach the payment processor. Nothing was charged. Please try again.' };
   }
 
