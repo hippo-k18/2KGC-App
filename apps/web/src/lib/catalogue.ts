@@ -279,8 +279,15 @@ export async function listTiers(audience: TicketAudience = 'attendee'): Promise<
  * arrives from a query string and a form field — both attacker-controlled — and
  * "choose a ticket type" is the right answer to a bad one, not a 500.
  */
+/**
+ * A tier id as the forms post it. Anything else is not a tier: an id with a
+ * `/` in it is a path to Firestore, and `doc()` threw on it, which answered a
+ * crafted POST with a 500 instead of "Choose a ticket type" (T135B, TK-404).
+ */
+const TIER_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
 export async function tierById(id: string): Promise<Tier | undefined> {
-  if (!id) return undefined;
+  if (!id || !TIER_ID.test(id)) return undefined;
   const doc = await db().collection(COLLECTIONS.ticketTypes).doc(id).get();
   if (!doc.exists) return undefined;
   const data = doc.data() as TicketTypeDoc;
@@ -321,7 +328,7 @@ export interface TierFulfilment {
 }
 
 export async function tierFulfilment(tierId: string): Promise<TierFulfilment | null> {
-  if (!tierId) return null;
+  if (!tierId || !TIER_ID.test(tierId)) return null;
   const doc = await db().collection(COLLECTIONS.ticketTypes).doc(tierId).get();
   if (!doc.exists) return null;
   const t = doc.data() as TicketTypeDoc;
