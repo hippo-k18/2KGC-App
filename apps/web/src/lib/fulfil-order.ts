@@ -3,7 +3,7 @@ import 'server-only';
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
 import { COLLECTIONS, type EntitlementDoc, type OrderConfirmation, type OrderDoc } from '@kgc/shared';
 import { attachSeatRegistrations, cartLines } from '@/app/tickets/cart-order';
-import { seatsToCount, splitAcrossSeats } from '@/app/tickets/seats-core';
+import { seatsToCount, splitAcrossSeats, splitByWeight } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import { grantOrderEntitlements } from '@/lib/app-account-core';
 import { incrementSold, tierFulfilment } from '@/lib/catalogue';
@@ -398,7 +398,13 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    * people each get a confirmation naming their own share, and the three add up
    * to the receipt — the property `splitAcrossSeats` exists to guarantee.
    */
-  const shares = splitAcrossSeats(input.amountCents, Math.max(1, cart.length));
+  // In proportion to what each seat was charged, so a group-rate seat, a
+  // Virtual seat and a bundle each name their own share (T165). Even shares
+  // when there is no cart, which is a single seat.
+  const shares =
+    cart.length > 0
+      ? splitByWeight(input.amountCents, cart.map((line) => line.unitPriceCents ?? 0))
+      : splitAcrossSeats(input.amountCents, 1);
   const buyerEmail = normaliseEmail(result.email);
 
   /**

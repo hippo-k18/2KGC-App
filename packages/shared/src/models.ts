@@ -1561,7 +1561,12 @@ export interface OrderLine {
   /** Denormalised: the tier may be renamed or deleted after the sale. */
   ticketTypeName: string;
   quantity: number;
+  /** What the seat was charged before tax and any promotion code: the group rate already off. */
   unitPriceCents: number;
+  /** The catalogue price, when the group rate took something off it. */
+  listPriceCents?: number;
+  /** What the group rate took off this seat (5+ in-person tickets, 10%). */
+  groupDiscountCents?: number;
   attendeeName?: string;
   attendeeEmail?: string;
 }
@@ -1619,6 +1624,8 @@ export interface OrderDoc extends BaseDoc {
 
   purchasedAt: Timestamp;
   refundedAt?: Timestamp;
+  /** The group rate's total across the order's seats, in minor units. Absent when it did not apply. */
+  groupDiscountCents?: number;
   /** When a chargeback cancelled the order. Tells a disputed sale from an abandoned checkout. */
   disputedAt?: Timestamp;
   /**

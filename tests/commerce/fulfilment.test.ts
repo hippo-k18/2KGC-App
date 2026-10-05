@@ -267,8 +267,13 @@ import { decideRefund as decide } from '../../apps/web/src/lib/refund-core.js';
 import {
   MAX_EMAIL,
   MAX_NAME,
+  GROUP_RATE_MIN_SEATS,
+  GROUP_RATE_PERCENT,
   MAX_SEATS,
   cleanText,
+  countsForGroupRate,
+  priceSeats,
+  splitByWeight,
   collectSeats,
   groupSeatsIntoLines,
   seatsPerTier,
@@ -1014,5 +1019,37 @@ describe('a refunded group purchase does not leave the other seats at the door',
     });
 
     expect(await stillPaidElsewhere('ben@example.com')).toBe(true);
+  });
+});
+
+describe('the group rate (T165)', () => {
+  const inPerson = (priceCents: number) => ({ inPerson: true, audience: 'attendee', priceCents });
+  const virtual = { inPerson: false, audience: 'attendee', priceCents: 12_900 };
+
+  it('is 10% from 5 in-person seats, as one pair of constants says', () => {
+    expect([GROUP_RATE_MIN_SEATS, GROUP_RATE_PERCENT]).toEqual([5, 10]);
+    expect(priceSeats(Array(4).fill(inPerson(59_900))).applies).toBe(false);
+    const five = priceSeats(Array(5).fill(inPerson(59_900)));
+    expect(five.applies).toBe(true);
+    expect(five.seats[0]).toEqual({ listCents: 59_900, discountCents: 5_990, chargedCents: 53_910 });
+    expect(five.discountCents).toBe(5 * 5_990);
+  });
+
+  it('neither counts nor discounts Virtual, exhibitor or sponsor seats', () => {
+    expect(priceSeats([...Array(4).fill(inPerson(59_900)), virtual]).applies).toBe(false);
+    const mixed = priceSeats([...Array(5).fill(inPerson(59_900)), virtual, virtual]);
+    expect(mixed.seats.slice(5).map((s) => s.discountCents)).toEqual([0, 0]);
+    expect(countsForGroupRate({ inPerson: true, audience: 'exhibitor' })).toBe(false);
+    expect(countsForGroupRate({ inPerson: true, audience: 'sponsor' })).toBe(false);
+    expect(countsForGroupRate(undefined)).toBe(false);
+  });
+
+  it('splits a payment in proportion to each seat, exactly', () => {
+    expect(splitByWeight(77_343, [59_900, 12_900, 4_543])).toEqual([59_900, 12_900, 4_543]);
+    const shares = splitByWeight(100_000, [53_910, 53_910, 12_900]);
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(100_000);
+    expect(shares[2]).toBeLessThan(shares[1]);
+    expect(splitByWeight(1_000, [0, 0, 0])).toEqual([334, 333, 333]);
+    expect(splitByWeight(0, [53_910, 12_900])).toEqual([0, 0]);
   });
 });

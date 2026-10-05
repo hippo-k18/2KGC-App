@@ -20,8 +20,13 @@ import { SITE } from '@/lib/site';
 import { checkoutCallerIp, checkoutStartAllowed } from '@/lib/checkout-limit';
 import { recordCartOrder, type CartSeat } from './cart-order';
 import {
+  GROUP_RATE_MIN_SEATS,
+  GROUP_RATE_PERCENT,
   MAX_NAME,
   MAX_SEATS,
+  countsForGroupRate,
+  groupRatePrice,
+  priceSeats,
   cleanText,
   collectSeats,
   groupSeatsIntoLines,
@@ -120,6 +125,12 @@ type Prepared =
        * chargeBuyerFee` is on, which it is not by default.
        */
       feeCents: number;
+      /**
+       * Each seat's list and charged price, in `seats` order, with the group
+       * rate applied where it is due (`priceSeats`). Worked out here from the
+       * catalogue, never from anything the form posted.
+       */
+      pricing: ReturnType<typeof priceSeats>;
     };
 
 async function prepareCheckout(form: FormData): Promise<Prepared> {
@@ -339,10 +350,11 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
    * The buyer fee, worked out on the ticket subtotal here on the server, like
    * every other figure on this path. Off unless an organizer has switched it on.
    */
-  const subtotalCents = seats.reduce((sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0), 0);
+  const pricing = priceSeats(seats.map((seat) => tiers.get(seat.tierId)!));
+  const subtotalCents = pricing.seats.reduce((sum, seat) => sum + seat.chargedCents, 0);
   const feeCents = (await brandingSettings()).chargeBuyerFee ? buyerFeeCents(subtotalCents) : 0;
 
-  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents };
+  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing };
 }
 
 /** The buyer fee as its own Stripe line, so the receipt shows it apart from the tickets. */
@@ -360,9 +372,9 @@ function feeLine(feeCents: number, primary: Tier) {
 /**
  * How a ticket is described to Stripe when it has no product of its own.
  */
-function productData(tier: Tier) {
+function productData(tier: Tier, groupRate = false) {
   return {
-    name: `KGC 2027: ${tier.name}`,
+    name: `KGC 2027: ${tier.name}${groupRate ? ' (group rate)' : ''}`,
     description: tier.tagline,
     /**
      * `txcd_20030000` is Stripe's "General - Services" code, which is
@@ -414,7 +426,7 @@ export async function startCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing } = prepared;
 
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card
@@ -455,14 +467,24 @@ export async function startCheckout(
           // Non-null: every tier id in `lines` came from `seats`, and the loop
           // above returned an error for any seat whose tier failed to load.
           const tier = tiers.get(line.tierId)!;
+          /**
+           * The group rate goes into the unit price, not into a Stripe
+           * discount. Stripe refuses `discounts` together with
+           * `allow_promotion_codes`, and the owner wants a promotion code to
+           * apply on top. The line keeps its tier's product, so a code limited
+           * to that product still matches it; the Stripe page says why the
+           * price is lower in `custom_text` below.
+           */
+          const rated = pricing.applies && countsForGroupRate(tier);
+          const unit = rated ? groupRatePrice(tier.priceCents).priceCents : tier.priceCents;
           return {
             quantity: line.quantity,
             price_data: {
               currency: tier.currency,
-              unit_amount: tier.priceCents,
+              unit_amount: unit,
               ...(useProducts && tier.stripeProductId
                 ? { product: tier.stripeProductId }
-                : { product_data: productData(tier) }),
+                : { product_data: productData(tier, rated) }),
             },
           };
         }),
@@ -487,6 +509,20 @@ export async function startCheckout(
        * step with theirs.
        */
       allow_promotion_codes: true,
+
+      // Said on Stripe's own page, under the pay button, because a line
+      // carrying its tier's product keeps the product's name.
+      ...(pricing.applies
+        ? {
+            custom_text: {
+              submit: {
+                message:
+                  `Group rate: ${GROUP_RATE_PERCENT}% off each in-person ticket is already in these prices ` +
+                  `(${GROUP_RATE_MIN_SEATS} or more in-person tickets). A promotion code comes off on top.`,
+              },
+            },
+          }
+        : {}),
 
       /**
        * A billing address is not vanity — it is what `automatic_tax` needs to
@@ -521,6 +557,7 @@ export async function startCheckout(
         ...(campaignCode ? { campaignCode } : {}),
         ...referralMetadata(referral),
         ...(feeCents > 0 ? { buyerFeeCents: String(feeCents) } : {}),
+        ...(pricing.applies ? { groupRate: `${GROUP_RATE_PERCENT}%`, groupDiscountCents: String(pricing.discountCents) } : {}),
         // A reference, not the answers themselves: metadata caps at 500
         // characters per value, and a long-text answer would silently truncate.
         ...(answersRef ? { answersRef } : {}),
@@ -585,14 +622,16 @@ export async function startCheckout(
    * from the session's own `customer_details`.
    */
   if (seats.length > 1) {
-    const cartSeats: CartSeat[] = seats.map((seat) => {
+    const cartSeats: CartSeat[] = seats.map((seat, i) => {
       const tier = tiers.get(seat.tierId)!;
+      const price = pricing.seats[i];
       return {
         name: seat.name,
         email: seat.email,
         ticketType: tier.name,
         ticketTypeId: tier.id,
-        priceCents: tier.priceCents,
+        priceCents: price.chargedCents,
+        ...(price.discountCents > 0 ? { listPriceCents: price.listCents, groupDiscountCents: price.discountCents } : {}),
       };
     });
 
@@ -676,7 +715,7 @@ export async function completeDemoCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing } = prepared;
 
   /**
    * A synthetic id where a Stripe Checkout Session id would be.
@@ -698,10 +737,7 @@ export async function completeDemoCheckout(
    * inventing a plausible tax line would put a number on the dashboard that
    * nothing could reconcile.
    */
-  const subtotalCents = seats.reduce(
-    (sum, seat) => sum + (tiers.get(seat.tierId)?.priceCents ?? 0),
-    0,
-  );
+  const subtotalCents = pricing.seats.reduce((sum, seat) => sum + seat.chargedCents, 0);
   const amountCents = subtotalCents + feeCents;
 
   /**
@@ -713,14 +749,16 @@ export async function completeDemoCheckout(
    * that silently registered one of three attendees would demo a bug.
    */
   if (seats.length > 1) {
-    const cartSeats: CartSeat[] = seats.map((seat) => {
+    const cartSeats: CartSeat[] = seats.map((seat, i) => {
       const tier = tiers.get(seat.tierId)!;
+      const price = pricing.seats[i];
       return {
         name: seat.name,
         email: seat.email,
         ticketType: tier.name,
         ticketTypeId: tier.id,
-        priceCents: tier.priceCents,
+        priceCents: price.chargedCents,
+        ...(price.discountCents > 0 ? { listPriceCents: price.listCents, groupDiscountCents: price.discountCents } : {}),
       };
     });
 

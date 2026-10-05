@@ -210,6 +210,81 @@ export function splitAcrossSeats(totalCents: number, seats: number): number[] {
 }
 
 /**
+ * Split a total in proportion to what each seat was charged, with the
+ * rounding remainder on the first seat so the shares add up exactly.
+ *
+ * Even shares were fine while every seat on a purchase cost the same. A group
+ * rate, a Virtual seat beside four in-person ones, or a bundle with add-ons
+ * makes them differ, and each attendee's confirmation should name what their
+ * own seat cost, with any promotion code spread the same way. Falls back to
+ * even shares when there are no weights to go on.
+ */
+export function splitByWeight(totalCents: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + Math.max(0, b), 0);
+  if (weights.length === 0) return [];
+  if (sum <= 0) return splitAcrossSeats(totalCents, weights.length);
+  const shares = weights.map((w) => Math.floor((totalCents * Math.max(0, w)) / sum));
+  shares[0] += totalCents - shares.reduce((a, b) => a + b, 0);
+  return shares;
+}
+
+// ---------------------------------------------------------------------------
+// The group rate
+// ---------------------------------------------------------------------------
+
+/**
+ * Five or more in-person tickets in one checkout take 10% off each of them
+ * (owner, 2026-10-04). The two numbers live here and nowhere else.
+ */
+export const GROUP_RATE_MIN_SEATS = 5;
+export const GROUP_RATE_PERCENT = 10;
+
+/**
+ * Whether a seat's ticket counts towards the group rate and gets it: an
+ * attendee ticket for the room, so All Access, Main Conference and the Main
+ * Conference bundles with Workshops or CEUs. Virtual does not, and nor do
+ * exhibitor and sponsor packages, which are priced by contract.
+ *
+ * Read from the catalogue's own `inPerson` and `audience`, never from the
+ * form, so a tampered post cannot buy itself the rate.
+ */
+export function countsForGroupRate(tier: { inPerson?: boolean; audience?: string } | undefined): boolean {
+  return Boolean(tier?.inPerson) && (tier?.audience ?? 'attendee') === 'attendee';
+}
+
+/** Whether a set of seats earns the group rate. */
+export function groupRateApplies(tiers: ({ inPerson?: boolean; audience?: string } | undefined)[]): boolean {
+  return tiers.filter(countsForGroupRate).length >= GROUP_RATE_MIN_SEATS;
+}
+
+/**
+ * One seat's price at the group rate: the discount is worked out on the seat's
+ * own price, add-ons included, and rounded to the cent. Every seat on the same
+ * ticket therefore costs the same, which is what lets a Stripe line keep one
+ * unit price.
+ */
+export function groupRatePrice(priceCents: number): { priceCents: number; discountCents: number } {
+  const discountCents = Math.round((priceCents * GROUP_RATE_PERCENT) / 100);
+  return { priceCents: priceCents - discountCents, discountCents };
+}
+
+/**
+ * What each seat costs, list price and charged price, with the rate applied
+ * where it is due. One function for the form's total, the Stripe lines and the
+ * order record, so the three cannot disagree.
+ */
+export function priceSeats<T extends { inPerson?: boolean; audience?: string; priceCents: number }>(
+  seatTiers: T[],
+): { applies: boolean; seats: { listCents: number; discountCents: number; chargedCents: number }[]; discountCents: number } {
+  const applies = groupRateApplies(seatTiers);
+  const seats = seatTiers.map((t) => {
+    const rated = applies && countsForGroupRate(t) ? groupRatePrice(t.priceCents) : { priceCents: t.priceCents, discountCents: 0 };
+    return { listCents: t.priceCents, discountCents: rated.discountCents, chargedCents: rated.priceCents };
+  });
+  return { applies, seats, discountCents: seats.reduce((n, s) => n + s.discountCents, 0) };
+}
+
+/**
  * How many seats each tier actually sold, given what fulfilment did with them.
  *
  * ⚠️ **This is the arithmetic that made `quantitySold` wrong for a group.** The

@@ -66,7 +66,11 @@ export interface CartSeat {
   email: string;
   ticketType: string;
   ticketTypeId: string;
+  /** What this seat is charged, the group rate already off. */
   priceCents: number;
+  /** The catalogue price and the group rate's cut, when it applied to this seat. */
+  listPriceCents?: number;
+  groupDiscountCents?: number;
 }
 
 /**
@@ -100,6 +104,7 @@ export async function recordCartOrder(input: {
   feeCents?: number;
 }): Promise<string> {
   const oid = orderIdForSession(input.sessionId);
+  const groupDiscountCents = input.seats.reduce((n, seat) => n + (seat.groupDiscountCents ?? 0), 0);
 
   /**
    * No `purchasedAt`, on purpose.
@@ -138,6 +143,9 @@ export async function recordCartOrder(input: {
       ticketTypeName: seat.ticketType,
       quantity: 1,
       unitPriceCents: seat.priceCents,
+      ...(seat.groupDiscountCents
+        ? { listPriceCents: seat.listPriceCents, groupDiscountCents: seat.groupDiscountCents }
+        : {}),
       attendeeName: seat.name,
       // Folded here rather than at the reader, because `registrationId` folds
       // too: `Ada@Example.com` and `ada@example.com` must resolve to the one
@@ -160,6 +168,12 @@ export async function recordCartOrder(input: {
     refundedCents: 0,
     currency: input.currency,
     campaignCode: input.campaignCode,
+    /**
+     * The group rate, kept apart from `discountCents`, which is Stripe's
+     * promotion-code figure and is overwritten on payment. `fulfilPurchase`
+     * merges, so this survives fulfilment.
+     */
+    ...(groupDiscountCents > 0 ? { groupDiscountCents } : {}),
     // Nobody is registered yet, and this empty list is what says so.
     registrationIds: [],
   };

@@ -9,7 +9,7 @@ import { SITE } from '@/lib/site';
 import { bundleFor, formatPrice, type AddOn, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
 import { Questions } from './questions';
-import { MAX_EMAIL, MAX_NAME, MAX_SEATS } from './seats-core';
+import { GROUP_RATE_MIN_SEATS, GROUP_RATE_PERCENT, MAX_EMAIL, MAX_NAME, MAX_SEATS, priceSeats } from './seats-core';
 
 /**
  * The purchase step: an order summary and the form that pays for it.
@@ -231,8 +231,18 @@ export function CheckoutForm({
     return bundleFor(t, addOnsOf(id, ticked).map((a) => a.id)) ?? id;
   };
   const quantity = extras.length + 1;
-  const ticketCents =
-    priceOf(tier, addOns) + extras.reduce((sum, e) => sum + priceOf(e.tierId, e.addOns), 0);
+  /**
+   * The group rate, shown before payment: 5 or more in-person seats take 10%
+   * off each of them. The same `priceSeats` the server charges with, but fed
+   * from the page's own copy of the catalogue, so it is a preview; the server
+   * works it out again from Firestore and ignores anything posted.
+   */
+  const seatPricing = priceSeats([
+    { ...tierOf(tier), priceCents: priceOf(tier, addOns) },
+    ...extras.map((e) => ({ ...tierOf(e.tierId), priceCents: priceOf(e.tierId, e.addOns) })),
+  ]);
+  const groupDiscountCents = seatPricing.discountCents;
+  const ticketCents = seatPricing.seats.reduce((sum, seat) => sum + seat.chargedCents, 0);
   const feeCents = buyerFeePercent ? Math.round((ticketCents * buyerFeePercent) / 100) : 0;
   const totalCents = ticketCents + feeCents;
 
@@ -268,6 +278,7 @@ export function CheckoutForm({
         addOns={addOnsOf(selected.id, addOns)}
         quantity={quantity}
         totalCents={totalCents}
+        groupDiscountCents={groupDiscountCents}
         feeCents={feeCents}
         buyerFeePercent={buyerFeePercent}
       />
@@ -529,6 +540,14 @@ export function CheckoutForm({
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={shown.fieldErrors} />
 
+        {groupDiscountCents > 0 && (
+          <div className="summary summary-fee">
+            <span>
+              Group discount ({GROUP_RATE_MIN_SEATS}+ in-person tickets): −{GROUP_RATE_PERCENT}%
+            </span>
+            <span style={{ whiteSpace: 'nowrap' }}>−{formatPrice(groupDiscountCents, selected.currency)}</span>
+          </div>
+        )}
         {feeCents > 0 && (
           <div className="summary summary-fee">
             <span>Buyer fee ({buyerFeePercent}%)</span>
@@ -695,9 +714,12 @@ function OrderRail({
   addOns,
   quantity,
   totalCents,
+  groupDiscountCents,
   feeCents,
   buyerFeePercent,
 }: {
+  /** What the group rate took off, or 0. */
+  groupDiscountCents: number;
   tier: Tier;
   /** The add-ons the buyer ticked on their own seat. */
   addOns: AddOn[];
@@ -751,6 +773,9 @@ function OrderRail({
         <p className="rail-note">
           {quantity === 1 ? 'One ticket' : `${quantity} tickets`}, in{' '}
           {tier.currency.toUpperCase()}.
+          {groupDiscountCents > 0
+            ? ` Group discount of ${formatPrice(groupDiscountCents, tier.currency)} included: ${GROUP_RATE_PERCENT}% off each in-person ticket.`
+            : ''}
           {feeCents > 0
             ? ` Includes a ${buyerFeePercent}% buyer fee of ${formatPrice(feeCents, tier.currency)}.`
             : ''}{' '}
