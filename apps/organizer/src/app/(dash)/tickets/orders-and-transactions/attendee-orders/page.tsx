@@ -259,6 +259,7 @@ export default async function AttendeeOrdersPage({
                   <>
                     {o.channel}
                     {o.seatCount > 1 ? ` · ${o.seatCount} seats` : ''}
+                    {o.groupDiscountCents > 0 ? ' · group rate' : ''}
                     {o.promotionCode ? ` · ${o.promotionCode}` : ''}
                   </>
                 )}
@@ -270,6 +271,11 @@ export default async function AttendeeOrdersPage({
               {o.taxCents > 0 && (
                 <div className="muted" style={{ fontSize: 11 }}>
                   incl. {money(o.taxCents, o.currency)} tax
+                </div>
+              )}
+              {o.groupDiscountCents > 0 && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  after {money(o.groupDiscountCents, o.currency)} group discount
                 </div>
               )}
             </div>,

@@ -77,6 +77,8 @@ export interface OrderRow {
   subtotalCents: number;
   taxCents: number;
   discountCents: number;
+  /** The group rate (5+ in-person tickets, 10%) across the order, or 0. Already out of the total. */
+  groupDiscountCents: number;
   totalCents: number;
   refundedCents: number;
   /** What the event actually keeps. Total minus whatever went back. */
@@ -141,6 +143,7 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     subtotalCents: o.subtotalCents ?? o.totalCents,
     taxCents: o.taxCents ?? 0,
     discountCents: o.discountCents ?? 0,
+    groupDiscountCents: o.groupDiscountCents ?? 0,
     totalCents: o.totalCents,
     refundedCents,
     netCents: o.totalCents - refundedCents,
