@@ -186,7 +186,11 @@ export interface InvoiceRequest {
     email: string;
     ticketType: string;
     ticketTypeId: string;
+    /** What this seat is invoiced, the group rate already off. */
     priceCents: number;
+    /** Set when the group rate took something off this seat. */
+    groupDiscountCents?: number;
+    listPriceCents?: number;
   }[];
   currency: string;
   /** Printed on the invoice; the single most common reason finance rejects one. */
@@ -339,7 +343,7 @@ export async function raiseInvoiceWith(
         // dropped `unit_amount` from invoice items in favour of `amount` and a
         // `pricing` object. One seat per item, so the two are the same number.
         amount: seat.priceCents,
-        description: `KGC 2027: ${seat.ticketType} · ${seat.name} <${seat.email}>`,
+        description: `KGC 2027: ${seat.ticketType}${seat.groupDiscountCents ? ' (group rate)' : ''} · ${seat.name} <${seat.email}>`,
         tax_code: 'txcd_20030000',
       });
     }

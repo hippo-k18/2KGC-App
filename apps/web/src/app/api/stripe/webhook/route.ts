@@ -7,7 +7,7 @@ import { currentHolder, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilme
 import { cartLines } from '@/app/tickets/cart-order';
 import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
 import { noteIgnoredStripe } from '@/lib/stripe-ignored';
-import { splitAcrossSeats } from '@/app/tickets/seats-core';
+import { splitByWeight } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import {
   grantOrderEntitlements,
@@ -503,7 +503,12 @@ export async function POST(req: NextRequest) {
        * is a slow conversation with somebody's finance department.
        */
       const total = invoice.total ?? 0;
-      const shares = splitAcrossSeats(total, seats.length);
+      // Weighted by each seat's invoiced price where the order has it (group
+      // rate, mixed tickets); even shares for seats recovered from metadata.
+      const shares = splitByWeight(
+        total,
+        seats.map((s) => ('priceCents' in s && typeof s.priceCents === 'number' ? s.priceCents : 0)),
+      );
 
       /**
        * One order for the invoice, not one per seat.

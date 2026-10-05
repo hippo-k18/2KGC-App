@@ -6,7 +6,7 @@ import { useFormStatus } from 'react-dom';
 import { postalCodeRequired, regionRequired } from '@/lib/invoice-core';
 import { SITE } from '@/lib/site';
 import { formatPrice, type Tier } from '@/lib/tickets';
-import { MAX_EMAIL, MAX_NAME } from '../seats-core';
+import { GROUP_RATE_MIN_SEATS, GROUP_RATE_PERCENT, MAX_EMAIL, MAX_NAME, priceSeats } from '../seats-core';
 import { requestInvoice, type InvoiceState } from './actions';
 import s from './invoice.module.css';
 
@@ -80,7 +80,9 @@ export function InvoiceForm({
   });
 
   const priceOf = (id: string) => tiers.find((t) => t.id === id)?.priceCents ?? 0;
-  const subtotal = seats.reduce((sum, s) => sum + priceOf(s.tierId), 0);
+  // The group rate, as the server will apply it (preview only).
+  const rated = priceSeats(seats.map((s) => ({ ...tiers.find((t) => t.id === s.tierId), priceCents: priceOf(s.tierId) })));
+  const subtotal = rated.seats.reduce((sum, s) => sum + s.chargedCents, 0);
   const currency = tiers.find((t) => t.id === seats[0]?.tierId)?.currency ?? 'usd';
 
   function update(key: number, patch: Partial<Seat>) {
@@ -382,6 +384,14 @@ export function InvoiceForm({
             })}
           </ul>
 
+          {rated.discountCents > 0 && (
+            <div className="summary">
+              <span>
+                Group discount ({GROUP_RATE_MIN_SEATS}+ in-person tickets): −{GROUP_RATE_PERCENT}%
+              </span>
+              <span style={{ whiteSpace: 'nowrap' }}>−{formatPrice(rated.discountCents, currency)}</span>
+            </div>
+          )}
           <div className={`summary ${s.total}`}>
             <span>Subtotal</span>
             <span className={s.totalAmount}>{formatPrice(subtotal, currency)}</span>

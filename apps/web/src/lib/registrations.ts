@@ -625,7 +625,15 @@ export interface InvoiceOrderInput {
   invoiceId: string;
   billingEmail: string;
   companyName: string;
-  seats: { name: string; email: string; ticketType: string; ticketTypeId: string; priceCents: number }[];
+  seats: {
+    name: string;
+    email: string;
+    ticketType: string;
+    ticketTypeId: string;
+    priceCents: number;
+    listPriceCents?: number;
+    groupDiscountCents?: number;
+  }[];
   currency: string;
   totalCents: number;
   hostedInvoiceUrl?: string;
@@ -652,9 +660,15 @@ export async function recordInvoiceOrder(input: InvoiceOrderInput): Promise<stri
       ticketTypeName: seat.ticketType,
       quantity: 1,
       unitPriceCents: seat.priceCents,
+      ...(seat.groupDiscountCents
+        ? { listPriceCents: seat.listPriceCents, groupDiscountCents: seat.groupDiscountCents }
+        : {}),
       attendeeName: seat.name,
       attendeeEmail: normaliseEmail(seat.email),
     })),
+    ...(input.seats.some((seat) => seat.groupDiscountCents)
+      ? { groupDiscountCents: input.seats.reduce((n, seat) => n + (seat.groupDiscountCents ?? 0), 0) }
+      : {}),
     subtotalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
     // Stripe computes tax at finalisation; the paid webhook carries the real
     // figure. Zero here is honest rather than a guess — the dashboard shows an
@@ -764,7 +778,7 @@ export async function markInvoiceOrderPaid(input: {
  */
 export async function seatsFromOrder(
   invoiceId: string,
-): Promise<{ name: string; email: string; ticketType: string; ticketTypeId: string }[]> {
+): Promise<{ name: string; email: string; ticketType: string; ticketTypeId: string; priceCents?: number }[]> {
   const snap = await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoiceId)).get();
   if (!snap.exists) return [];
   const order = snap.data() as OrderDoc;
@@ -775,5 +789,6 @@ export async function seatsFromOrder(
       email: i.attendeeEmail as string,
       ticketType: i.ticketTypeName,
       ticketTypeId: i.ticketTypeId,
+      priceCents: i.unitPriceCents,
     }));
 }

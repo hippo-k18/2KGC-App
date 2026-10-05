@@ -9,7 +9,7 @@ import { SITE } from '@/lib/site';
 import { recordInvoiceOrder } from '@/lib/registrations';
 import { stripeEnabled } from '@/lib/stripe';
 import { ticketSalesOpen } from '@/lib/data';
-import { EMAIL, MAX_EMAIL, MAX_NAME, MAX_SEATS, cleanText, collectSeats, validateSeats } from '../seats-core';
+import { EMAIL, MAX_EMAIL, MAX_NAME, MAX_SEATS, cleanText, collectSeats, priceSeats, validateSeats } from '../seats-core';
 
 /**
  * Requesting an invoice instead of paying by card.
@@ -129,7 +129,10 @@ export async function requestInvoice(
     ticketType: string;
     ticketTypeId: string;
     priceCents: number;
+    listPriceCents?: number;
+    groupDiscountCents?: number;
   }[] = [];
+  const ratedTiers: NonNullable<Awaited<ReturnType<typeof tierById>>>[] = [];
 
   // Captured from the tiers rather than assumed: an invoice mixing currencies
   // is not something Stripe will accept, and finding that out at
@@ -149,6 +152,7 @@ export async function requestInvoice(
     }
     currency ??= tier.currency;
 
+    ratedTiers.push(tier);
     seats.push({
       name: r.name,
       email: r.email,
@@ -156,6 +160,17 @@ export async function requestInvoice(
       ticketTypeId: tier.id,
       priceCents: tier.priceCents,
     });
+  }
+
+  // The same group rate as a card checkout (5+ in-person seats, 10% off each),
+  // so a company is not charged more for asking for an invoice.
+  const pricing = priceSeats(ratedTiers);
+  for (const [i, price] of pricing.seats.entries()) {
+    seats[i].priceCents = price.chargedCents;
+    if (price.discountCents > 0) {
+      seats[i].listPriceCents = price.listCents;
+      seats[i].groupDiscountCents = price.discountCents;
+    }
   }
 
   const invoiceCurrency = currency ?? 'usd';
