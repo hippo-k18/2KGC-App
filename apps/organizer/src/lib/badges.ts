@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { COLLECTIONS, EVENT_ID, type RegistrationDoc, type UserDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, ticketLabel, type RegistrationDoc, type UserDoc } from '@kgc/shared';
 import { db } from './firestore';
 /**
  * The badge QR is drawn with the attendee app's own encoder, reached through
@@ -88,7 +88,8 @@ export async function listBadgeRows(): Promise<BadgeRow[]> {
         name: r.name ?? p?.name ?? '(no name yet)',
         company: p?.company,
         title: p?.title,
-        ticketType: r.ticketType,
+        // The whole badge: "Main Conference + Workshops".
+        ticketType: ticketLabel(r) || undefined,
         status: r.status,
         categoryId: r.categoryId,
         category: r.category,

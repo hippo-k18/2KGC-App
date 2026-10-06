@@ -5,6 +5,7 @@ import {
   COLLECTIONS,
   DOOR_CHECK_IN_LIST_ID,
   EVENT_ID,
+  ticketLabel,
   SUBCOLLECTIONS,
   TIME_ZONE,
   type CheckInDoc,
@@ -189,7 +190,9 @@ export async function listRegistrations(): Promise<
         id: d.id,
         name: r.name ?? r.email,
         email: r.email,
-        ticketType: r.ticketType,
+        // The whole badge, "Main Conference + Workshops", so the desk and the
+        // scanner say everything the person holds.
+        ticketType: ticketLabel(r) || undefined,
         status: r.status,
         claimed: Boolean(r.claimedByUid),
       },

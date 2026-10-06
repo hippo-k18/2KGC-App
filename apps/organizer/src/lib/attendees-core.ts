@@ -1,4 +1,4 @@
-import type { OrderDoc, RegistrationDoc, UserDoc } from '@kgc/shared';
+import { ticketLabel, type OrderDoc, type RegistrationDoc, type UserDoc } from '@kgc/shared';
 
 /**
  * The join behind `listAttendees()`, with no Firestore handle of its own.
@@ -35,6 +35,13 @@ export interface AttendeeRow {
   /** Present for anyone holding a ticket. Absent for staff added by hand. */
   registrationId?: string;
   ticketType?: string;
+  /**
+   * Extra tickets on the same badge (Workshops). `ticketType` stays the
+   * admission ticket; `ticketLabel` is the two together, "Main Conference +
+   * Workshops", which is what the list shows.
+   */
+  extraNames?: string[];
+  ticketLabel?: string;
   /** `cancelled` after a refund or by an organizer. A cancelled ticket must stay visible. */
   registrationStatus?: RegistrationDoc['status'];
   /** The organizer's label, from the registration. Somebody with no ticket has none. */
@@ -123,6 +130,8 @@ export function mergeAttendees(
       // attendee wrote about themselves wins over what an organizer typed.
       existing.registrationId = id;
       existing.ticketType = r.ticketType;
+      existing.extraNames = r.extraNames;
+      existing.ticketLabel = ticketLabel(r) || undefined;
       existing.registrationStatus = r.status;
       existing.categoryId = r.categoryId;
       existing.category = r.category;
@@ -153,6 +162,8 @@ export function mergeAttendees(
       activeTickets: 0,
       registrationId: id,
       ticketType: r.ticketType,
+      extraNames: r.extraNames,
+      ticketLabel: ticketLabel(r) || undefined,
       registrationStatus: r.status,
       categoryId: r.categoryId,
       category: r.category,
@@ -230,7 +241,10 @@ export function losesAppAccess(roles: readonly string[] | undefined): boolean {
 }
 
 /** The slice of an order the seat lookup reads. */
-export type SeatOrder = Pick<OrderDoc, 'status' | 'channel' | 'email' | 'items' | 'registrationIds' | 'releasedSeats'> & {
+export type SeatOrder = Pick<
+  OrderDoc,
+  'status' | 'channel' | 'email' | 'items' | 'registrationIds' | 'releasedSeats' | 'extraRegistrationIds'
+> & {
   id: string;
 };
 
@@ -256,6 +270,9 @@ export function seatToRelease(
     if (o.channel === 'demo') continue;
     if (o.status !== 'paid' && o.status !== 'partially_refunded') continue;
     if (o.releasedSeats?.[registration.id]) continue;
+    // An order that only added Workshops to this badge is not the seat the
+    // badge stands on; cancelling the badge gives back its own ticket.
+    if ((o.extraRegistrationIds ?? []).includes(registration.id)) continue;
 
     const lines = (o.items ?? []).filter((l) => l.ticketTypeId);
     const mine = lines.filter((l) => emailKey(l.attendeeEmail) === email);

@@ -52,10 +52,13 @@ import { groupsToText } from './groups';
  * against this vocabulary can return them from the start.
  */
 export function TicketForm({
+  extraTargets = [],
   existing,
   defaultAudience,
 }: {
   existing?: TicketTypeRow;
+  /** The attendee tickets an extra can be added to, for the "Sold as" field. */
+  extraTargets?: { id: string; name: string }[];
   /**
    * Which catalogue a *new* tier starts in. The exhibitor and sponsor
    * catalogues link here to create a package, and landing on a form set to
@@ -277,6 +280,26 @@ export function TicketForm({
             Only <strong>attendee</strong> tickets appear on the public tickets page.
           </>
         }
+      />
+
+      {/*
+        Workshops since 2026-10-06: a ticket bought on its own that goes on the
+        buyer's existing badge instead of issuing a second one. The website
+        then refuses it to anybody who does not hold the ticket named here (or
+        buy it in the same order), and it never counts toward the group rate.
+      */}
+      <Select
+        name="extraFor"
+        label="Sold as"
+        defaultValue={existing?.kind === 'extra' ? (existing.addOnFor ?? '') : ''}
+        width="lg"
+        options={[
+          { value: '', label: 'A ticket of its own' },
+          ...extraTargets
+            .filter((t) => t.id !== existing?.id)
+            .map((t) => ({ value: t.id, label: `Added to an existing ${t.name} ticket` })),
+        ]}
+        hint="An added ticket goes on the same badge and QR code, and needs that ticket bought first or in the same order."
       />
 
       <Field

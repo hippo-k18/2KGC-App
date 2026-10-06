@@ -69,7 +69,10 @@ export default async function DiscountCodesPage() {
   let codes: DiscountCodeRow[] = [];
   let loadError: string | undefined;
   // Attendee tickets a code can be limited to. An add-on is left out because it
-  // is never a line of its own at checkout; its bundle is listed instead.
+  // is never a line of its own at checkout; its bundle is listed instead. An
+  // extra (Workshops) is a line of its own, so it is listed. A bundle with an
+  // extra in it was retired when Workshops became its own ticket (2026-10-06)
+  // and sells nothing, so a code limited to it could never apply.
   // Both reads at once: the page waited for Firestore before it asked Stripe.
   const [ticketRows, listed] = await Promise.all([
     listTicketTypes(),
@@ -79,7 +82,8 @@ export default async function DiscountCodesPage() {
     ),
   ]);
   const tickets = ticketRows
-    .filter((t) => t.audience === 'attendee' && !t.addOnFor)
+    .filter((t) => t.audience === 'attendee' && (!t.addOnFor || t.kind === 'extra'))
+    .filter((t) => !(t.bundleOf ?? []).some((id) => ticketRows.find((p) => p.id === id)?.kind === 'extra'))
     .map((t) => ({ id: t.id, name: t.name, hidden: !t.visible }));
   if ('rows' in listed) {
     codes = listed.rows;

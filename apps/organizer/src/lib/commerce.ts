@@ -347,8 +347,13 @@ export async function salesSummary(): Promise<SalesSummary> {
 export interface TicketTypeRow {
   id: string;
   name: string;
-  /** Set on an add-on sold only inside a bundle, never by itself. */
+  /**
+   * Set on an add-on sold only inside a bundle, never by itself. On an extra
+   * (`kind: 'extra'`, Workshops) it is the ticket the buyer must hold instead.
+   */
   addOnFor?: string;
+  /** `extra`: sold on its own and added to the holder's existing badge. */
+  kind?: 'admission' | 'extra';
   /**
    * What the website charges today: the current price phase's price, or for a
    * bundle the sum of its parts. Every list in the dashboard prints this, so
@@ -436,6 +441,7 @@ function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
     id,
     name: t.name,
     addOnFor: t.addOnFor,
+    ...(t.kind ? { kind: t.kind } : {}),
     priceCents: now.priceCents,
     flatPriceCents: t.priceCents,
     pricePhases: t.pricePhases,

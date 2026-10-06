@@ -75,7 +75,7 @@ export default async function AttendeesPage({
     if (!inCategory(a, category)) return false;
     if (multi && a.activeTickets < 2) return false;
     if (!needle) return true;
-    return [a.name, a.email, a.title, a.company, a.ticketType, categoryLabel(categories, a), ...a.interests]
+    return [a.name, a.email, a.title, a.company, a.ticketLabel ?? a.ticketType, categoryLabel(categories, a), ...a.interests]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(needle));
   });
@@ -85,7 +85,7 @@ export default async function AttendeesPage({
     title: (a) => a.title ?? '',
     company: (a) => a.company ?? '',
     category: (a) => categoryLabel(categories, a),
-    ticket: (a) => a.ticketType ?? '',
+    ticket: (a) => a.ticketLabel ?? a.ticketType ?? '',
     signedin: (a) => (a.signedIn ? 1 : 0),
     directory: (a) => (a.visibleInDirectory ? 1 : 0),
   });
@@ -371,7 +371,7 @@ export default async function AttendeesPage({
             a.company ?? <span className="muted">—</span>,
             a.ticketType ? (
               <span key="tk">
-                {a.ticketType}
+                {a.ticketLabel ?? a.ticketType}
                 {a.activeTickets > 1 && (
                   <div>
                     <Tag color="orange" small>

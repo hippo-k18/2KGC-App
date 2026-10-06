@@ -140,6 +140,7 @@ export async function saveTicketTypeAction(
     ? (audienceRaw as TicketAudience)
     : 'attendee';
   const includesWorkshops = formData.get('includesWorkshops') === 'on';
+  const extraFor = String(formData.get('extraFor') ?? '').trim();
   const includesVideoLibrary = formData.get('includesVideoLibrary') === 'on';
   const opensRaw = String(formData.get('salesOpenAt') ?? '').trim();
   const closesRaw = String(formData.get('salesCloseAt') ?? '').trim();
@@ -209,6 +210,13 @@ export async function saveTicketTypeAction(
     }
   }
 
+  if (extraFor) {
+    const target = extraFor === docId ? null : await getTicketType(extraFor);
+    if (!target || target.audience !== 'attendee' || target.kind === 'extra' || target.bundleOf?.length) {
+      return { error: 'Choose an attendee ticket for "Sold as", or "A ticket of its own".' };
+    }
+  }
+
   const fields = {
     name,
     priceCents,
@@ -263,6 +271,16 @@ export async function saveTicketTypeAction(
      */
     includesWorkshops,
     includesVideoLibrary,
+    /**
+     * "Sold as": an extra names the ticket it goes on. Turning it back into a
+     * ticket of its own clears both fields; a CEU-style add-on (an `addOnFor`
+     * with no `kind`) is not this field's, so its `addOnFor` is left alone.
+     */
+    ...(extraFor
+      ? { kind: 'extra' as const, addOnFor: extraFor }
+      : existing?.kind === 'extra'
+        ? { kind: FieldValue.delete(), addOnFor: FieldValue.delete() }
+        : {}),
     quantityTotal: capacity,
     salesOpenAt,
     salesCloseAt,
@@ -325,6 +343,7 @@ export async function saveTicketTypeAction(
           ),
           includesWorkshops: existing.includesWorkshops === true,
           includesVideoLibrary: existing.includesVideoLibrary === true,
+          soldAs: existing.kind === 'extra' ? `extra on ${existing.addOnFor ?? ''}` : 'own ticket',
           salesOpenAtLocal: existing.salesOpenAtLocal ?? null,
           salesCloseAtLocal: existing.salesCloseAtLocal ?? null,
         }
@@ -342,6 +361,7 @@ export async function saveTicketTypeAction(
       groups: groupsToText(groups),
       includesWorkshops,
       includesVideoLibrary,
+      soldAs: extraFor ? `extra on ${extraFor}` : 'own ticket',
       salesOpenAtLocal: opensLocal || null,
       salesCloseAtLocal: closesLocal || null,
     });

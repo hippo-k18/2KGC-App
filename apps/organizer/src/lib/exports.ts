@@ -6,6 +6,7 @@ import {
   type QuestionFieldDef,
   type RegistrationDoc,
   type TicketAudience,
+  ticketLabel,
 } from '@kgc/shared';
 import { toCsv, type Column } from './csv';
 import { answerColumns, formatAnswer, surveyAnswerRows } from './answer-exports-core';
@@ -123,7 +124,7 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Email', value: (a) => a.email },
       { header: 'Title', value: (a) => a.title ?? '' },
       { header: 'Company', value: (a) => a.company ?? '' },
-      { header: 'Ticket', value: (a) => a.ticketType ?? '' },
+      { header: 'Ticket', value: (a) => a.ticketLabel ?? a.ticketType ?? '' },
       { header: 'Ticket status', value: (a) => a.registrationStatus ?? '' },
       { header: 'Category', value: (a) => a.category ?? '' },
       { header: 'Signed into app', value: (a) => yesNo(a.signedIn) },
@@ -146,7 +147,7 @@ export const EXPORTS: ExportDef[] = [
     [
       { header: 'Name', value: (a) => a.name },
       { header: 'Company', value: (a) => a.company ?? '' },
-      { header: 'Ticket', value: (a) => a.ticketType ?? '' },
+      { header: 'Ticket', value: (a) => a.ticketLabel ?? a.ticketType ?? '' },
       { header: 'Category', value: (a) => a.category ?? '' },
     ],
   ),
@@ -402,7 +403,7 @@ export const EXPORTS: ExportDef[] = [
       const columns: Column<RegistrationDoc>[] = [
         { header: 'Name', value: (r) => r.name ?? '' },
         { header: 'Email', value: (r) => r.email },
-        { header: 'Ticket', value: (r) => r.ticketType ?? '' },
+        { header: 'Ticket', value: (r) => ticketLabel(r) },
         { header: 'Ticket status', value: (r) => r.status },
         ...answerColumns(fields, answered).map((c) => ({
           header: c.header,

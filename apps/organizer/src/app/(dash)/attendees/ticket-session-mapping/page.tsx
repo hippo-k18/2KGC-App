@@ -81,7 +81,10 @@ export default async function TicketSessionMappingPage({
   // Held by, joined on the tier's display name — the string the importer writes
   // into `RegistrationDoc.ticketType`. Registrations do not carry the ticket
   // type's document id, so a renamed tier stops matching its own holders here.
-  const heldBy = (name: string) => attendees.filter((a) => a.ticketType === name).length;
+  // An extra (Workshops) is held beside the admission ticket on the same
+  // badge, so it counts from `extraNames`.
+  const heldBy = (name: string) =>
+    attendees.filter((a) => a.ticketType === name || (a.extraNames ?? []).includes(name)).length;
 
   const rows = tiers.map((t) => {
     const g = grants.get(t.id);

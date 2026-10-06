@@ -7,6 +7,7 @@ import {
   EVENT_ID,
   SUBCOLLECTIONS,
   publicSiteOrigin,
+  ticketLabel,
   type OrderDoc,
   type RegistrationDoc,
   type TicketTypeDoc,
@@ -313,6 +314,15 @@ async function moveRegistration(
   // failure after it leaves both active, which is visible and harmless.
   const batch = db().batch();
   const stamp = FieldValue.serverTimestamp();
+  /**
+   * Extras on the badge (Workshops) move with the ticket, both on a transfer
+   * and on a corrected address; the old document keeps none, so nothing reads
+   * Workshops off a ticket nobody holds any more.
+   */
+  const extras = from.extras?.length
+    ? { extras: from.extras, extraNames: from.extraNames ?? from.extras.map((e) => e.name) }
+    : {};
+  const dropExtras = from.extras?.length ? { extras: FieldValue.delete(), extraNames: FieldValue.delete() } : {};
 
   if (kind === 'correct') {
     batch.update(regRef(toId), {
@@ -332,6 +342,7 @@ async function moveRegistration(
           }
         : {}),
       ...(from.seatRelease ? { seatRelease: from.seatRelease } : {}),
+      ...extras,
       createdAt: from.createdAt,
       transferredFrom: fromId,
       updatedAt: stamp,
@@ -343,6 +354,7 @@ async function moveRegistration(
       qrSecret: qrSecret(),
       claimCode: claimCode(),
       tempPassword: FieldValue.delete(),
+      ...dropExtras,
       updatedAt: stamp,
     });
   } else {
@@ -350,6 +362,7 @@ async function moveRegistration(
       ...clearForward,
       title: details.title || FieldValue.delete(),
       company: details.company || FieldValue.delete(),
+      ...extras,
       transferredFrom: fromId,
       updatedAt: stamp,
     });
@@ -357,6 +370,7 @@ async function moveRegistration(
       status: 'transferred',
       transferredTo: toId,
       tempPassword: FieldValue.delete(),
+      ...dropExtras,
       updatedAt: stamp,
     });
   }
@@ -373,7 +387,13 @@ async function moveRegistration(
     .get();
   for (const o of orders.docs) {
     if (o.data().eventId !== EVENT_ID) continue;
-    await o.ref.update({ registrationIds: FieldValue.arrayUnion(toId), updatedAt: stamp });
+    // An order that only added Workshops to the old badge only adds it to the new one.
+    const extended = ((o.data().extraRegistrationIds ?? []) as string[]).includes(fromId);
+    await o.ref.update({
+      registrationIds: FieldValue.arrayUnion(toId),
+      ...(extended ? { extraRegistrationIds: FieldValue.arrayUnion(toId) } : {}),
+      updatedAt: stamp,
+    });
   }
 
   await setAppAccess(from.email, false);
@@ -383,7 +403,7 @@ async function moveRegistration(
     registrationId: toId,
     email: details.email,
     name: details.name,
-    ticketType,
+    ticketType: ticketLabel({ ticketType, extraNames: from.extraNames }),
     claimCode: kind === 'correct' ? (from.claimCode ?? moved.claimCode) : moved.claimCode,
   });
 

@@ -163,7 +163,13 @@ export default async function CreateTicketsPage({
                 Each of them will register when the invoice is paid.
               </Banner>
             )}
-          <TicketForm existing={editing} defaultAudience={requestedAudience} />
+          <TicketForm
+            existing={editing}
+            defaultAudience={requestedAudience}
+            extraTargets={all
+              .filter((t) => t.audience === 'attendee' && !t.bundleOf?.length && t.kind !== 'extra' && !t.addOnFor)
+              .map((t) => ({ id: t.id, name: t.name }))}
+          />
           {editing && (
             <SoldCountForm
               id={editing.id}

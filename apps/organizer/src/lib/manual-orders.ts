@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, publicSiteOrigin } from '@kgc/shared';
-import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import { ensureRegistration, extraTierById, extraVerdictFor } from '@kgc/scripts/src/lib/fulfilment';
+import { extraRefusalForOrganizer } from './extras';
 import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
 import { appendAudit } from './audit';
@@ -131,6 +132,17 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
   if (!tier) return { ok: false, error: 'Choose a package that still exists in the catalogue.' };
 
   /**
+   * Workshops goes on the person's Main Conference badge, as on the website:
+   * it is refused for an address with no Main Conference, for Virtual, and for
+   * All Access, which includes it already (owner, 2026-10-06).
+   */
+  const extra = await extraTierById(db(), tier.id);
+  if (extra) {
+    const verdict = await extraVerdictFor(db(), email, extra);
+    if (!verdict.ok) return { ok: false, error: extraRefusalForOrganizer(extra.tier, email, verdict.reason, verdict.heldName, extra.byName) };
+  }
+
+  /**
    * The order id is one per submission, not one per person and package.
    *
    * It used to be `manual_{tierId}_{email}`, so a second manual order for the
@@ -221,8 +233,14 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       name,
       ticketType: tier.name,
       purchase: { orderId, seat: 0 },
+      ticketTypeId: tier.id,
     });
-    await orderRef.update({ registrationIds: [reg.registrationId], updatedAt: FieldValue.serverTimestamp() });
+    await orderRef.update({
+      registrationIds: [reg.registrationId],
+      // Workshops added to an existing badge: see `OrderDoc.extraRegistrationIds`.
+      ...(reg.extra?.extendedOnly ? { extraRegistrationIds: [reg.registrationId] } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
     /**
      * The sold counter, once per order. A double-submit of the same form
@@ -267,7 +285,8 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       await sendPurchaseConfirmation(db(), {
         to: reg.email,
         name: reg.name ?? name,
-        ticketType: reg.ticketType ?? tier.name,
+        ticketType: reg.extra?.label || (reg.ticketType ?? tier.name),
+        ...(reg.extra?.extendedOnly && !reg.extra.refused ? { addedExtra: reg.extra.name } : {}),
         amountCents: input.amountCents,
         currency: tier.currency,
         orderUrl: `${origin}/order/${mintOrderToken({ rid: reg.registrationId })}`,
@@ -283,7 +302,8 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       registrationId: reg.registrationId,
       claimCode: reg.claimCode,
       message:
-        `Recorded ${tier.name} for ${email}${input.amountCents === 0 ? ' as a comp' : ''}.` +
+        `Recorded ${tier.name} for ${email}${input.amountCents === 0 ? ' as a comp' : ''}` +
+        (reg.extra?.extendedOnly ? `, added to their existing ticket (${reg.extra.label}).` : '.') +
         (input.silent ? ' No email was sent.' : ' A confirmation has been sent.'),
     };
   } catch (err) {
