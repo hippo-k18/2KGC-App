@@ -289,3 +289,33 @@ describe('Workshops recorded from the dashboard (T169)', () => {
     expect(await sold('main-conference')).toBe(1);
   });
 });
+
+describe('cancelling a Main Conference + Workshops badge on the dashboard (T170)', () => {
+  beforeEach(async () => {
+    await db.collection(COLLECTIONS.ticketTypes).doc('workshops').set({
+      eventId: EVENT_ID, name: 'Workshops', priceCents: 19_900, currency: 'usd', quantitySold: 0,
+      kind: 'extra', addOnFor: 'main-conference', includesWorkshops: true,
+    });
+  });
+
+  it('gives back both seats, and reinstating takes both again', async () => {
+    const main = await manual({ requestId: 'req-cx-main-01' });
+    expect((await manual({ ticketTypeId: 'workshops', amountCents: 19_900, note: 'Cheque 5005', requestId: 'req-cx-ws-001' })).ok).toBe(true);
+    expect([await sold('main-conference'), await sold('workshops')]).toEqual([1, 1]);
+
+    const { cancelAttendee, reinstateAttendee } = await import('@/lib/attendee-admin');
+    const res = await cancelAttendee(main.registrationId!, 'organizer@example.com');
+    expect(res.ok).toBe(true);
+    expect(res.message).toMatch(/So is their Workshops seat/);
+    expect([await sold('main-conference'), await sold('workshops')]).toEqual([0, 0]);
+
+    // Twice is still once.
+    expect((await cancelAttendee(main.registrationId!, 'organizer@example.com')).ok).toBe(false);
+    expect(await sold('workshops')).toBe(0);
+
+    expect((await reinstateAttendee(main.registrationId!, 'organizer@example.com')).ok).toBe(true);
+    expect([await sold('main-conference'), await sold('workshops')]).toEqual([1, 1]);
+    const r = (await db.collection(COLLECTIONS.registrations).doc(main.registrationId!).get()).data() as RegistrationDoc;
+    expect(r.extraSeatReleases).toBeUndefined();
+  });
+});

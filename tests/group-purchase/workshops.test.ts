@@ -62,8 +62,13 @@ vi.mock('@/lib/stripe', () => ({
       },
     },
     invoicePayments: {
-      list: async ({ payment }: { payment: { payment_intent: string } }) => {
-        const invoice = mocks.invoiceByIntent.get(payment.payment_intent);
+      list: async (q: { payment?: { payment_intent: string }; invoice?: string }) => {
+        if (q.invoice) {
+          // The payment that settled an invoice, as `invoice.paid` reads it.
+          const pi = [...mocks.invoiceByIntent].find(([, inv]) => inv === q.invoice)?.[0];
+          return { data: pi ? [{ invoice: q.invoice, payment: { type: 'payment_intent', payment_intent: pi } }] : [] };
+        }
+        const invoice = mocks.invoiceByIntent.get(q.payment!.payment_intent);
         return { data: invoice ? [{ invoice }] : [] };
       },
     },
@@ -180,21 +185,22 @@ beforeEach(async () => {
 });
 
 type Seat = CartSeat & { ticketTypeId: TierId };
-const seat = (name: string, email: string, tier: TierId): Seat => ({
+const seat = (name: string, email: string, tier: TierId, priceCents: number = TIERS[tier].priceCents): Seat => ({
   name,
   email,
   ticketType: TIERS[tier].name,
   ticketTypeId: tier,
-  priceCents: TIERS[tier].priceCents,
+  priceCents,
 });
 
 /** What `startCheckout` writes, and the session Stripe holds for it. */
-async function bought(seats: Seat[], sessionId: string) {
+/** `charged` is what Stripe took, after any promotion code; the list total when absent. */
+async function bought(seats: Seat[], sessionId: string, charged?: number) {
   const [buyer] = seats;
   if (seats.length > 1) {
     await recordCartOrder({ sessionId, buyerEmail: buyer.email, buyerName: buyer.name, seats, currency: 'usd' });
   }
-  const total = seats.reduce((n, s) => n + s.priceCents, 0);
+  const total = charged ?? seats.reduce((n, s) => n + s.priceCents, 0);
   const pi = `pi_${sessionId}`;
   mocks.sessionByIntent.set(pi, sessionId);
   mocks.sessions.set(sessionId, {
@@ -208,7 +214,7 @@ async function bought(seats: Seat[], sessionId: string) {
     currency: 'usd',
     customer_details: { email: buyer.email, name: buyer.name },
     customer_email: buyer.email,
-    total_details: { amount_tax: 0, amount_discount: 0 },
+    total_details: { amount_tax: 0, amount_discount: seats.reduce((n, x) => n + x.priceCents, 0) - total },
     metadata: { source: 'kgc-web', tier: buyer.ticketTypeId, ticketType: buyer.ticketType, name: buyer.name, seats: String(seats.length) },
   });
   const res = await deliver('checkout.session.completed', mocks.sessions.get(sessionId));
@@ -500,7 +506,7 @@ describe('refunds (decision 4)', () => {
     expect((await reg(registrationId(ADA))).status).toBe('cancelled');
     expect((await reg(registrationId(ADA))).extraNames).toEqual([]);
     // The whole Workshops payment goes back; its own refund event follows.
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: dec.pi, amount: undefined }]);
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: dec.pi, amount: 19_900 }]);
     expect(mocks.refundMails.at(-1)).toMatchObject({ ticketCancelled: true, extrasCancelled: ['Workshops'] });
     expect(await sold('main-conference')).toBe(0);
     // Stripe's event for that refund: seat back, order refunded, nothing else.
@@ -579,5 +585,129 @@ describe('the invoice path', () => {
     expect((await reg(registrationId(ADA))).extraNames).toEqual(['Workshops']);
     expect((await order(oid)).extraRegistrationIds).toEqual([registrationId(ADA)]);
     expect(mocks.sent.at(-1)).toMatchObject({ addedExtra: 'Workshops', ticketType: 'Main Conference + Workshops' });
+  });
+});
+
+describe('the cascade refunds what was paid, not the list price (T170, W09)', () => {
+  const PAT = 'pat@example.com';
+  const QUINN = 'quinn@example.com';
+  async function patHoldsMain() {
+    await bought([seat('Pat Rivera', PAT, 'main-conference')], 'cs_w09_pat');
+  }
+  const refundPatsMain = () => refunded('pi_cs_w09_pat', 59_900);
+  const warnings = async () =>
+    (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
+
+  it('a 50% code: the Workshops line refunds half its price, as on the receipt', async () => {
+    await patHoldsMain();
+    const q = await bought(
+      [seat('Quinn Hale', QUINN, 'main-conference'), seat('Pat Rivera', PAT, 'workshops')],
+      'cs_w09_half',
+      39_900,
+    );
+    // The receipt Pat got for that seat.
+    expect(mocks.sent.find((m) => m.to === PAT && m.addedExtra)?.amountCents).toBe(9_950);
+    await refundPatsMain();
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: 9_950 }]);
+  });
+
+  it('a fixed $100 code: the line refunds its share of the discounted total', async () => {
+    await patHoldsMain();
+    const q = await bought(
+      [seat('Quinn Hale', QUINN, 'main-conference'), seat('Pat Rivera', PAT, 'workshops')],
+      'cs_w09_fixed',
+      69_800,
+    );
+    const share = mocks.sent.find((m) => m.to === PAT && m.addedExtra)!.amountCents;
+    expect(share).toBe(Math.floor((69_800 * 19_900) / 79_800));
+    await refundPatsMain();
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: share }]);
+  });
+
+  it('a group-rate cart: Workshops was not discounted, so its full price goes back', async () => {
+    await patHoldsMain();
+    const rated = 53_910;
+    const people = ['a', 'b', 'c', 'd', 'e'].map((x) => seat(`Person ${x}`, `${x}@example.com`, 'main-conference', rated));
+    const q = await bought([...people, seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_group');
+    await refundPatsMain();
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: 19_900 }]);
+  });
+
+  it('a group-rate cart with a 10% code on top: the line refunds its share of what was charged', async () => {
+    await patHoldsMain();
+    const rated = 53_910;
+    const people = ['a', 'b', 'c', 'd', 'e'].map((x) => seat(`Person ${x}`, `${x}@example.com`, 'main-conference', rated));
+    const listed = rated * 5 + 19_900;
+    const charged = Math.round(listed * 0.9);
+    const q = await bought([...people, seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_group_code', charged);
+    const share = mocks.sent.find((m) => m.to === PAT && m.addedExtra)!.amountCents;
+    await refundPatsMain();
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: share }]);
+    expect(share).toBeLessThan(19_900);
+  });
+
+  it('Workshops bought alone with a 50% code: half goes back, never the list price', async () => {
+    await patHoldsMain();
+    const q = await bought([seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_alone_half', 9_950);
+    await refundPatsMain();
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: 9_950 }]);
+  });
+
+  it('a 100% code: nothing to refund, no Stripe call and no warning, and the seat still comes back', async () => {
+    await patHoldsMain();
+    const q = await bought([seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_free', 0);
+    const res = await refundPatsMain();
+    expect(await res.json()).toMatchObject({ linkedRefunds: [{ orderId: q.oid, outcome: 'nothing-paid' }] });
+    expect(mocks.stripeRefunds).toEqual([]);
+    expect((await warnings()).some((w) => w.includes('extra.refundNeeded'))).toBe(false);
+    expect((await reg(registrationId(PAT))).extraNames).toEqual([]);
+    // The receipt does not promise a separate refund for it.
+    expect(mocks.refundMails.at(-1)?.extrasCancelled).toBeUndefined();
+  });
+});
+
+describe('Workshops paid on an invoice (T170)', () => {
+  it('records the payment intent at invoice.paid, so the cascade refunds it without a warning', async () => {
+    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_inv_pi_oct');
+    mocks.invoiceByIntent.set('pi_in_ws_pi', 'in_ws_pi');
+    await recordInvoiceOrder({
+      invoiceId: 'in_ws_pi',
+      billingEmail: 'billing@acme.example',
+      companyName: 'Acme',
+      seats: [seat('Ada Nakamura', ADA, 'workshops')],
+      currency: 'usd',
+      totalCents: 19_900,
+    });
+    await deliver('invoice.paid', {
+      id: 'in_ws_pi',
+      object: 'invoice',
+      metadata: { source: 'kgc-web' },
+      total: 19_900,
+      currency: 'usd',
+      customer_email: 'billing@acme.example',
+      lines: { data: [] },
+    });
+    expect((await order(invoiceOrderId('in_ws_pi'))).stripePaymentIntentId).toBe('pi_in_ws_pi');
+    await refunded('pi_cs_inv_pi_oct', 59_900);
+    expect(mocks.stripeRefunds).toEqual([{ payment_intent: 'pi_in_ws_pi', amount: 19_900 }]);
+    const warnings = (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
+    expect(warnings.some((w) => w.includes('extra.refundNeeded'))).toBe(false);
+  });
+});
+
+describe('a dispute on Main Conference with Workshops on the badge (T170)', () => {
+  it('refunds nothing and tells the team which Workshops payment to decide about', async () => {
+    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_disp_oct');
+    const dec = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_disp_dec');
+    const res = await deliver('charge.dispute.created', { id: 'dp_ws', object: 'dispute', payment_intent: 'pi_cs_disp_oct', amount: 59_900 });
+    expect(await res.json()).toMatchObject({ extrasNeedingDecision: [dec.oid] });
+    expect((await reg(registrationId(ADA))).status).toBe('cancelled');
+    expect(mocks.stripeRefunds).toEqual([]);
+    const warning = (await db.collection(COLLECTIONS.auditLog).get()).docs
+      .map((d) => JSON.stringify(d.data()))
+      .find((w) => w.includes('extra.refundNeeded'));
+    expect(warning).toContain(dec.pi);
+    expect(warning).toContain('disputed');
+    expect(warning).toContain('199.00');
   });
 });
