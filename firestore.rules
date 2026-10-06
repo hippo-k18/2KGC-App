@@ -708,7 +708,13 @@ service cloud.firestore {
          * whoever signed up with a capital letter, reported as "streaming is
          * broken" by one attendee out of forty.
          */
-        function myTicketType() {
+        /**
+         * Every ticket name on the caller's badge: the admission ticket and
+         * any extras added to it (`extraNames`, Workshops since 2026-10-06).
+         * Empty when there is no active registration of theirs. Same access
+         * calls as before; the extras are a field of the same document.
+         */
+        function myTickets() {
           let profile = /databases/$(database)/documents/users/$(request.auth.uid);
           let rid = exists(profile) ? get(profile).data.get('registrationId', '-') : '-';
           let regPath = /databases/$(database)/documents/registrations/$(rid);
@@ -716,8 +722,8 @@ service cloud.firestore {
             ? get(regPath).data
             : {'email': '', 'altEmails': [], 'status': 'none', 'ticketType': ''};
           return (registrationIsMine(reg) && reg.get('status', '') == 'active')
-            ? reg.get('ticketType', '')
-            : '';
+            ? [reg.get('ticketType', '')].concat(reg.get('extraNames', []))
+            : [];
         }
 
         /**
@@ -730,7 +736,7 @@ service cloud.firestore {
          */
         function mayWatchThis() {
           let allowed = resource.data.get('allowedTicketTypes', []);
-          return allowed.size() == 0 || myTicketType() in allowed;
+          return allowed.size() == 0 || myTickets().hasAny(allowed);
         }
 
         /**
@@ -926,7 +932,9 @@ service cloud.firestore {
           return session().status == 'published'
             && registrationIsMine(reg)
             && reg.status == 'active'
-            && (allowed.size() == 0 || reg.get('ticketType', '') in allowed);
+            && (allowed.size() == 0
+                || reg.get('ticketType', '') in allowed
+                || reg.get('extraNames', []).hasAny(allowed));
         }
         // Tied to the counter, which is where the cap and the order are checked.
         function counterTakesMe() {

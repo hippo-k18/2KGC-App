@@ -25,6 +25,7 @@ import {
   collection,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
   type Firestore,
 } from 'firebase/firestore';
@@ -56,6 +57,7 @@ const as = (uid: string) => env.authenticatedContext(uid, attendee(uid)).firesto
 const CAPPED = 'capped'; // two seats, every ticket
 const WORKSHOP = 'workshop'; // uncapped, Full Pass only
 const OPEN = 'open'; // neither
+const HANDS_ON = 'hands-on'; // uncapped, Workshops or Full Pass
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -84,6 +86,12 @@ beforeEach(async () => {
     await setDoc(doc(db, 'registrations/reg_c'), {
       email: `${C}@kgc.test`, altEmails: [], status: 'active', ticketType: 'Full Pass',
     });
+    // Main Conference with Workshops added to the same badge (T169).
+    await setDoc(doc(db, 'registrations/reg_d'), {
+      email: `${D}@kgc.test`, altEmails: [], status: 'active', ticketType: 'Main Conference',
+      extraNames: ['Workshops'],
+    });
+    await setDoc(doc(db, `sessions/${HANDS_ON}`), { ...session, eligibleTicketTypes: ['Workshops', 'Full Pass'] });
     await setDoc(doc(db, 'registrations/reg_cancelled'), {
       email: `${C}@kgc.test`, altEmails: [], status: 'cancelled', ticketType: 'Full Pass',
     });
@@ -198,6 +206,28 @@ describe('taking a seat', () => {
     await given(CAPPED, { taken: 1, waitlist: [B] }, { [A]: 'seated', [B]: 'waitlisted' });
     await assertFails(join(C, CAPPED, { taken: 2, waitlist: [B] }, 'seated'));
     await assertSucceeds(join(C, CAPPED, { taken: 1, waitlist: [B, C] }, 'waitlisted'));
+  });
+});
+
+describe('ticket eligibility with an extra on the badge (T169)', () => {
+  it('Main Conference + Workshops takes a seat in a workshop limited to Workshops', async () => {
+    await assertSucceeds(join(D, HANDS_ON, { taken: 1, waitlist: [] }, 'seated'));
+  });
+
+  it('Main Conference alone is refused there', async () => {
+    await assertFails(join(B, HANDS_ON, { taken: 1, waitlist: [] }, 'seated'));
+  });
+
+  it('an extra does not stretch to a session limited to something else', async () => {
+    await assertFails(join(D, WORKSHOP, { taken: 1, waitlist: [] }, 'seated'));
+  });
+
+  it('nobody adds Workshops to their own badge', async () => {
+    const db = as(B);
+    await assertFails(updateDoc(doc(db, 'registrations/reg_b'), { extraNames: ['Workshops'] }));
+    await assertFails(
+      updateDoc(doc(db, 'registrations/reg_b'), { extras: [{ tierId: 'workshops', name: 'Workshops' }] }),
+    );
   });
 });
 

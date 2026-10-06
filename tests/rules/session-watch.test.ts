@@ -243,6 +243,34 @@ describe('a stream restricted to one ticket type', () => {
   });
 });
 
+describe('an extra on the badge (T169)', () => {
+  // Main Conference with Workshops added; a recording limited to Workshops.
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'registrations/reg_main'), { extraNames: ['Workshops'] }, { merge: true });
+      await setDoc(doc(db, recordingPath(GATED_SESSION)), { allowedTicketTypes: ['Workshops'] }, { merge: true });
+      await setDoc(doc(db, streamPath(GATED_SESSION)), { allowedTicketTypes: ['Workshops'] }, { merge: true });
+    });
+  });
+
+  it('lets Main Conference + Workshops watch what is limited to Workshops', async () => {
+    await assertSucceeds(getDoc(doc(as(MAIN), recordingPath(GATED_SESSION))));
+    await assertSucceeds(getDoc(doc(as(MAIN), streamPath(GATED_SESSION))));
+  });
+
+  it('refuses a ticket without the extra', async () => {
+    await assertFails(getDoc(doc(as(ALL), recordingPath(GATED_SESSION))));
+  });
+
+  it('refuses it once the badge is cancelled, extras and all', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'registrations/reg_main'), { status: 'cancelled' }, { merge: true });
+    });
+    await assertFails(getDoc(doc(as(MAIN), recordingPath(GATED_SESSION))));
+  });
+});
+
 describe('a recording', () => {
   it('is gated on its own, not on the stream beside it', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
