@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 
-import { headerText, sendInvoiceRaised, sendRefundConfirmation } from './email.js';
+import { headerText, sendInvoiceRaised, sendPurchaseConfirmation, sendRefundConfirmation } from './email.js';
 
 /**
  * What `send()` does with the provider and with what it is given, against a
@@ -82,5 +82,57 @@ describe('header text (TK-227)', () => {
     });
     expect(requests[0].subject).not.toMatch(/[\r\n]/);
     expect(logged[0].subject).not.toMatch(/[\r\n]/);
+  });
+});
+
+describe('Workshops added to an existing ticket (T169)', () => {
+  it('says it was added, names the whole badge, and promises no new QR code', async () => {
+    provider('ok');
+    expect(
+      await sendPurchaseConfirmation(store, {
+        to: 'ada@example.com',
+        name: 'Ada Nakamura',
+        ticketType: 'Main Conference + Workshops',
+        amountCents: 19_900,
+        currency: 'usd',
+        orderUrl: 'https://www.knowledgegraph.tech/order/abc',
+        claimCode: '',
+        addedExtra: 'Workshops',
+      }),
+    ).toBe('sent');
+    expect(requests[0].subject).toBe('Workshops added to your Knowledge Graph Conference ticket');
+    expect(requests[0].text).toContain('Workshops is now on your ticket');
+    expect(requests[0].text).toContain('Ticket:        Main Conference + Workshops');
+    expect(requests[0].text).toContain('same badge and QR code');
+    expect(requests[0].text).not.toContain('Bring your team');
+    expect(logged[0]).toMatchObject({ template: 'extra-added' });
+  });
+
+  it('a refund of Workshops alone says the Main Conference ticket still scans', async () => {
+    provider('ok');
+    await sendRefundConfirmation(store, {
+      to: 'ada@example.com',
+      name: 'Ada',
+      ticketType: 'Workshops',
+      amountCents: 19_900,
+      currency: 'usd',
+      ticketCancelled: false,
+      extraRemoved: { name: 'Workshops', remaining: 'Main Conference' },
+    });
+    expect(requests[0].text).toContain('Workshops is no longer on your ticket. Your Main Conference ticket is not');
+    expect(requests[0].text).not.toContain('Another order still covers it');
+  });
+
+  it('a refund of Main Conference says Workshops on the same ticket goes too', async () => {
+    provider('ok');
+    await sendRefundConfirmation(store, {
+      to: 'ada@example.com',
+      name: 'Ada',
+      ticketType: 'Main Conference',
+      amountCents: 59_900,
+      currency: 'usd',
+      extrasCancelled: ['Workshops'],
+    });
+    expect(requests[0].text).toContain('Workshops on the same ticket is cancelled too, and refunded separately.');
   });
 });

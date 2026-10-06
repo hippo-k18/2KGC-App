@@ -424,6 +424,12 @@ export interface PurchaseEmailInput {
    * their own. With neither, or if minting fails, the block is left out.
    */
   referralCode?: string | null;
+  /**
+   * Set when this purchase added an extra to a ticket the person already holds
+   * ("Workshops"). The email then says it was added, and `ticketType` should be
+   * the whole badge label ("Main Conference + Workshops"). Same link, same QR.
+   */
+  addedExtra?: string;
 }
 
 /**
@@ -469,6 +475,7 @@ const BRING_YOUR_TEAM =
  * accepted so callers need not change, and are not printed.
  */
 export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
+  if (input.addedExtra) return sendExtraAdded(store, { ...input, addedExtra: input.addedExtra });
   const price = formatPrice(input.amountCents, input.currency);
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const invite = await inviteFor(store, input);
@@ -528,6 +535,53 @@ Please don't reply to this email. For questions, write to ${CONTACT}.`;
     html,
     text,
     template: 'purchase-confirmation',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+/**
+ * An extra ticket (Workshops) added to a ticket the person already holds. No
+ * new badge, so no new QR code and no "Bring your team" block: it confirms the
+ * purchase and says the ticket they have now covers it.
+ */
+async function sendExtraAdded(
+  store: Firestore,
+  input: PurchaseEmailInput & { addedExtra: string },
+): Promise<SendOutcome> {
+  const price = formatPrice(input.amountCents, input.currency);
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
+  const extra = esc(input.addedExtra);
+
+  const html = shell(
+    `${extra} added to your ticket`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${extra} is now on your ticket. You keep the same badge and QR code.</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
+       ${row('Attendee', esc(input.name || input.to))}
+       ${row('Ticket', esc(input.ticketType))}
+       ${row('Paid', price)}
+     </table>
+     ${button(input.orderUrl, 'View your ticket')}
+     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">This is the same link as before. Don't forward it: anyone with the link can see your ticket.</p>`,
+  );
+
+  const text = `${greeting} ${input.addedExtra} is now on your ticket for the Knowledge Graph Conference. You keep the same badge and QR code.
+
+Attendee:      ${input.name || input.to}
+Ticket:        ${input.ticketType}
+Paid:          ${price}
+
+View your ticket: ${input.orderUrl}
+
+3-7 May 2027, Jay Conference Bryant Park, New York.
+Please don't reply to this email. For questions, write to ${CONTACT}.`;
+
+  return send(store, {
+    to: input.to,
+    subject: `${input.addedExtra} added to your Knowledge Graph Conference ticket`,
+    html,
+    text,
+    template: 'extra-added',
     orderId: input.orderId,
     registrationId: input.registrationId,
   });
@@ -614,6 +668,16 @@ export interface RefundEmailInput {
    * about a badge that no longer scans is about a ticket they no longer hold.
    */
   transferred?: boolean;
+  /**
+   * Set when the refund took an extra off a badge that stays valid: Workshops
+   * refunded, Main Conference kept. `remaining` is what the badge still holds.
+   */
+  extraRemoved?: { name: string; remaining: string };
+  /**
+   * Extras on the cancelled badge that other orders paid for. They are
+   * cancelled with it and refunded separately (owner, 2026-10-06).
+   */
+  extrasCancelled?: string[];
 }
 
 /**
@@ -641,13 +705,24 @@ export async function sendRefundConfirmation(store: Firestore, input: RefundEmai
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const cancelled = input.ticketCancelled ?? true;
 
-  const ticketHtml = !cancelled
+  const removed = input.extraRemoved;
+  const cascade = (input.extrasCancelled ?? []).filter(Boolean);
+  const cascadeLine = cascade.length
+    ? ` ${cascade.join(' and ')} on the same ticket ${cascade.length > 1 ? 'are' : 'is'} cancelled too, and refunded separately.`
+    : '';
+
+  const ticketHtml = removed
+    ? `<strong>${esc(removed.name)} is no longer on your ticket.</strong> ${removed.remaining ? `Your ${esc(removed.remaining)} ticket is not affected and scans at the door as before.` : ''} If this was a mistake, write to ${CONTACT} and we'll sort it out.`
+    : !cancelled
     ? `<strong>The ticket is not affected.</strong> Another order still covers it, so it scans at the door as before. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
     : input.transferred
       ? `<strong>The ticket you passed on is now cancelled</strong>, so it will no longer scan at the door. We have told the person who was holding it. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
-      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, write to ${CONTACT} and we'll sort it out.`;
+      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door.${esc(cascadeLine)} If this was a mistake, write to ${CONTACT} and we'll sort it out.`;
 
-  const ticketText = !cancelled
+  const ticketText = removed
+    ? `${removed.name} is no longer on your ticket.${removed.remaining ? ` Your ${removed.remaining} ticket is not
+affected and scans at the door as before.` : ''} If this was a mistake, write to ${CONTACT}.`
+    : !cancelled
     ? `The ticket is not affected. Another order still covers it, so it scans at the
 door as before. If this was a mistake, write to ${CONTACT}.`
     : input.transferred
@@ -655,7 +730,7 @@ door as before. If this was a mistake, write to ${CONTACT}.`
 door. We have told the person who was holding it. If this was a mistake, write
 to ${CONTACT}.`
       : `Your registration is now cancelled, so the badge QR in the app will no longer
-scan at the door. If this was a mistake, write to ${CONTACT}.`;
+scan at the door.${cascadeLine} If this was a mistake, write to ${CONTACT}.`;
 
   const html = shell(
     'Your Knowledge Graph Conference ticket has been refunded',

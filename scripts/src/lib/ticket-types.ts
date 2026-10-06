@@ -174,19 +174,24 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     ],
   },
   /**
-   * Workshops is a $199 add-on to Main Conference for 2027, not a ticket of its
-   * own. `addOnFor` stops it being sold alone; what a buyer who ticks it
-   * actually purchases is the bundle below, priced from the two of them.
+   * Workshops, a $199 ticket of its own since 2026-10-06 (owner). It is an
+   * extra: bought on its own, any time, and added to the holder's existing
+   * Main Conference badge instead of issuing a second one. `addOnFor` names the
+   * ticket it needs. The checkout refuses it for anybody who does not hold
+   * Main Conference or buy it in the same order, and for All Access holders,
+   * whose ticket already includes the workshops. It never counts toward the
+   * group rate.
    */
   {
     id: "workshops",
     name: "Workshops",
     priceCents: 19_900,
     currency: "usd",
-    tagline: "Both workshop days, Monday and Tuesday",
+    tagline: "Both workshop days, Monday and Tuesday. Added to your Main Conference ticket.",
+    kind: "extra",
     addOnFor: "main-conference",
     inPerson: true,
-    visible: false,
+    visible: true,
     sortOrder: 30,
     audience: "attendee",
     includesVideoLibrary: false,
@@ -196,9 +201,14 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "Every in-person workshop, Monday and Tuesday",
       "Instructor-led labs at beginner, intermediate and advanced level",
       "Workshop materials and datasets to take home",
-      "Community happy hour",
+      "Needs a Main Conference ticket, bought earlier or in the same order",
     ],
   },
+  /**
+   * Retired 2026-10-06, when Workshops became its own ticket. Kept so past
+   * orders, refunds and badges still read correctly; the website no longer
+   * sells a bundle that contains an extra.
+   */
   {
     id: "main-conference-workshops",
     name: "Main Conference + Workshops",
@@ -272,6 +282,7 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "Three months of the KGC Video Library",
     ],
   },
+  // Retired 2026-10-06 with "Main Conference + Workshops": see above.
   {
     id: "main-conference-workshops-continuing-education",
     name: "Main Conference + Workshops + Continuing education units",

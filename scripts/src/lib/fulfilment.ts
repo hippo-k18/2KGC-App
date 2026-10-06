@@ -1,13 +1,21 @@
-import type { Firestore } from "firebase-admin/firestore";
+import type { Firestore, Query, QuerySnapshot } from "firebase-admin/firestore";
 import {
   COLLECTIONS,
   EVENT_ID,
   SETTINGS_KEYS,
   categoryFromRule,
+  chooseExtraBase,
+  isExtraTier,
   resolveAttendeeCategories,
   resolveTicketRules,
+  ticketLabel,
+  type ExtraCandidate,
+  type ExtraRefusal,
+  type ExtraTierShape,
   type OrderDoc,
   type RegistrationDoc,
+  type RegistrationExtra,
+  type TicketTypeDoc,
 } from "@kgc/shared";
 import {
   claimCode,
@@ -96,6 +104,24 @@ export interface FulfilledRegistration {
   claimCode: string;
   /** True when this call created the registration rather than updating one. */
   created: boolean;
+  /**
+   * Set when the ticket was an extra (Workshops). `added` is true only on the
+   * call that put it on the badge, so a replay counts nothing twice.
+   * `extendedOnly` means this order added the extra to a badge another order
+   * (or an import) issued: the order does not own that badge, and refunding
+   * it takes off the extra rather than cancelling the badge. `refused` means
+   * no badge could take it, so a separate ticket was issued instead and the
+   * team should be told.
+   */
+  extra?: {
+    tierId: string;
+    name: string;
+    added: boolean;
+    extendedOnly: boolean;
+    refused?: ExtraRefusal;
+    /** The badge's whole label after this call: "Main Conference + Workshops". */
+    label?: string;
+  };
 }
 
 export interface EnsureRegistrationInput {
@@ -113,6 +139,12 @@ export interface EnsureRegistrationInput {
    * it, the address's one registration is updated as before.
    */
   purchase?: { orderId: string; seat: number };
+  /**
+   * The `ticketTypes` id being issued, when the caller knows it. If that tier
+   * is an extra (`kind: 'extra'`, Workshops), nothing new is issued: the extra
+   * is added to the person's existing badge. See `addExtra` below.
+   */
+  ticketTypeId?: string;
 }
 
 /**
@@ -145,6 +177,33 @@ export interface EnsureRegistrationInput {
  * organizer set by hand alone and does nothing when no rule names the ticket.
  */
 export async function ensureRegistration(
+  store: Firestore,
+  input: EnsureRegistrationInput,
+): Promise<FulfilledRegistration> {
+  const extraTier = input.ticketTypeId ? await extraTierById(store, input.ticketTypeId) : null;
+  if (!extraTier) return issueRegistration(store, input);
+  const added = await addExtra(store, { ...input, tier: extraTier });
+  if ("registrationId" in added) return added;
+  /**
+   * No badge could take the extra, and money has usually moved already: the
+   * checkout refuses this case, so it means the person's Main Conference was
+   * refunded or moved between paying and now. They get a ticket of its own,
+   * as before extras existed, and the caller tells the team.
+   */
+  const issued = await issueRegistration(store, input);
+  return {
+    ...issued,
+    extra: {
+      tierId: extraTier.tier.id,
+      name: extraTier.tier.name,
+      added: issued.created,
+      extendedOnly: false,
+      refused: added.refused,
+    },
+  };
+}
+
+async function issueRegistration(
   store: Firestore,
   input: EnsureRegistrationInput,
 ): Promise<FulfilledRegistration> {
@@ -281,6 +340,198 @@ export async function ensureRegistration(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Extras: a ticket added to an existing badge (Workshops)
+// ---------------------------------------------------------------------------
+
+interface ExtraContext {
+  tier: ExtraTierShape;
+  /** Every tier of the event, to read what a badge's `ticketType` is. */
+  byName: Map<string, ExtraTierShape>;
+}
+
+function shape(id: string, t: TicketTypeDoc): ExtraTierShape {
+  return {
+    id,
+    name: t.name,
+    kind: t.kind,
+    addOnFor: t.addOnFor,
+    bundleOf: t.bundleOf,
+    includesWorkshops: t.includesWorkshops,
+    inPerson: t.inPerson,
+  };
+}
+
+/** The tier and the catalogue, when `tierId` is an extra; otherwise null. */
+export async function extraTierById(store: Firestore, tierId: string): Promise<ExtraContext | null> {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(tierId)) return null;
+  const doc = await store.collection(COLLECTIONS.ticketTypes).doc(tierId).get();
+  const t = doc.data() as TicketTypeDoc | undefined;
+  if (!t || t.eventId !== EVENT_ID || !isExtraTier(t)) return null;
+  const all = await store.collection(COLLECTIONS.ticketTypes).where("eventId", "==", EVENT_ID).get();
+  const byName = new Map<string, ExtraTierShape>();
+  for (const d of all.docs) {
+    const row = d.data() as TicketTypeDoc;
+    // A renamed tier keeps its old badges: the first tier with a name wins.
+    if (!byName.has(row.name)) byName.set(row.name, shape(d.id, row));
+  }
+  return { tier: shape(doc.id, t), byName };
+}
+
+function millis(v: unknown): number {
+  if (v instanceof Date) return v.getTime();
+  const ts = v as { toMillis?: () => number } | null | undefined;
+  return typeof ts?.toMillis === "function" ? ts.toMillis() : 0;
+}
+
+/** Every registration this address holds, by its own address or as an alternate. */
+async function registrationsFor(
+  read: (q: Query) => Promise<QuerySnapshot>,
+  store: Firestore,
+  email: string,
+): Promise<{ id: string; reg: RegistrationDoc }[]> {
+  const regs = store.collection(COLLECTIONS.registrations);
+  const [own, alt] = [
+    await read(regs.where("email", "==", email)),
+    await read(regs.where("altEmails", "array-contains", email)),
+  ];
+  const seen = new Map<string, RegistrationDoc>();
+  for (const d of [...own.docs, ...alt.docs]) {
+    const reg = d.data() as RegistrationDoc;
+    if (reg.eventId === EVENT_ID) seen.set(d.id, reg);
+  }
+  return [...seen].map(([id, reg]) => ({ id, reg }));
+}
+
+function candidates(rows: { id: string; reg: RegistrationDoc }[], orderId?: string): ExtraCandidate[] {
+  return rows.map(({ id, reg }) => ({
+    registrationId: id,
+    status: reg.status,
+    ticketType: reg.ticketType,
+    extras: reg.extras,
+    // A badge the same order issued comes first: Main Conference and Workshops
+    // bought together go on the same badge.
+    createdAtMs: orderId && reg.orderId === orderId ? Number.MAX_SAFE_INTEGER : millis(reg.createdAt),
+  }));
+}
+
+/**
+ * Whether an address can take an extra, read outside any transaction. The
+ * website's checkout and the dashboard ask this before any money moves.
+ */
+export async function extraVerdictFor(
+  store: Firestore,
+  rawEmail: string,
+  ctx: ExtraContext,
+): Promise<{ ok: true; registrationId: string } | { ok: false; reason: ExtraRefusal; heldName?: string }> {
+  const rows = await registrationsFor((q) => q.get(), store, normaliseEmail(rawEmail));
+  return chooseExtraBase(ctx.tier, candidates(rows), (n) => ctx.byName.get(n));
+}
+
+/**
+ * Put an extra on the person's badge, in one transaction. Returns why not when
+ * no badge can take it, and the caller then issues a ticket of its own.
+ *
+ * Idempotent per order and seat: a replay finds the entry it wrote and changes
+ * nothing. A refunded or cancelled order adds nothing, as for any ticket.
+ */
+async function addExtra(
+  store: Firestore,
+  input: EnsureRegistrationInput & { tier: ExtraContext },
+): Promise<FulfilledRegistration | { refused: ExtraRefusal }> {
+  const email = normaliseEmail(input.email);
+  const { tier, byName } = input.tier;
+  const purchase = input.purchase;
+
+  return store.runTransaction(async (tx) => {
+    const rows = await registrationsFor((q) => tx.get(q), store, email);
+    const order = purchase ? await tx.get(store.collection(COLLECTIONS.orders).doc(purchase.orderId)) : null;
+    if (purchase && SETTLED.includes((order?.data() as OrderDoc | undefined)?.status ?? "")) {
+      throw new OrderSettledError(purchase.orderId, (order!.data() as OrderDoc).status);
+    }
+
+    const result = (id: string, reg: RegistrationDoc, added: boolean): FulfilledRegistration => ({
+      registrationId: id,
+      email: reg.email,
+      name: reg.name,
+      ticketType: reg.ticketType,
+      claimCode: reg.claimCode ?? "",
+      created: false,
+      extra: {
+        tierId: tier.id,
+        name: tier.name,
+        added,
+        extendedOnly: !purchase || reg.orderId !== purchase.orderId,
+        label: ticketLabel({ ticketType: reg.ticketType, extraNames: (reg.extras ?? []).map((e) => e.name) }),
+      },
+    });
+
+    // A replay: this order and seat already put the extra on a badge.
+    if (purchase) {
+      for (const { id, reg } of rows) {
+        const mine = (reg.extras ?? []).some(
+          (e) => e.tierId === tier.id && e.orderId === purchase.orderId && (e.seat ?? 0) === purchase.seat,
+        );
+        if (mine) return result(id, reg, false);
+      }
+    }
+
+    const verdict = chooseExtraBase(tier, candidates(rows, purchase?.orderId), (n) => byName.get(n));
+    if (!verdict.ok) {
+      // Already on their badge from another order or a hand add: nothing new
+      // is issued, and the caller is told so it can flag a paid duplicate.
+      const held = verdict.reason === "already" ? rows.find((r) => r.id === verdict.registrationId) : undefined;
+      if (held) {
+        const same = result(held.id, held.reg, false);
+        return purchase ? { ...same, extra: { ...same.extra!, refused: "already" } } : same;
+      }
+      return { refused: verdict.reason };
+    }
+    const row = rows.find((r) => r.id === verdict.registrationId)!;
+    const entry: RegistrationExtra = {
+      tierId: tier.id,
+      name: tier.name,
+      ...(purchase ? { orderId: purchase.orderId, seat: purchase.seat } : {}),
+      // A native Date, never a sentinel: see the docblock at the top.
+      addedAt: new Date(),
+    };
+    const extras = [...(row.reg.extras ?? []), entry];
+    tx.update(store.collection(COLLECTIONS.registrations).doc(row.id), {
+      extras,
+      extraNames: [...new Set(extras.map((e) => e.name))],
+      updatedAt: new Date(),
+    });
+    return result(row.id, { ...row.reg, extras }, true);
+  });
+}
+
+/**
+ * Take off the extras one order paid for, leaving the badge and everything
+ * else on it. Returns the tier ids removed, once each: a replay removes
+ * nothing, which is what keeps a seat from being handed back twice.
+ */
+export async function removeOrderExtras(
+  store: Firestore,
+  registrationId: string,
+  orderId: string,
+): Promise<string[]> {
+  const ref = store.collection(COLLECTIONS.registrations).doc(registrationId);
+  return store.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const reg = snap.data() as RegistrationDoc | undefined;
+    if (!reg) return [];
+    const extras = reg.extras ?? [];
+    const keep = extras.filter((e) => e.orderId !== orderId);
+    if (keep.length === extras.length) return [];
+    tx.update(ref, {
+      extras: keep,
+      extraNames: [...new Set(keep.map((e) => e.name))],
+      updatedAt: new Date(),
+    });
+    return extras.filter((e) => e.orderId === orderId).map((e) => e.tierId);
+  });
+}
+
 /**
  * Who holds the seat an order paid for, now.
  *
@@ -394,7 +645,10 @@ export async function stillPaidElsewhere(
       const order = d.data() as OrderDoc;
       if (order.status !== "paid" && order.status !== "partially_refunded") return false;
       if (!registrationIds) return true;
-      const covers = order.registrationIds ?? [registrationId(order.email)];
+      // An order that only added Workshops to the badge does not pay for the
+      // badge itself: refunding Main Conference cancels it regardless.
+      const extended = order.extraRegistrationIds ?? [];
+      const covers = (order.registrationIds ?? [registrationId(order.email)]).filter((id) => !extended.includes(id));
       return covers.some((id) => registrationIds.includes(id));
     });
     if (paying) return true;
