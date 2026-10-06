@@ -409,8 +409,9 @@
 
 /*
  * On a laptop: All Access and Main Conference side by side at 50/50 on the
- * first row, Virtual across the full width underneath (the user's layout,
- * 2026-09-28). Below 62rem the cards stack in that order.
+ * first row, every other ticket (Workshops, Virtual) across the full width
+ * underneath, one per row (the user's layout, 2026-09-28). Below 62rem the
+ * cards stack in that order.
  *
  * ── Shared rows, so every line matches across the two top cards ────────────
  *
@@ -497,10 +498,15 @@
     column-gap: 2rem;
   }
 
-  /* Virtual: name, price, summary and Choose on one line, details under them. */
+  /*
+   * Workshops and Virtual: name, price, summary and Choose on one line, details
+   * under them. Each row card takes the next free row under the top two, in
+   * catalogue order. Pinning them all to row 5 stacked Workshops under Virtual
+   * the day Workshops became a ticket of its own (T170).
+   */
   .row {
     grid-column: 1 / -1;
-    grid-row: 5;
+    grid-row: auto;
     margin-top: 1.25rem;
     display: grid;
     grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.4fr) auto;
