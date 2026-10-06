@@ -307,6 +307,12 @@ export interface RegistrationDoc extends BaseDoc {
    * puts back exactly what cancelling released. See `OrderDoc.releasedSeats`.
    */
   seatRelease?: { orderId: string; ticketTypeId: string };
+  /**
+   * The same for the extras on the badge (Workshops), each from the order that
+   * paid for it: cancelling a Main Conference + Workshops badge gives both
+   * seats back, and reinstating takes both again.
+   */
+  extraSeatReleases?: { orderId: string; ticketTypeId: string }[];
   /** Set once the holder has signed in and claimed the registration. */
   claimedByUid?: string;
   /** Printed on the badge as a fallback sign-in door for a wrong-address attendee. */

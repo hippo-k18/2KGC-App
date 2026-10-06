@@ -480,6 +480,29 @@ async function ordersFor(email: string, rid: string): Promise<SeatOrder[]> {
     );
 }
 
+/**
+ * The Workshops seats on a badge that a cancellation gives back: one per extra
+ * that a still-paid order put there and whose seat has not gone back already.
+ */
+function extraSeatsToRelease(
+  rid: string,
+  reg: RegistrationDoc,
+  orders: SeatOrder[],
+): { orderId: string; ticketTypeId: string }[] {
+  const out: { orderId: string; ticketTypeId: string }[] = [];
+  for (const e of reg.extras ?? []) {
+    const o = orders.find((x) => x.id === e.orderId);
+    if (!o || o.channel === 'demo') continue;
+    if (o.status !== 'paid' && o.status !== 'partially_refunded') continue;
+    if (o.releasedSeats?.[rid]) continue;
+    // One `releasedSeats` entry per registration and order is all the ledger
+    // holds, so a second extra from the same order stays counted.
+    if (out.some((x) => x.orderId === o.id)) continue;
+    out.push({ orderId: o.id, ticketTypeId: e.tierId });
+  }
+  return out;
+}
+
 export async function cancelAttendee(rid: string, actor: string): Promise<AttendeeActionResult> {
   const reg = await readRegistration(rid);
   if (!reg) return { ok: false, error: 'That attendee is no longer on the list.' };
@@ -487,16 +510,52 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
 
   const orders = await ordersFor(reg.email, rid);
   const seat = seatToRelease({ id: rid, email: reg.email, ticketType: reg.ticketType }, orders);
+  // Not on the badge's own order: that order's one `releasedSeats` entry for
+  // this badge is its admission seat.
+  const extraSeats = extraSeatsToRelease(rid, reg, orders).filter((e) => e.orderId !== seat?.orderId);
   const paid = orders.some((o) => o.status === 'paid' || o.status === 'partially_refunded');
 
   let tierName: string | undefined;
+  const extraNamesReleased: string[] = [];
   await db().runTransaction(async (tx) => {
     const fresh = (await tx.get(regRef(rid))).data() as RegistrationDoc | undefined;
     if (!fresh || fresh.status !== 'active') return;
 
-    if (seat) {
-      const tierRef = db().collection(COLLECTIONS.ticketTypes).doc(seat.ticketTypeId);
-      const tier = (await tx.get(tierRef)).data() as TicketTypeDoc | undefined;
+    // Every read before any write, as a transaction requires.
+    const tierRef = seat ? db().collection(COLLECTIONS.ticketTypes).doc(seat.ticketTypeId) : null;
+    const tier = tierRef ? ((await tx.get(tierRef)).data() as TicketTypeDoc | undefined) : undefined;
+    const extraTiers = new Map<string, TicketTypeDoc | undefined>();
+    for (const e of extraSeats) {
+      if (!extraTiers.has(e.ticketTypeId)) {
+        const ref = db().collection(COLLECTIONS.ticketTypes).doc(e.ticketTypeId);
+        extraTiers.set(e.ticketTypeId, (await tx.get(ref)).data() as TicketTypeDoc | undefined);
+      }
+    }
+
+    /**
+     * Workshops on the badge gives its seat back too, through the same
+     * `releasedSeats` entry on the order that paid for it, so a later refund
+     * of that order does not return it twice (T170).
+     */
+    const extraCounts = new Map<string, number>();
+    for (const e of extraSeats) extraCounts.set(e.ticketTypeId, (extraCounts.get(e.ticketTypeId) ?? 0) + 1);
+    for (const [id, n] of extraCounts) {
+      const t = extraTiers.get(id);
+      if (!t) continue;
+      extraNamesReleased.push(t.name);
+      tx.update(db().collection(COLLECTIONS.ticketTypes).doc(id), {
+        quantitySold: Math.max(0, (t.quantitySold ?? 0) - n),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    for (const e of extraSeats) {
+      tx.update(db().collection(COLLECTIONS.orders).doc(e.orderId), {
+        [`releasedSeats.${rid}`]: e.ticketTypeId,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (seat && tierRef) {
       if (tier) {
         tierName = tier.name;
         tx.update(tierRef, {
@@ -513,6 +572,7 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
     tx.update(regRef(rid), {
       status: 'cancelled',
       ...(seat ? { seatRelease: seat } : {}),
+      ...(extraSeats.length ? { extraSeatReleases: extraSeats } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
@@ -526,7 +586,7 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
     targetId: rid,
     subject: reg.name ?? reg.email,
     before: { status: 'active' },
-    after: { status: 'cancelled', seatReleased: seat ?? null, appAccess: access },
+    after: { status: 'cancelled', seatReleased: seat ?? null, extraSeatsReleased: extraSeats, appAccess: access },
   });
 
   return {
@@ -535,6 +595,7 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
     message:
       `Cancelled ${reg.name ?? reg.email}. Their badge will not scan.` +
       (tierName ? ` One ${tierName} seat is back on sale.` : '') +
+      (extraNamesReleased.length ? ` So is their ${extraNamesReleased.join(' and ')} seat.` : '') +
       (paid ? ' No money was refunded. Refund the order from Attendee Orders.' : ''),
   };
 }
@@ -613,7 +674,20 @@ export async function reinstateAttendee(rid: string, actor: string): Promise<Att
     const fresh = (await tx.get(regRef(rid))).data() as RegistrationDoc | undefined;
     if (!fresh || fresh.status !== 'cancelled') return;
 
+    // Every read first: the badge's own seat and each extra's.
     const held = fresh.seatRelease;
+    const heldExtras = await Promise.all(
+      (fresh.extraSeatReleases ?? []).map(async (e) => {
+        const orderRef = db().collection(COLLECTIONS.orders).doc(e.orderId);
+        const tierRef = db().collection(COLLECTIONS.ticketTypes).doc(e.ticketTypeId);
+        return {
+          orderRef,
+          tierRef,
+          order: (await tx.get(orderRef)).data() as OrderDoc | undefined,
+          tier: (await tx.get(tierRef)).data() as TicketTypeDoc | undefined,
+        };
+      }),
+    );
     if (held) {
       const orderRef = db().collection(COLLECTIONS.orders).doc(held.orderId);
       const tierRef = db().collection(COLLECTIONS.ticketTypes).doc(held.ticketTypeId);
@@ -642,9 +716,24 @@ export async function reinstateAttendee(rid: string, actor: string): Promise<Att
       }
     }
 
+    // Workshops goes back on the badge's count with it, where still paid for.
+    const taken = new Map<string, number>();
+    for (const h of heldExtras) {
+      const stillPaid = h.order?.status === 'paid' || h.order?.status === 'partially_refunded';
+      if (!stillPaid || !h.order?.releasedSeats?.[rid] || !h.tier) continue;
+      const already = taken.get(h.tierRef.id) ?? 0;
+      tx.update(h.tierRef, {
+        quantitySold: (h.tier.quantitySold ?? 0) + already + 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      taken.set(h.tierRef.id, already + 1);
+      tx.update(h.orderRef, { [`releasedSeats.${rid}`]: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+    }
+
     tx.update(regRef(rid), {
       status: 'active',
       seatRelease: FieldValue.delete(),
+      extraSeatReleases: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
