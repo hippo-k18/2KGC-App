@@ -1,4 +1,4 @@
-import { formatDuration, recordingWindow, type StreamState } from '@kgc/shared';
+import { formatDuration, recordingWindow, ticketNames, type StreamState, type TicketsHeld } from '@kgc/shared';
 
 /**
  * What an attendee is told about watching a session, worked out away from the
@@ -183,12 +183,13 @@ export function formatWatchDate(ms: number | null | undefined): string {
 export function ticketSentence(
   what: 'stream' | 'recording',
   allowed: string[],
-  myTicketType: string | null | undefined,
+  myTicketType: TicketsHeld,
 ): string {
+  const mine = ticketNames(myTicketType);
   // The reader holds one of the tickets this was sold with, and has been
   // refused anyway. Saying it is included would be the app disagreeing with
   // itself in two consecutive sentences.
-  if (myTicketType && allowed.includes(myTicketType)) {
+  if (mine.some((n) => allowed.includes(n))) {
     return 'Your ticket could not be checked on this device, so this is locked. Check your ticket on the Me tab, then try again.';
   }
 
@@ -197,7 +198,7 @@ export function ticketSentence(
   const forWhom = names
     ? `${subject} included with ${names} tickets.`
     : `${subject} not included with every ticket.`;
-  return myTicketType ? `${forWhom} Your ticket is ${myTicketType}.` : forWhom;
+  return mine.length ? `${forWhom} Your ticket is ${mine.join(' + ')}.` : forWhom;
 }
 
 /** When a session starts, in the words the panels use. */
@@ -224,7 +225,7 @@ export function streamPanel(input: {
   stateHint: StreamState | null | undefined;
   /** `SessionDoc.streamTicketTypes`. */
   allowed: string[];
-  myTicketType: string | null | undefined;
+  myTicketType: TicketsHeld;
   startsAt: StartsAt;
   /** Whether this session also has a recording, for the "it finished" line. */
   hasRecording: boolean;
@@ -316,7 +317,7 @@ export function recordingPanel(input: {
   exists: boolean;
   /** `SessionDoc.recordingTicketTypes`. */
   allowed: string[];
-  myTicketType: string | null | undefined;
+  myTicketType: TicketsHeld;
   /**
    * `SessionDoc.recordingUntil`, which every reader of the session may see.
    *
@@ -428,12 +429,12 @@ export function recordingPanel(input: {
  */
 export function watchRowTag(
   allowed: string[],
-  myTicketType: string | null | undefined,
+  myTicketType: TicketsHeld,
   ticketKnown: boolean,
 ): string | null {
   if (allowed.length === 0) return null;
   if (!ticketKnown) return null;
-  return myTicketType && allowed.includes(myTicketType) ? null : 'Not on your ticket';
+  return ticketNames(myTicketType).some((n) => allowed.includes(n)) ? null : 'Not on your ticket';
 }
 
 /** The parts of a session the Watch list sorts and labels by. */
@@ -477,7 +478,7 @@ export interface WatchGrouping<T> {
  */
 export function groupWatchable<T extends WatchCandidate>(
   sessions: T[],
-  myTicketType: string | null | undefined,
+  myTicketType: TicketsHeld,
   ticketKnown: boolean,
   nowMs: number,
 ): WatchGrouping<T> {

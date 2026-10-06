@@ -40,16 +40,19 @@ export function seatButtonLabel(state: SeatState, gate: SeatGate, mine: MySeat):
 
 /** One registration listener, reduced to the three facts the answer needs. */
 export interface TicketRead {
-  /** The ticket types the listener returned, or null before it has answered. */
-  rows: (string | null)[] | null;
+  /** Each registration's ticket names, or null before the listener has answered. */
+  rows: (string[] | null)[] | null;
   loading: boolean;
   error: unknown;
 }
 
 /** What the screen knows about the reader's ticket, and how firmly. */
 export interface TicketAnswer {
-  /** The ticket they hold, or null when none was found or none was read. */
-  ticketType: string | null;
+  /**
+   * The tickets on their badge (the admission ticket, then any extras such as
+   * Workshops), or null when none was found or none was read.
+   */
+  ticketType: string[] | null;
   /** True only when a lookup ran and settled. An empty result is an answer. */
   known: boolean;
   /** True while a lookup that really opened has yet to come back. */

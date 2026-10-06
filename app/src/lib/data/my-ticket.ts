@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useCollection } from '@/lib/data/use-collection';
 import { getDb } from '@/lib/firebase/client';
 
-import type { RegistrationDoc } from '@kgc/shared';
+import { heldTicketNames, type RegistrationDoc } from '@kgc/shared';
 
 /**
  * Which ticket the signed-in attendee holds.
@@ -36,9 +36,14 @@ export function useMyTicket(enabled = true): TicketAnswer {
   // and registrations store a lowercased one.
   const address = myAddress(user?.email);
 
-  const toTicketType = (_id: string, d: RegistrationDoc) => d.ticketType ?? null;
+  // Every ticket on the badge: the admission ticket and any extras added to
+  // it, so "Main Conference + Workshops" is let into a Workshops session.
+  const toTicketType = (_id: string, d: RegistrationDoc): string[] | null => {
+    const names = heldTicketNames(d);
+    return names.length > 0 ? names : null;
+  };
 
-  const primary = useCollection<string | null>(
+  const primary = useCollection<string[] | null>(
     () => (enabled && address ? registrationByEmail(getDb(), address) : null),
     [enabled, address],
     toTicketType,
@@ -51,7 +56,7 @@ export function useMyTicket(enabled = true): TicketAnswer {
    * thing.
    */
   const primaryEmpty = !primary.loading && !primary.error && primary.data?.length === 0;
-  const alternate = useCollection<string | null>(
+  const alternate = useCollection<string[] | null>(
     () =>
       enabled && address && primaryEmpty ? registrationByAltEmail(getDb(), address) : null,
     [enabled, address, primaryEmpty],

@@ -6,6 +6,7 @@ import {
   COLLECTIONS,
   DOOR_CHECK_IN_LIST_ID,
   SUBCOLLECTIONS,
+  ticketLabel,
   type CheckInDoc,
   type RegistrationDoc,
 } from '@kgc/shared';
@@ -290,7 +291,8 @@ export function useBadge(): BadgeResult {
     registrationId: id,
     qrSecret: d.qrSecret,
     name: d.name ?? d.email,
-    ticketType: d.ticketType ?? null,
+    // The whole badge, "Main Conference + Workshops".
+    ticketType: ticketLabel(d) || null,
     category: d.category ?? null,
     claimCode: d.claimCode ?? null,
     status: d.status,

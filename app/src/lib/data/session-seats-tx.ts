@@ -20,6 +20,7 @@ import {
   type RegistrationDoc,
   type SessionDoc,
   type SessionSeatDoc,
+  heldTicketNames,
 } from '@kgc/shared';
 
 import {
@@ -83,7 +84,8 @@ export interface SeatChange {
 
 interface Ticket {
   registrationId: string;
-  ticketType: string | null;
+  /** Every ticket on the badge, extras included; the rules check the same. */
+  ticketType: string[];
   status: RegistrationDoc['status'];
 }
 
@@ -108,7 +110,7 @@ export async function findTicket(db: Firestore, email: string | null): Promise<T
   const d = snap.docs[0];
   if (!d) return null;
   const reg = d.data() as RegistrationDoc;
-  return { registrationId: d.id, ticketType: reg.ticketType ?? null, status: reg.status };
+  return { registrationId: d.id, ticketType: heldTicketNames(reg), status: reg.status };
 }
 
 function refs(db: Firestore, uid: string, sessionId: string) {

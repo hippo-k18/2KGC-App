@@ -70,11 +70,11 @@ describe('myAddress', () => {
 describe('ticketAnswer', () => {
   const out = { rows: null, loading: true, error: null };
   const empty = { rows: [], loading: false, error: null };
-  const found = (type: string | null) => ({ rows: [type], loading: false, error: null });
+  const found = (type: string | null) => ({ rows: [type ? [type] : null], loading: false, error: null });
 
   it('reads the ticket off the primary address', () => {
     expect(ticketAnswer('ada@example.com', found('Gold'), out)).toEqual({
-      ticketType: 'Gold',
+      ticketType: ['Gold'],
       known: true,
       pending: false,
     });
@@ -82,7 +82,7 @@ describe('ticketAnswer', () => {
 
   it('falls back to a registration holding the address as an alternate', () => {
     expect(ticketAnswer('ada@example.com', empty, found('Platinum'))).toEqual({
-      ticketType: 'Platinum',
+      ticketType: ['Platinum'],
       known: true,
       pending: false,
     });
