@@ -88,7 +88,7 @@ import { NextRequest } from '../../apps/web/node_modules/next/server.js';
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { startCheckout } from '@/app/tickets/actions';
-import { GROUP_RATE_MIN_SEATS, GROUP_RATE_PERCENT } from '@/app/tickets/seats-core';
+import { GROUP_RATE_MIN_SEATS, GROUP_RATE_PERCENT, countsForGroupRate, priceSeats } from '@/app/tickets/seats-core';
 import { POST as webhook } from '@/app/api/stripe/webhook/route';
 import { db as webDb } from '@/lib/firestore';
 import { orderIdFor } from '@/lib/registrations';
@@ -323,5 +323,18 @@ describe('exhibitor and sponsor packages', () => {
     const p = await checkout([MAIN, MAIN, MAIN, MAIN, 'exhibitor-standard-booth']);
     expect(p.metadata.groupRate).toBeUndefined();
     expect(charged(p)).toBe(4 * 59_900 + 250_000);
+  });
+});
+
+describe('an extra and the group rate (T169)', () => {
+  it('Workshops never counts toward five and never gets the rate', () => {
+    const main = { inPerson: true, audience: 'attendee', priceCents: 59_900 };
+    const workshops = { inPerson: true, audience: 'attendee', kind: 'extra', priceCents: 19_900 };
+    expect(countsForGroupRate(workshops)).toBe(false);
+    expect(priceSeats(Array(5).fill(workshops)).applies).toBe(false);
+    expect(priceSeats([...Array(4).fill(main), workshops]).applies).toBe(false);
+    const five = priceSeats([...Array(5).fill(main), workshops]);
+    expect(five.applies).toBe(true);
+    expect(five.seats.at(-1)).toEqual({ listCents: 19_900, discountCents: 0, chargedCents: 19_900 });
   });
 });

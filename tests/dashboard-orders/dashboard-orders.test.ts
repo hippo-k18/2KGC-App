@@ -206,3 +206,86 @@ describe('sales figures count ticket orders only (T142)', () => {
     expect(await listOrders()).toHaveLength(0);
   });
 });
+
+describe('Workshops recorded from the dashboard (T169)', () => {
+  beforeEach(async () => {
+    await db.collection(COLLECTIONS.ticketTypes).doc('workshops').set({
+      eventId: EVENT_ID, name: 'Workshops', priceCents: 19_900, currency: 'usd', quantitySold: 0,
+      kind: 'extra', addOnFor: 'main-conference', includesWorkshops: true,
+    });
+    await db.collection(COLLECTIONS.ticketTypes).doc('all-access').set({
+      eventId: EVENT_ID, name: 'All Access (VIP)', priceCents: 69_900, currency: 'usd', quantitySold: 0,
+      includesWorkshops: true,
+    });
+  });
+
+  const workshops = (over: Partial<Parameters<typeof recordManualOrder>[0]> = {}) =>
+    manual({ ticketTypeId: 'workshops', amountCents: 19_900, note: 'Cheque 3003', ...over });
+
+  it('refuses Workshops for somebody with no Main Conference, and records nothing', async () => {
+    const res = await workshops({ requestId: 'req-ws-none-01' });
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/Workshops is added to a Main Conference ticket, and ada@example.com has none/);
+    expect(await manualOrders()).toHaveLength(0);
+    expect(await sold('workshops')).toBe(0);
+  });
+
+  it('refuses Workshops for an All Access holder and for Virtual', async () => {
+    expect((await manual({ ticketTypeId: 'all-access', requestId: 'req-ws-aa-0001' })).ok).toBe(true);
+    expect((await workshops({ requestId: 'req-ws-aa-0002' })).error).toMatch(/holds All Access \(VIP\), which already includes Workshops/);
+    expect((await manual({ email: 'bo@example.com', ticketTypeId: 'virtual', requestId: 'req-ws-vi-0001' })).ok).toBe(true);
+    expect((await workshops({ email: 'bo@example.com', requestId: 'req-ws-vi-0002' })).error).toMatch(/bo@example.com holds Virtual/);
+  });
+
+  it('adds Workshops to the Main Conference badge, which the desk and the list then show', async () => {
+    const main = await manual({ requestId: 'req-ws-main-01' });
+    const res = await workshops({ requestId: 'req-ws-add-001' });
+    expect(res.ok).toBe(true);
+    expect(res.registrationId).toBe(main.registrationId);
+    expect(res.message).toMatch(/added to their existing ticket \(Main Conference \+ Workshops\)/);
+
+    const r = (await db.collection(COLLECTIONS.registrations).doc(main.registrationId!).get()).data() as RegistrationDoc;
+    expect(r.ticketType).toBe('Main Conference');
+    expect(r.extraNames).toEqual(['Workshops']);
+    const order = (await manualOrders()).find((o) => o.totalCents === 19_900)!;
+    expect(order.extraRegistrationIds).toEqual([main.registrationId]);
+    expect(await sold('workshops')).toBe(1);
+    expect((await db.collection(COLLECTIONS.registrations).where('email', '==', 'ada@example.com').get()).size).toBe(1);
+
+    // The confirmation is "added to your ticket", not a new ticket.
+    const mails = (await db.collection(COLLECTIONS.emailLog).get()).docs.map((d) => d.data());
+    expect(mails.map((m) => m.template).sort()).toEqual(['extra-added', 'purchase-confirmation']);
+
+    // Check-in desk, attendee list and badges all read the whole label.
+    const { listRegistrations } = await import('@/lib/checkin');
+    const desk = (await listRegistrations()).find((x) => x.row.id === main.registrationId)!;
+    expect(desk.row.ticketType).toBe('Main Conference + Workshops');
+    const { listAttendees } = await import('@/lib/data');
+    const row = (await listAttendees()).find((a) => a.registrationId === main.registrationId)!;
+    expect(row.ticketLabel).toBe('Main Conference + Workshops');
+    expect(row.ticketType).toBe('Main Conference');
+  });
+
+  it('marks an invoice paid with Main Conference and Workshops for one person as one badge', async () => {
+    const { markInvoicePaidOutOfBand } = await import('@/lib/invoice-admin');
+    const id = 'ord_inv_ws_0001';
+    await db.collection(COLLECTIONS.orders).doc(id).set({
+      eventId: EVENT_ID, externalId: 'in_ws_1', provider: 'stripe', channel: 'invoice', email: 'billing@acme.example',
+      status: 'pending', totalCents: 79_800, currency: 'usd',
+      items: [
+        { ticketTypeId: 'workshops', ticketTypeName: 'Workshops', quantity: 1, unitPriceCents: 19_900, attendeeName: 'Ada Nakamura', attendeeEmail: 'ada@example.com' },
+        { ticketTypeId: 'main-conference', ticketTypeName: 'Main Conference', quantity: 1, unitPriceCents: 59_900, attendeeName: 'Ada Nakamura', attendeeEmail: 'ada@example.com' },
+      ],
+    });
+    const rids = await markInvoicePaidOutOfBand({
+      order: { id, totalCents: 79_800, currency: 'usd', poNumber: undefined } as never,
+      actor: 'organizer@example.com',
+      note: 'Wire 4004',
+    });
+    expect(rids).toHaveLength(1);
+    const r = (await db.collection(COLLECTIONS.registrations).doc(rids[0]!).get()).data() as RegistrationDoc;
+    expect([r.ticketType, r.extraNames]).toEqual(['Main Conference', ['Workshops']]);
+    expect(await sold('workshops')).toBe(1);
+    expect(await sold('main-conference')).toBe(1);
+  });
+});

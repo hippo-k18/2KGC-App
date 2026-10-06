@@ -230,3 +230,40 @@ describe('seatToRelease', () => {
     expect(seatToRelease(ada, [order({ releasedSeats: { reg_other: 'main-conference' } })])).toBeNull();
   });
 });
+
+describe('a badge with Workshops added (T169)', () => {
+  it('shows "Main Conference + Workshops" on the row and keeps the admission ticket apart', () => {
+    const rows = mergeAttendees(
+      [],
+      [reg('reg_1', { email: 'ada@example.org', ticketType: 'Main Conference', extraNames: ['Workshops'], status: 'active' })],
+    );
+    expect(rows[0]).toMatchObject({
+      ticketType: 'Main Conference',
+      extraNames: ['Workshops'],
+      ticketLabel: 'Main Conference + Workshops',
+      activeTickets: 1,
+    });
+  });
+
+  it('cancelling the badge releases its Main Conference seat, not the Workshops order', () => {
+    const ada = { id: 'reg_ada', email: 'ada@example.org', ticketType: 'Main Conference' };
+    const workshops: SeatOrder = {
+      id: 'ord_ws',
+      status: 'paid',
+      channel: 'checkout',
+      email: 'ada@example.org',
+      registrationIds: ['reg_ada'],
+      extraRegistrationIds: ['reg_ada'],
+      items: [{ ticketTypeId: 'workshops', ticketTypeName: 'Workshops', quantity: 1, unitPriceCents: 19_900, attendeeEmail: 'ada@example.org' }],
+    };
+    const main: SeatOrder = {
+      id: 'ord_main',
+      status: 'paid',
+      channel: 'checkout',
+      email: 'ada@example.org',
+      registrationIds: ['reg_ada'],
+      items: [{ ticketTypeId: 'main-conference', ticketTypeName: 'Main Conference', quantity: 1, unitPriceCents: 59_900, attendeeEmail: 'ada@example.org' }],
+    };
+    expect(seatToRelease(ada, [workshops, main])).toEqual({ orderId: 'ord_main', ticketTypeId: 'main-conference' });
+  });
+});
