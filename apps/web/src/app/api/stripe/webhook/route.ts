@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
-import { COLLECTIONS, type EntitlementDoc, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
+import { COLLECTIONS, ticketLabel, type EntitlementDoc, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { currentHolder, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
+import { currentHolder, removeOrderExtras, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
 import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
 import { noteIgnoredStripe } from '@/lib/stripe-ignored';
@@ -33,6 +33,7 @@ import {
   cancelRegistrationByOrder,
   cancelUnpaidOrder,
   ensureRegistration,
+  extrasFromOtherOrders,
   invoiceOrderId,
   markInvoiceOrderPaid,
   orderIdFor,
@@ -249,6 +250,7 @@ export async function POST(req: NextRequest) {
           entitlementsWithdrawn = await withdrawOrderEntitlements(
             db(),
             uidForEmail(cancelledEmail),
+            outcome.orderId,
           );
         } catch (err) {
           await recordError('entitlement.withdraw', err, {
@@ -272,6 +274,38 @@ export async function POST(req: NextRequest) {
       const seatsCancelled = outcome.newlyRefunded
         ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
+
+      /**
+       * Workshops refunded on its own: it came off the badge, which stays
+       * valid. Only what that order granted goes with it (owner, 2026-10-06).
+       */
+      if (outcome.extrasRemoved?.length && cancelledEmail) {
+        try {
+          const kinds = new Set<EntitlementDoc['kind']>();
+          for (const id of outcome.extrasRemoved) {
+            for (const k of (await tierFulfilment(id))?.entitlements ?? []) kinds.add(k);
+          }
+          entitlementsWithdrawn += await withdrawOrderEntitlements(
+            db(),
+            uidForEmail(cancelledEmail),
+            outcome.orderId,
+            [...kinds],
+          );
+        } catch (err) {
+          await recordError('entitlement.withdraw', err, { path: 'orders', id: outcome.orderId });
+        }
+      }
+
+      /**
+       * Main Conference refunded with Workshops on the same badge from a
+       * separate payment: Workshops is cancelled and its money goes back too
+       * (owner, 2026-10-06). Once, on the delivery that cancelled the badges:
+       * the buyer's, and any colleague's on the same order.
+       */
+      const linked = [...(outcome.linkedExtras ?? [])];
+      for (const rid of seatsCancelled) linked.push(...(await extrasFromOtherOrders(rid, outcome.orderId)));
+      const linkedRefunds =
+        outcome.newlyRefunded && linked.length ? await refundLinkedExtras(linked, outcome.orderId) : [];
 
       /**
        * Who is told what.
@@ -322,6 +356,10 @@ export async function POST(req: NextRequest) {
             registrationId: buyerRegistrationId,
             ticketCancelled: Boolean(outcome.registrationId),
             transferred,
+            ...(outcome.extraOnly
+              ? { extraRemoved: { name: outcome.ticketType ?? 'Workshops', remaining: outcome.remainingLabel ?? '' } }
+              : {}),
+            ...(linkedRefunds.length ? { extrasCancelled: [...new Set(linkedRefunds.map((r) => r.name))] } : {}),
           }),
         );
       }
@@ -353,6 +391,8 @@ export async function POST(req: NextRequest) {
         seatsReturned,
         seatsCancelled,
         entitlementsWithdrawn,
+        ...(outcome.extrasRemoved?.length ? { extrasRemoved: outcome.extrasRemoved } : {}),
+        ...(linkedRefunds.length ? { linkedRefunds } : {}),
       });
     }
 
@@ -556,7 +596,21 @@ export async function POST(req: NextRequest) {
       let accountsFailed = 0;
 
       const oid = invoiceOrderId(invoice.id!);
-      for (const [i, seat] of seats.entries()) {
+      const extendedOnly: string[] = [];
+      /**
+       * Admission seats first, then extras (Workshops), so a Main Conference
+       * seat on this invoice exists before Workshops is added to it. Each
+       * keeps its own position as its seat number, so a replay is the same
+       * seat. Emails go out after the walk, once per badge.
+       */
+      const isExtra = (s: (typeof seats)[number]) => Boolean(s.ticketTypeId && tiers.get(s.ticketTypeId)?.extra);
+      const walk = [...seats.keys()].sort((x, y) => Number(isExtra(seats[x]!)) - Number(isExtra(seats[y]!)));
+      const mail = new Map<
+        string,
+        { to: string; name: string; share: number; temporaryPassword?: string | null; extraOnly: boolean; addedExtra?: string }
+      >();
+      for (const i of walk) {
+        const seat = seats[i]!;
         const amountCents = shares[i] ?? 0;
         const tier = seat.ticketTypeId ? (tiers.get(seat.ticketTypeId) ?? null) : null;
 
@@ -581,6 +635,7 @@ export async function POST(req: NextRequest) {
             // Same numbering as the dashboard's mark-paid, so either path that
             // runs second lands on the same tickets.
             purchase: { orderId: oid, seat: i + 1 },
+            ticketTypeId: seat.ticketTypeId || undefined,
           });
         } catch (err) {
           // Refunded while this delivery was walking the seats.
@@ -590,7 +645,20 @@ export async function POST(req: NextRequest) {
           throw err;
         }
         registered.push(result.registrationId);
-
+        if (result.extra?.extendedOnly) extendedOnly.push(result.registrationId);
+        if (result.extra?.refused) {
+          await recordWarning(
+            'extra.notAdded',
+            {
+              invoiceId: invoice.id ?? '',
+              email: result.email,
+              ticket: result.extra.name,
+              reason: result.extra.refused,
+              note: `${result.extra.name} was paid for on this invoice but could not go on a Main Conference badge. Check this attendee on the dashboard.`,
+            },
+            { path: 'orders', id: oid },
+          );
+        }
 
         /**
          * One account per attendee, not one per order.
@@ -610,32 +678,46 @@ export async function POST(req: NextRequest) {
         if (account.status === 'created') accountsCreated += 1;
         if (account.status === 'failed') accountsFailed += 1;
 
-        if (account.uid && tier) await grantSeatEntitlements(account.uid, tier.entitlements);
+        if (account.uid && tier) await grantSeatEntitlements(account.uid, tier.entitlements, oid);
 
-        // Each seat is a person who needs their own claim code — the billing
-        // contact's copy of the invoice does not get them into the app. Claimed
-        // on the order like a card purchase's, so a redelivered `invoice.paid`
-        // does not email every seat again (T135, S10/TK-255).
-        const attempt = await claimConfirmation(oid, result.registrationId);
-        if (attempt !== null) {
-          await sendClaimed({ orderId: oid, rid: result.registrationId, attempts: attempt, to: result.email }, () =>
-            sendPurchaseConfirmation({
-              to: result.email,
-              name: result.name ?? '',
-              ticketType: result.ticketType ?? seat.ticketType,
-              amountCents,
-              currency: invoice.currency ?? 'usd',
-              orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
-              claimCode: result.claimCode,
-              orderId: oid,
-              registrationId: result.registrationId,
-              // Only ever the password this call actually generated. `null` on a
-              // redelivery, so a retried webhook does not mail a credential for an
-              // account that has since had its password changed.
-              temporaryPassword: account.temporaryPassword,
-            }),
-          );
-        }
+        const extraOnly = Boolean(result.extra?.extendedOnly && (!result.extra.refused || result.extra.refused === 'already'));
+        const prev = mail.get(result.registrationId);
+        mail.set(result.registrationId, {
+          to: result.email,
+          name: result.name ?? seat.name,
+          share: (prev?.share ?? 0) + amountCents,
+          temporaryPassword: prev?.temporaryPassword ?? account.temporaryPassword,
+          extraOnly: prev ? prev.extraOnly && extraOnly : extraOnly,
+          addedExtra: result.extra?.name ?? prev?.addedExtra,
+        });
+      }
+
+      // Each badge is a person who needs their own confirmation; the billing
+      // contact's copy of the invoice does not get them into the app. Claimed
+      // on the order like a card purchase's, so a redelivered `invoice.paid`
+      // does not email every seat again (T135, S10/TK-255).
+      for (const [rid, m] of mail) {
+        const attempt = await claimConfirmation(oid, rid);
+        if (attempt === null) continue;
+        const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+        await sendClaimed({ orderId: oid, rid, attempts: attempt, to: m.to }, () =>
+          sendPurchaseConfirmation({
+            to: m.to,
+            name: m.name,
+            ticketType: ticketLabel(reg),
+            amountCents: m.share,
+            currency: invoice.currency ?? 'usd',
+            orderUrl: `${origin}/order/${mintOrderToken({ rid })}`,
+            claimCode: reg?.claimCode ?? '',
+            orderId: oid,
+            registrationId: rid,
+            // Only ever the password this call actually generated. `null` on a
+            // redelivery, so a retried webhook does not mail a credential for an
+            // account that has since had its password changed.
+            temporaryPassword: m.temporaryPassword,
+            ...(m.extraOnly && m.addedExtra ? { addedExtra: m.addedExtra } : {}),
+          }),
+        );
       }
 
       /**
@@ -661,7 +743,8 @@ export async function POST(req: NextRequest) {
 
       const orderId = await markInvoiceOrderPaid({
         invoiceId: invoice.id!,
-        registrationIds: registered,
+        registrationIds: [...new Set(registered)],
+        extraRegistrationIds: [...new Set(extendedOnly)],
         totalCents: total,
         taxCents: invoice.total_taxes?.reduce((sum, t) => sum + (t.amount ?? 0), 0) ?? 0,
         currency: invoice.currency ?? 'usd',
@@ -919,6 +1002,7 @@ async function cancelExtraSeats(
   }
 
   const cancelled: string[] = [];
+  const extended = (orderSnap.data() as OrderDoc | undefined)?.extraRegistrationIds ?? [];
 
   for (const startId of starts) {
     try {
@@ -933,6 +1017,18 @@ async function cancelExtraSeats(
         | undefined)?.email;
       const holder = await currentHolder(db(), startId);
       if (!holder) continue;
+
+      // This order only added Workshops to a badge somebody else paid for:
+      // take Workshops off and leave the badge (owner, 2026-10-06).
+      if (extended.includes(startId)) {
+        const removed = await removeOrderExtras(db(), holder.id, refundedOrderId);
+        if (removed.length) {
+          const kinds = new Set<EntitlementDoc['kind']>();
+          for (const id of removed) for (const k of (await tierFulfilment(id))?.entitlements ?? []) kinds.add(k);
+          await withdrawOrderEntitlements(db(), uidForEmail(holder.email), refundedOrderId, [...kinds]);
+        }
+        continue;
+      }
 
       if (await stillPaidElsewhere(db(), [seatEmail, holder.email], refundedOrderId, [startId, holder.id])) {
         continue;
@@ -950,7 +1046,7 @@ async function cancelExtraSeats(
        * removes only `source: 'order'` grants, so a speaker's or a staff
        * member's access survives the refund of something they also sat on.
        */
-      await withdrawOrderEntitlements(db(), uidForEmail(holder.email));
+      await withdrawOrderEntitlements(db(), uidForEmail(holder.email), refundedOrderId);
     } catch (err) {
       await recordError('order.seatCancel', err, { path: 'registrations', id: startId });
     }
@@ -967,10 +1063,102 @@ async function cancelExtraSeats(
  * write is a support conversation, and a webhook that 500s over one is a retry
  * storm that eventually disables the endpoint and loses everybody's tickets.
  */
-async function grantSeatEntitlements(uid: string, kinds: EntitlementDoc['kind'][]): Promise<void> {
+/**
+ * Refund the Workshops that other orders put on a badge whose Main Conference
+ * was just refunded, and take them off it (owner, 2026-10-06).
+ *
+ * Workshops bought alone is its own Stripe payment, refunded in full; its own
+ * `charge.refunded` then marks that order refunded, gives its seat back and
+ * emails its receipt like any refund. Workshops bought in a cart beside other
+ * people's tickets is one line of a bigger payment, refunded by its amount; a
+ * partial refund leaves that order's other tickets alone and returns no seat
+ * by itself, so the seat is given back here.
+ *
+ * `removeOrderExtras` is the replay guard: it reports what it took off only
+ * once, so a redelivered refund refunds nothing twice.
+ *
+ * ⚠️ The website's Stripe key may not be allowed to refund (it was created
+ * without that permission on purpose). Then no money moves, Workshops is still
+ * taken off the badge, and the team gets a warning naming the payment to
+ * refund in Stripe by hand.
+ */
+async function refundLinkedExtras(
+  linked: { orderId: string; tierId: string; registrationId: string; seat?: number }[],
+  refundedOrderId: string,
+): Promise<{ orderId: string; name: string; outcome: 'refunded' | 'manual' | 'already' }[]> {
+  const out: { orderId: string; name: string; outcome: 'refunded' | 'manual' | 'already' }[] = [];
+  const byOrder = new Map<string, typeof linked>();
+  for (const l of linked) byOrder.set(l.orderId, [...(byOrder.get(l.orderId) ?? []), l]);
+
+  for (const [orderId, entries] of byOrder) {
+    try {
+      const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
+      const removed: string[] = [];
+      for (const rid of new Set(entries.map((e) => e.registrationId))) {
+        removed.push(...(await removeOrderExtras(db(), rid, orderId)));
+      }
+      // The order's lines for those seats: seat 0 is the buyer's line, cart
+      // seat n is line n. Without a seat number, every line of that tier.
+      const items = order?.items ?? [];
+      const lines = items.filter((item, i) =>
+        entries.some((e) => (e.seat === undefined ? e.tierId === item.ticketTypeId : i === Math.max(0, e.seat - 1) && e.tierId === item.ticketTypeId)),
+      );
+      const name = lines[0]?.ticketTypeName ?? items[0]?.ticketTypeName ?? 'Workshops';
+      if (!order || order.status === 'refunded' || order.status === 'cancelled' || removed.length === 0) {
+        out.push({ orderId, name, outcome: 'already' });
+        continue;
+      }
+      const whole = items.length <= 1;
+      const amount = whole ? undefined : lines.reduce((n, l) => n + (l.unitPriceCents ?? 0) * (l.quantity ?? 1), 0);
+      const pi = order.stripePaymentIntentId;
+      try {
+        if (!pi || order.channel === 'demo') throw new Error(pi ? 'a rehearsal order, with no payment' : 'no payment intent on the order');
+        if (amount === 0) throw new Error('could not find the line to refund');
+        await stripe().refunds.create(
+          {
+            payment_intent: pi,
+            ...(amount ? { amount } : {}),
+            reason: 'requested_by_customer',
+            metadata: { source: 'kgc-web', cause: 'main-conference-refunded', refundedOrder: refundedOrderId },
+          },
+          { idempotencyKey: `kgc-extra-${refundedOrderId}-${orderId}` },
+        );
+        // A partial refund gives no seat back on its own; a whole one does,
+        // through that order's own refund event.
+        if (!whole) for (const id of removed) await incrementSold(id, -1);
+        out.push({ orderId, name, outcome: 'refunded' });
+      } catch (err) {
+        await recordWarning(
+          'extra.refundNeeded',
+          {
+            orderId,
+            refundedOrder: refundedOrderId,
+            amountCents: amount ?? order.totalCents,
+            paymentIntent: pi ?? '',
+            reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
+            note:
+              `Main Conference was refunded, so ${name} on the same badge was cancelled. ` +
+              `Refund ${amount ? `${(amount / 100).toFixed(2)} of ` : ''}this payment in Stripe.`,
+          },
+          { path: 'orders', id: orderId },
+        );
+        out.push({ orderId, name, outcome: 'manual' });
+      }
+    } catch (err) {
+      await recordError('order.extraCascade', err, { path: 'orders', id: orderId });
+    }
+  }
+  return out;
+}
+
+async function grantSeatEntitlements(
+  uid: string,
+  kinds: EntitlementDoc['kind'][],
+  orderId?: string,
+): Promise<void> {
   if (kinds.length === 0) return;
   try {
-    await grantOrderEntitlements(db(), uid, kinds);
+    await grantOrderEntitlements(db(), uid, kinds, orderId);
   } catch (err) {
     await recordError('entitlement.grant', err, { path: 'users', id: uid });
   }

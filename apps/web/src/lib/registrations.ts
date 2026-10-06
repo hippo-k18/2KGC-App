@@ -6,6 +6,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
   EVENT_ID,
+  ticketLabel,
   type OrderDoc,
   type RegistrationDoc,
 } from '@kgc/shared';
@@ -16,7 +17,9 @@ import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import {
   currentHolder,
   ensureRegistration as sharedEnsureRegistration,
+  removeOrderExtras,
   stillPaidElsewhere,
+  type FulfilledRegistration as SharedFulfilled,
 } from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
 import { decideRefund } from './refund-core';
@@ -57,6 +60,8 @@ export interface FulfilledRegistration {
   status?: RegistrationDoc['status'];
   /** True when this purchase created the registration rather than updating one. */
   created: boolean;
+  /** Set when the ticket was an extra; see `FulfilledRegistration.extra` in `@kgc/scripts`. */
+  extra?: SharedFulfilled['extra'];
 }
 
 export interface FulfilInput {
@@ -150,6 +155,8 @@ export function ensureRegistration(input: {
   ticketType: string;
   /** The paid order and seat. See `EnsureRegistrationInput.purchase`. */
   purchase?: { orderId: string; seat: number };
+  /** Lets an extra (Workshops) go on the person's existing badge. */
+  ticketTypeId?: string;
 }): Promise<FulfilledRegistration> {
   return sharedEnsureRegistration(db(), input);
 }
@@ -172,6 +179,7 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
     name: input.name,
     ticketType: input.ticketType,
     purchase: { orderId: oid, seat: 0 },
+    ticketTypeId: input.tierId,
   });
   const rid = result.registrationId;
 
@@ -297,6 +305,9 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
       // (the return redirect, a webhook replay) must not cut the list back to
       // the buyer alone. A union is also what two concurrent callers agree on.
       registrationIds: FieldValue.arrayUnion(rid),
+      // Workshops added to a badge another order issued: refunding this order
+      // takes the extra off and leaves the badge (`removeOrderExtras`).
+      ...(result.extra?.extendedOnly ? { extraRegistrationIds: FieldValue.arrayUnion(rid) } : {}),
       // First write wins. A retry three days later must not restamp the sale.
       purchasedAt: prevOrder?.purchasedAt ?? Timestamp.now(),
       createdAt: prevOrder ? undefined : FieldValue.serverTimestamp(),
@@ -317,7 +328,8 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
     registrationId: doc.id,
     email: r.email,
     name: r.name,
-    ticketType: r.ticketType,
+    // The whole badge, "Main Conference + Workshops".
+    ticketType: ticketLabel(r) || r.ticketType,
     claimCode: r.claimCode ?? '',
     status: r.status,
     ...(r.orderId ? { orderId: r.orderId } : {}),
@@ -366,6 +378,23 @@ export interface RefundOutcome {
   ticketType?: string;
   /** Cumulative refunded total after this event, in minor units. */
   refundedCents: number;
+  /**
+   * Set when this order only added an extra (Workshops) to a badge another
+   * order issued: the tier ids taken off that badge by this delivery, which
+   * stays valid. Empty on a replay.
+   */
+  extrasRemoved?: string[];
+  /** True when the refunded order only added extras to a badge; see `extrasRemoved`. */
+  extraOnly?: boolean;
+  /** What that badge still holds afterwards, or '' when it is no longer active. */
+  remainingLabel?: string;
+  /**
+   * Extras on the badge this refund cancelled that other orders paid for
+   * (Workshops bought in December on a Main Conference refunded now). The
+   * owner's rule: they go too, and their money goes back. The caller refunds
+   * them; see `refundLinkedExtras` in the webhook.
+   */
+  linkedExtras?: { orderId: string; tierId: string; registrationId: string; seat?: number }[];
   currency: string;
   /** False for a partial refund, which leaves the ticket valid. */
   fullyRefunded: boolean;
@@ -519,6 +548,25 @@ export async function cancelRegistrationByOrder(input: {
   const rid = holder.id;
 
   /**
+   * This order only put Workshops on a badge another order issued. Refunding
+   * it takes Workshops off and leaves the badge valid (owner, 2026-10-06).
+   */
+  if (order.extraRegistrationIds?.includes(startId)) {
+    const removed = await removeOrderExtras(db(), rid, oid);
+    if (rid !== startId) removed.push(...(await removeOrderExtras(db(), startId, oid)));
+    const after = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+    return {
+      ...details,
+      registrationId: null,
+      holderEmail: holder.email,
+      holderName: holder.name,
+      extraOnly: true,
+      extrasRemoved: removed,
+      remainingLabel: after?.status === 'active' ? ticketLabel(after) : '',
+    };
+  }
+
+  /**
    * Both addresses are asked, and the order being refunded is left out of the
    * answer. The buyer's other order still pays for the seat they passed on, and
    * the holder's own purchase still pays for the seat they were handed; either
@@ -543,7 +591,23 @@ export async function cancelRegistrationByOrder(input: {
     registrationId: rid,
     holderEmail: holder.email,
     holderName: holder.name,
+    linkedExtras: await extrasFromOtherOrders(rid, oid),
   };
+}
+
+/**
+ * The extras on a badge that orders other than `oid` paid for. Read after the
+ * badge is cancelled, so the caller can refund them (owner, 2026-10-06:
+ * refunding Main Conference refunds Workshops too).
+ */
+export async function extrasFromOtherOrders(
+  rid: string,
+  oid: string,
+): Promise<{ orderId: string; tierId: string; registrationId: string; seat?: number }[]> {
+  const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+  return (reg?.extras ?? [])
+    .filter((e) => e.orderId && e.orderId !== oid)
+    .map((e) => ({ orderId: e.orderId!, tierId: e.tierId, registrationId: rid, ...(e.seat !== undefined ? { seat: e.seat } : {}) }));
 }
 
 /**
@@ -715,6 +779,8 @@ export async function recordInvoiceOrder(input: InvoiceOrderInput): Promise<stri
 export async function markInvoiceOrderPaid(input: {
   invoiceId: string;
   registrationIds: string[];
+  /** See `OrderDoc.extraRegistrationIds`. */
+  extraRegistrationIds?: string[];
   totalCents: number;
   taxCents?: number;
   currency: string;
@@ -746,6 +812,7 @@ export async function markInvoiceOrderPaid(input: {
       currency: input.currency,
       refundedCents: prev?.refundedCents ?? 0,
       registrationIds: input.registrationIds,
+      ...(input.extraRegistrationIds?.length ? { extraRegistrationIds: input.extraRegistrationIds } : {}),
       hostedInvoiceUrl: input.hostedInvoiceUrl ?? prev?.hostedInvoiceUrl,
       invoicePdfUrl: input.invoicePdfUrl ?? prev?.invoicePdfUrl,
       markedPaidBy: input.markedPaidBy,

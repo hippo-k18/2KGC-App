@@ -223,13 +223,17 @@ export async function cartLines(sessionId: string): Promise<OrderLine[]> {
 export async function attachSeatRegistrations(input: {
   sessionId: string;
   registrationIds: string[];
+  /** The ones this order only added Workshops to. See `OrderDoc.extraRegistrationIds`. */
+  extraRegistrationIds?: string[];
 }): Promise<void> {
   if (input.registrationIds.length === 0) return;
+  const extended = input.extraRegistrationIds ?? [];
   await db()
     .collection(COLLECTIONS.orders)
     .doc(orderIdForSession(input.sessionId))
     .update({
       registrationIds: FieldValue.arrayUnion(...input.registrationIds),
+      ...(extended.length ? { extraRegistrationIds: FieldValue.arrayUnion(...extended) } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
 }

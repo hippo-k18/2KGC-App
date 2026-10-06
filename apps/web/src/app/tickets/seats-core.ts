@@ -239,21 +239,26 @@ export function splitByWeight(totalCents: number, weights: number[]): number[] {
 export const GROUP_RATE_MIN_SEATS = 5;
 export const GROUP_RATE_PERCENT = 10;
 
+/** What the group rate reads from a tier. */
+export type GroupRateTier = { inPerson?: boolean; audience?: string; kind?: string };
+
 /**
  * Whether a seat's ticket counts towards the group rate and gets it: an
  * attendee ticket for the room, so All Access, Main Conference and the Main
- * Conference bundles with Workshops or CEUs. Virtual does not, and nor do
- * exhibitor and sponsor packages, which are priced by contract.
+ * Conference bundle with CEUs. Virtual does not, and nor do exhibitor and
+ * sponsor packages, which are priced by contract. Nor does an extra such as
+ * Workshops (owner, 2026-10-06): five Workshops do not earn 10%, and a
+ * Workshops seat beside four Main Conference seats does not make five.
  *
- * Read from the catalogue's own `inPerson` and `audience`, never from the
- * form, so a tampered post cannot buy itself the rate.
+ * Read from the catalogue's own `inPerson`, `audience` and `kind`, never from
+ * the form, so a tampered post cannot buy itself the rate.
  */
-export function countsForGroupRate(tier: { inPerson?: boolean; audience?: string } | undefined): boolean {
-  return Boolean(tier?.inPerson) && (tier?.audience ?? 'attendee') === 'attendee';
+export function countsForGroupRate(tier: GroupRateTier | undefined): boolean {
+  return Boolean(tier?.inPerson) && (tier?.audience ?? 'attendee') === 'attendee' && tier?.kind !== 'extra';
 }
 
 /** Whether a set of seats earns the group rate. */
-export function groupRateApplies(tiers: ({ inPerson?: boolean; audience?: string } | undefined)[]): boolean {
+export function groupRateApplies(tiers: (GroupRateTier | undefined)[]): boolean {
   return tiers.filter(countsForGroupRate).length >= GROUP_RATE_MIN_SEATS;
 }
 
@@ -273,7 +278,7 @@ export function groupRatePrice(priceCents: number): { priceCents: number; discou
  * where it is due. One function for the form's total, the Stripe lines and the
  * order record, so the three cannot disagree.
  */
-export function priceSeats<T extends { inPerson?: boolean; audience?: string; priceCents: number }>(
+export function priceSeats<T extends GroupRateTier & { priceCents: number }>(
   seatTiers: T[],
 ): { applies: boolean; seats: { listCents: number; discountCents: number; chargedCents: number }[]; discountCents: number } {
   const applies = groupRateApplies(seatTiers);

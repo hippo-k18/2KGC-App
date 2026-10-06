@@ -1,7 +1,14 @@
 import 'server-only';
 
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
-import { COLLECTIONS, type EntitlementDoc, type OrderConfirmation, type OrderDoc } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  ticketLabel,
+  type EntitlementDoc,
+  type OrderConfirmation,
+  type OrderDoc,
+  type RegistrationDoc,
+} from '@kgc/shared';
 import { attachSeatRegistrations, cartLines } from '@/app/tickets/cart-order';
 import { seatsToCount, splitAcrossSeats, splitByWeight } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
@@ -137,10 +144,11 @@ async function referralCodeFor(rid: string): Promise<string | undefined> {
 async function grantSeatEntitlements(
   uid: string,
   kinds: EntitlementDoc['kind'][],
+  orderId?: string,
 ): Promise<void> {
   if (kinds.length === 0) return;
   try {
-    await grantOrderEntitlements(db(), uid, kinds);
+    await grantOrderEntitlements(db(), uid, kinds, orderId);
   } catch (err) {
     await recordError('entitlement.grant', err, { path: 'users', id: uid });
   }
@@ -322,6 +330,63 @@ async function settledResult(orderId: string): Promise<FulfilOrderResult> {
   };
 }
 
+/**
+ * Whether a seat moved its tier's sold counter on this run: a new ticket, or
+ * an extra newly put on a badge. A replay is neither.
+ */
+function countsAsSold(r: { created: boolean; extra?: { added: boolean } }): boolean {
+  return r.extra ? r.extra.added : r.created;
+}
+
+/** A seat that only put an extra on a badge someone already held. */
+function isExtraOnly(r: { extra?: { extendedOnly: boolean; refused?: string } }): boolean {
+  return Boolean(r.extra && r.extra.extendedOnly && (!r.extra.refused || r.extra.refused === 'already'));
+}
+
+/** "Main Conference + Workshops", read fresh, for the confirmation. */
+async function badgeLabel(rid: string): Promise<string> {
+  try {
+    const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+    return ticketLabel(reg);
+  } catch (err) {
+    await recordError('order.badgeLabel', err, { path: 'registrations', id: rid });
+    return '';
+  }
+}
+
+/**
+ * Tell the team when an extra could not go on a badge. Money has moved, so the
+ * person got a Workshops ticket of its own (or nothing new, when Workshops was
+ * already on their badge) and somebody should look: refund it, or move it on
+ * the dashboard. The checkout refuses these cases, so this is the race where a
+ * Main Conference was refunded between paying and fulfilment.
+ */
+async function warnIfExtraRefused(
+  orderId: string,
+  r: { registrationId: string; email: string; extra?: { name: string; refused?: string; added: boolean } },
+): Promise<void> {
+  if (!r.extra?.refused) return;
+  // Once: the replay of a seat that was already handled adds nothing new.
+  if (r.extra.refused === 'already' && !r.extra.added) {
+    const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
+    if (order?.confirmations?.[r.registrationId]) return;
+  }
+  await recordWarning(
+    'extra.notAdded',
+    {
+      registrationId: r.registrationId,
+      email: r.email,
+      ticket: r.extra.name,
+      reason: r.extra.refused,
+      note:
+        r.extra.refused === 'already'
+          ? `${r.extra.name} was paid for again on a badge that already had it. Refund the duplicate in Stripe.`
+          : `${r.extra.name} was paid for but no Main Conference badge could take it, so it was issued as a ticket of its own. Refund it, or sort the badge out on the dashboard.`,
+    },
+    { path: 'orders', id: orderId },
+  );
+}
+
 export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderResult> {
   const { externalId, tierId, origin } = input;
   const oid = orderIdFor(externalId);
@@ -415,7 +480,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    * a redelivered event must take none.
    */
   const seatOutcomes: { created: boolean; ticketTypeId?: string }[] = [
-    { created: result.created, ticketTypeId: tierId },
+    { created: countsAsSold(result), ticketTypeId: tierId },
   ];
 
   /**
@@ -426,22 +491,48 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    * holds a ticket (or repeats another seat's) gets a ticket of its own
    * rather than overwriting that one. One address may hold several tickets
    * since 2026-09-26; the dashboard flags it.
+   *
+   * An extra seat (Workshops) is not a ticket of its own: it goes on that
+   * person's Main Conference badge, which may have been issued by a seat
+   * earlier in this same cart. So extras are walked after every admission
+   * seat, whatever order the cart lists them in, and the emails go out after
+   * the walk, once per badge, naming everything now on it.
    */
   let buyerSeen = false;
   const registrationIds = [result.registrationId];
+  const extendedOnly = result.extra?.extendedOnly ? [result.registrationId] : [];
   const entitlementsFor = new Map<string, Awaited<ReturnType<typeof tierFulfilment>>>();
   let seatsRegistered = 0;
   let seatAccountsCreated = 0;
   let seatAccountsFailed = 0;
   let buyerShare = input.amountCents;
+  await warnIfExtraRefused(oid, result);
 
-  for (const [i, line] of cart.entries()) {
+  const tierOf = async (id: string) => {
+    if (!entitlementsFor.has(id)) entitlementsFor.set(id, await tierFulfilment(id));
+    return entitlementsFor.get(id);
+  };
+  const extraSeat = async (line: (typeof cart)[number]) =>
+    Boolean(line.ticketTypeId && (await tierOf(line.ticketTypeId))?.extra);
+  const walk: number[] = [];
+  for (const [i, line] of cart.entries()) if (!(await extraSeat(line))) walk.push(i);
+  for (const [i, line] of cart.entries()) if (await extraSeat(line)) walk.push(i);
+
+  /** One email per badge this order touched, sent after the walk. */
+  const mail = new Map<
+    string,
+    { to: string; name: string; share: number; temporaryPassword?: string | null; extraOnly: boolean; addedExtra?: string }
+  >();
+
+  const buyerSeat = cart.findIndex((line) => normaliseEmail(line.attendeeEmail ?? '') === buyerEmail);
+  for (const i of walk) {
+    const line = cart[i]!;
     const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
     if (!seatEmail) continue;
     // The buyer's first seat was fulfilled above. Their share of the total is
     // taken here so the email below reports it rather than the whole payment.
     // A later seat with the buyer's address is a further ticket for them.
-    if (seatEmail === buyerEmail && !buyerSeen) {
+    if (i === buyerSeat && !buyerSeen) {
       buyerSeen = true;
       buyerShare = shares[i] ?? buyerShare;
       continue;
@@ -455,6 +546,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
         ticketType: line.ticketTypeName,
         // Seat 0 is the buyer's, in `fulfilPurchase`; cart positions start at 1.
         purchase: { orderId: oid, seat: i + 1 },
+        ticketTypeId: line.ticketTypeId || undefined,
       });
     } catch (err) {
       // Refunded while this run was walking the seats.
@@ -462,8 +554,10 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
       throw err;
     }
     registrationIds.push(seat.registrationId);
+    if (seat.extra?.extendedOnly) extendedOnly.push(seat.registrationId);
     seatsRegistered += 1;
-    seatOutcomes.push({ created: seat.created, ticketTypeId: line.ticketTypeId });
+    seatOutcomes.push({ created: countsAsSold(seat), ticketTypeId: line.ticketTypeId });
+    await warnIfExtraRefused(oid, seat);
 
     /**
      * One account per attendee, not one per order. The person who paid may be
@@ -479,31 +573,50 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     if (seatAccount.status === 'failed') seatAccountsFailed += 1;
 
     if (seatAccount.uid && line.ticketTypeId) {
-      if (!entitlementsFor.has(line.ticketTypeId)) {
-        entitlementsFor.set(line.ticketTypeId, await tierFulfilment(line.ticketTypeId));
-      }
-      const tier = entitlementsFor.get(line.ticketTypeId);
-      if (tier) await grantSeatEntitlements(seatAccount.uid, tier.entitlements);
+      const tier = await tierOf(line.ticketTypeId);
+      if (tier) await grantSeatEntitlements(seatAccount.uid, tier.entitlements, oid);
     }
 
-    // Their own claim code, to their own address. The buyer's copy of the
-    // receipt does not get a colleague into the app. Once per seat, however
-    // many times this purchase is fulfilled.
-    const seatAttempt = await claimConfirmation(oid, seat.registrationId);
+    // Their own confirmation, to their own address. The buyer's copy of the
+    // receipt does not get a colleague into the app.
+    const prev = mail.get(seat.registrationId);
+    const extraOnly = isExtraOnly(seat);
+    mail.set(seat.registrationId, {
+      to: seat.email,
+      name: seat.name ?? line.attendeeName ?? '',
+      share: (prev?.share ?? 0) + (shares[i] ?? 0),
+      temporaryPassword: prev?.temporaryPassword ?? seatAccount.temporaryPassword,
+      extraOnly: prev ? prev.extraOnly && extraOnly : extraOnly,
+      addedExtra: seat.extra?.name ?? prev?.addedExtra,
+    });
+  }
+
+  // The buyer's badge may also have had seats added to it in the walk: their
+  // own Workshops seat, say. Those shares belong on the buyer's email.
+  const buyerExtra = mail.get(result.registrationId);
+  if (buyerExtra) {
+    buyerShare += buyerExtra.share;
+    mail.delete(result.registrationId);
+  }
+
+  for (const [rid, m] of mail) {
+    // Once per badge, however many times this purchase is fulfilled.
+    const seatAttempt = await claimConfirmation(oid, rid);
     if (seatAttempt === null) continue;
-    await sendClaimed({ orderId: oid, rid: seat.registrationId, attempts: seatAttempt, to: seat.email }, async () =>
+    const label = await badgeLabel(rid);
+    await sendClaimed({ orderId: oid, rid, attempts: seatAttempt, to: m.to }, async () =>
       sendPurchaseConfirmation({
-        to: seat.email,
-        name: seat.name ?? line.attendeeName ?? '',
-        ticketType: seat.ticketType ?? line.ticketTypeName,
-        amountCents: shares[i] ?? 0,
+        to: m.to,
+        name: m.name,
+        ticketType: label,
+        amountCents: m.share,
         currency: input.currency,
-        orderUrl: `${origin}/order/${mintOrderToken({ rid: seat.registrationId })}`,
-        claimCode: seat.claimCode,
+        orderUrl: `${origin}/order/${mintOrderToken({ rid })}`,
+        claimCode: '',
         orderId: oid,
-        registrationId: seat.registrationId,
-        temporaryPassword: seatAccount.temporaryPassword,
-        referralCode: await referralCodeFor(seat.registrationId),
+        registrationId: rid,
+        temporaryPassword: m.temporaryPassword,
+        ...(m.extraOnly && m.addedExtra ? { addedExtra: m.addedExtra } : { referralCode: await referralCodeFor(rid) }),
       }),
     );
   }
@@ -523,7 +636,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    */
   if (cart.length > 1) {
     try {
-      await attachSeatRegistrations({ sessionId: externalId, registrationIds });
+      await attachSeatRegistrations({ sessionId: externalId, registrationIds, extraRegistrationIds: extendedOnly });
     } catch (err) {
       await recordError('order.seats', err, { path: 'orders', id: externalId });
     }
@@ -575,16 +688,20 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    */
   if (account.uid && tierId) {
     const tier = await tierFulfilment(tierId);
-    if (tier) await grantSeatEntitlements(account.uid, tier.entitlements);
+    if (tier) await grantSeatEntitlements(account.uid, tier.entitlements, oid);
   }
 
   const buyerAttempt = await claimConfirmation(oid, result.registrationId);
   if (buyerAttempt !== null) {
+    // Workshops alone, on a badge the buyer already had: "added to your
+    // ticket", with the same link. Anything else is a new ticket.
+    const buyerExtraOnly = isExtraOnly(result) && (!buyerExtra || buyerExtra.extraOnly);
+    const label = await badgeLabel(result.registrationId);
     await sendClaimed({ orderId: oid, rid: result.registrationId, attempts: buyerAttempt, to: result.email }, async () =>
       sendPurchaseConfirmation({
         to: result.email,
         name: result.name ?? '',
-        ticketType: result.ticketType ?? '',
+        ticketType: label || (result.ticketType ?? ''),
         amountCents: buyerShare,
         currency: input.currency,
         orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
@@ -592,7 +709,9 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
         orderId: oid,
         registrationId: result.registrationId,
         temporaryPassword: account.temporaryPassword,
-        referralCode: await referralCodeFor(result.registrationId),
+        ...(buyerExtraOnly && result.extra
+          ? { addedExtra: result.extra.name }
+          : { referralCode: await referralCodeFor(result.registrationId) }),
       }),
     );
   }

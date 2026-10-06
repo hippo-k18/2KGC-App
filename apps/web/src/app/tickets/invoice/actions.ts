@@ -1,5 +1,7 @@
 'use server';
 
+import { orderSeatsForExtras } from '@kgc/shared';
+import { checkExtraSeats } from '@/lib/extras-check';
 import { redirect } from 'next/navigation';
 import { tierById } from '@/lib/catalogue';
 import { sendInvoiceRaised } from '@/lib/email';
@@ -139,8 +141,14 @@ export async function requestInvoice(
   // `finalizeInvoice` is a worse error message than finding it out here.
   let currency: string | undefined;
 
-  for (const [i, r] of rows.entries()) {
-    const tier = await tierById(r.tierId);
+  // Admission tickets before the extras that go on them, so fulfilment issues
+  // Main Conference before it adds Workshops to it.
+  const tierCache = new Map<string, Awaited<ReturnType<typeof tierById>>>();
+  for (const r of rows) if (!tierCache.has(r.tierId)) tierCache.set(r.tierId, await tierById(r.tierId));
+  const ordered = orderSeatsForExtras(rows, (id) => tierCache.get(id)?.kind === 'extra');
+
+  for (const [i, r] of ordered.entries()) {
+    const tier = tierCache.get(r.tierId);
     if (!tier) return { error: `Attendee ${i + 1}: choose a ticket type.` };
     if (!tier.onSale) {
       return {
@@ -161,6 +169,10 @@ export async function requestInvoice(
       priceCents: tier.priceCents,
     });
   }
+
+  // Workshops goes on a Main Conference badge, held already or on this invoice.
+  const extraProblem = await checkExtraSeats(ordered, tierCache);
+  if (extraProblem) return { error: extraProblem };
 
   // The same group rate as a card checkout (5+ in-person seats, 10% off each),
   // so a company is not charged more for asking for an invoice.

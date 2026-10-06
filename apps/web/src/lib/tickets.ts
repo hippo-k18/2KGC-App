@@ -92,6 +92,16 @@ export interface Tier {
   /** Set on a bundle: the tier it was built on, whose registration questions it answers. */
   baseTierId?: TicketId;
   /**
+   * `extra` on a ticket that is added to the holder's existing badge (Workshops)
+   * rather than issued as a new one. Absent on an admission ticket.
+   */
+  kind?: 'admission' | 'extra';
+  /** On an extra: the admission ticket it needs, by id and by name. */
+  requiresTierId?: TicketId;
+  requiresTierName?: string;
+  /** Whether this ticket includes the workshops, so All Access is not sold Workshops. */
+  includesWorkshops?: boolean;
+  /**
    * The Stripe product this tier sells as, once a discount code has been
    * limited to it. Not a secret: it is only an id, and Stripe shows it to the
    * buyer's browser on the payment page anyway.

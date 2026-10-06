@@ -10,6 +10,8 @@ import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 import { tierById, tierFulfilment } from '@/lib/catalogue';
+import { checkExtraSeats } from '@/lib/extras-check';
+import { orderSeatsForExtras } from '@kgc/shared';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
 import { CHECKOUT_SOURCE } from '@/lib/checkout-source';
 import { readReferralCookies, referralMetadata, type CapturedReferral } from '@/lib/referral-capture';
@@ -156,7 +158,7 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   const extraEmails = form.getAll('seatEmail').map((v) => String(v));
   const extraTiers = form.getAll('seatTier').map((v) => String(v));
 
-  const seats: SeatInput[] = [
+  const postedSeats: SeatInput[] = [
     { name, email, tierId },
     ...collectSeats(
       extraNames.map((n, i) => ({
@@ -180,11 +182,19 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
    * it mid-request.
    */
   const tiers = new Map<string, Tier | undefined>();
-  for (const seat of seats) {
+  for (const seat of postedSeats) {
     if (!tiers.has(seat.tierId)) tiers.set(seat.tierId, await tierById(seat.tierId));
   }
 
-  const primary = tiers.get(tierId);
+  /**
+   * Extras (Workshops) after the admission tickets they are added to, so
+   * fulfilment issues Main Conference before it adds Workshops to it. A buyer
+   * who chose Workshops for themselves and added a Main Conference seat for
+   * the same address gets the two swapped: same person, same price.
+   */
+  const seats = orderSeatsForExtras(postedSeats, (id) => tiers.get(id)?.kind === 'extra');
+
+  const primary = tiers.get(seats[0].tierId);
   if (!primary) return { error: 'Choose a ticket type.' };
 
   /**
@@ -194,7 +204,7 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
    * tier, and running the checks in this order means the buyer never gets
    * "sold out" for a form they were going to have to fix anyway.
    */
-  const problem = validateSeats(seats);
+  const problem = validateSeats(postedSeats);
   if (problem) {
     /**
      * Seat one is the buyer's own name and email fields, which are not numbered
@@ -278,6 +288,13 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
       };
     }
   }
+
+  /**
+   * Workshops goes on a Main Conference badge: held already, or bought for the
+   * same person here. Refused before any money moves; see `extras-check.ts`.
+   */
+  const extraProblem = await checkExtraSeats(seats, tiers);
+  if (extraProblem) return { error: extraProblem };
 
   /**
    * The organizer's registration questions.

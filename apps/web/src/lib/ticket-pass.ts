@@ -3,7 +3,7 @@ import 'server-only';
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { COLLECTIONS, EVENT_ID, type RegistrationDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, heldTicketNames, type RegistrationDoc } from '@kgc/shared';
 import { sendBlogSignInCode } from '@kgc/scripts/src/lib/email';
 import { db } from '@/lib/firestore';
 import {
@@ -60,7 +60,8 @@ export interface TicketPass {
   email: string;
   name: string;
   /**
-   * `RegistrationDoc.ticketType` of every active ticket this address holds:
+   * `RegistrationDoc.ticketType` of every active ticket this address holds,
+   * and any extras on those badges (`extraNames`):
    * the names, because that is what `allowedTicketTypes` holds. Usually one;
    * an address may hold several since 2026-09-26.
    */
@@ -86,7 +87,8 @@ async function activeTickets(email: string): Promise<TicketPass | null> {
   return {
     email,
     name: regs.find((r) => r.name?.trim())?.name?.trim() || email,
-    ticketTypes: [...new Set(regs.map((r) => r.ticketType?.trim()).filter((t): t is string => Boolean(t)))],
+    // Extras on a badge (Workshops) count like a ticket of their own here.
+    ticketTypes: [...new Set(regs.flatMap((r) => heldTicketNames(r).map((t) => t.trim())).filter(Boolean))],
   };
 }
 

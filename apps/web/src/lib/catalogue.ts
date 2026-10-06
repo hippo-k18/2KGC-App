@@ -4,6 +4,7 @@ import {
   COLLECTIONS,
   EVENT_ID,
   TIME_ZONE,
+  isExtraTier,
   priceNow,
   type EntitlementDoc,
   type TicketAudience,
@@ -50,9 +51,9 @@ function optional<T>(value: T | undefined): T | undefined {
  * true.
  */
 function availability(t: TicketTypeDoc, now: Date): Pick<Tier, 'onSale' | 'unavailableReason'> {
-  // An add-on on its own is two workshop days for $199 without the conference
-  // they belong to. It is only ever bought inside its bundle.
-  if (t.addOnFor) return { onSale: false, unavailableReason: 'Sold only as an add-on' };
+  // An add-on is only ever bought inside its bundle. An extra (Workshops) is
+  // sold on its own; the checkout checks the buyer holds what it needs.
+  if (t.addOnFor && !isExtraTier(t)) return { onSale: false, unavailableReason: 'Sold only as an add-on' };
   return windowAndCapacity(t, now);
 }
 
@@ -105,6 +106,9 @@ function bundlePricing(
     return { priceCents: t.priceCents, onSale: false, unavailableReason: 'Unavailable' };
   }
   const priceCents = docs.reduce((sum, d) => sum + phaseNow(d!, now).priceCents, 0);
+  // "Main Conference + Workshops" retired when Workshops became its own ticket
+  // (2026-10-06). The document stays for past orders; it sells nothing.
+  if (docs.some((d) => isExtraTier(d))) return { priceCents, onSale: false, unavailableReason: 'No longer sold' };
   for (const state of [windowAndCapacity(t, now), ...docs.map((d) => windowAndCapacity(d!, now))]) {
     if (!state.onSale) return { priceCents, ...state };
   }
@@ -118,6 +122,7 @@ function toTier(
   parts: Map<string, TicketTypeDoc> = new Map(),
 ): Tier {
   const phase = phaseNow(t, now);
+  const extra = isExtraTier(t);
   return {
     id,
     name: t.name,
@@ -137,6 +142,14 @@ function toTier(
     earlierPhases: phase.earlier.length ? phase.earlier : undefined,
     risesOn: optional(phase.risesOn),
     badge: t.badge?.trim() || undefined,
+    includesWorkshops: Boolean(t.includesWorkshops),
+    ...(extra
+      ? {
+          kind: 'extra' as const,
+          requiresTierId: optional(t.addOnFor),
+          requiresTierName: t.addOnFor ? parts.get(t.addOnFor)?.name : undefined,
+        }
+      : {}),
     ...availability(t, now),
     ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(t, parts, now) } : {}),
   };
@@ -167,7 +180,7 @@ function addOnsFor(
     const [base, ...extras] = doc.bundleOf ?? [];
     if (base !== baseId || extras.length === 0) continue;
     const parts = extras.map((e) => byId.get(e));
-    if (parts.some((p) => !p || p.addOnFor !== baseId)) continue;
+    if (parts.some((p) => !p || p.addOnFor !== baseId || isExtraTier(p))) continue;
     if (!toTier(id, doc, now, byId).onSale) continue;
     bundles.push({ tierId: id, addOnIds: extras });
     extras.forEach((extra, i) => {
@@ -293,8 +306,10 @@ export async function tierById(id: string): Promise<Tier | undefined> {
   const data = doc.data() as TicketTypeDoc;
   if (data.eventId !== EVENT_ID) return undefined;
   const parts = new Map<string, TicketTypeDoc>();
-  if (data.bundleOf?.length) {
-    const refs = data.bundleOf.map((part) => db().collection(COLLECTIONS.ticketTypes).doc(part));
+  // A bundle reads its parts; an extra reads the ticket it needs, for its name.
+  const partIds = data.bundleOf?.length ? data.bundleOf : isExtraTier(data) && data.addOnFor ? [data.addOnFor] : [];
+  if (partIds.length) {
+    const refs = partIds.map((part) => db().collection(COLLECTIONS.ticketTypes).doc(part));
     for (const snap of await db().getAll(...refs)) {
       const part = snap.data() as TicketTypeDoc | undefined;
       if (part && part.eventId === EVENT_ID) parts.set(snap.id, part);
@@ -325,6 +340,8 @@ export interface TierFulfilment {
   onSale: boolean;
   unavailableReason?: string;
   entitlements: EntitlementDoc['kind'][];
+  /** An extra (Workshops): added to the holder's badge, not a ticket of its own. */
+  extra: boolean;
 }
 
 export async function tierFulfilment(tierId: string): Promise<TierFulfilment | null> {
@@ -343,6 +360,7 @@ export async function tierFulfilment(tierId: string): Promise<TierFulfilment | n
         ? Math.max(0, t.quantityTotal - (t.quantitySold ?? 0))
         : undefined,
     entitlements: entitlementKinds(t),
+    extra: isExtraTier(t),
     ...state,
   };
 }
