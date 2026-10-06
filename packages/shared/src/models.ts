@@ -223,6 +223,19 @@ export interface DirectoryDoc {
  * illegal Firestore path segment; and an email-keyed collection is a membership
  * oracle — anyone who can attempt a read learns who holds a ticket.
  */
+/** One extra ticket on a registration. See `RegistrationDoc.extras`. */
+export interface RegistrationExtra {
+  /** `ticketTypes` id, e.g. `workshops`. */
+  tierId: string;
+  /** The tier's name when it was added, e.g. "Workshops". */
+  name: string;
+  /** The order that paid for it. Absent on one an organizer added by hand. */
+  orderId?: string;
+  /** The seat on that order, for a cart that bought it beside other tickets. */
+  seat?: number;
+  addedAt: Date | Timestamp;
+}
+
 export interface RegistrationDoc extends BaseDoc {
   /**
    * The paid order and seat this ticket came from, when it came from one.
@@ -264,6 +277,22 @@ export interface RegistrationDoc extends BaseDoc {
   title?: string;
   company?: string;
   ticketType?: string;
+  /**
+   * Extra tickets added to this badge after it was issued, such as Workshops
+   * bought in December by somebody who bought Main Conference in October. One
+   * person keeps one registration, one QR code and one claim code; each extra
+   * names the tier and the order that paid for it, so refunding that order
+   * takes off exactly this entry. `ticketType` stays the admission ticket.
+   * Written only by the server (`attachExtra` / `removeExtra` in
+   * `@kgc/scripts`). Absent on a badge with no extras.
+   */
+  extras?: RegistrationExtra[];
+  /**
+   * `extras[].name`, kept in step with `extras` by the same writes. A plain
+   * list because `firestore.rules` checks session access with
+   * `hasAny`, and rules cannot map over a list of maps.
+   */
+  extraNames?: string[];
   status: "active" | "cancelled" | "transferred";
   /**
    * The two ends of a transfer, or of a corrected address. A registration's id
@@ -1452,6 +1481,14 @@ export interface TicketTypeDoc extends BaseDoc {
    */
   addOnFor?: string;
   /**
+   * `extra` marks a ticket sold on its own that is added to the holder's
+   * existing badge rather than issuing a new one: Workshops since 2026-10-06.
+   * Its `addOnFor` names the admission ticket the holder must already have
+   * (or buy in the same checkout). An extra never counts toward the group rate
+   * and never gets it. Absent means an ordinary admission ticket.
+   */
+  kind?: "admission" | "extra";
+  /**
    * Set on a bundle: the ids whose prices it adds up, base tier first.
    *
    * "Main Conference + Workshops" is what a buyer who ticks the add-on actually
@@ -1667,6 +1704,14 @@ export interface OrderDoc extends BaseDoc {
 
   /** Every registration this order paid for, so refunds know what to withdraw. */
   registrationIds?: string[];
+  /**
+   * The registrations in `registrationIds` that this order only added an
+   * extra to (Workshops on a Main Conference badge another order issued). A
+   * refund of this order takes the extra off those badges and leaves them
+   * valid, and this order never keeps one of them alive when the order that
+   * issued it is refunded.
+   */
+  extraRegistrationIds?: string[];
 
   /**
    * Each registration's purchase confirmation, keyed by registration id.
@@ -1758,6 +1803,7 @@ export interface EmailLogDoc {
   to: string;
   template:
     | "purchase-confirmation"
+    | "extra-added"
     | "invoice-raised"
     | "refund-confirmation"
     /**

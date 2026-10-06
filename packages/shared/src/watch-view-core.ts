@@ -31,6 +31,8 @@ import type { RecordingWindow, StreamState } from "./stream-core.js";
 import { mayWatch, recordingWindow } from "./stream-core.js";
 
 /** Why somebody is not being shown the video. */
+import { ticketNames, type TicketsHeld } from "./ticket-extras.js";
+
 export type WatchBlock =
   /** Nobody has said which ticket this visitor holds. */
   | "no-ticket"
@@ -65,7 +67,7 @@ export interface Viewer {
    * phone that has never loaded its badge. It is not the same as a ticket type
    * that is not on the list, and the two get different sentences.
    */
-  ticketType: string | null;
+  ticketType: TicketsHeld;
 }
 
 /** The fields of a stream this decision needs. Deliberately not the document. */
@@ -117,7 +119,7 @@ export function streamView(
   if (!stream) return { kind: "none" };
 
   const allowed = stream.allowedTicketTypes ?? [];
-  if (!viewer.ticketType) return blocked("no-ticket", allowed);
+  if (ticketNames(viewer.ticketType).length === 0) return blocked("no-ticket", allowed);
   if (!mayWatch(stream, viewer.ticketType)) return blocked("wrong-ticket", allowed);
 
   if (stream.state === "scheduled") return blocked("not-started", allowed);
@@ -141,7 +143,7 @@ export function recordingView(
   if (!recording) return { kind: "none" };
 
   const allowed = recording.allowedTicketTypes ?? [];
-  if (!viewer.ticketType) return blocked("no-ticket", allowed);
+  if (ticketNames(viewer.ticketType).length === 0) return blocked("no-ticket", allowed);
   if (!mayWatch(recording, viewer.ticketType)) return blocked("wrong-ticket", allowed);
 
   const window: RecordingWindow = recordingWindow(recording, nowMs);

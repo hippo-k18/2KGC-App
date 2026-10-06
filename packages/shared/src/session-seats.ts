@@ -21,6 +21,8 @@
  */
 
 /** The counter half of `SessionSeatsDoc`, which is all the arithmetic needs. */
+import { ticketNames, type TicketsHeld } from "./ticket-extras.js";
+
 export interface SeatState {
   taken: number;
   waitlist: string[];
@@ -49,14 +51,17 @@ export function isGated(gate: SeatGate): boolean {
 }
 
 /**
- * Compared verbatim against `RegistrationDoc.ticketType`, because that is the
- * comparison the rules make and the two must not differ. An attendee with no
- * ticket type on record is refused by a restricted session.
+ * Compared verbatim against the ticket names a registration holds: its
+ * `ticketType` and any extras on the same badge (`extraNames`), because that is
+ * the comparison the rules make and the two must not differ. Any one of them
+ * being allowed is enough, so "Main Conference + Workshops" takes a seat in a
+ * workshop limited to Workshops. An attendee with no ticket on record is
+ * refused by a restricted session.
  */
-export function ticketEligible(gate: SeatGate, ticketType: string | null | undefined): boolean {
+export function ticketEligible(gate: SeatGate, held: TicketsHeld): boolean {
   const allowed = eligibleTypes(gate);
   if (allowed.length === 0) return true;
-  return typeof ticketType === "string" && allowed.includes(ticketType);
+  return ticketNames(held).some((name) => allowed.includes(name));
 }
 
 function listNames(names: string[]): string {
@@ -65,10 +70,11 @@ function listNames(names: string[]): string {
 }
 
 /** The line an attendee reads when their ticket does not cover a session. */
-export function ineligibleMessage(gate: SeatGate, ticketType: string | null | undefined): string {
+export function ineligibleMessage(gate: SeatGate, held: TicketsHeld): string {
   const allowed = eligibleTypes(gate);
   const forWhom = `This session is for ${listNames(allowed)} tickets.`;
-  return ticketType ? `${forWhom} Your ticket is ${ticketType}.` : forWhom;
+  const names = ticketNames(held);
+  return names.length > 0 ? `${forWhom} Your ticket is ${names.join(" + ")}.` : forWhom;
 }
 
 export function seatsLeft(state: SeatState, gate: SeatGate): number | null {

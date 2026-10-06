@@ -30,6 +30,8 @@
  * `stream-core.test.ts`.
  */
 
+import { ticketNames, type TicketsHeld } from "./ticket-extras.js";
+
 export const STREAM_PROVIDERS = ["youtube", "vimeo", "zoom", "embed"] as const;
 export type StreamProvider = (typeof STREAM_PROVIDERS)[number];
 
@@ -259,12 +261,12 @@ export function parseStreamSource(provider: string, raw: string): ParseResult {
  */
 export function mayWatch(
   gated: { allowedTicketTypes?: string[] },
-  ticketType: string | null | undefined,
+  held: TicketsHeld,
 ): boolean {
   const allowed = gated.allowedTicketTypes ?? [];
   if (allowed.length === 0) return true;
-  if (!ticketType) return false;
-  return allowed.includes(ticketType);
+  // Any ticket on the badge counts, extras included (`ticketNames`).
+  return ticketNames(held).some((name) => allowed.includes(name));
 }
 
 /**
