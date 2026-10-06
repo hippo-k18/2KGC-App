@@ -781,6 +781,8 @@ export async function markInvoiceOrderPaid(input: {
   registrationIds: string[];
   /** See `OrderDoc.extraRegistrationIds`. */
   extraRegistrationIds?: string[];
+  /** The payment that settled the invoice, so a later refund can be sent to it. */
+  stripePaymentIntentId?: string;
   totalCents: number;
   taxCents?: number;
   currency: string;
@@ -813,6 +815,7 @@ export async function markInvoiceOrderPaid(input: {
       refundedCents: prev?.refundedCents ?? 0,
       registrationIds: input.registrationIds,
       ...(input.extraRegistrationIds?.length ? { extraRegistrationIds: input.extraRegistrationIds } : {}),
+      ...(input.stripePaymentIntentId ? { stripePaymentIntentId: input.stripePaymentIntentId } : {}),
       hostedInvoiceUrl: input.hostedInvoiceUrl ?? prev?.hostedInvoiceUrl,
       invoicePdfUrl: input.invoicePdfUrl ?? prev?.invoicePdfUrl,
       markedPaidBy: input.markedPaidBy,

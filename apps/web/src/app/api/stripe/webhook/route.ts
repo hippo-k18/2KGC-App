@@ -359,7 +359,10 @@ export async function POST(req: NextRequest) {
             ...(outcome.extraOnly
               ? { extraRemoved: { name: outcome.ticketType ?? 'Workshops', remaining: outcome.remainingLabel ?? '' } }
               : {}),
-            ...(linkedRefunds.length ? { extrasCancelled: [...new Set(linkedRefunds.map((r) => r.name))] } : {}),
+            // "Refunded separately" is only true of a Workshops somebody paid for.
+            ...(linkedRefunds.some((r) => r.outcome !== 'nothing-paid')
+              ? { extrasCancelled: [...new Set(linkedRefunds.filter((r) => r.outcome !== 'nothing-paid').map((r) => r.name))] }
+              : {}),
           }),
         );
       }
@@ -436,6 +439,54 @@ export async function POST(req: NextRequest) {
           seatsReturned.push(line.ticketTypeId);
         }
       }
+      /**
+       * Workshops from another payment on a badge this dispute cancelled. A
+       * dispute refunds nothing by itself and the money may yet come back, so
+       * nothing is refunded here; the team is told which payment it is, to
+       * decide once the dispute is settled (T170).
+       */
+      const disputedExtras = outcome.newlyRefunded
+        ? [
+            ...(outcome.linkedExtras ?? []),
+            ...(await Promise.all(seatsCancelled.map((rid) => extrasFromOtherOrders(rid, outcome.orderId)))).flat(),
+          ]
+        : [];
+      for (const orderId of new Set(disputedExtras.map((e) => e.orderId))) {
+        try {
+          const other = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
+          if (!other || other.status === 'refunded' || other.status === 'cancelled') continue;
+          const lines = (other.items ?? [])
+            .map((item, i) => ({ item, i }))
+            .filter(({ item, i }) =>
+              disputedExtras.some(
+                (e) =>
+                  e.orderId === orderId &&
+                  e.tierId === item.ticketTypeId &&
+                  (e.seat === undefined || i === Math.max(0, e.seat - 1)),
+              ),
+            );
+          const amount = refundableShare(other, lines.map((l) => l.i));
+          const name = lines[0]?.item.ticketTypeName ?? 'Workshops';
+          await recordWarning(
+            'extra.refundNeeded',
+            {
+              orderId,
+              disputedOrder: outcome.orderId,
+              amountCents: amount,
+              paymentIntent: other.stripePaymentIntentId ?? '',
+              reason: 'dispute',
+              note:
+                amount > 0
+                  ? `Main Conference is disputed, so its badge is cancelled with ${name} on it. ${name} was paid separately ` +
+                    `(${(amount / 100).toFixed(2)} on this payment). Refund it in Stripe if the dispute is lost or the ticket is not reinstated.`
+                  : `Main Conference is disputed, so its badge is cancelled with ${name} on it. Nothing was paid for ${name}, so there is nothing to refund.`,
+            },
+            { path: 'orders', id: orderId },
+          );
+        } catch (err) {
+          await recordError('order.extraDispute', err, { path: 'orders', id: orderId });
+        }
+      }
       return NextResponse.json({
         received: true,
         eventId: event.id,
@@ -443,6 +494,7 @@ export async function POST(req: NextRequest) {
         registrationId: outcome.registrationId,
         seatsCancelled,
         seatsReturned,
+        ...(disputedExtras.length ? { extrasNeedingDecision: [...new Set(disputedExtras.map((e) => e.orderId))] } : {}),
       });
     }
 
@@ -743,6 +795,9 @@ export async function POST(req: NextRequest) {
 
       const orderId = await markInvoiceOrderPaid({
         invoiceId: invoice.id!,
+        // So refunding a Main Conference can refund Workshops paid on this
+        // invoice without anybody opening Stripe (T170).
+        stripePaymentIntentId: await invoicePaymentIntent(invoice),
         registrationIds: [...new Set(registered)],
         extraRegistrationIds: [...new Set(extendedOnly)],
         totalCents: total,
@@ -788,6 +843,22 @@ export async function POST(req: NextRequest) {
       // not subscribe to makes Stripe retry it and eventually disable the
       // endpoint, taking the events we *do* care about down with it.
       return NextResponse.json({ received: true, ignored: event.type });
+  }
+}
+
+/**
+ * The payment intent that paid an invoice, or undefined. Stripe's current API
+ * keeps it on the invoice's payments rather than the invoice itself. Never
+ * throws: without it a cascade refund falls back to a warning, as before.
+ */
+async function invoicePaymentIntent(invoice: Stripe.Invoice): Promise<string | undefined> {
+  try {
+    const found = await stripe().invoicePayments.list({ invoice: invoice.id!, limit: 1 });
+    const pi = found.data[0]?.payment?.payment_intent;
+    return (typeof pi === 'string' ? pi : pi?.id) ?? undefined;
+  } catch (err) {
+    console.error('[webhook] could not read the payment intent for invoice', invoice.id, err);
+    return undefined;
   }
 }
 
@@ -1055,14 +1126,27 @@ async function cancelExtraSeats(
   return cancelled;
 }
 
+/** What happened to one Workshops payment when its Main Conference was refunded. */
+type LinkedRefundOutcome = 'refunded' | 'manual' | 'already' | 'nothing-paid';
+
 /**
- * Grant a seat's entitlements, best-effort.
- *
- * Wrapped rather than called directly at three sites, because the swallow is
- * the point and it must be identical at each: an entitlement that fails to
- * write is a support conversation, and a webhook that 500s over one is a retry
- * storm that eventually disables the endpoint and loses everybody's tickets.
+ * What a buyer actually paid for some lines of an order, and could still get
+ * back: the same split of the charged total the confirmation emails use
+ * (`splitByWeight` over each line's charged price), so a group rate and a
+ * promotion code come off it exactly as they came off the receipt. Never more
+ * than what is left of the payment after earlier refunds.
  */
+function refundableShare(order: OrderDoc, lineIndexes: number[]): number {
+  const items = order.items ?? [];
+  const shares = splitByWeight(
+    order.totalCents ?? 0,
+    items.map((l) => (l.unitPriceCents ?? 0) * (l.quantity ?? 1)),
+  );
+  const paid = lineIndexes.reduce((n, i) => n + (shares[i] ?? 0), 0);
+  const left = Math.max(0, (order.totalCents ?? 0) - (order.refundedCents ?? 0));
+  return Math.min(paid, left);
+}
+
 /**
  * Refund the Workshops that other orders put on a badge whose Main Conference
  * was just refunded, and take them off it (owner, 2026-10-06).
@@ -1085,8 +1169,8 @@ async function cancelExtraSeats(
 async function refundLinkedExtras(
   linked: { orderId: string; tierId: string; registrationId: string; seat?: number }[],
   refundedOrderId: string,
-): Promise<{ orderId: string; name: string; outcome: 'refunded' | 'manual' | 'already' }[]> {
-  const out: { orderId: string; name: string; outcome: 'refunded' | 'manual' | 'already' }[] = [];
+): Promise<{ orderId: string; name: string; outcome: LinkedRefundOutcome }[]> {
+  const out: { orderId: string; name: string; outcome: LinkedRefundOutcome }[] = [];
   const byOrder = new Map<string, typeof linked>();
   for (const l of linked) byOrder.set(l.orderId, [...(byOrder.get(l.orderId) ?? []), l]);
 
@@ -1100,24 +1184,38 @@ async function refundLinkedExtras(
       // The order's lines for those seats: seat 0 is the buyer's line, cart
       // seat n is line n. Without a seat number, every line of that tier.
       const items = order?.items ?? [];
-      const lines = items.filter((item, i) =>
-        entries.some((e) => (e.seat === undefined ? e.tierId === item.ticketTypeId : i === Math.max(0, e.seat - 1) && e.tierId === item.ticketTypeId)),
-      );
-      const name = lines[0]?.ticketTypeName ?? items[0]?.ticketTypeName ?? 'Workshops';
+      const picked = items
+        .map((item, i) => ({ item, i }))
+        .filter(({ item, i }) =>
+          entries.some((e) =>
+            e.seat === undefined
+              ? e.tierId === item.ticketTypeId
+              : i === Math.max(0, e.seat - 1) && e.tierId === item.ticketTypeId,
+          ),
+        );
+      const name = picked[0]?.item.ticketTypeName ?? items[0]?.ticketTypeName ?? 'Workshops';
       if (!order || order.status === 'refunded' || order.status === 'cancelled' || removed.length === 0) {
         out.push({ orderId, name, outcome: 'already' });
         continue;
       }
       const whole = items.length <= 1;
-      const amount = whole ? undefined : lines.reduce((n, l) => n + (l.unitPriceCents ?? 0) * (l.quantity ?? 1), 0);
+      const amount = refundableShare(order, picked.map((p) => p.i));
+      // A line nobody paid for (a 100% code, a comp): nothing goes back, and
+      // nobody is asked to refund anything. Its seat is still given back.
+      if (amount <= 0) {
+        if (!whole) for (const id of removed) await incrementSold(id, -1);
+        out.push({ orderId, name, outcome: 'nothing-paid' });
+        continue;
+      }
       const pi = order.stripePaymentIntentId;
       try {
         if (!pi || order.channel === 'demo') throw new Error(pi ? 'a rehearsal order, with no payment' : 'no payment intent on the order');
-        if (amount === 0) throw new Error('could not find the line to refund');
         await stripe().refunds.create(
           {
             payment_intent: pi,
-            ...(amount ? { amount } : {}),
+            // Always the amount, even for a whole payment: what was paid for
+            // this line, never its list price (T170, W09).
+            amount,
             reason: 'requested_by_customer',
             metadata: { source: 'kgc-web', cause: 'main-conference-refunded', refundedOrder: refundedOrderId },
           },
@@ -1133,12 +1231,12 @@ async function refundLinkedExtras(
           {
             orderId,
             refundedOrder: refundedOrderId,
-            amountCents: amount ?? order.totalCents,
+            amountCents: amount,
             paymentIntent: pi ?? '',
             reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
             note:
               `Main Conference was refunded, so ${name} on the same badge was cancelled. ` +
-              `Refund ${amount ? `${(amount / 100).toFixed(2)} of ` : ''}this payment in Stripe.`,
+              `Refund ${(amount / 100).toFixed(2)} of this payment in Stripe.`,
           },
           { path: 'orders', id: orderId },
         );
@@ -1151,6 +1249,14 @@ async function refundLinkedExtras(
   return out;
 }
 
+/**
+ * Grant a seat's entitlements, best-effort.
+ *
+ * Wrapped rather than called directly at three sites, because the swallow is
+ * the point and it must be identical at each: an entitlement that fails to
+ * write is a support conversation, and a webhook that 500s over one is a retry
+ * storm that eventually disables the endpoint and loses everybody's tickets.
+ */
 async function grantSeatEntitlements(
   uid: string,
   kinds: EntitlementDoc['kind'][],
