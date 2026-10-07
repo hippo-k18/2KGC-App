@@ -1,0 +1,85 @@
+/*
+ * The sponsor page's opening (T173): a sponsor's quote, set large and calm, and
+ * six photos from past conferences under it.
+ *
+ * The photo cells have a fixed aspect ratio and the images fill them, so
+ * nothing moves when the photos arrive.
+ */
+
+.hero {
+  padding-block: clamp(40px, 7vw, 88px) clamp(40px, 6vw, 72px);
+  background: var(--white);
+}
+
+/* The page's h1, set as a small label above the quote. */
+.title {
+  margin: 0 0 clamp(16px, 2.4vw, 28px);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--highlight);
+}
+
+.quote {
+  margin: 0;
+}
+
+.quote blockquote {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.quote blockquote p {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.6vw, 2.6rem);
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  color: var(--navy);
+  /* Measured in the quote's own size, so about two or three lines on a laptop. */
+  max-width: 24ch;
+  text-wrap: balance;
+}
+
+.quote figcaption {
+  margin-top: clamp(14px, 2vw, 22px);
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.photos {
+  list-style: none;
+  margin: clamp(32px, 5vw, 56px) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (width >= 768px) {
+  .photos {
+    gap: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.photos li {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--wash);
+}
+
+.photo {
+  object-fit: cover;
+}
+
+/* The packages follow straight on from the photos: the hero's own bottom
+   padding is the gap, so the heading drops its usual top margin (which also
+   collapsed out of the section and showed the page tint as a stripe). */
+.packages :global(.package-head) {
+  margin-top: 0;
+}

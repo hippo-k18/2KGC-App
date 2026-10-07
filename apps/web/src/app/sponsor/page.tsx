@@ -5,6 +5,8 @@ import { SponsorTiers } from '@/components/sponsor-tiers';
 import { PackageGrid } from '@/components/package-grid';
 import type { Tier } from '@/lib/tickets';
 import { SITE } from '@/lib/site';
+import Image from 'next/image';
+import s from './sponsor.module.css';
 
 export const metadata: Metadata = {
   title: 'Sponsor the Knowledge Graph Conference',
@@ -63,9 +65,9 @@ export const revalidate = 30;
  *
  * The four sections used to alternate white, tint, white, tint at an identical
  * 64px of padding each, so the page read as four interchangeable stripes with
- * nothing weighted above anything else. The call for speakers now sits in a
- * box under the title, and the packages and the wall of logos follow it,
- * spaced as one continuous list. `.tint` itself is untouched — the replica
+ * nothing weighted above anything else. The page now opens on the sponsor
+ * quote and the photos, then the packages, the wall of logos and the call for
+ * speakers, spaced as one continuous list. `.tint` itself is untouched — the replica
  * pages still use it.
  */
 
@@ -86,34 +88,47 @@ export default async function SponsorPage() {
 
   return (
     <>
-      {/* No visible title: the page opens on the talk block. Screen readers
-          still get a heading to land on. */}
-      <h1 className="sr-only">Sponsor KGC 2027</h1>
-
       {/*
-        One white band for the talk and the packages, with flat grey blocks on
-        it: the same square panel as the homepage FAQ. `id="speak"` is where the
-        footer's "Speak at KGC" link lands.
+        The page opens on a sponsor's own words and the room itself (T173).
+        The owner asked for this in place of the call for speakers and the
+        package heading that used to fill the first screen. The title stays a
+        real h1, set small above the quote.
       */}
-      <section className="band-white" style={{ paddingBlock: '48px 64px' }}>
+      <section className={s.hero} aria-labelledby="sponsor-title">
         <div className="wrap">
-          <div className="flat-block speak-box" id="speak">
-            <h2>Speak at KGC</h2>
-            <p>
-              Tell us about real work: something you built, a decision you would change, a project
-              that went wrong, results you measured. No product pitches.
-            </p>
-            <p>
-              Talks run 25 or 45 minutes, and there are panels and half-day workshops. Submissions
-              open in September and close in December.
-            </p>
-            <p className="speak-box-cta">
-              <a className="btn btn-primary" href={mail('KGC 2027 talk proposal')}>
-                Pitch a talk
-              </a>
-            </p>
-          </div>
+          <h1 id="sponsor-title" className={s.title}>
+            Sponsor KGC 2027
+          </h1>
+          <figure className={s.quote}>
+            <blockquote>
+              <p>
+                KGC is the only conference where I don&rsquo;t have to explain what semantics and
+                knowledge graphs are.
+              </p>
+            </blockquote>
+            <figcaption>Long time sponsor</figcaption>
+          </figure>
 
+          <ul className={s.photos} aria-label="Photos from past conferences">
+            {PHOTOS.map((photo, i) => (
+              <li key={photo.src}>
+                <Image
+                  src={photo.src}
+                  alt={photo.alt}
+                  fill
+                  sizes="(width >= 768px) 33vw, 50vw"
+                  priority={i === 0}
+                  className={s.photo}
+                  style={photo.position ? { objectPosition: photo.position } : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className={`band-white ${s.packages}`} style={{ paddingBlock: '0 64px' }}>
+        <div className="wrap">
           {packages && packages.length > 0 && (
             <>
               <PackageGrid
@@ -169,9 +184,71 @@ export default async function SponsorPage() {
         </section>
       )}
 
+      {/*
+        The call for speakers, moved from the top of the page to the end of it
+        (T173). Seven links still land on `#speak`: the footer, search, the
+        startup pitch and poster pages, the HCLS speakers card and two redirects
+        from the old site. It is the only call for speakers on the site.
+      */}
+      <section className="band-white" style={{ paddingBlock: '0 80px' }}>
+        <div className="wrap">
+          <div className="flat-block speak-box" id="speak">
+            <h2>Speak at KGC</h2>
+            <p>
+              Tell us about real work: something you built, a decision you would change, a project
+              that went wrong, results you measured. No product pitches.
+            </p>
+            <p>
+              Talks run 25 or 45 minutes, and there are panels and half-day workshops. Submissions
+              open in September and close in December.
+            </p>
+            <p className="speak-box-cta">
+              <a className="btn btn-primary" href={mail('KGC 2027 talk proposal')}>
+                Pitch a talk
+              </a>
+            </p>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
+
+/**
+ * Six photos from past conferences, chosen to show the room rather than the
+ * stage: the crowd between sessions, a panel, a sponsor table, the hallway
+ * track, a full hall and the networking tables. Copied from the old site's
+ * uploads (WordPress backup of 2026-09-26) and resized to 1600px at most, with
+ * their metadata stripped.
+ */
+const PHOTOS: { src: string; alt: string; position?: string }[] = [
+  {
+    src: '/kgc/photos/sponsor/kgc-crowd-networking-2022.jpg',
+    alt: 'A packed hall of attendees talking between sessions at KGC 2022',
+  },
+  {
+    src: '/kgc/photos/sponsor/kgc-panel-on-stage-2025.jpg',
+    alt: 'A healthcare and life sciences panel on stage at KGC 2025',
+  },
+  {
+    src: '/kgc/photos/sponsor/kgc-sponsor-booth-2025.jpg',
+    alt: 'Two people at a sponsor table beside the KGC banner at KGC 2025',
+    // A wide frame: anchored left so the KGC banner stays in the crop.
+    position: 'left center',
+  },
+  {
+    src: '/kgc/photos/sponsor/kgc-hallway-conversation-2025.jpg',
+    alt: 'Attendees in a lively conversation around a table at KGC 2025',
+  },
+  {
+    src: '/kgc/photos/sponsor/kgc-audience-2022.jpg',
+    alt: 'A seated audience following a talk at KGC 2022',
+  },
+  {
+    src: '/kgc/photos/sponsor/kgc-networking-tables-2025.jpg',
+    alt: 'Small groups meeting at tables by the windows at KGC 2025',
+  },
+];
 
 /** The full prospectus, kept by the organizers outside this site. */
 const PROSPECTUS_URL =
