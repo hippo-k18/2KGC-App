@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,16 +35,6 @@ export default async function ZoomIntegrationPage() {
     <>
       <PageHeader
         title="Zoom"
-        info={
-          <>
-            <strong>No Zoom account is connected</strong>
-            <p>
-              A connected account would supply the OAuth credentials and a webhook endpoint, and in
-              return give a meeting per session and remote attendance back. Attendance here is a
-              badge scan at a door.
-            </p>
-          </>
-        }
         links={[
           <Link key="t" href="/virtual-and-hybrid/adv-stream-integration/microsoft-teams">
             Microsoft Teams
@@ -57,14 +46,12 @@ export default async function ZoomIntegrationPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="Zoom meetings"
-          action={
-            <Link href={ROUTES.checkIn} className="whova-btn-main">
-              Attendance is at the door
-            </Link>
-          }
-        />
+        <EmptyState>
+          <p className="empty-title">Not available yet</p>
+          <p className="empty-sub">
+            Zoom is not available yet. Attendance is recorded by badge scan at check-in.
+          </p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

@@ -1,8 +1,11 @@
 import 'server-only';
 
+import { randomUUID } from 'node:crypto';
+
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, publicSiteOrigin } from '@kgc/shared';
-import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import { ensureRegistration, extraTierById, extraVerdictFor } from '@kgc/scripts/src/lib/fulfilment';
+import { extraRefusalForOrganizer } from './extras';
 import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
 import { appendAudit } from './audit';
@@ -48,12 +51,12 @@ import { db } from './firestore';
  *
  * ── Order of operations ─────────────────────────────────────────────────────
  *
- * Registration first, then the order, then the counter, then the email. Every
- * failure mode in that sequence is recoverable and none of them is "somebody
- * believes they have a ticket and does not": `ensureRegistration` is idempotent
- * so a re-run converges, a missing order shows up as a registration with no
- * order, a lost counter increment is a display figure, and a failed email is
- * visible in `emailLog`.
+ * The order, then the registration, then the counter, then the email. The
+ * order goes first because creating it is what makes a double-submit one order
+ * (see below). Every failure mode in that sequence is recoverable and none of
+ * them is "somebody believes they have a ticket and does not": an order whose
+ * registration failed shows on the ledger with no attendee, a lost counter
+ * increment is a display figure, and a failed email is visible in `emailLog`.
  */
 
 export interface ManualOrderInput {
@@ -74,6 +77,12 @@ export interface ManualOrderInput {
   /** Skip the confirmation email — for a backfill of somebody already told. */
   silent?: boolean;
   actor: string;
+  /**
+   * One per form load, posted back with the form. Pressing the button twice
+   * sends the same one, so a nervous double-submit records one order; filling
+   * the form in again is a new one, and records a second order.
+   */
+  requestId?: string;
 }
 
 export interface ManualOrderResult {
@@ -122,39 +131,55 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
   const tier = await getTicketType(input.ticketTypeId);
   if (!tier) return { ok: false, error: 'Choose a package that still exists in the catalogue.' };
 
+  /**
+   * Workshops goes on the person's Main Conference badge, as on the website:
+   * it is refused for an address with no Main Conference, for Virtual, and for
+   * All Access, which includes it already (owner, 2026-10-06).
+   */
+  const extra = await extraTierById(db(), tier.id);
+  if (extra) {
+    const verdict = await extraVerdictFor(db(), email, extra);
+    if (!verdict.ok) return { ok: false, error: extraRefusalForOrganizer(extra.tier, email, verdict.reason, verdict.heldName, extra.byName) };
+  }
+
+  /**
+   * The order id is one per submission, not one per person and package.
+   *
+   * It used to be `manual_{tierId}_{email}`, so a second manual order for the
+   * same person and package (a second payment, a second seat) overwrote the
+   * first: its amount and note were replaced and the first payment's record
+   * was gone (T135, S8/TK-283). Now each form load carries its own
+   * `requestId`, so a double-click is still one order and a genuinely second
+   * order is a second document. Orders recorded under the old id keep it.
+   */
+  const request = input.requestId && /^[A-Za-z0-9-]{8,64}$/.test(input.requestId) ? input.requestId : randomUUID();
+  const orderId = `manual_${request}`;
+  const orderRef = db().collection(COLLECTIONS.orders).doc(orderId);
+  const already = { ok: true, orderId, message: `That order was already recorded for ${email}. Nothing was changed.` };
+  if ((await orderRef.get()).exists) return already;
+
+  /**
+   * Capacity, as the website checks it. This path used to issue a ticket
+   * against a sold-out package without a word (T135, S8). An organizer who
+   * means to go over raises the capacity first, which leaves a record of it.
+   */
+  if (typeof tier.quantityTotal === 'number' && (tier.quantitySold ?? 0) >= tier.quantityTotal) {
+    return {
+      ok: false,
+      error: `${tier.name} is sold out (${tier.quantitySold ?? 0} of ${tier.quantityTotal}). Raise its capacity first if this order should go ahead.`,
+    };
+  }
+
   try {
     /**
-     * The registration first, because it is the thing that has to exist.
-     *
-     * `ensureRegistration` lives in `@kgc/scripts` and is shared with the
-     * website's webhook: one implementation owns `qrSecret` and `claimCode`, and
-     * a second copy would mean a badge that stops scanning while somebody is
-     * holding it at the desk.
+     * The order first, with `create`, which fails if the document exists. That
+     * is the double-submit guard: two posts of the same form race here, one
+     * wins, and only the winner registers, counts and emails.
      */
-    const reg = await ensureRegistration(db(), {
-      email,
-      name,
-      ticketType: tier.name,
-    });
-
-    /**
-     * The order id is derived, not random.
-     *
-     * `manual_{tierId}_{email}` means recording the same person against the
-     * same package twice updates one document instead of stacking two, which is
-     * what happens when an organizer is not sure whether the first attempt
-     * saved. It also makes the whole action idempotent, matching the
-     * registration it points at.
-     */
-    const externalId = `manual_${input.ticketTypeId}_${email}`;
-    const orderId = externalId;
-    const orderRef = db().collection(COLLECTIONS.orders).doc(orderId);
-    const existed = (await orderRef.get()).exists;
-
-    await orderRef.set(
-      {
+    try {
+      await orderRef.create({
         eventId: EVENT_ID,
-        externalId,
+        externalId: orderId,
         provider: 'manual',
         channel: 'manual',
         email,
@@ -178,35 +203,59 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
         totalCents: input.amountCents,
         currency: tier.currency,
         ...(input.poNumber ? { poNumber: input.poNumber.trim() } : {}),
-        registrationIds: [reg.registrationId],
+        registrationIds: [],
         markedPaidBy: input.actor,
         markedPaidAt: Timestamp.now(),
         outOfBandNote: input.note.trim(),
-        // Only on create: re-recording must not restamp when the money arrived.
-        ...(existed ? {} : { purchasedAt: Timestamp.now() }),
+        purchasedAt: Timestamp.now(),
+        createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+      });
+    } catch (err) {
+      // ALREADY_EXISTS: the other post of a double-submit got here first.
+      if ((err as { code?: unknown }).code === 6) return already;
+      throw err;
+    }
 
     /**
-     * The sold counter, and only on the first record.
+     * Then the registration. `ensureRegistration` lives in `@kgc/scripts` and
+     * is shared with the website's webhook: one implementation owns `qrSecret`
+     * and `claimCode`, and a second copy would mean a badge that stops scanning
+     * while somebody is holding it at the desk.
      *
-     * Incrementing on every save would let a nervous organizer pressing the
-     * button twice sell out a capped tier — which for Platinum, capped at one,
-     * means the second genuine sponsor is refused.
+     * With this order as its purchase, like every other path that takes money:
+     * somebody who already holds a paid ticket gets a second, separate ticket
+     * rather than having theirs rewritten to this package with two orders
+     * pointing at one badge (T135B, N1).
      */
-    if (!existed) {
-      try {
-        await db()
-          .collection(COLLECTIONS.ticketTypes)
-          .doc(tier.id)
-          .update({ quantitySold: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
-      } catch (err) {
-        // The sale is real and the registration is written. Losing the display
-        // counter must not fail the action.
-        recordError('manualOrder.increment', err);
-      }
+    const reg = await ensureRegistration(db(), {
+      email,
+      name,
+      ticketType: tier.name,
+      purchase: { orderId, seat: 0 },
+      ticketTypeId: tier.id,
+    });
+    await orderRef.update({
+      registrationIds: [reg.registrationId],
+      // Workshops added to an existing badge: see `OrderDoc.extraRegistrationIds`.
+      ...(reg.extra?.extendedOnly ? { extraRegistrationIds: [reg.registrationId] } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    /**
+     * The sold counter, once per order. A double-submit of the same form
+     * returned above, so a nervous organizer pressing the button twice cannot
+     * sell out a capped tier.
+     */
+    try {
+      await db()
+        .collection(COLLECTIONS.ticketTypes)
+        .doc(tier.id)
+        .update({ quantitySold: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
+    } catch (err) {
+      // The sale is real and the registration is written. Losing the display
+      // counter must not fail the action.
+      recordError('manualOrder.increment', err);
     }
 
     await appendAudit({
@@ -236,7 +285,8 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       await sendPurchaseConfirmation(db(), {
         to: reg.email,
         name: reg.name ?? name,
-        ticketType: reg.ticketType ?? tier.name,
+        ticketType: reg.extra?.label || (reg.ticketType ?? tier.name),
+        ...(reg.extra?.extendedOnly && !reg.extra.refused ? { addedExtra: reg.extra.name } : {}),
         amountCents: input.amountCents,
         currency: tier.currency,
         orderUrl: `${origin}/order/${mintOrderToken({ rid: reg.registrationId })}`,
@@ -251,10 +301,10 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       orderId,
       registrationId: reg.registrationId,
       claimCode: reg.claimCode,
-      message: existed
-        ? `Updated the existing manual order for ${email}. Nothing was double-counted.`
-        : `Recorded ${tier.name} for ${email}${input.amountCents === 0 ? ' as a comp' : ''}.` +
-          (input.silent ? ' No email was sent.' : ' A confirmation has been sent.'),
+      message:
+        `Recorded ${tier.name} for ${email}${input.amountCents === 0 ? ' as a comp' : ''}` +
+        (reg.extra?.extendedOnly ? `, added to their existing ticket (${reg.extra.label}).` : '.') +
+        (input.silent ? ' No email was sent.' : ' A confirmation has been sent.'),
     };
   } catch (err) {
     recordError('manualOrder.record', err);

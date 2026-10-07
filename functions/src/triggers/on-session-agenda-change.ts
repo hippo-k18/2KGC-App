@@ -1,4 +1,4 @@
-import { COLLECTIONS, SUBCOLLECTIONS } from '@kgc/shared';
+import { COLLECTIONS, SUBCOLLECTIONS, agendaNoticeId } from '@kgc/shared';
 import type { SessionDoc, UserDoc } from '@kgc/shared';
 import {
   FieldValue,
@@ -231,12 +231,14 @@ async function pushTokensFor(db: Firestore, uids: string[]): Promise<string[]> {
  * and sends nothing. Do not re-arm that path. (Announcements went the other
  * way: the dashboard owns them, and `onAnnouncementCreate` no longer sends.)
  *
- * The notification id is the event's own id (stable across a Cloud
- * Functions retry of the *same* delivery), not a generated one — a retry
- * `set()`s the same document again instead of duplicating the notification.
- * It is not `sessionId`, unlike `onAnnouncementCreate`'s use of
- * `announcementId`, because a session can legitimately change again later
- * and each change is its own notification.
+ * The notification id is derived from where the session ended up —
+ * `agendaNoticeId()` in `@kgc/shared`, shared with the dashboard's save
+ * action, which writes the same notice today because this function cannot be
+ * deployed. A retry `set()`s the same document again, and so does the other
+ * writer, so one change is one notification however many things say so. It is
+ * not `sessionId` alone, unlike `onAnnouncementCreate`'s use of
+ * `announcementId`, because a session can legitimately change again later and
+ * each new state is its own notification.
  */
 export const onSessionAgendaChange = onDocumentUpdated(
   { document: `${COLLECTIONS.sessions}/{sessionId}`, ...SERIAL_FANOUT_TRIGGER },
@@ -298,12 +300,31 @@ export const onSessionAgendaChange = onDocumentUpdated(
     const title = after.title;
     const body = cancelled ? `${title} has been cancelled.` : `${title}'s ${joinWithAnd(changed)} changed.`;
     const href = `/agenda/${sessionId}`;
+    /**
+     * The id names where the session ended up, not this delivery.
+     *
+     * It was `event.id`, which is stable across a retry of the same delivery
+     * and nothing else. That was enough while this trigger was the only writer
+     * of an agenda notice; it is not now. The dashboard's save action writes
+     * the same notice — it had to, because this function cannot be deployed
+     * until the IAM grant in OWNER-ACTIONS.md §3 lands — and on the day both
+     * are live, one room change with two generated ids is two notifications on
+     * one phone. `agendaNoticeId()` is shared by both writers so the second
+     * `set()` lands on the first document. A retry is still idempotent: the
+     * resulting state has not changed, so neither has the id.
+     */
+    const noticeId = agendaNoticeId({
+      sessionId,
+      startsAtLocal: after.startsAtLocal,
+      roomId: after.roomId ?? null,
+      cancelled,
+    });
 
     for (const page of chunk(uids, BATCH_LIMIT)) {
       const batch = db.batch();
       for (const uid of page) {
         batch.set(
-          db.collection(COLLECTIONS.users).doc(uid).collection(SUBCOLLECTIONS.notifications).doc(event.id),
+          db.collection(COLLECTIONS.users).doc(uid).collection(SUBCOLLECTIONS.notifications).doc(noticeId),
           {
             type: 'agenda-change',
             title,

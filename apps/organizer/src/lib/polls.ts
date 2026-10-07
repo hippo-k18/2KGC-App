@@ -33,10 +33,21 @@ import { db } from './firestore';
  *
  * The dashboard is one reader per page load. The app is a thousand phones
  * watching one poll, and asking each of them to read every vote document is the
- * traffic the trigger exists to prevent. `publishTally()` below is the honest
- * middle: an organizer presses a button, the server counts once, and every
- * phone reads one document. It is a snapshot rather than a live tally, and the
- * screen says which.
+ * traffic the trigger exists to prevent. A ballot is secret besides: the rules
+ * let a `votes` document be read only by its owner and by an organizer, so an
+ * attendee counting them is denied outright. `publishTally()` below is the
+ * honest middle: the server counts once, and every phone reads one document.
+ *
+ * ── Live results: the same write, on a timer somebody can see ───────────────
+ *
+ * `PollDoc.liveResults` turns that button into a heartbeat. The room view
+ * recounts and republishes every few seconds while it is open, so the phones in
+ * the room follow the screen at the front of it without anybody pressing
+ * anything. It is still a snapshot — a vote cast a second after the last recount
+ * is in the next one — and it stops the moment the room view is closed, which
+ * is why the tile on the poll row says when the count was last published rather
+ * than claiming the number is live. What it is not is a substitute for
+ * `tallyPoll`: a poll nobody is projecting still needs the button.
  *
  * ── Why this walks sessions instead of a collection group ───────────────────
  *
@@ -66,6 +77,8 @@ export interface PollRow {
   question: string;
   options: PollOptionRow[];
   open: boolean;
+  /** Republish the count by itself while the room view is open. */
+  liveResults: boolean;
   /** `PollDoc.totalVotes` as stored — trigger-owned, and therefore frozen. */
   storedTotal: number;
   /** Vote documents actually present. This is the true number. */
@@ -168,6 +181,7 @@ export async function readPolls(): Promise<PollRead> {
               storedVotes: poll.tallies?.[o.id] ?? 0,
             })),
             open: Boolean(poll.open),
+            liveResults: Boolean(poll.liveResults),
             storedTotal: stored,
             actualVotes: voteSnap.size,
             stale: stored !== voteSnap.size,
@@ -230,6 +244,7 @@ export async function getPoll(sessionId: string, pollId: string): Promise<PollRo
       storedVotes: poll.tallies?.[o.id] ?? 0,
     })),
     open: Boolean(poll.open),
+    liveResults: Boolean(poll.liveResults),
     storedTotal: poll.totalVotes ?? 0,
     actualVotes: voteSnap.size,
     stale: (poll.totalVotes ?? 0) !== voteSnap.size,
@@ -285,4 +300,25 @@ export async function publishTally(
   );
 
   return { total: voteSnap.size, options: Object.keys(tallies).length };
+}
+
+/**
+ * Publish the count, but only for a poll whose organizer asked for that.
+ *
+ * The room view calls this on its own timer. Reading `liveResults` here rather
+ * than trusting the caller is the point: the timer runs in a browser, and a page
+ * left open on a poll whose live results were switched off afterwards must stop
+ * writing. Returns whether it wrote, so nothing claims a republish that a
+ * switched-off poll refused.
+ */
+export async function republishIfLive(
+  sessionId: string,
+  pollId: string,
+): Promise<{ published: boolean; total: number }> {
+  const poll = await getPoll(sessionId, pollId);
+  if (!poll) return { published: false, total: 0 };
+  if (!poll.liveResults) return { published: false, total: poll.actualVotes };
+
+  const written = await publishTally(sessionId, pollId);
+  return { published: true, total: written.total };
 }

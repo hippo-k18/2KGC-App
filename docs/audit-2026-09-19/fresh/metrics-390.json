@@ -1,0 +1,1183 @@
+[
+ {
+  "path": "/content/agenda-center/track-manager",
+  "slug": "content_agenda_center_track_manager",
+  "shot": "fresh/content_agenda_center_track_manager-390.png",
+  "status": 200,
+  "finalUrl": "/content/agenda-center/track-manager",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 2414,
+   "words": 344,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "a",
+     "w": 93,
+     "h": 14,
+     "text": "Session Manager"
+    },
+    {
+     "el": "input#csv-track",
+     "w": 253,
+     "h": 21,
+     "text": ""
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/agenda-center/conflict-check",
+  "slug": "content_agenda_center_conflict_check",
+  "shot": "fresh/content_agenda_center_conflict_check-390.png",
+  "status": 200,
+  "finalUrl": "/content/agenda-center/conflict-check",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 1572,
+   "words": 196,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/agenda-center/session-qanda-manager",
+  "slug": "content_agenda_center_session_qanda_manager",
+  "shot": "fresh/content_agenda_center_session_qanda_manager-390.png",
+  "status": 200,
+  "finalUrl": "/content/agenda-center/session-qanda-manager",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 6381,
+   "words": 1231,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.whova-tag-main.orange-tag",
+     "px": 10,
+     "text": "1 pending"
+    },
+    {
+     "el": "div.muted",
+     "px": 11,
+     "text": "Rune Petrova · 2026-09-22"
+    },
+    {
+     "el": "span.whova-tag-main.grey-tag",
+     "px": 10,
+     "text": "pending"
+    },
+    {
+     "el": "div.muted",
+     "px": 11,
+     "text": "Tomás Vasquez · 2026-09-20"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/speaker-center/speaker-manager",
+  "slug": "content_speaker_center_speaker_manager",
+  "shot": "fresh/content_speaker_center_speaker_manager-390.png",
+  "status": 200,
+  "finalUrl": "/content/speaker-center/speaker-manager",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 10258,
+   "words": 1272,
+   "emDashes": 22,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "a",
+     "w": 93,
+     "h": 14,
+     "text": "Session Manager"
+    },
+    {
+     "el": "input#csv-speaker",
+     "w": 253,
+     "h": 21,
+     "text": ""
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "dt",
+     "px": 11,
+     "text": "BIO"
+    },
+    {
+     "el": "span.whova-tag-main.green-tag",
+     "px": 10,
+     "text": "bio"
+    },
+    {
+     "el": "span.whova-tag-main.red-tag",
+     "px": 10,
+     "text": "photo"
+    },
+    {
+     "el": "span.whova-tag-main.orange-tag",
+     "px": 10,
+     "text": "Waiting for you"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/sponsor-center/sponsor-tiering",
+  "slug": "content_sponsor_center_sponsor_tiering",
+  "shot": "fresh/content_sponsor_center_sponsor_tiering-390.png",
+  "status": 200,
+  "finalUrl": "/content/sponsor-center/sponsor-tiering",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 2645,
+   "words": 206,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/branding-center/customize-resources",
+  "slug": "content_branding_center_customize_resources",
+  "shot": "fresh/content_branding_center_customize_resources-390.png",
+  "status": 200,
+  "finalUrl": "/content/branding-center/customize-resources",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 1771,
+   "words": 161,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "a",
+     "w": 74,
+     "h": 16,
+     "text": "Documents"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "div.muted",
+     "px": 11,
+     "text": "How to get online at the Bloomberg Center."
+    },
+    {
+     "el": "span.whova-tag-main.green-tag",
+     "px": 10,
+     "text": "published"
+    },
+    {
+     "el": "div.muted",
+     "px": 11,
+     "text": "Tram, subway and where not to park."
+    },
+    {
+     "el": "span.whova-tag-main.green-tag",
+     "px": 10,
+     "text": "published"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/documents-and-videos/documents",
+  "slug": "content_documents_and_videos_documents",
+  "shot": "fresh/content_documents_and_videos_documents-390.png",
+  "status": 200,
+  "finalUrl": "/content/documents-and-videos/documents",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 1492,
+   "words": 217,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "div.muted",
+     "px": 11,
+     "text": "What we expect of everyone, and how to report a pr"
+    },
+    {
+     "el": "span.whova-tag-main.grey-tag",
+     "px": 10,
+     "text": "link"
+    },
+    {
+     "el": "span.whova-tag-main.green-tag",
+     "px": 10,
+     "text": "published"
+    },
+    {
+     "el": "div.muted",
+     "px": 11,
+     "text": "Rooms, the exhibition hall and the quiet room."
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/call-for-speakers-abstracts/submissions",
+  "slug": "content_call_for_speakers_abstracts_submissions",
+  "shot": "fresh/content_call_for_speakers_abstracts_submissions-390.png",
+  "status": 200,
+  "finalUrl": "/content/call-for-speakers-abstracts/submissions",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 3295,
+   "words": 382,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "input",
+     "w": 18,
+     "h": 18,
+     "text": "Select One taxonomy, eleven languages: governance "
+    },
+    {
+     "el": "input",
+     "w": 18,
+     "h": 18,
+     "text": "Select When graph embeddings lie: evaluating link "
+    },
+    {
+     "el": "input",
+     "w": 18,
+     "h": 18,
+     "text": "Select SHACL in production: validation as a deploy"
+    },
+    {
+     "el": "input",
+     "w": 18,
+     "h": 18,
+     "text": "Select Provenance at scale: three years of lineage"
+    },
+    {
+     "el": "input",
+     "w": 18,
+     "h": 18,
+     "text": "Select Fraud rings in real time with a streaming g"
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/project-management/message-team-members",
+  "slug": "content_project_management_message_team_members",
+  "shot": "fresh/content_project_management_message_team_members-390.png",
+  "status": 200,
+  "finalUrl": "/content/project-management/message-team-members",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 1198,
+   "words": 128,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.whova-tag-main.red-tag",
+     "px": 10,
+     "text": "no address held"
+    },
+    {
+     "el": "span.whova-tag-main.red-tag",
+     "px": 10,
+     "text": "no address held"
+    },
+    {
+     "el": "span.whova-tag-main.red-tag",
+     "px": 10,
+     "text": "no address held"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/content/fair-center/fair-manager",
+  "slug": "content_fair_center_fair_manager",
+  "shot": "fresh/content_fair_center_fair_manager-390.png",
+  "status": 200,
+  "finalUrl": "/content/fair-center/fair-manager",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 1229,
+   "words": 100,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/attendees/admin-settings",
+  "slug": "attendees_admin_settings",
+  "shot": "fresh/attendees_admin_settings-390.png",
+  "status": 200,
+  "finalUrl": "/attendees/admin-settings",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 2225,
+   "words": 231,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    },
+    {
+     "el": "input.whova-checkbox-input",
+     "w": 16,
+     "h": 16,
+     "text": ""
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/attendees/segments",
+  "slug": "attendees_segments",
+  "shot": "fresh/attendees_segments-390.png",
+  "status": 200,
+  "finalUrl": "/attendees/segments",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 5242,
+   "words": 731,
+   "emDashes": 10,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.whova-tag-main.green-tag",
+     "px": 10,
+     "text": "yes"
+    },
+    {
+     "el": "span.whova-tag-main.grey-tag",
+     "px": 10,
+     "text": "not yet"
+    },
+    {
+     "el": "span.whova-tag-main.grey-tag",
+     "px": 10,
+     "text": "not yet"
+    },
+    {
+     "el": "span.whova-tag-main.grey-tag",
+     "px": 10,
+     "text": "not yet"
+    }
+   ],
+   "clipped": [
+    {
+     "el": "div.whova-table-cell.cell-mdsm",
+     "text": "Library of Congress"
+    }
+   ],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/attendees/name-badges",
+  "slug": "attendees_name_badges",
+  "shot": "fresh/attendees_name_badges-390.png",
+  "status": 200,
+  "finalUrl": "/attendees/name-badges",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 7593,
+   "words": 478,
+   "emDashes": 0,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "div.badge-title",
+     "px": 11,
+     "text": "Chief Data Officer"
+    },
+    {
+     "el": "div.badge-ticket",
+     "px": 10,
+     "text": "BRONZE"
+    },
+    {
+     "el": "div.badge-unsigned",
+     "px": 10,
+     "text": "FORM NOT SIGNED"
+    },
+    {
+     "el": "div.badge-ticket",
+     "px": 10,
+     "text": "ADDED BY ORGANIZER"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/attendees/certificates",
+  "slug": "attendees_certificates",
+  "shot": "fresh/attendees_certificates-390.png",
+  "status": 200,
+  "finalUrl": "/attendees/certificates",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 2147,
+   "words": 219,
+   "emDashes": 1,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "button.linkish",
+     "w": 44,
+     "h": 14,
+     "text": "Remove"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ },
+ {
+  "path": "/attendees/manage-attendees/analytics-and-exports",
+  "slug": "attendees_manage_attendees_analytics_and_exports",
+  "shot": "fresh/attendees_manage_attendees_analytics_and_exports-390.png",
+  "status": 200,
+  "finalUrl": "/attendees/manage-attendees/analytics-and-exports",
+  "metrics": {
+   "viewportWidth": 390,
+   "docScrollWidth": 390,
+   "horizontalScroll": false,
+   "pageHeight": 5587,
+   "words": 622,
+   "emDashes": 1,
+   "overflowing": [],
+   "smallTaps": [
+    {
+     "el": "a.tutorial-video",
+     "w": 88,
+     "h": 16,
+     "text": "Event website"
+    },
+    {
+     "el": "a",
+     "w": 59,
+     "h": 16,
+     "text": "Check-in"
+    }
+   ],
+   "tinyText": [
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-info",
+     "px": 11,
+     "text": "IN-PERSON EVENT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "APP: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 11,
+     "text": "TICKETS: DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    },
+    {
+     "el": "span.event-status-badge.badge-alert",
+     "px": 8,
+     "text": "DRAFT"
+    }
+   ],
+   "clipped": [],
+   "brokenImgs": [],
+   "title": "KGC EMS",
+   "h1": []
+  },
+  "consoleErrors": []
+ }
+]

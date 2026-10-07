@@ -121,6 +121,11 @@ export function db(): Firestore {
   return getFirestore();
 }
 
+/** The same fact in an organizer's words, for the sign-in and Basics screens. */
+export function targetLabel(): string {
+  return process.env.FIRESTORE_EMULATOR_HOST ? 'Test event' : 'Live event';
+}
+
 export function targetDescription(): string {
   return process.env.FIRESTORE_EMULATOR_HOST
     ? `emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`

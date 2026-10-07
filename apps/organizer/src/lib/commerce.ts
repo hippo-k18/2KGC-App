@@ -6,17 +6,24 @@ import {
   TIME_ZONE,
   type EmailLogDoc,
   type OrderDoc,
+  type StripeIgnoredDoc,
   type TicketAudience,
   type TicketTypeDoc,
   type WithId,
+  priceNow,
+  type PricePhase,
 } from '@kgc/shared';
 import {
   outstandingSeatsByTier,
   soldByTier,
   type SoldCountOrder,
 } from '@kgc/scripts/src/lib/sold-counts';
+import { recordError } from './errors';
 import { db } from './firestore';
+import { salesByCode, type CodeSplit } from './sales-core';
 import { toWallClockInZone } from './time';
+import { dayOfInstant } from './time-core';
+export { purchaseDay } from './time-core';
 
 /**
  * Every read the Tickets tab does.
@@ -70,6 +77,8 @@ export interface OrderRow {
   subtotalCents: number;
   taxCents: number;
   discountCents: number;
+  /** The group rate (5+ in-person tickets, 10%) across the order, or 0. Already out of the total. */
+  groupDiscountCents: number;
   totalCents: number;
   refundedCents: number;
   /** What the event actually keeps. Total minus whatever went back. */
@@ -78,6 +87,8 @@ export interface OrderRow {
   /** ISO 8601, so the client can format without a Timestamp class. */
   purchasedAt: string;
   refundedAt?: string;
+  /** Set when a chargeback cancelled the order. */
+  disputedAt?: string;
   promotionCode?: string;
   /** The tracked link this purchase came through. See `OrderDoc.campaignCode`. */
   campaignCode?: string;
@@ -116,9 +127,12 @@ function toRow(id: string, o: OrderDoc): OrderRow {
   return {
     id,
     externalId: o.externalId,
-    email: o.email,
-    buyerName: o.buyerName,
-    companyName: o.companyName,
+    // Erasure sets these to null (person-data-core.ts), and every screen that
+    // lists orders reads them as strings: one erased order took the whole of
+    // Attendee Orders down (T138B, TK-301).
+    email: o.email ?? '',
+    buyerName: o.buyerName ?? undefined,
+    companyName: o.companyName ?? undefined,
     status: o.status,
     // Orders written before the in-house move carry no channel. They all came
     // through Checkout, so that is the honest default rather than 'manual'.
@@ -129,12 +143,14 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     subtotalCents: o.subtotalCents ?? o.totalCents,
     taxCents: o.taxCents ?? 0,
     discountCents: o.discountCents ?? 0,
+    groupDiscountCents: o.groupDiscountCents ?? 0,
     totalCents: o.totalCents,
     refundedCents,
     netCents: o.totalCents - refundedCents,
     currency: o.currency,
     purchasedAt: iso(o.purchasedAt) ?? new Date(0).toISOString(),
     refundedAt: iso(o.refundedAt),
+    disputedAt: iso(o.disputedAt),
     promotionCode: o.promotionCode,
     campaignCode: o.campaignCode,
     poNumber: o.poNumber,
@@ -166,6 +182,16 @@ function toRow(id: string, o: OrderDoc): OrderRow {
 }
 
 /** Every order for this event, newest purchase first. */
+/**
+ * A checkout that was started and never paid: `cancelled` with no ticket ever
+ * issued. A paid order that a chargeback cancelled is also `cancelled`, and
+ * was listed on Abandoned Registration as "No money moved" (T135B, TK-303);
+ * it has `disputedAt` since T136 and issued tickets either way.
+ */
+export function isAbandoned(o: Pick<OrderRow, 'status' | 'disputedAt' | 'registrationIds'>): boolean {
+  return o.status === 'cancelled' && !o.disputedAt && o.registrationIds.length === 0;
+}
+
 export async function listOrders(): Promise<OrderRow[]> {
   const snap = await db().collection(COLLECTIONS.orders).where('eventId', '==', EVENT_ID).get();
   return snap.docs
@@ -211,6 +237,12 @@ export interface SalesSummary {
   outstandingCents: number;
   ticketsSold: number;
   byTier: TierSales[];
+  /**
+   * What each discount code was worth, over the same settled orders as
+   * `byTier`. Empty until a buyer uses one, which cannot happen before there is
+   * a payment account to create codes on.
+   */
+  byCode: CodeSplit;
   /** ISO date → net cents, ascending. Drives the sales-over-time strip. */
   daily: { date: string; netCents: number; orders: number }[];
   /** Test purchases, counted separately so they never pollute revenue. */
@@ -229,7 +261,12 @@ export interface SalesSummary {
 export async function salesSummary(): Promise<SalesSummary> {
   const orders = await listOrders();
 
-  const real = orders.filter((o) => o.channel !== 'demo');
+  // Ticket orders only. Demo orders took no money, and a record with no ticket
+  // line is not a sale: an order stub written for a refund before T136 had
+  // only a refunded amount, which would count as negative revenue (T142).
+  const real = orders.filter(
+    (o) => o.channel !== 'demo' && (o.ticketNames.length > 0 || o.ticketTypeIds.length > 0),
+  );
   const demoOrders = orders.length - real.length;
 
   const counted = real.filter((o) => o.status === 'paid' || o.status === 'partially_refunded');
@@ -270,7 +307,8 @@ export async function salesSummary(): Promise<SalesSummary> {
 
   const dailyMap = new Map<string, { netCents: number; orders: number }>();
   for (const o of settled) {
-    const date = o.purchasedAt.slice(0, 10);
+    // The New York date, not the UTC one: a 23:30 sale belongs to that day.
+    const date = dayOfInstant(o.purchasedAt);
     const entry = dailyMap.get(date) ?? { netCents: 0, orders: 0 };
     entry.netCents += o.netCents;
     entry.orders += 1;
@@ -292,6 +330,9 @@ export async function salesSummary(): Promise<SalesSummary> {
     outstandingCents: sum(outstanding, (o) => o.totalCents),
     ticketsSold: sum(counted, (o) => o.seatCount),
     byTier: [...byTierMap.values()].sort((a, b) => b.netCents - a.netCents),
+    // The same `settled` rows the tier split and the daily strip read, so the
+    // three panels on Summary cannot disagree about which orders exist.
+    byCode: salesByCode(settled),
     daily: [...dailyMap.entries()]
       .map(([date, v]) => ({ date, ...v }))
       .sort((a, b) => a.date.localeCompare(b.date)),
@@ -306,7 +347,36 @@ export async function salesSummary(): Promise<SalesSummary> {
 export interface TicketTypeRow {
   id: string;
   name: string;
+  /**
+   * Set on an add-on sold only inside a bundle, never by itself. On an extra
+   * (`kind: 'extra'`, Workshops) it is the ticket the buyer must hold instead.
+   */
+  addOnFor?: string;
+  /** `extra`: sold on its own and added to the holder's existing badge. */
+  kind?: 'admission' | 'extra';
+  /**
+   * What the website charges today: the current price phase's price, or for a
+   * bundle the sum of its parts. Every list in the dashboard prints this, so
+   * none of them shows a price the website stopped charging on 1 December.
+   */
   priceCents: number;
+  /** The stored flat price, which the editor's Price box edits. */
+  flatPriceCents: number;
+  /** The price ladder, when the tier has one. */
+  pricePhases?: PricePhase[];
+  /** The current phase's name, "Early Bird". */
+  phase?: string;
+  /**
+   * Set when the price phases stop the website selling this tier right now:
+   * the current phase is marked off sale or has no price, or no phase has
+   * started. A bundle carries it when any of its parts does. The lists print it
+   * in place of the sales window, so an off-sale add-on does not read as on sale.
+   */
+  offSale?: string;
+  /** "Best value", over the ticket on the tickets page. */
+  badge?: string;
+  /** Set on a bundle: the tiers whose prices it adds up. */
+  bundleOf?: string[];
   currency: string;
   tagline: string;
   visible: boolean;
@@ -366,10 +436,19 @@ export interface TicketTypeRow {
 
 function toTicketRow(id: string, t: TicketTypeDoc): TicketTypeRow {
   const zone = t.salesTimeZone ?? TIME_ZONE;
+  const now = priceNow(t, new Date(), zone);
   return {
     id,
     name: t.name,
-    priceCents: t.priceCents,
+    addOnFor: t.addOnFor,
+    ...(t.kind ? { kind: t.kind } : {}),
+    priceCents: now.priceCents,
+    flatPriceCents: t.priceCents,
+    pricePhases: t.pricePhases,
+    phase: now.phase,
+    offSale: now.onSale ? undefined : now.unavailableReason,
+    badge: t.badge,
+    bundleOf: t.bundleOf,
     currency: t.currency,
     tagline: t.tagline ?? '',
     visible: t.visible !== false,
@@ -402,9 +481,17 @@ export async function listTicketTypes(): Promise<TicketTypeRow[]> {
     .collection(COLLECTIONS.ticketTypes)
     .where('eventId', '==', EVENT_ID)
     .get();
-  return snap.docs
-    .map((d) => toTicketRow(d.id, d.data() as TicketTypeDoc))
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const rows = snap.docs.map((d) => toTicketRow(d.id, d.data() as TicketTypeDoc));
+  // A bundle costs what its parts cost today, as the website works it out.
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  for (const row of rows) {
+    const parts = (row.bundleOf ?? []).map((id) => byId.get(id));
+    if (parts.length && parts.every(Boolean)) {
+      row.priceCents = parts.reduce((sum, p) => sum + p!.priceCents, 0);
+      row.offSale ??= parts.find((p) => p!.offSale)?.offSale;
+    }
+  }
+  return rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
 
 /**
@@ -484,7 +571,8 @@ export async function recentEmails(limit = 100): Promise<EmailRow[]> {
       const e = d.data() as EmailLogDoc;
       return {
         id: d.id,
-        to: e.to,
+        // Null once the recipient has been erased.
+        to: e.to ?? '',
         template: e.template,
         subject: e.subject,
         status: e.status,
@@ -496,6 +584,54 @@ export async function recentEmails(limit = 100): Promise<EmailRow[]> {
     })
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, limit);
+}
+
+export interface IgnoredStripeRow {
+  id: string;
+  kind: StripeIgnoredDoc['kind'];
+  eventType: string;
+  stripeId: string;
+  amountCents: number;
+  currency: string;
+  email?: string;
+  name?: string;
+  description?: string;
+  at: string;
+}
+
+/**
+ * Stripe activity the ticketing webhook saw and ignored, newest first.
+ *
+ * The KGC Stripe account also takes sponsorships, Payment Links and invoices
+ * raised by hand, and all of it reaches the ticketing webhook. None of it is
+ * an error, so it is not in the audit log; it is listed here, quietly, in case
+ * somebody paid for a ticket the wrong way (T142).
+ */
+export async function recentIgnoredStripe(limit = 50): Promise<IgnoredStripeRow[]> {
+  try {
+    const snap = await db().collection(COLLECTIONS.stripeIgnored).where('eventId', '==', EVENT_ID).get();
+    return snap.docs
+      .map((d) => {
+        const e = d.data() as StripeIgnoredDoc;
+        return {
+          id: d.id,
+          kind: e.kind,
+          eventType: e.eventType,
+          stripeId: e.stripeId,
+          amountCents: e.amountCents ?? 0,
+          currency: e.currency ?? 'usd',
+          email: e.email ?? undefined,
+          name: e.name ?? undefined,
+          description: e.description ?? undefined,
+          at: iso(e.at) ?? new Date(0).toISOString(),
+        };
+      })
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, limit);
+  } catch (err) {
+    recordError('commerce.recentIgnoredStripe', err);
+    return [];
+  }
 }
 
 /** `119900` → `$1,199.00`. Cents shown here, unlike the public site: this is a ledger. */

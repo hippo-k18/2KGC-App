@@ -24,7 +24,7 @@ export interface LiveStat {
   href?: string;
 }
 
-export function LiveStats({ stats }: { stats: LiveStat[] }) {
+export function LiveStats({ stats, viewAll = true }: { stats: LiveStat[]; viewAll?: boolean }) {
   return (
     <div id="live-stats" className="layout-boxed">
       <div className="live-stats-title">
@@ -50,12 +50,15 @@ export function LiveStats({ stats }: { stats: LiveStat[] }) {
             </div>
           ))}
         </div>
-        <Link
-          href={ROUTES.report}
-          style={{ fontSize: 13, marginLeft: 12, whiteSpace: 'nowrap' }}
-        >
-          View All
-        </Link>
+        {/* Off for a team member whose roles do not include Tools › Report. */}
+        {viewAll ? (
+          <Link
+            href={ROUTES.report}
+            style={{ fontSize: 13, marginLeft: 12, whiteSpace: 'nowrap' }}
+          >
+            View All
+          </Link>
+        ) : null}
       </div>
     </div>
   );

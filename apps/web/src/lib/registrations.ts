@@ -6,6 +6,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
   EVENT_ID,
+  ticketLabel,
   type OrderDoc,
   type RegistrationDoc,
 } from '@kgc/shared';
@@ -13,7 +14,13 @@ import {
 // copy of `registrationId` would drift, and the day it drifted the importer
 // and this site would start writing two documents per attendee.
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { ensureRegistration as sharedEnsureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import {
+  currentHolder,
+  ensureRegistration as sharedEnsureRegistration,
+  removeOrderExtras,
+  stillPaidElsewhere,
+  type FulfilledRegistration as SharedFulfilled,
+} from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
 import { decideRefund } from './refund-core';
 
@@ -47,8 +54,14 @@ export interface FulfilledRegistration {
   name?: string;
   ticketType?: string;
   claimCode: string;
+  /** `orders/{orderId}`, when the ticket came from a purchase. */
+  orderId?: string;
+  /** Read back by `getRegistration`, so the order page can tell a cancelled ticket from a live one. */
+  status?: RegistrationDoc['status'];
   /** True when this purchase created the registration rather than updating one. */
   created: boolean;
+  /** Set when the ticket was an extra; see `FulfilledRegistration.extra` in `@kgc/scripts`. */
+  extra?: SharedFulfilled['extra'];
 }
 
 export interface FulfilInput {
@@ -111,7 +124,7 @@ export interface FulfilInput {
  * the only event handled, so "one id per session" and "one id per event" are
  * the same statement.
  */
-function orderIdFor(externalId: string): string {
+export function orderIdFor(externalId: string): string {
   // Hashed rather than used raw: `cs_test_…` ids are long and are a Stripe
   // implementation detail, and the id ends up in a Firestore path. Hashed
   // here rather than with `emailHash`, which lowercases first — Stripe ids are
@@ -140,6 +153,10 @@ export function ensureRegistration(input: {
   email: string;
   name: string;
   ticketType: string;
+  /** The paid order and seat. See `EnsureRegistrationInput.purchase`. */
+  purchase?: { orderId: string; seat: number };
+  /** Lets an extra (Workshops) go on the person's existing badge. */
+  ticketTypeId?: string;
 }): Promise<FulfilledRegistration> {
   return sharedEnsureRegistration(db(), input);
 }
@@ -152,15 +169,19 @@ export function ensureRegistration(input: {
  */
 export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegistration> {
   const email = normaliseEmail(input.email);
-  const rid = registrationId(email);
   const oid = orderIdFor(input.externalId);
   const orderRef = db().collection(COLLECTIONS.orders).doc(oid);
 
+  // Seat 0 is the buyer. A second purchase by the same address is a second
+  // ticket, not an update of the first (2026-09-26).
   const result = await ensureRegistration({
     email,
     name: input.name,
     ticketType: input.ticketType,
+    purchase: { orderId: oid, seat: 0 },
+    ticketTypeId: input.tierId,
   });
+  const rid = result.registrationId;
 
   /**
    * The registration questions, merged onto the registration.
@@ -170,8 +191,8 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
    * `qrSecret` and `claimCode` — widening it to carry form answers would put a
    * marketing concern inside the one function that must never change shape.
    *
-   * Merged, not replaced: a second purchase by the same person must not blank
-   * the dietary requirement they gave the first time. And it can never throw
+   * Merged, not replaced: a replay must not blank an answer already stored.
+   * And it can never throw
    * upward — the ticket is already valid, and losing an answer must not lose a
    * registration.
    */
@@ -208,8 +229,19 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
   const prevOrder = existingOrder.exists ? (existingOrder.data() as OrderDoc) : null;
   const TERMINAL: OrderDoc['status'][] = ['refunded', 'partially_refunded', 'cancelled'];
   const settled = prevOrder && TERMINAL.includes(prevOrder.status);
+  /**
+   * A group purchase's seat list, written by `recordCartOrder` before the buyer
+   * went to pay. It is the only record of who seats two and up are, so it is
+   * kept as it is rather than replaced by the buyer's line.
+   *
+   * This used to be overwritten here and put back by the webhook afterwards.
+   * That held only while the webhook was the sole caller: `/checkout/return`
+   * usually arrives first, and its write left the webhook reading a one-seat
+   * order, so the other seats got no ticket and nothing was counted.
+   */
+  const cartItems = prevOrder && (prevOrder.items?.length ?? 0) > 1 ? prevOrder.items : null;
 
-  const order: Omit<OrderDoc, 'createdAt' | 'updatedAt' | 'purchasedAt'> = {
+  const order: Omit<OrderDoc, 'createdAt' | 'updatedAt' | 'purchasedAt' | 'registrationIds'> = {
     eventId: EVENT_ID,
     externalId: input.externalId,
     provider: 'stripe',
@@ -225,7 +257,7 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
      * a company asks for, and retrofitting a list onto a scalar means
      * rewriting every reader.
      */
-    items: [
+    items: cartItems ?? [
       {
         ticketTypeId: input.tierId ?? '',
         // Denormalised deliberately: the tier can be renamed or deleted after
@@ -264,11 +296,18 @@ export async function fulfilPurchase(input: FulfilInput): Promise<FulfilledRegis
     hostedInvoiceUrl: input.hostedInvoiceUrl,
     invoicePdfUrl: input.invoicePdfUrl,
     poNumber: input.poNumber,
-    registrationIds: [rid],
   };
   await orderRef.set(
     {
       ...order,
+      // Added to, never replaced. On a group purchase the other seats'
+      // registrations are attached by `fulfilOrder`, and a second caller
+      // (the return redirect, a webhook replay) must not cut the list back to
+      // the buyer alone. A union is also what two concurrent callers agree on.
+      registrationIds: FieldValue.arrayUnion(rid),
+      // Workshops added to a badge another order issued: refunding this order
+      // takes the extra off and leaves the badge (`removeOrderExtras`).
+      ...(result.extra?.extendedOnly ? { extraRegistrationIds: FieldValue.arrayUnion(rid) } : {}),
       // First write wins. A retry three days later must not restamp the sale.
       purchasedAt: prevOrder?.purchasedAt ?? Timestamp.now(),
       createdAt: prevOrder ? undefined : FieldValue.serverTimestamp(),
@@ -289,8 +328,11 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
     registrationId: doc.id,
     email: r.email,
     name: r.name,
-    ticketType: r.ticketType,
+    // The whole badge, "Main Conference + Workshops".
+    ticketType: ticketLabel(r) || r.ticketType,
     claimCode: r.claimCode ?? '',
+    status: r.status,
+    ...(r.orderId ? { orderId: r.orderId } : {}),
     created: false,
   };
 }
@@ -318,12 +360,41 @@ export async function getRegistration(rid: string): Promise<FulfilledRegistratio
 export interface RefundOutcome {
   registrationId: string | null;
   orderId: string;
-  /** Whose ticket it was, so the caller can email them. Null if unknown. */
+  /** Who paid, so the caller can send them the receipt. Null if unknown. */
   email: string | null;
+  /**
+   * The address of the registration that was actually cancelled.
+   *
+   * The same as `email` on every order nobody transferred. After a transfer the
+   * buyer paid and somebody else holds the seat, so the receipt still goes to
+   * `email` while anything that follows the *ticket* — app access, entitlements,
+   * and the mail saying a badge has stopped working — has to follow this
+   * instead.
+   */
+  holderEmail?: string;
+  /** The holder's own name, for greeting them in that mail. */
+  holderName?: string;
   name?: string;
   ticketType?: string;
   /** Cumulative refunded total after this event, in minor units. */
   refundedCents: number;
+  /**
+   * Set when this order only added an extra (Workshops) to a badge another
+   * order issued: the tier ids taken off that badge by this delivery, which
+   * stays valid. Empty on a replay.
+   */
+  extrasRemoved?: string[];
+  /** True when the refunded order only added extras to a badge; see `extrasRemoved`. */
+  extraOnly?: boolean;
+  /** What that badge still holds afterwards, or '' when it is no longer active. */
+  remainingLabel?: string;
+  /**
+   * Extras on the badge this refund cancelled that other orders paid for
+   * (Workshops bought in December on a Main Conference refunded now). The
+   * owner's rule: they go too, and their money goes back. The caller refunds
+   * them; see `refundLinkedExtras` in the webhook.
+   */
+  linkedExtras?: { orderId: string; tierId: string; registrationId: string; seat?: number }[];
   currency: string;
   /** False for a partial refund, which leaves the ticket valid. */
   fullyRefunded: boolean;
@@ -420,7 +491,16 @@ export async function cancelRegistrationByOrder(input: {
 
   await orderRef.update({
     status: decision.status,
-    refundedCents: refunded,
+    // A chargeback holds the money rather than returning it, so it is not
+    // written as a refunded amount (T135B, N3). `disputedAt` is what tells a
+    // disputed sale from an abandoned checkout, both being `cancelled`.
+    // Stamped by the delivery that cancelled the order, not by Stripe's replays
+    // of it (T138B, TK-258).
+    ...(input.reason === 'disputed'
+      ? decision.newlyRefunded
+        ? { disputedAt: Timestamp.now() }
+        : {}
+      : { refundedCents: refunded }),
     ...(decision.stampRefundedAt ? { refundedAt: Timestamp.now() } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -445,43 +525,144 @@ export async function cancelRegistrationByOrder(input: {
   /**
    * Only withdraw the registration if this order is the reason it exists.
    *
-   * Someone who bought twice — a workshop upgrade after a main-conference
-   * ticket — has one registration backed by two orders, and refunding the
-   * first must not revoke a ticket the second still pays for. So the
-   * registration is cancelled only when no other paid order shares its email.
+   * Since 2026-09-26 a second purchase by the same address is a separate
+   * ticket, so refunding one order withdraws that order's ticket and leaves
+   * the other. The check below still matters for older registrations that two
+   * orders were merged into: one is cancelled only when no other paid order
+   * paid for it, asked about the buyer and the holder alike.
+   *
+   * ── And it may not be the buyer's registration any more ────────────────────
+   *
+   * `registrationId(order.email)` is the buyer's document, and after a transfer
+   * that document is already dead while the ticket is somebody else's.
+   * Cancelling the buyer's id would take the money back and leave the new
+   * holder's badge scanning, so the forward link is followed to whoever holds
+   * the seat now. No registration at the end of it means there is no ticket to
+   * withdraw, which is a skip rather than an update that would throw.
    */
-  const rid = registrationId(order.email);
+  // The ticket this order paid for. One address can hold several, so the
+  // order's own record says which; older orders fall back to the address.
+  const startId = order.registrationIds?.[0] ?? registrationId(order.email);
+  const holder = await currentHolder(db(), startId);
+  if (!holder) return { ...details, registrationId: null };
+  const rid = holder.id;
 
   /**
-   * Status is filtered in memory, not in the query.
-   *
-   * `partially_refunded` still paid for a ticket, so the set that keeps a
-   * registration alive is two statuses rather than one — and `where('status',
-   * 'in', [...])` would be a third filter shape to reason about against
-   * `firestore.indexes.json`. One person has a handful of orders; filtering
-   * after the read costs nothing and cannot fail with `failed-precondition`.
+   * This order only put Workshops on a badge another order issued. Refunding
+   * it takes Workshops off and leaves the badge valid (owner, 2026-10-06).
    */
-  const sameEmail = await db()
-    .collection(COLLECTIONS.orders)
-    .where('eventId', '==', EVENT_ID)
-    .where('email', '==', order.email)
-    .get();
+  if (order.extraRegistrationIds?.includes(startId)) {
+    const removed = await removeOrderExtras(db(), rid, oid);
+    if (rid !== startId) removed.push(...(await removeOrderExtras(db(), startId, oid)));
+    const after = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+    return {
+      ...details,
+      registrationId: null,
+      holderEmail: holder.email,
+      holderName: holder.name,
+      extraOnly: true,
+      extrasRemoved: removed,
+      remainingLabel: after?.status === 'active' ? ticketLabel(after) : '',
+    };
+  }
 
-  const stillPaidElsewhere = sameEmail.docs
-    .filter((d) => d.id !== oid)
-    .some((d) => {
-      const o = d.data() as OrderDoc;
-      return o.status === 'paid' || o.status === 'partially_refunded';
-    });
-
-  if (stillPaidElsewhere) return { ...details, registrationId: null };
+  /**
+   * Both addresses are asked, and the order being refunded is left out of the
+   * answer. The buyer's other order still pays for the seat they passed on, and
+   * the holder's own purchase still pays for the seat they were handed; either
+   * one keeps the ticket alive. `stillPaidElsewhere` states the rule in full
+   * and `cancelExtraSeats` in the webhook asks it the same way, so the two
+   * cannot drift.
+   */
+  if (await stillPaidElsewhere(db(), [order.email, holder.email], oid, [startId, rid])) {
+    // `registrationId: null` is "nothing was withdrawn", and the holder is
+    // still reported: the receipt has to know whether the ticket it is talking
+    // about is the buyer's own.
+    return { ...details, registrationId: null, holderEmail: holder.email, holderName: holder.name };
+  }
 
   await db()
     .collection(COLLECTIONS.registrations)
     .doc(rid)
     .update({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
 
-  return { ...details, registrationId: rid };
+  return {
+    ...details,
+    registrationId: rid,
+    holderEmail: holder.email,
+    holderName: holder.name,
+    linkedExtras: await extrasFromOtherOrders(rid, oid),
+  };
+}
+
+/**
+ * The extras on a badge that orders other than `oid` paid for. Read after the
+ * badge is cancelled, so the caller can refund them (owner, 2026-10-06:
+ * refunding Main Conference refunds Workshops too).
+ */
+export async function extrasFromOtherOrders(
+  rid: string,
+  oid: string,
+): Promise<{ orderId: string; tierId: string; registrationId: string; seat?: number }[]> {
+  const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+  return (reg?.extras ?? [])
+    .filter((e) => e.orderId && e.orderId !== oid)
+    .map((e) => ({ orderId: e.orderId!, tierId: e.tierId, registrationId: rid, ...(e.seat !== undefined ? { seat: e.seat } : {}) }));
+}
+
+/**
+ * A Checkout session that ended without payment: Stripe expired it, or a
+ * delayed payment failed.
+ *
+ * Nothing was ever issued for such a session, so the only thing to change is
+ * the order, and only while it is still `pending`. This used to go through
+ * `cancelRegistrationByOrder`, which had two ways to cancel a ticket that had
+ * nothing to do with it (T135):
+ *
+ *  - A group cart is written as a `pending` order with no `registrationIds`,
+ *    so the cancel fell back to `registrationId(order.email)`, the buyer's own
+ *    ticket. An imported attendee, a comp holder or a speaker who started and
+ *    abandoned a group checkout lost the ticket they already had (S1).
+ *  - A late or replayed `expired` for a session that had been paid cancelled
+ *    the paid order and half its tickets (TK-144/145).
+ *
+ * With no order at all (a single-seat checkout writes none before payment) a
+ * `cancelled` record is written, as before, so the attempt shows on the
+ * dashboard's abandoned list.
+ */
+export async function cancelUnpaidOrder(externalId: string): Promise<{
+  orderId: string;
+  /** What happened: `cancelled`, or why nothing did. */
+  outcome: 'cancelled' | 'recorded' | `left ${OrderDoc['status']}`;
+}> {
+  const oid = orderIdFor(externalId);
+  const ref = db().collection(COLLECTIONS.orders).doc(oid);
+
+  const outcome = await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      tx.set(ref, {
+        eventId: EVENT_ID,
+        externalId,
+        provider: 'stripe',
+        email: '',
+        status: 'cancelled',
+        totalCents: 0,
+        refundedCents: 0,
+        currency: 'usd',
+        purchasedAt: Timestamp.now(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return 'recorded' as const;
+    }
+    const status = (snap.data() as OrderDoc).status;
+    if (status !== 'pending') return `left ${status}` as const;
+    tx.update(ref, { status: 'cancelled', updatedAt: FieldValue.serverTimestamp() });
+    return 'cancelled' as const;
+  });
+
+  return { orderId: oid, outcome };
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +689,15 @@ export interface InvoiceOrderInput {
   invoiceId: string;
   billingEmail: string;
   companyName: string;
-  seats: { name: string; email: string; ticketType: string; ticketTypeId: string; priceCents: number }[];
+  seats: {
+    name: string;
+    email: string;
+    ticketType: string;
+    ticketTypeId: string;
+    priceCents: number;
+    listPriceCents?: number;
+    groupDiscountCents?: number;
+  }[];
   currency: string;
   totalCents: number;
   hostedInvoiceUrl?: string;
@@ -535,9 +724,15 @@ export async function recordInvoiceOrder(input: InvoiceOrderInput): Promise<stri
       ticketTypeName: seat.ticketType,
       quantity: 1,
       unitPriceCents: seat.priceCents,
+      ...(seat.groupDiscountCents
+        ? { listPriceCents: seat.listPriceCents, groupDiscountCents: seat.groupDiscountCents }
+        : {}),
       attendeeName: seat.name,
       attendeeEmail: normaliseEmail(seat.email),
     })),
+    ...(input.seats.some((seat) => seat.groupDiscountCents)
+      ? { groupDiscountCents: input.seats.reduce((n, seat) => n + (seat.groupDiscountCents ?? 0), 0) }
+      : {}),
     subtotalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
     // Stripe computes tax at finalisation; the paid webhook carries the real
     // figure. Zero here is honest rather than a guess — the dashboard shows an
@@ -584,6 +779,10 @@ export async function recordInvoiceOrder(input: InvoiceOrderInput): Promise<stri
 export async function markInvoiceOrderPaid(input: {
   invoiceId: string;
   registrationIds: string[];
+  /** See `OrderDoc.extraRegistrationIds`. */
+  extraRegistrationIds?: string[];
+  /** The payment that settled the invoice, so a later refund can be sent to it. */
+  stripePaymentIntentId?: string;
   totalCents: number;
   taxCents?: number;
   currency: string;
@@ -615,6 +814,8 @@ export async function markInvoiceOrderPaid(input: {
       currency: input.currency,
       refundedCents: prev?.refundedCents ?? 0,
       registrationIds: input.registrationIds,
+      ...(input.extraRegistrationIds?.length ? { extraRegistrationIds: input.extraRegistrationIds } : {}),
+      ...(input.stripePaymentIntentId ? { stripePaymentIntentId: input.stripePaymentIntentId } : {}),
       hostedInvoiceUrl: input.hostedInvoiceUrl ?? prev?.hostedInvoiceUrl,
       invoicePdfUrl: input.invoicePdfUrl ?? prev?.invoicePdfUrl,
       markedPaidBy: input.markedPaidBy,
@@ -647,7 +848,7 @@ export async function markInvoiceOrderPaid(input: {
  */
 export async function seatsFromOrder(
   invoiceId: string,
-): Promise<{ name: string; email: string; ticketType: string; ticketTypeId: string }[]> {
+): Promise<{ name: string; email: string; ticketType: string; ticketTypeId: string; priceCents?: number }[]> {
   const snap = await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoiceId)).get();
   if (!snap.exists) return [];
   const order = snap.data() as OrderDoc;
@@ -658,5 +859,6 @@ export async function seatsFromOrder(
       email: i.attendeeEmail as string,
       ticketType: i.ticketTypeName,
       ticketTypeId: i.ticketTypeId,
+      priceCents: i.unitPriceCents,
     }));
 }

@@ -58,12 +58,10 @@ export default async function CampaignLinkTrackingPage() {
         title="Campaign Link Tracking"
         info={
           <>
-            <strong>Attribution is last-click over thirty days</strong>
+            <strong>How orders are credited</strong>
             <p>
-              Clicks are raw hits, not unique visitors, and unattributed means{' '}
-              <em>unattributed</em> rather than organic. A cleared cookie or a link forwarded as
-              plain text lands there too. Both are conventions, stated so a leaderboard built on
-              them can be argued with.
+              An order is credited to the last link the buyer clicked in the thirty days before
+              buying. Clicks count every hit, not unique visitors.
             </p>
           </>
         }

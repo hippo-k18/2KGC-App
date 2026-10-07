@@ -68,7 +68,7 @@ export interface CollectionResult<T> {
  * `use-document.ts` is the single-document sibling.
  */
 export function useCollection<T>(
-  buildQuery: () => Query,
+  buildQuery: () => Query | null,
   deps: unknown[],
   map: (id: string, data: any) => T,
   sort?: (a: T, b: T) => number,
@@ -103,8 +103,14 @@ export function useCollection<T>(
       // life. See point 2 above for what this is *not* claiming.
       return;
     }
+    // `null` is "nothing to listen to yet", the same gate `useDocument` gives
+    // its callers: the hook stays in `loading` and opens no listener. Use it
+    // rather than a query built around a sentinel value, which does open one.
+    const q = buildQuery();
+    if (!q) return;
+
     const unsub = onSnapshot(
-      buildQuery(),
+      q,
       (snap) => {
         try {
           // An *empty* snapshot served `fromCache` is not an answer.

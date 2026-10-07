@@ -2,18 +2,21 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, TIME_ZONE, type SessionDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type AgendaChange, type SessionDoc } from '@kgc/shared';
 import { sessionId as deriveSessionId, stableGuid } from '@kgc/scripts/src/lib/ids';
+import { notifySessionMoved } from '@/lib/agenda-notices';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit, diff } from '@/lib/audit';
 import { db } from '@/lib/firestore';
 import { listRooms, listSpeakerOptions, listTrackOptions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
+import { eventTimeZone } from '@/lib/event';
 import { deriveTimes } from '@/lib/time';
 import { readCsvUpload, type ProgrammeImportState } from '@/lib/csv-import';
 import { commitSessionImport, previewSessionCsv, type SessionImportOutcome } from './import';
 import { recordError } from '@/lib/errors';
 import { roomChangePush } from '@/lib/push';
+import { setSessionCap } from '@/lib/session-seats';
 import {
   parseSessionForm,
   primaryTrackFor,
@@ -29,6 +32,8 @@ export interface SessionState {
   error?: string;
   fieldErrors?: Record<string, string>;
   changed?: string[];
+  /** Set when a move was announced to the attendees who saved the session. */
+  noticeNote?: string;
   /** Set when the seam would have sent a push, so the demo can point at it. */
   pushNote?: string;
   /** Set by a successful create, so the form can offer the new session's page. */
@@ -52,7 +57,7 @@ export interface SessionState {
  *     `day` follow from it through the single `deriveTimes()` in
  *     `scripts/src/lib/time.ts` that the seed and the Whova importer also call.
  *     Create goes through exactly the same function as edit — the only
- *     difference is where the zone comes from (`TIME_ZONE` for a new session,
+ *     difference is where the zone comes from (Content > Basics for a new session,
  *     the stored `timeZone` for an existing one), because a session authored in
  *     one zone must not silently move when the event default changes. A 21:00
  *     reception is 01:00 UTC the next day, and deriving `day` anywhere else puts
@@ -240,7 +245,7 @@ export async function createSessionAction(
      * start — so `startsAt`, `endsAt` and `day` below cannot be anything but its
      * output, and the form has no way to supply them.
      */
-    const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, TIME_ZONE);
+    const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, await eventTimeZone());
     const docId = deriveSessionId(input.title, times.startsAtLocal);
     const ref = db().collection(COLLECTIONS.sessions).doc(docId);
 
@@ -249,8 +254,8 @@ export async function createSessionAction(
       if (existing.exists) {
         const clash = existing.data() as SessionDoc;
         throw new Error(
-          `“${clash.title}” already starts at ${times.startsAtLocal.replace('T', ' ')} and holds the id “${docId}”. ` +
-            'If this is a second run of the same session, change the time; if you have just pressed Create twice, it is already saved.',
+          `“${clash.title}” already starts at ${times.startsAtLocal.replace('T', ' ')}. ` +
+            'If this is a second run of the same session, change the time. If you pressed Create twice, it is already saved.',
         );
       }
 
@@ -459,7 +464,33 @@ export async function saveSessionAction(
         },
       );
 
-      return { readable, roomChanged: (before.roomId ?? '') !== (room?.id ?? ''), title: input.title };
+      /**
+       * What an attendee would have to be told about, decided here where both
+       * sides of the write are in hand.
+       *
+       * Only the three facts that change where, when or whether the session
+       * happens. A retitled description or a swapped speaker is display text:
+       * notifying every saver about it is how an app teaches people to ignore
+       * it. The same three, in the same order, as the trigger's list.
+       */
+      const agendaChanges: AgendaChange[] = [];
+      if ((before.roomId ?? '') !== (room?.id ?? '')) agendaChanges.push('room');
+      if (rescheduled) agendaChanges.push('time');
+      if (before.day !== times.day) agendaChanges.push('day');
+
+      return {
+        readable,
+        roomChanged: (before.roomId ?? '') !== (room?.id ?? ''),
+        title: input.title,
+        agendaChanges,
+        // A draft nobody could see cannot have moved for anybody: `before`
+        // rather than `after`, so publishing is not itself a room change and a
+        // published session being cancelled still gets its last notice.
+        wasPublished: before.status === 'published',
+        startsAtLocal: times.startsAtLocal,
+        roomId: room?.id ?? null,
+        cancelled: input.status === 'cancelled' && before.status !== 'cancelled',
+      };
     });
 
     if (outcome.readable.changed.length === 0) {
@@ -474,6 +505,35 @@ export async function saveSessionAction(
       before: outcome.readable.before,
       after: outcome.readable.after,
     });
+
+    // A raised cap lets the front of the waitlist in. Same write Session Cap
+    // makes, so the two screens cannot treat a waitlist differently.
+    if (outcome.readable.changed.includes('capacity')) {
+      await setSessionCap(sessionDocId, input.capacity ?? null, actor);
+    }
+
+    /**
+     * The notice on the phone, written by this action.
+     *
+     * Before today an organizer moved a keynote and nobody who had saved it was
+     * told; the screen's own note said "announce it yourself". The notice goes
+     * to everyone with the session on their schedule, and the id it is written
+     * under is derived from where the session ended up — so when
+     * `onSessionAgendaChange` is finally deployed the two writers produce one
+     * notification rather than two. `lib/agenda-notices.ts` has the argument.
+     */
+    let noticeNote: string | undefined;
+    if (outcome.wasPublished && (outcome.agendaChanges.length > 0 || outcome.cancelled)) {
+      const notice = await notifySessionMoved({
+        sessionId: sessionDocId,
+        title: outcome.title,
+        startsAtLocal: outcome.startsAtLocal,
+        roomId: outcome.roomId,
+        changed: outcome.agendaChanges,
+        cancelled: outcome.cancelled,
+      });
+      noticeNote = notice.detail;
+    }
 
     let pushNote: string | undefined;
     if (outcome.roomChanged) {
@@ -491,6 +551,7 @@ export async function saveSessionAction(
       ok: true,
       message: `Saved. Changed: ${outcome.readable.changed.join(', ')}.`,
       changed: outcome.readable.changed,
+      noticeNote,
       pushNote,
     };
   } catch (err) {

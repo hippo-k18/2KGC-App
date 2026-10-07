@@ -39,9 +39,8 @@ export default async function TicketTieringPage() {
           <>
             <strong>There is no automatic price change</strong>
             <p>
-              A price is one number on the ticket type. Early bird is done by hand (close one tier,
-              open another) and the two are then separate products in every report. What this
-              screen does have is entitlements, which other screens read rather than infer.
+              Automatic price changes are not available yet. For early bird pricing, close one
+              tier and open another. The two show as separate tickets in every report.
             </p>
           </>
         }
@@ -59,7 +58,7 @@ export default async function TicketTieringPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The ladder as it stands</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Current tiers</h2>
         <Table
           cols={[
             { key: 'n', label: 'Tier', className: 'cell-md' },
@@ -70,7 +69,9 @@ export default async function TicketTieringPage() {
           rows={tiers.map((t) => [
             <span key="n">
               {t.name}
-              <div className="muted" style={{ fontSize: 12 }}>{t.tagline || '—'}</div>
+              <div className="muted" style={{ fontSize: 12, maxWidth: 'max(50vw, 220px)' }}>
+                {t.tagline || '—'}
+              </div>
             </span>,
             money(t.priceCents, t.currency),
             sold(t.name)?.sold ?? 0,
@@ -93,9 +94,7 @@ export default async function TicketTieringPage() {
           }
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Sold counts come from order line items, not from multiplying a price by a headcount. A
-          discount code or a partial refund makes the second number plausibly wrong, which is worse
-          than obviously wrong.
+          Sold counts come from the orders themselves.
         </p>
       </Panel>
 

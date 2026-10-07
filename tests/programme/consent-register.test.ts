@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest';
 import {
   audienceSources,
   buildRegister,
+  outstandingByPerson,
   totalsFor,
   unmatchedSignatures,
   type ConsentSubject,
@@ -267,5 +268,70 @@ describe('audienceSources', () => {
     // identically and mean opposite things, so a missing *source* has to be
     // distinguishable from a source with nobody in it.
     expect(audienceSources('volunteer')).toEqual(['volunteer']);
+  });
+});
+
+/**
+ * The question the badge sheet and the scan desk ask.
+ *
+ * Not "who has signed" — that is the register above — but "is the person in
+ * front of me outstanding on anything required?", asked with whatever half of
+ * their identity that screen happens to be holding. The badge sheet has a
+ * registration id and no address; the desk has both; a signature made in the app
+ * carries a uid that neither of them ever sees.
+ */
+describe('outstandingByPerson', () => {
+  const photo = (signatures: SignatureRecord[] = []) => ({
+    id: 'f1',
+    title: 'Photo release',
+    version: 2,
+    signatures,
+  });
+
+  it('finds a person by registration id, by uid and by address alike', () => {
+    const owed = outstandingByPerson(
+      [subject({ key: 'uid-a', email: 'Ada@example.com', aliases: ['reg_ada'] })],
+      [photo()],
+    );
+
+    expect(owed.get('uid-a')).toEqual(['Photo release']);
+    expect(owed.get('reg_ada')).toEqual(['Photo release']);
+    expect(owed.get('ada@example.com')).toEqual(['Photo release']);
+  });
+
+  it('counts an older signature as outstanding', () => {
+    // The uncomfortable answer rather than the convenient one: agreeing to
+    // version 1 is not agreeing to version 2, and a door volunteer told "signed"
+    // cannot take that back.
+    const owed = outstandingByPerson(
+      [subject({ key: 'uid-a' })],
+      [photo([signature({ signatory: 'uid-a', formVersion: 1 })])],
+    );
+
+    expect(owed.get('uid-a')).toEqual(['Photo release']);
+  });
+
+  it('leaves somebody who has signed the current wording out of the map entirely', () => {
+    const owed = outstandingByPerson(
+      [subject({ key: 'uid-a' })],
+      [photo([signature({ signatory: 'uid-a', formVersion: 2 })])],
+    );
+
+    expect(owed.has('uid-a')).toBe(false);
+  });
+
+  it('lists every required form one person still owes, once each', () => {
+    const owed = outstandingByPerson(
+      [subject({ key: 'uid-a', email: 'ada@example.com', aliases: ['reg_ada'] })],
+      [photo(), { id: 'f2', title: 'Code of conduct', version: 1, signatures: [] }],
+    );
+
+    expect(owed.get('uid-a')).toEqual(['Photo release', 'Code of conduct']);
+    // Every key points at the same list rather than at a copy that could drift.
+    expect(owed.get('reg_ada')).toBe(owed.get('uid-a'));
+  });
+
+  it('is empty when nothing is required, whoever is on the list', () => {
+    expect(outstandingByPerson([subject({ key: 'uid-a' })], []).size).toBe(0);
   });
 });

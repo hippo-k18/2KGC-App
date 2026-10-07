@@ -1,6 +1,7 @@
 import Image from 'next/image';
-import Link from 'next/link';
-import { SITE } from '@/lib/site';
+import { SiteLink } from './site-link';
+import { SITE, homeVenue } from '@/lib/site';
+import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 
 /**
  * Copyright runs from the first conference to the current edition — 2019 is
@@ -8,13 +9,40 @@ import { SITE } from '@/lib/site';
  * than computed from `new Date()`, which would make the footer a moving target
  * that invalidates the static render every year at midnight on 1 January.
  */
-export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?: string }) {
+export function SiteFooter({
+  contactEmail = SITE.contactEmail,
+  datesShort = SITE.datesShort,
+  venue = SITE.venue,
+  showAgenda = false,
+  showSpeakers = false,
+  mainOrigin,
+  blogOrigin,
+  termsPublished = false,
+}: {
+  /** Show the Terms link. Off until the terms are approved; see `lib/terms-core.ts`. */
+  termsPublished?: boolean;
+  contactEmail?: string;
+  /** From Content > Basics, resolved in the root layout. The defaults are the constants. */
+  datesShort?: string;
+  venue?: string;
+  showAgenda?: boolean;
+  showSpeakers?: boolean;
+  /** `mainSiteOrigin()` and `BLOG_ORIGIN`: on the blog host the links are absolute. */
+  mainOrigin?: string;
+  blogOrigin?: string;
+}) {
   return (
     <footer className="site-footer">
       <div className="wrap">
         <div className="cols">
           <div>
-            <Image src="/kgc-mark.png" alt="" width={300} height={300} className="mark" />
+            <Image
+              src="/kgc-mark.png"
+              alt="Knowledge Graph Conference"
+              width={300}
+              height={300}
+              className="mark"
+            />
             <p>
               The Knowledge Graph Conference brings together the people building the semantic layer
               underneath enterprise AI: practitioners, researchers and vendors.
@@ -33,32 +61,29 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
 
           <div>
             <h2>Attend</h2>
-            <Link href="/tickets">Tickets</Link>
-            <Link href="/agenda">Agenda</Link>
-            <Link href="/speakers">Speakers</Link>
+            <SiteLink href="/tickets" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Tickets</SiteLink>
+            {INVOICE_PUBLIC && <SiteLink href="/tickets/invoice" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Pay by invoice</SiteLink>}
+            {showAgenda && <SiteLink href="/agenda" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Agenda</SiteLink>}
+            {showSpeakers && <SiteLink href="/speakers" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speakers</SiteLink>}
             {/* An attendee-facing directory of who is in the hall, so it sits
                 with the programme rather than under Participate with the
                 packages that sell a booth. */}
-            <Link href="/exhibitors">Exhibitors</Link>
+            <SiteLink href="/exhibitors" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Exhibitors</SiteLink>
             {/* The organizers' own broadcasts and the ungated handouts. Both
                 read the collections the dashboard writes, so they belong beside
                 the programme rather than under Participate — this column is the
                 things an attendee looks up, not the things they buy. */}
-            <Link href="/announcements">Announcements</Link>
-            <Link href="/documents">Documents</Link>
-            <Link href="/about">Venue &amp; travel</Link>
+            <SiteLink href="/announcements" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Announcements</SiteLink>
+            <SiteLink href="/documents" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Documents</SiteLink>
+            <SiteLink href="/past-speakers" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Past speakers</SiteLink>
           </div>
 
           <div>
             <h2>Participate</h2>
-            <Link href="/sponsor">Sponsor KGC</Link>
-            <Link href="/sponsor#speak">Speak at KGC</Link>
-            <Link href="/call-for-posters">Poster track</Link>
-            <Link href="/startup-pitch">Startup pitch</Link>
-            {/* `/code-of-conduct`, not `/about#code-of-conduct`. It is a policy
-                people are asked to agree to, and the live site gives it a page
-                of its own rather than a fragment on another one. */}
-            <Link href="/code-of-conduct">Code of conduct</Link>
+            <SiteLink href="/sponsor" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Sponsor KGC</SiteLink>
+            <SiteLink href="/sponsor#speak" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speak at KGC</SiteLink>
+            <SiteLink href="/call-for-posters" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Poster track</SiteLink>
+            <SiteLink href="/startup-pitch" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Startup pitch</SiteLink>
           </div>
 
           <div>
@@ -92,8 +117,48 @@ export function SiteFooter({ contactEmail = SITE.contactEmail }: { contactEmail?
 
         <div className="fine">
           <span>© 2019–2027 Knowledge Graph Conference. All rights reserved.</span>
+          {/*
+            The policies people are told they have agreed to, in the legal row
+            beside the copyright where sites usually keep them. They sat in the
+            Participate column until the team asked for somewhere quieter
+            (2026-09-28).
+          */}
+          <span className="legal">
+            <SiteLink href="/privacy" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Privacy</SiteLink>
+            <SiteLink href="/code-of-conduct" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Code of conduct</SiteLink>
+            {termsPublished && (
+              <SiteLink href="/terms" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Terms</SiteLink>
+            )}
+          </span>
           <span>
-            {SITE.datesShort} · {SITE.venue}
+            {datesShort} ·{' '}
+            {homeVenue(venue) === venue ? (
+              venue
+            ) : (
+              /*
+                Both forms, one shown. The home page says "Bryant Park"; every
+                other page keeps the full name. `site.ts` says why CSS picks.
+              */
+              <>
+                <span className="venue-full">{venue}</span>
+                <span className="venue-home">{homeVenue(venue)}</span>
+              </>
+            )}
+          </span>
+          {/* The home page photograph is CC BY-SA 3.0, which requires this. */}
+          <span className="photo-credit">
+            Home page photo by{' '}
+            <a
+              href="https://commons.wikimedia.org/wiki/File:NYC_Empire_State_Building_view_NNE.jpg"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Arnoldius
+            </a>
+            ,{' '}
+            <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noreferrer">
+              CC BY-SA 3.0
+            </a>
           </span>
         </div>
       </div>

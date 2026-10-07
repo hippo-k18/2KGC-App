@@ -50,11 +50,10 @@ export default async function SponsorTicketsPage() {
         noun="sponsor"
         info={
           <>
-            <strong>Complimentary passes are issued, not described</strong>
+            <strong>Complimentary passes</strong>
             <p>
-              The pass count below is a field on the package. Naming a seat mints a real
-              registration through the same path a purchase takes, and the allocation refuses a
-              pass the sponsorship does not include.
+              Set how many passes each package includes, then name the people who get them. Each
+              named pass is a real registration.
             </p>
           </>
         }
@@ -98,10 +97,7 @@ export default async function SponsorTicketsPage() {
         ) : (
           <>
             <p className="muted" style={{ fontSize: 13 }}>
-              A number, not a bullet. What the package&rsquo;s &ldquo;what&rsquo;s
-              included&rdquo; list says about passes is copy for the website; this is what actually
-              mints them, and reading the digit out of the copy would break the first time somebody
-              wrote &ldquo;four&rdquo;.
+              Passes included per package sold.
             </p>
             <PassCountForm tiers={tiers} />
           </>
@@ -112,60 +108,61 @@ export default async function SponsorTicketsPage() {
         <h2 className="section-header">
           Passes to be named{outstanding > 0 ? `, ${outstanding} outstanding` : ''}
         </h2>
-        <Table
-          cols={[
-            { key: 'sponsor', label: 'Sponsorship', className: 'cell-fill' },
-            { key: 'pkg', label: 'Package', className: 'cell-md' },
-            { key: 'passes', label: 'Named', className: 'cell-md' },
-            { key: 'go', label: '', className: 'cell-sm' },
-          ]}
-          rows={sponsorships.map((s) => [
-            <div key="s">
-              <div>{s.companyName || s.buyer}</div>
-              <div className="muted" style={{ fontSize: 11 }}>
-                {s.companyName ? `${s.buyer} · ` : ''}
-                <code>{s.orderId.slice(0, 22)}</code>
-              </div>
-            </div>,
+        {sponsorships.length === 0 ? (
+          /**
+           * Empty means one of two real things and never a made-up row: no
+           * sponsor package declares any passes, or none has been sold yet.
+           * Both are answered by the panel above and by Sponsor Orders, which
+           * is where the link goes.
+           */
+          <NotInputted
+            what="sponsorships that include passes"
+            compact
+            action={
+              <Link className="btn btn-primary" href="/tickets/orders-and-transactions/sponsor-orders">
+                Sponsor Orders
+              </Link>
+            }
+          />
+        ) : (
+          <Table
+            cols={[
+              { key: 'sponsor', label: 'Sponsorship', className: 'cell-fill' },
+              { key: 'pkg', label: 'Package', className: 'cell-md' },
+              { key: 'passes', label: 'Named', className: 'cell-md' },
+              { key: 'go', label: '', className: 'cell-sm' },
+            ]}
+            rows={sponsorships.map((s) => [
+              <div key="s">
+                <div>{s.companyName || s.buyer}</div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {s.companyName ? `${s.buyer} · ` : ''}
+                  <code>{s.orderId.slice(0, 22)}</code>
+                </div>
+              </div>,
 
-            <span key="p" style={{ fontSize: 12 }}>
-              {s.packages.join(', ')}
-              {s.status !== 'paid' ? (
-                <Tag color="grey" small>
-                  {s.status}
-                </Tag>
-              ) : null}
-            </span>,
+              <span key="p" style={{ fontSize: 12 }}>
+                {s.packages.join(', ')}
+                {s.status !== 'paid' ? (
+                  <Tag color="grey" small>
+                    {s.status}
+                  </Tag>
+                ) : null}
+              </span>,
 
-            <div key="n">
-              <div style={{ fontSize: 13 }}>
-                {s.issued} / {s.total}
-              </div>
-              <ProgressBar pct={s.total > 0 ? Math.min(100, (s.issued / s.total) * 100) : 0} />
-            </div>,
+              <div key="n">
+                <div style={{ fontSize: 13 }}>
+                  {s.issued} / {s.total}
+                </div>
+                <ProgressBar pct={s.total > 0 ? Math.min(100, (s.issued / s.total) * 100) : 0} />
+              </div>,
 
-            <Link key="g" href={`/tickets/sponsor-ticket-setup/sponsor-tickets/${encodeURIComponent(s.orderId)}`}>
-              {s.remaining > 0 ? `Name ${s.remaining} more` : 'Review'}
-            </Link>,
-          ])}
-          empty={
-            /**
-             * Empty means one of two real things and never a made-up row: no
-             * sponsor package declares any passes, or none has been sold yet.
-             * Both are answered by the panel above and by Sponsor Orders, which
-             * is where the link goes.
-             */
-            <NotInputted
-              what="sponsorships that include passes"
-              compact
-              action={
-                <Link className="btn btn-primary" href="/tickets/orders-and-transactions/sponsor-orders">
-                  Sponsor Orders
-                </Link>
-              }
-            />
-          }
-        />
+              <Link key="g" href={`/tickets/sponsor-ticket-setup/sponsor-tickets/${encodeURIComponent(s.orderId)}`}>
+                {s.remaining > 0 ? `Name ${s.remaining} more` : 'Review'}
+              </Link>,
+            ])}
+          />
+        )}
       </Panel>
     </>
   );

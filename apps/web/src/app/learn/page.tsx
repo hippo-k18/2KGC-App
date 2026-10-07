@@ -4,7 +4,7 @@ import { LinkedIn } from '@/components/linkedin-icon';
 import { LEARN_FOUNDERS } from '@/lib/people';
 
 export const metadata: Metadata = {
-  title: 'Learn',
+  title: 'The Knowledge Graph Learning Program',
   description:
     'KGC | Learn: the team, the continuing education roster, and the four certificate programmes.',
 };
@@ -79,17 +79,23 @@ export default function LearnPage() {
     <>
       <section className="learn-hero-band">
         <div className="wrap-kgc">
-          <Image
-            src="/kgc/learn-wordmark.png"
-            alt="KGC | Learn"
-            width={1000}
-            height={275}
-            priority
-          />
-          <p className="tagline">
-            Learn how knowledge graphs can shape the future of your business and career.
-          </p>
-          <p className="strap">Where peer-learning drives practice.</p>
+          {/* The wordmark is the page's title, so it is the h1. */}
+          <h1>
+            <Image
+              src="/kgc/learn-wordmark.png"
+              alt="KGC | Learn"
+              width={1000}
+              height={275}
+              priority
+            />
+          </h1>
+          {/* One box for both lines, so a phone can put a panel behind them. */}
+          <div className="copy">
+            <p className="tagline">
+              Learn how knowledge graphs can shape the future of your business and career.
+            </p>
+            <p className="strap">Where peer-learning drives practice.</p>
+          </div>
         </div>
       </section>
 

@@ -137,7 +137,7 @@ export async function sponsorshipsWithPasses(): Promise<SponsorshipRow[]> {
       const issued = issuedByOrder.get(doc.id) ?? 0;
       rows.push({
         orderId: doc.id,
-        buyer: order.buyerName || order.email,
+        buyer: order.buyerName || order.email || '',
         companyName: order.companyName,
         status: order.status,
         packages: sources.map((s) => (s.quantity > 1 ? `${s.ticketTypeName} × ${s.quantity}` : s.ticketTypeName)),

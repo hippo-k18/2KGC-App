@@ -130,6 +130,8 @@ const ANDROID_EQUIVALENT = {
   'square.and.pencil': 'edit',
   trash: 'delete-outline',
   'exclamationmark.triangle': 'warning-amber',
+  /** The way out of a "not on your ticket" panel. SF Symbols since iOS 15. */
+  ticket: 'confirmation-number',
   'square.dashed': 'crop-square',
 } as const satisfies Record<string, AndroidGlyph>;
 

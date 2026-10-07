@@ -97,9 +97,8 @@ export default async function FromAcceptedSubmissionsPage({
         <Panel>
           <NotInputted what="call for abstracts" />
           <p className="body-2" style={{ marginBottom: 0 }}>
-            This screen turns accepted abstracts into sessions. There is no call yet, so there is
-            nothing to promote. A programme assembled elsewhere still comes in through the CSV
-            importer on Session Manager, which is unaffected by any of this.
+            This screen turns accepted abstracts into sessions. There is no call for abstracts
+            yet. To bring in a finished programme, use the spreadsheet import on Session Manager.
           </p>
         </Panel>
       ) : chosen ? (
@@ -197,9 +196,7 @@ export default async function FromAcceptedSubmissionsPage({
                 ))}
               </ul>
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-                Each of these holds a <code>sessionId</code>, which is what makes pressing the
-                button twice harmless: a second promotion is refused rather than producing a
-                duplicate session beside the first.
+                These are already on the agenda and cannot be added twice.
               </p>
             </Panel>
           )}

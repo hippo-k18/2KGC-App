@@ -2,13 +2,20 @@
 // straight from React Navigation. (expo-router 7 re-exports them again.)
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, usePathname } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 
+import { joinCodeNeeded } from '@kgc/shared';
+
+import { EventClosedScreen, JoinCodeScreen } from '@/components/access-gate';
 import { Colors } from '@/constants/theme';
-import { useScheme } from '@/hooks/use-theme';
+import { useScheme, useTheme } from '@/hooks/use-theme';
 import { AuthProvider, useAuth } from '@/lib/auth/auth-provider';
+import { AppAccessProvider, useAppAccess } from '@/lib/data/app-access';
+import { EventSettingsProvider, useEventSettings } from '@/lib/data/event-settings';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -51,6 +58,7 @@ const AUTH_TIMEOUT_MS = 8000;
 
 function RootNavigator() {
   const { loading, user, profile } = useAuth();
+  const { state: accessState, access } = useAppAccess();
   const pathname = usePathname();
   const [timedOut, setTimedOut] = useState(false);
 
@@ -89,6 +97,24 @@ function RootNavigator() {
     return <Redirect href="/change-password" />;
   }
 
+  /**
+   * The access window, and the event code.
+   *
+   * Both replace the stack rather than redirecting into it. A redirect needs a
+   * route, a route can be reached by a deep link, and a gate with a route is a
+   * gate with a way round it — which is why the temporary-password screen above
+   * also refuses to render anything else while its flag is up. Neither of these
+   * has a route at all.
+   *
+   * ⚠️ Only for a signed-in attendee. Signed out, the login screen is the right
+   * screen whatever the window says: somebody has to be able to sign in and
+   * read the sentence with their own name on it, and `firestore.rules` is what
+   * actually refuses the data either way. The closed screen carries a sign-out
+   * control for the same reason — it is the only way off it.
+   */
+  if (user && accessState === 'closed') return <EventClosedScreen />;
+  if (user && joinCodeNeeded(access, profile)) return <JoinCodeScreen uid={user.uid} />;
+
   return (
     <Stack>
       {/* Decides between /login and /home; no header, so it never flashes. */}
@@ -116,15 +142,51 @@ function RootNavigator() {
   );
 }
 
+/**
+ * The provider sits outside everything, the sign-in screen included, so the
+ * brand colour and event name saved on the dashboard reach the first screen a
+ * person sees. `Themed` is a separate component because it reads that context.
+ */
 export default function RootLayout() {
+  return (
+    <EventSettingsProvider>
+      <Themed />
+    </EventSettingsProvider>
+  );
+}
+
+function Themed() {
   const scheme = useScheme();
+  const { event } = useEventSettings();
+  const tint = useTheme().tint;
+  const navTheme = useMemo(
+    () => ({ ...navThemes[scheme], colors: { ...navThemes[scheme].colors, primary: tint } }),
+    [scheme, tint],
+  );
 
   return (
     <AuthProvider>
-      <ThemeProvider value={navThemes[scheme]}>
-        <StatusBar style="auto" />
-        <RootNavigator />
-      </ThemeProvider>
+      {/*
+        Inside `AuthProvider`, because the rule on `settings/appAccess` asks for
+        a signed-in reader — it deliberately does not ask for a ticket, so that
+        a closed app can still read the document that says it is closed.
+      */}
+      <AppAccessProvider>
+        <ThemeProvider value={navTheme}>
+          {/*
+            expo-router turns React Navigation's document title off, so without
+            this the browser tab, history and share sheet show the bare URL. Web
+            only: on iOS `Head` is the Handoff integration, which is not wanted.
+          */}
+          {Platform.OS === 'web' ? (
+            <Head>
+              <title>{`${event.shortName} ${event.year}`}</title>
+            </Head>
+          ) : null}
+          <StatusBar style="auto" />
+          <RootNavigator />
+        </ThemeProvider>
+      </AppAccessProvider>
     </AuthProvider>
   );
 }

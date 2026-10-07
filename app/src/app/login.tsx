@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   TextInput,
@@ -12,9 +13,10 @@ import { Redirect } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
 import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import {
@@ -84,6 +86,7 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  */
 export default function LoginScreen() {
   const colors = useTheme();
+  const { event, branding } = useEventSettings();
   const { user, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -181,7 +184,7 @@ export default function LoginScreen() {
         code.includes('invalid-credential') || code.includes('wrong-password')
           ? 'That email and password do not match an account.'
           : code.includes('network')
-            ? 'Cannot reach the server. Is the emulator running?'
+            ? 'Cannot reach the server. Check your connection.'
             : 'Could not sign in. Please try again.',
       );
     } finally {
@@ -200,6 +203,14 @@ export default function LoginScreen() {
     color: colors.text,
   };
 
+  // A bare text link is a 20pt line box. The box is grown rather than given
+  // `hitSlop`, which the web build ignores.
+  const textLink = {
+    minHeight: HIT_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as const;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -212,16 +223,26 @@ export default function LoginScreen() {
             invisible on a black background. Setting the wordmark as live text
             fixes that, and lets it scale with the reader's type size.
           */}
+          {/* The logo, name and tagline saved on the dashboard, once there are any. */}
           <Image
-            source={require('@/assets/images/kgc-mark.png')}
-            style={{ width: 132, height: 132 }}
+            source={
+              branding.logoUrl ? { uri: branding.logoUrl } : require('@/assets/images/kgc-mark.png')
+            }
+            style={{ width: branding.logoUrl ? 220 : 132, height: 132 }}
             resizeMode="contain"
             accessible
-            accessibilityLabel="KGC"
+            accessibilityLabel={event.shortName}
           />
-          <Text variant="title3">The Knowledge Graph Conference</Text>
-          <Text variant="subhead" tone="secondary">
-            {EVENT.venue}
+          <Text variant="title3" style={{ textAlign: 'center' }}>
+            {event.name === EVENT.name ? 'The Knowledge Graph Conference' : event.name}
+          </Text>
+          {branding.tagline ? (
+            <Text variant="subhead" style={{ textAlign: 'center' }}>
+              {branding.tagline}
+            </Text>
+          ) : null}
+          <Text variant="subhead" tone="secondary" style={{ textAlign: 'center' }}>
+            {event.datesLong} · {event.venue}
           </Text>
         </View>
 
@@ -242,7 +263,7 @@ export default function LoginScreen() {
               */}
               <Text variant="subhead" tone="secondary">
                 A code was requested for {codeFor}. Codes expire after {CODE_TTL_MINUTES}{' '}
-                minutes — if one does not arrive, send another.
+                minutes. If one does not arrive, send another.
               </Text>
             </View>
 
@@ -297,12 +318,13 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            <View style={{ alignItems: 'center', gap: Spacing.sm }}>
+            <View style={{ alignItems: 'center' }}>
               <Pressable
                 onPress={() => sendCode(true)}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel="Send another code">
+                accessibilityLabel="Send another code"
+                style={textLink}>
                 <Text variant="subhead" tone="tint">
                   Send another code
                 </Text>
@@ -316,7 +338,8 @@ export default function LoginScreen() {
                 }}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel="Use a different email address">
+                accessibilityLabel="Use a different email address"
+                style={textLink}>
                 <Text variant="subhead" tone="secondary">
                   Use a different address
                 </Text>
@@ -331,12 +354,7 @@ export default function LoginScreen() {
               which of two things it was going to do with it — and the address
               is typed in both branches anyway, so hoisting it saved nothing.
             */}
-            <View style={{ gap: 6 }}>
-              <Text variant="heading">Welcome</Text>
-              <Text variant="subhead" tone="secondary">
-                Your ticket gets you in. Choose how you want to sign in.
-              </Text>
-            </View>
+            <Text variant="heading">Welcome</Text>
 
             <Pressable
               onPress={() => {
@@ -466,7 +484,7 @@ export default function LoginScreen() {
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              style={{ alignItems: 'center' }}>
+              style={textLink}>
               <Text variant="subhead" tone="secondary">
                 Back
               </Text>
@@ -543,13 +561,26 @@ export default function LoginScreen() {
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              style={{ alignItems: 'center' }}>
+              style={textLink}>
               <Text variant="subhead" tone="secondary">
                 Back
               </Text>
             </Pressable>
           </>
         )}
+
+        {/* The support address saved on the dashboard. Nothing is shown until one is. */}
+        {branding.supportEmail ? (
+          <Pressable
+            onPress={() => void Linking.openURL(`mailto:${branding.supportEmail}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`Email ${branding.supportEmail} for help`}
+            style={textLink}>
+            <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
+              Trouble signing in? Write to <Text variant="caption" tone="tint">{branding.supportEmail}</Text>
+            </Text>
+          </Pressable>
+        ) : null}
       </Screen>
     </KeyboardAvoidingView>
   );

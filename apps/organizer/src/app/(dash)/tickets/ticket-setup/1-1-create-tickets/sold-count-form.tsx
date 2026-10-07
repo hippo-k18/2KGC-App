@@ -83,8 +83,7 @@ export function SoldCountForm({
                 </>
               ) : (
                 <>
-                  {drift} {drift === 1 ? 'seat was' : 'seats were'} sold without the counter moving.
-                  An increment that failed and was logged rather than retried.
+                  {drift} {drift === 1 ? 'seat was' : 'seats were'} sold without the count going up.
                 </>
               )}
             </>
@@ -109,7 +108,7 @@ export function SoldCountForm({
           maxLength={200}
           width="lg"
           placeholder="Six refunds from the cancelled workshop day"
-          hint="Recorded in the audit log with your name. It is the only record this correction happened."
+          hint="Recorded in the audit log with your name."
         />
 
         <FormActions>

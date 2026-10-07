@@ -5,13 +5,17 @@ import {
   COLLECTIONS,
   EVENT_ID,
   SUBCOLLECTIONS,
+  publicSiteOrigin,
+  type CallDoc,
   type ReviewDoc,
   type ReviewerDoc,
   type ReviewerStatus,
   type SubmissionDoc,
 } from '@kgc/shared';
 import { mintReviewerToken } from '@kgc/scripts/src/lib/reviewer-token';
-import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
+import { emailEnabled, sendReviewerInvitation } from '@kgc/scripts/src/lib/email';
+import { withdrawReviewer } from '@kgc/scripts/src/lib/reviews';
+import { normaliseEmail, reviewerId } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -33,15 +37,15 @@ import { db } from './firestore';
  * session they become a `roles: ['reviewer']` claim, which `Role` already
  * carries and `scripts/src/set-claims.ts` already mints.
  *
- * ── What is here, and what is honestly not ─────────────────────────────────
+ * ── What is here ───────────────────────────────────────────────────────────
  *
- * Invitation, the list, and assignment — manually and by track. The review
- * *screen* the reviewer would use is not built: `CFA-PLAN.md` phase 3 is the
- * largest phase and the rubric, the scoring UI and "hide other reviewers' scores
- * until yours is entered" belong to it. What exists here is the skeleton those
- * hang on — the `reviews/{reviewerId}` document is written at assignment,
- * carrying `status: 'assigned'` and no scores, which is what makes reviewer
- * progress a query rather than a subtraction.
+ * The committee list, the invitation mail and its link, assignment by hand and
+ * by track, and exclusions. The reviewer's own page is `/review/{token}` on the
+ * website; what it reads and writes is `@kgc/scripts/src/lib/reviews.ts`, which
+ * this module shares one transaction with (`withdrawReviewer`). The
+ * `reviews/{reviewerId}` document is written at assignment, carrying
+ * `status: 'assigned'` and no scores, which is what makes reviewer progress a
+ * query rather than a subtraction.
  */
 
 // ---------------------------------------------------------------------------
@@ -58,6 +62,8 @@ export interface ReviewerRow {
   maxAssignments: number;
   assignedCount: number;
   invitedAtMs?: number;
+  /** When the invitation email last went out. Absent if it never has. */
+  lastInvitationAtMs?: number;
 }
 
 const ms = (t: unknown): number | undefined => {
@@ -94,6 +100,7 @@ export async function listReviewers(): Promise<ReviewerRow[]> {
           maxAssignments: r.maxAssignments ?? 0,
           assignedCount: r.assignedCount ?? 0,
           invitedAtMs: r.invitedAt ? ms(r.invitedAt) : undefined,
+          lastInvitationAtMs: r.lastInvitationAt ? ms(r.lastInvitationAt) : undefined,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -108,27 +115,6 @@ export async function listReviewers(): Promise<ReviewerRow[]> {
 // ---------------------------------------------------------------------------
 
 export type ReviewerResult = { ok: true; message: string } | { ok: false; error: string };
-
-/**
- * `reviewers/{id}` — derived from the address, so inviting the same person twice
- * converges on one document rather than two people with one inbox.
- *
- * The same derivation shape as `contactId` and `registrationId`: sha256 of the
- * normalised address, truncated, behind a prefix. Never the address itself —
- * `a/b@example.com` is a legal address and an illegal path segment, and an
- * email-keyed collection is a membership oracle for anybody who can attempt a
- * read.
- *
- * ⚠️ Spelled here rather than imported from `@kgc/scripts/src/lib/ids` only
- * because that module's derivations are for records the CSV importer writes and
- * this collection has no importer. If a reviewer import is ever built, this
- * moves there and this copy goes — two derivations of one id is a duplicated
- * committee, discovered when half the assignments are on the wrong document.
- */
-async function reviewerId(email: string): Promise<string> {
-  const { createHash } = await import('node:crypto');
-  return `rev_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 24)}`;
-}
 
 /**
  * Invite somebody onto the committee.
@@ -161,7 +147,7 @@ export async function inviteReviewer(input: {
   }
 
   try {
-    const id = await reviewerId(email);
+    const id = reviewerId(email);
     const ref = db().collection(COLLECTIONS.reviewers).doc(id);
     const snap = await ref.get();
     const existing = snap.exists ? (snap.data() as ReviewerDoc) : undefined;
@@ -214,7 +200,7 @@ export async function inviteReviewer(input: {
       ok: true,
       message: existing
         ? `Updated ${name}. Their invitation status is unchanged. An answer they already gave is not reset by an edit here.`
-        : `Added ${name}. Nothing has been emailed, and there is no reviewer link to send yet. The reviewing screen itself is not built.`,
+        : `Added ${name}. Nothing has been emailed yet. Assign their submissions, then send the invitation from the list above.`,
     };
   } catch (err) {
     recordError('reviewers.invite', err);
@@ -429,6 +415,9 @@ export async function assignByTrack(input: {
 
 /** The message `assignOne` returns when the pair already exists. */
 const ALREADY = 'That reviewer already has this submission.';
+/** And when the pair is a conflict of interest. An error, unlike the above. */
+const EXCLUDED =
+  'That reviewer has a conflict of interest with this submission, so it cannot be assigned to them.';
 
 /**
  * The single assignment, in one transaction across three documents: the review,
@@ -459,7 +448,12 @@ async function assignOne(
 
       if (!subSnap.exists) throw new Error('That submission does not exist.');
       if (!reviewerSnap.exists) throw new Error('That reviewer does not exist.');
-      if (reviewSnap.exists) throw new Error(ALREADY);
+      if (reviewSnap.exists) {
+        // A declined review is a conflict of interest, declared or imposed. It
+        // stays on the path precisely so this `create` cannot happen.
+        const held = reviewSnap.data() as ReviewDoc;
+        throw new Error(held.status === 'declined' || held.conflict ? EXCLUDED : ALREADY);
+      }
 
       const sub = subSnap.data() as SubmissionDoc;
 
@@ -497,6 +491,7 @@ async function assignOne(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not assign.';
     if (message === ALREADY) return { ok: true, message: ALREADY };
+    if (message === EXCLUDED) return { ok: false, error: EXCLUDED };
     return { ok: false, error: message };
   }
 }
@@ -506,23 +501,12 @@ async function assignOne(
 // ---------------------------------------------------------------------------
 
 /**
- * Sha256 of a reviewer's capability link, stored so that one link can be killed
- * without rotating the secret for the whole committee.
+ * Sha256 of the first link minted for a reviewer, written once at invitation.
  *
- * ⚠️ **There is nowhere for that link to go yet, and this deliberately does not
- * hand one out.** The reviewer's own screen — the rubric, the scores, the rule
- * that hides other reviewers' scores until yours is entered — is `CFA-PLAN.md`
- * phase 3, and it is not built. A "copy invitation link" button pointing at a
- * route that 404s is precisely the defect class AGENTS.md counts fourteen
- * instances of, so `mintReviewerToken` is called here for the hash and the
- * plaintext is dropped on the floor. The reviewers screen says so in words.
- *
- * The field is written now rather than backfilled later because it is on
- * `ReviewerDoc` and because a hash added after the fact would be a hash of a
- * link that had already been sent.
- *
- * Async only because `node:crypto` is imported where it is used; this module is
- * `server-only`, so the dynamic import resolves once and costs nothing.
+ * ⚠️ It does not gate anything. Every invitation mail carries a newly minted
+ * link, so no stored hash can match them all; a single reviewer's links are
+ * killed through `status: 'removed'`, which `loadReviewer` checks on every
+ * request. The field stays because `ReviewerDoc` requires it.
  */
 async function tokenHash(reviewerId: string): Promise<string> {
   const { createHash } = await import('node:crypto');
@@ -546,4 +530,263 @@ export function reviewerInvitesAvailable(): boolean {
     recordError('reviewers.token', err);
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// The reviewer's link, and the invitation that carries it
+// ---------------------------------------------------------------------------
+
+/**
+ * A working link to one reviewer's page on the website, minted now.
+ *
+ * `publicSiteOrigin()` for the reason `callUrl` gives. Shown on the reviewers
+ * screen as well as mailed, so an organizer can paste it into a message of
+ * their own.
+ */
+export const reviewerLink = (reviewerId: string) =>
+  `${publicSiteOrigin()}/review/${mintReviewerToken(reviewerId)}`;
+
+/** Whether an invitation pressed now would leave this server as an email. */
+export const invitationEmailAvailable = (): boolean => emailEnabled();
+
+/**
+ * Email one reviewer their link. The same button is the reminder.
+ *
+ * The send goes through `email.ts`, so it is logged in `emailLog` whether it
+ * was sent, refused by the provider, or skipped because email is off, and the
+ * message returned here says which rather than always saying "sent".
+ */
+export async function sendInvitation(input: {
+  reviewerId: string;
+  callId: string;
+  note?: string;
+  actor: string;
+}): Promise<ReviewerResult> {
+  try {
+    const ref = db().collection(COLLECTIONS.reviewers).doc(input.reviewerId);
+    const [snap, callSnap] = await Promise.all([
+      ref.get(),
+      db().collection(COLLECTIONS.calls).doc(input.callId).get(),
+    ]);
+    if (!snap.exists) return { ok: false, error: 'That reviewer does not exist.' };
+    if (!callSnap.exists) return { ok: false, error: 'That call does not exist.' };
+
+    const reviewer = snap.data() as ReviewerDoc;
+    const call = callSnap.data() as CallDoc;
+    if (reviewer.status === 'removed' || reviewer.status === 'declined') {
+      return { ok: false, error: `${reviewer.name} is not on the committee, so their link would not open.` };
+    }
+
+    await sendReviewerInvitation(db(), {
+      to: reviewer.email,
+      name: reviewer.name,
+      callTitle: call.title,
+      link: reviewerLink(input.reviewerId),
+      assigned: reviewer.assignedCount ?? 0,
+      note: input.note?.trim() || undefined,
+      actor: input.actor,
+    });
+
+    // Stamped only when a mail actually left: "invited before" on the screen
+    // must not be true of somebody who was never written to.
+    if (emailEnabled()) {
+      await ref.update({
+        lastInvitationAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    await appendAudit({
+      actor: input.actor,
+      action: 'reviewer.sendInvitation',
+      targetPath: `${COLLECTIONS.reviewers}/${input.reviewerId}`,
+      targetId: input.reviewerId,
+      before: {},
+      after: { callId: input.callId, emailed: emailEnabled() },
+    });
+
+    return {
+      ok: true,
+      message: emailEnabled()
+        ? `Invitation sent to ${reviewer.email}.`
+        : `Email is not switched on yet, so nothing was sent to ${reviewer.email}. Copy their link and send it yourself.`,
+    };
+  } catch (err) {
+    recordError('reviewers.sendInvitation', err);
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not send the invitation.' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Conflicts of interest
+// ---------------------------------------------------------------------------
+
+/**
+ * What `@kgc/scripts/src/lib/reviews.ts` needs from the app that owns the store:
+ * a `FieldValue.delete()` built by *this* copy of `firebase-admin`, because a
+ * sentinel from another copy fails the whole write (AGENTS.md gotcha 8).
+ * Exported so the emulator suite hands the same thing in.
+ */
+export const reviewStoreOps = () => ({ deleteField: FieldValue.delete() });
+
+/**
+ * Keep one reviewer away from one submission.
+ *
+ * The write is `withdrawReviewer`, the same transaction a reviewer's own
+ * declaration runs, so the two cannot count differently. It works before any
+ * assignment exists, which is the useful case: excluding a supervisor from
+ * their student's paper *before* pressing "Assign by track".
+ */
+export async function excludeReviewer(input: {
+  submissionId: string;
+  reviewerId: string;
+  note?: string;
+  actor: string;
+}): Promise<ReviewerResult> {
+  try {
+    const result = await withdrawReviewer(
+      db(),
+      reviewStoreOps(),
+      {
+        submissionId: input.submissionId,
+        reviewerId: input.reviewerId,
+        note: input.note,
+        excludedBy: input.actor,
+      },
+    );
+    if (!result.ok) return result;
+    if (result.already) return { ok: true, message: 'They were already off this submission.' };
+
+    await appendAudit({
+      actor: input.actor,
+      action: 'reviewer.exclude',
+      targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+      targetId: input.reviewerId,
+      before: {},
+      after: { excluded: true, note: input.note?.trim() || null },
+    });
+
+    return {
+      ok: true,
+      message:
+        'Excluded. They can no longer open this submission, their scores on it no longer count, and assignment will skip them.',
+    };
+  } catch (err) {
+    recordError('reviewers.exclude', err);
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not exclude the reviewer.' };
+  }
+}
+
+/**
+ * Lift an exclusion an organizer made.
+ *
+ * Deletes the placeholder review so the pair can be assigned again. ⚠️ Only an
+ * organizer's exclusion that holds no scores: a conflict the reviewer declared
+ * is theirs, and a review that was scored before the exclusion is a record.
+ */
+export async function liftExclusion(input: {
+  submissionId: string;
+  reviewerId: string;
+  actor: string;
+}): Promise<ReviewerResult> {
+  try {
+    const ref = db()
+      .collection(COLLECTIONS.submissions)
+      .doc(input.submissionId)
+      .collection(SUBCOLLECTIONS.reviews)
+      .doc(input.reviewerId);
+    const snap = await ref.get();
+    if (!snap.exists) return { ok: true, message: 'There was no exclusion to lift.' };
+
+    const review = snap.data() as ReviewDoc;
+    if (!review.excludedBy) {
+      return { ok: false, error: 'The reviewer declared this conflict themselves, so it stays.' };
+    }
+    if (review.scores && Object.keys(review.scores).length > 0) {
+      return { ok: false, error: 'They had already scored this submission, so the record stays.' };
+    }
+
+    await ref.delete();
+    await appendAudit({
+      actor: input.actor,
+      action: 'reviewer.exclude',
+      targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+      targetId: input.reviewerId,
+      before: { excluded: true },
+      after: { excluded: false },
+    });
+    return { ok: true, message: 'Exclusion lifted. They can be assigned this submission again.' };
+  } catch (err) {
+    recordError('reviewers.liftExclusion', err);
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not lift the exclusion.' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Progress
+// ---------------------------------------------------------------------------
+
+export interface ReviewerProgress {
+  assigned: number;
+  submitted: number;
+  conflicts: number;
+}
+
+export interface ConflictRow {
+  submissionId: string;
+  reviewerId: string;
+  note?: string;
+  /** Absent when the reviewer declared it. */
+  excludedBy?: string;
+  /** An organizer's exclusion with no scores on it can be lifted. */
+  liftable: boolean;
+}
+
+/**
+ * Every review across a set of submissions, folded into per-reviewer progress
+ * and the list of conflicts.
+ *
+ * One subcollection read per submission rather than a collection-group query,
+ * because the only `reviews` index leads with `reviewerId` and a group query
+ * without it needs an index that does not exist: it would pass in the emulator
+ * and fail live. A call is hundreds of submissions, read in parallel.
+ */
+export async function reviewProgress(submissionIds: string[]): Promise<{
+  byReviewer: Map<string, ReviewerProgress>;
+  conflicts: ConflictRow[];
+}> {
+  const byReviewer = new Map<string, ReviewerProgress>();
+  const conflicts: ConflictRow[] = [];
+
+  try {
+    const snaps = await Promise.all(
+      submissionIds.map((id) =>
+        db().collection(COLLECTIONS.submissions).doc(id).collection(SUBCOLLECTIONS.reviews).get(),
+      ),
+    );
+    snaps.forEach((snap, i) => {
+      for (const doc of snap.docs) {
+        const r = doc.data() as ReviewDoc;
+        const p = byReviewer.get(doc.id) ?? { assigned: 0, submitted: 0, conflicts: 0 };
+        if (r.status === 'declined' || r.conflict === true) {
+          p.conflicts++;
+          conflicts.push({
+            submissionId: submissionIds[i],
+            reviewerId: doc.id,
+            note: r.conflictNote,
+            excludedBy: r.excludedBy,
+            liftable: Boolean(r.excludedBy) && Object.keys(r.scores ?? {}).length === 0,
+          });
+        } else {
+          p.assigned++;
+          if (r.status === 'submitted') p.submitted++;
+        }
+        byReviewer.set(doc.id, p);
+      }
+    });
+  } catch (err) {
+    recordError('reviewers.progress', err);
+  }
+
+  return { byReviewer, conflicts };
 }

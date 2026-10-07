@@ -26,14 +26,17 @@ import { ListRow } from '@/components/list-row';
 import { PushedHeader } from '@/components/pushed-header';
 import { SessionPoll } from '@/components/session-poll';
 import { SessionQA } from '@/components/session-qa';
+import { SessionWatch } from '@/components/session-watch';
 import { Screen } from '@/components/screen';
 import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { SITE_ORIGIN } from '@/config/event';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { kindLabel, linkHost, openable, useDocuments } from '@/lib/data/documents';
 import { formatDayTab, formatTime } from '@/lib/data/sessions';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
+import { useSessionSeat } from '@/lib/data/session-seats';
 import { refreshCredentials } from '@/lib/data/errors';
 import { getDb } from '@/lib/firebase/client';
 
@@ -288,6 +291,16 @@ export default function SessionDetailScreen() {
   const [error, setError] = useState<Error | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [choosingCalendar, setChoosingCalendar] = useState(false);
+  // A capped or ticket-restricted session: the count, the caller's own place,
+  // and whatever the last press was refused with.
+  const seat = useSessionSeat(session);
+  const [seatMessage, setSeatMessage] = useState<string | null>(null);
+  const [seatBusy, setSeatBusy] = useState(false);
+  // The handouts on this talk. A failure here is deliberately not surfaced —
+  // the section simply does not appear, and the session's own detail, which is
+  // what the reader came for, is unaffected.
+  const { documents } = useDocuments();
+  const sessionMaterials = (documents ?? []).filter((d) => d.sessionId === id && openable(d));
 
   useEffect(() => {
     if (!id) return;
@@ -421,7 +434,7 @@ export default function SessionDetailScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="session details"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View style={{ gap: Spacing.sm }}>
               <SkeletonBlock width="35%" height={12} />
               <SkeletonBlock width="90%" height={26} />
@@ -440,13 +453,29 @@ export default function SessionDetailScreen() {
     );
   }
 
-  const saved = isSaved(session.id);
+  // With a cap or a ticket list, being in the agenda means holding a place. A
+  // bookmark from before the session was capped does not count as one.
+  const saved = seat.gated ? seat.mine !== null : isSaved(session.id);
+  const seated = seat.gated ? seat.mine === 'seated' : saved;
+  const onToggle = async () => {
+    if (!seat.gated) {
+      void toggle(session.id, session);
+      return;
+    }
+    if (seatBusy) return;
+    setSeatBusy(true);
+    setSeatMessage(null);
+    const result = await toggle(session.id, session);
+    // A waitlist place is not a refusal; the lines under the button say it.
+    setSeatMessage(result.ok ? null : result.message);
+    setSeatBusy(false);
+  };
   const accent = session.primaryTrackColor ?? colors.tint;
 
   return (
     <>
       {header}
-      <Screen grouped>
+      <Screen grouped avoidKeyboard>
         <View style={{ gap: Spacing.sm }}>
           {session.primaryTrackName ? (
             <Text variant="label" style={{ color: accent }}>
@@ -467,6 +496,9 @@ export default function SessionDetailScreen() {
               This session has been cancelled.
             </Text>
           ) : null}
+          {/* Who the session is for, next to the room and the time, because it
+              is a fact about the session and not the verdict on a tap. */}
+          {seat.ticketLine ? <Text tone="secondary">{seat.ticketLine}</Text> : null}
         </View>
 
         {/*
@@ -474,34 +506,55 @@ export default function SessionDetailScreen() {
           same calendar-plus glyph. It was "Add to my schedule" with a star here
           and "Add to Agenda" with a calendar in the list, which reads as two
           different features to anyone who has not written the code.
+
+          Dimmed and inert when the reader's ticket does not cover the session.
+          It used to be drawn as a live Join Waitlist, and pressing it was the
+          only way to learn otherwise.
         */}
         <Pressable
-          onPress={() => toggle(session.id)}
+          onPress={onToggle}
+          disabled={seatBusy || seat.barred || (seat.gated && !seat.ready)}
           accessibilityRole="button"
-          accessibilityState={{ selected: saved }}
-          accessibilityLabel={saved ? 'Remove from my agenda' : 'Add to my agenda'}
+          accessibilityState={{ selected: saved, busy: seatBusy, disabled: seat.barred }}
+          accessibilityLabel={
+            seat.gated ? seat.buttonLabel : saved ? 'Remove from my agenda' : 'Add to my agenda'
+          }
           style={({ pressed }) => ({
-            backgroundColor: saved ? colors.surface : colors.accent,
+            backgroundColor: saved || seat.barred ? colors.surface : colors.accent,
             borderWidth: 1,
-            borderColor: colors.tint,
+            borderColor: seat.barred ? colors.border : colors.tint,
             borderRadius: Radius.md,
             paddingVertical: Spacing.md,
             alignItems: 'center',
             minHeight: HIT_TARGET,
             justifyContent: 'center',
-            opacity: pressed ? 0.8 : 1,
+            opacity: (pressed && !seat.barred) || seatBusy ? 0.8 : 1,
           })}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-            <Icon
-              name={saved ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
-              size={20}
-              color={saved ? colors.tint : colors.onAccent}
-            />
-            <Text variant="heading" tone={saved ? 'tint' : 'onAccent'}>
-              {saved ? 'In My Agenda' : 'Add to Agenda'}
+            {seat.barred ? null : (
+              <Icon
+                name={seated ? 'checkmark.circle.fill' : 'calendar.badge.plus'}
+                size={20}
+                color={saved ? colors.tint : colors.onAccent}
+              />
+            )}
+            <Text
+              variant="heading"
+              tone={seat.barred ? 'tertiary' : saved ? 'tint' : 'onAccent'}>
+              {seat.gated ? seat.buttonLabel : saved ? 'In My Agenda' : 'Add to Agenda'}
             </Text>
           </View>
         </Pressable>
+
+        {/* The seat count says nothing useful to somebody who cannot take one,
+            so it goes with the button. */}
+        {seat.gated && !seat.barred && (seat.seatLine || seat.mySeatLine || seatMessage) ? (
+          <View style={{ gap: Spacing.xs }}>
+            {seatMessage ? <Text tone="danger">{seatMessage}</Text> : null}
+            {seat.mySeatLine ? <Text>{seat.mySeatLine}</Text> : null}
+            {seat.seatLine ? <Text tone="secondary">{seat.seatLine}</Text> : null}
+          </View>
+        ) : null}
 
         {/*
           A *different* feature from the button above, and drawn so it reads that
@@ -535,10 +588,56 @@ export default function SessionDetailScreen() {
           </Pressable>
         ) : null}
 
+        {/*
+          Above the description, because for anybody not in the building it is
+          the reason they opened the screen — and because a player found below
+          three paragraphs and a speaker card is a player nobody finds while a
+          talk is still running. It draws nothing at all for a session that is
+          only happening in a room, which is most of them.
+        */}
+        <SessionWatch session={session} />
+
         {session.description ? (
           <View style={{ gap: Spacing.sm }}>
             <Text variant="heading">About</Text>
             <Text>{session.description}</Text>
+          </View>
+        ) : null}
+
+        {/*
+          The handouts an organizer attached to this talk — slides, the paper,
+          the dataset.
+
+          Read from the same `useDocuments` list the Documents screen uses, and
+          filtered here rather than queried: `firestore.rules` serves only
+          published, unrestricted handouts and judges a `list` on its filters,
+          so a third equality on `sessionId` would need its own rule predicate
+          and its own composite index to return what is already on the device.
+          A handout restricted to a ticket type is absent from that list, so it
+          is absent here too — the dashboard says so beside the field, and this
+          screen does not narrate a file the reader cannot have.
+        */}
+        {sessionMaterials.length ? (
+          <View style={{ gap: Spacing.sm }}>
+            <Text variant="heading">Materials</Text>
+            <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
+              {sessionMaterials.map((d, i, arr) => (
+                <ListRow
+                  key={d.id}
+                  title={d.title}
+                  subtitle={d.description}
+                  meta={[kindLabel(d.kind), linkHost(d.url)].filter(Boolean).join(' · ')}
+                  trailing={<Chevron />}
+                  first={i === 0}
+                  last={i === arr.length - 1}
+                  onPress={() => {
+                    Linking.openURL(d.url).catch((e: unknown) => {
+                      console.warn('[session] could not open', d.url, e);
+                    });
+                  }}
+                />
+              ))}
+            </View>
           </View>
         ) : null}
 

@@ -46,11 +46,10 @@ export default async function MessageTeamMembersPage() {
         title="Message Team Members"
         info={
           <>
-            <strong>No addresses are held</strong>
+            <strong>Not available yet</strong>
             <p>
-              Task assignees are names typed into a checklist, not accounts. Nothing in this
-              dashboard invites or lists a colleague, so a compose box here would resolve to
-              nobody.
+              Team members cannot be messaged from here yet. Task owners are typed names with no
+              email address.
             </p>
           </>
         }
@@ -66,24 +65,24 @@ export default async function MessageTeamMembersPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Names on tasks', value: assignees.length, sub: 'free text, no addresses' },
+          { label: 'Names on tasks', value: assignees.length, sub: 'typed names, no addresses' },
           {
             label: 'Open tasks',
             value: tasks.filter((t) => t.status !== 'done').length,
             sub: `${unassigned} unassigned`,
           },
-          { label: 'Addresses on file', value: 0, sub: 'nothing holds one' },
+          { label: 'Addresses on file', value: 0, sub: 'no email addresses' },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Who the checklist thinks the team is</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Names on the checklist</h2>
         {assignees.length === 0 ? (
           <NotInputted
             what="assignees"
             action={
               <Link
-                className="whova-btn-main"
+                className="whova-btn-main primary"
                 href="/content/project-management/projects-and-checklists"
               >
                 Assign a task
@@ -109,9 +108,7 @@ export default async function MessageTeamMembersPage() {
           />
         )}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          These are distinct strings, not people. Two spellings of one name are two rows, which is
-          the honest consequence of free-text assignees and is the first thing a real team model
-          would fix.
+          Two spellings of one name show as two rows.
         </p>
       </Panel>
 

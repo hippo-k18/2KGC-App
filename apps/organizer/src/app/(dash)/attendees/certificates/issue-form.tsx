@@ -54,7 +54,6 @@ export function IssueForm({
           required
           autoComplete="off"
           placeholder="François Scharffe"
-          hint="As it should print."
         />
         <Field
           label="Their role"
@@ -78,7 +77,7 @@ export function IssueForm({
         name="logo"
         label="Certificate mark"
         currentUrl={logoUrl}
-        help="Printed at the head of every certificate in this run, and stored on each one. Replacing it later does not redraw a certificate already handed over. Starts as the KGC mark; upload your own to override it, or Remove to print no mark at all."
+        help="Printed at the top of every certificate in this run. Changing it later does not change certificates already issued. Remove it to print no mark."
       />
 
       <FormActions>

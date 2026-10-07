@@ -12,19 +12,18 @@ export default async function Page() {
       whatItIs="A CRM and marketing platform. For a conference it is usually where the sponsor and exhibitor pipeline lives."
       whovaDoes="Creates or updates a HubSpot contact for every registrant, and triggers their marketing sequences off it."
       ourAnswer={<>
-          By CSV. The attendee export imports cleanly into HubSpot&rsquo;s own contact importer,
-          which maps columns interactively and deduplicates better than a one-way push would.
+          By CSV. The attendee export works with HubSpot&rsquo;s contact importer, which maps
+          columns and removes duplicates.
         </>}
       effort="3–5 days. The API is well documented and the object model is simple."
       steps={[
         <>
           Export the list you need from{' '}
-          <Link href="/attendees/manage-attendees/analytics-and-exports">Analytics &amp; Exports</Link>{' '}. The attendee, order or speaker CSV.
+          <Link href="/attendees/manage-attendees/analytics-and-exports">Analytics &amp; Exports</Link>: the attendee, order or speaker CSV.
         </>,
-        <>Import it into HubSpot with their own import tool. Every one of these products has one.</>,
+        <>Import it into HubSpot with its contact import tool.</>,
         <>
-          Repeat once before the event and once after it. For a conference that happens annually
-          that is fresh enough; nothing here goes stale between those two moments.
+          Repeat once before the event and once after it.
         </>,
       ]}
       links={[

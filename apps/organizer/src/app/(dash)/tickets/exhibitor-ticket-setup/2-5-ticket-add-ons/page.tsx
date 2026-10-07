@@ -89,12 +89,10 @@ export default async function ExhibitorAddOnsPage() {
         title="2.5 Ticket Add-ons"
         info={
           <>
-            <strong>An exhibitor extra is priced as its own cheap package</strong>
+            <strong>An extra is a low-priced exhibitor ticket</strong>
             <p>
-              A staff pass or a power upgrade has a price and no dependency on the parent purchase,
-              so a low-priced <code>audience: exhibitor</code> tier is on sale at{' '}
-              <code>/tickets/exhibitor</code> with no new model. Nothing links a pass purchase back
-              to an exhibitor&rsquo;s allocation. That is set by hand on Exhibitor Manager.
+              Sell a staff pass or a power upgrade as its own exhibitor ticket. Buying a pass does
+              not change an exhibitor&rsquo;s pass allocation. Set that in Exhibitor Manager.
             </p>
           </>
         }
@@ -126,8 +124,7 @@ export default async function ExhibitorAddOnsPage() {
             {over.length} {over.length === 1 ? 'exhibitor has' : 'exhibitors have'} claimed more
             staff passes than their package allows.
           </strong>{' '}
-          Nothing enforces the allocation, so the shortfall arrives at the badge desk on the morning
-          of day one. Correct the allocation on{' '}
+          Correct the allocation on{' '}
           <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link> or
           record the extra passes as a purchase.
         </Banner>
@@ -136,7 +133,7 @@ export default async function ExhibitorAddOnsPage() {
       <StatTiles
         tiles={[
           { label: 'Extras priced', value: extras.length, sub: `under ${money(EXTRA_THRESHOLD_CENTS)}` },
-          { label: 'Extras sold', value: extraSales.length, sub: 'demo excluded' },
+          { label: 'Extras sold', value: extraSales.length, sub: 'cancelled orders excluded' },
           { label: 'Passes allocated', value: allocated, sub: `${used} claimed` },
           {
             label: 'Over-allocated',
@@ -148,52 +145,48 @@ export default async function ExhibitorAddOnsPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Extras on sale</h2>
-        <Table
-          cols={[
-            { key: 'n', label: 'Extra', className: 'cell-fill' },
-            { key: 'p', label: 'Price', className: 'cell-sm' },
-            { key: 's', label: 'Sold', className: 'cell-sm' },
-            { key: 'v', label: 'Listed', className: 'cell-sm' },
-          ]}
-          rows={extras.map((t) => [
-            <div key="n">
-              <div>{t.name}</div>
-              <div className="muted" style={{ fontSize: 11 }}>
-                {t.tagline || <em>no tagline</em>}
-              </div>
-            </div>,
-            money(t.priceCents, t.currency),
-            t.quantitySold,
-            t.visible ? (
-              <Tag key="v" color="green" small>
-                yes
-              </Tag>
-            ) : (
-              <Tag key="v" color="grey" small>
-                link only
-              </Tag>
-            ),
-          ])}
-          empty={
-            <>
-              <strong>Nothing priced under {money(EXTRA_THRESHOLD_CENTS)}.</strong> To sell an extra
-              staff pass or a power upgrade, create it in{' '}
-              <Link href={ROUTES.createTickets}>Create Tickets</Link> with the audience set to
-              exhibitor. It appears alongside the packages, which is exactly where an exhibitor
-              looks for it.
-            </>
-          }
-        />
+        {extras.length === 0 ? (
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 0 }}>
+            No extras yet. To sell an extra staff pass or a power upgrade, create it in{' '}
+            <Link href={`${ROUTES.createTickets}?audience=exhibitor`}>Create Tickets</Link> with a
+            price under {money(EXTRA_THRESHOLD_CENTS)}.
+          </p>
+        ) : (
+          <Table
+            cols={[
+              { key: 'n', label: 'Extra', className: 'cell-fill' },
+              { key: 'p', label: 'Price', className: 'cell-sm' },
+              { key: 's', label: 'Sold', className: 'cell-sm' },
+              { key: 'v', label: 'Listed', className: 'cell-sm' },
+            ]}
+            rows={extras.map((t) => [
+              <div key="n">
+                <div>{t.name}</div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {t.tagline || <em>no tagline</em>}
+                </div>
+              </div>,
+              money(t.priceCents, t.currency),
+              t.quantitySold,
+              t.visible ? (
+                <Tag key="v" color="green" small>
+                  yes
+                </Tag>
+              ) : (
+                <Tag key="v" color="grey" small>
+                  link only
+                </Tag>
+              ),
+            ])}
+          />
+        )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Staff passes, which nothing enforces</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Staff passes</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          ⚠️ Every package below names a pass count in its inclusion list and{' '}
-          <strong>nothing reads it</strong>. <code>passesAllocated</code> is typed in on Exhibitor
-          Manager; <code>passesUsed</code> is counted. The two disagreeing is discovered at the desk
-          on the morning of day one, by somebody expecting a badge that was never allocated, so it
-          is worth reading this table in April rather than in May.
+          Pass allocations are set by hand in Exhibitor Manager. The pass count written in a
+          package is not applied for you, so check each exhibitor below.
         </p>
         <Table
           cols={[
@@ -223,7 +216,7 @@ export default async function ExhibitorAddOnsPage() {
             <div key="p">
               <div style={{ fontSize: 13 }}>
                 {x.passesUsed}
-                {typeof x.passesAllocated === 'number' ? ` / ${x.passesAllocated}` : ' / —'}
+                {typeof x.passesAllocated === 'number' ? ` / ${x.passesAllocated}` : ''}
               </div>
               {typeof x.passesAllocated === 'number' && x.passesAllocated > 0 && (
                 <ProgressBar pct={Math.min(100, (x.passesUsed / x.passesAllocated) * 100)} />
@@ -237,7 +230,7 @@ export default async function ExhibitorAddOnsPage() {
               </span>
             ) : typeof x.passesAllocated !== 'number' ? (
               <span key="s" className="muted" style={{ fontSize: 12 }}>
-                No allocation recorded, so nothing can be over it.
+                No allocation recorded
               </span>
             ) : (
               <span key="s" className="muted" style={{ fontSize: 12 }}>
@@ -245,7 +238,7 @@ export default async function ExhibitorAddOnsPage() {
               </span>
             ),
           ])}
-          empty="No exhibitors yet."
+          empty="No exhibitors yet"
         />
       </Panel>
 
@@ -255,7 +248,7 @@ export default async function ExhibitorAddOnsPage() {
           cols={[
             { key: 'n', label: 'Package', className: 'cell-md' },
             { key: 'p', label: 'Price', className: 'cell-sm' },
-            { key: 'i', label: 'Inclusion list: prose, not data', className: 'cell-fill' },
+            { key: 'i', label: 'What’s included', className: 'cell-fill' },
           ]}
           rows={packages.map((t) => [
             t.name,

@@ -12,6 +12,10 @@
  * background is full-bleed without any negative-margin trickery, and
  * `min-height` keeps it covering the viewport on a short post.
  */
+export const metadata = {
+  alternates: { types: { 'application/rss+xml': [{ url: '/blog/feed.xml', title: 'KGC blog' }] } },
+};
+
 export default function BlogLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="blog-page" style={{ background: 'var(--palette-3)', minHeight: '70vh' }}>

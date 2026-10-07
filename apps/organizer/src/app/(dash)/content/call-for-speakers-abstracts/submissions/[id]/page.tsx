@@ -10,12 +10,14 @@ import {
   submissionLink,
   submissionLinksAvailable,
 } from '@/lib/submissions';
+import { listReviewers } from '@/lib/reviewers';
 import { ROUTES } from '@/lib/nav';
 import { Banner, NotInputted, PageHeader, Panel, Table, Tag } from '../../../../ui';
 import { ConfirmButton } from '../../../../form';
 import { CFA_BASE } from '../../routes';
 import { DecisionPanel } from '../decision-panel';
-import { undoDecisionAction } from '../actions';
+import { liftExclusionAction, undoDecisionAction } from '../actions';
+import { ExcludeReviewerForm } from '../exclude-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,11 +54,19 @@ export default async function SubmissionDetailPage({
   const submission = await getSubmission(id);
   if (!submission) notFound();
 
-  const [call, reviews, tracks] = await Promise.all([
+  const [call, reviews, tracks, committee] = await Promise.all([
     getCall(submission.callId),
     listReviews(id),
     listTrackOptions(),
+    listReviewers(),
   ]);
+
+  const reviewerName = new Map(committee.map((r) => [r.id, r.name]));
+  const rubric = call?.rubric ?? [];
+  const off = new Set(reviews.filter((r) => r.conflict || r.status === 'declined').map((r) => r.reviewerId));
+  const excludable = committee
+    .filter((r) => r.status !== 'removed' && !off.has(r.id))
+    .map((r) => ({ id: r.id, name: r.name, holds: reviews.some((v) => v.reviewerId === r.id) }));
 
   const trackName = submission.trackId
     ? (tracks.find((t) => t.id === submission.trackId)?.name ?? submission.trackId)
@@ -119,8 +129,8 @@ export default async function SubmissionDetailPage({
          * help centre corrects it — see `promoteSubmission`.
          */
         <Banner kind="warning">
-          <strong>Accepted, and not on the agenda.</strong> Acceptance is not scheduling. A
-          session needs a day, a time and a room, and none of those has been decided. Put it on the
+          <strong>Accepted, and not on the agenda.</strong> It still needs a day, a time and a room.
+          Put it on the
           agenda from{' '}
           <Link href={`${ROUTES.sessionManager}/from-accepted`}>
             Session Manager → From accepted submissions
@@ -191,15 +201,15 @@ export default async function SubmissionDetailPage({
             </dl>
             {linkable && (
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-                Their own link back to this submission. Send it if they have lost theirs. It opens
-                this submission and nothing else, and re-sending does not kill the old one:{' '}
+                Their own link back to this submission. Send it if they have lost theirs. The
+                old link keeps working:{' '}
                 <code style={{ wordBreak: 'break-all' }}>{submissionLink(submission.id)}</code>
               </p>
             )}
             {!linkable && (
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-                No link can be minted on this deployment. Neither <code>WEB_SUBMISSION_SECRET</code>{' '}
-                nor <code>WEB_ORDER_SECRET</code> is set.
+                Author links are not set up for this event. Ask your administrator to finish the
+                setup.
               </p>
             )}
           </>
@@ -207,8 +217,7 @@ export default async function SubmissionDetailPage({
           <>
             <NotInputted what="author record" compact />
             <p className="body-2" style={{ marginBottom: 0 }}>
-              An abstract is always written with an identity document beside it, so a submission
-              without one was not created by the portal. There is nobody to email about it.
+              This submission has no author on file, so there is nobody to email about it.
             </p>
           </>
         )}
@@ -253,39 +262,121 @@ export default async function SubmissionDetailPage({
             </p>
           </>
         ) : (
-          <Table
-            cols={[
-              { key: 'r', label: 'Reviewer', className: 'cell-md' },
-              { key: 's', label: 'Status', className: 'cell-sm' },
-              { key: 'o', label: 'Overall', className: 'cell-sm' },
-              { key: 'c', label: 'Comments' },
-            ]}
-            rows={reviews.map((r) => [
-              <span key="r">
-                {r.reviewerId}
-                {r.assignedBy ? (
-                  <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                    assigned {r.assignedBy}
-                  </span>
-                ) : null}
-              </span>,
-              <span key="s">
-                <Tag color={r.status === 'submitted' ? 'green' : r.conflict ? 'red' : 'orange'}>
-                  {r.conflict ? 'conflict' : r.status}
-                </Tag>
-              </span>,
-              <span key="o">{r.overall !== undefined ? r.overall.toFixed(1) : '—'}</span>,
-              <span key="c">
-                {r.commentsToCommittee ? (
-                  <span>{r.commentsToCommittee}</span>
-                ) : (
-                  <span className="muted">not entered yet</span>
-                )}
-              </span>,
-            ])}
-          />
+          <>
+            {submission.scoreAverage !== undefined && (
+              <p className="body-2">
+                Mean score <strong>{submission.scoreAverage.toFixed(2)}</strong> of 10, from{' '}
+                {submission.reviewsSubmitted} review{submission.reviewsSubmitted === 1 ? '' : 's'}.
+                Reviews under a conflict of interest are not counted.
+              </p>
+            )}
+            <Table
+              stackSm
+              cols={[
+                { key: 'r', label: 'Reviewer', className: 'cell-md' },
+                { key: 's', label: 'Status', className: 'cell-sm' },
+                { key: 'o', label: 'Scores', className: 'cell-md' },
+                { key: 'c', label: 'Comments' },
+              ]}
+              rows={reviews.map((r) => {
+                const gone = r.conflict || r.status === 'declined';
+                return [
+                  <span key="r">
+                    {reviewerName.get(r.reviewerId) ?? r.reviewerId}
+                    {r.assignedBy ? (
+                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                        assigned {r.assignedBy === 'topic' ? 'by track' : r.assignedBy}
+                      </span>
+                    ) : null}
+                  </span>,
+                  <span key="s">
+                    <Tag color={gone ? 'red' : r.status === 'submitted' ? 'green' : 'orange'}>
+                      {gone ? (r.excludedBy ? 'excluded' : 'conflict') : r.status}
+                    </Tag>
+                    {gone && r.conflictNote ? (
+                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                        {r.conflictNote}
+                      </span>
+                    ) : null}
+                    {gone && r.liftable ? (
+                      <form action={liftExclusionAction}>
+                        <input type="hidden" name="submissionId" value={submission.id} />
+                        <input type="hidden" name="reviewerId" value={r.reviewerId} />
+                        <button type="submit" className="linkish">
+                          Lift exclusion
+                        </button>
+                      </form>
+                    ) : null}
+                  </span>,
+                  <span key="o">
+                    {gone ? (
+                      <span className="muted">not counted</span>
+                    ) : r.overall !== undefined ? (
+                      <>
+                        <strong>{r.overall.toFixed(2)}</strong>
+                        {r.confidence ? (
+                          <span className="muted"> · confidence {r.confidence}/5</span>
+                        ) : null}
+                        {rubric.map((c) =>
+                          r.scores[c.id] !== undefined ? (
+                            <span className="muted" key={c.id} style={{ display: 'block', fontSize: 12 }}>
+                              {c.label}: {r.scores[c.id]}/{c.max}
+                            </span>
+                          ) : null,
+                        )}
+                      </>
+                    ) : (
+                      <span className="muted">not entered yet</span>
+                    )}
+                  </span>,
+                  <span key="c">
+                    {gone ? null : (
+                      <>
+                        {rubric.map((c) =>
+                          r.criterionComments[c.id] ? (
+                            <span key={c.id} style={{ display: 'block', marginBottom: 6 }}>
+                              <strong>{c.label}.</strong> {r.criterionComments[c.id]}
+                            </span>
+                          ) : null,
+                        )}
+                        {r.commentsToCommittee ? (
+                          <span style={{ display: 'block', marginBottom: 6 }}>
+                            <strong>To the committee.</strong> {r.commentsToCommittee}
+                          </span>
+                        ) : null}
+                        {r.commentsToAuthors ? (
+                          <span style={{ display: 'block' }}>
+                            <strong>For the author.</strong> {r.commentsToAuthors}
+                          </span>
+                        ) : null}
+                        {!r.commentsToCommittee &&
+                        !r.commentsToAuthors &&
+                        Object.keys(r.criterionComments).length === 0 ? (
+                          <span className="muted">none</span>
+                        ) : null}
+                      </>
+                    )}
+                  </span>,
+                ];
+              })}
+            />
+          </>
         )}
       </Panel>
+
+      {excludable.length > 0 && (
+        <Panel style={{ marginTop: 16 }}>
+          <h2 className="section-header" style={{ marginTop: 0 }}>
+            Conflict of interest
+          </h2>
+          <p className="body-2">
+            Exclude a reviewer who should not read this submission. They lose access to it, any
+            scores they gave stop counting, and assignment skips them. Reviewers can also declare
+            a conflict themselves from their review page.
+          </p>
+          <ExcludeReviewerForm submissionId={submission.id} reviewers={excludable} />
+        </Panel>
+      )}
 
       <Panel style={{ marginTop: 16 }}>
         <h2 className="section-header" style={{ marginTop: 0 }}>
@@ -295,7 +386,12 @@ export default async function SubmissionDetailPage({
         {submission.decision && (
           <Banner kind={submission.status === 'accepted' ? 'success' : 'info'}>
             <strong>
-              {submission.status === 'accepted' ? 'Accepted' : 'Rejected'} by{' '}
+              {submission.status === 'accepted'
+                ? 'Accepted'
+                : submission.status === 'waitlisted'
+                  ? 'Waitlisted'
+                  : 'Rejected'}{' '}
+              by{' '}
               {submission.decision.by}
             </strong>{' '}
             on {new Date(submission.decision.atMs).toLocaleString('en-GB')}, round{' '}
@@ -305,13 +401,11 @@ export default async function SubmissionDetailPage({
 
         {submission.status === 'draft' ? (
           <p className="body-2" style={{ marginBottom: 0 }}>
-            This is still a draft. Its author has not finished it, so there is nothing to decide
-            on. Deciding on an unfinished abstract would be deciding on something nobody offered.
+            This is still a draft. It can be decided once the author submits it.
           </p>
         ) : submission.status === 'withdrawn' ? (
           <p className="body-2" style={{ marginBottom: 0 }}>
-            The author withdrew this. A withdrawal is theirs to make, and a decision on top of it
-            would put a rejection into the acceptance rate for a paper nobody was judging.
+            The author withdrew this, so it cannot be decided.
           </p>
         ) : (
           <>
@@ -329,9 +423,8 @@ export default async function SubmissionDetailPage({
                   confirmLabel="Remove the decision"
                 >
                   The submission goes back to <strong>under review</strong> and the decision is
-                  deleted rather than flagged as reversed. ⚠️ If the author has already been
-                  emailed, that message stands. Nothing here can recall it, and they will still
-                  believe whatever it said until somebody writes to them.
+                  deleted. ⚠️ If the author has already been emailed, that message cannot be
+                  recalled. Write to them yourself.
                 </ConfirmButton>
               </div>
             )}
@@ -351,8 +444,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function tagColour(status: string): 'green' | 'red' | 'orange' | 'grey' {
+function tagColour(status: string): 'green' | 'red' | 'orange' | 'grey' | 'blue' {
   if (status === 'accepted') return 'green';
+  if (status === 'waitlisted') return 'blue';
   if (status === 'rejected' || status === 'withdrawn') return 'red';
   if (status === 'draft') return 'grey';
   return 'orange';

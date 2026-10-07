@@ -2,8 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
 
 /**
@@ -21,9 +21,74 @@ import { ABOUT_MENU, NAV, NAV_MORE } from '@/lib/site';
  * than the translucent white bar this used to be — the mark is white, so on white
  * it disappeared.
  */
-export function SiteHeader() {
+export function SiteHeader({
+  logoUrl,
+  eventName = 'Knowledge Graph Conference',
+  showAgenda = false,
+  showSpeakers = false,
+  showTickets = false,
+  blogOrigin,
+  mainOrigin,
+}: {
+  /** The logo saved on App Branding, resolved in the root layout. Unset keeps the wordmark. */
+  logoUrl?: string;
+  eventName?: string;
+  /** Marketing > Event Website switches, resolved in the root layout. */
+  showAgenda?: boolean;
+  showSpeakers?: boolean;
+  /** Whether tickets are on sale. Off hides "Register now". */
+  showTickets?: boolean;
+  /**
+   * `BLOG_ORIGIN`, resolved in the root layout. `/blog` links go straight there:
+   * as a relative `Link` they are prefetched, the middleware answers the
+   * prefetch with a cross-origin redirect, and every page logs a failed fetch.
+   */
+  blogOrigin?: string;
+  /**
+   * The main site's origin (`mainSiteOrigin()`, resolved in the root layout).
+   * On the blog host every main-site link is absolute to it, so a blog reader
+   * goes straight to the page instead of through a redirect.
+   */
+  mainOrigin?: string;
+} = {}) {
   const path = usePathname();
+  /*
+   * The blog host rewrites to the `/blog` routes, so the top segment is how
+   * this knows it is on the blog, during server rendering too. Only with
+   * `BLOG_ORIGIN` set: without it `/blog` is a page of the main site.
+   */
+  const onBlog = useSelectedLayoutSegment() === 'blog' && Boolean(blogOrigin && mainOrigin);
+  const to = (href: string) => {
+    if (blogOrigin && /^\/blog(\/|\?|$)/.test(href)) return `${blogOrigin}${href.slice(5) || '/'}`;
+    return onBlog && href.startsWith('/') ? `${mainOrigin}${href}` : href;
+  };
+  /** On this page or one of its subpages. Links with a query never match. */
+  const under = (href: string) => !href.includes('?') && (path === href || path.startsWith(`${href}/`));
+  // About KGC reads as current on any of its menu's own pages, as it does on /about.
+  const aboutChild = ABOUT_MENU.some((item) => !item.external && under(item.href));
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+
+  // The bar opens with the caret in it, and Escape or a new page closes it.
+  useEffect(() => {
+    if (!searching) return;
+    searchInput.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSearching(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [searching]);
+
+  useEffect(() => setSearching(false), [path]);
+
+  // On blog.knowledgegraph.tech "/" is the blog, so the logo points at
+  // `/__site`, which the middleware sends to the main site's home page.
+  const [home, setHome] = useState(onBlog ? `${mainOrigin}/` : '/');
+  useEffect(() => {
+    if (!onBlog && /^blog\./.test(window.location.hostname)) setHome('/__site');
+  }, [onBlog]);
 
   /*
    * While the menu is open the page behind it must not scroll.
@@ -86,27 +151,55 @@ export function SiteHeader() {
       */}
       <header className="site-header">
         <div className="wrap bar">
-          <Link href="/" className="logo" aria-label="Knowledge Graph Conference, home">
+          <Link href={home} className="logo" aria-label={`${eventName}, home`}>
             {/*
               Intrinsic size is the file's own 2048×763, so Next can reserve the
               right box; CSS takes it down to the header height. `priority`
               because it is the largest thing above the fold on every page.
             */}
-            <Image
-              src="/kgc/cropped-White-Wordmark-2.png"
-              alt="Knowledge Graph Conference"
-              width={2048}
-              height={763}
-              priority
-            />
+            {logoUrl ? (
+              // A logo saved on App Branding. A plain `img`: its host is not in
+              // `images.remotePatterns`, and `next/image` throws on one that is not.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt={eventName} />
+            ) : (
+              <Image
+                src="/kgc/cropped-White-Wordmark-2.png"
+                alt="Knowledge Graph Conference"
+                width={2048}
+                height={763}
+                // 56px tall in the stylesheet, so 151px wide. Without `sizes`
+                // every page fetched the 3840px rendition for it.
+                sizes="151px"
+                priority
+              />
+            )}
           </Link>
 
           <nav id="main-nav" aria-label="Main" className={open ? 'open' : undefined}>
-            {NAV.map((item) => (
+            {/* Hamburger-only items (`.nav-more` is hidden on desktop), first in the phone menu. */}
+            {NAV_MORE.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={to(item.href)}
+                className="nav-more"
                 aria-current={path === item.href ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {NAV.filter(
+              (item) =>
+                (showAgenda || item.href !== '/agenda') &&
+                (showSpeakers || item.href !== '/speakers'),
+            ).map((item) => (
+              <Link
+                key={item.href}
+                href={to(item.href)}
+                // A section's own pages count too: a speaker's page is under
+                // Past Speakers.
+                aria-current={path === item.href || path.startsWith(`${item.href}/`) ? 'page' : undefined}
                 onClick={() => setOpen(false)}
               >
                 {item.label}
@@ -124,9 +217,9 @@ export function SiteHeader() {
             */}
             <div className="has-menu">
               <Link
-                href="/about"
+                href={to('/about')}
                 className="menu-parent"
-                aria-current={path.startsWith('/about') ? 'page' : undefined}
+                aria-current={path.startsWith('/about') || aboutChild ? 'page' : undefined}
                 aria-haspopup="true"
                 onClick={() => setOpen(false)}
               >
@@ -141,7 +234,12 @@ export function SiteHeader() {
                       {item.label}
                     </a>
                   ) : (
-                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
+                    <Link
+                      key={item.href}
+                      href={to(item.href)}
+                      aria-current={under(item.href) ? 'page' : undefined}
+                      onClick={() => setOpen(false)}
+                    >
                       {item.label}
                     </Link>
                   ),
@@ -149,20 +247,11 @@ export function SiteHeader() {
               </div>
             </div>
 
-            {NAV_MORE.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="nav-more"
-                aria-current={path === item.href ? 'page' : undefined}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
+            {showTickets && (
+              <Link href={to('/tickets')} className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
+                Register now
               </Link>
-            ))}
-            <Link href="/tickets" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
-              Register now
-            </Link>
+            )}
           </nav>
 
           {/*
@@ -176,12 +265,22 @@ export function SiteHeader() {
             them. Grouping them is also what lets the hamburger keep its place at
             the very end of the row on a phone while staying hidden on desktop.
 
-            Search is present and orange on the live site. It routes to a real
-            page rather than opening a box that does nothing: a search field that
-            swallows a query is worse than an honest link.
+            The magnifier opens a search box for the whole site under the bar.
+            Without script it is an ordinary link to the search page.
           */}
           <div className="header-actions">
-            <Link href="/agenda" className="search" aria-label="Search the agenda">
+            <Link
+              href={to('/search')}
+              className="search"
+              aria-label="Search the site"
+              aria-expanded={searching}
+              aria-controls="site-search"
+              onClick={(e) => {
+                e.preventDefault();
+                setOpen(false);
+                setSearching((v) => !v);
+              }}
+            >
               <SearchIcon />
             </Link>
 
@@ -197,6 +296,27 @@ export function SiteHeader() {
             </button>
           </div>
         </div>
+
+        {searching && (
+          <form id="site-search" className="site-search" role="search" action={to('/search')} method="get">
+            <div className="wrap site-search-form">
+              <label className="sr-only" htmlFor="site-search-input">
+                Search the site
+              </label>
+              <input
+                ref={searchInput}
+                id="site-search-input"
+                type="search"
+                name="q"
+                placeholder="Search the site"
+                autoComplete="off"
+              />
+              <button type="submit" className="btn btn-primary">
+                Search
+              </button>
+            </div>
+          </form>
+        )}
       </header>
 
     </>

@@ -66,7 +66,11 @@ export interface CartSeat {
   email: string;
   ticketType: string;
   ticketTypeId: string;
+  /** What this seat is charged, the group rate already off. */
   priceCents: number;
+  /** The catalogue price and the group rate's cut, when it applied to this seat. */
+  listPriceCents?: number;
+  groupDiscountCents?: number;
 }
 
 /**
@@ -96,8 +100,11 @@ export async function recordCartOrder(input: {
    * real order — can undo the whole rehearsal, seat list included.
    */
   channel?: NonNullable<OrderDoc['channel']>;
+  /** The buyer fee, when it is switched on. Part of the total, not of any seat. */
+  feeCents?: number;
 }): Promise<string> {
   const oid = orderIdForSession(input.sessionId);
+  const groupDiscountCents = input.seats.reduce((n, seat) => n + (seat.groupDiscountCents ?? 0), 0);
 
   /**
    * No `purchasedAt`, on purpose.
@@ -136,6 +143,9 @@ export async function recordCartOrder(input: {
       ticketTypeName: seat.ticketType,
       quantity: 1,
       unitPriceCents: seat.priceCents,
+      ...(seat.groupDiscountCents
+        ? { listPriceCents: seat.listPriceCents, groupDiscountCents: seat.groupDiscountCents }
+        : {}),
       attendeeName: seat.name,
       // Folded here rather than at the reader, because `registrationId` folds
       // too: `Ada@Example.com` and `ada@example.com` must resolve to the one
@@ -154,10 +164,16 @@ export async function recordCartOrder(input: {
     subtotalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
     taxCents: 0,
     discountCents: 0,
-    totalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
+    totalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0) + (input.feeCents ?? 0),
     refundedCents: 0,
     currency: input.currency,
     campaignCode: input.campaignCode,
+    /**
+     * The group rate, kept apart from `discountCents`, which is Stripe's
+     * promotion-code figure and is overwritten on payment. `fulfilPurchase`
+     * merges, so this survives fulfilment.
+     */
+    ...(groupDiscountCents > 0 ? { groupDiscountCents } : {}),
     // Nobody is registered yet, and this empty list is what says so.
     registrationIds: [],
   };
@@ -180,14 +196,6 @@ export async function recordCartOrder(input: {
 /**
  * The seat lines a Checkout session covers, read back at fulfilment.
  *
- * Returns the raw `OrderLine[]` rather than the tidier shape `seatsFromOrder`
- * produces, because the webhook does not merely read these — it has to **write
- * them back**. `fulfilPurchase` sets `items` to a single line describing the
- * buyer, and a Firestore merge replaces an array wholesale rather than merging
- * into it, so the other seats would be erased by the very write that fulfils
- * them. Handing back the lines verbatim is what lets the webhook restore them
- * unchanged instead of reconstructing prices it no longer has.
- *
  * An empty list means an ordinary single-seat purchase — no cart order was
  * written — and the caller falls back to the buyer alone.
  */
@@ -199,44 +207,33 @@ export async function cartLines(sessionId: string): Promise<OrderLine[]> {
 }
 
 /**
- * Put the seat list back after fulfilment has overwritten it.
+ * Attach a group purchase's registrations to its order.
  *
- * ── The failure this exists to prevent ──────────────────────────────────────
+ * An `arrayUnion`, not a `set` of the list: the return redirect and the webhook
+ * can fulfil the same purchase at the same moment, and two whole-list writes
+ * race to leave whichever one finished last. A union is idempotent across
+ * replays (Stripe redelivers for up to three days) and commutes across
+ * concurrent callers, because both add the same ids.
  *
- * `fulfilPurchase` writes the order with `set(…, { merge: true })` and sets
- * `items` to a **single** line describing the buyer, because a Checkout session
- * was one ticket for one person when it was written. A Firestore merge treats
- * an array as one value and replaces it wholesale rather than merging into it,
- * so the very write that fulfils a three-seat purchase erases the record of who
- * seats two and three are — along with the two `OrderLine`s that
- * `decideRefund` would have turned back into seats to return to `quantitySold`,
- * and the two rows the dashboard counts as `seatCount`. A refund would then
- * give back one seat out of three, permanently, and no screen could correct it.
- *
- * So the webhook reads the lines before fulfilment and writes them back after.
- *
- * ⚠️ **Idempotent by construction.** Both fields are set to a value rather than
- * appended to, so a redelivered `checkout.session.completed` writes the same
- * array again. That matters: Stripe retries for up to three days, and an
- * `arrayUnion` here would have been correct on the first delivery and quietly
- * wrong on the second.
- *
- * The correct home for this is a `seats` parameter on `fulfilPurchase` itself,
- * which would let one write do the whole job. It lives here instead because
- * `registrations.ts` is owned elsewhere; folding it in is a small, safe change
- * and this comment is the note asking for it.
+ * This used to also write `items` back, because `fulfilPurchase` replaced the
+ * seat list with the buyer's line. It no longer does (see `cartItems` there),
+ * which is what lets the redirect, usually first, leave the list intact for the
+ * webhook.
  */
-export async function restoreCartOrder(input: {
+export async function attachSeatRegistrations(input: {
   sessionId: string;
-  lines: OrderLine[];
   registrationIds: string[];
+  /** The ones this order only added Workshops to. See `OrderDoc.extraRegistrationIds`. */
+  extraRegistrationIds?: string[];
 }): Promise<void> {
+  if (input.registrationIds.length === 0) return;
+  const extended = input.extraRegistrationIds ?? [];
   await db()
     .collection(COLLECTIONS.orders)
     .doc(orderIdForSession(input.sessionId))
     .update({
-      items: input.lines,
-      registrationIds: input.registrationIds,
+      registrationIds: FieldValue.arrayUnion(...input.registrationIds),
+      ...(extended.length ? { extraRegistrationIds: FieldValue.arrayUnion(...extended) } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
 }

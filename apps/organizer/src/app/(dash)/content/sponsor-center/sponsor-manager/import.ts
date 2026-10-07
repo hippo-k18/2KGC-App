@@ -1,10 +1,10 @@
 import 'server-only';
 
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
-import type { SponsorTier } from '@kgc/shared';
+import type { SponsorTier, SponsorTierDef } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { buildPreview, parseCsv, type Mapping, type RowError } from '@/lib/csv-import';
-import { TIER_ORDER } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { db } from '@/lib/firestore';
 import { normaliseWebsite, sponsorSlug, SPONSOR_FIELDS } from './sponsor-fields';
 
@@ -54,9 +54,10 @@ export function previewSponsorCsv(text: string, mapping?: Mapping) {
  */
 const MAX_ROWS = 500;
 
-function toTier(raw: string): SponsorTier | undefined {
+/** A CSV cell names a tier by its id or by the name an organizer gave it. */
+function toTier(raw: string, tiers: SponsorTierDef[]): SponsorTier | undefined {
   const lower = raw.trim().toLowerCase();
-  return (TIER_ORDER as string[]).includes(lower) ? (lower as SponsorTier) : undefined;
+  return tiers.find((t) => t.id === lower || t.name.toLowerCase() === lower)?.id;
 }
 
 export async function commitSponsorImport(input: {
@@ -99,6 +100,7 @@ export async function commitSponsorImport(input: {
   let created = 0;
   let updated = 0;
   const failed: SponsorImportOutcome['failed'] = [];
+  const tiers = await sponsorTiers();
 
   // Sequential rather than `Promise.all`: a conference-sized list takes a
   // second or two, and a partial failure across N concurrent writes is
@@ -107,13 +109,13 @@ export async function commitSponsorImport(input: {
     const line = i + 2;
     const name = (row.name ?? '').trim();
     const docId = sponsorSlug(name);
-    const tier = toTier(row.tier ?? '');
+    const tier = toTier(row.tier ?? '', tiers);
 
     if (!docId || !tier) {
       failed.push({
         line,
         name,
-        message: !docId ? 'That name produces an empty id.' : `“${row.tier}” is not a tier.`,
+        message: !docId ? 'That name has no letters or numbers.' : `“${row.tier}” is not a tier.`,
       });
       continue;
     }

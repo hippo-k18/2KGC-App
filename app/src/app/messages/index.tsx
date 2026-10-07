@@ -5,17 +5,18 @@ import { differenceInCalendarDays, format } from 'date-fns';
 
 import type { Timestamp } from '@kgc/shared';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Avatar } from '@/components/avatar';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { PushedHeader } from '@/components/pushed-header';
 import { Text } from '@/components/text';
-import { EVENT } from '@/config/event';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { AVATAR_SIZE, HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
 import { useDirectory } from '@/lib/data/directory';
 import { otherParticipant, totalUnread, useThreads } from '@/lib/data/messages';
 
@@ -75,6 +76,7 @@ export default function MessagesScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
   const { threads, loading, error, retry } = useThreads(user?.uid);
+  const { messagingEnabled } = useAppAccess();
   const { people, error: peopleError, retry: retryPeople } = useDirectory();
   // Session-scoped, not persisted: a preference this small is not worth a
   // storage round trip on launch, and the strip is one line of standing fact
@@ -95,17 +97,30 @@ export default function MessagesScreen() {
         backTitle={origin.title}
         backHref={origin.href}
         popsToBackTitle
-        headerRight={() => (
-          <Pressable
-            onPress={() => router.push('/people')}
-            accessibilityRole="button"
-            accessibilityLabel="New message"
-            accessibilityHint="Opens the attendee list to choose someone"
-            hitSlop={Spacing.md}
-            style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
-            <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
-          </Pressable>
-        )}
+        headerRight={() =>
+          // No compose button when nobody may start a conversation. The route
+          // is still reachable — an old notification, a back gesture — and what
+          // is already here stays readable, which is why this screen is not
+          // replaced outright.
+          messagingEnabled ? (
+            <Pressable
+              onPress={() => router.push('/people')}
+              accessibilityRole="button"
+              accessibilityLabel="New message"
+              accessibilityHint="Opens the attendee list to choose someone"
+              hitSlop={Spacing.md}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.4 : 1,
+                // 22pt glyph. Without this the browser target is the glyph.
+                // All of the sideways slop goes left: this is the last control
+                // on the bar, and padding on its right edge paints past the
+                // viewport and gives the whole screen a sideways scroll.
+                ...webSlop({}, { top: 11, bottom: 11, left: 22, right: 0 }),
+              })}>
+              <Icon name="square.and.pencil" size={22} color={colors.onHeader} />
+            </Pressable>
+          ) : null
+        }
       />
 
       <FlatList
@@ -125,7 +140,9 @@ export default function MessagesScreen() {
                 onRetry={retryPeople}
               />
             ) : null}
-            {noticeDismissed ? null : (
+            {!messagingEnabled ? (
+              <MessagingOffNotice />
+            ) : noticeDismissed ? null : (
               <DeliveryNotice onDismiss={() => setNoticeDismissed(true)} />
             )}
           </>
@@ -159,7 +176,11 @@ export default function MessagesScreen() {
             <EmptyState
               icon="envelope"
               title="No messages"
-              message="Find someone in Attendees and say hello."
+              message={
+                messagingEnabled
+                  ? 'Find someone in Attendees and say hello.'
+                  : 'Messaging is off for this event.'
+              }
             />
           )
         }
@@ -177,6 +198,7 @@ export default function MessagesScreen() {
  */
 function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
   const colors = useTheme();
+  const { event } = useEventSettings();
 
   return (
     <View
@@ -198,7 +220,7 @@ function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
           New messages only appear here, in the app.
         </Text>
         <Text variant="subhead" style={{ color: colors.onBanner }}>
-          {EVENT.shortName} does not send push notifications yet, so check
+          {event.shortName} does not send push notifications yet, so check
           Messages between sessions.
         </Text>
         <Pressable
@@ -209,13 +231,47 @@ function DeliveryNotice({ onDismiss }: { onDismiss: () => void }) {
           style={({ pressed }) => ({
             alignSelf: 'flex-start',
             justifyContent: 'center',
-            minHeight: HIT_TARGET - Spacing.sm,
+            minHeight: HIT_TARGET,
+            paddingRight: Spacing.sm,
             opacity: pressed ? 0.5 : 1,
           })}>
           <Text variant="heading" style={{ color: colors.onBanner }}>
             Dismiss
           </Text>
         </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Messaging is off for the event.
+ *
+ * Not dismissible, and it replaces the delivery notice rather than sitting
+ * beside it: there is one thing worth saying on this screen while the switch is
+ * off, and a strip about push under a strip about messaging being off is two
+ * caveats stacked on an inbox somebody can no longer write to.
+ */
+function MessagingOffNotice() {
+  const colors = useTheme();
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.sm,
+        padding: Spacing.md,
+        backgroundColor: colors.banner,
+      }}>
+      <Icon name="envelope" size={20} color={colors.onBanner} style={{ marginTop: 2 }} />
+      <View style={{ flex: 1, gap: Spacing.xs }}>
+        <Text variant="heading" style={{ color: colors.onBanner }}>
+          Messaging is off for this event.
+        </Text>
+        <Text variant="subhead" style={{ color: colors.onBanner }}>
+          You can still read what has already been sent.
+        </Text>
       </View>
     </View>
   );
@@ -239,6 +295,7 @@ function ThreadRow({
   last?: boolean;
 }) {
   const colors = useTheme();
+  const { event } = useEventSettings();
   const when = formatThreadDate(at);
   const body = preview ?? 'No messages yet';
 
@@ -247,7 +304,7 @@ function ThreadRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={
-        `${name}${unread ? `, ${unread} unread` : ''}, via ${EVENT.name}` +
+        `${name}${unread ? `, ${unread} unread` : ''}, via ${event.name}` +
         `, ${body}${when ? `, ${when}` : ''}`
       }
       style={({ pressed }) => ({
@@ -310,7 +367,7 @@ function ThreadRow({
           {/* Whova's "via <event>" line. Every conversation here is event-scoped,
               so it is uniformly true rather than a distinction between sources. */}
           <Text variant="caption" tone="tint" numberOfLines={1}>
-            via {EVENT.name}
+            via {event.name}
           </Text>
 
           <Text

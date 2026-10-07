@@ -7,17 +7,15 @@
  * and because a marketing page that goes blank when someone else's CMS is down
  * is a worse page than a slightly stale one.
  *
- * `excerpt` is the excerpt WordPress itself publishes, not the article body.
- * These posts are substantially guest-authored, so their copyright is not
- * uniformly the conference's to relocate; republishing them in full here would
- * be a rights decision rather than an engineering one. Every post therefore
- * carries its author and a link to the canonical article, and the detail pages
- * declare that canonical URL to search engines so this site never competes with
- * the original for the same words.
+ * `excerpt` is the excerpt WordPress itself publishes, used on the index cards.
+ * The full article bodies live beside this file's data, in `src/content/blog/`,
+ * written by `scripts/scrape-blog.py` and read by `@/lib/post-content`. Many of
+ * these posts are guest-authored; the authors gave permission for them to be
+ * republished on this site (confirmed by the owner, 2026-09-25).
  *
  * To refresh: re-run the REST query, regenerate this file, and re-download the
- * featured images into `public/kgc/blog/`. Full-text migration is a follow-up
- * that needs the owner's confirmation of rights plus a WordPress export.
+ * featured images into `public/kgc/blog/`. Then run `scripts/scrape-blog.py`
+ * for the bodies.
  */
 
 export type Post = {
@@ -1219,4 +1217,10 @@ export function formatPostDate(date: string): string {
 export function postsInCategory(category: string | null): Post[] {
   if (!category) return POSTS;
   return POSTS.filter((post) => post.categories.includes(category));
+}
+
+/** The posts carrying a tag, matched case-insensitively; `[]` for an unknown one. */
+export function postsWithTag(tag: string): Post[] {
+  const wanted = tag.toLowerCase();
+  return POSTS.filter((post) => post.tags.some((t) => t.toLowerCase() === wanted));
 }

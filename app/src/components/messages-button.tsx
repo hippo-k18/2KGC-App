@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
-import { DECORATIVE } from '@/components/a11y';
+import { DECORATIVE, webSlop } from '@/components/a11y';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -11,6 +11,10 @@ import { totalUnread, useThreads } from '@/lib/data/messages';
 
 const GLYPH = 22;
 const BADGE_HEIGHT = 18;
+/** Each side's share of the gap between the drawn 30pt and HIT_TARGET. */
+const SLOP = (HIT_TARGET - GLYPH - Spacing.xs * 2) / 2;
+/** The badge hangs off the button's edge, and on web `webSlop` moves that edge out. */
+const BADGE_INSET = Platform.OS === 'web' ? SLOP : 0;
 
 /**
  * Messages as a header action rather than a tab.
@@ -39,15 +43,22 @@ export function MessagesButton() {
       accessibilityRole="button"
       accessibilityLabel={unread ? `Messages, ${unread} unread` : 'Messages'}
       // The glyph is 22pt inside 4pt of padding; slop makes up the rest of 44.
-      hitSlop={(HIT_TARGET - GLYPH - Spacing.xs * 2) / 2}
-      style={({ pressed }) => ({ padding: Spacing.xs, opacity: pressed ? 0.4 : 1 })}>
+      hitSlop={SLOP}
+      style={({ pressed }) => ({
+        padding: Spacing.xs,
+        opacity: pressed ? 0.4 : 1,
+        ...webSlop(
+          { top: Spacing.xs, bottom: Spacing.xs, left: Spacing.xs, right: Spacing.xs },
+          { top: SLOP, bottom: SLOP, left: SLOP, right: SLOP },
+        ),
+      })}>
       <Icon name="envelope.fill" size={GLYPH} color={colors.tint} />
       {unread > 0 ? (
         <View
           style={{
             position: 'absolute',
-            top: -2,
-            right: -6,
+            top: -2 + BADGE_INSET,
+            right: -6 + BADGE_INSET,
             minWidth: BADGE_HEIGHT,
             height: BADGE_HEIGHT,
             paddingHorizontal: 5,

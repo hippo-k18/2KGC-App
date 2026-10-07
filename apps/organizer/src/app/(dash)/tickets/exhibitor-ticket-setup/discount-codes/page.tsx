@@ -32,12 +32,11 @@ export default async function ExhibitorDiscountCodesPage() {
         title="Discount Codes"
         info={
           <>
-            <strong>Discount codes are not scoped per audience</strong>
+            <strong>One list of codes for every ticket</strong>
             <p>
-              They are Stripe promotion codes, and a Stripe promotion code belongs to the Stripe
-              account rather than to a catalogue. There is one list, on{' '}
-              <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, and it applies
-              wherever Checkout accepts a code.
+              Codes are created on{' '}
+              <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link> and work at
+              every checkout.
             </p>
           </>
         }
@@ -54,11 +53,9 @@ export default async function ExhibitorDiscountCodesPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where an exhibitor code is created</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          On <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>, with the one
-          list every checkout reads. A code created there works at{' '}
-          <code>/tickets/exhibitor</code> immediately, and equally at the attendee checkout. A code
-          meant for exhibitors only has no way to refuse anyone else. Where the discount has to be
-          exhibitor-specific, agree the figure and raise an invoice for it instead.
+          On <Link href={ROUTES.discountCodes}>Ticket Setup › Discount Codes</Link>. A code works
+          at every checkout, so it cannot be limited to exhibitors. For an exhibitor-only discount,
+          agree the price and raise an invoice instead.
         </p>
       </Panel>
 

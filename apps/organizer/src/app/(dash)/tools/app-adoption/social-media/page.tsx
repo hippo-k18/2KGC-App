@@ -23,19 +23,19 @@ export default async function SocialMediaPage() {
   const posts = [
     {
       label: 'Announcing the app',
-      text: `The KGC 2027 app is live. Your agenda, your badge, and everyone else who's coming. All in one place.\n\nGet it: ${origin}/tickets\n\n#KGC2027 #KnowledgeGraphs`,
+      text: `The KGC 2027 app is live. Your agenda, your badge, and everyone else who's coming.\n\nGet it: ${origin}/tickets\n\n#KGC2027 #KnowledgeGraphs`,
     },
     {
       label: 'A week out',
-      text: `One week until KGC 2027 at Cornell Tech.\n\nIf you have a ticket, get the app before you travel. It has your badge QR, and the door scans it.\n\n${origin}/tickets`,
+      text: `One week until KGC 2027 at Jay Conference Bryant Park.\n\nIf you have a ticket, get the app before you travel. It has your badge QR, and the door scans it.\n\n${origin}/tickets`,
     },
     {
       label: 'Day one, morning',
-      text: `Doors are open at Cornell Tech. Registration is on your right.\n\nBadge on your phone: open the KGC app, tap Me, then Badge.\n\n#KGC2027`,
+      text: `Doors are open at Jay Conference Bryant Park.\n\nBadge on your phone: open the KGC app, tap Me, then Badge.\n\n#KGC2027`,
     },
     {
       label: 'For speakers to share',
-      text: `I'm speaking at KGC 2027${dates ? `, ${dates}` : ''} at Cornell Tech in New York.\n\nThe full programme is up: ${origin}/agenda\n\n#KGC2027`,
+      text: `I'm speaking at KGC 2027${dates ? `, ${dates}` : ''} at Jay Conference Bryant Park in New York.\n\nThe full programme is up: ${origin}/agenda\n\n#KGC2027`,
     },
   ];
 

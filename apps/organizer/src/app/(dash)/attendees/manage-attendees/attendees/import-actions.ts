@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { emailNote } from '@/lib/attendee-admin';
 import { requireOrganizer } from '@/lib/auth';
 import { commitAttendeeImport, previewAttendeeCsv } from '@/lib/import-attendees';
 import type { RowError } from '@/lib/csv-import';
@@ -85,6 +86,7 @@ export async function commitImportAction(
     text: csv,
     actor,
     allowPartial: formData.get('allowPartial') === 'on',
+    sendEmails: formData.get('sendEmails') === 'on',
   });
 
   if (outcome.created === 0 && outcome.updated === 0) {
@@ -113,6 +115,8 @@ export async function commitImportAction(
       `Imported ${outcome.created} new ${outcome.created === 1 ? 'attendee' : 'attendees'}` +
       (outcome.updated ? `, updated ${outcome.updated} who were already on the list` : '') +
       (outcome.failed.length ? `, and ${outcome.failed.length} rows failed to write` : '') +
-      '.',
+      '.' +
+      (outcome.emailed ? ` ${outcome.emailed} confirmation ${outcome.emailed === 1 ? 'email' : 'emails'} sent.` : '') +
+      (outcome.created > 0 && formData.get('sendEmails') === 'on' && !outcome.emailed ? emailNote() : ''),
   };
 }

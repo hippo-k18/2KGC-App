@@ -8,7 +8,7 @@ import { saveAdminSettingsAction, type AdminSettingsState } from './actions';
 function SaveButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? 'Saving…' : 'Save'}
     </button>
   );
@@ -17,10 +17,12 @@ function SaveButton() {
 export function AdminSettingsForm({
   attendeeListVisible,
   contactSharingEnabled,
+  attendeeMessagingEnabled,
   staffNote,
 }: {
   attendeeListVisible: boolean;
   contactSharingEnabled: boolean;
+  attendeeMessagingEnabled: boolean;
   staffNote: string;
 }) {
   const [state, action] = useActionState<AdminSettingsState, FormData>(saveAdminSettingsAction, {});
@@ -35,26 +37,50 @@ export function AdminSettingsForm({
       {state.ok && <p className="ok">{state.message}</p>}
 
       <div className="whova-form-row">
-        <label className="whova-form-label">Attendee-facing</label>
-        <label style={{ display: 'block' }}>
+        <div className="whova-form-label">Attendee-facing</div>
+        {/*
+          The dashboard's own tick box rather than a bare `input`, which renders
+          13px square and carries no tap box on a phone. Same change the access
+          forms took.
+        */}
+        <label className="whova-checkbox-label">
           <input
+            className="whova-checkbox-input"
             type="checkbox"
             name="attendeeListVisible"
             defaultChecked={attendeeListVisible}
-          />{' '}
-          Attendees can browse the attendee list
+          />
+          <span>Attendees can browse the attendee list</span>
         </label>
-        <label style={{ display: 'block' }}>
+        <label className="whova-checkbox-label">
           <input
+            className="whova-checkbox-input"
             type="checkbox"
             name="contactSharingEnabled"
             defaultChecked={contactSharingEnabled}
-          />{' '}
-          Attendees can share contact details with each other
+          />
+          <span>Attendees can share contact details with each other</span>
         </label>
+        <label className="whova-checkbox-label">
+          <input
+            className="whova-checkbox-input"
+            type="checkbox"
+            name="attendeeMessagingEnabled"
+            defaultChecked={attendeeMessagingEnabled}
+          />
+          <span>Attendees can message each other</span>
+        </label>
+        {/*
+          The third box is the only one of the three with an effect, and the
+          note says which is which rather than covering all three with one
+          sentence. Hiding the attendee list would have to overrule each
+          attendee's own directory choice, which is a decision nobody has
+          taken; refusing a message is a rule about one collection, so it is
+          one the rules can hold.
+        */}
         <p className="muted" style={{ fontSize: 12 }}>
-          Recorded, and read back by this screen only. The app decides both of these for itself
-          today, so neither switch changes what an attendee sees.
+          Messaging takes effect in the app straight away. The first two are saved and do not
+          change what attendees see yet.
         </p>
       </div>
 
@@ -69,6 +95,7 @@ export function AdminSettingsForm({
           not exist.
         */}
         <input
+          className="whova-text-input"
           id="staffNote"
           name="staffNote"
           defaultValue={staffNote}
@@ -77,7 +104,7 @@ export function AdminSettingsForm({
           style={{ maxWidth: 520, width: '100%' }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          A note, not a permission. Anyone who can open this dashboard can already scan.
+          Shown at the top of Attendee Check-in.
         </p>
       </div>
 

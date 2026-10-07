@@ -85,13 +85,15 @@ writes are:
 
 | Whova path | What it does here |
 |---|---|
-| Content → Basics | Read-only. The event's identity is compile-time constants in `@kgc/shared`. |
+| Content → Basics | **Writes.** Name, dates, time zone, venue and event type in `settings/event`; the masthead, the website and the app read them and fall back to the constants in `@kgc/shared`. |
+| Content → Branding Center → Customize Resources | **Writes.** Custom content pages in `pages` — a title, a slug, Markdown and a published switch. The website serves `/{slug}` (the branded slug still wins that route) and the app lists them above the handouts on Home → Documents. Markdown is parsed to blocks by `@kgc/shared`, never to HTML; all three renderers put the author's text in text nodes. The app tabs above it are still fixed. |
 | Content → Agenda Center → Session Manager | Whova's hour-bucket layout, day tabs, search; edit one session. |
 | Content → Agenda Center → Track Manager | Read-only, with cross-listing counts. |
 | Content → Speaker Center → Speaker Manager | Completeness filters — the thing this list is actually for. |
-| Content → Sponsor Center → Sponsor Manager | Tier group bars, Whova's layout, read-only. |
+| Content → Sponsor Center → Sponsor Manager | Tier group bars, Whova's layout. Tiers are `settings/sponsorTiers`, edited on Sponsor Tiering. |
 | Engagement → Announcements | **Writes.** One document; the app's home screen picks it up in ~1s. Push sends via the Admin SDK — no Cloud Function, so no Blaze. |
 | Attendees → Manage Attendees → Attendees | Search, role filter, the registrations-vs-profiles gap. |
+| Attendees → Categories, and Tickets → Attendee Categories | **Writes.** The category list and the ticket rule are `settings/attendeeCategories`; a person's category is on their registration, set by hand, in bulk, or by `ensureRegistration` from the rule. A label, not a role: no claim is minted. |
 | Attendees → Check-in & Checkout → Check-in | **Writes.** Badge QR scan → idempotent check-in. |
 | Tickets → Orders | **Writes.** Reads `orders`, refunds through Stripe, re-asks for the passphrase first. |
 
@@ -134,6 +136,26 @@ the allowlist is re-checked on every request, so removing an address ends that
 person's live session at the next deploy — and a fail-closed production, because
 `requirePassphrase()` refuses every sign-in when no passphrase is set. Use a long
 passphrase, keep the list short, and treat the dashboard URL as a second secret.
+
+**Team members and roles (2026-09-20).** The allowlist is unchanged and its
+addresses are owners. Beside it, an owner invites people from Attendees › Admin
+Settings into `teamMembers` (server-only, no rules block): each has one or more
+roles — finance, agenda, sponsors, check-in only, reviewer manager — and a
+passphrase of their own, stored as a scrypt hash and chosen through a one-time
+signed link at `/login/set-passphrase/{token}`. Removing a member deletes the
+document, which ends their session on the next request with no redeploy.
+
+Roles are enforced in **one place**, `requireAccess()` in `src/lib/auth.ts`,
+which every page and action already reaches through `requireOrganizer()`. The
+map of role to nav branch is `src/lib/team-core.ts`, pinned by
+`tests/programme/team-core.test.ts`. Do not add a role check to a page.
+⚠️ Two things it leans on: `src/middleware.ts` supplies the request path, and
+the check that a server action belongs to a screen the role can open reads
+Next's action manifest from `globalThis` (an internal, verified on next@15.5).
+Both fail closed for limited roles and leave owners untouched; after a Next
+upgrade, sign in as a check-in account and press Check in before trusting it.
+`ORGANIZER_PUBLIC_ORIGIN` sets the host used in invitation links; unset, the
+host of the inviting request is used.
 
 No Firebase credential of any kind may reach the browser. Every read is a server
 component and every write is a server action; `server-only` in `src/lib/*` turns

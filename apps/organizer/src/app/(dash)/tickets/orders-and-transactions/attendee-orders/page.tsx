@@ -1,21 +1,9 @@
 import Link from 'next/link';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
-import { listOrders, money, type OrderRow } from '@/lib/commerce';
+import { listOrders, money, purchaseDay, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
-import {
-  listParams,
-  PageHeader,
-  paginate,
-  Pagination,
-  NotInputted,
-  Panel,
-  PER_PAGE,
-  SearchInput,
-  sortRows,
-  Table,
-  Tag,
-} from '../../../ui';
+import { Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { MarkPaidButton, RefundButton } from './order-actions';
 
 export const dynamic = 'force-dynamic';
@@ -136,11 +124,11 @@ export default async function AttendeeOrdersPage({
           <>
             <strong>This screen shows buyer personal data</strong>
             <p>
-              Names, addresses and company names, plus a button that moves money. The CSV carries
-              the same and leaves the building, no badge secret or claim code is ever in it.
+              Names, email addresses and company names. The CSV export has the same data, without
+              badge or claim codes.
               {stripeEnabled()
-                ? ' A partial refund leaves the ticket valid; a full one cancels it.'
-                : ' Refunds need STRIPE_SECRET_KEY on this deployment and are issued from the Stripe dashboard until it is set.'}
+                ? ' A partial refund leaves the ticket valid. A full refund cancels it.'
+                : ' Stripe is not connected, so refunds are issued from the Stripe dashboard.'}
             </p>
           </>
         }
@@ -161,7 +149,7 @@ export default async function AttendeeOrdersPage({
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key: refunds disabled</Tag>
+            <Tag color="grey">Refunds disabled</Tag>
           )
         }
         links={[
@@ -219,6 +207,7 @@ export default async function AttendeeOrdersPage({
             return (
               <Link
                 key={value || 'all'}
+                className="row-link"
                 href={`?${p.toString()}`}
                 style={{
                   fontSize: 12,
@@ -247,7 +236,7 @@ export default async function AttendeeOrdersPage({
             <div key="b">
               <div>{o.buyerName || <span className="muted">(no name)</span>}</div>
               <div className="muted" style={{ fontSize: 11 }}>
-                {o.email}
+                <Email address={o.email} />
               </div>
               {o.companyName && (
                 <div className="muted" style={{ fontSize: 11 }}>
@@ -270,6 +259,7 @@ export default async function AttendeeOrdersPage({
                   <>
                     {o.channel}
                     {o.seatCount > 1 ? ` · ${o.seatCount} seats` : ''}
+                    {o.groupDiscountCents > 0 ? ' · group rate' : ''}
                     {o.promotionCode ? ` · ${o.promotionCode}` : ''}
                   </>
                 )}
@@ -281,6 +271,11 @@ export default async function AttendeeOrdersPage({
               {o.taxCents > 0 && (
                 <div className="muted" style={{ fontSize: 11 }}>
                   incl. {money(o.taxCents, o.currency)} tax
+                </div>
+              )}
+              {o.groupDiscountCents > 0 && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  after {money(o.groupDiscountCents, o.currency)} group discount
                 </div>
               )}
             </div>,
@@ -302,13 +297,13 @@ export default async function AttendeeOrdersPage({
               {statusTag(o)}
               {o.markedPaidBy && (
                 <div className="muted" style={{ fontSize: 11 }}>
-                  by {o.markedPaidBy}
+                  by <Email address={o.markedPaidBy} />
                 </div>
               )}
             </div>,
 
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {o.purchasedAt.slice(0, 10)}
+              {purchaseDay(o.purchasedAt)}
             </span>,
 
             <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

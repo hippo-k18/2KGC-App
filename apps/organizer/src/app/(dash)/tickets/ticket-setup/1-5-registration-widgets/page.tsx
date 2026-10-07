@@ -28,12 +28,8 @@ export default async function RegistrationWidgetsPage() {
         title="1.5 Registration Widgets"
         info={
           <>
-            <strong>There is no embed snippet</strong>
-            <p>
-              The marketing site and the checkout are one deployment, so anywhere a widget would go,
-              a link to <code>/tickets</code> goes instead. A partner site selling KGC tickets is
-              what would need a real embed, and the requirements would come from that partner.
-            </p>
+            <strong>Use a link</strong>
+            <p>An embeddable widget is not available yet. Link to the tickets page instead.</p>
           </>
         }
         links={[
@@ -67,12 +63,11 @@ export default async function RegistrationWidgetsPage() {
             [
               'Credited link',
               <span key="v">
-                Give the partner their own <code>/r/</code> code on{' '}
+                Give the partner their own tracked link on{' '}
                 <Link href="/tickets/ticket-marketing/campaign-link-tracking">
                   Campaign Link Tracking
                 </Link>
-                . Clicks are counted by the redirect and a purchase within thirty days is credited
-                back to it.
+                . Clicks are counted, and a purchase within thirty days is credited to it.
               </span>,
             ],
           ]}

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
+import { stampOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -50,11 +51,10 @@ export default async function WhovaListingTrafficPage() {
         title="Listing Traffic Analytics"
         info={
           <>
-            <strong>We measure the links we made, and nothing else</strong>
+            <strong>Tracked links only</strong>
             <p>
-              <code>/r/&#123;code&#125;</code> counts the click and stamps a cookie, and fulfilment
-              writes that code onto the order, so a click can be followed to a purchase. Anyone who
-              arrived any other way is not counted: no page here is instrumented.
+              Clicks and purchases are counted for tracked links. Visitors who arrive any other way
+              are not counted.
             </p>
           </>
         }
@@ -70,7 +70,7 @@ export default async function WhovaListingTrafficPage() {
           )
         }
         actions={
-          <Link href="/tickets/ticket-marketing/campaign-link-tracking" className="whova-btn-main">
+          <Link href="/tickets/ticket-marketing/campaign-link-tracking" className="whova-btn-main secondary">
             Create a tracked link
           </Link>
         }
@@ -90,7 +90,7 @@ export default async function WhovaListingTrafficPage() {
       <StatTiles
         tiles={[
           { label: 'Tracked links', value: links.length, sub: `${links.filter((l) => l.active).length} still active` },
-          { label: 'Clicks', value: clicks, sub: 'counted by the redirect, not by a tracker' },
+          { label: 'Clicks', value: clicks, sub: 'on tracked links' },
           {
             label: 'Attributed orders',
             value: orders,
@@ -101,7 +101,7 @@ export default async function WhovaListingTrafficPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the traffic we can see came from</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Traffic by link</h2>
         <Table
           cols={[
             { key: 'l', label: 'Link', className: 'cell-fill' },
@@ -137,7 +137,7 @@ export default async function WhovaListingTrafficPage() {
             l.orders,
             l.revenueCents > 0 ? money(l.revenueCents, l.currency) : <span className="muted">—</span>,
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {l.lastClickedAt ? l.lastClickedAt.slice(0, 16).replace('T', ' ') : <span className="muted">never</span>}
+              {l.lastClickedAt ? stampOfInstant(l.lastClickedAt) : <span className="muted">never</span>}
             </span>,
           ])}
         />
@@ -148,15 +148,13 @@ export default async function WhovaListingTrafficPage() {
         <dl className="gap-grid">
           <dt>Counted</dt>
           <dd>
-            Every click on a link above, by the redirect itself rather than by a trigger, and every
-            purchase that followed one within the cookie&rsquo;s thirty days. Attribution is
-            last-click, stated so a leaderboard built on it can be argued with.
+            Every click on a link above, and every purchase within thirty days of one. The last
+            link clicked gets the credit.
           </dd>
           <dt>Not counted</dt>
           <dd>
-            Somebody who searched for the conference, read three pages and bought a ticket. They
-            appear in the order table and nowhere here. Closing that means a page tracker, and what
-            each option costs a visitor is laid out under{' '}
+            Anyone who reached the site without a tracked link. Their orders still show in the
+            order table. See{' '}
             <Link href="/marketing/event-webpages/agenda-webpage/analytics">
               Agenda Webpage &rsaquo; Analytics
             </Link>

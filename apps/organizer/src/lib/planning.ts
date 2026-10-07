@@ -3,7 +3,9 @@ import 'server-only';
 import {
   COLLECTIONS,
   EVENT_ID,
+  sortPages,
   type DocumentDoc,
+  type PageDoc,
   type TaskDoc,
   type WithId,
 } from '@kgc/shared';
@@ -276,6 +278,53 @@ export async function getDocument(id: string): Promise<WithId<DocumentDoc> | nul
   const doc = await db().collection(COLLECTIONS.documents).doc(id).get();
   if (!doc.exists) return null;
   const data = doc.data() as DocumentDoc;
+  if (data.eventId !== EVENT_ID) return null;
+  return { id: doc.id, ...data };
+}
+
+// ---------------------------------------------------------------------------
+// Custom pages
+// ---------------------------------------------------------------------------
+
+export interface PageRow {
+  id: string;
+  title: string;
+  slug: string;
+  body: string;
+  summary: string;
+  published: boolean;
+  order: number;
+  /** Characters of body, so the list can tell a written page from an empty one. */
+  length: number;
+}
+
+function toPageRow(id: string, p: PageDoc): PageRow {
+  const body = typeof p.body === 'string' ? p.body : '';
+  return {
+    id,
+    title: p.title ?? '',
+    slug: p.slug ?? '',
+    body,
+    summary: p.summary ?? '',
+    // `=== true` rather than truthiness: a page written before the field
+    // existed must read as unpublished, and `undefined` is the value that
+    // decides it. Absence is not permission, the same rule `documents` follows
+    // for its ticket restriction.
+    published: p.published === true,
+    order: p.order ?? 0,
+    length: body.trim().length,
+  };
+}
+
+export async function listPages(): Promise<PageRow[]> {
+  const snap = await db().collection(COLLECTIONS.pages).where('eventId', '==', EVENT_ID).get();
+  return sortPages(snap.docs.map((d) => toPageRow(d.id, d.data() as PageDoc)));
+}
+
+export async function getPage(id: string): Promise<WithId<PageDoc> | null> {
+  const doc = await db().collection(COLLECTIONS.pages).doc(id).get();
+  if (!doc.exists) return null;
+  const data = doc.data() as PageDoc;
   if (data.eventId !== EVENT_ID) return null;
   return { id: doc.id, ...data };
 }

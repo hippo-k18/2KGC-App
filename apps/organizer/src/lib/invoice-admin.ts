@@ -2,9 +2,11 @@ import 'server-only';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { COLLECTIONS, publicSiteOrigin } from '@kgc/shared';
-import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import { ensureRegistration, extraTierById } from '@kgc/scripts/src/lib/fulfilment';
 import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
+import { claimOnOrder, countOrderSeatsOnce, settleOnOrder } from '@kgc/scripts/src/lib/order-claims';
+import { recordError } from './errors';
 import type { OrderRow } from './commerce';
 import { db } from './firestore';
 
@@ -50,6 +52,7 @@ export async function markInvoicePaidOutOfBand(input: {
   if (!snap.exists) throw new Error('That order no longer exists.');
 
   const seats = (snap.data()?.items ?? []) as {
+    ticketTypeId?: string;
     ticketTypeName: string;
     attendeeName?: string;
     attendeeEmail?: string;
@@ -64,28 +67,66 @@ export async function markInvoicePaidOutOfBand(input: {
   }
 
   const registrationIds: string[] = [];
-  const minted: { email: string; name: string; ticketType: string; rid: string; code: string }[] =
-    [];
+  const extendedOnly: string[] = [];
+  const minted = new Map<
+    string,
+    { email: string; name: string; ticketType: string; rid: string; code: string; seats: number; extraOnly: boolean; addedExtra?: string }
+  >();
 
-  for (const seat of payable) {
+  /**
+   * Admission seats first, then extras (Workshops), so a Main Conference seat
+   * on this invoice exists before Workshops is added to it. Each keeps its own
+   * position as its seat number.
+   */
+  const extraIds = new Set<string>();
+  for (const s of payable) {
+    if (s.ticketTypeId && !extraIds.has(s.ticketTypeId) && (await extraTierById(db(), s.ticketTypeId))) {
+      extraIds.add(s.ticketTypeId);
+    }
+  }
+  const isExtra = (i: number) => extraIds.has(payable[i]!.ticketTypeId ?? '');
+  const walk = [...payable.keys()].sort((x, y) => Number(isExtra(x)) - Number(isExtra(y)));
+
+  for (const i of walk) {
+    const seat = payable[i]!;
     const result = await ensureRegistration(db(), {
       email: seat.attendeeEmail as string,
       name: seat.attendeeName ?? '',
       ticketType: seat.ticketTypeName,
+      // Same numbering as the website's `invoice.paid` webhook, so whichever
+      // runs second lands on the same tickets.
+      purchase: { orderId: order.id, seat: i + 1 },
+      ticketTypeId: seat.ticketTypeId || undefined,
     });
-    registrationIds.push(result.registrationId);
-    minted.push({
+    if (!registrationIds.includes(result.registrationId)) registrationIds.push(result.registrationId);
+    if (result.extra?.extendedOnly) extendedOnly.push(result.registrationId);
+    const extraOnly = Boolean(result.extra?.extendedOnly && (!result.extra.refused || result.extra.refused === 'already'));
+    const prev = minted.get(result.registrationId);
+    minted.set(result.registrationId, {
       email: result.email,
       name: result.name ?? '',
-      ticketType: result.ticketType ?? seat.ticketTypeName,
+      // Whatever the badge says once every seat is on it.
+      ticketType: result.extra?.label || prev?.ticketType || (result.ticketType ?? seat.ticketTypeName),
       rid: result.registrationId,
       code: result.claimCode,
+      seats: (prev?.seats ?? 0) + 1,
+      extraOnly: prev ? prev.extraOnly && extraOnly : extraOnly,
+      addedExtra: result.extra?.name ?? prev?.addedExtra,
     });
   }
+
+  /**
+   * The seats against capacity, once for the order. Mark-paid counted nothing,
+   * and the later `invoice.paid` counted only seats it created, which by then
+   * was none (T135B, N2). Before the status changes, which is what tells
+   * `countOrderSeatsOnce` this is not an order the webhook already counted.
+   */
+  await countOrderSeatsOnce(db(), order.id, payable.map((s) => s.ticketTypeId ?? ''));
 
   await orderRef.update({
     status: 'paid',
     registrationIds,
+    ...(extendedOnly.length ? { extraRegistrationIds: [...new Set(extendedOnly)] } : {}),
     markedPaidBy: actor,
     markedPaidAt: Timestamp.now(),
     // Kept on the document rather than only in the audit log, because the
@@ -105,21 +146,40 @@ export async function markInvoicePaidOutOfBand(input: {
    */
   const origin = publicSiteOrigin();
 
-  for (const m of minted) {
-    await sendPurchaseConfirmation(db(), {
+  for (const m of minted.values()) {
+    /**
+     * Claimed on the order with the same map the website uses, so a later
+     * `invoice.paid` does not email every seat again (T138B, TK-288), and a
+     * second press here does not either. A failed claim still sends: a
+     * missing ticket email is the worse outcome.
+     */
+    let attempt: number | null = 1;
+    try {
+      attempt = await claimOnOrder(db(), order.id, m.rid);
+    } catch (err) {
+      recordError('invoice.markPaid claim', err);
+    }
+    if (attempt === null) continue;
+    const outcome = await sendPurchaseConfirmation(db(), {
       to: m.email,
       name: m.name,
       ticketType: m.ticketType,
       // Their share of what the company owes. The attendee did not pay this and
       // does not need a figure to reconcile — but a receipt with no amount on
       // it reads as broken, so it shows the per-seat price.
-      amountCents: Math.round(order.totalCents / payable.length),
+      amountCents: Math.round((order.totalCents / payable.length) * m.seats),
       currency: order.currency,
       orderUrl: `${origin}/order/${mintOrderToken({ rid: m.rid })}`,
       claimCode: m.code,
       orderId: order.id,
       registrationId: m.rid,
+      ...(m.extraOnly && m.addedExtra ? { addedExtra: m.addedExtra } : {}),
     });
+    try {
+      await settleOnOrder(db(), order.id, m.rid, attempt, outcome);
+    } catch (err) {
+      recordError('invoice.markPaid settle', err);
+    }
   }
 
   return registrationIds;

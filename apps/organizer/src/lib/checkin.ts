@@ -5,6 +5,7 @@ import {
   COLLECTIONS,
   DOOR_CHECK_IN_LIST_ID,
   EVENT_ID,
+  ticketLabel,
   SUBCOLLECTIONS,
   TIME_ZONE,
   type CheckInDoc,
@@ -146,7 +147,9 @@ export async function listCheckInLists(): Promise<CheckInListRow[]> {
       const l = d.data() as CheckInListDoc;
       return {
         id: d.id,
-        name: l.name,
+        // Lists made before September 2026 were named "KGC 2027 — Main Door".
+        // Rewritten here, once, so every screen that names a list agrees.
+        name: l.name.replace(' — ', ': '),
         kind: l.kind,
         sessionId: l.sessionId,
         opensAt: iso(l.opensAt) ?? undefined,
@@ -187,7 +190,9 @@ export async function listRegistrations(): Promise<
         id: d.id,
         name: r.name ?? r.email,
         email: r.email,
-        ticketType: r.ticketType,
+        // The whole badge, "Main Conference + Workshops", so the desk and the
+        // scanner say everything the person holds.
+        ticketType: ticketLabel(r) || undefined,
         status: r.status,
         claimed: Boolean(r.claimedByUid),
       },

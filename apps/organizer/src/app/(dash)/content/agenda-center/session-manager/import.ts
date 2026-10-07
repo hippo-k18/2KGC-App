@@ -1,11 +1,12 @@
 import 'server-only';
 
 import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, TIME_ZONE, type SessionDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, type SessionDoc } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { buildPreview, parseCsv, SESSION_FIELDS, type Mapping, type RowError } from '@/lib/csv-import';
 import { listRooms, listSpeakerOptions, listTrackOptions } from '@/lib/data';
 import { db } from '@/lib/firestore';
+import { eventTimeZone } from '@/lib/event';
 import { deriveTimes } from '@/lib/time';
 import { qaDefaultsFor, speakerIndexDelta } from './session-core';
 import {
@@ -216,7 +217,7 @@ export async function commitSessionImport(input: {
   }
 
   const catalog = await loadCatalog();
-  const { planned, failed } = planSessionImport(preview.valid, catalog, TIME_ZONE);
+  const { planned, failed } = planSessionImport(preview.valid, catalog, await eventTimeZone());
 
   if (failed.length > 0 && !input.allowPartial) {
     return { created: 0, updated: 0, failed, errors: preview.errors, totalRows: preview.totalRows };

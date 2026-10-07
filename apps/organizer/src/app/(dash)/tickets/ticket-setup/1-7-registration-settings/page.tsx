@@ -27,7 +27,7 @@ export default async function RegistrationSettingsPage() {
   const tiers = await listTicketTypes();
 
   // The event's wall clock, not the UTC instant — see `TicketTypeRow`.
-  const fmt = (local?: string) => (local ? local.slice(0, 10) : '—');
+  const fmt = (local?: string) => (local ? local.slice(0, 10) : 'not set');
 
   return (
     <>
@@ -35,12 +35,11 @@ export default async function RegistrationSettingsPage() {
         title="1.7 Registration Settings"
         info={
           <>
-            <strong>These settings live on the ticket type, not on the event</strong>
+            <strong>Settings are per ticket</strong>
             <p>
-              Sales windows, capacity and visibility are per tier, checked on every catalogue read
-              and again at checkout. Edit them in{' '}
-              <Link href={ROUTES.createTickets}>Create Tickets</Link>. There is no event-wide
-              registration switch. Closing registration means closing each tier.
+              Sales windows, capacity and visibility are set on each ticket in{' '}
+              <Link href={ROUTES.createTickets}>Create Tickets</Link>. To close registration, close
+              each ticket.
             </p>
           </>
         }
@@ -58,14 +57,14 @@ export default async function RegistrationSettingsPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Per-tier settings that are enforced</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Settings on each ticket</h2>
         <Table
           cols={[
-            { key: 'n', label: 'Tier', className: 'cell-md' },
+            { key: 'n', label: 'Ticket', className: 'cell-md' },
             { key: 'o', label: 'Opens', className: 'cell-sm' },
             { key: 'c', label: 'Closes', className: 'cell-sm' },
             { key: 'q', label: 'Capacity', className: 'cell-sm' },
-            { key: 'v', label: 'Catalogue', className: 'cell-fill' },
+            { key: 'v', label: 'Visibility', className: 'cell-fill' },
           ]}
           rows={tiers.map((t) => [
             t.name,
@@ -103,13 +102,8 @@ export default async function RegistrationSettingsPage() {
           }
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Sold-out is <code>quantitySold &gt;= quantityTotal</code>, and <code>quantitySold</code> is
-          incremented server-side at fulfilment, not from a client, and not from a count of orders
-          that would double-count a partially refunded one. It is never decremented on a refund, so
-          it ratchets: correct one tier on{' '}
-          <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link>, where the figure recomputed
-          from the orders ledger is offered beside it, or the whole catalogue with{' '}
-          <code>npm run reconcile:sold</code>.
+          A ticket sells out when sold reaches capacity. Refunds do not lower the sold count. To
+          correct it, edit the ticket in <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link>.
         </p>
       </Panel>
 

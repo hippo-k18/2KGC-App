@@ -56,6 +56,7 @@ function TaskLine({ task }: { task: TaskRow }) {
         <input type="hidden" name="next" value={nextStatus(task.status)} />
         <button
           type="submit"
+          className="row-link"
           title={`Mark ${nextStatus(task.status)}`}
           style={{
             background: 'none',
@@ -73,7 +74,8 @@ function TaskLine({ task }: { task: TaskRow }) {
         </button>
       </form>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* A 200px basis so the owner, date and links wrap under the title on a phone. */}
+      <div style={{ flex: '1 1 200px', minWidth: 0 }}>
         <div
           style={{
             fontSize: 13,
@@ -89,7 +91,7 @@ function TaskLine({ task }: { task: TaskRow }) {
         )}
       </div>
 
-      <div className="muted" style={{ fontSize: 11, width: 130 }}>
+      <div className="muted" style={{ fontSize: 11, width: 90 }}>
         {task.assignee || <em>unassigned</em>}
       </div>
 
@@ -107,7 +109,26 @@ function TaskLine({ task }: { task: TaskRow }) {
         )}
       </div>
 
-      <Link href={`?edit=${task.id}`} style={{ fontSize: 12 }}>
+      <form action={advanceTaskAction}>
+        <input type="hidden" name="id" value={task.id} />
+        <button
+          type="submit"
+          className="row-link"
+          style={{
+            background: 'none',
+            border: 0,
+            color: 'var(--interactive)',
+            cursor: 'pointer',
+            fontSize: 12,
+            padding: 0,
+            textDecoration: 'underline',
+          }}
+        >
+          Mark {nextStatus(task.status)}
+        </button>
+      </form>
+
+      <Link className="row-link" href={`?edit=${task.id}`} style={{ fontSize: 12 }}>
         Edit
       </Link>
     </div>
@@ -143,9 +164,8 @@ export default async function ProjectsAndChecklistsPage({
           <>
             <strong>The team&rsquo;s own list</strong>
             <p>
-              Nothing here reaches an attendee. Assignees are free text rather than accounts,
-              because half the people on a conference checklist are volunteers and suppliers who
-              will never hold one, so nobody is notified that they were assigned anything.
+              Attendees never see this list. Owners are typed names, not accounts, so nobody is
+              notified when a task is assigned to them.
             </p>
           </>
         }
@@ -166,7 +186,7 @@ export default async function ProjectsAndChecklistsPage({
         }
         actions={
           !showForm ? (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add task
             </Link>
           ) : (
@@ -190,7 +210,7 @@ export default async function ProjectsAndChecklistsPage({
           { label: 'Tasks', value: all.length, sub: `${done} done` },
           { label: 'Overdue', value: overdue, sub: overdue === 0 ? 'nothing late' : 'past their due date' },
           { label: 'Blocked', value: blocked, sub: 'waiting on something' },
-          { label: 'Projects', value: projects.length, sub: 'free-text buckets' },
+          { label: 'Projects', value: projects.length, sub: 'task groups' },
         ]}
       />
 
@@ -206,7 +226,7 @@ export default async function ProjectsAndChecklistsPage({
           <NotInputted
             what="tasks"
             action={
-              <Link href="?new=1" className="whova-btn-main">
+              <Link href="?new=1" className="whova-btn-main secondary">
                 Add the first one
               </Link>
             }

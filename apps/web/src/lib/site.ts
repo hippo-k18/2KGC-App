@@ -25,6 +25,12 @@ import { EVENT } from '@kgc/shared';
 export const SLACK_WORKSPACE = 'https://knowledgegraphconf.slack.com/';
 
 /**
+ * The conference's YouTube channel, read by the footer socials, /about and
+ * /community. The handle has "the" in it: @knowledgegraphconference is a 404.
+ */
+export const YOUTUBE_CHANNEL = 'https://www.youtube.com/@theknowledgegraphconference';
+
+/**
  * Facts about the event that the marketing pages repeat, in one place.
  *
  * The name, venue and time zone come from `@kgc/shared` so the website and the
@@ -38,7 +44,7 @@ export const SITE = {
   name: EVENT.name,
   shortName: EVENT.shortName,
   venue: EVENT.venue,
-  venueShort: 'Cornell Tech, Roosevelt Island',
+  venueShort: 'Jay Conference Bryant Park, New York',
   city: 'New York City',
   timeZone: EVENT.timeZone,
 
@@ -71,8 +77,8 @@ export const SITE = {
 
   social: [
     { label: 'LinkedIn', href: 'https://www.linkedin.com/company/knowledge-graph-conference/' },
-    { label: 'X', href: 'https://x.com/knowledgegraphc' },
-    { label: 'YouTube', href: 'https://www.youtube.com/@knowledgegraphconference' },
+    { label: 'X', href: 'https://x.com/KGConference' },
+    { label: 'YouTube', href: YOUTUBE_CHANNEL },
     { label: 'Slack', href: SLACK_WORKSPACE },
   ],
 } as const;
@@ -108,8 +114,8 @@ export const ANNOUNCEMENT: string | null = 'Tickets for KGC 2027 open soon';
  * read. Keep these short: they are read in passing.
  */
 export const TICKER: string[] = [
-  '3–7 May 2027',
-  'Cornell Tech, Roosevelt Island, NYC',
+  'May 3–7, 2027',
+  'Jay Conference Bryant Park, New York',
   '1,000+ attendees expected',
   'Workshops Mon–Tue · Conference Wed–Fri',
   'Every session recorded',
@@ -169,10 +175,14 @@ export const ATTENDEES_EXPECTED = '1,000+';
  * about the world that only the owner can make true, and it should be changed in
  * one place by whoever knows the answer.
  *
- * Set it to the store sentence on the day the app is actually listed.
+ * ⚠️ Set to the store sentence on 2026-09-26 at the owner's request, knowing
+ * the app was not yet listed on either store (checked that day: no App Store
+ * result, Google Play 404 for tech.knowledgegraph.kgc). Buyers who search
+ * before it is listed will find nothing. That was the owner's decision; do not
+ * revert it without asking.
  */
 export const APP_DISTRIBUTION =
-  'We will send you an install link before the conference. The app is not on the public app stores yet.';
+  'Download the Knowledge Graph Conference app from the App Store or Google Play.';
 
 /**
  * Where the attendee app is hosted.
@@ -180,9 +190,20 @@ export const APP_DISTRIBUTION =
  * The Expo app exported to the web, so a buyer can open it from the
  * confirmation page on whatever device they are already holding. It is not the
  * shipping distribution — that is the app stores — but it is the only one that
- * needs nothing installed and no shared Wi-Fi, which is what a demo needs.
+ * needs nothing installed and no shared Wi-Fi. Null while there is no hosted
+ * build (the old Netlify one is gone), and the order page then hides its links.
  */
-export const APP_URL = process.env.APP_PUBLIC_URL ?? 'https://kgc27-app.netlify.app';
+export const APP_URL: string | null = process.env.APP_PUBLIC_URL || null;
+
+/**
+ * The conference's video and resource site. `hub.knowledgegraph.tech`, the
+ * old Resource Hub, times out; the team moved the menu entry and the
+ * /community video link here on 2026-09-28.
+ */
+export const RESOURCE_HUB = 'https://watch.knowledgegraph.tech';
+
+/** The newsletter sign-up form on the conference's HubSpot. */
+export const NEWSLETTER_SIGNUP = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
 
 /**
  * The header navigation.
@@ -241,10 +262,15 @@ export interface NavChild {
 export const ABOUT_MENU: readonly NavChild[] = [
   { href: '/about', label: 'About KGC' },
   { href: '/community', label: 'Community' },
-  { href: 'https://hub.knowledgegraph.tech/', label: 'Resource Hub', external: true },
+  { href: RESOURCE_HUB, label: 'Resource Hub', external: true },
   { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
   { href: '/team', label: 'Meet the Team' },
-  { href: '/blog', label: 'KGC Talks' },
+  /*
+   * The talks, not the whole archive. The menu carries Blog on the top level
+   * as well, and both entries pointed at the same page, so one of the two was
+   * always going to look like a mistake.
+   */
+  { href: '/blog?category=KGC%20Talks', label: 'KGC Talks' },
   { href: '/kgc-lifetime-achievement-awards', label: 'Lifetime Achievement Award' },
   /*
    * The live menu expands this into seven per-edition links. Ours is one index
@@ -252,6 +278,11 @@ export const ABOUT_MENU: readonly NavChild[] = [
    * for why they are not rebuilt here.
    */
   { href: '/previous-events', label: 'Previous Events' },
+  /*
+   * Beside Previous Events, the other way into past editions. It was a
+   * top-level item for a day (2026-10-01); the owner moved it here.
+   */
+  { href: '/past-speakers', label: 'Past Speakers' },
   {
     href: 'https://the-knowledge-graph-conference.myspreadshop.com/',
     label: 'KGC Store',
@@ -294,7 +325,58 @@ export function formatDayTab(day: string): { weekday: string; date: string } {
   return { weekday: fmt({ weekday: 'short' }), date: fmt({ month: 'short', day: '2-digit' }) };
 }
 
+/**
+ * A submission deadline, as a person writes one.
+ *
+ * `2026-12-15T23:59` in `America/New_York` becomes
+ * "15 December 2026, 23:59 New York time". Four pages printed the stored value
+ * and the zone verbatim, which reads as a machine field rather than a date.
+ *
+ * String surgery rather than `Date`, deliberately, and this is the load-bearing
+ * half: the stored value is wall time in the call's own zone, and putting it
+ * through a `Date` on a server running in UTC is how 23:59 in New York becomes
+ * 03:59 the next morning on the public page. Nothing here converts anything.
+ *
+ * The zone is named by its city, because that is how the reader holds it, and
+ * it is never dropped: a deadline without a zone is not a deadline.
+ */
+export function formatDeadline(wallClock: string, timeZone: string): string | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(wallClock);
+  if (!parts) return null;
+  const [, year, month, day, hour, minute] = parts;
+  const named = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
+  const city = timeZone.split('/').pop()?.replace(/_/g, ' ') ?? timeZone;
+  return `${named}, ${hour}:${minute} ${city} time`;
+}
+
 /** `2027-05-05T09:00` → `09:00`. The stored wall clock is already event-local. */
 export function localTime(wallClock: string): string {
   return wallClock.slice(11, 16);
 }
+
+/**
+ * The home page says "Bryant Park" where every other page says "Jay Conference
+ * Bryant Park". The user asked for that on 2026-09-27, for the home page and its
+ * footer only. Applied to the saved venue too, so a venue edited in Content >
+ * Basics keeps the short form there.
+ */
+export const homeVenue = (venue: string) =>
+  venue
+    .replace('Jay Conference Bryant Park', 'Bryant Park')
+    // "New York City" on the home page, at the team's request (2026-09-28).
+    .replace(/, New York(, NY)?$/, ', New York City');
+
+/**
+ * An empty element the home page renders so the shared footer can switch to
+ * `homeVenue` with CSS alone (`body:has(...)` in `globals.css`).
+ *
+ * Not `usePathname()`: on the blog host `/` is rewritten to the blog index, so
+ * the path would say "home" on a page that is not. Not a request header read in
+ * the root layout either, which would make every page on the site dynamic.
+ */
+export const HOME_VENUE_MARKER = 'data-home-venue';

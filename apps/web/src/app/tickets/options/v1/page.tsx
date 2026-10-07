@@ -3,6 +3,7 @@ import { loadOptionData, OptionChrome, BuyBand, AfterBands } from '../shared';
 import { WeekStrip } from './strip';
 import s from './styles.module.css';
 
+/** Per-request, and it has to be. Prices, for the reason `tickets/page.tsx` gives. These are layout options for the tickets page and read the same catalogue, so a stale price would be a stale price here too. */
 export const dynamic = 'force-dynamic';
 
 const HREF = '/tickets/options/v1';

@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
-  title: 'Lifetime Achievement Award',
+  title: 'KGC Lifetime Achievement Awards',
   description:
     'The Knowledge Graph Conference Lifetime Achievement Award, and the people who have received it.',
 };
@@ -10,19 +13,183 @@ export const metadata: Metadata = {
 /**
  * Built 2026-08-20 against the live /kgc-lifetime-achievement-awards page.
  *
- * The recipient list is the live page's own. It is deliberately short: the live
- * page names the 2026 recipients and one past recipient, and inventing a fuller
- * roll would be fabricating an award record.
+ * The recipient list is the live page's own, checked against the archived
+ * WordPress page on 2026-09-27: the 2026 recipients and every past year back to
+ * 2020. That page has names only, no citations, and linked each name to its
+ * Wikipedia article.
+ *
+ * A recipient who spoke at KGC now links to their own KGC speaker page under
+ * /past-speakers instead (the team, 2026-10-01). The four with no KGC speaker
+ * page (Hendler, Berners-Lee, Musen, Lenat) keep their Wikipedia link.
+ *
+ * The biographies are the recipients' own KGC speaker pages, verbatim, from the
+ * WordPress export (2026-09-28). Only five recipients spoke at KGC and so have
+ * one; the others have no KGC biography, and none is written for them here.
  */
+
+/**
+ * `external` is a Wikipedia article, opened in a new tab; otherwise a page on this site.
+ *
+ * `photo` is a square under `public/kgc/`, shown round. Where each came from
+ * (2026-10-03):
+ *
+ *   - Lassila, Vrandečić, McGuinness, Barabási, Sowa: their KGC speaker photos
+ *     (`/past-speakers`), as the old site published them.
+ *   - Hendler: cropped from KGC's own photograph of the 2026 award (the archived
+ *     awards page, `wp-content/uploads/2026/06/DSC07401`). He is holding his
+ *     certificate in it.
+ *   - Musen: cropped from KGC's own photograph of his 2025 award, from the old
+ *     site's media library (backup of 2026-09-26).
+ *   - Berners-Lee and Lenat: KGC has no photograph of either, so these are from
+ *     Wikimedia Commons under the licences in `credit`, which those licences
+ *     require to be shown with the photo.
+ */
+type Recipient = { name: string; href: string; external?: boolean; photo: string; credit?: ReactNode };
+
+const wiki = (article: string) => ({ href: `https://en.wikipedia.org/wiki/${article}`, external: true });
+const speaker = (slug: string) => ({ href: `/past-speakers/${slug}`, photo: `/kgc/past-speakers/${slug}.webp` });
+const award = (file: string) => `/kgc/awards/${file}.webp`;
+
+const CC_BY_4 = 'https://creativecommons.org/licenses/by/4.0/';
+const CC_BY_SA_4 = 'https://creativecommons.org/licenses/by-sa/4.0/';
 
 const CURRENT = {
   year: 2026,
-  names: ['James Hendler', 'Ora Lassila', 'Tim Berners-Lee'],
+  recipients: [
+    { name: 'James Hendler', ...wiki('James_Hendler'), photo: award('james-hendler') },
+    { name: 'Ora Lassila', ...speaker('ora-lassila') },
+    {
+      name: 'Tim Berners-Lee',
+      ...wiki('Tim_Berners-Lee'),
+      photo: award('tim-berners-lee'),
+      credit: (
+        <>
+          Photo:{' '}
+          <a href="https://commons.wikimedia.org/wiki/File:Tim_Berners-Lee_at_the_2025_Web_Summit_(Cropped).jpg">
+            Sam Barnes/Web Summit
+          </a>
+          , <a href={CC_BY_4}>CC BY 4.0</a>, cropped
+        </>
+      ),
+    },
+  ] as Recipient[],
 };
 
-const PAST = [{ year: 2025, names: ['Mark Musen'] }];
+const PAST: { year: number; recipients: Recipient[] }[] = [
+  { year: 2025, recipients: [{ name: 'Mark Musen', ...wiki('Mark_Musen'), photo: award('mark-musen') }] },
+  {
+    year: 2024,
+    recipients: [
+      {
+        name: 'Doug Lenat',
+        ...wiki('Douglas_Lenat'),
+        photo: award('doug-lenat'),
+        credit: (
+          <>
+            Photo: <a href="https://commons.wikimedia.org/wiki/File:Dbl-smiling.jpg">LordRedthorn</a>, cropped,{' '}
+            <a href={CC_BY_SA_4}>CC BY-SA 4.0</a>
+          </>
+        ),
+      },
+    ],
+  },
+  { year: 2023, recipients: [{ name: 'Denny Vrandečić', ...speaker('denny-vrandecic-2') }] },
+  { year: 2022, recipients: [{ name: 'Deborah McGuinness', ...speaker('deborah-mcguinness') }] },
+  {
+    year: 2021,
+    recipients: [
+      {
+        name: 'Albert-László Barabási',
+        ...speaker('albert-laszlo-barabasi'),
+        // The photographer, as the old site's file name gave it.
+        credit: 'Photo: Lábady István, Hamu és Gyémánt',
+      },
+    ],
+  },
+  { year: 2020, recipients: [{ name: 'John F. Sowa', ...speaker('john-f-sowa') }] },
+];
 
-export default function AwardsPage() {
+/**
+ * Verbatim from each recipient's KGC speaker page, typos included. `slug` is
+ * that page's address under /past-speakers, where it now lives on this site.
+ */
+const BIOS: { name: string; year: number; slug: string; paragraphs: string[] }[] = [
+  {
+    "name": "Ora Lassila",
+    "slug": "ora-lassila",
+    "year": 2026,
+    "paragraphs": [
+      "Ora Lassila is a Principal Graph Technologist in the Amazon Neptune graph database group. He has a long experience with graphs, graph databases, ontologies, and knowledge representation, and was a co-author of the original RDF specification as well as a co-author of the seminal article on the Semantic Web. He holds a Ph.D in Computer Science, but actually aspires to be a professional aviation photographer.."
+    ]
+  },
+  {
+    "name": "Denny Vrandečić",
+    "slug": "denny-vrandecic-2",
+    "year": 2023,
+    "paragraphs": [
+      "Denny Vrandečić is Head of Special Projects at the Wikimedia Foundation, leading the development of Wikifunctions and Abstract Wikipedia. He is the founder of Wikidata, co-creator of Semantic MediaWiki, and former elected member of the Wikimedia Foundation Board of Trustees. He worked for Google on the Google Knowledge Graph. He has a PhD in Semantic Web and Knowledge Representation from the Karlsruhe Institute of Technology."
+    ]
+  },
+  {
+    "name": "Deborah McGuinness",
+    "slug": "deborah-mcguinness",
+    "year": 2022,
+    "paragraphs": [
+      "Deborah McGuinness has been recognized with awards from the American Association for the Advancement of Science (AAAS) and the Association for the Advancement of Artificial Intelligence (AAAI ) for leadership in Semantic Web research and in bridging Artificial Intelligence (AI) and eScience, significant contributions to deployed AI applications, and extensive service to the AI community. She is a leading authority on the semantic web and has been working in knowledge representation and reasoning environments for over 35 years. Deborah’s primary research thrusts include ontologies, provenance, escience, open data, and semantically-enabled schema and data integration for a wide range of informatics , recommender, and configuration applications.",
+      "Deborah is also widely known for her leading role in the development of the W3C Recommended Web Ontology Language (OWL), her work on earlier description logic languages and environments, and work on provenance languages and environments, including InferenceWeb, PML, and PROV. She has built and deployed numerous ontology environments and ontology-enhanced applications, including some that have been in continuous use for over a decade, and two that have won deployment awards for variation reduction on plant floors and interdisciplinary virtual observatories. Recent application thrusts include health informatics and smart environmental monitoring. She has published over 400 peer-reviewed papers and has authored granted patents in knowledge based systems, ontology environments, configuration, and search technology.",
+      "Deborah also in intellectual property expert witness work and has deposition and trial experience. She also consults with clients wishing to plan, develop, deploy, and maintain semantic web and/or AI applications. Some areas of recent work include: data science, next generation health advisors, ontology design and evolution environments, semantically-enabled virtual observatories, semantic integration of scientific data, context-aware mobile applications, search, eCommerce, configuration, and supply chain management."
+    ]
+  },
+  {
+    "name": "Albert-László Barabási",
+    "slug": "albert-laszlo-barabasi",
+    "year": 2021,
+    "paragraphs": [
+      "Albert-László Barabási is both the Robert Gray Dodge Professor of Network Science and a Distinguished University Professor at Northeastern University, where he directs the Center for Complex Network Research, and holds appointments in the Departments of Physics and Computer Science, as well as in the Department of Medicine, Harvard Medical School and Brigham and Women Hospital, and is a member of the Center for Cancer Systems Biology at Dana Farber Cancer Institute. A Hungarian born native of Transylvania, Romania, he received his Masters in Theoretical Physics at the Eotvos University in Budapest, Hungary and was awarded a Ph.D. three years later at Boston University. Barabási is the author of the forthcoming book “The Formula: The Science of Success,” and his last book was “Bursts: The Hidden Pattern Behind Everything We Do” (Dutton, 2010) available in five languages. He has also authored “Linked: The New Science of Networks” (Perseus, 2002), currently available in eleven languages, and is the co-editor of “The Structure and Dynamics of Networks” (Princeton, 2005). His work lead to the discovery of scale-free networks in 1999, and proposed the Barabási-Albert model to explain their widespread emergence in natural, technological and social systems, from the cellular telephone to the WWW or online communities. Barabási is a Fellow of the American Physical Society. In 2005 he was awarded the FEBS Anniversary Prize for Systems Biology and in 2006 the John von Neumann Medal by the John von Neumann Computer Society from Hungary, for outstanding achievements in computer-related science and technology. In 2004 he was elected into the Hungarian Academy of Sciences and in 2007 into the Academia Europaea. He received the C&C Prize from the NEC C&C Foundation in 2008. In 2009 APS chose him Outstanding Referee and the US National Academies of Sciences awarded him the 2009 Cozzarelli Prize. In 2011 Barabási was awarded the Lagrange Prize-CRT Foundation for his contributions to complex systems, awarded Doctor Honoris Causa from Universidad Politécnica de Madrid, became an elected Fellow in AAAS (Physics) and is an 2013 Fellow of the Massachusetts Academy of Sciences."
+    ]
+  },
+  {
+    "name": "John F. Sowa",
+    "slug": "john-f-sowa",
+    "year": 2020,
+    "paragraphs": [
+      "John F. Sowa spent 30 years on R & D projects at IBM and is a co-founder of VivoMind Research LLC. He is a fellow of the AAAI, and he has published several books and many articles on logic, AI, and computational linguistics."
+    ]
+  }
+];
+
+/** A recipient's name: their KGC speaker page, or Wikipedia in a new tab. */
+function RecipientLink({ recipient, className }: { recipient: Recipient; className?: string }) {
+  return recipient.external ? (
+    <a className={className} href={recipient.href} target="_blank" rel="noreferrer">
+      {recipient.name}
+    </a>
+  ) : (
+    <Link className={className} href={recipient.href}>
+      {recipient.name}
+    </Link>
+  );
+}
+
+/** One recipient: their photo, their name as a link, the year, and any photo credit. */
+function Laureate({ recipient: r, year }: { recipient: Recipient; year?: number }) {
+  return (
+    <figure className="laureate">
+      <Image className="laureate-photo" src={r.photo} alt={r.name} width={480} height={480} sizes="(width < 520px) 120px, 160px" />
+      <figcaption>
+        <RecipientLink recipient={r} className="laureate-name" />
+        {year ? <span className="laureate-year">{year}</span> : null}
+        {r.credit ? <span className="laureate-credit">{r.credit}</span> : null}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
+export const revalidate = 30;
+
+export default async function AwardsPage() {
+  const salesOpen = await ticketSalesOpen();
   return (
     <>
       {/*
@@ -56,10 +223,8 @@ export default function AwardsPage() {
             {CURRENT.year} recipients
           </h2>
           <div className="laureates">
-            {CURRENT.names.map((n) => (
-              <div key={n} className="laureate">
-                {n}
-              </div>
+            {CURRENT.recipients.map((r) => (
+              <Laureate key={r.name} recipient={r} />
             ))}
           </div>
         </div>
@@ -70,17 +235,39 @@ export default function AwardsPage() {
           <h2 className="kgc-h2-sm" style={{ marginBottom: 26 }}>
             Past recipients
           </h2>
-          {PAST.map((p) => (
-            <p key={p.year} className="learn-intro" style={{ marginBottom: 14 }}>
-              <strong>{p.year}:</strong> {p.names.join(', ')}
-            </p>
-          ))}
-
-          <div style={{ marginTop: 40 }}>
-            <Link className="btn btn-accent btn-kgc" href="/tickets">
-              Join us in May
-            </Link>
+          <div className="laureates laureates-past">
+            {PAST.flatMap((p) => p.recipients.map((r) => <Laureate key={r.name} recipient={r} year={p.year} />))}
           </div>
+
+          {salesOpen && (
+            <div style={{ marginTop: 40 }}>
+              <Link className="btn btn-accent btn-kgc" href="/tickets">
+                Join us in May
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* One disclosure per recipient who has a KGC speaker biography. */}
+      <section className="band-wash">
+        <div className="kgc-faq">
+          <h2>Biographies</h2>
+          {BIOS.map((b) => (
+            <details key={b.name}>
+              <summary>
+                {b.name}, {b.year}
+              </summary>
+              <div className="answer">
+                {b.paragraphs.map((para) => (
+                  <p key={para.slice(0, 40)}>{para}</p>
+                ))}
+                <p>
+                  <Link href={`/past-speakers/${b.slug}`}>{b.name}’s KGC speaker page</Link>
+                </p>
+              </div>
+            </details>
+          ))}
         </div>
       </section>
     </>

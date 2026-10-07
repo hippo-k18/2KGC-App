@@ -28,11 +28,9 @@ export default async function ExhibitorTriviaPage() {
         title="Exhibitor Trivia"
         info={
           <>
-            <strong>Needs an exhibitor login</strong>
+            <strong>Not available yet</strong>
             <p>
-              Each question is written by the company on the stand, and exhibitors hold a contact
-              email rather than an account. A second sign-in surface has to exist before there is
-              anywhere for the questions to come from.
+              Exhibitors cannot sign in to write trivia questions yet.
             </p>
           </>
         }
@@ -48,8 +46,8 @@ export default async function ExhibitorTriviaPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Booths', value: summary.confirmed, sub: 'confirmed, each would set a question' },
-          { label: 'Questions', value: '—', sub: 'not inputted yet' },
+          { label: 'Booths', value: summary.confirmed, sub: 'confirmed' },
+          { label: 'Questions', value: 0, sub: 'none yet' },
         ]}
       />
 

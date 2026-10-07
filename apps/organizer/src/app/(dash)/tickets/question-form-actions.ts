@@ -56,6 +56,17 @@ export async function saveQuestionAction(
     ? (rawKind as QuestionFieldDef['kind'])
     : 'short-text';
 
+  /*
+   * The trigger arrives as two fields and is only a trigger when both are set.
+   * A parent with no answer chosen is half an edit, not a question shown to
+   * everybody — so it is refused here rather than silently saved as one.
+   */
+  const parentId = String(form.get('showIfFieldId') ?? '').trim();
+  const parentAnswer = String(form.get('showIfEquals') ?? '').trim();
+  if (parentId && !parentAnswer) {
+    return { error: 'Choose which answer to the earlier question reveals this one.' };
+  }
+
   const result = await saveField({
     audience,
     // Present only when editing, and passed through untouched. ⚠️ The id is
@@ -71,6 +82,7 @@ export async function saveQuestionAction(
     required: form.get('required') === 'on',
     helpText: String(form.get('helpText') ?? ''),
     ticketTypeIds: form.getAll('ticketTypeIds').map((v) => String(v)),
+    ...(parentId ? { showIf: { fieldId: parentId, equals: parentAnswer } } : {}),
     actor,
   });
 
