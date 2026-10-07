@@ -192,7 +192,7 @@ export default async function SponsorPage() {
       */}
       <section className="band-white" style={{ paddingBlock: '0 80px' }}>
         <div className="wrap">
-          <div className="flat-block speak-box" id="speak">
+          <div className={`flat-block speak-box ${s.speak}`} id="speak">
             <h2>Speak at KGC</h2>
             <p>
               Tell us about real work: something you built, a decision you would change, a project

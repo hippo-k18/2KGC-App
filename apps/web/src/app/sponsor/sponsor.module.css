@@ -83,3 +83,10 @@
 .packages :global(.package-head) {
   margin-top: 0;
 }
+
+/* The call for speakers sits at the end of the page now, so a jump to #speak
+   (the footer's "Speak at KGC") scrolls it under the sticky header. Clear the
+   header plus 4px, as `.day-head` does. */
+.speak {
+  scroll-margin-top: calc(var(--header-h) + 4px);
+}
