@@ -90,3 +90,224 @@
 .speak {
   scroll-margin-top: calc(var(--header-h) + 4px);
 }
+
+/* ------------------------------------------------------------ the tiers -- */
+
+/*
+ * Sponsor packages as a podium (T179).
+ *
+ * Each metal is three values: a dark and a light stop for the edge and the
+ * benefit marks, and an ink for the words set in that metal. The inks are dark
+ * enough for body text on white (bronze 7.6:1, silver 7.2:1, gold 6.4:1); the
+ * platinum ink sits on navy (11:1). The light stops are decoration only.
+ */
+.bronze {
+  --metal-dark: #8c5a2b;
+  --metal-light: #dcaa73;
+  --metal-ink: #7a4a1f;
+}
+
+.silver {
+  --metal-dark: #7d8894;
+  --metal-light: #e6ebf0;
+  --metal-ink: #4b5763;
+}
+
+.gold {
+  --metal-dark: #9c7410;
+  --metal-light: #f1d272;
+  --metal-ink: #735400;
+}
+
+.platinum {
+  --metal-dark: #a9b8c8;
+  --metal-light: #ffffff;
+  --metal-ink: #e3eaf2;
+}
+
+.packageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.packageHead h2 {
+  margin: 0;
+}
+
+/* The plain treatment, for a package that names no metal. Set on the grid and
+   inherited, so a tier's own metal class (declared above) wins. */
+.tiers {
+  --metal-dark: var(--line);
+  --metal-light: var(--white);
+  --metal-ink: var(--navy);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+@media (width >= 600px) {
+  .tiers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/*
+ * The podium: four in a row, each a step above the last. The cards stretch to
+ * the row, so their feet stay level and only their tops climb.
+ */
+@media (width >= 1040px) {
+  .tiers {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .bronze {
+    margin-top: 54px;
+  }
+
+  .silver {
+    margin-top: 36px;
+  }
+
+  .gold {
+    margin-top: 18px;
+  }
+}
+
+.tier {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+  overflow: hidden;
+}
+
+/* The metal edge: a polished bar, light in the middle like a struck medal. */
+.tier::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--metal-dark),
+    var(--metal-light) 45%,
+    var(--metal-dark)
+  );
+}
+
+.tierName {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.2;
+  color: var(--metal-ink);
+}
+
+.tierLine {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.tierBase {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--metal-ink);
+}
+
+.benefits {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--body);
+}
+
+/* With no "Everything in" line, the rule sits above the list instead. */
+.tierLine + .benefits {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.benefits li {
+  position: relative;
+  padding-left: 18px;
+}
+
+/* A small cut stone in the tier's metal. */
+.benefits li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--metal-light), var(--metal-dark));
+  box-shadow: 0 0 0 1px var(--metal-dark);
+}
+
+.ask {
+  align-self: flex-start;
+  margin-top: auto;
+  padding-top: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.ask:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* --------------------------------------------------- platinum, the top step */
+
+.top {
+  border-color: var(--navy);
+  background: linear-gradient(165deg, #33497a 0%, var(--navy) 55%);
+  color: var(--metal-ink);
+}
+
+.top .tierLine {
+  color: #c9d4e0;
+}
+
+.top .benefits {
+  color: var(--metal-ink);
+}
+
+.top .tierBase,
+.top .tierLine + .benefits {
+  border-top-color: rgb(255 255 255 / 18%);
+}
+
+/* The one orange button in the grid. `.btn` brings its own padding, so the
+   space above it is a margin rather than the links' padding. */
+.top .ask {
+  align-self: stretch;
+  margin-top: auto;
+  padding-top: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.top .tierBase + .benefits,
+.top .benefits {
+  margin-bottom: 24px;
+}

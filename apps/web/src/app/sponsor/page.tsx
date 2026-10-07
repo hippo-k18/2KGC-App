@@ -145,7 +145,11 @@ export default async function SponsorPage() {
                 }
               >
                 {packages.map((p) => (
-                  <PackageBlock key={p.id} tier={p} />
+                  <PackageBlock
+                    key={p.id}
+                    tier={p}
+                    ask={mail(`KGC 2027 ${p.name} sponsorship`)}
+                  />
                 ))}
               </PackageGrid>
             </>
@@ -303,31 +307,56 @@ const PLAIN: Record<string, { summary: string; items: string[] }> = {
 };
 
 /**
- * One package as a flat block: its name and one line always, and the full
- * list when the "More" button in `PackageGrid` opens every block at once.
+ * Which metal a package is drawn in, from its id or name. A package added later
+ * under another name gets the plain treatment rather than a borrowed metal.
  */
-function PackageBlock({ tier }: { tier: Tier }) {
+type Metal = 'bronze' | 'silver' | 'gold' | 'platinum';
+function metalOf(tier: Tier): Metal | null {
+  const key = `${tier.id} ${tier.name}`.toLowerCase();
+  return (['platinum', 'gold', 'silver', 'bronze'] as const).find((m) => key.includes(m)) ?? null;
+}
+
+/**
+ * One package, drawn as a step on a podium (T179).
+ *
+ * Each tier carries its metal in two places only: the edge along its top and
+ * the marks beside its benefits. On a laptop the four stand in a row, Bronze to
+ * Platinum, each a step higher than the one before, so the ranking reads before
+ * any word does. Platinum is the navy one, the site's own colour, and the only
+ * one with an orange button: it is the one a year.
+ *
+ * The benefit lists are always open. "Everything in Silver" is set apart above
+ * the list, because it says where the tier starts rather than what it adds.
+ */
+function PackageBlock({ tier, ask }: { tier: Tier; ask: string }) {
   const plain = PLAIN[tier.id];
   const summary = plain?.summary ?? tier.tagline;
   const items =
     plain?.items ??
     (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap((g) => g.items ?? []);
+  const base = items[0]?.startsWith('Everything in') ? items[0] : null;
+  const adds = base ? items.slice(1) : items;
+  const metal = metalOf(tier);
+  const top = metal === 'platinum' || tier.featured;
+
   return (
     <article
-      className={`flat-block package${tier.featured ? ' is-featured' : ''}`}
-      aria-label={`${tier.name} package`}
+      className={[s.tier, metal ? s[metal] : '', top ? s.top : ''].join(' ')}
+      aria-labelledby={`package-${tier.id}`}
     >
-      <h3>{tier.name}</h3>
-      <p className="package-line">{summary}</p>
-      <div className="package-more">
-        <div>
-          <ul>
-            {items.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      <h3 id={`package-${tier.id}`} className={s.tierName}>
+        {tier.name}
+      </h3>
+      <p className={s.tierLine}>{summary}</p>
+      {base && <p className={s.tierBase}>{base}</p>}
+      <ul className={s.benefits}>
+        {adds.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <a className={top ? `btn btn-primary ${s.ask}` : s.ask} href={ask}>
+        Ask about {tier.name}
+      </a>
     </article>
   );
 }

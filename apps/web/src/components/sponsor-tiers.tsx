@@ -87,6 +87,12 @@ function Logo({ sponsor, size }: { sponsor: SponsorCard; size: 1 | 2 | 3 }) {
  */
 type TierTitles = 'heading' | 'label';
 
+/** The metal a band is drawn in, from its tier id or name; none if neither says. */
+function metalOf(band: SponsorBand): string | undefined {
+  const key = `${band.tier} ${band.name}`.toLowerCase();
+  return ['platinum', 'gold', 'silver', 'bronze'].find((m) => key.includes(m));
+}
+
 export function SponsorTiers({
   bands,
   titles = 'heading',
@@ -115,8 +121,11 @@ export function SponsorTiers({
           style={titles === 'label' ? { paddingBlock: 0 } : undefined}
         >
           <h3
-            className={titles === 'label' ? 'section-sub' : 'tier-title'}
+            className={titles === 'label' ? 'section-sub tier-label' : 'tier-title'}
             id={`tier-${band.tier}`}
+            /* The tier's metal, drawn as a short rule over the label on
+               `/sponsor` so the wall matches the packages above it (T179). */
+            data-metal={titles === 'label' ? metalOf(band) : undefined}
             /* `.tier-title` carries its own 32px of space above it and
                `.section-sub` carries none, so the bands need it back here
                rather than through a second rule in the stylesheet. */

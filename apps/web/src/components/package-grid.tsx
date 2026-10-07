@@ -1,40 +1,23 @@
-'use client';
-
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import s from '@/app/sponsor/sponsor.module.css';
 
 /**
- * The "Sponsor Packages" heading, its buttons and the grid of blocks under it.
+ * The "Sponsor Packages" heading, the prospectus button and the tiers under it.
  *
- * The blocks used to open one at a time on hover, which made the hovered block
- * taller than its neighbours. One "More" button now opens every list at once,
- * so the four blocks stay the same height whether they are open or shut.
- *
- * The blocks themselves stay server-rendered and arrive as `children`; this
- * component only owns the open state.
+ * There was a "More" button here that opened every package's list at once.
+ * The lists are four to six short lines each, and hiding them meant a reader
+ * comparing tiers saw four one-line summaries and nothing to rank them by, so
+ * they are always shown now (T179) and the button went with them. The
+ * component no longer holds any state, so it is no longer a client component.
  */
 export function PackageGrid({ info, children }: { info: ReactNode; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-
   return (
     <>
-      <div className="package-head">
+      <div className={s.packageHead}>
         <h2>Sponsor Packages</h2>
-        <div className="package-actions">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            aria-expanded={open}
-            aria-controls="package-grid"
-            onClick={() => setOpen((o) => !o)}
-          >
-            {open ? 'Less' : 'More'}
-          </button>
-          {info}
-        </div>
+        {info}
       </div>
-      <div id="package-grid" className={open ? 'package-grid is-open' : 'package-grid'}>
-        {children}
-      </div>
+      <div className={s.tiers}>{children}</div>
     </>
   );
 }

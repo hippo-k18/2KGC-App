@@ -2169,105 +2169,8 @@ body.nav-open {
   }
 }
 
-.package-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  /* `stretch`, so every block in a row is the height of the tallest. The
-     "More" button opens all of them together, so they stay level open too. */
-  align-items: stretch;
-  gap: 16px;
-  margin-top: 20px;
-}
-
-@media (width >= 560px) {
-  .package-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (width >= 1040px) {
-  .package-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-.package h3 {
-  font-size: 1.25rem;
-  margin-bottom: 0;
-}
-
-/* The heading with the More and Info buttons on the right, on one line. */
-.package-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 56px;
-}
-
-.package-head h2 {
-  margin: 0;
-}
-
-.package-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/*
- * The lists open together, from the More button. `grid-template-rows` from 0fr
- * to 1fr animates to the content's real height, which `height: auto` cannot.
- */
-.package-more {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 200ms ease;
-}
-
-.package-more > div {
-  overflow: hidden;
-}
-
-.package-grid.is-open .package-more {
-  grid-template-rows: 1fr;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .package-more {
-    transition: none;
-  }
-}
-
-/* A step darker than `--muted`, which measured 4.35:1 on the package grey. */
-.package-line {
-  color: #52606d;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  margin: 8px 0 0;
-}
-
-/* The rule above the list sits on the list, so it folds away with it. */
-.package ul {
-  margin: 16px 0 0;
-  padding: 16px 0 0 1.1em;
-  border-top: 2px solid var(--white);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.package li + li {
-  margin-top: 8px;
-}
-
-/* The top package takes the FAQ's selected-question blue. */
-.package.is-featured {
-  background: var(--faq-selected-bg);
-}
-
-.package.is-featured h3,
-.package.is-featured .package-line {
-  color: var(--faq-selected-fg);
-}
+/* The package tiers themselves are styled in `app/sponsor/sponsor.module.css`
+   (T179). The shared email row under them stays here. */
 
 .package-contact {
   display: flex;
@@ -9386,6 +9289,38 @@ section .site-search-form {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   margin: 0 0 30px;
+}
+
+/*
+ * On `/sponsor` each band's label carries its tier's metal as a short polished
+ * rule above it, the same edge the packages wear (T179). The values match
+ * `app/sponsor/sponsor.module.css`.
+ */
+.tier-label[data-metal]::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--metal-dark), var(--metal-light) 45%, var(--metal-dark));
+}
+
+.tier-label[data-metal='bronze'] {
+  --metal-dark: #8c5a2b;
+  --metal-light: #dcaa73;
+}
+.tier-label[data-metal='silver'] {
+  --metal-dark: #7d8894;
+  --metal-light: #e6ebf0;
+}
+.tier-label[data-metal='gold'] {
+  --metal-dark: #9c7410;
+  --metal-light: #f1d272;
+}
+.tier-label[data-metal='platinum'] {
+  --metal-dark: #8d9cad;
+  --metal-light: #f4f7fa;
 }
 
 /* A white band, so white sponsor logo boxes sit on white rather than showing
