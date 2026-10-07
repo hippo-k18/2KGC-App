@@ -94,7 +94,7 @@
 /* ------------------------------------------------------------ the tiers -- */
 
 /*
- * Sponsor packages as a podium (T179).
+ * Sponsor packages, each in its own metal (T179, T182).
  *
  * Each metal is three values: a dark and a light stop for the edge and the
  * benefit marks, and an ink for the words set in that metal. The inks are dark
@@ -136,6 +136,45 @@
   margin: 0;
 }
 
+.packageActions {
+  display: flex;
+  gap: 8px;
+}
+
+/*
+ * The benefit list, folded. `grid-template-rows` from 0fr to 1fr animates to
+ * the list's real height, which `height: auto` cannot. `visibility` takes the
+ * folded list out of the accessibility tree too, and flips only once the fold
+ * has finished closing.
+ */
+.more {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+}
+
+.more > div {
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s linear 200ms;
+}
+
+.isOpen .more {
+  grid-template-rows: 1fr;
+}
+
+.isOpen .more > div {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more,
+  .more > div {
+    transition: none;
+  }
+}
+
 /* The plain treatment, for a package that names no metal. Set on the grid and
    inherited, so a tier's own metal class (declared above) wins. */
 .tiers {
@@ -144,36 +183,24 @@
   --metal-ink: var(--navy);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
   gap: 16px;
   margin-top: 24px;
 }
 
+/* Two by two, and the two rows one height as well, so all four cards match. */
 @media (width >= 600px) {
   .tiers {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
   }
 }
 
-/*
- * The podium: four in a row, each a step above the last. The cards stretch to
- * the row, so their feet stay level and only their tops climb.
- */
+/* Four in a row on a laptop. Every card stretches to its row, so the cards in a
+   row are one height, open or shut (T182). */
 @media (width >= 1040px) {
   .tiers {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: stretch;
-  }
-
-  .bronze {
-    margin-top: 54px;
-  }
-
-  .silver {
-    margin-top: 36px;
-  }
-
-  .gold {
-    margin-top: 18px;
   }
 }
 
@@ -237,7 +264,7 @@
 }
 
 /* With no "Everything in" line, the rule sits above the list instead. */
-.tierLine + .benefits {
+.more > div > .benefits:first-child {
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
@@ -293,7 +320,7 @@
 }
 
 .top .tierBase,
-.top .tierLine + .benefits {
+.top .more > div > .benefits:first-child {
   border-top-color: rgb(255 255 255 / 18%);
 }
 
@@ -307,7 +334,7 @@
   text-decoration: none;
 }
 
-.top .tierBase + .benefits,
-.top .benefits {
-  margin-bottom: 24px;
+/* Space above the orange button, open or shut. */
+.top .more {
+  margin-bottom: 22px;
 }

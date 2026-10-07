@@ -317,16 +317,17 @@ function metalOf(tier: Tier): Metal | null {
 }
 
 /**
- * One package, drawn as a step on a podium (T179).
+ * One package, in its tier's metal (T179).
  *
  * Each tier carries its metal in two places only: the edge along its top and
- * the marks beside its benefits. On a laptop the four stand in a row, Bronze to
- * Platinum, each a step higher than the one before, so the ranking reads before
- * any word does. Platinum is the navy one, the site's own colour, and the only
- * one with an orange button: it is the one a year.
+ * the marks beside its benefits. Platinum is the navy one, the site's own
+ * colour, and the only one with an orange button: it is the one a year.
  *
- * The benefit lists are always open. "Everything in Silver" is set apart above
- * the list, because it says where the tier starts rather than what it adds.
+ * At rest a card shows its name, its one-line summary and its "Ask about"
+ * link. The benefit list, with "Everything in Silver" set apart above it, opens
+ * from the "More" button over the grid, which opens all four at once so the
+ * cards stay one height (T182, at the owner's request; T179 had shown the
+ * lists open and stepped the cards like a podium).
  */
 function PackageBlock({ tier, ask }: { tier: Tier; ask: string }) {
   const plain = PLAIN[tier.id];
@@ -348,12 +349,17 @@ function PackageBlock({ tier, ask }: { tier: Tier; ask: string }) {
         {tier.name}
       </h3>
       <p className={s.tierLine}>{summary}</p>
-      {base && <p className={s.tierBase}>{base}</p>}
-      <ul className={s.benefits}>
-        {adds.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
+      {/* Folded until "More" above the grid opens every tier at once. */}
+      <div className={s.more}>
+        <div>
+          {base && <p className={s.tierBase}>{base}</p>}
+          <ul className={s.benefits}>
+            {adds.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
       <a className={top ? `btn btn-primary ${s.ask}` : s.ask} href={ask}>
         Ask about {tier.name}
       </a>
