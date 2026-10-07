@@ -77,11 +77,64 @@
   object-fit: cover;
 }
 
-/* The packages follow straight on from the photos: the hero's own bottom
-   padding is the gap, so the heading drops its usual top margin (which also
-   collapsed out of the section and showed the page tint as a stripe). */
-.packages :global(.package-head) {
-  margin-top: 0;
+/* ------------------------------------------------------- call to action -- */
+
+/*
+ * One call to action after the photos (T187): a short heading and line on the
+ * left, two large buttons on the right, on the page's wash. The buttons are 56px
+ * tall at every width, and on a phone they stack at full width.
+ */
+.cta {
+  display: grid;
+  gap: 24px 48px;
+  align-items: center;
+  padding: clamp(28px, 4vw, 48px);
+  border-radius: 18px;
+  background: var(--wash);
+}
+
+@media (width >= 900px) {
+  .cta {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.ctaTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--navy);
+}
+
+.ctaLine {
+  margin: 10px 0 0;
+  max-width: 46ch;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+.ctaActions {
+  display: grid;
+  gap: 12px;
+}
+
+@media (width >= 560px) {
+  .ctaActions {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+  }
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 14px 32px;
+  font-size: 1.05rem;
+  border-width: 2px;
 }
 
 /* The call for speakers sits at the end of the page now, so a jump to #speak
@@ -89,252 +142,4 @@
    header plus 4px, as `.day-head` does. */
 .speak {
   scroll-margin-top: calc(var(--header-h) + 4px);
-}
-
-/* ------------------------------------------------------------ the tiers -- */
-
-/*
- * Sponsor packages, each in its own metal (T179, T182).
- *
- * Each metal is three values: a dark and a light stop for the edge and the
- * benefit marks, and an ink for the words set in that metal. The inks are dark
- * enough for body text on white (bronze 7.6:1, silver 7.2:1, gold 6.4:1); the
- * platinum ink sits on navy (11:1). The light stops are decoration only.
- */
-.bronze {
-  --metal-dark: #8c5a2b;
-  --metal-light: #dcaa73;
-  --metal-ink: #7a4a1f;
-}
-
-.silver {
-  --metal-dark: #7d8894;
-  --metal-light: #e6ebf0;
-  --metal-ink: #4b5763;
-}
-
-.gold {
-  --metal-dark: #9c7410;
-  --metal-light: #f1d272;
-  --metal-ink: #735400;
-}
-
-.platinum {
-  --metal-dark: #a9b8c8;
-  --metal-light: #ffffff;
-  --metal-ink: #e3eaf2;
-}
-
-.packageHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.packageHead h2 {
-  margin: 0;
-}
-
-.packageActions {
-  display: flex;
-  gap: 8px;
-}
-
-/*
- * The benefit list, folded. `grid-template-rows` from 0fr to 1fr animates to
- * the list's real height, which `height: auto` cannot. `visibility` takes the
- * folded list out of the accessibility tree too, and flips only once the fold
- * has finished closing.
- */
-.more {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 200ms ease;
-}
-
-.more > div {
-  overflow: hidden;
-  visibility: hidden;
-  transition: visibility 0s linear 200ms;
-}
-
-.isOpen .more {
-  grid-template-rows: 1fr;
-}
-
-.isOpen .more > div {
-  visibility: visible;
-  transition-delay: 0s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .more,
-  .more > div {
-    transition: none;
-  }
-}
-
-/* The plain treatment, for a package that names no metal. Set on the grid and
-   inherited, so a tier's own metal class (declared above) wins. */
-.tiers {
-  --metal-dark: var(--line);
-  --metal-light: var(--white);
-  --metal-ink: var(--navy);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-/* Two by two, and the two rows one height as well, so all four cards match. */
-@media (width >= 600px) {
-  .tiers {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: 1fr;
-  }
-}
-
-/* Four in a row on a laptop. Every card stretches to its row, so the cards in a
-   row are one height, open or shut (T182). */
-@media (width >= 1040px) {
-  .tiers {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.tier {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  padding: 30px 24px 24px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--white);
-  overflow: hidden;
-}
-
-/* The metal edge: a polished bar, light in the middle like a struck medal. */
-.tier::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 6px;
-  background: linear-gradient(
-    90deg,
-    var(--metal-dark),
-    var(--metal-light) 45%,
-    var(--metal-dark)
-  );
-}
-
-.tierName {
-  margin: 0;
-  font-size: 1.4rem;
-  line-height: 1.2;
-  color: var(--metal-ink);
-}
-
-.tierLine {
-  margin: 10px 0 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: #475569;
-}
-
-.tierBase {
-  margin: 18px 0 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--metal-ink);
-}
-
-.benefits {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-  font-size: 0.95rem;
-  line-height: 1.45;
-  color: var(--body);
-}
-
-/* With no "Everything in" line, the rule sits above the list instead. */
-.more > div > .benefits:first-child {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.benefits li {
-  position: relative;
-  padding-left: 18px;
-}
-
-/* A small cut stone in the tier's metal. */
-.benefits li::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 0.55em;
-  width: 7px;
-  height: 7px;
-  transform: rotate(45deg);
-  background: linear-gradient(135deg, var(--metal-light), var(--metal-dark));
-  box-shadow: 0 0 0 1px var(--metal-dark);
-}
-
-.ask {
-  align-self: flex-start;
-  margin-top: auto;
-  padding-top: 22px;
-  font-weight: 700;
-  color: var(--navy);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
-}
-
-.ask:hover {
-  text-decoration-thickness: 2px;
-}
-
-/* --------------------------------------------------- platinum, the top step */
-
-.top {
-  border-color: var(--navy);
-  background: linear-gradient(165deg, #33497a 0%, var(--navy) 55%);
-  color: var(--metal-ink);
-}
-
-.top .tierLine {
-  color: #c9d4e0;
-}
-
-.top .benefits {
-  color: var(--metal-ink);
-}
-
-.top .tierBase,
-.top .more > div > .benefits:first-child {
-  border-top-color: rgb(255 255 255 / 18%);
-}
-
-/* The one orange button in the grid. `.btn` brings its own padding, so the
-   space above it is a margin rather than the links' padding. */
-.top .ask {
-  align-self: stretch;
-  margin-top: auto;
-  padding-top: 12px;
-  text-align: center;
-  text-decoration: none;
-}
-
-/* Space above the orange button, open or shut. */
-.top .more {
-  margin-bottom: 22px;
 }

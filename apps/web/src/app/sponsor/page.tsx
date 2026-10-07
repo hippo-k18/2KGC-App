@@ -1,9 +1,6 @@
 import type { Metadata } from 'next';
 import { listSponsorsByTier } from '@/lib/data';
-import { tiersOrNull } from '@/lib/catalogue';
 import { SponsorTiers } from '@/components/sponsor-tiers';
-import { PackageGrid } from '@/components/package-grid';
-import type { Tier } from '@/lib/tickets';
 import { SITE } from '@/lib/site';
 import Image from 'next/image';
 import s from './sponsor.module.css';
@@ -31,33 +28,13 @@ export const metadata: Metadata = {
 export const revalidate = 30;
 
 /*
- * The packages come from `ticketTypes`, not from a constant here.
+ * No packages on this page (T187).
  *
- * ── Two public pages were describing one product ────────────────────────────
- *
- * This file held a `PACKAGES` array — Platinum/Gold/Silver/Bronze with a
- * hand-written benefit list each — while `/tickets/sponsor` rendered the
- * `includes` array off the `audience: 'sponsor'` documents that actually sell
- * those packages. Same site, same four tiers, two descriptions, and only one of
- * them was the record a buyer's order is written against. They had already
- * diverged: this page said Gold gets "six full-conference passes" and the tier
- * being sold says eight All Access ones.
- *
- * A constant loses that argument on every axis. It is edited by a deploy rather
- * than by the organizer who priced the tier, and it is the copy nobody thinks
- * to change when the package changes. So the marketing page and the checkout
- * page now read the same documents, and the only thing this one adds is the
- * link that takes you to the other.
- *
- * ── Drawn here as plain blocks, and sold by email ───────────────────────────
- *
- * This page shows what each package includes and sends people to the inbox.
- * No prices and no checkout button: sponsorship is agreed with a person.
- * `/tickets/sponsor` still exists and quotes the figures for anyone sent there.
- *
- * Catalogue order — `sortOrder`, ascending, which is Bronze first — is the same
- * order `/tickets/sponsor` uses. Reversing it here to lead with Platinum would
- * be a second opinion about the same list.
+ * The four tiers, their benefit lists and an "Ask about" link each used to sit
+ * under the photos. The owner asked for them to go and for the way to get in
+ * touch to be bigger, so the page now has one call to action: email us, or read
+ * the prospectus. The tiers still exist in `ticketTypes`, and `/tickets/sponsor`
+ * still quotes them for anyone sent there.
  */
 
 /*
@@ -66,22 +43,13 @@ export const revalidate = 30;
  * The four sections used to alternate white, tint, white, tint at an identical
  * 64px of padding each, so the page read as four interchangeable stripes with
  * nothing weighted above anything else. The page now opens on the sponsor
- * quote and the photos, then the packages, the wall of logos and the call for
- * speakers, spaced as one continuous list. `.tint` itself is untouched — the replica
+ * quote and the photos, then the call to sponsor, the wall of logos and the
+ * call for speakers, spaced as one continuous list. `.tint` itself is untouched — the replica
  * pages still use it.
  */
 
 export default async function SponsorPage() {
-  /*
-   * `tiersOrNull`, not `listTiers`: this is a marketing page, and an
-   * unreachable catalogue should cost it the package blocks, not the sponsor
-   * wall and the call for speakers. The tickets pages keep the loud
-   * failure, because a price that fails quietly is the one that gets charged.
-   */
-  const [bands, packages] = await Promise.all([
-    listSponsorsByTier(),
-    tiersOrNull('sponsor'),
-  ]);
+  const bands = await listSponsorsByTier();
 
   const mail = (subject: string) =>
     `mailto:${SITE.contactEmail}?subject=${encodeURIComponent(subject)}`;
@@ -127,47 +95,34 @@ export default async function SponsorPage() {
         </div>
       </section>
 
-      <section className={`band-white ${s.packages}`} style={{ paddingBlock: '0 64px' }}>
+      {/*
+        The one call to action (T187): email, or the prospectus. Big enough to
+        be the obvious next step after the photos, and full width on a phone.
+        The subject line tells whoever reads the inbox what it is about.
+      */}
+      <section className="band-white" style={{ paddingBlock: '0 72px' }}>
         <div className="wrap">
-          {packages && packages.length > 0 && (
-            <>
-              <PackageGrid
-                info={
-                  <a
-                    className="btn btn-secondary btn-sm"
-                    href={PROSPECTUS_URL}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    aria-label="Info: the full sponsorship prospectus, in a new tab"
-                  >
-                    Info
-                  </a>
-                }
+          <div className={s.cta}>
+            <div>
+              <h2 className={s.ctaTitle}>Become a sponsor</h2>
+              <p className={s.ctaLine}>
+                Tell us what you&rsquo;d like to achieve and we&rsquo;ll send the options.
+              </p>
+            </div>
+            <div className={s.ctaActions}>
+              <a className={`btn btn-primary ${s.ctaButton}`} href={mail('KGC 2027 sponsorship')}>
+                Email us
+              </a>
+              <a
+                className={`btn btn-secondary ${s.ctaButton}`}
+                href={PROSPECTUS_URL}
+                target="_blank"
+                rel="noreferrer noopener"
               >
-                {packages.map((p) => (
-                  <PackageBlock
-                    key={p.id}
-                    tier={p}
-                    ask={mail(`KGC 2027 ${p.name} sponsorship`)}
-                  />
-                ))}
-              </PackageGrid>
-            </>
-          )}
-
-          {/*
-            Sponsorship is arranged by email, not bought on this page. The
-            subject line tells whoever reads the inbox what it is about.
-          */}
-          <div className="package-contact">
-            <p>
-              To sponsor, email{' '}
-              <a href={mail('KGC 2027 sponsorship')}>{SITE.contactEmail}</a>. Tell us which package
-              you are interested in.
-            </p>
-            <a className="btn btn-primary" href={mail('KGC 2027 sponsorship')}>
-              Email us
-            </a>
+                Ask for information
+                <span className="sr-only"> (the sponsorship prospectus, in a new tab)</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -177,11 +132,10 @@ export default async function SponsorPage() {
           <div className="wrap">
             <h2>Previous Sponsors</h2>
             {/*
-              `titles="label"`, because the packages above are already headed
-              Bronze, Silver, Gold, Platinum, and the wall repeating the same
-              four words at the same weight in the opposite order read as one
-              list poured into two slots. The homepage keeps the widget's own
-              centred titles: nothing up the page from it has said them.
+              `titles="label"`: small labels, each with its tier's metal rule,
+              so the wall reads under the section heading rather than as four
+              more headings. The homepage keeps the widget's own centred
+              titles.
             */}
             <SponsorTiers bands={bands} titles="label" blend />
           </div>
@@ -257,112 +211,3 @@ const PHOTOS: { src: string; alt: string; position?: string }[] = [
 /** The full prospectus, kept by the organizers outside this site. */
 const PROSPECTUS_URL =
   'https://docs.superhuman.com/d/Knowledge-Graph-Conference-Sponsorship-Prospectus_dbvrFq8v5WB/Knowledge-Graph-Conference-2027_suMDKRAQ#_lu_XTxuJ';
-
-/*
- * Plain wording for this page, keyed by tier id. Same facts as the catalogue,
- * shorter sentences. A tier added later with no entry here falls back to its
- * catalogue tagline and list, so a new package still shows up.
- */
-const PLAIN: Record<string, { summary: string; items: string[] }> = {
-  'sponsor-bronze': {
-    summary: 'Your logo on the website and a listing in the app.',
-    items: [
-      'Listing in the KGC app all week',
-      'Logo on the sponsor wall and the website',
-      '2 Main Conference passes',
-      'Attendee demographics after the event',
-    ],
-  },
-  'sponsor-silver': {
-    summary: 'Everything in Bronze, plus signs in the session rooms and a banner in the app.',
-    items: [
-      'Everything in Bronze',
-      'Banner in the app',
-      'Logo on session room signs',
-      '4 All Access passes',
-      'Contacts from attendees who opt in',
-    ],
-  },
-  'sponsor-gold': {
-    summary: 'A 30-minute session in the agenda and a booth.',
-    items: [
-      'Everything in Silver',
-      '30-minute session in the agenda',
-      'Logo on the main stage backdrop',
-      '8 All Access passes',
-      'Standard booth in the exhibition hall',
-    ],
-  },
-  'sponsor-platinum': {
-    summary: 'One sponsor a year. Your name on the conference, a 45-minute session and a premium booth.',
-    items: [
-      'Everything in Gold',
-      'Your name on all conference branding',
-      '45-minute session next to the keynotes',
-      'Logo on attendee lanyards',
-      '16 All Access passes',
-      'Premium booth in the exhibition hall',
-    ],
-  },
-};
-
-/**
- * Which metal a package is drawn in, from its id or name. A package added later
- * under another name gets the plain treatment rather than a borrowed metal.
- */
-type Metal = 'bronze' | 'silver' | 'gold' | 'platinum';
-function metalOf(tier: Tier): Metal | null {
-  const key = `${tier.id} ${tier.name}`.toLowerCase();
-  return (['platinum', 'gold', 'silver', 'bronze'] as const).find((m) => key.includes(m)) ?? null;
-}
-
-/**
- * One package, in its tier's metal (T179).
- *
- * Each tier carries its metal in two places only: the edge along its top and
- * the marks beside its benefits. Platinum is the navy one, the site's own
- * colour, and the only one with an orange button: it is the one a year.
- *
- * At rest a card shows its name, its one-line summary and its "Ask about"
- * link. The benefit list, with "Everything in Silver" set apart above it, opens
- * from the "More" button over the grid, which opens all four at once so the
- * cards stay one height (T182, at the owner's request; T179 had shown the
- * lists open and stepped the cards like a podium).
- */
-function PackageBlock({ tier, ask }: { tier: Tier; ask: string }) {
-  const plain = PLAIN[tier.id];
-  const summary = plain?.summary ?? tier.tagline;
-  const items =
-    plain?.items ??
-    (tier.groups ?? [{ heading: '', items: [...tier.includes] }]).flatMap((g) => g.items ?? []);
-  const base = items[0]?.startsWith('Everything in') ? items[0] : null;
-  const adds = base ? items.slice(1) : items;
-  const metal = metalOf(tier);
-  const top = metal === 'platinum' || tier.featured;
-
-  return (
-    <article
-      className={[s.tier, metal ? s[metal] : '', top ? s.top : ''].join(' ')}
-      aria-labelledby={`package-${tier.id}`}
-    >
-      <h3 id={`package-${tier.id}`} className={s.tierName}>
-        {tier.name}
-      </h3>
-      <p className={s.tierLine}>{summary}</p>
-      {/* Folded until "More" above the grid opens every tier at once. */}
-      <div className={s.more}>
-        <div>
-          {base && <p className={s.tierBase}>{base}</p>}
-          <ul className={s.benefits}>
-            {adds.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      <a className={top ? `btn btn-primary ${s.ask}` : s.ask} href={ask}>
-        Ask about {tier.name}
-      </a>
-    </article>
-  );
-}

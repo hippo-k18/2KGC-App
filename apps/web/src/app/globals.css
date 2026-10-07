@@ -2169,22 +2169,6 @@ body.nav-open {
   }
 }
 
-/* The package tiers themselves are styled in `app/sponsor/sponsor.module.css`
-   (T179). The shared email row under them stays here. */
-
-.package-contact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px 32px;
-  margin-top: 32px;
-}
-
-.package-contact p {
-  margin: 0;
-}
-
 /*
  * `a.logo-card`, not `.logo-card`: a hover response on a non-link is a promise.
  * Sponsors without a website render as a plain div and must stay inert.
@@ -9293,8 +9277,8 @@ section .site-search-form {
 
 /*
  * On `/sponsor` each band's label carries its tier's metal as a short polished
- * rule above it, the same edge the packages wear (T179). The values match
- * `app/sponsor/sponsor.module.css`.
+ * rule above it (T179). The sponsor packages these matched were taken off the
+ * page in T187; the labels keep the metals as the only tier marking there.
  */
 .tier-label[data-metal]::before {
   content: '';
