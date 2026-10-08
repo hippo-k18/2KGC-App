@@ -41,7 +41,7 @@ export const dynamic = 'force-dynamic';
  * They are a decision for the owner, not a thing an organizer reads on the way
  * to a number, so they live in this comment.
  *
- * **Stop selling it.** Set `visible: false` on the tier in Create Tickets and
+ * **Stop selling it.** Set `visible: false` on the tier in Create & Edit Tickets and
  * refund the ones already sold. Cheapest, and the only option that is true
  * today.
  *
@@ -99,7 +99,7 @@ export default async function VirtualAndHybridSetupPage() {
         }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="ss" href={ROUTES.streamingSetup}>
             Streaming Setup
@@ -127,7 +127,7 @@ export default async function VirtualAndHybridSetupPage() {
           </strong>{' '}
           These buyers have nothing to watch yet. Add a link on{' '}
           <Link href={ROUTES.streamingSetup}>Streaming Setup</Link>, or hide the tier in{' '}
-          <Link href={ROUTES.createTickets}>Create Tickets</Link>.
+          <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link>.
         </Banner>
       )}
 

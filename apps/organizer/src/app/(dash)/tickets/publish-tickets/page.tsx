@@ -203,8 +203,8 @@ export default async function PublishTicketsPage() {
           <>
             <strong>Ticket sales switch</strong>
             <p>
-              While ticket sales are open, a ticket goes on sale as soon as it is listed in Create
-              Tickets. Use the checks below before you open sales or list one.
+              While ticket sales are open, a ticket goes on sale as soon as it is listed in Create &
+              Edit Tickets. Use the checks below before you open sales or list one.
             </p>
           </>
         }
@@ -226,7 +226,7 @@ export default async function PublishTicketsPage() {
             The live page ↗
           </a>,
           <Link key="c" href="/tickets/ticket-setup/1-1-create-tickets">
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="p" href="/publish">
             Publish the event

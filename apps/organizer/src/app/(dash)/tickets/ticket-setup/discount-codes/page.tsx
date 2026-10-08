@@ -115,7 +115,7 @@ export default async function DiscountCodesPage() {
         }
         links={[
           <Link key="t" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="o" href={ROUTES.attendeeOrders}>
             Attendee Orders

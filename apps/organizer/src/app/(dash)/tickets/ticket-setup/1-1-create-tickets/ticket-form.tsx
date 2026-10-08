@@ -54,9 +54,12 @@ import { groupsToText } from './groups';
 export function TicketForm({
   extraTargets = [],
   existing,
+  sold,
   defaultAudience,
 }: {
   existing?: TicketTypeRow;
+  /** Seats sold according to the orders ledger, which is what the page shows. */
+  sold?: number;
   /** The attendee tickets an extra can be added to, for the "Sold as" field. */
   extraTargets?: { id: string; name: string }[];
   /**
@@ -223,7 +226,7 @@ export function TicketForm({
         width="sm"
         hint={
           <>
-            Blank for unlimited. {existing ? `${existing.quantitySold} sold so far. ` : ''}
+            Blank for unlimited. {existing ? `${sold ?? existing.quantitySold} sold so far. ` : ''}
             Sales close when it is reached, but it is <strong>not a hard reservation</strong>. Two
             people buying at the same moment can both get through.
           </>

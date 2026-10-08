@@ -41,7 +41,7 @@ export default async function LogisticsWebpagePage() {
   const WHERE = [
     { need: 'Venue and address', at: '/about', how: 'static page' },
     { need: 'Dates and times', at: '/agenda', how: 'live from Session Manager' },
-    { need: 'Registration desk and badge', at: '/tickets', how: 'live from Create Tickets' },
+    { need: 'Registration desk and badge', at: '/tickets', how: 'live from Create & Edit Tickets' },
     { need: 'Travel, parking, hotels', at: '/about', how: 'static page' },
     { need: 'Accessibility and conduct', at: '/code-of-conduct', how: 'static page' },
     { need: 'Wifi, room changes, on-the-day corrections', at: '—', how: 'not on the site' },

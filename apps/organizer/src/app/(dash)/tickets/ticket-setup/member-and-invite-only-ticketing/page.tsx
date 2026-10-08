@@ -48,7 +48,7 @@ export default async function MemberAndInviteOnlyTicketingPage() {
         }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="d" href={ROUTES.discountCodes}>
             Discount Codes
@@ -90,7 +90,7 @@ export default async function MemberAndInviteOnlyTicketingPage() {
             [
               'Hidden ticket',
               <Tag key="s" color="green" small>works</Tag>,
-              <span key="n">Sold by direct link only. Anyone with the link can buy. Hide a ticket in{' '}<Link href={ROUTES.createTickets}>Create Tickets</Link>.</span>,
+              <span key="n">Sold by direct link only. Anyone with the link can buy. Hide a ticket in{' '}<Link href={ROUTES.createTickets}>Create & Edit Tickets</Link>.</span>,
             ],
             [
               'Discount code',

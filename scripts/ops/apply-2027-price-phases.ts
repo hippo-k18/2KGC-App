@@ -55,7 +55,6 @@ const CEU_LINE = 'Continuing education units';
 const NEW_IDS = [
   'continuing-education',
   'main-conference-continuing-education',
-  'main-conference-workshops-continuing-education',
 ];
 
 async function main() {

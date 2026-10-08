@@ -114,7 +114,7 @@ const EDITOR_FOR: Record<string, { href: string; label: string }> = {
   exhibitors: { href: '/content/exhibitor-center/exhibitor-manager', label: 'Exhibitor Manager' },
   documents: { href: '/content/documents-and-videos/documents', label: 'Documents' },
   announcements: { href: '/engagement/announcements', label: 'Announcements' },
-  ticketTypes: { href: '/tickets/ticket-setup/1-1-create-tickets', label: 'Create Tickets' },
+  ticketTypes: { href: '/tickets/ticket-setup/1-1-create-tickets', label: 'Create & Edit Tickets' },
 };
 
 export default async function EventWebsitePage() {

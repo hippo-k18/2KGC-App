@@ -22,7 +22,7 @@ import { salesWindowText } from '@/lib/sales-window';
 export const dynamic = 'force-dynamic';
 
 /**
- * Tickets › Ticket Setup › 1.1 Create Tickets.
+ * Tickets › Ticket Setup › 1.1 Create & Edit Tickets.
  *
  * Whova numbers this screen and so do we — the Tickets tab is a sequenced
  * setup flow in their product ("Step 1", "Step 2", "Step 3") and renumbering it
@@ -77,12 +77,22 @@ export default async function CreateTicketsPage({
   const editing = edit ? all.find((t) => t.id === edit) : undefined;
   const showForm = Boolean(creating) || Boolean(editing) || Boolean(requestedAudience);
 
-  const totalSold = tickets.reduce((n, t) => n + t.quantitySold, 0);
+  /**
+   * What an organizer reads as "sold" is the orders ledger, not the counter.
+   *
+   * `quantitySold` is a best-effort tally kept for the sold-out check, and it
+   * drifts: a test purchase that was later erased, an order written before it
+   * carried a tier id, a refund. The ledger is what was actually paid for, so
+   * it is the number shown. The counter only matters where it can stop a sale,
+   * which is a tier with a cap.
+   */
+  const soldOf = (id: string) => ledger.sold.get(id) ?? 0;
+  const totalSold = tickets.reduce((n, t) => n + soldOf(t.id), 0);
 
   return (
     <>
       <PageHeader
-        title="1.1 Create Tickets"
+        title="1.1 Create & Edit Tickets"
         info={
           <>
             <strong>This is the price list</strong>
@@ -122,8 +132,8 @@ export default async function CreateTicketsPage({
           {editing && editing.audience !== 'attendee' && (
             /*
               Arrived from 2.1 Exhibitor Tickets or Sponsor Tickets. Saying so
-              matters because the surrounding screen is titled "1.1 Create
-              Tickets" and every other tier on it is an attendee tier — an
+              matters because the surrounding screen is titled "1.1 Create &
+              Edit Tickets" and every other tier on it is an attendee tier — an
               organizer who does not notice which record they opened is one Save
               away from editing the wrong price list.
             */
@@ -132,9 +142,9 @@ export default async function CreateTicketsPage({
               stays a {editing.audience} package when you save, unless you change Audience below.
             </Banner>
           )}
-          {editing && editing.quantitySold > 0 && (
+          {editing && soldOf(editing.id) > 0 && (
             <Banner kind="info">
-              <strong>{editing.quantitySold} of these have already been sold.</strong> Changing the
+              <strong>{soldOf(editing.id)} of these have already been sold.</strong> Changing the
               price affects future purchases only. Past orders keep the amount they were charged.
             </Banner>
           )}
@@ -152,19 +162,20 @@ export default async function CreateTicketsPage({
           {editing &&
             editing.quantityTotal !== undefined &&
             (ledger.outstanding.get(editing.id) ?? 0) > 0 &&
-            editing.quantitySold + (ledger.outstanding.get(editing.id) ?? 0) >
+            soldOf(editing.id) + (ledger.outstanding.get(editing.id) ?? 0) >
               editing.quantityTotal && (
               <Banner kind="warning">
                 <strong>
                   {ledger.outstanding.get(editing.id)} more seats are on invoices that have been
                   raised and not paid.
                 </strong>{' '}
-                {editing.quantitySold} sold plus those is over the cap of {editing.quantityTotal}.
+                {soldOf(editing.id)} sold plus those is over the cap of {editing.quantityTotal}.
                 Each of them will register when the invoice is paid.
               </Banner>
             )}
           <TicketForm
             existing={editing}
+            sold={editing ? soldOf(editing.id) : undefined}
             defaultAudience={requestedAudience}
             extraTargets={all
               .filter((t) => t.audience === 'attendee' && !t.bundleOf?.length && t.kind !== 'extra' && !t.addOnFor)
@@ -175,7 +186,7 @@ export default async function CreateTicketsPage({
               id={editing.id}
               name={editing.name}
               stored={editing.quantitySold}
-              ledger={ledger.sold.get(editing.id) ?? 0}
+              ledger={soldOf(editing.id)}
             />
           )}
         </Panel>
@@ -225,24 +236,24 @@ export default async function CreateTicketsPage({
 
                   <div key="s">
                     <div style={{ fontSize: 13 }}>
-                      {t.quantitySold}
+                      {soldOf(t.id)}
                       {t.quantityTotal ? ` / ${t.quantityTotal}` : ''}
                     </div>
                     {t.quantityTotal ? (
-                      <ProgressBar pct={Math.min(100, (t.quantitySold / t.quantityTotal) * 100)} />
+                      <ProgressBar pct={Math.min(100, (soldOf(t.id) / t.quantityTotal) * 100)} />
                     ) : (
                       <span className="muted" style={{ fontSize: 11 }}>
                         unlimited
                       </span>
                     )}
                     {/*
-                      The counter against the ledger. It only appears when the
-                      two disagree, because on a healthy catalogue this column
-                      should be a number and not a reconciliation.
+                      Only a capped tier can be closed by the counter, so that
+                      is the only place a mismatch is a problem worth red text.
+                      On an unlimited tier the counter decides nothing.
                     */}
-                    {(ledger.sold.get(t.id) ?? 0) !== t.quantitySold && (
+                    {typeof t.quantityTotal === 'number' && soldOf(t.id) !== t.quantitySold && (
                       <div style={{ color: 'var(--danger)', fontSize: 11 }}>
-                        orders say {ledger.sold.get(t.id) ?? 0}
+                        The seat limit is counting {t.quantitySold}. Open Edit to correct it.
                       </div>
                     )}
                   </div>,

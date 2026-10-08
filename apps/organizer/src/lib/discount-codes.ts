@@ -121,7 +121,14 @@ export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
         );
       }
       if (coupon?.duration && coupon.duration !== 'once') restrictions.push(coupon.duration);
-      const appliesTo = (coupon?.applies_to?.products ?? []).map((id) => products.get(id) ?? id);
+      // A product whose tier was deleted from the catalogue (the two retired
+      // Workshops bundles, T190) still sits on old coupons. A bare `prod_…` id
+      // means nothing to an organizer.
+      const appliesTo = [
+        ...new Set(
+          (coupon?.applies_to?.products ?? []).map((id) => products.get(id) ?? 'a deleted ticket'),
+        ),
+      ];
 
       return {
         id: p.id,

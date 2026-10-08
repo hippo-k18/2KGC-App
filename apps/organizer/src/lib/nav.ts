@@ -184,7 +184,7 @@ export const NAV: NavNode[] = [
   ] },
   { name: "tickets", title: "Tickets", slug: "tickets", widthClass: "large", children: [
     { name: "ticket_setup", title: "Ticket Setup", slug: "ticket-setup", tag: "step", tagLabel: "Step 1", children: [
-      { name: "create_tickets_attendee", title: "1.1 Create Tickets", slug: "1-1-create-tickets" },
+      { name: "create_tickets_attendee", title: "1.1 Create & Edit Tickets", slug: "1-1-create-tickets" },
       { name: "group_tickets", title: "Create Group Tickets", slug: "create-group-tickets" },
       { name: "question_form", title: "1.2 Question Forms", slug: "1-2-question-forms" },
       { name: "event_reg_confirm", title: "1.3 Confirmation Emails", slug: "1-3-confirmation-emails" },

@@ -43,7 +43,7 @@ export default async function RegistrationPagesPage() {
             <strong>The tickets page follows your price list</strong>
             <p>
               Edit prices, tickets and availability in{' '}
-              <Link href={ROUTES.createTickets}>Create Tickets</Link> and the public page updates
+              <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link> and the public page updates
               right away. Headings and other wording on the page cannot be edited here yet.
             </p>
           </>
@@ -55,7 +55,7 @@ export default async function RegistrationPagesPage() {
         }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="s" href="/tickets/ticket-setup/1-7-registration-settings">
             Registration Settings
@@ -70,7 +70,7 @@ export default async function RegistrationPagesPage() {
         <Banner kind="warning">
           <strong>Nothing is listed, so the public page has nothing to sell.</strong> Show a
           ticket in{' '}
-          <Link href={ROUTES.createTickets}>Create Tickets</Link> to open sales.
+          <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link> to open sales.
         </Banner>
       )}
 

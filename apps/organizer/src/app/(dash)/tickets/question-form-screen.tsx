@@ -125,7 +125,7 @@ export async function QuestionFormScreen({
             Analytics &amp; Exports
           </Link>,
           <Link key="t" href="/tickets/ticket-setup/1-1-create-tickets">
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           ...(links ?? []),
         ]}

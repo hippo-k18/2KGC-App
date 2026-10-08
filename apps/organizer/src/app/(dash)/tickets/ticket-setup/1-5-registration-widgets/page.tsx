@@ -37,7 +37,7 @@ export default async function RegistrationWidgetsPage() {
             Registration Pages
           </Link>,
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
         ]}
       />

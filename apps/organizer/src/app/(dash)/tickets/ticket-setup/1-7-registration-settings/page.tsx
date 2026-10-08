@@ -38,14 +38,14 @@ export default async function RegistrationSettingsPage() {
             <strong>Settings are per ticket</strong>
             <p>
               Sales windows, capacity and visibility are set on each ticket in{' '}
-              <Link href={ROUTES.createTickets}>Create Tickets</Link>. To close registration, close
+              <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link>. To close registration, close
               each ticket.
             </p>
           </>
         }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="p" href="/tickets/ticket-setup/1-4-registration-pages">
             Registration Pages
@@ -103,7 +103,7 @@ export default async function RegistrationSettingsPage() {
         />
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           A ticket sells out when sold reaches capacity. Refunds do not lower the sold count. To
-          correct it, edit the ticket in <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link>.
+          correct it, edit the ticket in <Link href={ROUTES.createTickets}>1.1 Create & Edit Tickets</Link>.
         </p>
       </Panel>
 

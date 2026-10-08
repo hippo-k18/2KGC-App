@@ -6,7 +6,7 @@
  * It used to export a frozen `TIERS` array, on the argument that a public price
  * list rendering from a database is a price list that shows "$0" when the
  * database is unreachable. That was right while nothing could edit the prices.
- * It stopped being right when the organizer dashboard grew a Create Tickets
+ * It stopped being right when the organizer dashboard grew a Create & Edit Tickets
  * screen: two places that both believe they own the price will eventually
  * disagree, and the failure mode of *that* is charging the wrong amount —
  * worse than an outage, because it is silent.

@@ -148,7 +148,7 @@ export default async function ExhibitorAddOnsPage() {
         {extras.length === 0 ? (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 0 }}>
             No extras yet. To sell an extra staff pass or a power upgrade, create it in{' '}
-            <Link href={`${ROUTES.createTickets}?audience=exhibitor`}>Create Tickets</Link> with a
+            <Link href={`${ROUTES.createTickets}?audience=exhibitor`}>Create & Edit Tickets</Link> with a
             price under {money(EXTRA_THRESHOLD_CENTS)}.
           </p>
         ) : (

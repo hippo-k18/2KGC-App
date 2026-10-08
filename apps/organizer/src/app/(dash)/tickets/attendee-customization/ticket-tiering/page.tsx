@@ -46,7 +46,7 @@ export default async function TicketTieringPage() {
         }
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="a" href="/tickets/attendee-customization/attendee-categories">
             Attendee Categories
@@ -107,7 +107,7 @@ export default async function TicketTieringPage() {
           </li>
           <li>
             <strong>No editing from this screen.</strong> Tiers are created and edited in{' '}
-            <Link href={ROUTES.createTickets}>Create Tickets</Link>; this is the read-only view of
+            <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link>; this is the read-only view of
             how the ladder is shaped.
           </li>
           <li>

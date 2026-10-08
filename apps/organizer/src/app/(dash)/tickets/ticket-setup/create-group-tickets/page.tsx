@@ -79,7 +79,7 @@ export default async function CreateGroupTicketsPage() {
         tags={<Tag color="green" fill="outline">Invoice and card groups are live</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="o" href={ROUTES.attendeeOrders}>
             Attendee Orders

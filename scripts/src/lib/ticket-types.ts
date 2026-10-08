@@ -10,7 +10,7 @@ import type { PricePhase, TicketTypeDoc } from "@kgc/shared";
  * array, with a comment arguing that a public price list which renders from a
  * database is a price list that shows "$0" when the database is unreachable.
  * That argument was sound while nothing could edit the prices. It stopped being
- * sound the moment the organizer dashboard grew a Create Tickets screen: two
+ * sound the moment the organizer dashboard grew a Create & Edit Tickets screen: two
  * places that both believe they own the price will eventually disagree, and the
  * failure mode of *that* is charging the wrong amount — considerably worse than
  * an outage, because it is silent and it is legally interesting.
@@ -65,7 +65,7 @@ function ladder(seb: number, eb: number, std: number, ext: number): PricePhase[]
 /**
  * Continuing education units. Not sold in Early Bird (no price was set for it),
  * and every later phase is marked off sale too until the team confirms. To put
- * it on sale, remove "off sale" from a phase under Tickets › Create Tickets.
+ * it on sale, remove "off sale" from a phase under Tickets › Create & Edit Tickets.
  */
 export const CEU_PHASES: PricePhase[] = [
   { name: "Super Early Bird", priceCents: 4_500, soldOut: true },
@@ -204,37 +204,13 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "Needs a Main Conference ticket, bought earlier or in the same order",
     ],
   },
-  /**
-   * Retired 2026-10-06, when Workshops became its own ticket. Kept so past
-   * orders, refunds and badges still read correctly; the website no longer
-   * sells a bundle that contains an extra.
+  /*
+   * "Main Conference + Workshops" and "Main Conference + Workshops + Continuing
+   * education units" were retired 2026-10-06, when Workshops became its own
+   * ticket, and deleted from the live catalogue 2026-10-07 (T190): no order or
+   * badge ever used either. They are left out here so a seed cannot bring them
+   * back.
    */
-  {
-    id: "main-conference-workshops",
-    name: "Main Conference + Workshops",
-    // Ignored by the website, which adds up `bundleOf`. Kept equal to that sum
-    // so the dashboard's ticket list does not show a figure nobody charges.
-    priceCents: 79_800,
-    currency: "usd",
-    tagline: "Wednesday to Friday at Jay Conference Bryant Park, plus both workshop days.",
-    bundleOf: ["main-conference", "workshops"],
-    featured: false,
-    inPerson: true,
-    visible: false,
-    sortOrder: 25,
-    audience: "attendee",
-    includesVideoLibrary: true,
-    includesWorkshops: true,
-    taxCode: TICKET_TAX_CODE,
-    includes: [
-      "Both workshop days, Monday and Tuesday",
-      "Every main conference session, Wednesday to Friday",
-      "Community happy hour",
-      "All evening networking events, including the Friday watch party",
-      "Virtual conference sessions on demand",
-      "Three months of the KGC Video Library",
-    ],
-  },
   /**
    * Continuing education units, the second add-on to Main Conference. Built
    * the same way as Workshops: sold only inside a bundle, one bundle per
@@ -274,33 +250,6 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     includesWorkshops: false,
     taxCode: TICKET_TAX_CODE,
     includes: [
-      "Every main conference session, Wednesday to Friday",
-      "Continuing education units",
-      "Community happy hour",
-      "All evening networking events, including the Friday watch party",
-      "Virtual conference sessions on demand",
-      "Three months of the KGC Video Library",
-    ],
-  },
-  // Retired 2026-10-06 with "Main Conference + Workshops": see above.
-  {
-    id: "main-conference-workshops-continuing-education",
-    name: "Main Conference + Workshops + Continuing education units",
-    // Ignored by the website, which adds up `bundleOf`.
-    priceCents: 112_700,
-    currency: "usd",
-    tagline: "Wednesday to Friday at Jay Conference Bryant Park, both workshop days and continuing education units.",
-    bundleOf: ["main-conference", "workshops", "continuing-education"],
-    featured: false,
-    inPerson: true,
-    visible: false,
-    sortOrder: 27,
-    audience: "attendee",
-    includesVideoLibrary: true,
-    includesWorkshops: true,
-    taxCode: TICKET_TAX_CODE,
-    includes: [
-      "Both workshop days, Monday and Tuesday",
       "Every main conference session, Wednesday to Friday",
       "Continuing education units",
       "Community happy hour",

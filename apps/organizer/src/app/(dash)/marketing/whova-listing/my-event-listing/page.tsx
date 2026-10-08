@@ -71,7 +71,7 @@ export default async function MyEventListingPage() {
     },
     {
       need: 'The price',
-      ours: 'Create Tickets',
+      ours: 'Create & Edit Tickets',
       where: '/tickets',
       live: true,
     },

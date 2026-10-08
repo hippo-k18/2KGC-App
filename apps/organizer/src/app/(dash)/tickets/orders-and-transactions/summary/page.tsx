@@ -68,7 +68,7 @@ export default async function OrdersSummaryPage() {
             Transaction History
           </Link>,
           <Link key="tickets" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
         ]}
       />

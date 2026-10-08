@@ -34,14 +34,14 @@ export default async function TicketAddOnsPage() {
             <strong>Extras are part of a ticket</strong>
             <p>
               Add-ons sold on their own are not available yet. Workshops and the video library are
-              switched on per ticket in Create Tickets.
+              switched on per ticket in Create & Edit Tickets.
             </p>
           </>
         }
         tags={<Tag color="grey">Not available yet</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           <Link key="m" href="/attendees/ticket-session-mapping">
             Ticket Session Mapping
@@ -53,7 +53,7 @@ export default async function TicketAddOnsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What each ticket includes</h2>
         <p className="body-2">
           Add-ons sold on their own are not available yet. Two extras can be included in a ticket.
-          Set them in <Link href={ROUTES.createTickets}>Create Tickets</Link>.
+          Set them in <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link>.
         </p>
         <Table
           cols={[

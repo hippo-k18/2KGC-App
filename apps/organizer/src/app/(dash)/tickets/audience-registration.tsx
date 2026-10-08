@@ -80,7 +80,7 @@ export async function AudienceRegistrationPage({
             <strong>What updates on this page</strong>
             <p>
               Packages, prices, inclusion lists, sold-out state and sales windows update as soon as
-              they are edited in Create Tickets. Headings and other wording cannot be edited from
+              they are edited in Create & Edit Tickets. Headings and other wording cannot be edited from
               the dashboard yet.
             </p>
           </>
@@ -95,7 +95,7 @@ export async function AudienceRegistrationPage({
             View the live page ↗
           </a>,
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           ...(links ?? []),
         ]}
@@ -107,7 +107,7 @@ export async function AudienceRegistrationPage({
             <code>{path}</code> is live and has nothing to sell.
           </strong>{' '}
           Visitors see a contact email address instead of a package. List a tier in{' '}
-          <Link href={ROUTES.createTickets}>Create Tickets</Link> to open sales.
+          <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link> to open sales.
         </Banner>
       )}
 
@@ -221,7 +221,7 @@ export async function AudienceRegistrationWidget({
             Registration Page
           </Link>,
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           ...(links ?? []),
         ]}
@@ -305,14 +305,14 @@ export async function AudienceRegistrationSettings({
             <strong>These settings are set per package</strong>
             <p>
               Sales windows, capacity and visibility belong to each package. Edit them in{' '}
-              <Link href={ROUTES.createTickets}>Create Tickets</Link>.
+              <Link href={ROUTES.createTickets}>Create & Edit Tickets</Link>.
             </p>
           </>
         }
         tags={<Tag color="blue">{tiers.length} packages</Tag>}
         links={[
           <Link key="c" href={ROUTES.createTickets}>
-            Create Tickets
+            Create & Edit Tickets
           </Link>,
           ...(links ?? []),
         ]}
