@@ -11,6 +11,7 @@ vi.mock('@/lib/auth', () => ({
   requireOrganizer: async () => 'organizer@example.com',
   requirePassphrase: () => false,
 }));
+vi.mock('../../apps/organizer/node_modules/next/cache.js', () => ({ revalidatePath: () => {} }));
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { registrationId } from '@kgc/scripts/src/lib/ids';
@@ -207,10 +208,12 @@ describe('sales figures count ticket orders only (T142)', () => {
   });
 });
 
-describe('Workshops recorded from the dashboard (T169)', () => {
+describe('Workshops recorded from the dashboard (T169, T186)', () => {
+  /** The Workshops price in this fixture catalogue; assertions read it from here. */
+  const WS = 19_900;
   beforeEach(async () => {
     await db.collection(COLLECTIONS.ticketTypes).doc('workshops').set({
-      eventId: EVENT_ID, name: 'Workshops', priceCents: 19_900, currency: 'usd', quantitySold: 0,
+      eventId: EVENT_ID, name: 'Workshops', priceCents: WS, currency: 'usd', quantitySold: 0,
       kind: 'extra', addOnFor: 'main-conference', includesWorkshops: true,
     });
     await db.collection(COLLECTIONS.ticketTypes).doc('all-access').set({
@@ -220,21 +223,69 @@ describe('Workshops recorded from the dashboard (T169)', () => {
   });
 
   const workshops = (over: Partial<Parameters<typeof recordManualOrder>[0]> = {}) =>
-    manual({ ticketTypeId: 'workshops', amountCents: 19_900, note: 'Cheque 3003', ...over });
+    manual({ ticketTypeId: 'workshops', amountCents: WS, note: 'Cheque 3003', ...over });
 
-  it('refuses Workshops for somebody with no Main Conference, and records nothing', async () => {
-    const res = await workshops({ requestId: 'req-ws-none-01' });
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/Workshops is added to a Main Conference ticket, and ada@example.com has none/);
-    expect(await manualOrders()).toHaveLength(0);
-    expect(await sold('workshops')).toBe(0);
+  it('records Workshops alone as a Workshops-only badge, and a Main Conference comp later joins it', async () => {
+    const ws = await workshops({ requestId: 'req-ws-none-01' });
+    expect(ws.ok).toBe(true);
+    const r = (await db.collection(COLLECTIONS.registrations).doc(ws.registrationId!).get()).data() as RegistrationDoc;
+    expect(r).toMatchObject({ ticketType: 'Workshops', status: 'active' });
+    expect(r.extras).toBeUndefined();
+    expect(await sold('workshops')).toBe(1);
+    const mails = (await db.collection(COLLECTIONS.emailLog).get()).docs.map((d) => d.data().template);
+    expect(mails).toEqual(['purchase-confirmation']);
+
+    const comp = await manual({ requestId: 'req-ws-comp-01', amountCents: 0, note: 'Speaker comp' });
+    expect(comp.ok).toBe(true);
+    expect(comp.registrationId).toBe(ws.registrationId);
+    expect(comp.message).toMatch(/on the same badge as their Workshops \(Main Conference \+ Workshops\)/);
+    const after = (await db.collection(COLLECTIONS.registrations).doc(ws.registrationId!).get()).data() as RegistrationDoc;
+    expect(after.qrSecret).toBe(r.qrSecret);
+    expect(after.ticketType).toBe('Main Conference');
+    expect(after.extraNames).toEqual(['Workshops']);
+    expect(await sold('main-conference')).toBe(1);
+    const wsOrder = (await manualOrders()).find((o) => o.totalCents === WS)!;
+    expect(wsOrder.extraRegistrationIds).toEqual([ws.registrationId]);
   });
 
-  it('refuses Workshops for an All Access holder and for Virtual', async () => {
+  it('refuses Workshops for an All Access holder and twice, and adds it to a Virtual badge', async () => {
     expect((await manual({ ticketTypeId: 'all-access', requestId: 'req-ws-aa-0001' })).ok).toBe(true);
     expect((await workshops({ requestId: 'req-ws-aa-0002' })).error).toMatch(/holds All Access \(VIP\), which already includes Workshops/);
     expect((await manual({ email: 'bo@example.com', ticketTypeId: 'virtual', requestId: 'req-ws-vi-0001' })).ok).toBe(true);
-    expect((await workshops({ email: 'bo@example.com', requestId: 'req-ws-vi-0002' })).error).toMatch(/bo@example.com holds Virtual/);
+    const vi = await workshops({ email: 'bo@example.com', requestId: 'req-ws-vi-0002' });
+    expect(vi.message).toMatch(/added to their existing ticket \(Virtual \+ Workshops\)/);
+    expect((await workshops({ email: 'bo@example.com', requestId: 'req-ws-vi-0003' })).error).toBe(
+      'bo@example.com already has Workshops. Nothing was recorded.',
+    );
+  });
+
+  it('the scanner checks a Workshops-only badge in with a "Workshops only" notice, except at a workshop', async () => {
+    const ws = await workshops({ requestId: 'req-ws-scan-01' });
+    const main = await manual({ email: 'cy@example.com', requestId: 'req-ws-scan-02' });
+    await db.collection(COLLECTIONS.checkInLists).doc('door-t186').set({ eventId: EVENT_ID, name: 'Door', kind: 'event' });
+    await db.collection(COLLECTIONS.checkInLists).doc('ws-t186').set({ eventId: EVENT_ID, name: 'Graph labs', kind: 'workshop' });
+    const { submitScanAction } = await import('@/app/(dash)/attendees/check-in-and-checkout/check-in/actions');
+    const code = async (rid: string) =>
+      ((await db.collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc).qrSecret!;
+    const scan = async (listId: string, rid: string, n: string) =>
+      submitScanAction({ listId, code: await code(rid), deviceId: 'dev-t186', clientScanId: n, stationLabel: 'Desk', source: 'typed' });
+
+    const door = await scan('door-t186', ws.registrationId!, '1');
+    expect(door).toMatchObject({ outcome: 'ok', ticketType: 'Workshops', onlyExtra: 'Workshops' });
+    const lab = await scan('ws-t186', ws.registrationId!, '2');
+    expect(lab.outcome).toBe('ok');
+    expect(lab.onlyExtra).toBeUndefined();
+    const conf = await scan('door-t186', main.registrationId!, '3');
+    expect(conf.outcome).toBe('ok');
+    expect(conf.onlyExtra).toBeUndefined();
+  });
+
+  it('the edit panel lists the extras beside the ticket type (T183 gap)', async () => {
+    const main = await manual({ requestId: 'req-ws-edit-01' });
+    await workshops({ requestId: 'req-ws-edit-02' });
+    const { getAttendeeForEdit } = await import('@/lib/attendee-admin');
+    const a = await getAttendeeForEdit(main.registrationId!);
+    expect(a).toMatchObject({ ticketType: 'Main Conference', extraNames: ['Workshops'] });
   });
 
   it('adds Workshops to the Main Conference badge, which the desk and the list then show', async () => {
@@ -247,7 +298,7 @@ describe('Workshops recorded from the dashboard (T169)', () => {
     const r = (await db.collection(COLLECTIONS.registrations).doc(main.registrationId!).get()).data() as RegistrationDoc;
     expect(r.ticketType).toBe('Main Conference');
     expect(r.extraNames).toEqual(['Workshops']);
-    const order = (await manualOrders()).find((o) => o.totalCents === 19_900)!;
+    const order = (await manualOrders()).find((o) => o.totalCents === WS)!;
     expect(order.extraRegistrationIds).toEqual([main.registrationId]);
     expect(await sold('workshops')).toBe(1);
     expect((await db.collection(COLLECTIONS.registrations).where('email', '==', 'ada@example.com').get()).size).toBe(1);

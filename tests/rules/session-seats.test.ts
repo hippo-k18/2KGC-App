@@ -209,6 +209,24 @@ describe('taking a seat', () => {
   });
 });
 
+describe('a Workshops-only badge (T186)', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'registrations/reg_d'), {
+        email: `${D}@kgc.test`, altEmails: [], status: 'active', ticketType: 'Workshops',
+      });
+    });
+  });
+
+  it('takes a seat in a workshop limited to Workshops', async () => {
+    await assertSucceeds(join(D, HANDS_ON, { taken: 1, waitlist: [] }, 'seated'));
+  });
+
+  it('is refused a session limited to other tickets', async () => {
+    await assertFails(join(D, WORKSHOP, { taken: 1, waitlist: [] }, 'seated'));
+  });
+});
+
 describe('ticket eligibility with an extra on the badge (T169)', () => {
   it('Main Conference + Workshops takes a seat in a workshop limited to Workshops', async () => {
     await assertSucceeds(join(D, HANDS_ON, { taken: 1, waitlist: [] }, 'seated'));

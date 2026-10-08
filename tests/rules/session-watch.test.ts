@@ -263,6 +263,14 @@ describe('an extra on the badge (T169)', () => {
     await assertFails(getDoc(doc(as(ALL), recordingPath(GATED_SESSION))));
   });
 
+  it('lets a Workshops-only badge watch what is limited to Workshops (T186)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'registrations/reg_main'), { ticketType: 'Workshops', extraNames: [] }, { merge: true });
+    });
+    await assertSucceeds(getDoc(doc(as(MAIN), recordingPath(GATED_SESSION))));
+    await assertSucceeds(getDoc(doc(as(MAIN), streamPath(GATED_SESSION))));
+  });
+
   it('refuses it once the badge is cancelled, extras and all', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'registrations/reg_main'), { status: 'cancelled' }, { merge: true });

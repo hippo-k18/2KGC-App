@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   cartVerdictForExtra,
   chooseExtraBase,
+  chooseExtraOnlyBadge,
   heldTicketNames,
+  isExtraOnlyBadge,
   orderSeatsForExtras,
   ticketLabel,
   type ExtraTierShape,
@@ -76,17 +78,29 @@ describe("which badge Workshops goes on", () => {
     expect(v).toEqual({ ok: true, registrationId: "new" });
   });
 
-  it("refuses an address with no ticket", () => {
-    expect(chooseExtraBase(workshops, [], byName)).toEqual({ ok: false, reason: "no-base" });
+  it("is a badge of its own for an address with no ticket (T186)", () => {
+    expect(chooseExtraBase(workshops, [], byName)).toEqual({ ok: true });
     expect(
       chooseExtraBase(workshops, [{ registrationId: "r", status: "cancelled", ticketType: "Main Conference" }], byName),
-    ).toEqual({ ok: false, reason: "no-base" });
+    ).toEqual({ ok: true });
   });
 
-  it("refuses Virtual", () => {
+  it("goes on a Virtual badge (T186)", () => {
     expect(
       chooseExtraBase(workshops, [{ registrationId: "r", status: "active", ticketType: "Virtual" }], byName),
-    ).toEqual({ ok: false, reason: "wrong-ticket", heldName: "Virtual" });
+    ).toEqual({ ok: true, registrationId: "r" });
+  });
+
+  it("goes on a badge whose ticket is not in the catalogue, such as an imported one", () => {
+    expect(
+      chooseExtraBase(workshops, [{ registrationId: "r", status: "active", ticketType: "Speaker" }], byName),
+    ).toEqual({ ok: true, registrationId: "r" });
+  });
+
+  it("refuses a second Workshops for a Workshops-only badge", () => {
+    expect(
+      chooseExtraBase(workshops, [{ registrationId: "w", status: "active", ticketType: "Workshops" }], byName),
+    ).toEqual({ ok: false, reason: "already", registrationId: "w" });
   });
 
   it("refuses All Access, which includes the workshops", () => {
@@ -122,6 +136,14 @@ describe("Workshops in the same cart", () => {
     expect(cartVerdictForExtra(workshops, 1, seats, byId)).toEqual({ covered: true });
   });
 
+  it("is covered by Virtual for the same person (T186)", () => {
+    const seats = [
+      { email: "a@x.io", tierId: "virtual" },
+      { email: "a@x.io", tierId: "workshops" },
+    ];
+    expect(cartVerdictForExtra(workshops, 1, seats, byId)).toEqual({ covered: true });
+  });
+
   it("is not covered by somebody else's Main Conference", () => {
     const seats = [
       { email: "ada@example.com", tierId: "main-conference" },
@@ -130,19 +152,13 @@ describe("Workshops in the same cart", () => {
     expect(cartVerdictForExtra(workshops, 1, seats, byId)).toEqual({ covered: false });
   });
 
-  it("is refused beside All Access or Virtual for the same person", () => {
+  it("is refused beside All Access for the same person", () => {
     expect(
       cartVerdictForExtra(workshops, 1, [
         { email: "a@x.io", tierId: "all-access" },
         { email: "a@x.io", tierId: "workshops" },
       ], byId),
     ).toEqual({ covered: false, refusal: "included", heldName: "All Access (VIP)" });
-    expect(
-      cartVerdictForExtra(workshops, 1, [
-        { email: "a@x.io", tierId: "virtual" },
-        { email: "a@x.io", tierId: "workshops" },
-      ], byId),
-    ).toEqual({ covered: false, refusal: "wrong-ticket", heldName: "Virtual" });
   });
 
   it("is refused twice for one person", () => {
@@ -195,5 +211,41 @@ describe("access with extras", () => {
     expect(mayWatch({ allowedTicketTypes: ["Workshops"] }, ["Main Conference", "Workshops"])).toBe(true);
     expect(mayWatch({ allowedTicketTypes: ["Workshops"] }, "Main Conference")).toBe(false);
     expect(mayWatch({ allowedTicketTypes: [] }, null)).toBe(true);
+  });
+});
+
+describe("a conference ticket joins a Workshops-only badge (T186)", () => {
+  it("picks the newest active Workshops-only badge", () => {
+    expect(
+      chooseExtraOnlyBadge(
+        [
+          { registrationId: "main", status: "active", ticketType: "Main Conference", createdAtMs: 9 },
+          { registrationId: "w1", status: "active", ticketType: "Workshops", createdAtMs: 1 },
+          { registrationId: "w2", status: "active", ticketType: "Workshops", createdAtMs: 2 },
+          { registrationId: "w3", status: "cancelled", ticketType: "Workshops", createdAtMs: 3 },
+        ],
+        byName,
+      ),
+    ).toBe("w2");
+  });
+
+  it("joins nothing when there is no Workshops-only badge", () => {
+    expect(
+      chooseExtraOnlyBadge([{ registrationId: "m", status: "active", ticketType: "Main Conference" }], byName),
+    ).toBeNull();
+    expect(chooseExtraOnlyBadge([], byName)).toBeNull();
+  });
+
+  it("knows a Workshops-only badge from one with Workshops beside a ticket", () => {
+    expect(isExtraOnlyBadge({ ticketType: "Workshops" }, ["Workshops"])).toBe(true);
+    expect(isExtraOnlyBadge({ ticketType: "Main Conference", extraNames: ["Workshops"] }, ["Workshops"])).toBe(false);
+  });
+});
+
+describe("seat checks for a Workshops-only badge (T186)", () => {
+  it("opens a workshop limited to Workshops and nothing limited to the conference", () => {
+    expect(ticketEligible({ eligibleTicketTypes: ["Workshops", "All Access (VIP)"] }, ["Workshops"])).toBe(true);
+    expect(ticketEligible({ eligibleTicketTypes: ["Main Conference", "All Access (VIP)"] }, ["Workshops"])).toBe(false);
+    expect(mayWatch({ allowedTicketTypes: ["Workshops"] }, ["Workshops"])).toBe(true);
   });
 });

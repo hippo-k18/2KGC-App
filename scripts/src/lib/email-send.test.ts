@@ -123,7 +123,7 @@ describe('Workshops added to an existing ticket (T169)', () => {
     expect(requests[0].text).not.toContain('Another order still covers it');
   });
 
-  it('a refund of Main Conference says Workshops on the same ticket goes too', async () => {
+  it('a refund of Main Conference keeps the badge for Workshops (T186)', async () => {
     provider('ok');
     await sendRefundConfirmation(store, {
       to: 'ada@example.com',
@@ -131,8 +131,11 @@ describe('Workshops added to an existing ticket (T169)', () => {
       ticketType: 'Main Conference',
       amountCents: 59_900,
       currency: 'usd',
-      extrasCancelled: ['Workshops'],
+      ticketCancelled: false,
+      extraRemoved: { name: 'Main Conference', remaining: 'Workshops' },
     });
-    expect(requests[0].text).toContain('Workshops on the same ticket is cancelled too, and refunded separately.');
+    expect(requests[0].text).toContain('Main Conference is no longer on your ticket. Your Workshops ticket is not');
+    expect(requests[0].text).not.toContain('refunded separately');
+    expect(requests[0].text).not.toContain('now cancelled');
   });
 });

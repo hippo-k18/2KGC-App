@@ -1,6 +1,8 @@
 /**
  * Workshops as its own ticket, added to the person's existing badge (T169,
- * owner's decisions 2026-10-06).
+ * owner's decisions 2026-10-06), and independent of the conference tickets
+ * (T186, 2026-10-07): sold alone as a Workshops-only badge, joined by a
+ * conference ticket bought later, and refunded each on its own.
  *
  * Runs the real checkout action, webhook and return route against the
  * Firestore emulator; Stripe, email and Auth accounts are faked.
@@ -18,7 +20,7 @@ const mocks = vi.hoisted(() => {
     invoiceByIntent: new Map<string, string>(),
     created: [] as { metadata: Record<string, string>; line_items: { quantity: number; price_data: { unit_amount: number } }[] }[],
     sent: [] as { to: string; ticketType: string; registrationId?: string; addedExtra?: string; amountCents: number }[],
-    refundMails: [] as { to: string; extraRemoved?: { name: string; remaining: string }; extrasCancelled?: string[]; ticketCancelled?: boolean }[],
+    refundMails: [] as { to: string; extraRemoved?: { name: string; remaining: string }; ticketCancelled?: boolean }[],
     stripeRefunds: [] as { payment_intent: string; amount?: number }[],
     refundsDenied: false,
   };
@@ -144,12 +146,15 @@ async function wipe(collection: string) {
   await db.recursiveDelete(db.collection(collection));
 }
 
+/** The Workshops price in this fixture catalogue. Every assertion reads it from here. */
+const WS = 19_900;
+
 const TIERS = {
   'all-access': { name: 'All Access (VIP)', priceCents: 69_900, includesWorkshops: true, includesVideoLibrary: true },
   'main-conference': { name: 'Main Conference', priceCents: 59_900, includesVideoLibrary: true },
-  workshops: { name: 'Workshops', priceCents: 19_900, kind: 'extra', addOnFor: 'main-conference', includesWorkshops: true },
+  workshops: { name: 'Workshops', priceCents: WS, kind: 'extra', addOnFor: 'main-conference', includesWorkshops: true },
   virtual: { name: 'Virtual', priceCents: 12_900, inPerson: false },
-  'main-conference-workshops': { name: 'Main Conference + Workshops', priceCents: 79_800, bundleOf: ['main-conference', 'workshops'], visible: false },
+  'main-conference-workshops': { name: 'Main Conference + Workshops', priceCents: 59_900 + WS, bundleOf: ['main-conference', 'workshops'], visible: false },
 } as const;
 type TierId = keyof typeof TIERS;
 
@@ -383,40 +388,67 @@ describe('Main Conference and Workshops in the same cart', () => {
   });
 });
 
-describe('who may buy Workshops (decisions 1 and 3)', () => {
-  it('refuses Workshops with no Main Conference, and charges nothing', async () => {
-    const r = await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }));
-    expect(r.error).toMatch(/Workshops is added to a Main Conference ticket, and we could not find one for ada@example.com/);
-    expect(mocks.created).toHaveLength(0);
+describe('who may buy Workshops (T186)', () => {
+  it('sells Workshops alone as a Workshops-only badge with its own QR code and a normal ticket email', async () => {
+    expect((await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }))).url).toMatch(/checkout\.stripe\.com/);
+    const c = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_alone');
+    const docs = await regsFor(ADA);
+    expect(docs).toHaveLength(1);
+    const r = docs[0]!.data() as RegistrationDoc;
+    expect(r).toMatchObject({ ticketType: 'Workshops', status: 'active', orderId: c.oid });
+    expect(r.extras).toBeUndefined();
+    expect(r.qrSecret).toBeTruthy();
+    expect(r.claimCode).toBeTruthy();
+    expect((await order(c.oid)).extraRegistrationIds).toBeUndefined();
+    expect(await sold('workshops')).toBe(1);
+    expect(mocks.sent).toEqual([expect.objectContaining({ to: ADA, ticketType: 'Workshops', addedExtra: undefined, amountCents: WS })]);
+    expect(await grants(ADA)).toEqual({ workshop: [c.oid] });
+    // Not a refusal: the team is not warned.
+    const warnings = (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
+    expect(warnings.some((w) => w.includes('extra.notAdded'))).toBe(false);
+    // A replay issues nothing more.
+    await deliver('checkout.session.completed', mocks.sessions.get('cs_alone'));
+    expect(await regsFor(ADA)).toHaveLength(1);
+    expect(await sold('workshops')).toBe(1);
+    expect(mocks.sent).toHaveLength(1);
   });
 
-  it('refuses Workshops for a colleague whose Main Conference is not in the cart', async () => {
-    const r = await submit(
-      form({ tier: 'main-conference', name: 'Ada Nakamura', email: ADA, seatName: ['Ben Olsen'], seatEmail: ['ben@example.com'], seatTier: ['workshops'] }),
-    );
-    expect(r.error).toMatch(/could not find one for ben@example.com/);
-    expect(mocks.created).toHaveLength(0);
+  it('sells Workshops to a colleague whose Main Conference is not in the cart', async () => {
+    expect(
+      (await submit(form({ tier: 'main-conference', name: 'Ada Nakamura', email: ADA, seatName: ['Ben Olsen'], seatEmail: ['ben@example.com'], seatTier: ['workshops'] }))).url,
+    ).toBeDefined();
+    await bought([seat('Ada Nakamura', ADA, 'main-conference'), seat('Ben Olsen', 'ben@example.com', 'workshops')], 'cs_colleague');
+    expect((await reg(registrationId('ben@example.com'))).ticketType).toBe('Workshops');
+    expect((await reg(registrationId(ADA))).extraNames).toBeUndefined();
   });
 
-  it('refuses a Virtual holder', async () => {
+  it('puts Workshops on a Virtual badge: "Virtual + Workshops"', async () => {
     await bought([seat('Ada Nakamura', ADA, 'virtual')], 'cs_virtual');
-    const r = await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }));
-    expect(r.error).toMatch(/ada@example.com holds Virtual/);
-    const cart = await submit(form({ tier: 'virtual', name: 'Bo Lee', email: 'bo@example.com', seatName: ['Bo Lee'], seatEmail: ['bo@example.com'], seatTier: ['workshops'] }));
-    expect(cart.error).toMatch(/bo@example.com holds Virtual/);
+    expect((await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }))).url).toBeDefined();
+    await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_virtual_ws');
+    expect(await regsFor(ADA)).toHaveLength(1);
+    expect((await getRegistration(registrationId(ADA)))?.ticketType).toBe('Virtual + Workshops');
+    expect(mocks.sent.at(-1)).toMatchObject({ addedExtra: 'Workshops', ticketType: 'Virtual + Workshops' });
   });
 
   it('refuses an All Access holder, whose ticket includes the workshops', async () => {
     await bought([seat('Ada Nakamura', ADA, 'all-access')], 'cs_aa');
     const r = await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }));
     expect(r.error).toBe('ada@example.com holds All Access (VIP), which already includes Workshops. Nothing was charged.');
+    const cart = await submit(form({ tier: 'all-access', name: 'Bo Lee', email: 'bo@example.com', seatName: ['Bo Lee'], seatEmail: ['bo@example.com'], seatTier: ['workshops'] }));
+    expect(cart.error).toMatch(/bo@example.com holds All Access \(VIP\), which already includes Workshops/);
   });
 
-  it('refuses Workshops twice', async () => {
+  it('refuses Workshops twice, on a badge or as a Workshops-only badge', async () => {
     await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_twice_1');
     await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_twice_2');
-    const r = await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }));
-    expect(r.error).toMatch(/already has Workshops on their ticket/);
+    expect((await submit(form({ tier: 'workshops', name: 'Ada Nakamura', email: ADA }))).error).toBe(
+      'ada@example.com already has Workshops. Nothing was charged.',
+    );
+    await bought([seat('Bo Lee', 'bo@example.com', 'workshops')], 'cs_twice_3');
+    expect((await submit(form({ tier: 'workshops', name: 'Bo Lee', email: 'bo@example.com' }))).error).toBe(
+      'bo@example.com already has Workshops. Nothing was charged.',
+    );
   });
 
   it('no longer sells the retired "Main Conference + Workshops" bundle', async () => {
@@ -424,16 +456,80 @@ describe('who may buy Workshops (decisions 1 and 3)', () => {
     expect(r.error).toMatch(/not available \(no longer sold\)/);
   });
 
-  it('issues a Workshops ticket of its own and warns the team when no badge can take it after payment', async () => {
-    // The checkout would refuse this; it is the race where Main Conference was
-    // refunded between paying and fulfilment.
-    const c = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_orphan');
-    const docs = await regsFor(ADA);
-    expect(docs).toHaveLength(1);
-    expect((docs[0]!.data() as RegistrationDoc).ticketType).toBe('Workshops');
-    expect((await order(c.oid)).extraRegistrationIds).toBeUndefined();
-    const warnings = (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => d.data());
-    expect(warnings.some((w) => JSON.stringify(w).includes('extra.notAdded'))).toBe(true);
+  it('warns the team when an All Access holder paid for Workshops anyway (a race)', async () => {
+    await bought([seat('Ada Nakamura', ADA, 'all-access')], 'cs_race_aa');
+    await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_race_ws');
+    const warnings = (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
+    expect(warnings.some((w) => w.includes('extra.notAdded') && w.includes('included'))).toBe(true);
+  });
+});
+
+describe('Workshops first, a conference ticket later (T186)', () => {
+  it('joins the Workshops-only badge: one QR code, "Main Conference + Workshops"', async () => {
+    const ws = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_wf_ws');
+    const rid = registrationId(ADA);
+    const before = await reg(rid);
+    expect((await submit(form({ tier: 'main-conference', name: 'Ada Nakamura', email: ADA }))).url).toBeDefined();
+    const main = await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_wf_main');
+
+    expect(await regsFor(ADA)).toHaveLength(1);
+    const after = await reg(rid);
+    expect(after.qrSecret).toBe(before.qrSecret);
+    expect(after.claimCode).toBe(before.claimCode);
+    expect(after.ticketType).toBe('Main Conference');
+    expect(after.orderId).toBe(main.oid);
+    expect(after.extraNames).toEqual(['Workshops']);
+    expect(after.extras).toEqual([expect.objectContaining({ tierId: 'workshops', name: 'Workshops', orderId: ws.oid, seat: 0 })]);
+    // The Workshops order now only extends the badge; Main Conference owns it.
+    expect((await order(ws.oid)).extraRegistrationIds).toEqual([rid]);
+    expect((await order(main.oid)).registrationIds).toEqual([rid]);
+    expect((await order(main.oid)).extraRegistrationIds).toBeUndefined();
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('workshops')).toBe(1);
+    expect(mocks.sent.at(-1)).toMatchObject({ to: ADA, ticketType: 'Main Conference + Workshops', addedExtra: undefined });
+    expect(await grants(ADA)).toEqual({ workshop: [ws.oid], 'video-library': [main.oid] });
+
+    // A replay changes nothing and counts nothing.
+    await deliver('checkout.session.completed', mocks.sessions.get('cs_wf_main'));
+    const replayed = await reg(rid);
+    expect(replayed.ticketType).toBe('Main Conference');
+    expect(replayed.extras).toHaveLength(1);
+    expect(await regsFor(ADA)).toHaveLength(1);
+    expect(await sold('main-conference')).toBe(1);
+    // And the Workshops order's replay does not take it for a duplicate.
+    await deliver('checkout.session.completed', mocks.sessions.get('cs_wf_ws'));
+    expect((await reg(rid)).extras).toHaveLength(1);
+    expect(await sold('workshops')).toBe(1);
+  });
+
+  it('a Virtual ticket joins it too', async () => {
+    await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_wv_ws');
+    await bought([seat('Ada Nakamura', ADA, 'virtual')], 'cs_wv_v');
+    expect(await regsFor(ADA)).toHaveLength(1);
+    expect((await getRegistration(registrationId(ADA)))?.ticketType).toBe('Virtual + Workshops');
+  });
+
+  it('refunding Workshops leaves Main Conference', async () => {
+    const ws = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_wr_ws');
+    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_wr_main');
+    const res = await refunded(ws.pi, WS);
+    expect(await res.json()).toMatchObject({ registrationId: null, extrasRemoved: ['workshops'] });
+    const after = await reg(registrationId(ADA));
+    expect(after).toMatchObject({ status: 'active', ticketType: 'Main Conference', extraNames: [] });
+    expect(await sold('workshops')).toBe(0);
+    expect(await sold('main-conference')).toBe(1);
+  });
+
+  it('refunding Main Conference turns it back into the Workshops-only badge', async () => {
+    const ws = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_wb_ws');
+    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_wb_main');
+    await refunded('pi_cs_wb_main', 59_900);
+    const after = await reg(registrationId(ADA));
+    expect(after).toMatchObject({ status: 'active', ticketType: 'Workshops', orderId: ws.oid });
+    expect(after.extras).toBeUndefined();
+    expect((await order(ws.oid)).extraRegistrationIds).toEqual([]);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await sold('workshops')).toBe(1);
   });
 });
 
@@ -453,7 +549,7 @@ describe('the group rate (decision 2)', () => {
     const lines = mocks.created[0]!.line_items;
     expect(lines.map((l) => [l.quantity, l.price_data.unit_amount])).toEqual([
       [5, 53_910],
-      [1, 19_900],
+      [1, WS],
     ]);
 
     mocks.created.length = 0;
@@ -466,17 +562,34 @@ describe('the group rate (decision 2)', () => {
       seatTier: [...people.slice(0, 3).map(() => 'main-conference'), 'workshops'],
     });
     expect((await submit(four)).url).toBeDefined();
-    expect(mocks.created[0]!.line_items.map((l) => l.price_data.unit_amount)).toEqual([59_900, 19_900]);
+    expect(mocks.created[0]!.line_items.map((l) => l.price_data.unit_amount)).toEqual([59_900, WS]);
+    expect(mocks.created[0]!.metadata.groupRate).toBeUndefined();
+
+    // Five Workshops alone earn nothing either.
+    mocks.created.length = 0;
+    const five = form({
+      tier: 'workshops',
+      name: 'Ada Nakamura',
+      email: ADA,
+      seatName: people.map((p) => `Person ${p[0]}`),
+      seatEmail: people,
+      seatTier: people.map(() => 'workshops'),
+    });
+    expect((await submit(five)).url).toBeDefined();
+    expect(mocks.created[0]!.line_items.map((l) => [l.quantity, l.price_data.unit_amount])).toEqual([[5, WS]]);
     expect(mocks.created[0]!.metadata.groupRate).toBeUndefined();
   });
 });
 
-describe('refunds (decision 4)', () => {
+describe('refunds are independent (T186)', () => {
+  const warnings = async () =>
+    (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
+
   it('refunding Workshops alone takes it off the badge and leaves Main Conference', async () => {
     const oct = await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_r1_oct');
     const dec = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_r1_dec');
     const rid = registrationId(ADA);
-    const res = await refunded(dec.pi, 19_900);
+    const res = await refunded(dec.pi, WS);
     expect(await res.json()).toMatchObject({ registrationId: null, extrasRemoved: ['workshops'] });
     const after = await reg(rid);
     expect(after.status).toBe('active');
@@ -491,34 +604,46 @@ describe('refunds (decision 4)', () => {
       extraRemoved: { name: 'Workshops', remaining: 'Main Conference' },
     });
     // A replay changes nothing.
-    await refunded(dec.pi, 19_900);
+    await refunded(dec.pi, WS);
     expect(await sold('workshops')).toBe(0);
   });
 
-  it('refunding Main Conference cancels the badge and refunds the separate Workshops payment', async () => {
-    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_r2_oct');
+  it('refunding Main Conference keeps the badge as Workshops-only, with no cascade and no warning', async () => {
+    const oct = await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_r2_oct');
     const dec = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_r2_dec');
-    const res = await refunded('pi_cs_r2_oct', 59_900);
-    expect(await res.json()).toMatchObject({
-      registrationId: registrationId(ADA),
-      linkedRefunds: [{ orderId: dec.oid, name: 'Workshops', outcome: 'refunded' }],
+    const rid = registrationId(ADA);
+    const before = await reg(rid);
+    const res = await refunded(oct.pi, 59_900);
+    expect(await res.json()).toMatchObject({ registrationId: null, keptAs: 'Workshops' });
+    const after = await reg(rid);
+    expect(after).toMatchObject({ status: 'active', ticketType: 'Workshops', orderId: dec.oid, seat: 0 });
+    expect(after.qrSecret).toBe(before.qrSecret);
+    expect(after.extras).toBeUndefined();
+    expect(after.releasedAdmissions).toEqual([oct.oid]);
+    // The Workshops order owns the badge now.
+    expect((await order(dec.oid)).extraRegistrationIds).toEqual([]);
+    expect(mocks.stripeRefunds).toEqual([]);
+    expect((await warnings()).some((w) => w.includes('extra.refundNeeded'))).toBe(false);
+    expect(mocks.refundMails.at(-1)).toMatchObject({
+      ticketCancelled: false,
+      extraRemoved: { name: 'Main Conference', remaining: 'Workshops' },
     });
-    expect((await reg(registrationId(ADA))).status).toBe('cancelled');
-    expect((await reg(registrationId(ADA))).extraNames).toEqual([]);
-    // The whole Workshops payment goes back; its own refund event follows.
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: dec.pi, amount: 19_900 }]);
-    expect(mocks.refundMails.at(-1)).toMatchObject({ ticketCancelled: true, extrasCancelled: ['Workshops'] });
     expect(await sold('main-conference')).toBe(0);
-    // Stripe's event for that refund: seat back, order refunded, nothing else.
-    await refunded(dec.pi, 19_900);
-    expect((await order(dec.oid)).status).toBe('refunded');
+    expect(await sold('workshops')).toBe(1);
+    expect(await grants(ADA)).toEqual({ workshop: [dec.oid] });
+
+    // A replay of the Main Conference refund leaves the badge alone.
+    await refunded(oct.pi, 59_900);
+    expect((await reg(rid)).status).toBe('active');
+    expect(await sold('workshops')).toBe(1);
+
+    // Then refunding Workshops cancels the badge, which now stands on it.
+    await refunded(dec.pi, WS);
+    expect((await reg(rid)).status).toBe('cancelled');
     expect(await sold('workshops')).toBe(0);
-    // A replay of the Main Conference refund refunds nothing twice.
-    await refunded('pi_cs_r2_oct', 59_900);
-    expect(mocks.stripeRefunds).toHaveLength(1);
   });
 
-  it('refunds only the Workshops line when it was bought in a cart with other tickets', async () => {
+  it('a Workshops line in a cart with other tickets keeps the badge too, and its own cart refund cancels it', async () => {
     await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_r3_oct');
     const dec = await bought(
       [seat('Cy Park', 'cy@example.com', 'main-conference'), seat('Ada Nakamura', ADA, 'workshops')],
@@ -526,21 +651,25 @@ describe('refunds (decision 4)', () => {
     );
     expect((await reg(registrationId(ADA))).extraNames).toEqual(['Workshops']);
     await refunded('pi_cs_r3_oct', 59_900);
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: dec.pi, amount: 19_900 }]);
-    expect(await sold('workshops')).toBe(0);
-    // Cy keeps his ticket.
+    expect(mocks.stripeRefunds).toEqual([]);
+    expect(await reg(registrationId(ADA))).toMatchObject({ status: 'active', ticketType: 'Workshops', orderId: dec.oid });
+    expect(await sold('workshops')).toBe(1);
     expect((await reg(registrationId('cy@example.com'))).status).toBe('active');
+    // Refunding that whole cart takes Cy's ticket and Ada's Workshops badge.
+    await refunded(dec.pi, dec.total);
+    expect((await reg(registrationId(ADA))).status).toBe('cancelled');
+    expect((await reg(registrationId('cy@example.com'))).status).toBe('cancelled');
+    expect(await sold('workshops')).toBe(0);
   });
 
-  it('says so when the website key may not refund, and still takes Workshops off', async () => {
-    mocks.refundsDenied = true;
-    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_r4_oct');
-    const dec = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_r4_dec');
-    const res = await refunded('pi_cs_r4_oct', 59_900);
-    expect(await res.json()).toMatchObject({ linkedRefunds: [{ orderId: dec.oid, outcome: 'manual' }] });
-    const warnings = (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
-    expect(warnings.some((w) => w.includes('extra.refundNeeded') && w.includes(dec.pi))).toBe(true);
-    expect((await reg(registrationId(ADA))).extraNames).toEqual([]);
+  it('a dispute on Main Conference keeps the Workshops-only badge and warns nobody about Workshops', async () => {
+    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_disp_oct');
+    const dec = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_disp_dec');
+    const res = await deliver('charge.dispute.created', { id: 'dp_ws', object: 'dispute', payment_intent: 'pi_cs_disp_oct', amount: 59_900 });
+    expect(await res.json()).toMatchObject({ keptAs: 'Workshops' });
+    expect(await reg(registrationId(ADA))).toMatchObject({ status: 'active', ticketType: 'Workshops', orderId: dec.oid });
+    expect(mocks.stripeRefunds).toEqual([]);
+    expect((await warnings()).some((w) => w.includes('extra.refundNeeded'))).toBe(false);
   });
 });
 
@@ -586,128 +715,20 @@ describe('the invoice path', () => {
     expect((await order(oid)).extraRegistrationIds).toEqual([registrationId(ADA)]);
     expect(mocks.sent.at(-1)).toMatchObject({ addedExtra: 'Workshops', ticketType: 'Main Conference + Workshops' });
   });
-});
 
-describe('the cascade refunds what was paid, not the list price (T170, W09)', () => {
-  const PAT = 'pat@example.com';
-  const QUINN = 'quinn@example.com';
-  async function patHoldsMain() {
-    await bought([seat('Pat Rivera', PAT, 'main-conference')], 'cs_w09_pat');
-  }
-  const refundPatsMain = () => refunded('pi_cs_w09_pat', 59_900);
-  const warnings = async () =>
-    (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
-
-  it('a 50% code: the Workshops line refunds half its price, as on the receipt', async () => {
-    await patHoldsMain();
-    const q = await bought(
-      [seat('Quinn Hale', QUINN, 'main-conference'), seat('Pat Rivera', PAT, 'workshops')],
-      'cs_w09_half',
-      39_900,
-    );
-    // The receipt Pat got for that seat.
-    expect(mocks.sent.find((m) => m.to === PAT && m.addedExtra)?.amountCents).toBe(9_950);
-    await refundPatsMain();
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: 9_950 }]);
-  });
-
-  it('a fixed $100 code: the line refunds its share of the discounted total', async () => {
-    await patHoldsMain();
-    const q = await bought(
-      [seat('Quinn Hale', QUINN, 'main-conference'), seat('Pat Rivera', PAT, 'workshops')],
-      'cs_w09_fixed',
-      69_800,
-    );
-    const share = mocks.sent.find((m) => m.to === PAT && m.addedExtra)!.amountCents;
-    expect(share).toBe(Math.floor((69_800 * 19_900) / 79_800));
-    await refundPatsMain();
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: share }]);
-  });
-
-  it('a group-rate cart: Workshops was not discounted, so its full price goes back', async () => {
-    await patHoldsMain();
-    const rated = 53_910;
-    const people = ['a', 'b', 'c', 'd', 'e'].map((x) => seat(`Person ${x}`, `${x}@example.com`, 'main-conference', rated));
-    const q = await bought([...people, seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_group');
-    await refundPatsMain();
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: 19_900 }]);
-  });
-
-  it('a group-rate cart with a 10% code on top: the line refunds its share of what was charged', async () => {
-    await patHoldsMain();
-    const rated = 53_910;
-    const people = ['a', 'b', 'c', 'd', 'e'].map((x) => seat(`Person ${x}`, `${x}@example.com`, 'main-conference', rated));
-    const listed = rated * 5 + 19_900;
-    const charged = Math.round(listed * 0.9);
-    const q = await bought([...people, seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_group_code', charged);
-    const share = mocks.sent.find((m) => m.to === PAT && m.addedExtra)!.amountCents;
-    await refundPatsMain();
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: share }]);
-    expect(share).toBeLessThan(19_900);
-  });
-
-  it('Workshops bought alone with a 50% code: half goes back, never the list price', async () => {
-    await patHoldsMain();
-    const q = await bought([seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_alone_half', 9_950);
-    await refundPatsMain();
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: q.pi, amount: 9_950 }]);
-  });
-
-  it('a 100% code: nothing to refund, no Stripe call and no warning, and the seat still comes back', async () => {
-    await patHoldsMain();
-    const q = await bought([seat('Pat Rivera', PAT, 'workshops')], 'cs_w09_free', 0);
-    const res = await refundPatsMain();
-    expect(await res.json()).toMatchObject({ linkedRefunds: [{ orderId: q.oid, outcome: 'nothing-paid' }] });
-    expect(mocks.stripeRefunds).toEqual([]);
-    expect((await warnings()).some((w) => w.includes('extra.refundNeeded'))).toBe(false);
-    expect((await reg(registrationId(PAT))).extraNames).toEqual([]);
-    // The receipt does not promise a separate refund for it.
-    expect(mocks.refundMails.at(-1)?.extrasCancelled).toBeUndefined();
-  });
-});
-
-describe('Workshops paid on an invoice (T170)', () => {
-  it('records the payment intent at invoice.paid, so the cascade refunds it without a warning', async () => {
-    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_inv_pi_oct');
-    mocks.invoiceByIntent.set('pi_in_ws_pi', 'in_ws_pi');
-    await recordInvoiceOrder({
-      invoiceId: 'in_ws_pi',
-      billingEmail: 'billing@acme.example',
-      companyName: 'Acme',
-      seats: [seat('Ada Nakamura', ADA, 'workshops')],
-      currency: 'usd',
-      totalCents: 19_900,
-    });
-    await deliver('invoice.paid', {
-      id: 'in_ws_pi',
-      object: 'invoice',
-      metadata: { source: 'kgc-web' },
-      total: 19_900,
-      currency: 'usd',
-      customer_email: 'billing@acme.example',
-      lines: { data: [] },
-    });
-    expect((await order(invoiceOrderId('in_ws_pi'))).stripePaymentIntentId).toBe('pi_in_ws_pi');
-    await refunded('pi_cs_inv_pi_oct', 59_900);
-    expect(mocks.stripeRefunds).toEqual([{ payment_intent: 'pi_in_ws_pi', amount: 19_900 }]);
+  it('issues a Workshops-only badge for an attendee with no other ticket, and no warning (T186)', async () => {
+    const oid = await paidInvoice('in_ws_3', [seat('Ada Nakamura', ADA, 'workshops')]);
+    expect(await reg(registrationId(ADA))).toMatchObject({ ticketType: 'Workshops', status: 'active', orderId: oid });
+    expect(mocks.sent).toEqual([expect.objectContaining({ to: ADA, ticketType: 'Workshops', addedExtra: undefined })]);
     const warnings = (await db.collection(COLLECTIONS.auditLog).get()).docs.map((d) => JSON.stringify(d.data()));
-    expect(warnings.some((w) => w.includes('extra.refundNeeded'))).toBe(false);
+    expect(warnings.some((w) => w.includes('extra.notAdded'))).toBe(false);
   });
-});
 
-describe('a dispute on Main Conference with Workshops on the badge (T170)', () => {
-  it('refunds nothing and tells the team which Workshops payment to decide about', async () => {
-    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_disp_oct');
-    const dec = await bought([seat('Ada Nakamura', ADA, 'workshops')], 'cs_disp_dec');
-    const res = await deliver('charge.dispute.created', { id: 'dp_ws', object: 'dispute', payment_intent: 'pi_cs_disp_oct', amount: 59_900 });
-    expect(await res.json()).toMatchObject({ extrasNeedingDecision: [dec.oid] });
-    expect((await reg(registrationId(ADA))).status).toBe('cancelled');
-    expect(mocks.stripeRefunds).toEqual([]);
-    const warning = (await db.collection(COLLECTIONS.auditLog).get()).docs
-      .map((d) => JSON.stringify(d.data()))
-      .find((w) => w.includes('extra.refundNeeded'));
-    expect(warning).toContain(dec.pi);
-    expect(warning).toContain('disputed');
-    expect(warning).toContain('199.00');
+  it('lets a card purchase of Main Conference join an invoiced Workshops-only badge (T186)', async () => {
+    const oid = await paidInvoice('in_ws_4', [seat('Ada Nakamura', ADA, 'workshops')]);
+    await bought([seat('Ada Nakamura', ADA, 'main-conference')], 'cs_after_inv');
+    expect(await regsFor(ADA)).toHaveLength(1);
+    expect((await reg(registrationId(ADA))).extras).toEqual([expect.objectContaining({ orderId: oid, seat: 1 })]);
+    expect((await order(oid)).extraRegistrationIds).toEqual([registrationId(ADA)]);
   });
 });
