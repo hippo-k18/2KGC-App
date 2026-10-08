@@ -17,6 +17,7 @@ import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import {
   currentHolder,
   ensureRegistration as sharedEnsureRegistration,
+  releaseAdmission,
   removeOrderExtras,
   stillPaidElsewhere,
   type FulfilledRegistration as SharedFulfilled,
@@ -62,6 +63,8 @@ export interface FulfilledRegistration {
   created: boolean;
   /** Set when the ticket was an extra; see `FulfilledRegistration.extra` in `@kgc/scripts`. */
   extra?: SharedFulfilled['extra'];
+  /** Set when a conference ticket joined a Workshops-only badge; see `FulfilledRegistration.joined`. */
+  joined?: SharedFulfilled['joined'];
 }
 
 export interface FulfilInput {
@@ -389,12 +392,11 @@ export interface RefundOutcome {
   /** What that badge still holds afterwards, or '' when it is no longer active. */
   remainingLabel?: string;
   /**
-   * Extras on the badge this refund cancelled that other orders paid for
-   * (Workshops bought in December on a Main Conference refunded now). The
-   * owner's rule: they go too, and their money goes back. The caller refunds
-   * them; see `refundLinkedExtras` in the webhook.
+   * Set when this order's ticket came off a badge that stays active for an
+   * extra another order paid for: Main Conference refunded, Workshops kept
+   * (2026-10-07). The badge's label afterwards, e.g. "Workshops".
    */
-  linkedExtras?: { orderId: string; tierId: string; registrationId: string; seat?: number }[];
+  keptAs?: string;
   currency: string;
   /** False for a partial refund, which leaves the ticket valid. */
   fullyRefunded: boolean;
@@ -581,6 +583,17 @@ export async function cancelRegistrationByOrder(input: {
     return { ...details, registrationId: null, holderEmail: holder.email, holderName: holder.name };
   }
 
+  /**
+   * Workshops on the same badge from another payment keeps the badge, as a
+   * Workshops-only badge: Main Conference and Workshops are independent
+   * tickets since 2026-10-07 (owner), so refunding one no longer cancels or
+   * refunds the other. A dispute is the same.
+   */
+  const kept = await releaseAdmission(db(), rid, oid);
+  if (kept.kept) {
+    return { ...details, registrationId: null, holderEmail: holder.email, holderName: holder.name, keptAs: kept.label };
+  }
+
   await db()
     .collection(COLLECTIONS.registrations)
     .doc(rid)
@@ -591,23 +604,7 @@ export async function cancelRegistrationByOrder(input: {
     registrationId: rid,
     holderEmail: holder.email,
     holderName: holder.name,
-    linkedExtras: await extrasFromOtherOrders(rid, oid),
   };
-}
-
-/**
- * The extras on a badge that orders other than `oid` paid for. Read after the
- * badge is cancelled, so the caller can refund them (owner, 2026-10-06:
- * refunding Main Conference refunds Workshops too).
- */
-export async function extrasFromOtherOrders(
-  rid: string,
-  oid: string,
-): Promise<{ orderId: string; tierId: string; registrationId: string; seat?: number }[]> {
-  const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
-  return (reg?.extras ?? [])
-    .filter((e) => e.orderId && e.orderId !== oid)
-    .map((e) => ({ orderId: e.orderId!, tierId: e.tierId, registrationId: rid, ...(e.seat !== undefined ? { seat: e.seat } : {}) }));
 }
 
 /**

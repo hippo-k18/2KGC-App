@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
 import { COLLECTIONS, ticketLabel, type EntitlementDoc, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
-import { currentHolder, removeOrderExtras, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
+import { currentHolder, releaseAdmission, removeOrderExtras, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
 import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
 import { noteIgnoredStripe } from '@/lib/stripe-ignored';
@@ -33,7 +33,6 @@ import {
   cancelRegistrationByOrder,
   cancelUnpaidOrder,
   ensureRegistration,
-  extrasFromOtherOrders,
   invoiceOrderId,
   markInvoiceOrderPaid,
   orderIdFor,
@@ -245,7 +244,9 @@ export async function POST(req: NextRequest) {
        */
       let entitlementsWithdrawn = 0;
       const cancelledEmail = outcome.holderEmail ?? outcome.email;
-      if (outcome.newlyRefunded && outcome.registrationId && cancelledEmail) {
+      // A badge kept for Workshops loses what this order granted, as a
+      // cancelled one does (2026-10-07).
+      if (outcome.newlyRefunded && (outcome.registrationId || outcome.keptAs) && cancelledEmail) {
         try {
           entitlementsWithdrawn = await withdrawOrderEntitlements(
             db(),
@@ -295,17 +296,6 @@ export async function POST(req: NextRequest) {
           await recordError('entitlement.withdraw', err, { path: 'orders', id: outcome.orderId });
         }
       }
-
-      /**
-       * Main Conference refunded with Workshops on the same badge from a
-       * separate payment: Workshops is cancelled and its money goes back too
-       * (owner, 2026-10-06). Once, on the delivery that cancelled the badges:
-       * the buyer's, and any colleague's on the same order.
-       */
-      const linked = [...(outcome.linkedExtras ?? [])];
-      for (const rid of seatsCancelled) linked.push(...(await extrasFromOtherOrders(rid, outcome.orderId)));
-      const linkedRefunds =
-        outcome.newlyRefunded && linked.length ? await refundLinkedExtras(linked, outcome.orderId) : [];
 
       /**
        * Who is told what.
@@ -358,11 +348,9 @@ export async function POST(req: NextRequest) {
             transferred,
             ...(outcome.extraOnly
               ? { extraRemoved: { name: outcome.ticketType ?? 'Workshops', remaining: outcome.remainingLabel ?? '' } }
-              : {}),
-            // "Refunded separately" is only true of a Workshops somebody paid for.
-            ...(linkedRefunds.some((r) => r.outcome !== 'nothing-paid')
-              ? { extrasCancelled: [...new Set(linkedRefunds.filter((r) => r.outcome !== 'nothing-paid').map((r) => r.name))] }
-              : {}),
+              : outcome.keptAs
+                ? { extraRemoved: { name: outcome.ticketType ?? 'Main Conference', remaining: outcome.keptAs } }
+                : {}),
           }),
         );
       }
@@ -395,7 +383,7 @@ export async function POST(req: NextRequest) {
         seatsCancelled,
         entitlementsWithdrawn,
         ...(outcome.extrasRemoved?.length ? { extrasRemoved: outcome.extrasRemoved } : {}),
-        ...(linkedRefunds.length ? { linkedRefunds } : {}),
+        ...(outcome.keptAs ? { keptAs: outcome.keptAs } : {}),
       });
     }
 
@@ -439,54 +427,6 @@ export async function POST(req: NextRequest) {
           seatsReturned.push(line.ticketTypeId);
         }
       }
-      /**
-       * Workshops from another payment on a badge this dispute cancelled. A
-       * dispute refunds nothing by itself and the money may yet come back, so
-       * nothing is refunded here; the team is told which payment it is, to
-       * decide once the dispute is settled (T170).
-       */
-      const disputedExtras = outcome.newlyRefunded
-        ? [
-            ...(outcome.linkedExtras ?? []),
-            ...(await Promise.all(seatsCancelled.map((rid) => extrasFromOtherOrders(rid, outcome.orderId)))).flat(),
-          ]
-        : [];
-      for (const orderId of new Set(disputedExtras.map((e) => e.orderId))) {
-        try {
-          const other = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
-          if (!other || other.status === 'refunded' || other.status === 'cancelled') continue;
-          const lines = (other.items ?? [])
-            .map((item, i) => ({ item, i }))
-            .filter(({ item, i }) =>
-              disputedExtras.some(
-                (e) =>
-                  e.orderId === orderId &&
-                  e.tierId === item.ticketTypeId &&
-                  (e.seat === undefined || i === Math.max(0, e.seat - 1)),
-              ),
-            );
-          const amount = refundableShare(other, lines.map((l) => l.i));
-          const name = lines[0]?.item.ticketTypeName ?? 'Workshops';
-          await recordWarning(
-            'extra.refundNeeded',
-            {
-              orderId,
-              disputedOrder: outcome.orderId,
-              amountCents: amount,
-              paymentIntent: other.stripePaymentIntentId ?? '',
-              reason: 'dispute',
-              note:
-                amount > 0
-                  ? `Main Conference is disputed, so its badge is cancelled with ${name} on it. ${name} was paid separately ` +
-                    `(${(amount / 100).toFixed(2)} on this payment). Refund it in Stripe if the dispute is lost or the ticket is not reinstated.`
-                  : `Main Conference is disputed, so its badge is cancelled with ${name} on it. Nothing was paid for ${name}, so there is nothing to refund.`,
-            },
-            { path: 'orders', id: orderId },
-          );
-        } catch (err) {
-          await recordError('order.extraDispute', err, { path: 'orders', id: orderId });
-        }
-      }
       return NextResponse.json({
         received: true,
         eventId: event.id,
@@ -494,7 +434,7 @@ export async function POST(req: NextRequest) {
         registrationId: outcome.registrationId,
         seatsCancelled,
         seatsReturned,
-        ...(disputedExtras.length ? { extrasNeedingDecision: [...new Set(disputedExtras.map((e) => e.orderId))] } : {}),
+        ...(outcome.keptAs ? { keptAs: outcome.keptAs } : {}),
       });
     }
 
@@ -706,7 +646,7 @@ export async function POST(req: NextRequest) {
               email: result.email,
               ticket: result.extra.name,
               reason: result.extra.refused,
-              note: `${result.extra.name} was paid for on this invoice but could not go on a Main Conference badge. Check this attendee on the dashboard.`,
+              note: `${result.extra.name} was paid for on this invoice by somebody who already has it or whose ticket includes it. Check this attendee on the dashboard.`,
             },
             { path: 'orders', id: oid },
           );
@@ -1106,6 +1046,16 @@ async function cancelExtraSeats(
       }
 
       const rid = holder.id;
+      /**
+       * Workshops on this badge from another payment keeps it, as a
+       * Workshops-only badge: the two tickets are independent (2026-10-07).
+       * What this order granted still goes.
+       */
+      const kept = await releaseAdmission(db(), rid, refundedOrderId);
+      if (kept.kept) {
+        await withdrawOrderEntitlements(db(), uidForEmail(holder.email), refundedOrderId);
+        continue;
+      }
       await db()
         .collection(COLLECTIONS.registrations)
         .doc(rid)
@@ -1124,129 +1074,6 @@ async function cancelExtraSeats(
   }
 
   return cancelled;
-}
-
-/** What happened to one Workshops payment when its Main Conference was refunded. */
-type LinkedRefundOutcome = 'refunded' | 'manual' | 'already' | 'nothing-paid';
-
-/**
- * What a buyer actually paid for some lines of an order, and could still get
- * back: the same split of the charged total the confirmation emails use
- * (`splitByWeight` over each line's charged price), so a group rate and a
- * promotion code come off it exactly as they came off the receipt. Never more
- * than what is left of the payment after earlier refunds.
- */
-function refundableShare(order: OrderDoc, lineIndexes: number[]): number {
-  const items = order.items ?? [];
-  const shares = splitByWeight(
-    order.totalCents ?? 0,
-    items.map((l) => (l.unitPriceCents ?? 0) * (l.quantity ?? 1)),
-  );
-  const paid = lineIndexes.reduce((n, i) => n + (shares[i] ?? 0), 0);
-  const left = Math.max(0, (order.totalCents ?? 0) - (order.refundedCents ?? 0));
-  return Math.min(paid, left);
-}
-
-/**
- * Refund the Workshops that other orders put on a badge whose Main Conference
- * was just refunded, and take them off it (owner, 2026-10-06).
- *
- * Workshops bought alone is its own Stripe payment, refunded in full; its own
- * `charge.refunded` then marks that order refunded, gives its seat back and
- * emails its receipt like any refund. Workshops bought in a cart beside other
- * people's tickets is one line of a bigger payment, refunded by its amount; a
- * partial refund leaves that order's other tickets alone and returns no seat
- * by itself, so the seat is given back here.
- *
- * `removeOrderExtras` is the replay guard: it reports what it took off only
- * once, so a redelivered refund refunds nothing twice.
- *
- * ⚠️ The website's Stripe key may not be allowed to refund (it was created
- * without that permission on purpose). Then no money moves, Workshops is still
- * taken off the badge, and the team gets a warning naming the payment to
- * refund in Stripe by hand.
- */
-async function refundLinkedExtras(
-  linked: { orderId: string; tierId: string; registrationId: string; seat?: number }[],
-  refundedOrderId: string,
-): Promise<{ orderId: string; name: string; outcome: LinkedRefundOutcome }[]> {
-  const out: { orderId: string; name: string; outcome: LinkedRefundOutcome }[] = [];
-  const byOrder = new Map<string, typeof linked>();
-  for (const l of linked) byOrder.set(l.orderId, [...(byOrder.get(l.orderId) ?? []), l]);
-
-  for (const [orderId, entries] of byOrder) {
-    try {
-      const order = (await db().collection(COLLECTIONS.orders).doc(orderId).get()).data() as OrderDoc | undefined;
-      const removed: string[] = [];
-      for (const rid of new Set(entries.map((e) => e.registrationId))) {
-        removed.push(...(await removeOrderExtras(db(), rid, orderId)));
-      }
-      // The order's lines for those seats: seat 0 is the buyer's line, cart
-      // seat n is line n. Without a seat number, every line of that tier.
-      const items = order?.items ?? [];
-      const picked = items
-        .map((item, i) => ({ item, i }))
-        .filter(({ item, i }) =>
-          entries.some((e) =>
-            e.seat === undefined
-              ? e.tierId === item.ticketTypeId
-              : i === Math.max(0, e.seat - 1) && e.tierId === item.ticketTypeId,
-          ),
-        );
-      const name = picked[0]?.item.ticketTypeName ?? items[0]?.ticketTypeName ?? 'Workshops';
-      if (!order || order.status === 'refunded' || order.status === 'cancelled' || removed.length === 0) {
-        out.push({ orderId, name, outcome: 'already' });
-        continue;
-      }
-      const whole = items.length <= 1;
-      const amount = refundableShare(order, picked.map((p) => p.i));
-      // A line nobody paid for (a 100% code, a comp): nothing goes back, and
-      // nobody is asked to refund anything. Its seat is still given back.
-      if (amount <= 0) {
-        if (!whole) for (const id of removed) await incrementSold(id, -1);
-        out.push({ orderId, name, outcome: 'nothing-paid' });
-        continue;
-      }
-      const pi = order.stripePaymentIntentId;
-      try {
-        if (!pi || order.channel === 'demo') throw new Error(pi ? 'a rehearsal order, with no payment' : 'no payment intent on the order');
-        await stripe().refunds.create(
-          {
-            payment_intent: pi,
-            // Always the amount, even for a whole payment: what was paid for
-            // this line, never its list price (T170, W09).
-            amount,
-            reason: 'requested_by_customer',
-            metadata: { source: 'kgc-web', cause: 'main-conference-refunded', refundedOrder: refundedOrderId },
-          },
-          { idempotencyKey: `kgc-extra-${refundedOrderId}-${orderId}` },
-        );
-        // A partial refund gives no seat back on its own; a whole one does,
-        // through that order's own refund event.
-        if (!whole) for (const id of removed) await incrementSold(id, -1);
-        out.push({ orderId, name, outcome: 'refunded' });
-      } catch (err) {
-        await recordWarning(
-          'extra.refundNeeded',
-          {
-            orderId,
-            refundedOrder: refundedOrderId,
-            amountCents: amount,
-            paymentIntent: pi ?? '',
-            reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
-            note:
-              `Main Conference was refunded, so ${name} on the same badge was cancelled. ` +
-              `Refund ${(amount / 100).toFixed(2)} of this payment in Stripe.`,
-          },
-          { path: 'orders', id: orderId },
-        );
-        out.push({ orderId, name, outcome: 'manual' });
-      }
-    } catch (err) {
-      await recordError('order.extraCascade', err, { path: 'orders', id: orderId });
-    }
-  }
-  return out;
 }
 
 /**

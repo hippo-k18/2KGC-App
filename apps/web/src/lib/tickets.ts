@@ -69,8 +69,8 @@ export interface Tier {
    */
   taxCode: string;
   /**
-   * The extras offered at checkout, such as the $199 Workshops add-on on Main
-   * Conference. Each is its own hidden ticket type, sold only inside a bundle;
+   * The extras offered at checkout, such as the continuing-education add-on on
+   * Main Conference. Each is its own hidden ticket type, sold only inside a bundle;
    * `priceCents` is what ticking it adds.
    */
   addOns?: AddOn[];
@@ -96,9 +96,6 @@ export interface Tier {
    * rather than issued as a new one. Absent on an admission ticket.
    */
   kind?: 'admission' | 'extra';
-  /** On an extra: the admission ticket it needs, by id and by name. */
-  requiresTierId?: TicketId;
-  requiresTierName?: string;
   /** Whether this ticket includes the workshops, so All Access is not sold Workshops. */
   includesWorkshops?: boolean;
   /**

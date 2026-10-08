@@ -334,8 +334,10 @@ async function settledResult(orderId: string): Promise<FulfilOrderResult> {
  * Whether a seat moved its tier's sold counter on this run: a new ticket, or
  * an extra newly put on a badge. A replay is neither.
  */
-function countsAsSold(r: { created: boolean; extra?: { added: boolean } }): boolean {
-  return r.extra ? r.extra.added : r.created;
+function countsAsSold(r: { created: boolean; extra?: { added: boolean }; joined?: { added: boolean } }): boolean {
+  // A conference ticket that joined a Workshops-only badge is sold like any
+  // other, though the badge it went on already existed.
+  return r.extra ? r.extra.added : r.created || Boolean(r.joined?.added);
 }
 
 /** A seat that only put an extra on a badge someone already held. */
@@ -355,11 +357,11 @@ async function badgeLabel(rid: string): Promise<string> {
 }
 
 /**
- * Tell the team when an extra could not go on a badge. Money has moved, so the
- * person got a Workshops ticket of its own (or nothing new, when Workshops was
- * already on their badge) and somebody should look: refund it, or move it on
- * the dashboard. The checkout refuses these cases, so this is the race where a
- * Main Conference was refunded between paying and fulfilment.
+ * Tell the team when an extra was paid for by somebody who should not have
+ * bought it: their ticket already includes it (All Access), so it was issued
+ * as a badge of its own, or it was already on their badge, so nothing new was
+ * issued. The checkout refuses both, so this is a race between two purchases.
+ * A Workshops-only badge for somebody with no other ticket is not a refusal.
  */
 async function warnIfExtraRefused(
   orderId: string,
@@ -381,7 +383,7 @@ async function warnIfExtraRefused(
       note:
         r.extra.refused === 'already'
           ? `${r.extra.name} was paid for again on a badge that already had it. Refund the duplicate in Stripe.`
-          : `${r.extra.name} was paid for but no Main Conference badge could take it, so it was issued as a ticket of its own. Refund it, or sort the badge out on the dashboard.`,
+          : `${r.extra.name} was paid for by somebody whose ticket already includes it, so it was issued as a ticket of its own. Refund it, or sort the badge out on the dashboard.`,
     },
     { path: 'orders', id: orderId },
   );

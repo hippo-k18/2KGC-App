@@ -52,7 +52,7 @@ function optional<T>(value: T | undefined): T | undefined {
  */
 function availability(t: TicketTypeDoc, now: Date): Pick<Tier, 'onSale' | 'unavailableReason'> {
   // An add-on is only ever bought inside its bundle. An extra (Workshops) is
-  // sold on its own; the checkout checks the buyer holds what it needs.
+  // sold on its own, with or without a conference ticket (2026-10-07).
   if (t.addOnFor && !isExtraTier(t)) return { onSale: false, unavailableReason: 'Sold only as an add-on' };
   return windowAndCapacity(t, now);
 }
@@ -143,13 +143,7 @@ function toTier(
     risesOn: optional(phase.risesOn),
     badge: t.badge?.trim() || undefined,
     includesWorkshops: Boolean(t.includesWorkshops),
-    ...(extra
-      ? {
-          kind: 'extra' as const,
-          requiresTierId: optional(t.addOnFor),
-          requiresTierName: t.addOnFor ? parts.get(t.addOnFor)?.name : undefined,
-        }
-      : {}),
+    ...(extra ? { kind: 'extra' as const } : {}),
     ...availability(t, now),
     ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(t, parts, now) } : {}),
   };
@@ -306,8 +300,7 @@ export async function tierById(id: string): Promise<Tier | undefined> {
   const data = doc.data() as TicketTypeDoc;
   if (data.eventId !== EVENT_ID) return undefined;
   const parts = new Map<string, TicketTypeDoc>();
-  // A bundle reads its parts; an extra reads the ticket it needs, for its name.
-  const partIds = data.bundleOf?.length ? data.bundleOf : isExtraTier(data) && data.addOnFor ? [data.addOnFor] : [];
+  const partIds = data.bundleOf?.length ? data.bundleOf : [];
   if (partIds.length) {
     const refs = partIds.map((part) => db().collection(COLLECTIONS.ticketTypes).doc(part));
     for (const snap of await db().getAll(...refs)) {

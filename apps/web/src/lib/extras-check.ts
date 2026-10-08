@@ -3,19 +3,19 @@ import 'server-only';
 import { cartVerdictForExtra, type ExtraRefusal, type ExtraTierShape } from '@kgc/shared';
 import { extraTierById, extraVerdictFor } from '@kgc/scripts/src/lib/fulfilment';
 import { db } from './firestore';
-import { SITE } from './site';
 import type { Tier } from './tickets';
 
 /**
- * Whether every extra seat on a purchase can go on a badge, asked before any
- * money moves (card checkout and invoice request alike).
+ * Whether every extra seat on a purchase can be sold, asked before any money
+ * moves (card checkout and invoice request alike).
  *
- * Workshops needs Main Conference: already held on that address (or as one of
- * its alternate addresses), or bought for the same person in the same order.
- * All Access already includes the workshops, so its holders are refused rather
- * than charged twice; Virtual cannot take them. The rules themselves are
- * `cartVerdictForExtra` and `chooseExtraBase` in `@kgc/shared`, which the
- * webhook's fulfilment applies again.
+ * Workshops is sold on its own since 2026-10-07 (owner): it joins the
+ * person's conference badge when they have one, held already or bought in the
+ * same order, and is a Workshops-only badge when they do not. Two cases are
+ * still refused: All Access already includes the workshops, so its holders
+ * are not charged twice, and nobody buys Workshops a second time. The rules
+ * themselves are `cartVerdictForExtra` and `chooseExtraBase` in
+ * `@kgc/shared`, which the webhook's fulfilment applies again.
  */
 
 export function extraShape(tier: Tier): ExtraTierShape {
@@ -23,37 +23,24 @@ export function extraShape(tier: Tier): ExtraTierShape {
     id: tier.id,
     name: tier.name,
     kind: tier.kind,
-    addOnFor: tier.requiresTierId,
     bundleOf: tier.baseTierId ? [tier.baseTierId] : undefined,
     includesWorkshops: tier.includesWorkshops,
     inPerson: tier.inPerson,
   };
 }
 
-/** The sentence a buyer reads when an extra cannot go on a badge. */
+/** The sentence a buyer reads when an extra cannot be sold to them. */
 export function extraRefusalMessage(
-  tier: Pick<Tier, 'name' | 'requiresTierName'>,
+  tier: Pick<Tier, 'name'>,
   email: string,
   reason: ExtraRefusal,
   heldName?: string,
 ): string {
-  const needs = tier.requiresTierName ?? 'Main Conference';
   switch (reason) {
     case 'included':
       return `${email} holds ${heldName ?? 'a ticket'}, which already includes ${tier.name}. Nothing was charged.`;
     case 'already':
-      return `${email} already has ${tier.name} on their ticket. Nothing was charged.`;
-    case 'wrong-ticket':
-      return (
-        `${tier.name} is added to a ${needs} ticket, and ${email} holds ${heldName ?? 'a different ticket'}. ` +
-        `Add ${needs} for this attendee to this order. Nothing was charged.`
-      );
-    case 'no-base':
-      return (
-        `${tier.name} is added to a ${needs} ticket, and we could not find one for ${email}. ` +
-        `Add ${needs} for this attendee to this order, or use the address the ${needs} ticket was bought with. ` +
-        `If that does not work, email ${SITE.contactEmail}. Nothing was charged.`
-      );
+      return `${email} already has ${tier.name}. Nothing was charged.`;
   }
 }
 
