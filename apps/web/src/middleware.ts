@@ -3,7 +3,7 @@ import { separateBlogOrigin } from '@kgc/shared';
 // Relative rather than `@/`, so `middleware.test.ts` can import this under
 // Vitest, whose `@` is the Expo app's.
 import { isBlogHost, mainSiteOrigin, MAIN_SITE_ROUTES, passesThrough, POSTS_OVER_OLD_SITE } from './lib/blog/host';
-import { oldSitemap, oldSiteTarget, PAST_SPEAKER_YEARS } from './lib/old-site';
+import { oldSitemap, oldSiteTarget, PAST_SPEAKER_YEARS, withQuery } from './lib/old-site';
 import { REFERRAL_MAX_AGE, referralCookiesFrom } from './lib/referral-capture';
 import { mainHostIndexable, NOINDEX_HEADER } from './lib/indexing-core';
 
@@ -48,8 +48,9 @@ export function middleware(request: NextRequest) {
     res.headers.set('X-Robots-Tag', NOINDEX_HEADER);
   }
   // On every main-site response, redirects included: an old address visited
-  // with `?ref=` is a 301 whose target drops the query, so the invite would be
-  // lost if only the page that finally renders set the cookies.
+  // with `?ref=` is a 301 whose target drops the query when the target names a
+  // query of its own (`withQuery`), so the invite would be lost if only the
+  // page that finally renders set the cookies.
   return withReferralCookies(request.nextUrl.searchParams, res);
 }
 
@@ -93,10 +94,10 @@ function route(request: NextRequest): NextResponse {
     // so an old address is one hop.
     const target = oldSiteTarget(path);
     // Absolute targets (the archive) are already one hop.
-    if (target && /^https?:\/\//.test(target)) return NextResponse.redirect(target, 301);
+    if (target && /^https?:\/\//.test(target)) return NextResponse.redirect(withQuery(target, url.search), 301);
     if (target) {
       const to = blogOrigin && isBlogPath(target) ? `${blogOrigin}${target.slice(5) || '/'}` : `${selfOrigin(request)}${target}`;
-      return NextResponse.redirect(to, 301);
+      return NextResponse.redirect(withQuery(to, url.search), 301);
     }
     if (blogOrigin && isBlogPath(bare)) {
       return NextResponse.redirect(`${blogOrigin}${bare.slice(5) || '/'}${url.search}`, 308);

@@ -1,6 +1,7 @@
 import { EXACT, SECTIONS } from './old-site-map';
 import { OLD_TERMS_PATHS, termsPublished } from './terms-core';
 import OLD_CONTENT from './old-content-redirects.json';
+import ADDENDUM from './old-site-addendum.json';
 import PAST_SPEAKER_REDIRECTS from '../content/past-speakers/redirects.json';
 import PAST_YEARS from '../content/past-speakers/years.json';
 
@@ -37,6 +38,14 @@ export const PAST_SPEAKER_YEARS: ReadonlySet<string> = new Set(PAST_YEARS.map((y
  * A trailing slash is ignored, because every WordPress address had one.
  *
  * In order, first match wins:
+ * 0. `old-site-addendum.json`: 545 exact addresses from the SEO review of
+ *    2026-10-07 (`scripts/import-redirect-addendum.mjs` writes it). Old
+ *    `/speakers/<slug>/` pages to the person under `/past-speakers`, `/tag/`,
+ *    `/category/`, `/news/`, `/events/`, `/agenda/<slug>/`, `/partners/<slug>/`,
+ *    `/speakers-category/` and `/blog/YYYY/MM/`. Exact paths only, never a
+ *    prefix, so `/speakers` and anything new under it stay free for 2027. First,
+ *    because ten of them are old speaker aliases that rule 1 sends to a list
+ *    rather than to the person.
  * 1. Old speaker pages and speaker year lists, to their page under
  *    `/past-speakers` (`pastSpeakerTarget`).
  * 2. `old-content-redirects.json`: one row per old address, from the SEO
@@ -61,6 +70,8 @@ export function oldSiteTarget(path: string, env: Record<string, string | undefin
   // The old terms pages go to /terms once it is published, and to /tickets
   // (Ted's entries in `old-site-map.ts`, left as they are) until then.
   if (OLD_TERMS_PATHS.has(p) && termsPublished(env)) return '/terms';
+  const added = (ADDENDUM as Record<string, string>)[p];
+  if (added) return added;
   const past = pastSpeakerTarget(p);
   if (past) return past;
   const listed = (OLD_CONTENT as Record<string, string>)[p];
@@ -74,6 +85,19 @@ export function oldSiteTarget(path: string, env: Record<string, string | undefin
     if (p === prefix || p.startsWith(prefix + '/')) return to;
   }
   return null;
+}
+
+/**
+ * An old-site target with the request's query string carried over, so UTM tags
+ * and an invite's `ref` survive the redirect. A target that names its own query
+ * (`/blog?category=…`, `/past-speakers?year=2022`) keeps it and the incoming one
+ * is dropped, since merging the two could change what the target shows. The
+ * query goes before any `#fragment`.
+ */
+export function withQuery(target: string, search: string): string {
+  if (!search || search === '?' || target.includes('?')) return target;
+  const hash = target.indexOf('#');
+  return hash < 0 ? target + search : target.slice(0, hash) + search + target.slice(hash);
 }
 
 /**

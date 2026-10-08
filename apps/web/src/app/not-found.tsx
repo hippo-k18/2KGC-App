@@ -1,6 +1,17 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LostNode } from '@/components/lost-node';
 import { siteVisibility } from '@/lib/data';
+
+/**
+ * Its own title, so a 404 is not reported as a home page view in analytics
+ * (the layout's default title is the home page's). The layout's template makes
+ * it "Page not found · KGC 2027". No `robots` here: Next already adds
+ * `noindex` to every 404, and a second tag would only repeat it.
+ */
+export const metadata: Metadata = {
+  title: 'Page not found',
+};
 
 /**
  * A 404 that is a node with no edges.

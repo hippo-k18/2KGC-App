@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { POSTS } from './posts';
-import { oldSiteTarget } from './old-site';
+import { oldSiteTarget, withQuery } from './old-site';
+import ADDENDUM from './old-site-addendum.json';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 
@@ -128,4 +129,49 @@ describe('the SEO review redirect map (old-content-redirects.json)', () => {
     expect(oldSiteTarget('/blog/speakers/ora-lassila/')).toBe('/past-speakers/ora-lassila');
     expect(oldSiteTarget('/blog/speakers-category/2022-keynote/')).toBe('/past-speakers?year=2022');
   });
+});
+
+describe('the 2026-10-07 redirect addendum (T198)', () => {
+  const rows = Object.entries(ADDENDUM as Record<string, string>);
+
+  it('has all 545 addresses', () => expect(rows.length).toBe(545));
+
+  it('sends each address there, with or without its trailing slash', () => {
+    for (const [from, to] of rows) {
+      expect(oldSiteTarget(from)).toBe(to);
+      expect(oldSiteTarget(`${from}/`)).toBe(to);
+    }
+  });
+
+  it('sends the ten old speaker aliases to the person, not the list', () => {
+    expect(oldSiteTarget('/blog/speakers/heather-hedden-2/')).toBe('/past-speakers/heather-hedden');
+    expect(oldSiteTarget('/blog/speakers/julian-grummer/')).toBe('/past-speakers/julian-gruemmer');
+    expect(oldSiteTarget('/blog/speakers/denny-vrandecic/')).toBe('/past-speakers/denny-vrandecic-2');
+  });
+
+  it('leaves /speakers and new addresses under it alone', () => {
+    expect(oldSiteTarget('/speakers')).toBeNull();
+    expect(oldSiteTarget('/speakers/')).toBeNull();
+    expect(oldSiteTarget('/speakers/somebody-speaking-in-2027')).toBeNull();
+    expect(oldSiteTarget('/agenda/abc123session')).toBeNull();
+  });
+
+  it('names no target that is itself an old address, so there is one hop', () => {
+    for (const [, to] of rows) {
+      if (!to.startsWith('/')) continue;
+      expect(oldSiteTarget(to.replace(/[?#].*$/, ''))).toBeNull();
+    }
+  });
+
+  it('does not shadow a live top-level route', () => {
+    for (const [from] of rows) expect(ROUTES.has(from.slice(1))).toBe(false);
+  });
+});
+
+describe('withQuery', () => {
+  it('carries the query over', () => expect(withQuery('/community', '?utm_source=x')).toBe('/community?utm_source=x'));
+  it('keeps a target that names its own query', () =>
+    expect(withQuery('/past-speakers?year=2022', '?utm_source=x')).toBe('/past-speakers?year=2022'));
+  it('puts the query before a fragment', () => expect(withQuery('/sponsor#speak', '?ref=a')).toBe('/sponsor?ref=a#speak'));
+  it('leaves a target alone with no query', () => expect(withQuery('/blog', '')).toBe('/blog'));
 });

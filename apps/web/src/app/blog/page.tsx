@@ -6,21 +6,69 @@ import { blogBase, blogUrl } from '@/lib/blog/paths';
 import { categoriesOf, publicPosts, type PublicPost } from '@/lib/blog/public';
 import { formatPostDate } from '@/lib/posts';
 
-export function generateMetadata(): Metadata {
+type ListingParams = { category?: string; tag?: string; page?: string };
+
+/**
+ * Which listing a query string asks for, with anything the archive cannot
+ * honour dropped: an unknown category, a tag no post has, a page past the end.
+ * The page renders from this and the canonical names it, so the two agree.
+ */
+function listingOf(params: ListingParams, all: PublicPost[]) {
+  const POST_CATEGORIES = categoriesOf(all);
+  // Only honour a category that exists. A bad `?category=` filters to nothing
+  // and looks like an empty archive, so it falls back to showing everything.
+  const category = POST_CATEGORIES.find((entry) => entry.name === params.category)?.name ?? null;
+  // A tag comes from the `#tag` chips under each post. It is not in the chip row
+  // (there are 139 of them), so it shows as a line above the grid instead.
+  const tagged =
+    !category && params.tag
+      ? all.filter((post) => post.tags.some((x) => x.toLowerCase() === params.tag!.toLowerCase()))
+      : [];
+  const tag = tagged.length > 0 ? params.tag! : null;
+  const posts = tag ? tagged : category ? all.filter((post) => post.categories.includes(category)) : all;
+  const pageCount = Math.max(1, Math.ceil(posts.length / PER_PAGE));
+  const page = Math.min(Math.max(1, Number(params.page) || 1), pageCount);
+  return { POST_CATEGORIES, category, tag, posts, pageCount, page };
+}
+
+/** The listing's own query string: its category or tag, and its page from 2 on. */
+function listingQuery(category: string | null, tag: string | null, page: number): string {
+  // `encodeURIComponent` rather than `URLSearchParams`, which writes a space as
+  // `+`: the old category addresses redirect to `?category=KGC%202025`, and the
+  // canonical should name exactly that address.
+  const parts: string[] = [];
+  if (category) parts.push(`category=${encodeURIComponent(category)}`);
+  else if (tag) parts.push(`tag=${encodeURIComponent(tag)}`);
+  if (page > 1) parts.push(`page=${page}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<ListingParams>;
+}): Promise<Metadata> {
+  const { category, tag, page } = listingOf(await searchParams, await publicPosts());
   return {
     title: 'Knowledge Graph Conference Blog',
     description:
       'The Knowledge Graph Conference blog archive: talks, news roundups and write-ups from the KGC community, 2019 to today.',
     /**
-     * Every listing variant (`?tag=`, `?category=`, `?page=`) names the blog home
-     * as its canonical, as the SEO review suggests: they share one title and
-     * description, so indexed separately they are thin duplicates. Absolute,
-     * because on blog.knowledgegraph.tech the rendered route is `/blog` while the
-     * address is `/`, which a relative canonical would get wrong. The feed link
-     * is repeated because a page's `alternates` replaces its layout's.
+     * Each listing names itself: `/blog?page=2` is page 2, not the blog home,
+     * and a category or tag view is its own page (the old site's category
+     * addresses redirect to them). Only what the page actually honours goes in,
+     * so `?page=99` or an unknown category names the listing it falls back to.
+     * Page 1 and no query are both `/blog`. The SEO review of 2026-10-07 asked
+     * for this; every variant used to name the blog home, which told search
+     * engines page 2 onwards were duplicates of page 1.
+     *
+     * Absolute, because on blog.knowledgegraph.tech the rendered route is
+     * `/blog` while the address is `/`, which a relative canonical would get
+     * wrong. The feed link is repeated because a page's `alternates` replaces
+     * its layout's.
      */
     alternates: {
-      canonical: blogUrl('/'),
+      canonical: blogUrl('/') + listingQuery(category, tag, page),
       types: { 'application/rss+xml': [{ url: blogUrl('/feed.xml'), title: 'KGC blog' }] },
     },
   };
@@ -53,34 +101,11 @@ export default async function BlogPage({
 }) {
   const [params, all, base] = await Promise.all([searchParams, publicPosts(), blogBase()]);
   const home = base || '/';
-  const POST_CATEGORIES = categoriesOf(all);
-  const postsWithTag = (t: string) =>
-    all.filter((post) => post.tags.some((x) => x.toLowerCase() === t.toLowerCase()));
-  const postsInCategory = (c: string | null) => (c ? all.filter((post) => post.categories.includes(c)) : all);
-
-  // Only honour a category that exists. A bad `?category=` filters to nothing
-  // and looks like an empty archive, so it falls back to showing everything.
-  const category =
-    POST_CATEGORIES.find((entry) => entry.name === params.category)?.name ?? null;
-
-  // A tag comes from the `#tag` chips under each post. It is not in the chip row
-  // (there are 139 of them), so it shows as a line above the grid instead.
-  const tagged = !category && params.tag ? postsWithTag(params.tag) : [];
-  const tag = tagged.length > 0 ? params.tag! : null;
-
-  const posts = tag ? tagged : postsInCategory(category);
-  const pageCount = Math.max(1, Math.ceil(posts.length / PER_PAGE));
-  const page = Math.min(Math.max(1, Number(params.page) || 1), pageCount);
+  const { POST_CATEGORIES, category, tag, posts, pageCount, page } = listingOf(params, all);
   const visible = posts.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const hrefFor = (nextCategory: string | null, nextPage: number) => {
-    const query = new URLSearchParams();
-    if (nextCategory) query.set('category', nextCategory);
-    else if (tag) query.set('tag', tag);
-    if (nextPage > 1) query.set('page', String(nextPage));
-    const qs = query.toString();
-    return qs ? `${home}?${qs}` : home;
-  };
+  const hrefFor = (nextCategory: string | null, nextPage: number) =>
+    `${home}${listingQuery(nextCategory, nextCategory ? null : tag, nextPage)}`;
 
   return (
     <>
