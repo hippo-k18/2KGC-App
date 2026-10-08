@@ -809,6 +809,12 @@ export interface AttendeeForEdit {
   title: string;
   company: string;
   ticketType: string;
+  /**
+   * Extra tickets on the same badge (Workshops), shown read-only beside the
+   * ticket type: they come from their own orders and change only through
+   * those (T183, T186).
+   */
+  extraNames: string[];
   status: RegistrationDoc['status'];
   transferredTo?: string;
   hasPaidOrder: boolean;
@@ -828,6 +834,7 @@ export async function getAttendeeForEdit(rid: string): Promise<AttendeeForEdit |
     title: reg.title ?? '',
     company: reg.company ?? '',
     ticketType: reg.ticketType ?? '',
+    extraNames: reg.extraNames ?? [],
     status: reg.status,
     transferredTo: reg.transferredTo,
     categoryId: reg.categoryId ?? '',

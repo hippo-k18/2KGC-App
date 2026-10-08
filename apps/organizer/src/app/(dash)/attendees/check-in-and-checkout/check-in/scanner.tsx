@@ -451,6 +451,18 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
         under a verdict saying the opposite, which is the one moment a desk
         volunteer is reading fast and deciding whether to let somebody past.
       */}
+      {result.onlyExtra ? (
+        <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
+          {kiosk ? (
+            <>{result.onlyExtra} only. Your badge is for the {result.onlyExtra.toLowerCase()}, not the main conference.</>
+          ) : (
+            <>
+              {result.onlyExtra} only: not a Main Conference ticket. Send them to the {result.onlyExtra.toLowerCase()}.
+            </>
+          )}
+        </div>
+      ) : null}
+
       {result.consentOutstanding?.length ? (
         <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
           {kiosk ? (

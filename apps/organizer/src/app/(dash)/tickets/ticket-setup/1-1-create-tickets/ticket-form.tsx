@@ -287,9 +287,10 @@ export function TicketForm({
 
       {/*
         Workshops since 2026-10-06: a ticket bought on its own that goes on the
-        buyer's existing badge instead of issuing a second one. The website
-        then refuses it to anybody who does not hold the ticket named here (or
-        buy it in the same order), and it never counts toward the group rate.
+        buyer's existing badge instead of issuing a second one, or on a badge
+        of its own when they hold no other ticket (2026-10-07). It is refused
+        to holders of a ticket that includes workshops, and it never counts
+        toward the group rate.
       */}
       <Select
         name="extraFor"
@@ -302,7 +303,7 @@ export function TicketForm({
             .filter((t) => t.id !== existing?.id)
             .map((t) => ({ value: t.id, label: `Added to an existing ${t.name} ticket` })),
         ]}
-        hint="An added ticket goes on the same badge and QR code, and needs that ticket bought first or in the same order."
+        hint="An added ticket goes on the same badge and QR code as the holder's other ticket. Bought alone, it gets a badge of its own."
       />
 
       <Field

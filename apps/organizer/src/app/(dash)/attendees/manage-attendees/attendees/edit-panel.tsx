@@ -47,6 +47,8 @@ export interface EditPanelAttendee {
   title: string;
   company: string;
   ticketType: string;
+  /** Extras on the same badge (Workshops), from their own orders. */
+  extraNames?: string[];
   status: 'active' | 'cancelled' | 'transferred';
   transferredTo?: string;
   hasPaidOrder: boolean;
@@ -207,6 +209,12 @@ export function EditPanel({
             hint="No payment or refund is made."
           />
         </FormGrid>
+        {(a.extraNames?.length ?? 0) > 0 && (
+          <p className="body-2" style={{ margin: '0 0 12px' }}>
+            Also holds: <strong>{a.extraNames!.join(', ')}</strong>, on the same badge. It has its own order, so
+            it stays when the ticket type changes.
+          </p>
+        )}
         <FormActions>
           <SubmitButton variant="secondary" pendingLabel="Changing…">
             Change ticket type

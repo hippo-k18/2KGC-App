@@ -203,6 +203,19 @@ export async function listRegistrations(): Promise<
 }
 
 /**
+ * The names of the tickets that are extras (Workshops). A badge whose ticket
+ * is one of them, with nothing beside it, is a Workshops-only badge
+ * (2026-10-07): the scanner tells the desk so they can send the person to the
+ * workshops rather than the main conference.
+ */
+export async function extraTicketNames(): Promise<Set<string>> {
+  const snap = await db().collection(COLLECTIONS.ticketTypes).where('eventId', '==', EVENT_ID).get();
+  return new Set(
+    snap.docs.map((d) => d.data() as { name?: string; kind?: string }).filter((t) => t.kind === 'extra' && t.name).map((t) => t.name!),
+  );
+}
+
+/**
  * The one lookup the scanner is allowed to do.
  *
  * `qrSecret` is compared exactly — it is a 32-character random string and a

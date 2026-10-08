@@ -106,7 +106,7 @@ export async function markInvoicePaidOutOfBand(input: {
       email: result.email,
       name: result.name ?? '',
       // Whatever the badge says once every seat is on it.
-      ticketType: result.extra?.label || prev?.ticketType || (result.ticketType ?? seat.ticketTypeName),
+      ticketType: result.extra?.label || result.joined?.label || prev?.ticketType || (result.ticketType ?? seat.ticketTypeName),
       rid: result.registrationId,
       code: result.claimCode,
       seats: (prev?.seats ?? 0) + 1,

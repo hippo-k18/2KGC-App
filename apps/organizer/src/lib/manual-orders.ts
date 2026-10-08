@@ -132,14 +132,15 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
   if (!tier) return { ok: false, error: 'Choose a package that still exists in the catalogue.' };
 
   /**
-   * Workshops goes on the person's Main Conference badge, as on the website:
-   * it is refused for an address with no Main Conference, for Virtual, and for
-   * All Access, which includes it already (owner, 2026-10-06).
+   * Workshops follows the website's rules: it joins the person's conference
+   * badge, or is a Workshops-only badge when they hold no other ticket
+   * (2026-10-07). Refused only for All Access, which includes it already, and
+   * for somebody who already has it.
    */
   const extra = await extraTierById(db(), tier.id);
   if (extra) {
     const verdict = await extraVerdictFor(db(), email, extra);
-    if (!verdict.ok) return { ok: false, error: extraRefusalForOrganizer(extra.tier, email, verdict.reason, verdict.heldName, extra.byName) };
+    if (!verdict.ok) return { ok: false, error: extraRefusalForOrganizer(extra.tier, email, verdict.reason, verdict.heldName) };
   }
 
   /**
@@ -285,7 +286,7 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       await sendPurchaseConfirmation(db(), {
         to: reg.email,
         name: reg.name ?? name,
-        ticketType: reg.extra?.label || (reg.ticketType ?? tier.name),
+        ticketType: reg.extra?.label || reg.joined?.label || (reg.ticketType ?? tier.name),
         ...(reg.extra?.extendedOnly && !reg.extra.refused ? { addedExtra: reg.extra.name } : {}),
         amountCents: input.amountCents,
         currency: tier.currency,
@@ -303,7 +304,11 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
       claimCode: reg.claimCode,
       message:
         `Recorded ${tier.name} for ${email}${input.amountCents === 0 ? ' as a comp' : ''}` +
-        (reg.extra?.extendedOnly ? `, added to their existing ticket (${reg.extra.label}).` : '.') +
+        (reg.extra?.extendedOnly
+          ? `, added to their existing ticket (${reg.extra.label}).`
+          : reg.joined
+            ? `, on the same badge as their Workshops (${reg.joined.label}).`
+            : '.') +
         (input.silent ? ' No email was sent.' : ' A confirmation has been sent.'),
     };
   } catch (err) {

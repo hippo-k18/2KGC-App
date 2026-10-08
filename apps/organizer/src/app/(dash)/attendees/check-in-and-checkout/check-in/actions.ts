@@ -20,6 +20,7 @@ import { ROUTES } from '@/lib/nav';
 import {
   ensureDayList,
   ensureSessionList,
+  extraTicketNames,
   listRegistrations,
   matchCode,
   touchStation,
@@ -76,6 +77,13 @@ export interface ScanResult {
    * something to raise.
    */
   consentOutstanding?: string[];
+  /**
+   * Set on a Workshops-only badge scanned anywhere but a workshop list: the
+   * extra it holds, e.g. "Workshops". A notice, not a refusal: the person is
+   * checked in as arrived, and the desk sends them to the workshops rather
+   * than the main conference (2026-10-07).
+   */
+  onlyExtra?: string;
   /** ISO. For `ok` this is now; for `duplicate` it is the *first* check-in. */
   checkedInAt?: string;
   stationLabel?: string;
@@ -124,9 +132,11 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
   if (!input.listId) return { ...base, error: 'Pick a check-in list first.' };
 
   try {
-    const [registrations, consents] = await Promise.all([
+    const [registrations, consents, extras, list] = await Promise.all([
       listRegistrations(),
       requiredConsentGaps(),
+      extraTicketNames(),
+      db().collection(COLLECTIONS.checkInLists).doc(input.listId).get(),
       touchStation(input.deviceId, input.stationLabel),
     ]);
 
@@ -138,6 +148,20 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
       ? consents.outstanding.get(match.row.id) ??
         consents.outstanding.get(match.row.email.trim().toLowerCase())
       : undefined;
+
+    // A Workshops-only badge at any door but a workshop's gets the notice.
+    const listDoc = list.data() as CheckInListDoc | undefined;
+    let workshopDoor = listDoc?.kind === 'workshop';
+    if (!workshopDoor && listDoc?.sessionId) {
+      const session = (await db().collection(COLLECTIONS.sessions).doc(listDoc.sessionId).get()).data() as
+        | { format?: string }
+        | undefined;
+      workshopDoor = session?.format === 'workshop';
+    }
+    const onlyExtra =
+      match && match.row.ticketType && extras.has(match.row.ticketType) && !workshopDoor
+        ? match.row.ticketType
+        : undefined;
 
     let outcome: ScanOutcome;
     let result: ScanResult;
@@ -208,6 +232,7 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
           : at,
         stationLabel,
         consentOutstanding: outstanding,
+        ...(onlyExtra ? { onlyExtra } : {}),
         checkInPath: `${COLLECTIONS.checkInLists}/${input.listId}/${SUBCOLLECTIONS.checkIns}/${match.row.id}`,
       };
 
