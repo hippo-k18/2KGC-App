@@ -8,6 +8,11 @@
  * registration keeps `ticketType` as the admission ticket and lists the extras
  * beside it (`RegistrationDoc.extras` / `extraNames`).
  *
+ * Since 2026-10-07 Workshops is also sold without any conference ticket. Such a
+ * person has a Workshops-only badge (`ticketType: "Workshops"`, no extras), and
+ * a conference ticket bought later joins that badge, with Workshops moving into
+ * `extras` beside it. Whichever ticket comes second joins the first.
+ *
  * Pure, so the website's checkout, the webhook's fulfilment, the dashboard's
  * manual orders and the tests all ask the same question the same way.
  */
@@ -60,18 +65,16 @@ export function isExtraTier(tier: { kind?: string } | null | undefined): boolean
 }
 
 /**
- * Whether an admission ticket is the one an extra needs: the required tier
- * itself, or a bundle built on it ("Main Conference + Continuing education
- * units" is still Main Conference).
+ * Whether a badge's ticket is itself an extra: a Workshops-only badge, whose
+ * `ticketType` is "Workshops" because the holder has no admission ticket.
  */
-export function admissionSatisfies(extra: ExtraTierShape, admission: ExtraTierShape | undefined): boolean {
-  if (!admission || !extra.addOnFor) return false;
-  return admission.id === extra.addOnFor || admission.bundleOf?.[0] === extra.addOnFor;
+function isExtraName(name: string | null | undefined, tierByName: (name: string) => ExtraTierShape | undefined): boolean {
+  return Boolean(name && isExtraTier(tierByName(name)));
 }
 
 /** Whether an admission ticket already gives what the extra sells (All Access includes the workshops). */
 export function admissionIncludes(extra: ExtraTierShape, admission: ExtraTierShape | undefined): boolean {
-  return Boolean(admission && extra.includesWorkshops && admission.includesWorkshops);
+  return Boolean(admission && !isExtraTier(admission) && extra.includesWorkshops && admission.includesWorkshops);
 }
 
 /** One of a person's existing registrations, as far as this decision needs it. */
@@ -85,27 +88,33 @@ export interface ExtraCandidate {
 }
 
 export type ExtraRefusal =
-  /** Holds no ticket of the kind the extra needs. */
-  | "no-base"
-  /** Holds only a ticket that cannot take the extra, such as Virtual. */
-  | "wrong-ticket"
   /** Holds a ticket that already includes it, such as All Access. */
   | "included"
-  /** Already has this extra on their badge. */
+  /** Already has this extra, on a badge with another ticket or as a badge of its own. */
   | "already";
 
 export type ExtraVerdict =
-  | { ok: true; registrationId: string }
+  /**
+   * `registrationId` is the badge the extra goes on. Absent when the person
+   * holds no other ticket: the extra is then a badge of its own (a
+   * Workshops-only badge, since 2026-10-07).
+   */
+  | { ok: true; registrationId?: string }
   | { ok: false; reason: ExtraRefusal; heldName?: string; registrationId?: string };
 
 /**
- * Which of a person's badges an extra goes on, or why it cannot go on any.
+ * Where an extra goes, or why it cannot be sold to this person.
  *
- * Only active registrations count. Among those that hold the required
- * admission ticket, the newest is chosen, so somebody holding two Main
- * Conference tickets on one address gets Workshops on the one bought last.
- * A person whose tickets include the extra already (All Access) is refused
- * before anything else, so they are not charged for something they have.
+ * Workshops and the conference tickets are independent since 2026-10-07
+ * (owner): anybody can buy Workshops, with or without Main Conference. One
+ * person still has one badge, so Workshops joins the newest active badge
+ * holding an admission ticket (Main Conference, Virtual, or any other ticket
+ * that does not already include it). With none, it is a badge of its own.
+ *
+ * Refused, before any money moves:
+ *  - a person whose ticket includes it already (All Access), so they are not
+ *    charged for something they have;
+ *  - a person who already has it, on a badge or as a Workshops-only badge.
  */
 export function chooseExtraBase(
   extra: ExtraTierShape,
@@ -119,15 +128,41 @@ export function chooseExtraBase(
       return { ok: false, reason: "included", heldName: admission!.name };
     }
   }
-  const fitting = active
-    .filter((c) => admissionSatisfies(extra, c.ticketType ? tierByName(c.ticketType) : undefined))
-    .sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));
-  const fresh = fitting.find((c) => !(c.extras ?? []).some((e) => e.tierId === extra.id));
-  if (fresh) return { ok: true, registrationId: fresh.registrationId };
-  if (fitting.length > 0) return { ok: false, reason: "already", registrationId: fitting[0]!.registrationId };
-  const other = active.find((c) => c.ticketType);
-  if (other) return { ok: false, reason: "wrong-ticket", heldName: other.ticketType ?? undefined };
-  return { ok: false, reason: "no-base" };
+  const newest = [...active].sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));
+  const holding = newest.find(
+    (c) => c.ticketType === extra.name || (c.extras ?? []).some((e) => e.tierId === extra.id),
+  );
+  if (holding) return { ok: false, reason: "already", registrationId: holding.registrationId };
+  const fitting = newest.find((c) => c.ticketType && !isExtraName(c.ticketType, tierByName));
+  return fitting ? { ok: true, registrationId: fitting.registrationId } : { ok: true };
+}
+
+/**
+ * The badge an admission ticket joins instead of issuing a second one: the
+ * newest active badge that holds only an extra (Workshops bought first, Main
+ * Conference later). Null when there is none, and the admission ticket is
+ * issued as it always was. The symmetric half of `chooseExtraBase`.
+ */
+export function chooseExtraOnlyBadge(
+  candidates: ExtraCandidate[],
+  tierByName: (name: string) => ExtraTierShape | undefined,
+): string | null {
+  const badge = candidates
+    .filter((c) => c.status === "active" && isExtraName(c.ticketType, tierByName))
+    .sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0))[0];
+  return badge?.registrationId ?? null;
+}
+
+/**
+ * Whether a badge admits only to what an extra sells: a Workshops-only badge.
+ * The door scanner shows such a badge a "Workshops only" notice.
+ */
+export function isExtraOnlyBadge(
+  reg: HeldTickets | null | undefined,
+  extraNames: ReadonlySet<string> | readonly string[],
+): boolean {
+  const names = extraNames instanceof Set ? extraNames : new Set(extraNames as readonly string[]);
+  return Boolean(reg?.ticketType && names.has(reg.ticketType));
 }
 
 /** A seat on one purchase, as far as the cart rule needs it. */
@@ -137,9 +172,10 @@ export interface CartSeatShape {
 }
 
 /**
- * What the rest of a cart does for one extra seat: covered by an admission seat
- * for the same person in the same cart, refused by one, or no help at all (then
- * the person's existing tickets decide).
+ * What the rest of a cart does for one extra seat: refused by a second copy
+ * of the same extra or by an admission seat that includes it, otherwise fine
+ * (it joins that person's admission seat when there is one, and is a badge of
+ * its own when not). The person's existing tickets are asked separately.
  */
 export function cartVerdictForExtra(
   extra: ExtraTierShape,
@@ -154,9 +190,7 @@ export function cartVerdictForExtra(
   const admissions = same.map((s) => tierById(s.tierId)).filter((t) => t && !isExtraTier(t));
   const including = admissions.find((t) => admissionIncludes(extra, t));
   if (including) return { covered: false, refusal: "included", heldName: including.name };
-  if (admissions.some((t) => admissionSatisfies(extra, t))) return { covered: true };
-  const other = admissions[0];
-  if (other) return { covered: false, refusal: "wrong-ticket", heldName: other.name };
+  if (admissions.length > 0) return { covered: true };
   return { covered: false };
 }
 

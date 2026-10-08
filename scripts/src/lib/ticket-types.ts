@@ -174,20 +174,21 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
     ],
   },
   /**
-   * Workshops, a $199 ticket of its own since 2026-10-06 (owner). It is an
-   * extra: bought on its own, any time, and added to the holder's existing
-   * Main Conference badge instead of issuing a second one. `addOnFor` names the
-   * ticket it needs. The checkout refuses it for anybody who does not hold
-   * Main Conference or buy it in the same order, and for All Access holders,
-   * whose ticket already includes the workshops. It never counts toward the
-   * group rate.
+   * Workshops, a ticket of its own since 2026-10-06 (owner), and
+   * independent of the conference tickets since 2026-10-07. It is an extra:
+   * bought any time, with or without a conference ticket. It goes on the
+   * holder's conference badge when they have one, and is a Workshops-only
+   * badge when they do not; a conference ticket bought later joins that badge.
+   * `addOnFor` is kept for the record and no longer read. All Access holders
+   * are refused it (their ticket includes the workshops). It never counts
+   * toward the group rate.
    */
   {
     id: "workshops",
     name: "Workshops",
     priceCents: 19_900,
     currency: "usd",
-    tagline: "Both workshop days, Monday and Tuesday. Added to your Main Conference ticket.",
+    tagline: "Both workshop days, Monday and Tuesday. Buy it on its own or with a conference ticket.",
     kind: "extra",
     addOnFor: "main-conference",
     inPerson: true,
@@ -201,7 +202,7 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "Every in-person workshop, Monday and Tuesday",
       "Instructor-led labs at beginner, intermediate and advanced level",
       "Workshop materials and datasets to take home",
-      "Needs a Main Conference ticket, bought earlier or in the same order",
+      "Goes on the same badge as your conference ticket, if you have one",
     ],
   },
   /*

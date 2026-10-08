@@ -669,15 +669,11 @@ export interface RefundEmailInput {
    */
   transferred?: boolean;
   /**
-   * Set when the refund took an extra off a badge that stays valid: Workshops
-   * refunded, Main Conference kept. `remaining` is what the badge still holds.
+   * Set when the refund took one ticket off a badge that stays valid:
+   * Workshops refunded with Main Conference kept, or Main Conference refunded
+   * with Workshops kept (2026-10-07). `remaining` is what the badge still holds.
    */
   extraRemoved?: { name: string; remaining: string };
-  /**
-   * Extras on the cancelled badge that other orders paid for. They are
-   * cancelled with it and refunded separately (owner, 2026-10-06).
-   */
-  extrasCancelled?: string[];
 }
 
 /**
@@ -706,10 +702,6 @@ export async function sendRefundConfirmation(store: Firestore, input: RefundEmai
   const cancelled = input.ticketCancelled ?? true;
 
   const removed = input.extraRemoved;
-  const cascade = (input.extrasCancelled ?? []).filter(Boolean);
-  const cascadeLine = cascade.length
-    ? ` ${cascade.join(' and ')} on the same ticket ${cascade.length > 1 ? 'are' : 'is'} cancelled too, and refunded separately.`
-    : '';
 
   const ticketHtml = removed
     ? `<strong>${esc(removed.name)} is no longer on your ticket.</strong> ${removed.remaining ? `Your ${esc(removed.remaining)} ticket is not affected and scans at the door as before.` : ''} If this was a mistake, write to ${CONTACT} and we'll sort it out.`
@@ -717,7 +709,7 @@ export async function sendRefundConfirmation(store: Firestore, input: RefundEmai
     ? `<strong>The ticket is not affected.</strong> Another order still covers it, so it scans at the door as before. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
     : input.transferred
       ? `<strong>The ticket you passed on is now cancelled</strong>, so it will no longer scan at the door. We have told the person who was holding it. If this was a mistake, write to ${CONTACT} and we'll sort it out.`
-      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door.${esc(cascadeLine)} If this was a mistake, write to ${CONTACT} and we'll sort it out.`;
+      : `<strong>Your registration is now cancelled</strong>, so the badge QR code in the app will no longer scan at the door. If this was a mistake, write to ${CONTACT} and we'll sort it out.`;
 
   const ticketText = removed
     ? `${removed.name} is no longer on your ticket.${removed.remaining ? ` Your ${removed.remaining} ticket is not
@@ -730,7 +722,7 @@ door as before. If this was a mistake, write to ${CONTACT}.`
 door. We have told the person who was holding it. If this was a mistake, write
 to ${CONTACT}.`
       : `Your registration is now cancelled, so the badge QR in the app will no longer
-scan at the door.${cascadeLine} If this was a mistake, write to ${CONTACT}.`;
+scan at the door. If this was a mistake, write to ${CONTACT}.`;
 
   const html = shell(
     'Your Knowledge Graph Conference ticket has been refunded',

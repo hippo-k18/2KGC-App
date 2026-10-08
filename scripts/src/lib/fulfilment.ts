@@ -5,6 +5,7 @@ import {
   SETTINGS_KEYS,
   categoryFromRule,
   chooseExtraBase,
+  chooseExtraOnlyBadge,
   isExtraTier,
   resolveAttendeeCategories,
   resolveTicketRules,
@@ -110,8 +111,9 @@ export interface FulfilledRegistration {
    * `extendedOnly` means this order added the extra to a badge another order
    * (or an import) issued: the order does not own that badge, and refunding
    * it takes off the extra rather than cancelling the badge. `refused` means
-   * no badge could take it, so a separate ticket was issued instead and the
-   * team should be told.
+   * the person's ticket already includes it (or they already have it), so it
+   * was issued apart and the team should be told. An extra with no other
+   * ticket to join is a badge of its own: `extendedOnly` false, no `refused`.
    */
   extra?: {
     tierId: string;
@@ -122,6 +124,13 @@ export interface FulfilledRegistration {
     /** The badge's whole label after this call: "Main Conference + Workshops". */
     label?: string;
   };
+  /**
+   * Set when an admission ticket joined the person's Workshops-only badge
+   * instead of issuing a second one (2026-10-07): same registration, QR code
+   * and claim code, and Workshops moved into `extras`. `label` is the badge's
+   * whole label after the join: "Main Conference + Workshops".
+   */
+  joined?: { label: string; added: boolean; extraOrderId?: string };
 }
 
 export interface EnsureRegistrationInput {
@@ -181,16 +190,18 @@ export async function ensureRegistration(
   input: EnsureRegistrationInput,
 ): Promise<FulfilledRegistration> {
   const extraTier = input.ticketTypeId ? await extraTierById(store, input.ticketTypeId) : null;
-  if (!extraTier) return issueRegistration(store, input);
+  // Only a purchase joins a Workshops-only badge. Imports, hand-adds and
+  // transfers keep their one-registration-per-address behaviour.
+  if (!extraTier) return issueRegistration(store, input, input.purchase ? await extraNamesOf(store) : new Map());
   const added = await addExtra(store, { ...input, tier: extraTier });
   if ("registrationId" in added) return added;
   /**
-   * No badge could take the extra, and money has usually moved already: the
-   * checkout refuses this case, so it means the person's Main Conference was
-   * refunded or moved between paying and now. They get a ticket of its own,
-   * as before extras existed, and the caller tells the team.
+   * No other ticket to join: a Workshops-only badge of its own, with its own
+   * QR code and claim code (2026-10-07). `refused` is set only when the
+   * person's ticket already includes the extra; the checkout refuses that, so
+   * money moving anyway means the team is told.
    */
-  const issued = await issueRegistration(store, input);
+  const issued = await issueRegistration(store, input, new Map());
   return {
     ...issued,
     extra: {
@@ -198,14 +209,34 @@ export async function ensureRegistration(
       name: extraTier.tier.name,
       added: issued.created,
       extendedOnly: false,
-      refused: added.refused,
+      ...(added.refused ? { refused: added.refused } : {}),
     },
   };
+}
+
+/**
+ * The names of the tiers that are extras (Workshops), which is how a
+ * Workshops-only badge is recognised: its `ticketType` is one of them.
+ */
+export async function extraNamesOf(store: Firestore): Promise<Map<string, ExtraTierShape>> {
+  const all = await store.collection(COLLECTIONS.ticketTypes).where("eventId", "==", EVENT_ID).get();
+  const out = new Map<string, ExtraTierShape>();
+  for (const d of all.docs) {
+    const row = d.data() as TicketTypeDoc;
+    if (isExtraTier(row) && !out.has(row.name)) out.set(row.name, shape(d.id, row));
+  }
+  return out;
 }
 
 async function issueRegistration(
   store: Firestore,
   input: EnsureRegistrationInput,
+  /**
+   * The extra tiers by name. An admission ticket for a person who holds a
+   * Workshops-only badge joins that badge; empty when the ticket being issued
+   * is itself the extra, which never joins anything here.
+   */
+  extras: Map<string, ExtraTierShape>,
 ): Promise<FulfilledRegistration> {
   const email = normaliseEmail(input.email);
   const baseId = registrationId(email);
@@ -251,8 +282,72 @@ async function issueRegistration(
       throw new OrderSettledError(purchase.orderId, (order!.data() as OrderDoc).status);
     }
 
-    let snap = base;
-    if (purchase && base.exists) {
+    /**
+     * An admission ticket for somebody who holds only Workshops joins that
+     * badge (2026-10-07: one person, one QR code, whichever ticket came
+     * first). A replay of the same seat finds the badge it already joined.
+     */
+    const joinable = extras.size > 0 && !extras.has(input.ticketType);
+    const rows = joinable ? await registrationsFor((q) => tx.get(q), store, email) : [];
+    const replayed = purchase
+      ? rows.find(({ reg }) => reg.orderId === purchase.orderId && (reg.seat ?? 0) === purchase.seat)
+      : undefined;
+    const join = replayed
+      ? null
+      : chooseExtraOnlyBadge(candidates(rows, purchase?.orderId), (n) => extras.get(n));
+    if (join) {
+      const row = rows.find((r) => r.id === join)!;
+      const prev = row.reg;
+      const tier = extras.get(prev.ticketType!)!;
+      const extraOrder = prev.orderId ? await tx.get(store.collection(COLLECTIONS.orders).doc(prev.orderId)) : null;
+      const moved: RegistrationExtra = {
+        tierId: tier.id,
+        name: prev.ticketType!,
+        ...(prev.orderId ? { orderId: prev.orderId } : {}),
+        ...(prev.seat !== undefined ? { seat: prev.seat } : {}),
+        addedAt: prev.createdAt ?? now,
+      };
+      const extrasAfter = [moved, ...(prev.extras ?? [])];
+      const ref = regs.doc(join);
+      const next: Record<string, unknown> = {
+        ...prev,
+        name: prev.name || input.name,
+        ticketType: input.ticketType,
+        extras: extrasAfter,
+        extraNames: [...new Set(extrasAfter.map((e) => e.name))],
+        ...(byRule(prev) ?? {}),
+        updatedAt: now,
+      };
+      // The badge now stands on this purchase; Workshops' order only extends it.
+      delete next.orderId;
+      delete next.seat;
+      if (purchase) Object.assign(next, { orderId: purchase.orderId, seat: purchase.seat });
+      tx.set(ref, next);
+      if (extraOrder?.exists) {
+        const listed = (extraOrder.data() as OrderDoc).extraRegistrationIds ?? [];
+        if (!listed.includes(join)) {
+          tx.update(extraOrder.ref, { extraRegistrationIds: [...listed, join], updatedAt: now });
+        }
+      }
+      return {
+        ref,
+        registrationId: join,
+        email: prev.email,
+        name: (next.name as string) ?? input.name,
+        ticketType: input.ticketType,
+        claimCode: prev.claimCode ?? claimCode(),
+        created: false,
+        backfillClaimCode: prev.claimCode ? undefined : true,
+        joined: {
+          label: ticketLabel({ ticketType: input.ticketType, extraNames: next.extraNames as string[] }),
+          added: true,
+          ...(prev.orderId ? { extraOrderId: prev.orderId } : {}),
+        },
+      };
+    }
+
+    let snap = replayed ? await tx.get(regs.doc(replayed.id)) : base;
+    if (purchase && base.exists && !replayed) {
       const prev = base.data() as RegistrationDoc;
       const listed = ((order?.data() as OrderDoc | undefined)?.registrationIds ?? []).includes(baseId);
       const sameSeat =
@@ -270,8 +365,9 @@ async function issueRegistration(
       // `createdAt`, `qrSecret`, `claimCode`, `altEmails` and `claimedByUid`
       // are deliberately absent from this write. See the docblock above.
       tx.update(ref, {
-        email,
-        emailHash: emailHash(email),
+        // A replay found by its order keeps the address the badge was issued
+        // to, which may not be the one this purchase used (an alternate).
+        ...(replayed ? {} : { email, emailHash: emailHash(email) }),
         name: input.name,
         ticketType: input.ticketType,
         status: "active",
@@ -283,9 +379,12 @@ async function issueRegistration(
       return {
         ref,
         registrationId: ref.id,
-        email,
+        email: replayed ? prev.email : email,
         name: input.name,
         ticketType: input.ticketType,
+        ...(replayed && (prev.extraNames?.length ?? 0) > 0
+          ? { joined: { label: ticketLabel({ ticketType: input.ticketType, extraNames: prev.extraNames }), added: false } }
+          : {}),
         // Registrations imported before claim codes existed may have none.
         claimCode: prev.claimCode ?? claimCode(),
         created: false,
@@ -320,6 +419,7 @@ async function issueRegistration(
       claimCode: fresh.claimCode!,
       created: true,
       backfillClaimCode: undefined,
+      joined: undefined,
     };
   });
 
@@ -337,6 +437,7 @@ async function issueRegistration(
     ticketType: result.ticketType,
     claimCode: result.claimCode,
     created: result.created,
+    ...(result.joined ? { joined: result.joined } : {}),
   };
 }
 
@@ -423,14 +524,15 @@ export async function extraVerdictFor(
   store: Firestore,
   rawEmail: string,
   ctx: ExtraContext,
-): Promise<{ ok: true; registrationId: string } | { ok: false; reason: ExtraRefusal; heldName?: string }> {
+): Promise<{ ok: true; registrationId?: string } | { ok: false; reason: ExtraRefusal; heldName?: string }> {
   const rows = await registrationsFor((q) => q.get(), store, normaliseEmail(rawEmail));
   return chooseExtraBase(ctx.tier, candidates(rows), (n) => ctx.byName.get(n));
 }
 
 /**
  * Put an extra on the person's badge, in one transaction. Returns why not when
- * no badge can take it, and the caller then issues a ticket of its own.
+ * no badge can take it, and the caller then issues a badge of its own: with
+ * `refused` unset when the person simply holds no other ticket.
  *
  * Idempotent per order and seat: a replay finds the entry it wrote and changes
  * nothing. A refunded or cancelled order adds nothing, as for any ticket.
@@ -438,7 +540,7 @@ export async function extraVerdictFor(
 async function addExtra(
   store: Firestore,
   input: EnsureRegistrationInput & { tier: ExtraContext },
-): Promise<FulfilledRegistration | { refused: ExtraRefusal }> {
+): Promise<FulfilledRegistration | { refused?: ExtraRefusal }> {
   const email = normaliseEmail(input.email);
   const { tier, byName } = input.tier;
   const purchase = input.purchase;
@@ -473,6 +575,11 @@ async function addExtra(
           (e) => e.tierId === tier.id && e.orderId === purchase.orderId && (e.seat ?? 0) === purchase.seat,
         );
         if (mine) return result(id, reg, false);
+        // A Workshops-only badge this order and seat issued: a replay, which
+        // `issueRegistration` recognises as the same seat.
+        if (reg.orderId === purchase.orderId && (reg.seat ?? 0) === purchase.seat && reg.ticketType === tier.name) {
+          return {};
+        }
       }
     }
 
@@ -487,6 +594,7 @@ async function addExtra(
       }
       return { refused: verdict.reason };
     }
+    if (!verdict.registrationId) return {};
     const row = rows.find((r) => r.id === verdict.registrationId)!;
     const entry: RegistrationExtra = {
       tierId: tier.id,
@@ -529,6 +637,86 @@ export async function removeOrderExtras(
       updatedAt: new Date(),
     });
     return extras.filter((e) => e.orderId === orderId).map((e) => e.tierId);
+  });
+}
+
+/**
+ * The admission ticket on a badge was refunded or disputed: keep the badge
+ * for the extras still paid for, or say it has nothing left (2026-10-07).
+ *
+ * Workshops and the conference tickets are independent, so refunding Main
+ * Conference on a "Main Conference + Workshops" badge leaves a Workshops-only
+ * badge: same registration, QR code and claim code, with the first extra
+ * still standing moved into `ticketType` and its order now the badge's own.
+ * Extras that `orderId` itself paid for go with it (a cart that bought both),
+ * and so do extras whose order is already refunded or cancelled.
+ *
+ * Returns `kept: false` when nothing remains, or when another order issued
+ * the badge, and the caller cancels it as before. Idempotent: the badge
+ * records the order it was released from (`releasedAdmissions`), so a replay
+ * of the same refund keeps it.
+ */
+export async function releaseAdmission(
+  store: Firestore,
+  registrationId: string,
+  orderId: string,
+): Promise<{ kept: false } | { kept: true; ticketType: string; label: string; ownerOrderId?: string }> {
+  const ref = store.collection(COLLECTIONS.registrations).doc(registrationId);
+  return store.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const reg = snap.data() as RegistrationDoc | undefined;
+    if (!reg || reg.status !== "active") return { kept: false as const };
+    // A replay of a refund that already left this badge standing on what else
+    // it holds: nothing more to release, and the badge stays.
+    if ((reg.releasedAdmissions ?? []).includes(orderId)) {
+      return { kept: true as const, ticketType: reg.ticketType ?? "", label: ticketLabel(reg), ownerOrderId: reg.orderId };
+    }
+    // A badge some other order issued: not this order's to keep alive.
+    if (reg.orderId && reg.orderId !== orderId) return { kept: false as const };
+    const others = (reg.extras ?? []).filter((e) => e.orderId !== orderId);
+    const orders = new Map<string, OrderDoc | undefined>();
+    for (const id of new Set(others.map((e) => e.orderId).filter((id): id is string => Boolean(id)))) {
+      orders.set(id, (await tx.get(store.collection(COLLECTIONS.orders).doc(id))).data() as OrderDoc | undefined);
+    }
+    const standing = others.filter((e) => !e.orderId || !SETTLED.includes(orders.get(e.orderId)?.status ?? "refunded"));
+    if (standing.length === 0) return { kept: false as const };
+
+    const [base, ...rest] = standing as [RegistrationExtra, ...RegistrationExtra[]];
+    const now = new Date();
+    const next: Record<string, unknown> = {
+      ...reg,
+      ticketType: base.name,
+      extras: rest,
+      extraNames: [...new Set(rest.map((e) => e.name))],
+      releasedAdmissions: [...(reg.releasedAdmissions ?? []), orderId],
+      updatedAt: now,
+    };
+    delete next.orderId;
+    delete next.seat;
+    if (base.orderId) Object.assign(next, { orderId: base.orderId, seat: base.seat ?? 0 });
+    if (rest.length === 0) {
+      delete next.extras;
+      delete next.extraNames;
+    }
+    const owner = base.orderId ? orders.get(base.orderId) : undefined;
+    tx.set(ref, next);
+    if (base.orderId && owner) {
+      // That order now owns the badge: refunding it later cancels the badge
+      // rather than only taking Workshops off it.
+      const listed = owner.extraRegistrationIds ?? [];
+      if (listed.includes(registrationId)) {
+        tx.update(store.collection(COLLECTIONS.orders).doc(base.orderId), {
+          extraRegistrationIds: listed.filter((id) => id !== registrationId),
+          updatedAt: now,
+        });
+      }
+    }
+    return {
+      kept: true as const,
+      ticketType: base.name,
+      label: ticketLabel({ ticketType: base.name, extraNames: next.extraNames as string[] | undefined }),
+      ...(base.orderId ? { ownerOrderId: base.orderId } : {}),
+    };
   });
 }
 

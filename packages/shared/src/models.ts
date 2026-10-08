@@ -283,8 +283,12 @@ export interface RegistrationDoc extends BaseDoc {
    * person keeps one registration, one QR code and one claim code; each extra
    * names the tier and the order that paid for it, so refunding that order
    * takes off exactly this entry. `ticketType` stays the admission ticket.
-   * Written only by the server (`attachExtra` / `removeExtra` in
-   * `@kgc/scripts`). Absent on a badge with no extras.
+   * Written only by the server (`ensureRegistration`, `removeOrderExtras` and
+   * `releaseAdmission` in `@kgc/scripts`). Absent on a badge with no extras.
+   *
+   * A Workshops-only badge (2026-10-07) has `ticketType: "Workshops"` and no
+   * extras. A conference ticket bought later joins it: `ticketType` becomes
+   * the conference ticket and Workshops moves in here, keeping its order.
    */
   extras?: RegistrationExtra[];
   /**
@@ -293,6 +297,14 @@ export interface RegistrationDoc extends BaseDoc {
    * `hasAny`, and rules cannot map over a list of maps.
    */
   extraNames?: string[];
+  /**
+   * Orders whose admission ticket was refunded or disputed while the badge
+   * stayed active for an extra still paid for: Main Conference refunded on a
+   * "Main Conference + Workshops" badge, leaving it Workshops-only
+   * (2026-10-07). Written by `releaseAdmission`, and what makes a replay of
+   * that refund leave the badge alone.
+   */
+  releasedAdmissions?: string[];
   status: "active" | "cancelled" | "transferred";
   /**
    * The two ends of a transfer, or of a corrected address. A registration's id
@@ -1481,17 +1493,22 @@ export interface TicketTypeDoc extends BaseDoc {
   /**
    * Set on an add-on: the id of the tier it is sold with, never alone.
    *
-   * The Workshops add-on is $199 on top of Main Conference. The website refuses
-   * to sell this document by itself, so a direct link to it cannot buy two
-   * workshop days for $199 without the conference.
+   * The continuing-education add-on is sold on top of Main Conference. The
+   * website refuses to sell this document by itself, so a direct link to it
+   * cannot buy it without the conference. An extra (`kind: 'extra'`,
+   * Workshops) is the exception: it keeps this field for the record and is
+   * sold on its own.
    */
   addOnFor?: string;
   /**
    * `extra` marks a ticket sold on its own that is added to the holder's
    * existing badge rather than issuing a new one: Workshops since 2026-10-06.
-   * Its `addOnFor` names the admission ticket the holder must already have
-   * (or buy in the same checkout). An extra never counts toward the group rate
-   * and never gets it. Absent means an ordinary admission ticket.
+   * Since 2026-10-07 it needs no other ticket: somebody holding none gets a
+   * badge of its own, and a conference ticket bought later joins that badge.
+   * Its `addOnFor` is kept for the record and no longer read for an extra.
+   * Holders of a ticket that `includesWorkshops` (All Access) are refused it.
+   * An extra never counts toward the group rate and never gets it. Absent
+   * means an ordinary admission ticket.
    */
   kind?: "admission" | "extra";
   /**
