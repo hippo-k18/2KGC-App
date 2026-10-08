@@ -34,7 +34,9 @@ const nextConfig: NextConfig = {
    * A long blog post's JSON can pass the 1 MB default. Images do not come
    * through actions (see `app/blog-media/upload/route.ts`).
    */
-  experimental: { serverActions: { bodySizeLimit: '4mb' } },
+  // `authInterrupts` turns on `forbidden()`, so a writer who opens an
+  // editors-only page in the blog editor gets a real 403.
+  experimental: { serverActions: { bodySizeLimit: '4mb' }, authInterrupts: true },
 
   /**
    * Metadata in `<head>` for every reader, never streamed into `<body>`.

@@ -10,10 +10,11 @@ import { usePathname } from 'next/navigation';
 export function StudioNav({ base, editor, reviewCount }: { base: string; editor: boolean; reviewCount: number }) {
   const path = usePathname().replace(/^\/blog(?=\/)/, '');
   const items = [
-    { href: '/write', label: 'Posts', on: path === '/write' || /^\/write\/(?!profile|review)/.test(path) },
+    { href: '/write', label: 'Posts', on: path === '/write' || /^\/write\/(?!profile|review|people)/.test(path) },
     ...(editor
       ? [
           { href: '/write/review', label: 'Review', on: path === '/write/review', count: reviewCount },
+          { href: '/write/people', label: 'People', on: path === '/write/people' },
         ]
       : []),
     { href: '/write/profile', label: 'Profile', on: path === '/write/profile' },

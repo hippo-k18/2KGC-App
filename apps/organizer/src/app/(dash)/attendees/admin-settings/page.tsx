@@ -11,7 +11,7 @@ import { AdminSettingsForm } from './form';
 import { InviteForm, MemberActions, type RoleOption } from './team';
 import { BlogInviteForm, BlogRowActions } from './blog';
 import { blogPublicOrigin } from '@kgc/shared';
-import { listBlogPeople } from '@/lib/blog-access';
+import { blogPeopleUrl, listBlogPeople } from '@/lib/blog-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,8 +35,10 @@ export const dynamic = 'force-dynamic';
  * them. This screen is itself owners-only.
  *
  * The Blog panel manages the other list, `blogMembers`: who can sign in to the
- * blog editor. It lives here, not in the blog, at the owner's request
- * (2026-09-26), so both access lists are managed in one place.
+ * blog editor. It came here from the blog at the owner's request (2026-09-26),
+ * so both access lists are managed in one place, and since 2026-10-07 (T199)
+ * the blog's editors can manage it from the blog's People page too. Both call
+ * `@kgc/scripts/src/lib/blog-people.ts`.
  *
  * The attendee switches further down are stored and not enforced, and the
  * screen says so in those words. An attendee-privacy setting that looks
@@ -173,6 +175,13 @@ export default async function AdminSettingsPage() {
           </a>
           . Writers see only their own posts, and an editor reviews each one before it is published.
         </p>
+        <p className="body-2">
+          Also managed on the blog: editors can open{' '}
+          <a href={blogPeopleUrl()} target="_blank" rel="noreferrer">
+            {blogPeopleUrl().replace(/^https?:\/\//, '')}
+          </a>
+          . Both screens change the same list.
+        </p>
         <Table
           stackSm
           cols={[
@@ -196,6 +205,7 @@ export default async function AdminSettingsPage() {
               <span className="muted" style={{ display: 'block', fontSize: 12 }}>
                 {p.role === 'editor' ? 'Edits and publishes any post' : 'Drafts their own posts for review'}
                 {p.lastSignInAt ? `. Last sign-in ${dayOfInstant(p.lastSignInAt)}` : ''}
+                {p.posts ? `. ${p.posts} ${p.posts === 1 ? 'post' : 'posts'}` : ''}
               </span>
             </span>,
             p.status === 'active' ? (

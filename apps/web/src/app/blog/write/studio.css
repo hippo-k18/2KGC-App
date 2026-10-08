@@ -1102,3 +1102,138 @@ body:has(.studio) .site-search {
     top: 96px;
   }
 }
+
+/* ── People ─────────────────────────────────────────────────────────────── */
+
+.pp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 32px;
+  align-items: start;
+}
+
+.pp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 76px 340px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.pp-row:last-child {
+  border-bottom: 0;
+}
+
+.pp-row.is-removed {
+  color: var(--st-muted);
+}
+
+.pp-name {
+  font-weight: 600;
+}
+
+.pp-email {
+  font-size: 13px;
+  color: var(--st-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-role {
+  font-size: 14px;
+}
+
+.pp-status {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 5%);
+  color: var(--st-muted);
+}
+
+.pp-status-active {
+  background: #e3f4e8;
+  color: var(--st-ok);
+}
+
+.pp-status-invited {
+  background: #fdf0e3;
+  color: var(--st-warn);
+}
+
+.pp-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.pp-actions .st-btn {
+  height: 30px;
+  font-size: 13px;
+  padding: 0 10px;
+}
+
+.pp-note {
+  font-size: 12.5px;
+}
+
+.pp-invite {
+  padding: 20px;
+}
+
+.pp-invite h2 {
+  font-size: 16px;
+  margin: 0 0 14px;
+}
+
+.pp-roles {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pp-roles label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pp-roles input {
+  grid-row: span 2;
+  margin-top: 4px;
+}
+
+.pp-roles small {
+  color: var(--st-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.pp-also {
+  margin-top: 24px;
+  font-size: 13.5px;
+}
+
+@media (width < 1024px) {
+  .pp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 720px) {
+  .pp-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+
+  .pp-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

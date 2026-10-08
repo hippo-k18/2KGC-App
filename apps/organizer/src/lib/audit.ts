@@ -444,6 +444,12 @@ export interface AuditEntry {
     | 'session.recording.create'
     | 'session.recording.update'
     | 'session.recording.delete';
+  /**
+   * Which screen made the change, where more than one can. Only the blog
+   * access list sets it today: `dashboard` for Admin Settings, `blog` for the
+   * blog editor's People page.
+   */
+  source?: 'dashboard' | 'blog';
   /** Firestore path of the document that changed, e.g. `sessions/abc123`. */
   targetPath: string;
   targetId: string;

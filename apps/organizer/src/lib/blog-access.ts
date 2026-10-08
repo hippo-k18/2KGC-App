@@ -1,223 +1,48 @@
 import 'server-only';
 
-import { Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, blogPublicOrigin, type BlogMemberDoc } from '@kgc/shared';
-import { sendBlogInvitation } from '@kgc/scripts/src/lib/email';
-import { appendAudit } from './audit';
+import * as people from '@kgc/scripts/src/lib/blog-people';
+import type { BlogResult, BlogRole } from '@kgc/scripts/src/lib/blog-people';
 import { recordError } from './errors';
 import { db } from './firestore';
-import { looksLikeEmail, newNonce } from './team-core';
 
 /**
- * Who can write for the blog (its own host or `/blog`, see `blogPublicOrigin`), managed from
- * Attendees › Admin Settings.
+ * Who can write for the blog, as managed from Attendees › Admin Settings.
  *
- * The blog editor (`apps/web/src/lib/blog/auth.ts`) reads `blogMembers` on
- * every request, so a removal or a role change here is felt on the person's
- * next click. The addresses in `BLOG_EDITORS` are editors whatever this list
- * says, so they are shown but cannot be changed from the screen.
+ * The rules, the invitation email and the audit entry live in
+ * `@kgc/scripts/src/lib/blog-people.ts`, which the blog editor's own People
+ * page (`/blog/write/people`, editors only) calls too. A change made in either
+ * place is in the same `blogMembers` documents, so the other screen shows it on
+ * its next load.
  */
 
-export type BlogRole = BlogMemberDoc['role'];
+export type { BlogPerson, BlogResult, BlogRole } from '@kgc/scripts/src/lib/blog-people';
+export const fixedBlogEditors = people.fixedBlogEditors;
+export const blogPeopleUrl = people.blogPeopleUrl;
 
-export interface BlogPerson {
-  email: string;
-  name: string;
-  role: BlogRole;
-  status: BlogMemberDoc['status'];
-  /** Named in BLOG_EDITORS on the server. */
-  fixed: boolean;
-  /** ISO, so a row can cross into a client component. */
-  lastSignInAt: string | null;
-}
+const actorOf = (email: string) => ({ email, source: 'dashboard' as const });
 
-export type BlogResult = { ok: true; message: string } | { ok: false; error: string };
-
-const col = () => db().collection(COLLECTIONS.blogMembers);
-
-export function fixedBlogEditors(): string[] {
-  return (process.env.BLOG_EDITORS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-/**
- * The blog editor's sign-in page, with the address filled in. With the token,
- * opening it marks them Active on Admin Settings (`acceptBlogInvitation()` in
- * the website); getting in still takes an emailed code.
- */
-function signInLink(email: string, inviteToken?: string): string {
-  const origin = blogPublicOrigin();
-  const params = new URLSearchParams({ email });
-  if (inviteToken) params.set('invite', inviteToken);
-  return `${origin}/write/sign-in?${params}`;
-}
-
-const roleWords = (role: BlogRole) => (role === 'editor' ? 'an editor' : 'a writer');
-
-export async function listBlogPeople(): Promise<BlogPerson[]> {
-  const fixed = fixedBlogEditors();
-  const snap = await col().get();
-  const people: BlogPerson[] = snap.docs
-    .map((d) => d.data() as BlogMemberDoc)
-    .filter((m) => m.status !== 'removed')
-    .map((m) => ({
-      email: m.email,
-      name: m.name,
-      role: fixed.includes(m.email) ? 'editor' : m.role,
-      status: m.status,
-      fixed: fixed.includes(m.email),
-      lastSignInAt: m.lastSignInAt instanceof Timestamp ? m.lastSignInAt.toDate().toISOString() : null,
-    }));
-  for (const email of fixed) {
-    if (!people.some((p) => p.email === email)) {
-      people.push({ email, name: '', role: 'editor', status: 'invited', fixed: true, lastSignInAt: null });
-    }
-  }
-  return people.sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === 'editor' ? -1 : 1));
-}
-
-export async function inviteBlogPerson(input: {
-  email: string;
-  name: string;
-  role: BlogRole;
-  actor: string;
-}): Promise<BlogResult> {
-  const email = input.email.trim().toLowerCase();
-  const name = input.name.replace(/\s+/g, ' ').trim().slice(0, 120);
-  const role: BlogRole = input.role === 'editor' ? 'editor' : 'writer';
-  if (!looksLikeEmail(email) || email.includes('/')) return { ok: false, error: 'Enter an email address.' };
-  if (!name) return { ok: false, error: 'Add their name. It is the byline on their posts.' };
-  if (fixedBlogEditors().includes(email)) return { ok: false, error: `${email} is already an editor.` };
-
+async function guarded(what: string, fallback: string, fn: () => Promise<BlogResult>): Promise<BlogResult> {
   try {
-    const ref = col().doc(email);
-    const before = (await ref.get()).data() as BlogMemberDoc | undefined;
-    if (before && before.status !== 'removed') return { ok: false, error: `${email} can already sign in to the blog.` };
-
-    const inviteToken = newNonce();
-    const doc: BlogMemberDoc = {
-      email,
-      name,
-      role,
-      status: 'invited',
-      inviteToken,
-      invitedBy: input.actor,
-      invitedAt: new Date(),
-      sessionEpoch: newNonce(),
-      // Someone coming back keeps the photo and bio they had.
-      ...(before?.bio ? { bio: before.bio } : {}),
-      ...(before?.avatar ? { avatar: before.avatar } : {}),
-    };
-    await ref.set(doc);
-    const outcome = await sendBlogInvitation(db(), {
-      to: email,
-      name,
-      invitedBy: 'The KGC team',
-      roleLabel: roleWords(role),
-      link: signInLink(email, inviteToken),
-      actor: input.actor,
-    });
-    await appendAudit({
-      actor: input.actor,
-      action: 'blog.invite',
-      targetPath: `${COLLECTIONS.blogMembers}/${email}`,
-      targetId: email,
-      before: {},
-      after: { email, role, emailed: outcome === 'sent' },
-    });
-    return {
-      ok: true,
-      message:
-        outcome === 'sent'
-          ? `${email} added as ${roleWords(role)}. Their invitation is on its way.`
-          : `${email} added as ${roleWords(role)}, but the email did not go out. Send them ${signInLink(email)}.`,
-    };
+    return await fn();
   } catch (err) {
-    recordError('blog.invite', err);
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not add them.' };
+    recordError(what, err);
+    return { ok: false, error: fallback };
   }
 }
 
-async function existing(email: string): Promise<BlogMemberDoc | null> {
-  const d = (await col().doc(email).get()).data() as BlogMemberDoc | undefined;
-  return d && d.status !== 'removed' ? d : null;
-}
+export const listBlogPeople = () => people.listBlogPeople(db());
 
-export async function setBlogRole(input: { email: string; role: BlogRole; actor: string }): Promise<BlogResult> {
-  const email = input.email.trim().toLowerCase();
-  if (fixedBlogEditors().includes(email)) return { ok: false, error: 'That address is an editor in the server settings.' };
-  const m = await existing(email);
-  if (!m) return { ok: false, error: 'They no longer have blog access.' };
-  const role: BlogRole = input.role === 'editor' ? 'editor' : 'writer';
-  try {
-    await col().doc(email).update({ role, sessionEpoch: newNonce() });
-    await appendAudit({
-      actor: input.actor,
-      action: 'blog.role',
-      targetPath: `${COLLECTIONS.blogMembers}/${email}`,
-      targetId: email,
-      before: { role: m.role },
-      after: { role },
-    });
-    return { ok: true, message: `${m.name || email} is now ${roleWords(role)}.` };
-  } catch (err) {
-    recordError('blog.role', err);
-    return { ok: false, error: 'Could not change their role.' };
-  }
-}
+export const inviteBlogPerson = (input: { email: string; name: string; role: BlogRole; actor: string }) =>
+  guarded('blog.invite', 'Could not add them.', () => people.inviteBlogPerson(db(), input, actorOf(input.actor)));
+
+export const setBlogRole = (input: { email: string; role: BlogRole; actor: string }) =>
+  guarded('blog.role', 'Could not change their role.', () => people.setBlogRole(db(), input, actorOf(input.actor)));
 
 /** Ends blog access at once. Their posts stay, and editors can still publish or remove them. */
-export async function removeBlogPerson(input: { email: string; actor: string }): Promise<BlogResult> {
-  const email = input.email.trim().toLowerCase();
-  if (fixedBlogEditors().includes(email)) return { ok: false, error: 'That address is an editor in the server settings.' };
-  const m = await existing(email);
-  if (!m) return { ok: false, error: 'They already have no blog access.' };
-  try {
-    await col().doc(email).update({ status: 'removed', sessionEpoch: newNonce() });
-    await appendAudit({
-      actor: input.actor,
-      action: 'blog.remove',
-      targetPath: `${COLLECTIONS.blogMembers}/${email}`,
-      targetId: email,
-      before: { role: m.role, status: m.status },
-      after: { status: 'removed' },
-    });
-    return { ok: true, message: `${m.name || email} can no longer sign in to the blog. Their posts stay.` };
-  } catch (err) {
-    recordError('blog.remove', err);
-    return { ok: false, error: 'Could not remove them.' };
-  }
-}
+export const removeBlogPerson = (input: { email: string; actor: string }) =>
+  guarded('blog.remove', 'Could not remove them.', () => people.removeBlogPerson(db(), input, actorOf(input.actor)));
 
-export async function resendBlogInvitation(input: { email: string; actor: string }): Promise<BlogResult> {
-  const email = input.email.trim().toLowerCase();
-  const m = await existing(email);
-  if (!m) return { ok: false, error: 'They no longer have blog access.' };
-  // Invitations sent before links carried a token get one now.
-  let inviteToken = m.inviteToken;
-  if (m.status === 'invited' && !inviteToken) {
-    inviteToken = newNonce();
-    await col().doc(email).update({ inviteToken });
-  }
-  const outcome = await sendBlogInvitation(db(), {
-    to: email,
-    name: m.name,
-    invitedBy: 'The KGC team',
-    roleLabel: roleWords(m.role),
-    link: signInLink(email, inviteToken),
-    actor: input.actor,
-  });
-  await appendAudit({
-    actor: input.actor,
-    action: 'blog.resendInvitation',
-    targetPath: `${COLLECTIONS.blogMembers}/${email}`,
-    targetId: email,
-    before: {},
-    after: { emailed: outcome === 'sent' },
-  });
-  return outcome === 'sent'
-    ? { ok: true, message: `Invitation sent again to ${email}.` }
-    : { ok: false, error: `The email to ${email} did not go out. Send them ${signInLink(email)}.` };
-}
+export const resendBlogInvitation = (input: { email: string; actor: string }) =>
+  guarded('blog.resendInvitation', 'Could not send the invitation.', () =>
+    people.resendBlogInvitation(db(), input, actorOf(input.actor)),
+  );
