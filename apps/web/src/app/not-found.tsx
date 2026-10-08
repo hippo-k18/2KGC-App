@@ -11,6 +11,14 @@ import { siteVisibility } from '@/lib/data';
  */
 export const metadata: Metadata = {
   title: 'Page not found',
+  /*
+   * No canonical. A missing page has no address worth naming, and the layout's
+   * relative `./` canonical was being resolved against another request's path
+   * for a nested `notFound()`: on live, /past-speakers/<unknown> named
+   * /news/feed and a bot's wp_filemanager.php probe (T200, T203). `null`
+   * removes the inherited one rather than replacing it.
+   */
+  alternates: { canonical: null },
 };
 
 /**
