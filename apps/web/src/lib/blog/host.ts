@@ -36,7 +36,7 @@ export const isBlogHost = (host: string | null | undefined) => /^blog\./i.test(h
  * left out and silently read as a missing blog post.
  */
 export const MAIN_SITE_ROUTES = new Set([
-  'about', 'agenda', 'announcements', 'call-for-posters', 'checkout', 'code-of-conduct',
+  'about', 'account', 'agenda', 'announcements', 'call-for-posters', 'checkout', 'code-of-conduct',
   'community', 'consent', 'documents', 'exhibitor', 'exhibitors', 'hcls',
   'kgc-lifetime-achievement-awards', 'learn', 'order', 'past-speakers', 'previous-events', 'privacy', 'r',
   'review', 'rooms', 'search', 'speaker', 'speakers', 'sponsor', 'startup-pitch', 'submit',

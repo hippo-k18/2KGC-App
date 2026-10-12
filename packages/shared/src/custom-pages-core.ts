@@ -60,6 +60,7 @@ export interface PageDoc extends BaseDoc {
  */
 export const RESERVED_PAGE_SLUGS: readonly string[] = [
   "about",
+  "account",
   "agenda",
   "announcements",
   "api",

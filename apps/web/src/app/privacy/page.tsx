@@ -298,6 +298,10 @@ export default function PrivacyPage() {
           survey answers. After a deletion you can no longer sign into the app.
         </p>
         <p>
+          To delete only your app account and keep your ticket, use{' '}
+          <Link href="/account/delete">Delete your app account</Link>, or Me › Delete account in the app.
+        </p>
+        <p>
           Four things survive a deletion, each with your name and address taken off it: the payment
           record, the signed consent forms, the note that you are not to be emailed, and our own log
           of what the organizers did. If you spoke at the conference, your talk stays on the

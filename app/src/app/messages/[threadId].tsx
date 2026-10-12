@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useDirectory } from '@/lib/data/directory';
 import { useAppAccess } from '@/lib/data/app-access';
 import { markThreadRead, sendMessage, useMessages, useThreads } from '@/lib/data/messages';
+import { DELETED_USER_ID, DELETED_USER_NAME } from '@kgc/shared';
 
 /**
  * The correspondent's uid, read out of the thread id.
@@ -67,7 +68,14 @@ export default function ThreadScreen() {
   // A refused directory read leaves `people` null forever, which held the header
   // title at the empty string permanently — a conversation with nobody. Falling
   // back to "Attendee" is at least a visible placeholder rather than a blank.
-  const name = people
+  // The other person deleted their account: the thread now lists the marker
+  // instead of their uid (the thread id still carries the old one).
+  const otherDeleted = Boolean(
+    threads?.find((t) => t.id === threadId)?.participantIds?.includes(DELETED_USER_ID),
+  );
+  const name = otherDeleted
+    ? DELETED_USER_NAME
+    : people
     ? (people.find((p) => p.uid === other)?.name ?? 'Attendee')
     : peopleError
       ? 'Attendee'
@@ -173,7 +181,7 @@ export default function ThreadScreen() {
           `firestore.rules` refuses the send in both cases, so a box that
           accepted a message here would take somebody's words and lose them.
         */}
-        {canSend ? (
+        {canSend && !otherDeleted ? (
         <View
           style={{
             flexDirection: 'row',
@@ -226,7 +234,9 @@ export default function ThreadScreen() {
               borderTopColor: colors.border,
             }}>
             <Text variant="subhead" tone="secondary">
-              {messagingEnabled
+              {otherDeleted
+                ? 'This person deleted their account. You can still read this conversation.'
+                : messagingEnabled
                 ? 'The event is over. You can still read this conversation.'
                 : 'Messaging is off for this event. You can still read this conversation.'}
             </Text>

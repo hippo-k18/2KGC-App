@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View 
 import { useLocalSearchParams } from 'expo-router';
 import { doc } from 'firebase/firestore';
 
-import { COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
+import { DELETED_USER_ID, DELETED_USER_NAME, COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
 
 import { webSlop } from '@/components/a11y';
 import { DataError, DataErrorBanner } from '@/components/data-error';
@@ -89,7 +89,11 @@ export default function PostScreen() {
   }, [people]);
   const byline = (authorId: string | undefined, at: Parameters<typeof relative>[0]) => {
     const who =
-      authorId && authorId === user?.uid ? 'You' : (names.get(authorId ?? '') ?? 'Attendee');
+      authorId && authorId === user?.uid
+        ? 'You'
+        : authorId === DELETED_USER_ID
+          ? DELETED_USER_NAME
+          : (names.get(authorId ?? '') ?? 'Attendee');
     return `${who} · ${relative(at)}`;
   };
   const reacted = useMyReactions(user?.uid, id ? [id] : []);

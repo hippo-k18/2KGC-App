@@ -21,6 +21,7 @@ export * from "./page-content.js";
 export * from "./public-site.js";
 export * from "./speakers-page.js";
 export * from "./usable.js";
+export * from "./deleted-user.js";
 export * from "./logo-policy.js";
 export * from "./calendar.js";
 export * from "./event-basics.js";

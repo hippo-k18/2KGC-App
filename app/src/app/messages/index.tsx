@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppAccess } from '@/lib/data/app-access';
 import { useDirectory } from '@/lib/data/directory';
 import { otherParticipant, totalUnread, useThreads } from '@/lib/data/messages';
+import { DELETED_USER_ID, DELETED_USER_NAME } from '@kgc/shared';
 
 /** Whova's inbox avatar is larger than a settings row's. */
 const INBOX_AVATAR = AVATAR_SIZE + Spacing.sm; // 52
@@ -85,7 +86,8 @@ export default function MessagesScreen() {
 
   const unread = totalUnread(threads, user?.uid);
   const personFor = (uid: string) => people?.find((p) => p.uid === uid);
-  const nameFor = (uid: string) => personFor(uid)?.name ?? 'Attendee';
+  const nameFor = (uid: string) =>
+    uid === DELETED_USER_ID ? DELETED_USER_NAME : (personFor(uid)?.name ?? 'Attendee');
   const origin = TABS[from as keyof typeof TABS] ?? TABS.people;
 
   return (

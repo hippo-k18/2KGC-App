@@ -313,7 +313,8 @@ export default function MeScreen() {
           <SectionHeader>Account</SectionHeader>
           <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
             <ListRow title={user?.email ?? 'Signed in'} first />
-            <ListRow title="Sign out" destructive last onPress={() => logout()} />
+            <ListRow title="Sign out" onPress={() => logout()} />
+            <ListRow title="Delete account" destructive last onPress={() => router.push('/me/delete-account')} />
           </View>
 
           {/* The privacy policy and terms on the website, and who to write to (T212). */}
