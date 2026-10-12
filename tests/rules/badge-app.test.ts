@@ -168,8 +168,9 @@ describe('the badge finding its registration', () => {
       registrationId: 'reg_ada',
       qrSecret: 'secret-xyz',
       name: 'Ada Okonkwo',
-      claimCode: 'KGC27A',
     });
+    // The claim code came off every badge on 2026-09-26 (T212 did the app's).
+    expect(badge.current().badge).not.toHaveProperty('claimCode');
   });
 
   it('finds a ticket that holds the signed-in address as an alternate', async () => {
