@@ -9,3 +9,5 @@ expo-env.d.ts
 /android
 # Screenshots and contact sheets from scripts/ios-shots.sh and android-shots.sh.
 /preview-out
+# Logs from scripts/expo-go-share.sh.
+/expo-go-out

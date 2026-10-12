@@ -14,12 +14,12 @@ version. Ignore it.
 
 ## Stack
 
-Expo SDK **54.0.36** · React Native 0.81.5 · React 19.1.0 · expo-router 6.0.24
+Expo SDK **57.0.28** · React Native 0.86.3 · React 19.2.3 · expo-router 57.0.26
 · TypeScript · Firebase (Firestore, Auth, Storage) · Zod · date-fns
 
 **These versions are probably newer than your training data.** Verify APIs
 against the installed type definitions under `node_modules/`, not from memory
-and not from web tutorials. Tutorials written for SDK 55+ will actively
+and not from web tutorials. Tutorials written for SDK 54 and older will
 mislead you — see gotcha 2.
 
 ## Current state
@@ -249,7 +249,8 @@ app/
     app/
       _layout.tsx            root stack, theme, auth providers, splash
       index.tsx              routes to /login or /home
-      login.tsx              sign-in: a six-digit code, or email + password
+      login.tsx              sign-in: email + password (no Create account,
+                             owner decision 2026-10-12)
       +not-found.tsx
       (tabs)/
         _layout.tsx          Home · Agenda · People · Community · Me
@@ -391,44 +392,46 @@ Setup and run instructions for humans are in `README.md`.
 
 ## Gotchas that have already caused real bugs
 
-**1. Expo Go supports exactly one SDK — currently 54.**
-`create-expo-app@latest` scaffolds SDK 57, which Expo Go cannot open at all
-("Project is incompatible with this version of Expo Go"), and it cannot be
-fixed from the Expo Go side. This project was deliberately downgraded to 54.
-**Do not upgrade the SDK** unless the owner has chosen to move to development
-builds. Current Expo Go SDK: <https://expo.dev/go>.
+**1. Expo Go supports exactly one SDK — currently 57.**
+The App Store and Play Store Expo Go (57.0.9 as of 2026-10-12) opens only SDK
+57 projects; anything else gets "Project is incompatible with this version of
+Expo Go", and it cannot be fixed from the Expo Go side. The app moved from 54
+to 57 on 2026-10-12 (T222) so anyone can open it in store Expo Go
+(`app/scripts/expo-go-share.sh`). When Expo Go moves to SDK 58, the shared
+link stops opening until the project follows. Current Expo Go SDK:
+<https://expo.dev/go>, or `expoGoSdkVersion` at
+<https://api.expo.dev/v2/versions/latest>.
 
-**2. Native tabs use the SDK 54 API, which differs from newer docs.**
+**2. Native tabs use the SDK 55+ API, which differs from older docs.**
 
 ```tsx
-// SDK 54 — correct here. Icon and Label are top-level imports.
-import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
+// SDK 55+ — correct here. Icon and Label hang off NativeTabs.Trigger.
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 <NativeTabs.Trigger name="home">
-  <Icon sf="house.fill" />
-  <Label>Home</Label>
+  <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
+  <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
 </NativeTabs.Trigger>
 
-// SDK 55+ — WRONG here, will not compile
-<NativeTabs.Trigger.Icon sf="house.fill" />
+// SDK 54 — WRONG here, will not compile
+import { Icon, Label } from 'expo-router/unstable-native-tabs';
 ```
 
 **3. Every tab icon must be specified twice.**
 `sf` is SF Symbols and is **iOS-only**. Supplying only `sf` leaves Android with
-labels and no icons at all. Always pair it with `androidSrc`:
+labels and no icons at all. Always pair it with `md`, a Material Symbols name:
 
 ```tsx
-<Icon
-  sf={{ default: 'house', selected: 'house.fill' }}
-  androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
-/>
+<NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
 ```
 
-Android icon names: <https://icons.expo.fyi>.
+Android icon names: <https://fonts.google.com/icons>.
 
-**4. `ThemeProvider` is not exported by expo-router 6.**
-Import `ThemeProvider`, `DefaultTheme` and `DarkTheme` from
-`@react-navigation/native`. expo-router 7 re-exports them; version 6 does not.
+**4. React Navigation now ships inside expo-router.**
+There is no `@react-navigation/*` package in this app any more. Import
+`ThemeProvider`, `DefaultTheme` and `DarkTheme` from `expo-router`, and the
+lower-level pieces (`useNavigationState`, `HeaderBackContext`) from
+`expo-router/react-navigation`.
 
 **5. `getReactNativePersistence` is missing from `firebase/auth`'s types.**
 It exists at runtime but not in the declarations, because the umbrella

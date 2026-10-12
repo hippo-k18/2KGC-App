@@ -17,7 +17,10 @@
  *    lifts every pod below 15.1 (the app's own minimum) to 15.1.
  *
  * Both survive `expo prebuild --clean` because they are applied here rather
- * than by editing `ios/`. Remove this plugin once Expo's template adopts scenes.
+ * than by editing `ios/`. Still needed on SDK 57 (checked 2026-10-12, T222):
+ * its AppDelegate template makes the window the same way. Remove this plugin
+ * once Expo's template adopts scenes. Expo Go is unaffected; it is Expo's own
+ * binary, and this only changes builds made from this project.
  */
 const { withAppDelegate, withInfoPlist, withPodfile } = require('expo/config-plugins');
 

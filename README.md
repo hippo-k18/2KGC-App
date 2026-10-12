@@ -153,7 +153,7 @@ The scripts' headers list every option; the T208 report has the Android SDK setu
 
 ### Version note
 
-Expo Go supports exactly one SDK at a time — currently **54**, which is what
+Expo Go supports exactly one SDK at a time — currently **57**, which is what
 this project targets. If you ever see *"Project is incompatible with this
 version of Expo Go"*, the project and the app have drifted apart; check
 `expo` in `package.json` against
@@ -170,7 +170,7 @@ eas build --platform ios
 ```
 
 One thing in the repo had to change first: built with Xcode 27 (the iOS 27
-SDK), Expo SDK 54's native template crashes on launch, because iOS 27 requires
+SDK), Expo's native template (still true of SDK 57) crashes on launch, because iOS 27 requires
 the UIScene lifecycle, and fails to build, because one pod targets iOS 13.4.
 `app/plugins/with-ios-scene-lifecycle.js` fixes both at prebuild time (T208).
 The rest is an account and build-pipeline step.
@@ -253,35 +253,32 @@ JavaScript imitation, so it inherits system behaviour and appearance. Icons are
 SF Symbols, set by name in `src/app/(tabs)/_layout.tsx`:
 
 ```tsx
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 <NativeTabs.Trigger name="attendees">
-  <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-  <Label>Attendees</Label>
+  <NativeTabs.Trigger.Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} md="group" />
+  <NativeTabs.Trigger.Label>Attendees</NativeTabs.Trigger.Label>
 </NativeTabs.Trigger>
 ```
 
-To add an unread badge, import `Badge` alongside `Icon` and `Label` and drop a
-`<Badge>12</Badge>` inside the Trigger.
+To add an unread badge, drop a `<NativeTabs.Trigger.Badge>12</NativeTabs.Trigger.Badge>`
+inside the Trigger.
 
 **Every icon must be given twice**, because the platforms use different icon
-systems. `sf` is SF Symbols and is iOS-only; `androidSrc` covers Android:
+systems. `sf` is SF Symbols and is iOS-only; `md` (a Material Symbols name)
+covers Android:
 
 ```tsx
-<Icon
-  sf={{ default: 'house', selected: 'house.fill' }}
-  androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
-/>
+<NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
 ```
 
 Supplying only `sf` leaves Android with labels and no icons at all. Browse iOS
 names in Apple's free **SF Symbols** app, and Android names at
-<https://icons.expo.fyi>. The `sf` prop is typed against a union of every valid
+<https://fonts.google.com/icons>. The `sf` prop is typed against a union of every valid
 symbol name, so a typo is a compile error rather than a blank icon.
 
-Note this is the **SDK 54** API: `Icon` and `Label` are top-level imports. SDK
-55+ moves them to `NativeTabs.Trigger.Icon` / `.Label`. Worth knowing if you
-follow a newer tutorial.
+Note this is the **SDK 55+** API. SDK 54 and older tutorials import `Icon` and
+`Label` from the package top level, which no longer compiles.
 
 ---
 
