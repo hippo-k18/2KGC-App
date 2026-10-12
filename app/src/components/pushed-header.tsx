@@ -1,5 +1,4 @@
-import { HeaderBackContext } from '@react-navigation/elements';
-import { useNavigationState } from '@react-navigation/native';
+import { HeaderBackContext, useNavigationState } from 'expo-router/react-navigation';
 import { Link, Stack, router, type Href } from 'expo-router';
 import { useContext, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -141,7 +140,9 @@ export function PushedHeader({
                   label={canPopHere || !canPop || popsToBackTitle ? backTitle : 'Back'}
                   href={backHref}
                   pop={canPop}
-                  tintColor={tintColor}
+                  // expo-router 57 types this as a ColorValue; ours are
+                  // always plain strings, and `Icon` only takes one.
+                  tintColor={typeof tintColor === 'string' ? tintColor : undefined}
                 />
               )
             : undefined,

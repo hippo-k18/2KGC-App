@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "kgc",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "tech.knowledgegraph.kgc",
@@ -120,7 +119,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-font",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

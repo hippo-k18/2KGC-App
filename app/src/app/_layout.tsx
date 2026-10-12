@@ -1,7 +1,4 @@
-// expo-router 6 does not re-export the navigation theme helpers; they come
-// straight from React Navigation. (expo-router 7 re-exports them again.)
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Redirect, Stack, usePathname } from 'expo-router';
+import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
