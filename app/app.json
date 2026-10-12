@@ -121,7 +121,8 @@
         }
       ],
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      "./plugins/with-ios-scene-lifecycle"
     ],
     "experiments": {
       "typedRoutes": true,
