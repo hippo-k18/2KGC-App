@@ -20,3 +20,16 @@ export const DELETED_USER_NAME = "Deleted user";
 export function isDeletedUser(uid: string | null | undefined): boolean {
   return uid === DELETED_USER_ID;
 }
+
+/**
+ * The name to print for a uid, given a uid → name lookup.
+ *
+ * `DELETED_USER_NAME` for the marker; otherwise the looked-up name, falling
+ * back to the uid itself. The dashboard keeps that uid fallback on purpose (an
+ * attendee who left the directory still has to be told apart), and without the
+ * first branch it printed the raw `deleted-user` marker as a person's name.
+ */
+export function nameOrId(names: { get(id: string): string | undefined }, uid: string): string {
+  if (isDeletedUser(uid)) return DELETED_USER_NAME;
+  return names.get(uid) ?? uid;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DELETED_USER_ID, DELETED_USER_NAME, isDeletedUser } from '@kgc/shared';
+import { DELETED_USER_ID, DELETED_USER_NAME, isDeletedUser, nameOrId } from '@kgc/shared';
 
 import { deleteAccountData } from './account-deletion-core';
 
@@ -30,5 +30,18 @@ describe('the deleted-user marker', () => {
 
   it('cannot be a real uid: derived uids are hex and Auth ones are alphanumeric', () => {
     expect(/^[a-zA-Z0-9]+$/.test(DELETED_USER_ID)).toBe(false);
+  });
+});
+
+describe('nameOrId', () => {
+  const names = new Map([['u1', 'Ada']]);
+
+  it('names a deleted person "Deleted user", never the marker', () => {
+    expect(nameOrId(names, DELETED_USER_ID)).toBe(DELETED_USER_NAME);
+  });
+
+  it('otherwise uses the lookup, then falls back to the uid', () => {
+    expect(nameOrId(names, 'u1')).toBe('Ada');
+    expect(nameOrId(names, 'u2')).toBe('u2');
   });
 });

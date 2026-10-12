@@ -9,6 +9,7 @@ import {
   type SessionDoc,
   type SessionQuestionDoc,
   type UserDoc,
+  nameOrId,
 } from '@kgc/shared';
 import { db } from './firestore';
 
@@ -134,7 +135,7 @@ export async function listBoardForModeration(): Promise<ModeratedPost[]> {
             id: r.id,
             postId: d.id,
             body: rep.body,
-            authorName: names.get(rep.authorId) ?? rep.authorId,
+            authorName: nameOrId(names, rep.authorId),
             authorId: rep.authorId,
             status: rep.status ?? 'visible',
             createdAt: iso(rep.createdAt),
@@ -147,7 +148,7 @@ export async function listBoardForModeration(): Promise<ModeratedPost[]> {
         category: p.category,
         title: p.title,
         body: p.body,
-        authorName: names.get(p.authorId) ?? p.authorId,
+        authorName: nameOrId(names, p.authorId),
         authorId: p.authorId,
         status: p.status ?? 'visible',
         replyCount: replySnap.size,
@@ -246,7 +247,7 @@ export async function listQaSessions(): Promise<{ sessions: QaSessionRow[]; ques
           sessionId: d.id,
           sessionTitle: s.title,
           body: doc.body,
-          authorName: names.get(doc.authorId) ?? doc.authorId,
+          authorName: nameOrId(names, doc.authorId),
           state: doc.state ?? 'pending',
           answered: Boolean(doc.answered),
           upvoteCount: upvotes[i].data().count,

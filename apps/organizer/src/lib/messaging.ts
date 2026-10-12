@@ -16,6 +16,9 @@ import {
   type ThreadDoc,
   type Timestamp,
   type UserDoc,
+  DELETED_USER_NAME,
+  isDeletedUser,
+  nameOrId,
 } from '@kgc/shared';
 import { listAttendees } from './data';
 import { db } from './firestore';
@@ -591,7 +594,7 @@ async function nameCorrespondents(rows: DeskThreadRow[]): Promise<void> {
   const byUid = new Map(snap.docs.map((d) => [d.id, (d.data() as DirectoryDoc).name]));
 
   for (const row of rows) {
-    row.correspondentName = byUid.get(row.correspondentUid) ?? row.correspondentUid;
+    row.correspondentName = nameOrId(byUid, row.correspondentUid);
   }
 }
 
@@ -644,7 +647,7 @@ export async function deskThread(threadId: string): Promise<DeskConversation | n
   return {
     threadId,
     correspondentUid,
-    correspondentName: entry?.name ?? correspondentUid,
+    correspondentName: isDeletedUser(correspondentUid) ? DELETED_USER_NAME : (entry?.name ?? correspondentUid),
     correspondentDetail: [entry?.title, entry?.company].filter(Boolean).join(', ') || undefined,
     unread: t.unread?.[DESK_UID] ?? 0,
     messages: msgSnap.docs.map((d) => {
