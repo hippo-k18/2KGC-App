@@ -14,6 +14,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 
 import { EVENT } from '@/config/event';
 import { useEventSettings } from '@/lib/data/event-settings';
+import { contactAddress, PRIVACY_URL, TERMS_URL } from '@/lib/legal';
 import { Screen } from '@/components/screen';
 import { Text } from '@/components/text';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -569,18 +570,41 @@ export default function LoginScreen() {
           </>
         )}
 
-        {/* The support address saved on the dashboard. Nothing is shown until one is. */}
-        {branding.supportEmail ? (
+        {/*
+          The support address saved on the dashboard, or the conference's own
+          when none is set, and the privacy policy and terms (T212). Both stores
+          want these reachable before signing in.
+        */}
+        <Pressable
+          onPress={() => void Linking.openURL(`mailto:${contactAddress(branding.supportEmail)}`)}
+          accessibilityRole="link"
+          accessibilityLabel={`Email ${contactAddress(branding.supportEmail)} for help`}
+          style={textLink}>
+          <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
+            Trouble signing in? Write to{' '}
+            <Text variant="caption" tone="tint">
+              {contactAddress(branding.supportEmail)}
+            </Text>
+          </Text>
+        </Pressable>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: Spacing.lg }}>
           <Pressable
-            onPress={() => void Linking.openURL(`mailto:${branding.supportEmail}`)}
+            onPress={() => void Linking.openURL(PRIVACY_URL)}
             accessibilityRole="link"
-            accessibilityLabel={`Email ${branding.supportEmail} for help`}
             style={textLink}>
-            <Text variant="caption" tone="secondary" style={{ textAlign: 'center' }}>
-              Trouble signing in? Write to <Text variant="caption" tone="tint">{branding.supportEmail}</Text>
+            <Text variant="caption" tone="tint">
+              Privacy policy
             </Text>
           </Pressable>
-        ) : null}
+          <Pressable
+            onPress={() => void Linking.openURL(TERMS_URL)}
+            accessibilityRole="link"
+            style={textLink}>
+            <Text variant="caption" tone="tint">
+              Terms
+            </Text>
+          </Pressable>
+        </View>
       </Screen>
     </KeyboardAvoidingView>
   );

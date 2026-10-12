@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Switch, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
@@ -20,6 +20,7 @@ import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { useAppAccess } from '@/lib/data/app-access';
 import { totalUnread, useThreads } from '@/lib/data/messages';
 import { getDb } from '@/lib/firebase/client';
+import { contactAddress, PRIVACY_URL, TERMS_URL } from '@/lib/legal';
 
 /**
  * Me — profile, the things you need in a hurry, and privacy.
@@ -31,7 +32,7 @@ import { getDb } from '@/lib/firebase/client';
  */
 export default function MeScreen() {
   const colors = useTheme();
-  const { event } = useEventSettings();
+  const { event, branding } = useEventSettings();
   const router = useRouter();
   const { user, profile, profileError, retryProfile } = useAuth();
   const { saved, error: savedError, retry: retrySaved } = useSavedSessions();
@@ -313,6 +314,29 @@ export default function MeScreen() {
           <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
             <ListRow title={user?.email ?? 'Signed in'} first />
             <ListRow title="Sign out" destructive last onPress={() => logout()} />
+          </View>
+
+          {/* The privacy policy and terms on the website, and who to write to (T212). */}
+          <SectionHeader>Help</SectionHeader>
+          <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
+            <ListRow
+              title="Contact us"
+              subtitle={contactAddress(branding.supportEmail)}
+              first
+              onPress={() => void Linking.openURL(`mailto:${contactAddress(branding.supportEmail)}`)}
+              trailing={<Chevron />}
+            />
+            <ListRow
+              title="Privacy policy"
+              onPress={() => void Linking.openURL(PRIVACY_URL)}
+              trailing={<Chevron />}
+            />
+            <ListRow
+              title="Terms"
+              last
+              onPress={() => void Linking.openURL(TERMS_URL)}
+              trailing={<Chevron />}
+            />
           </View>
         </View>
       </ScrollView>

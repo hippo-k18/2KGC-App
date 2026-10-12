@@ -97,9 +97,9 @@ interface CalendarLinks {
  * Writing straight into the phone's calendar wants `expo-calendar`, and
  * `AGENTS.md` gotcha 1 pins this project to the fixed set of native modules
  * Expo Go ships so the app stays openable without a development build. It would
- * also do nothing at all on the web target, and the app *is* deployed to the web
- * at `kgc27-app.netlify.app`. Three URLs opened with `Linking` behave the same
- * in Expo Go, in a real build and in a browser.
+ * also do nothing at all on the web target, which the app still exports to.
+ * Three URLs opened with `Linking` behave the same in Expo Go, in a real build
+ * and in a browser.
  *
  * ── Why the builders come from `@kgc/shared` ────────────────────────────────
  *
@@ -125,8 +125,8 @@ function calendarLinks(session: Session): CalendarLinks | null {
     // Stated once and passed to all three, so the two compose links and the
     // download cannot end up naming different hosts. `SITE_ORIGIN` and not the
     // builders' own `publicSiteOrigin()` default: that one reads a server
-    // variable the phone does not have and falls back to the conference's front
-    // door rather than to this Next deployment — see its docblock.
+    // variable the phone does not have, so it cannot follow a build that points
+    // this app at another host. See `SITE_ORIGIN`'s docblock.
     const origin = SITE_ORIGIN;
     const entry = {
       id: session.id,

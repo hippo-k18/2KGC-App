@@ -93,6 +93,20 @@ export function registrationByAltEmail(db: Firestore, address: string): Query {
 }
 
 /**
+ * Every registration that lists this address as an alternate, for the badge
+ * screen, which shows all of them (T212).
+ *
+ * The primary lookup above can only ever find one, since the address is the
+ * document id. But a colleague can buy two seats and list this address on both,
+ * or on one besides the person's own ticket, and each of those is an admission
+ * with its own QR. `registrationByAltEmail` keeps its limit for the lookups that
+ * want one answer (the pointer, the seat button); this one has none.
+ */
+export function registrationsByAltEmail(db: Firestore, address: string): Query {
+  return query(collection(db, COLLECTIONS.registrations), where('altEmails', 'array-contains', address));
+}
+
+/**
  * Point this account's profile at its registration.
  *
  * ── What depends on it ──────────────────────────────────────────────────────

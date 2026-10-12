@@ -14,7 +14,7 @@ import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useEventSettings } from '@/lib/data/event-settings';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/lib/data/badge';
+import { type Badge, badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/lib/data/badge';
 
 /**
  * My badge — the QR the door scans.
@@ -46,21 +46,21 @@ import { badgeIsScannable, badgePayload, useBadge, useCheckInStatus } from '@/li
  *     reader cannot see through, and no amount of white plate fixes that.
  *   · **The screen is kept awake.** An auto-lock at the front of the queue is the
  *     single most likely way this fails in practice.
- *   · **The claim code is on screen, large, in monospace.** Every part of this
- *     can fail — cracked glass, dead battery, a reader with a flat lens — and the
- *     desk can always type six characters instead. The console's scan desk
- *     accepts it as a first-class input for exactly this reason.
+ *   · **No claim code.** The owner took it off every ticket and badge on
+ *     2026-09-26. If the screen or the reader fails, the desk finds the attendee
+ *     by name or email.
+ *   · **Every ticket the address holds, one card each** (T212). An address can
+ *     hold its own ticket and be listed on a colleague's purchase too. Each is a
+ *     separate admission with its own QR and its own check-in.
  */
 export default function BadgeScreen() {
   const colors = useTheme();
-  const { event } = useEventSettings();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
-  const { badge, loading, error, retry } = useBadge();
-  const checkIn = useCheckInStatus(badge?.registrationId ?? null);
+  const { badges, loading, error, retry } = useBadge();
 
-  const brightness = useMaxBrightness(Boolean(badge));
-  useKeepScreenAwake(Boolean(badge));
+  const brightness = useMaxBrightness(badges.length > 0);
+  useKeepScreenAwake(badges.length > 0);
 
   // The plate spans the screen less the gutters, capped so it does not become
   // absurd on a tablet or in a desktop browser window.
@@ -79,7 +79,7 @@ export default function BadgeScreen() {
           <ActivityIndicator />
           <Text tone="secondary">Finding your ticket…</Text>
         </View>
-      ) : !badge ? (
+      ) : badges.length === 0 ? (
         error ? (
           <BadgeUnavailable onRetry={retry} />
         ) : (
@@ -87,69 +87,15 @@ export default function BadgeScreen() {
         )
       ) : (
         <>
-          <View
-            style={{
-              backgroundColor: colors.surface,
-              borderRadius: Radius.lg,
-              padding: Spacing.md,
-              alignItems: 'center',
-              gap: Spacing.md,
-            }}>
-            <Text variant="title3" style={{ textAlign: 'center' }}>
-              {badge.name}
+          {badges.length > 1 ? (
+            <Text tone="secondary" style={{ paddingHorizontal: Spacing.xs }}>
+              This address holds {badges.length} tickets. Each one has its own code.
             </Text>
-            <Text tone="secondary" style={{ textAlign: 'center' }}>
-              {badge.ticketType ?? 'Ticket'} · {event.name}
-            </Text>
-            {badge.category ? (
-              <Text variant="caption" tone="tint" style={{ textAlign: 'center' }}>
-                {badge.category.toUpperCase()}
-              </Text>
-            ) : null}
+          ) : null}
 
-            {badgeIsScannable(badge) ? (
-              <View
-                // The white surround is part of the target, not decoration: it
-                // is the quiet zone's backing, and a QR abutting a coloured card
-                // is a QR many readers will not lock onto.
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: Radius.md,
-                  padding: Spacing.sm,
-                }}>
-                <QrCode
-                  value={badgePayload(badge)}
-                  size={plate}
-                  accessibilityLabel="Your check-in QR code. Show this at the door."
-                />
-              </View>
-            ) : (
-              <CancelledTicket status={badge.status} />
-            )}
-
-            {badge.claimCode ? (
-              <View style={{ alignItems: 'center', gap: Spacing.xs }}>
-                <Text variant="caption" tone="tertiary">
-                  IF THE SCANNER FAILS, READ THIS OUT
-                </Text>
-                <Text
-                  variant="title"
-                  // Monospace and spaced out, because it is read aloud across a
-                  // desk under pressure and the six characters deliberately
-                  // exclude O/0 and I/1 for the same reason.
-                  style={{ fontVariant: ['tabular-nums'], letterSpacing: 4 }}
-                  accessibilityLabel={`Your claim code is ${badge.claimCode.split('').join(' ')}`}>
-                  {badge.claimCode}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <CheckInBanner
-            known={checkIn.known}
-            checkedInAt={checkIn.checkedInAt}
-            loading={checkIn.loading}
-          />
+          {badges.map((badge) => (
+            <BadgeCard key={badge.registrationId} badge={badge} plate={plate} />
+          ))}
 
           <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: Spacing.xs }}>
             Works offline. Do not share a photo of this code.
@@ -161,6 +107,67 @@ export default function BadgeScreen() {
         </>
       )}
     </ScrollView>
+  );
+}
+
+/** One ticket: who it is for, its QR, and whether it has been checked in. */
+function BadgeCard({ badge, plate }: { badge: Badge; plate: number }) {
+  const colors = useTheme();
+  const { event } = useEventSettings();
+  const checkIn = useCheckInStatus(badge.registrationId);
+
+  return (
+    <View style={{ gap: Spacing.md }}>
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderRadius: Radius.lg,
+          padding: Spacing.md,
+          alignItems: 'center',
+          gap: Spacing.md,
+        }}>
+        <Text variant="title3" style={{ textAlign: 'center' }}>
+          {badge.name}
+        </Text>
+        <Text tone="secondary" style={{ textAlign: 'center' }}>
+          {badge.ticketType ?? 'Ticket'} · {event.name}
+        </Text>
+        {badge.category ? (
+          <Text variant="caption" tone="tint" style={{ textAlign: 'center' }}>
+            {badge.category.toUpperCase()}
+          </Text>
+        ) : null}
+
+        {badgeIsScannable(badge) ? (
+          <View
+            // The white surround is part of the target, not decoration: it is
+            // the quiet zone's backing, and a QR abutting a coloured card is a
+            // QR many readers will not lock onto.
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: Radius.md,
+              padding: Spacing.sm,
+            }}>
+            <QrCode
+              value={badgePayload(badge)}
+              size={plate}
+              accessibilityLabel={`Check-in QR code for ${badge.name}. Show this at the door.`}
+            />
+          </View>
+        ) : (
+          <CancelledTicket status={badge.status} />
+        )}
+      </View>
+
+      {/* A cancelled ticket has no QR, so "show the QR above" would be wrong. */}
+      {badgeIsScannable(badge) ? (
+        <CheckInBanner
+          known={checkIn.known}
+          checkedInAt={checkIn.checkedInAt}
+          loading={checkIn.loading}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -237,8 +244,7 @@ function CancelledTicket({ status }: { status: string }) {
       }}>
       <Text variant="heading">No badge for this ticket</Text>
       <Text tone="secondary">
-        This registration is {status}, so there is no badge to scan. Take the claim code below to
-        the registration desk.
+        This registration is {status}, so there is no badge to scan. Ask at the registration desk.
       </Text>
     </View>
   );
