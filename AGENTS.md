@@ -249,8 +249,8 @@ app/
     app/
       _layout.tsx            root stack, theme, auth providers, splash
       index.tsx              routes to /login or /home
-      login.tsx              sign-in: email + password (no Create account,
-                             owner decision 2026-10-12)
+      login.tsx              sign-in: an emailed six-digit code first, email +
+                             password second; no Create account (owner, 2026-10-12)
       +not-found.tsx
       (tabs)/
         _layout.tsx          Home · Agenda · People · Community · Me

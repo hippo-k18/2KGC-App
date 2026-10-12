@@ -8,9 +8,12 @@ appId: tech.knowledgegraph.kgc
 - tapOn:
     text: "Cancel"
     optional: true
+# The emailed code is the default panel; the password path is the link under it.
 - extendedWaitUntil:
-    visible: "Email address"
+    visible: "Email me a sign-in code"
     timeout: 30000
+- tapOn: "Sign in with a password"
+- waitForAnimationToEnd
 # On a small iPhone the keyboard covers the password field, so a tap aimed at it
 # presses a key instead (an iPhone SE simulator typed "y"). Return on the email
 # field closes the keyboard first (React Native blurs on submit by default).

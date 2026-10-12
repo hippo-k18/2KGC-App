@@ -24,6 +24,12 @@ interface ScreenProps {
    * Android resizes the window itself and web has no keyboard to avoid.
    */
   avoidKeyboard?: boolean;
+  /**
+   * Let a tap on a button reach it while the keyboard is up, rather than only
+   * dismissing the keyboard. Implied by `avoidKeyboard`; set it on its own for
+   * a screen that moves its content clear of the keyboard some other way.
+   */
+  persistTaps?: boolean;
 }
 
 /**
@@ -38,6 +44,7 @@ export function Screen({
   padded = true,
   contentStyle,
   avoidKeyboard = false,
+  persistTaps = false,
 }: ScreenProps) {
   const colors = useTheme();
   const background = grouped ? colors.groupedBackground : colors.background;
@@ -58,7 +65,7 @@ export function Screen({
       style={{ backgroundColor: background }}
       contentInsetAdjustmentBehavior="automatic"
       automaticallyAdjustKeyboardInsets={avoidKeyboard}
-      keyboardShouldPersistTaps={avoidKeyboard ? 'handled' : undefined}
+      keyboardShouldPersistTaps={avoidKeyboard || persistTaps ? 'handled' : undefined}
       contentContainerStyle={inner}>
       {children}
     </ScrollView>
