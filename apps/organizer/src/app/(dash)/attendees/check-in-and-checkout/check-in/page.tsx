@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
+import { countsAsAttendee } from '@/lib/attendees-core';
 import {
   DEFAULT_LIST_ID,
   allCheckIns,
@@ -174,7 +175,7 @@ export default async function CheckInPage({
     checkedInAt: checkedInById.get(r.id) ?? null,
   }));
 
-  const active = rows.filter((r) => r.status === 'active').length;
+  const active = rows.filter(countsAsAttendee).length;
   const pct = active ? Math.round((checkedIn / active) * 100) : 0;
 
   return (

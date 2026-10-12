@@ -78,6 +78,8 @@ export interface RegistrationRow {
   ticketType?: string;
   status: RegistrationDoc['status'];
   claimed: boolean;
+  /** The shared demo login (T223): listed, never counted. */
+  demo?: boolean;
 }
 
 export interface CheckInRow {
@@ -195,6 +197,7 @@ export async function listRegistrations(): Promise<
         ticketType: ticketLabel(r) || undefined,
         status: r.status,
         claimed: Boolean(r.claimedByUid),
+        ...(r.demo === true ? { demo: true } : {}),
       },
       qrSecret: r.qrSecret,
       claimCode: r.claimCode,

@@ -327,6 +327,12 @@ export interface RegistrationDoc extends BaseDoc {
   extraSeatReleases?: { orderId: string; ticketTypeId: string }[];
   /** Set once the holder has signed in and claimed the registration. */
   claimedByUid?: string;
+  /**
+   * The shared demo login handed out with the Expo Go QR code (T223). Its badge
+   * works in the app, but it is not a person coming to the event, so the
+   * dashboard leaves it out of attendee counts and check-in totals.
+   */
+  demo?: boolean;
   /** Printed on the badge as a fallback sign-in door for a wrong-address attendee. */
   claimCode?: string;
   /**

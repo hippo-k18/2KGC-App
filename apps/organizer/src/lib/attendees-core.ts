@@ -79,6 +79,15 @@ function millisOf(t: unknown): number {
   return typeof v?.toMillis === 'function' ? v.toMillis() : 0;
 }
 
+/**
+ * Whether a registration counts toward the event's attendee totals: active,
+ * and not the shared demo login (T223), which holds a working badge but is not
+ * a person coming to the event.
+ */
+export function countsAsAttendee(r: { status?: string; demo?: boolean }): boolean {
+  return r.status === 'active' && r.demo !== true;
+}
+
 export const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
 
 export function mergeAttendees(

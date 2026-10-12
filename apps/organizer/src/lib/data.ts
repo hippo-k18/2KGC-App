@@ -683,9 +683,15 @@ export async function adoptionCounts(): Promise<{
   };
 }
 
+/**
+ * How many documents the event has in a collection, leaving out the shared
+ * demo login's (T223), which carries `demo: true` on its profile and its
+ * registration. Two equality filters need no composite index.
+ */
 export async function countWhereEvent(collection: string): Promise<number> {
-  const snap = await db().collection(collection).where('eventId', '==', EVENT_ID).count().get();
-  return snap.data().count;
+  const base = db().collection(collection).where('eventId', '==', EVENT_ID);
+  const [all, demo] = await Promise.all([base.count().get(), base.where('demo', '==', true).count().get()]);
+  return all.data().count - demo.data().count;
 }
 
 export interface AuditRow {

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { countsAsAttendee } from '@/lib/attendees-core';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
 import { stampOfInstant } from '@/lib/time';
@@ -48,7 +49,7 @@ export default async function CheckoutPage() {
   const [registrations, stations] = await Promise.all([listRegistrations(), listStations()]);
   const rows = registrations.map((r) => r.row);
   const { rows: recent, total: checkedIn } = await recentCheckIns(DEFAULT_LIST_ID, rows, stations);
-  const active = rows.filter((r) => r.status === 'active').length;
+  const active = rows.filter(countsAsAttendee).length;
 
   return (
     <>
