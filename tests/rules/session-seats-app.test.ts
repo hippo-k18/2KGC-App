@@ -199,3 +199,30 @@ describe('finding the reader\'s own ticket', () => {
     expect(await seatOf('workshop', 'u8')).toBeUndefined();
   });
 });
+
+/** The shared demo login (T224): a stranger's account must not take a seat from a real attendee. */
+describe('the shared demo login', () => {
+  const asDemo = () =>
+    env
+      .authenticatedContext('demo', { registered: true, roles: ['attendee'], demo: true, email: email('demo'), email_verified: true })
+      .firestore() as unknown as Firestore;
+
+  beforeEach(async () => {
+    await admin((db) =>
+      setDoc(doc(db, 'registrations/reg_demo'), {
+        email: email('demo'), altEmails: [], status: 'active', ticketType: 'Full Pass',
+      }),
+    );
+  });
+
+  it('cannot take a seat or join a waitlist', async () => {
+    await expect(joinSession(asDemo(), 'demo', email('demo'), 'capped')).rejects.toThrow();
+    expect(await seatOf('capped', 'demo')).toBeUndefined();
+    expect(await counterOf('capped')).toBeUndefined();
+  });
+
+  it('can still save an ordinary session to its agenda', async () => {
+    expect((await joinSession(asDemo(), 'demo', email('demo'), 'open')).outcome).toBe('saved');
+    expect(await onSchedule('open', 'demo')).toBe(true);
+  });
+});

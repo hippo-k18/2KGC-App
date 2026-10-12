@@ -103,8 +103,20 @@ service cloud.firestore {
      */
     function appTakesWrites() {
       return appOpen()
+        && !isDemo()
         && (appAccessValues().get('readOnlyFromMs', 0) == 0
             || request.time.toMillis() < appAccessValues().get('readOnlyFromMs', 0));
+    }
+
+    /**
+     * The shared demo login handed out with the Expo Go QR code (T223). Its
+     * password is public, so it reads like any attendee and writes nothing
+     * another person can see: it is folded into `appTakesWrites()` (posts,
+     * replies, reactions, messages, questions, upvotes, poll votes) and named
+     * on the other public writes below. Its own agenda stays writable.
+     */
+    function isDemo() {
+      return signedIn() && request.auth.token.get('demo', false) == true;
     }
 
     /** The event-wide attendee-messaging switch. Absent means on. */
@@ -402,6 +414,7 @@ service cloud.firestore {
       // instead would mean a `get()` on every profile edit — a read cost, and
       // an access call, paid on the wrong path.
       allow update: if isSelf(uid)
+        && !(isDemo() && request.resource.data.get('visibleInDirectory', false) == true)
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
           'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
@@ -554,7 +567,7 @@ service cloud.firestore {
           && (!('interests' in d) || (d.interests is list && d.interests.size() <= 20));
       }
 
-      allow create, update: if isSelf(uid) && isRegistered() && validDirectoryEntry();
+      allow create, update: if isSelf(uid) && isRegistered() && !isDemo() && validDirectoryEntry();
       allow delete: if isSelf(uid);
     }
 
@@ -895,7 +908,7 @@ service cloud.firestore {
       // The count and the queue length are what the agenda shows. The list
       // holds uids and nothing else.
       allow read: if isRegistered();
-      allow create, update: if isRegistered()
+      allow create, update: if isRegistered() && !isDemo()
         && validCounter()
         && (takesSeat() || joinsWaitlist() || leavesSeat()
             || leavesAndPromotes() || leavesWaitlist() || claimsSeat());
@@ -965,7 +978,7 @@ service cloud.firestore {
 
         allow get: if (isSelf(uid) && isRegistered()) || isOrganizer();
         allow list: if isOrganizer();
-        allow create: if isSelf(uid) && isRegistered() && validSeat() && eligible() && counterTakesMe();
+        allow create: if isSelf(uid) && isRegistered() && !isDemo() && validSeat() && eligible() && counterTakesMe();
         allow update: if isRegistered() && promotes();
         allow delete: if isSelf(uid) && isRegistered() && counterReleasesMe();
       }
@@ -987,7 +1000,7 @@ service cloud.firestore {
 
       // An attendee may submit their own lead but must never read another's.
       match /leads/{uid} {
-        allow create: if isSelf(uid) && isRegistered();
+        allow create: if isSelf(uid) && isRegistered() && !isDemo();
         allow read: if isOrganizer();
         allow update, delete: if false;
       }
@@ -1243,7 +1256,7 @@ service cloud.firestore {
        */
       match /responses/{uid} {
         allow read: if isSelf(uid) || isOrganizer();
-        allow create: if isSelf(uid) && isRegistered()
+        allow create: if isSelf(uid) && isRegistered() && !isDemo()
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.keys().hasOnly(['uid', 'answers', 'submittedAt'])
           && request.resource.data.answers is map
@@ -1351,7 +1364,7 @@ service cloud.firestore {
         allow read: if isRegistered()
           && resource.data.get('uid', '') == request.auth.uid;
 
-        allow create: if isRegistered()
+        allow create: if isRegistered() && !isDemo()
           && form() != null
           && form().data.status == 'published'
           // The id carries the version, so this is also what stops one person

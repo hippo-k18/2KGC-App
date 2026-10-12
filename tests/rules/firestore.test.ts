@@ -3197,3 +3197,141 @@ describe('the event code prompt', () => {
     await assertFails(getDoc(doc(asOrg(), 'settings/access')));
   });
 });
+
+/**
+ * The shared demo login (T223/T224). Its password is printed beside the Expo
+ * Go QR code, so whoever holds it is a stranger. It may read what any attendee
+ * reads and keep its own agenda; it may write nothing another person sees.
+ *
+ * Each refusal is the same write an ordinary attendee makes successfully
+ * elsewhere in this file, so it fails because of the `demo` claim and not
+ * because the payload is wrong. The last block proves that directly for two.
+ */
+describe('the shared demo login', () => {
+  const D = 'demoU';
+  const asDemo = () =>
+    env.authenticatedContext(D, { ...attendee(D), demo: true }).firestore();
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'registrations/reg_demo'), {
+        email: `${D}@kgc.test`, altEmails: [], name: 'KGC Demo', ticketType: 'All Access',
+        status: 'active', qrSecret: 'secret-of-the-demo-badge', demo: true,
+      });
+      await setDoc(doc(db, `users/${D}`), {
+        email: `${D}@kgc.test`, name: 'KGC Demo', roles: ['attendee'],
+        visibleInDirectory: false, messagingEnabled: false,
+      });
+      // A conversation the demo account is already in, so a refused message is
+      // refused for being the demo and not for being outside the thread.
+      await setDoc(doc(db, `threads/${A}_${D}`), {
+        participantIds: [A, D], unread: { [A]: 0, [D]: 0 },
+      });
+    });
+  });
+
+  it('can read its own badge, the programme, People and the board', async () => {
+    await assertSucceeds(getDoc(doc(asDemo(), 'registrations/reg_demo')));
+    await assertSucceeds(getDoc(doc(asDemo(), 'sessions/s1')));
+    await assertSucceeds(getDoc(doc(asDemo(), 'speakers/sp1')));
+    await assertSucceeds(getDocs(collection(asDemo(), 'directory')));
+    await assertSucceeds(getDoc(doc(asDemo(), 'communityPosts/p1')));
+  });
+
+  it('can save a session to its own agenda and remove it again', async () => {
+    await assertSucceeds(
+      setDoc(doc(asDemo(), `users/${D}/savedSessions/s1`), { sessionId: 's1', remind: true }),
+    );
+    await assertSucceeds(deleteDoc(doc(asDemo(), `users/${D}/savedSessions/s1`)));
+  });
+
+  it('cannot start a conversation with a real attendee', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), `threads/${B}_${D}`), {
+        participantIds: [B, D], unread: { [B]: 0, [D]: 0 },
+      }),
+    );
+  });
+
+  it('cannot send a message, even in a thread it is in', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), `threads/${A}_${D}/messages/m1`), { senderId: D, body: 'hello' }),
+    );
+  });
+
+  it('cannot post, reply or react on the community board', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), 'communityPosts/pDemo'), {
+        authorId: D, title: 'T', body: 'B', status: 'visible', replyCount: 0, reactionCount: 0,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asDemo(), 'communityPosts/p1/replies/rDemo'), {
+        authorId: D, body: 'hello', status: 'visible',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asDemo(), `communityPosts/p1/reactions/${D}`), { uid: D, emoji: '👍' }),
+    );
+  });
+
+  it('cannot ask a session question or upvote one', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), 'sessions/s1/questions/qDemo'), {
+        authorId: D, body: 'How does this scale?', upvoteCount: 0, answered: false,
+        state: 'pending',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asDemo(), `sessions/s1/questions/q1/upvotes/${D}`), { uid: D }),
+    );
+  });
+
+  it('cannot vote in a poll', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), `sessions/s1/polls/openPoll/votes/${D}`), { uid: D, optionIds: ['a'] }),
+    );
+  });
+
+  it('cannot answer a survey, sign a consent form or leave a sponsor lead', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), `surveys/sv1/responses/${D}`), {
+        uid: D, answers: { q1: 4 }, submittedAt: new Date(),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asDemo(), `consentForms/cf_photo/responses/${D}_v2`), {
+        formId: 'cf_photo', formVersion: 2, bodyHash: 'hash-of-version-two',
+        audience: 'attendee', signatory: D, uid: D, email: `${D}@kgc.test`,
+        signedName: 'KGC Demo', agreed: true, signedAt: new Date(), channel: 'app',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asDemo(), `sponsors/sp/leads/${D}`), { uid: D, email: `${D}@kgc.test` }),
+    );
+  });
+
+  it('cannot list itself under People, directly or through its profile', async () => {
+    await assertFails(
+      setDoc(doc(asDemo(), `directory/${D}`), {
+        eventId: 'kgc-2027', uid: D, name: 'Anything at all', interests: [],
+      }),
+    );
+    await assertFails(updateDoc(doc(asDemo(), `users/${D}`), { visibleInDirectory: true }));
+    // Private settings on its own profile still save.
+    await assertSucceeds(
+      updateDoc(doc(asDemo(), `users/${D}`), { notificationPrefs: { announcements: true } }),
+    );
+  });
+
+  it('refuses only because of the claim: the same writes pass without it', async () => {
+    const plain = env.authenticatedContext(D, attendee(D)).firestore();
+    await assertSucceeds(
+      setDoc(doc(plain, `threads/${A}_${D}/messages/m1`), { senderId: D, body: 'hello' }),
+    );
+    await assertSucceeds(
+      setDoc(doc(plain, `directory/${D}`), { eventId: 'kgc-2027', uid: D, name: 'KGC Demo', interests: [] }),
+    );
+  });
+});
