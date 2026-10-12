@@ -9,10 +9,8 @@ appId: tech.knowledgegraph.kgc
     text: "Cancel"
     optional: true
 - extendedWaitUntil:
-    visible: "Sign in with email and password"
+    visible: "Email address"
     timeout: 30000
-- tapOn: "Sign in with email and password"
-- waitForAnimationToEnd
 # On a small iPhone the keyboard covers the password field, so a tap aimed at it
 # presses a key instead (an iPhone SE simulator typed "y"). Return on the email
 # field closes the keyboard first (React Native blurs on submit by default).
