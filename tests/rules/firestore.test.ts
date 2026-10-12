@@ -3226,7 +3226,11 @@ describe('the shared demo login', () => {
       // A conversation the demo account is already in, so a refused message is
       // refused for being the demo and not for being outside the thread.
       await setDoc(doc(db, `threads/${A}_${D}`), {
-        participantIds: [A, D], unread: { [A]: 0, [D]: 0 },
+        participantIds: [A, D], unread: { [A]: 0, [D]: 2 }, lastMessage: 'hi from A', lastSenderId: A,
+      });
+      // A question it wrote before it was given the claim, already approved.
+      await setDoc(doc(db, 'sessions/s1/questions/qDemo'), {
+        authorId: D, body: 'old', upvoteCount: 0, answered: false, state: 'approved',
       });
     });
   });
@@ -3325,6 +3329,41 @@ describe('the shared demo login', () => {
     );
   });
 
+  it('cannot list itself through a truthy flag that is not a boolean', async () => {
+    // `mirrorDirectory` publishes when the flag is merely truthy (T226 gap 1).
+    await assertFails(updateDoc(doc(asDemo(), `users/${D}`), { visibleInDirectory: 1 }));
+    await assertFails(updateDoc(doc(asDemo(), `users/${D}`), { visibleInDirectory: 'yes' }));
+    await assertSucceeds(updateDoc(doc(asDemo(), `users/${D}`), { visibleInDirectory: false }));
+  });
+
+  it('cannot create a listed profile if its profile is ever gone', async () => {
+    await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), `users/${D}`)));
+    await assertFails(
+      setDoc(doc(asDemo(), `users/${D}`), { name: 'Anything', visibleInDirectory: true }),
+    );
+    await assertSucceeds(
+      setDoc(doc(asDemo(), `users/${D}`), { name: 'KGC Demo', visibleInDirectory: false }),
+    );
+  });
+
+  it('may only zero its own badge on a thread, never write the preview or the other badge', async () => {
+    const t = `threads/${A}_${D}`;
+    await assertFails(updateDoc(doc(asDemo(), t), { lastMessage: 'Visit evil.example' }));
+    await assertFails(
+      updateDoc(doc(asDemo(), t), {
+        lastMessage: 'Visit evil.example', lastSenderId: D, unread: { [A]: 1, [D]: 0 },
+      }),
+    );
+    await assertFails(updateDoc(doc(asDemo(), t), { unread: { [A]: 1, [D]: 0 } }));
+    await assertSucceeds(updateDoc(doc(asDemo(), t), { unread: { [A]: 0, [D]: 0 } }));
+  });
+
+  it('cannot reword a question it asked before it got the claim', async () => {
+    await assertFails(
+      updateDoc(doc(asDemo(), 'sessions/s1/questions/qDemo'), { body: 'Visit evil.example' }),
+    );
+  });
+
   it('refuses only because of the claim: the same writes pass without it', async () => {
     const plain = env.authenticatedContext(D, attendee(D)).firestore();
     await assertSucceeds(
@@ -3333,5 +3372,29 @@ describe('the shared demo login', () => {
     await assertSucceeds(
       setDoc(doc(plain, `directory/${D}`), { eventId: 'kgc-2027', uid: D, name: 'KGC Demo', interests: [] }),
     );
+    await assertSucceeds(
+      updateDoc(doc(plain, `threads/${A}_${D}`), {
+        lastMessage: 'hello', lastSenderId: D, unread: { [A]: 1, [D]: 0 },
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(plain, 'sessions/s1/questions/qDemo'), { body: 'reworded' }),
+    );
+    await assertSucceeds(updateDoc(doc(plain, `users/${D}`), { visibleInDirectory: true }));
+  });
+});
+
+describe('the directory flag on a profile', () => {
+  it('must be a real boolean for everyone, because the mirror lists anything truthy', async () => {
+    await assertFails(updateDoc(doc(asA(), `users/${A}`), { visibleInDirectory: 1 }));
+    await assertFails(updateDoc(doc(asA(), `users/${A}`), { visibleInDirectory: 'yes' }));
+    await assertSucceeds(updateDoc(doc(asA(), `users/${A}`), { visibleInDirectory: false }));
+  });
+
+  it('is checked on create too', async () => {
+    const C = 'attendeeC';
+    const asC = env.authenticatedContext(C, attendee(C)).firestore();
+    await assertFails(setDoc(doc(asC, `users/${C}`), { name: 'C', visibleInDirectory: 'yes' }));
+    await assertSucceeds(setDoc(doc(asC, `users/${C}`), { name: 'C', visibleInDirectory: true }));
   });
 });

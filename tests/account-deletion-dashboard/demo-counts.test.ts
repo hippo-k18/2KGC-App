@@ -20,9 +20,9 @@ vi.mock('../../apps/organizer/node_modules/next/cache.js', () => ({
   unstable_cache: (f: unknown) => f,
 }));
 
-import { countsAsAttendee } from '../../apps/organizer/src/lib/attendees-core';
+import { attendeeListStats, cancelledOrTransferred, countsAsAttendee } from '../../apps/organizer/src/lib/attendees-core';
 import { listRegistrations } from '../../apps/organizer/src/lib/checkin';
-import { countWhereEvent } from '../../apps/organizer/src/lib/data';
+import { countWhereEvent, listAttendees } from '../../apps/organizer/src/lib/data';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'demo-account-deletion';
 let db: Firestore;
@@ -41,8 +41,11 @@ beforeAll(async () => {
   await db.doc(`${COLLECTIONS.registrations}/reg_gone`).set(reg('gone@example.com', { status: 'cancelled' }));
   await db.doc(`${COLLECTIONS.registrations}/reg_demo`).set(reg('demo@knowledgegraph.tech', { demo: true }));
   for (const [uid, demo] of [['ada', false], ['ben', false], ['demo', true]] as const) {
-    await db.doc(`${COLLECTIONS.users}/${uid}`).set({ eventId: EVENT_ID, name: uid, ...(demo ? { demo: true } : {}) });
+    await db.doc(`${COLLECTIONS.users}/${uid}`).set({
+      eventId: EVENT_ID, name: uid, email: demo ? 'demo@knowledgegraph.tech' : `${uid}@example.com`, ...(demo ? { demo: true } : {}),
+    });
   }
+  await db.doc(`${COLLECTIONS.speakers}/sp1`).set({ eventId: EVENT_ID, name: 'A Speaker' });
 });
 
 describe('the shared demo login on the dashboard', () => {
@@ -55,5 +58,17 @@ describe('the shared demo login on the dashboard', () => {
     const rows = (await listRegistrations()).map((r) => r.row);
     expect(rows.find((r) => r.id === 'reg_demo')?.demo).toBe(true);
     expect(rows.filter(countsAsAttendee).map((r) => r.id).sort()).toEqual(['reg_ada', 'reg_ben']);
+    // The banner: one cancelled badge, and the demo is not called cancelled.
+    expect(cancelledOrTransferred(rows)).toBe(1);
+  });
+
+  it('reads "Holding a ticket: 3 of 3" on the attendee list, not 4 of 3', async () => {
+    const stats = attendeeListStats(await listAttendees());
+    expect(stats.ticketHolders).toBe(await countWhereEvent(COLLECTIONS.registrations));
+    expect(stats.ticketHolders).toBe(3);
+  });
+
+  it('still counts a collection the demo has nothing in', async () => {
+    expect(await countWhereEvent(COLLECTIONS.speakers)).toBe(1);
   });
 });

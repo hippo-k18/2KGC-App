@@ -683,13 +683,18 @@ export async function adoptionCounts(): Promise<{
   };
 }
 
+/** The collections the shared demo login (T223) has a document in. */
+const HOLDS_DEMO: ReadonlySet<string> = new Set([COLLECTIONS.registrations, COLLECTIONS.users]);
+
 /**
  * How many documents the event has in a collection, leaving out the shared
- * demo login's (T223), which carries `demo: true` on its profile and its
- * registration. Two equality filters need no composite index.
+ * demo login's, which carries `demo: true` on its profile and its registration.
+ * Only those two collections pay for the second count. Two equality filters
+ * need no composite index.
  */
 export async function countWhereEvent(collection: string): Promise<number> {
   const base = db().collection(collection).where('eventId', '==', EVENT_ID);
+  if (!HOLDS_DEMO.has(collection)) return (await base.count().get()).data().count;
   const [all, demo] = await Promise.all([base.count().get(), base.where('demo', '==', true).count().get()]);
   return all.data().count - demo.data().count;
 }

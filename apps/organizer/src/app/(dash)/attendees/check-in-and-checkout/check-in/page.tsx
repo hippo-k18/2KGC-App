@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { countsAsAttendee } from '@/lib/attendees-core';
+import { cancelledOrTransferred, countsAsAttendee } from '@/lib/attendees-core';
 import {
   DEFAULT_LIST_ID,
   allCheckIns,
@@ -176,6 +176,7 @@ export default async function CheckInPage({
   }));
 
   const active = rows.filter(countsAsAttendee).length;
+  const inactive = cancelledOrTransferred(rows);
   const pct = active ? Math.round((checkedIn / active) * 100) : 0;
 
   return (
@@ -332,10 +333,10 @@ export default async function CheckInPage({
             {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. Scans here do not count
             toward the main door. Switch back with the <em>KGC 2027: Main Door</em> chip above.
           </Banner>
-        ) : rows.length - active > 0 ? (
+        ) : inactive > 0 ? (
           <Banner kind="warning">
-            {rows.length - active} registrations are cancelled or transferred and are not counted
-            above.
+            {inactive} {inactive === 1 ? 'registration is' : 'registrations are'} cancelled or
+            transferred and {inactive === 1 ? 'is' : 'are'} not counted above.
           </Banner>
         ) : null}
 

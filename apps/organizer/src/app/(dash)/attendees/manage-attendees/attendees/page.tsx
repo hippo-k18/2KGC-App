@@ -3,6 +3,7 @@ import { COLLECTIONS } from '@kgc/shared';
 import { getAttendeeForEdit } from '@/lib/attendee-admin';
 import { attendeeCategories } from '@/lib/attendee-categories';
 import { UNCATEGORISED, categoryCounts, categoryLabel, inCategory } from '@/lib/attendee-categories-core';
+import { attendeeListStats } from '@/lib/attendees-core';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
 import { countWhereEvent, listAttendees } from '@/lib/data';
@@ -93,7 +94,7 @@ export default async function AttendeesPage({
 
   // Counted over ticket holders: the category is on the registration, so
   // somebody with a profile and no ticket cannot have one.
-  const { counts, uncategorised } = categoryCounts(categories, all.filter((a) => a.registrationId));
+  const { counts, uncategorised } = categoryCounts(categories, all.filter((a) => a.registrationId && !a.demo));
   // The ticket types already in use, rather than the sales catalogue: the point
   // of the select is that a hand-added attendee lands in the same bucket as the
   // people who bought, and "Main Conference " with a trailing space is two
@@ -104,10 +105,7 @@ export default async function AttendeesPage({
   // Title and company fall back to the attendee's own profile, so saving a
   // corrected name does not blank what they wrote about themselves.
   const editRow = editing ? all.find((a) => a.registrationId === editing.registrationId) : undefined;
-  const hidden = all.filter((a) => a.signedIn && !a.visibleInDirectory).length;
-  const signedIn = all.filter((a) => a.signedIn).length;
-  const ticketHolders = all.filter((a) => a.registrationId).length;
-  const multiHolders = all.filter((a) => a.activeTickets > 1).length;
+  const { hidden, signedIn, ticketHolders, multiHolders } = attendeeListStats(all);
   const exportQuery = category ? `?category=${encodeURIComponent(category)}` : '';
   const href = (next: { q?: string; role?: string; category?: string }) => {
     const p = new URLSearchParams();

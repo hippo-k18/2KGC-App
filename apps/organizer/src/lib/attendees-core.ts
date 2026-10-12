@@ -53,6 +53,11 @@ export interface AttendeeRow {
    * address may buy several tickets and an organizer should check why.
    */
   activeTickets: number;
+  /**
+   * The shared demo login (T223): its profile or registration carries
+   * `demo: true`. Listed like anyone, left out of every count.
+   */
+  demo?: boolean;
 }
 
 /**
@@ -88,6 +93,35 @@ export function countsAsAttendee(r: { status?: string; demo?: boolean }): boolea
   return r.status === 'active' && r.demo !== true;
 }
 
+/**
+ * Registrations the check-in banner calls cancelled or transferred. Read from
+ * the status, not as "all minus counted": the demo badge is active, so it is
+ * neither counted nor cancelled.
+ */
+export function cancelledOrTransferred(rows: { status?: string }[]): number {
+  return rows.filter((r) => r.status !== 'active').length;
+}
+
+/**
+ * The figures above the attendee list. The demo login is left out of all of
+ * them, as `countWhereEvent` leaves it out of the registration total that
+ * "Holding a ticket: N of M" is read against.
+ */
+export function attendeeListStats(all: AttendeeRow[]): {
+  hidden: number;
+  signedIn: number;
+  ticketHolders: number;
+  multiHolders: number;
+} {
+  const people = all.filter((a) => !a.demo);
+  return {
+    hidden: people.filter((a) => a.signedIn && !a.visibleInDirectory).length,
+    signedIn: people.filter((a) => a.signedIn).length,
+    ticketHolders: people.filter((a) => a.registrationId).length,
+    multiHolders: people.filter((a) => a.activeTickets > 1).length,
+  };
+}
+
 export const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
 
 export function mergeAttendees(
@@ -120,6 +154,7 @@ export function mergeAttendees(
       interests: u.interests ?? [],
       signedIn: true,
       activeTickets: 0,
+      ...((u as { demo?: unknown }).demo === true ? { demo: true } : {}),
     });
   }
 
@@ -144,6 +179,7 @@ export function mergeAttendees(
       existing.registrationStatus = r.status;
       existing.categoryId = r.categoryId;
       existing.category = r.category;
+      if (r.demo === true) existing.demo = true;
       if (!existing.signedIn) existing.name = r.name || existing.name;
       existing.title = existing.signedIn ? (existing.title ?? r.title) : r.title;
       existing.company = existing.signedIn ? (existing.company ?? r.company) : r.company;
@@ -176,6 +212,7 @@ export function mergeAttendees(
       registrationStatus: r.status,
       categoryId: r.categoryId,
       category: r.category,
+      ...(r.demo === true ? { demo: true } : {}),
     };
     rows.set(k || id, row);
     shown.set(row, r);

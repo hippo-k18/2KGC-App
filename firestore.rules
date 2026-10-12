@@ -362,8 +362,20 @@ service cloud.firestore {
       // attendee who had not been seeded a profile. Role pinning is unchanged:
       // a create that mentions `roles` may still only say `['attendee']`, and
       // `update` cannot move it at all.
+      /**
+       * `visibleInDirectory` must be a real boolean: `mirrorDirectory` lists a
+       * profile under People when the flag is merely truthy, so `1` or `'yes'`
+       * would publish it. The shared demo login (T224) may only ever hold false.
+       */
+      function directoryFlagIsSane() {
+        let d = request.resource.data;
+        return (!('visibleInDirectory' in d) || d.visibleInDirectory is bool)
+          && (!isDemo() || d.get('visibleInDirectory', false) == false);
+      }
+
       allow create: if isSelf(uid)
         && isRegistered()
+        && directoryFlagIsSane()
         && (!('email' in request.resource.data)
             || request.resource.data.email == request.auth.token.email.lower())
         && (!('roles' in request.resource.data)
@@ -414,7 +426,7 @@ service cloud.firestore {
       // instead would mean a `get()` on every profile edit — a read cost, and
       // an access call, paid on the wrong path.
       allow update: if isSelf(uid)
-        && !(isDemo() && request.resource.data.get('visibleInDirectory', false) == true)
+        && directoryFlagIsSane()
         && changed().hasOnly([
           'name', 'photoURL', 'title', 'company', 'bio', 'interests',
           'social', 'onboarded', 'visibleInDirectory', 'messagingEnabled',
@@ -603,7 +615,7 @@ service cloud.firestore {
         // attendee is the signed author of something they did not ask.
         allow update: if (isOrganizer()
               && changed().hasOnly(['state', 'answered', 'body', 'editedAt']))
-          || (isRegistered() && resource.data.authorId == request.auth.uid
+          || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
               && changed().hasOnly(['body', 'editedAt']));
 
         allow delete: if isOrganizer()
@@ -1638,6 +1650,21 @@ service cloud.firestore {
                   && next.get(other, -1) <= resource.data.unread.get(other, 0) + 1));
       }
 
+      /**
+       * All the shared demo login (T224) may do to a thread: zero its own unread
+       * badge. It may not write `lastMessage`, which is free text shown in the
+       * other person's inbox, or move their badge.
+       */
+      function onlyClearsOwnBadge() {
+        let me = request.auth.uid;
+        let other = resource.data.participantIds[0] == me
+          ? resource.data.participantIds[1]
+          : resource.data.participantIds[0];
+        return changed().hasOnly(['unread'])
+          && request.resource.data.unread.get(me, -1) == 0
+          && request.resource.data.unread.get(other, -1) == resource.data.unread.get(other, 0);
+      }
+
       // `resource` is null when the document does not exist, and dereferencing
       // it throws — which Firestore reports as permission-denied rather than
       // not-found. Reading a conversation before anyone has spoken in it is
@@ -1670,7 +1697,8 @@ service cloud.firestore {
       // clear sitting on every phone in the event.
       allow update: if isParticipant()
         && changed().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'unread'])
-        && metadataWriteIsSane();
+        && metadataWriteIsSane()
+        && (!isDemo() || onlyClearsOwnBadge());
       allow delete: if false;
 
       match /messages/{id} {
