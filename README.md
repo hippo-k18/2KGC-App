@@ -126,8 +126,30 @@ That live-reload loop is how the app gets built.
 | `npm run android` | Android emulator | Android Studio with an AVD |
 
 Xcode 26 no longer bundles simulator runtimes; `npm run ios` needs one
-downloaded first from Xcode → Settings → Components (several GB). Expo Go on a
-real device is quicker and truer.
+downloaded first from Xcode → Settings → Components (several GB), or
+`xcodebuild -downloadPlatform iOS`. Expo Go on a real device is quicker and truer.
+
+### Screenshots of the real native UI, with no window
+
+`app/scripts/ios-shots.sh` builds the app for the iOS Simulator, boots an
+iPhone 17 Pro and an iPhone SE headless (Simulator.app never opens), signs in
+through the real login screen with [Maestro](https://maestro.mobile.dev),
+opens every main screen by deep link and writes a PNG of each plus a contact
+sheet to `app/preview-out/ios/<device>/`. `app/scripts/android-shots.sh` does
+the same on a headless Android emulator. Both run against a private Firebase
+emulator on ports 8208/9208 under the `demo-kgc-preview` project, seeded by
+`npm run seed`, so they never touch live data or the shared 8080 emulator.
+
+```bash
+brew install cocoapods mobile-dev-inc/tap/maestro   # once
+xcodebuild -downloadPlatform iOS                    # once, about 8 GB
+app/scripts/ios-shots.sh                 # first run builds the app (~5 min)
+SMOKE=1 app/scripts/ios-shots.sh         # also runs app/.maestro/smoke.yaml
+REBUILD=1 app/scripts/ios-shots.sh       # after changing app code
+app/scripts/preview/emulator.sh stop     # when done
+```
+
+The scripts' headers list every option; the T208 report has the Android SDK setup.
 
 ### Version note
 
@@ -147,8 +169,11 @@ npm install -g eas-cli
 eas build --platform ios
 ```
 
-Nothing in this repo has to change to do that — it is purely an account and
-build-pipeline step, so it can wait.
+One thing in the repo had to change first: built with Xcode 27 (the iOS 27
+SDK), Expo SDK 54's native template crashes on launch, because iOS 27 requires
+the UIScene lifecycle, and fails to build, because one pod targets iOS 13.4.
+`app/plugins/with-ios-scene-lifecycle.js` fixes both at prebuild time (T208).
+The rest is an account and build-pipeline step.
 
 ---
 

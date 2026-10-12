@@ -1,0 +1,31 @@
+# Sign in with email and password, from a fresh install.
+# Run: maestro test -e EMAIL=preview@kgc.test -e PASSWORD=preview-2027 app/.maestro/sign-in.yaml
+appId: tech.knowledgegraph.kgc
+---
+- launchApp:
+    clearState: true
+# A link opened earlier may have left iOS's "Open in “KGC”?" prompt up.
+- tapOn:
+    text: "Cancel"
+    optional: true
+- extendedWaitUntil:
+    visible: "Sign in with email and password"
+    timeout: 30000
+- tapOn: "Sign in with email and password"
+- waitForAnimationToEnd
+# On a small iPhone the keyboard covers the password field, so a tap aimed at it
+# presses a key instead (an iPhone SE simulator typed "y"). Return on the email
+# field closes the keyboard first (React Native blurs on submit by default).
+- tapOn: "Email address"
+- waitForAnimationToEnd
+- inputText: ${EMAIL}
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn: "Password"
+- waitForAnimationToEnd
+- inputText: ${PASSWORD}
+# The keyboard covers the button; its Go key runs the same submit.
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Agenda"
+    timeout: 30000
