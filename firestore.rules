@@ -653,6 +653,8 @@ service cloud.firestore {
         // moderator ever having seen it, which is the entire point of having
         // the field. Every question starts life pending.
         allow create: if isRegistered() && appTakesWrites()
+          && request.resource.data.keys().hasOnly(['eventId', 'authorId', 'body', 'state', 'answered',
+                                                   'upvoteCount', 'createdAt'])
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.upvoteCount == 0
           && request.resource.data.answered == false
@@ -1532,7 +1534,8 @@ service cloud.firestore {
           && d.targetType in ['job', 'communityPost', 'reply', 'message', 'user']
           && d.reason in ['spam', 'offensive', 'scam', 'other']
           && d.targetKey is string && d.targetKey.size() <= 400
-          && d.targetKey.matches(d.targetType + '(:[^:/]+){1,2}')
+          && d.targetKey.matches(d.targetType + '(:[A-Za-z0-9_-]{1,128}){1,2}')
+          && !d.targetKey.matches('.*:__[^:]*__(:.*)?')
           && pathMatchesKey(d)
           && (!('targetAuthorId' in d) || (d.targetAuthorId is string && d.targetAuthorId.size() <= 128))
           && (!('note' in d) || (d.note is string && d.note.size() <= 500))
@@ -1548,8 +1551,15 @@ service cloud.firestore {
        * "report of a post" carrying `sessions/keynote` hid the keynote when the
        * organizer clicked Hide post on the real post (T230). The dashboard now
        * derives the path from the key itself; this keeps the stored field
-       * honest for anything else that reads it. Parts of the key cannot hold a
-       * `/` (the regex above), so a key cannot climb out of its collection.
+       * honest for anything else that reads it.
+       *
+       * Each part of the key is in the alphabet the app's ids actually use:
+       * Firestore auto ids, Auth uids, `demo_000`, `seed-post-0`,
+       * `deleted-user`, and thread ids of two uids joined by `_`. That shuts out
+       * `/`, `.` and `..`, whitespace and look-alike letters, and the second
+       * test shuts out Firestore's reserved `__…__` ids. Any of those made the
+       * dashboard build a document path Firestore rejects, and one such report
+       * took the whole Reports screen down (T232).
        * A job report names `jobs/<id>`, where T209's Job Board will put them.
        */
       function pathMatchesKey(d) {

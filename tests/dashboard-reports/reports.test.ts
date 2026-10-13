@@ -8,7 +8,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, reportId, reportTargetKey, reportTargetPath, type ReportTarget } from '@kgc/shared';
 import { db as dashDb } from '@/lib/firestore';
-import { listReportQueue, resolveReports } from '@/lib/reports';
+import { listReportQueue, resolveReports, withContent } from '@/lib/reports';
 
 let db: Firestore;
 const ORG = 'organizer@example.com';
@@ -254,5 +254,71 @@ describe('reporter names', () => {
     await file('xYz123NoProfile', POST);
     const [item] = await listReportQueue();
     expect(item.reports.map((r) => r.reporterName).sort()).toEqual(['Demo login', 'Unknown attendee']);
+  });
+});
+
+/**
+ * T233: reports the rules now refuse, written straight to the database with the
+ * Admin SDK (as a report filed before the rules shipped would be). Each one once
+ * made the whole queue throw (T232). Now each is its own unreadable card, the
+ * other cards are untouched, Hide refuses cleanly and Keep clears it.
+ */
+describe('one bad report never takes the queue down', () => {
+  const ODD = [
+    'communityPost:..',
+    'communityPost:.',
+    'communityPost:__x__',
+    'communityPost:ｐ１',
+    'communityPost:p1 ',
+    'communityPost:p1\nx',
+    'message:..',
+    'user:..',
+  ];
+  const oddId = (key: string) => `odd${ODD.indexOf(key)}`;
+
+  beforeEach(async () => {
+    await file('good', POST, 'spam');
+    for (const key of ODD) {
+      await db.collection(COLLECTIONS.reports).doc(oddId(key)).set({
+        eventId: EVENT_ID, reporterId: 'aa-attacker', targetType: key.split(':')[0], targetKey: key,
+        targetPath: key.replace(':', 's/'), reason: 'spam', status: 'open', createdAt: new Date(),
+      });
+    }
+  });
+
+  it('lists every card: the real one as before, each odd one as unreadable', async () => {
+    const q = await listReportQueue();
+    expect(q).toHaveLength(ODD.length + 1);
+    const real = q.find((i) => i.targetKey === 'communityPost:p1')!;
+    expect(real.content).toMatchObject({ exists: true, title: 'Buy now' });
+    for (const key of ODD) {
+      const card = q.find((i) => i.targetKey === key)!;
+      expect(card.target, key).toBeNull();
+      expect(card.content.exists, key).toBe(false);
+    }
+  });
+
+  it('Hide refuses each odd card without throwing, and Keep clears it', async () => {
+    for (const key of ODD) {
+      const hide = await resolveReports({ targetKey: key, decision: 'hide', actor: ORG });
+      expect(hide.ok, key).toBe(false);
+      expect(await resolveReports({ targetKey: key, decision: 'keep', actor: ORG }), key).toEqual({ ok: true, changed: 1 });
+    }
+    const q = await listReportQueue();
+    expect(q.filter((i) => i.status === 'open').map((i) => i.targetKey)).toEqual(['communityPost:p1']);
+    expect(await resolveReports({ targetKey: 'communityPost:p1', decision: 'hide', actor: ORG })).toEqual({ ok: true, changed: 1 });
+    expect((await db.doc('communityPosts/p1').get()).get('status')).toBe('hidden');
+  });
+
+  it('a card whose read throws is marked unreadable and the others still load', async () => {
+    const groups = (await listReportQueue()).slice(0, 3);
+    const [bad] = groups;
+    const out = await withContent(groups, async (g) => {
+      if (g === bad) throw new Error('INVALID_ARGUMENT: reserved id');
+      return { exists: true, title: g.targetKey };
+    });
+    expect(out).toHaveLength(3);
+    expect(out[0].content).toEqual({ exists: false, unreadable: true });
+    expect(out.slice(1).every((g) => g.content.exists)).toBe(true);
   });
 });

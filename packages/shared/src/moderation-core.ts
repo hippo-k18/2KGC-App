@@ -87,8 +87,12 @@ export function reportTargetPath(t: ReportTarget): string {
  * two can only disagree on reports filed before that rule.
  */
 export function parseReportTargetKey(key: string): ReportTarget | null {
-  if (!/^[A-Za-z]+(:[^:/]+){1,2}$/.test(key)) return null;
+  // The same alphabet and the same reserved-id test as `pathMatchesKey` in
+  // firestore.rules: anything else is not an id the app writes, and some of it
+  // (`..`, `__x__`) is a path Firestore refuses to even look up (T232).
+  if (!/^[A-Za-z]+(:[A-Za-z0-9_-]{1,128}){1,2}$/.test(key)) return null;
   const [type, a, b] = key.split(":");
+  if ([a, b].some((part) => part !== undefined && /^__.*__$/.test(part))) return null;
   switch (type) {
     case "communityPost":
       return b === undefined ? { type, postId: a } : null;

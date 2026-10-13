@@ -502,3 +502,76 @@ describe('filtered text is a string, of a sane size, with no extra fields', () =
     await assertFails(addDoc(collection(as(A), `threads/${THREAD_AB}/messages`), { senderId: A, body: 'ok', sentAt: serverTimestamp(), hidden: false }));
   });
 });
+
+/**
+ * T233: report keys the gate found the rules accepting (T232), each of which
+ * made the dashboard build a document path Firestore refuses.
+ */
+describe('a report key is made of the ids the app writes', () => {
+  const odd = (key: string, path: string) =>
+    setDoc(doc(as(A), 'reports', `${A}__${key}`), {
+      eventId: 'kgc-2027', reporterId: A, targetType: key.split(':')[0], targetKey: key, targetPath: path,
+      reason: 'spam', status: 'open', createdAt: serverTimestamp(),
+    });
+
+  it('refuses dots, reserved ids, whitespace, look-alike letters and over-long parts', async () => {
+    for (const [key, path] of [
+      ['communityPost:..', 'communityPosts/..'],
+      ['communityPost:.', 'communityPosts/.'],
+      ['communityPost:__x__', 'communityPosts/__x__'],
+      ['reply:p1:__r__', 'communityPosts/p1/replies/__r__'],
+      ['reply:__p__:r1', 'communityPosts/__p__/replies/r1'],
+      ['communityPost:ｐ１', 'communityPosts/ｐ１'],
+      ['communityPost:p1 ', 'communityPosts/p1 '],
+      ['communityPost:p1\nx', 'communityPosts/p1\nx'],
+      ['communityPost:p 1', 'communityPosts/p 1'],
+      ['user:..', 'directory/..'],
+      ['job:..', 'jobs/..'],
+      [`user:${'a'.repeat(129)}`, `directory/${'a'.repeat(129)}`],
+    ]) {
+      await assertFails(odd(key, path));
+    }
+  });
+
+  it('a conversation key with an odd thread id is refused too', async () => {
+    await assertFails(
+      setDoc(doc(as(A), 'reports', `${A}__message:..`), {
+        eventId: 'kgc-2027', reporterId: A, targetType: 'message', targetKey: 'message:..', targetPath: 'threads/..',
+        targetAuthorId: B, reason: 'spam', status: 'open', createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('the ids the app and the seed really use still go through', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'threads/deleted-user_attendeeA'), {
+        eventId: 'kgc-2027', participantIds: ['deleted-user', A], unread: { [A]: 0, 'deleted-user': 0 },
+      });
+    });
+    for (const t of [
+      { type: 'communityPost', postId: 'seed-post-0' },
+      { type: 'communityPost', postId: 'Xy7Qp0aB3cD4eF5gH6iJ' },
+      { type: 'reply', postId: 'seed-post-0', replyId: 'seed-reply-1' },
+      { type: 'user', uid: 'demo_000' },
+      { type: 'user', uid: 'NyX55bdvl0h9Zg2BgV0PwFlOAMV9' },
+      { type: 'job', jobId: 'job-1_a' },
+    ] as ReportTarget[]) {
+      const r = report(A, t);
+      await assertSucceeds(setDoc(doc(as(A), 'reports', r.id), r.data));
+    }
+    const convo: ReportTarget = { type: 'message', threadId: 'deleted-user_attendeeA' };
+    const r = report(A, convo, { targetAuthorId: 'deleted-user' });
+    await assertSucceeds(setDoc(doc(as(A), 'reports', r.id), r.data));
+  });
+});
+
+describe('a session question takes only the fields the app writes', () => {
+  const q = (extra: Record<string, unknown> = {}) => ({
+    eventId: 'kgc-2027', authorId: A, body: 'How?', state: 'pending', answered: false, upvoteCount: 0,
+    createdAt: serverTimestamp(), ...extra,
+  });
+  it('the app shape goes through, an extra field does not', async () => {
+    await assertSucceeds(addDoc(collection(as(A), 'sessions/s1/questions'), q()));
+    await assertFails(addDoc(collection(as(A), 'sessions/s1/questions'), q({ text: 'fuck' })));
+  });
+});

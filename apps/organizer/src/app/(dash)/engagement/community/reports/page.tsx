@@ -112,7 +112,7 @@ function ReportCard({ item }: { item: ReportQueueItem }) {
         }}
       >
         <Tag color="blue" small>
-          {targetLabel(item.target)}
+          {content.unreadable ? 'Unreadable report' : targetLabel(item.target)}
         </Tag>
         <strong style={{ fontSize: 14 }}>
           {item.reports.length} {item.reports.length === 1 ? 'report' : 'reports'}
@@ -135,10 +135,12 @@ function ReportCard({ item }: { item: ReportQueueItem }) {
         {!content.exists ? (
           <p className="muted" style={{ margin: 0 }}>
             {item.target === null
-              ? 'This report does not name anything the app shows.'
-              : item.target.type === 'job'
-                ? 'A job post. The Job Board is not built yet.'
-                : 'This is no longer there. It was deleted after it was reported.'}
+              ? 'This report does not name anything the app shows. Keep it to close it.'
+              : content.unreadable
+                ? 'This could not be read. Keep it to close it.'
+                : item.target.type === 'job'
+                  ? 'A job post. The Job Board is not built yet.'
+                  : 'This is no longer there. It was deleted after it was reported.'}
           </p>
         ) : (
           <>

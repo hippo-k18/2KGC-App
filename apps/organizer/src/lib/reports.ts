@@ -10,6 +10,7 @@ import {
 } from '@kgc/shared';
 import { FieldValue } from 'firebase-admin/firestore';
 import { appendAudit } from './audit';
+import { recordError } from './errors';
 import { db } from './firestore';
 import {
   conversationAuthors,
@@ -58,6 +59,8 @@ export interface ReportedContent {
   status?: string;
   /** For a whole-conversation report: the reported person's recent messages there. */
   messages?: { id: string; body: string; at: string; hidden: boolean }[];
+  /** The read failed. The card says so and offers Keep, so it can still be cleared. */
+  unreadable?: boolean;
 }
 
 export interface ReportQueueItem extends ReportGroup {
@@ -183,8 +186,29 @@ export async function listReportQueue(): Promise<ReportQueueItem[]> {
     resolvedAt: r.resolvedAt ? iso(r.resolvedAt) : undefined,
     resolution: r.resolution,
   }));
-  const groups = groupReports(rows);
-  return Promise.all(groups.map(async (g) => ({ ...g, content: await readContent(g, name) })));
+  return withContent(groupReports(rows), (g) => readContent(g, name));
+}
+
+/**
+ * Each card's content, read on its own. One card's read failing must not take
+ * the queue with it: a single report naming a path Firestore refuses once
+ * replaced the whole screen with an error, so nobody could act on any report
+ * (T232). A failed card says so and still offers Keep.
+ */
+export function withContent<G extends ReportGroup>(
+  groups: G[],
+  read: (g: G) => Promise<ReportedContent>,
+): Promise<(G & { content: ReportedContent })[]> {
+  return Promise.all(
+    groups.map(async (g) => {
+      try {
+        return { ...g, content: await read(g) };
+      } catch (err) {
+        recordError('reports.read', err);
+        return { ...g, content: { exists: false, unreadable: true } };
+      }
+    }),
+  );
 }
 
 export type ReportDecision = 'hide' | 'keep' | 'reopen';
@@ -212,7 +236,13 @@ export async function resolveReports(input: {
 
   if (input.decision === 'hide') {
     if (!of) return { ok: false, error: 'This report does not name anything the app shows. Keep it instead.' };
-    const hidden = await hideTarget(of, reports.map((r) => r.data.reporterId), input.actor);
+    let hidden: Awaited<ReturnType<typeof hideTarget>>;
+    try {
+      hidden = await hideTarget(of, reports.map((r) => r.data.reporterId), input.actor);
+    } catch (err) {
+      recordError('reports.hide', err);
+      return { ok: false, error: 'This could not be hidden. Keep it to close the report.' };
+    }
     if (!hidden.ok) return hidden;
   }
 

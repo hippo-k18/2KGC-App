@@ -38,6 +38,9 @@ describe("report keys and paths", () => {
       { type: "communityPost", postId: "p1" },
       { type: "reply", postId: "p1", replyId: "r1" },
       { type: "message", threadId: "demo_000_demo_001" },
+      { type: "message", threadId: "NyX55bdvl0h9Zg2BgV0PwFlOAMV9_demo_000", messageId: "seed-msg-0-1" },
+      { type: "user", uid: "deleted-user" },
+      { type: "reply", postId: "seed-post-0", replyId: "seed-reply-0" },
       { type: "message", threadId: "a_b", messageId: "m1" },
       { type: "user", uid: "u1" },
       { type: "job", jobId: "j1" },
@@ -52,6 +55,17 @@ describe("report keys and paths", () => {
       "communityPost:",
       "session:s1",
       "",
+      // T232: ids Firestore refuses, or the app never writes.
+      "communityPost:..",
+      "communityPost:.",
+      "communityPost:__x__",
+      "reply:p1:__r__",
+      "communityPost:ｐ１",
+      "communityPost:p1 ",
+      "communityPost:p1\nx",
+      "message:..",
+      "user:..",
+      `user:${"a".repeat(129)}`,
     ]) {
       expect(parseReportTargetKey(bad)).toBeNull();
     }
