@@ -22,17 +22,34 @@ if (!listenPort || !metroPort) {
   process.exit(1);
 }
 
+// Exact paths only. Metro's server root is the repo root (watchFolders), so a
+// suffix rule such as "ends in .bundle" let anyone bundle and download any
+// .js or .json file in the checkout, dot-folders included (T240). The one
+// bundle the manifest names is the entry below; source maps are not needed.
+const BUNDLE = '/node_modules/expo-router/entry.bundle';
+// Asset folders the bundle actually references, as `unstable_path` values
+// relative to app/. Anything else, or anything with a further "..", is refused.
+const ASSET_DIRS = [
+  './assets/',
+  './../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/',
+  './../node_modules/expo-router/assets/',
+];
+const ASSET_FILE = /\.(png|jpe?g|gif|webp|svg|xml|ttf|otf)(\?.*)?$/i;
+
 function allowed(req) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return false;
-  const path = new URL(req.url, 'http://x').pathname;
-  return (
-    path === '/' ||
-    path === '/manifest' ||
-    path === '/status' ||
-    path.endsWith('.bundle') ||
-    path.endsWith('.map') ||
-    path.startsWith('/assets/')
-  );
+  const url = new URL(req.url, 'http://x');
+  const path = url.pathname;
+  if (path === '/' || path === '/manifest' || path === '/status') return true;
+  if (path === BUNDLE) return true;
+  if (path === '/assets/') {
+    const asset = url.searchParams.get('unstable_path') ?? '';
+    const dir = ASSET_DIRS.find((d) => asset.startsWith(d));
+    if (!dir) return false;
+    const rest = asset.slice(dir.length);
+    return !rest.includes('..') && !rest.includes('\\') && ASSET_FILE.test(rest);
+  }
+  return false;
 }
 
 const server = http.createServer((req, res) => {
