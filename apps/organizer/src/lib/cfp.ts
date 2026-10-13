@@ -381,7 +381,8 @@ export async function acceptCfp(input: {
           ? 'Already accepted, and the speaker already has their email.'
           : a.e2HeldForE4
             ? 'Already accepted. Their acceptance email waits for the decision send after the close.'
-            : 'Already accepted. Their acceptance email did not go; send the link from Speaker Manager.',
+            : // The winning press may still be sending, so say nothing about the email that may be false.
+              'Already accepted, possibly a moment ago in another tab. Open the submission to see whether the acceptance email went.',
       };
     }
     const before = claim.s;
