@@ -119,6 +119,33 @@ service cloud.firestore {
       return signedIn() && request.auth.token.get('demo', false) == true;
     }
 
+    /**
+     * The word filter (App Store guideline 1.2), the same list as
+     * `BLOCKED_WORDS` in `packages/shared/src/moderation-core.ts`.
+     * `moderation-core.test.ts` fails if the two differ. Whole words only,
+     * case-folded, so "Scunthorpe" and "spice" pass. A floor, not a moderator:
+     * reports and the dashboard queue do the real work. Organizer edits are
+     * not filtered, because redacting a post is how they remove the word.
+     */
+    function blockedWordsPattern() {
+      return '(?s).*\\b(fuck|fucking|fucked|fucker|motherfucker|cunt|nigger|nigga|faggot|fag|retard|kike|spic|chink|tranny|whore|slut)\\b.*';
+    }
+
+    function cleanText(field) {
+      return !(field is string) || !field.lower().matches(blockedWordsPattern());
+    }
+
+    /**
+     * Has either person blocked the other? Blocking stops new conversations
+     * and new messages in both directions: the blocked person cannot reach
+     * the blocker, and the blocker cannot keep messaging someone they asked
+     * not to hear from. Two `exists()` calls, at most, on the message path.
+     */
+    function blockedBetween(a, b) {
+      return exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
+        || exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
+    }
+
     /** The event-wide attendee-messaging switch. Absent means on. */
     function messagingOn() {
       return appAccessValues().get('messagingEnabled', true) == true;
@@ -468,6 +495,21 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['sessionId', 'savedAt', 'remind'])
           && seatHeldIfGated();
       }
+      /**
+       * People this user has blocked. Private: nobody else can read the list,
+       * so a blocked person is never told. Create or remove only; there is
+       * nothing on a block to edit. Not gated on `appTakesWrites()` or the demo
+       * flag, because it is your own safety setting and nobody else sees it.
+       */
+      match /blocks/{blockedUid} {
+        allow read, delete: if isSelf(uid) && isRegistered();
+        allow create: if isSelf(uid) && isRegistered()
+          && blockedUid != uid
+          && request.resource.data.keys().hasOnly(['blockedUid', 'createdAt'])
+          && request.resource.data.blockedUid == blockedUid
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+      }
       match /savedContacts/{contactUid} {
         allow read, delete: if isSelf(uid) && isRegistered();
         allow create, update: if isSelf(uid) && isRegistered()
@@ -606,7 +648,8 @@ service cloud.firestore {
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.upvoteCount == 0
           && request.resource.data.answered == false
-          && request.resource.data.state == 'pending';
+          && request.resource.data.state == 'pending'
+          && cleanText(request.resource.data.body);
 
         // Authors may correct their own wording; organizers may moderate.
         // Both branches are allowlists. Moderating a question is approving it,
@@ -616,7 +659,8 @@ service cloud.firestore {
         allow update: if (isOrganizer()
               && changed().hasOnly(['state', 'answered', 'body', 'editedAt']))
           || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
-              && changed().hasOnly(['body', 'editedAt']));
+              && changed().hasOnly(['body', 'editedAt'])
+              && cleanText(request.resource.data.body));
 
         allow delete: if isOrganizer()
           || (isRegistered() && resource.data.authorId == request.auth.uid);
@@ -1456,6 +1500,45 @@ service cloud.firestore {
      * here.
      */
 
+    /**
+     * Reports of user content (App Store guideline 1.2). Create-only for
+     * clients: the dashboard reads and resolves them with the Admin SDK, and no
+     * attendee can read a report, including their own.
+     *
+     * The id is `<reporterId>__<targetKey>` (`reportId()` in
+     * `moderation-core.ts`), so a second report of the same thing by the same
+     * person is a create on an existing document, which is refused. That is
+     * the de-duplication.
+     *
+     * Allowed for the demo login and after the event closes: only organizers
+     * see a report, and a takedown request after the event is exactly when one
+     * matters.
+     */
+    match /reports/{reportId} {
+      function validReport(d) {
+        return d.keys().hasOnly(['eventId', 'reporterId', 'targetType', 'targetKey', 'targetPath',
+                                 'targetAuthorId', 'reason', 'note', 'status', 'createdAt'])
+          && d.keys().hasAll(['eventId', 'reporterId', 'targetType', 'targetKey', 'targetPath',
+                              'reason', 'status', 'createdAt'])
+          && d.eventId is string
+          && d.targetType in ['job', 'communityPost', 'reply', 'message', 'user']
+          && d.reason in ['spam', 'offensive', 'scam', 'other']
+          && d.targetKey is string && d.targetKey.size() <= 400
+          && d.targetKey.matches(d.targetType + ':.+')
+          && d.targetPath is string && d.targetPath.size() <= 400
+          && (!('targetAuthorId' in d) || (d.targetAuthorId is string && d.targetAuthorId.size() <= 128))
+          && (!('note' in d) || (d.note is string && d.note.size() <= 500))
+          && d.status == 'open'
+          && d.createdAt == request.time;
+      }
+
+      allow create: if isRegistered()
+        && request.resource.data.reporterId == request.auth.uid
+        && reportId == request.auth.uid + '__' + request.resource.data.targetKey
+        && validReport(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
     match /communityPosts/{postId} {
       allow read: if isRegistered();
       // `appTakesWrites()` on the client branch and not on the organizer one:
@@ -1464,7 +1547,9 @@ service cloud.firestore {
       allow create: if isRegistered() && appTakesWrites()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.replyCount == 0
-        && request.resource.data.reactionCount == 0;
+        && request.resource.data.reactionCount == 0
+        && cleanText(request.resource.data.title)
+        && cleanText(request.resource.data.body);
 
       // Authors may edit their own text — which Whova does not allow, and which
       // is one of the most common complaints about it. Counters are absent from
@@ -1475,7 +1560,9 @@ service cloud.firestore {
       allow update: if (isOrganizer()
             && changed().hasOnly(['status', 'title', 'body', 'editedAt', 'updatedAt']))
         || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
-            && changed().hasOnly(['title', 'body', 'editedAt']));
+            && changed().hasOnly(['title', 'body', 'editedAt'])
+            && cleanText(request.resource.data.title)
+            && cleanText(request.resource.data.body));
 
       // Soft delete via `status`, so replies and reactions do not orphan.
       allow delete: if false;
@@ -1548,7 +1635,8 @@ service cloud.firestore {
         // reading the board. Requiring the field leaves exactly two states.
         allow create: if isRegistered() && appTakesWrites()
           && request.resource.data.authorId == request.auth.uid
-          && request.resource.data.status == 'visible';
+          && request.resource.data.status == 'visible'
+          && cleanText(request.resource.data.body);
         // A reply was the one piece of user-generated text on the board that no
         // organizer could touch: not hide, not redact, not remove. An abusive
         // reply under a legitimate post had no answer short of the Admin SDK.
@@ -1561,7 +1649,8 @@ service cloud.firestore {
         allow update: if (isOrganizer()
               && changed().hasOnly(['status', 'body', 'editedAt']))
           || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
-              && changed().hasOnly(['body', 'editedAt']));
+              && changed().hasOnly(['body', 'editedAt'])
+              && cleanText(request.resource.data.body));
 
         // Unlike a post, a reply has nothing hanging off it, so there is
         // nothing to orphan and a hard delete is safe. Authors may retract
@@ -1687,7 +1776,9 @@ service cloud.firestore {
       allow create: if isRegistered() && appTakesWrites() && messagingOn()
         && request.resource.data.participantIds.size() == 2
         && request.auth.uid in request.resource.data.participantIds
-        && idMatchesParticipants(request.resource.data.participantIds);
+        && idMatchesParticipants(request.resource.data.participantIds)
+        && !blockedBetween(request.resource.data.participantIds[0],
+                           request.resource.data.participantIds[1]);
       // Participants may not rewrite who is in the thread.
       //
       // Deliberately NOT gated on `messagingOn()` or `appTakesWrites()`: the
@@ -1750,7 +1841,9 @@ service cloud.firestore {
 
         allow read: if inThreadOrUnstarted();
         allow create: if inThread() && appTakesWrites() && messagingOn()
-          && request.resource.data.senderId == request.auth.uid;
+          && request.resource.data.senderId == request.auth.uid
+          && !blockedBetween(thread().data.participantIds[0], thread().data.participantIds[1])
+          && cleanText(request.resource.data.body);
         // Immutable once sent. Moderation is a function's job.
         allow update, delete: if false;
       }

@@ -428,6 +428,8 @@ export interface AuditEntry {
     | 'blog.role'
     | 'blog.remove'
     | 'blog.resendInvitation'
+    /** An organizer closed or reopened the attendee reports on one target (Engagement › Community › Reports). */
+    | 'report.resolve'
     | 'team.remove'
     | 'team.setPassphrase'
     /** An organizer took somebody out of a capped session, from Session Cap. */

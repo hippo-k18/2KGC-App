@@ -295,14 +295,10 @@ export default async function ModerateCommunityBoardPage({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Attendee reporting.</strong> Whova lets attendees flag a post, which is what
-            fills a moderation queue in practice — an organizer refreshing this page is not a
-            substitute. It needs a `reports` collection and a rule letting any signed-in attendee
-            write one.
-          </li>
-          <li>
             <strong>Banning an author.</strong> Hiding content does not stop the person posting
-            again, and blocking needs a claim the rules can read.
+            again. Attendees can block someone for themselves, and reports arrive on{' '}
+            <Link href={ROUTES.communityReports}>Engagement › Community › Reports</Link>, but there is
+            no event-wide ban.
           </li>
         </ul>
       </GapPanel>

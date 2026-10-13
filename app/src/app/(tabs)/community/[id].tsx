@@ -3,12 +3,21 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View 
 import { useLocalSearchParams } from 'expo-router';
 import { doc } from 'firebase/firestore';
 
-import { DELETED_USER_ID, DELETED_USER_NAME, COLLECTIONS, type CommunityPostDoc, type WithId } from '@kgc/shared';
+import {
+  DELETED_USER_ID,
+  DELETED_USER_NAME,
+  COLLECTIONS,
+  WORD_FILTER_MESSAGE,
+  findBlockedWord,
+  type CommunityPostDoc,
+  type WithId,
+} from '@kgc/shared';
 
 import { webSlop } from '@/components/a11y';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
+import { SafetyMenu } from '@/components/safety-sheet';
 import { SkeletonBlock, SkeletonScreen, SkeletonText } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
@@ -25,6 +34,7 @@ import {
   useReplies,
 } from '@/lib/data/community';
 import { useDirectory } from '@/lib/data/directory';
+import { useBlocked } from '@/lib/data/safety';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
@@ -51,6 +61,9 @@ export default function PostScreen() {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
+  /** The word filter's refusal, shown above whichever box was refused. */
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const { blocked } = useBlocked();
 
   // `useDocument` rather than a bare `onSnapshot`. The listener this replaces had
   // no error callback at all, which is the one omission that unmounts the whole
@@ -71,7 +84,14 @@ export default function PostScreen() {
   // Settled and absent, which is different from settled and refused.
   const missing = postStatus === 'ready' && !post;
 
-  const { replies, error: repliesError, retry: retryReplies } = useReplies(id);
+  const { replies: allReplies, error: repliesError, retry: retryReplies } = useReplies(id);
+  // Replies from people I blocked are left out, count included.
+  const replies = useMemo(
+    () => allReplies.filter((r) => !blocked.has(r.authorId)),
+    [allReplies, blocked],
+  );
+  /** A deleted account can still be reported, but there is nobody left to block. */
+  const blockable = (authorId: string) => (authorId === DELETED_USER_ID ? undefined : authorId);
   /*
    * Names for the bylines, from the same projection the People list reads.
    *
@@ -154,6 +174,19 @@ export default function PostScreen() {
   const mine = post.authorId === user?.uid;
   const iReacted = reacted.has(post.id);
 
+  if (blocked.has(post.authorId)) {
+    return (
+      <>
+        {header}
+        <EmptyState
+          icon="person.slash"
+          title="You blocked this person"
+          message="Their posts are hidden from you. You can unblock them from their profile."
+        />
+      </>
+    );
+  }
+
   return (
     <>
       {header}
@@ -194,6 +227,11 @@ export default function PostScreen() {
                   </Pressable>
                   <Pressable
                     onPress={async () => {
+                      if (findBlockedWord(editTitle) || findBlockedWord(editBody)) {
+                        setFilterError(WORD_FILTER_MESSAGE);
+                        return;
+                      }
+                      setFilterError(null);
                       await editPost(post.id, { title: editTitle.trim(), body: editBody.trim() });
                       setEditing(false);
                     }}
@@ -253,7 +291,19 @@ export default function PostScreen() {
                   <Text tone="tint">Edit</Text>
                 </Pressable>
               ) : null}
+              <View style={{ flex: 1 }} />
+              <SafetyMenu
+                target={{ type: 'communityPost', postId: post.id }}
+                authorId={blockable(post.authorId)}
+                authorName={names.get(post.authorId)}
+                subject="this post"
+              />
             </View>
+            {filterError && editing ? (
+              <Text variant="subhead" tone="danger" accessibilityLiveRegion="polite">
+                {filterError}
+              </Text>
+            ) : null}
           </View>
 
           {/* The count below is drawn from the loaded page, so a refused read
@@ -293,9 +343,17 @@ export default function PostScreen() {
                 gap: 4,
               }}>
               <Text>{r.body}</Text>
-              <Text variant="caption" tone="tertiary">
-                {byline(r.authorId, r.createdAt)}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text variant="caption" tone="tertiary" style={{ flex: 1 }}>
+                  {byline(r.authorId, r.createdAt)}
+                </Text>
+                <SafetyMenu
+                  target={{ type: 'reply', postId: post.id, replyId: r.id }}
+                  authorId={blockable(r.authorId)}
+                  authorName={names.get(r.authorId)}
+                  subject="this reply"
+                />
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -305,6 +363,15 @@ export default function PostScreen() {
           write past the read-only boundary, so a box that still accepted a
           reply here would take what somebody typed and drop it.
         */}
+        {writesOpen && filterError && !editing ? (
+          <Text
+            variant="subhead"
+            tone="danger"
+            accessibilityLiveRegion="polite"
+            style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.sm }}>
+            {filterError}
+          </Text>
+        ) : null}
         {writesOpen ? (
         <View
           style={{
@@ -336,8 +403,15 @@ export default function PostScreen() {
             onPress={async () => {
               if (!user) return;
               const body = draft.trim();
+              if (findBlockedWord(body)) {
+                setFilterError(WORD_FILTER_MESSAGE);
+                return;
+              }
+              setFilterError(null);
               setDraft('');
-              await addReply(post.id, user.uid, body);
+              const result = await addReply(post.id, user.uid, body);
+              // Put back what was typed rather than lose it to a refused write.
+              if (!result.ok) setDraft((current) => current || body);
             }}
             accessibilityRole="button"
             accessibilityLabel="Send reply"

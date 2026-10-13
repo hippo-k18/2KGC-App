@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { differenceInCalendarDays, format } from 'date-fns';
@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppAccess } from '@/lib/data/app-access';
 import { useDirectory } from '@/lib/data/directory';
 import { otherParticipant, totalUnread, useThreads } from '@/lib/data/messages';
+import { useBlocked } from '@/lib/data/safety';
 import { DELETED_USER_ID, DELETED_USER_NAME } from '@kgc/shared';
 
 /** Whova's inbox avatar is larger than a settings row's. */
@@ -76,7 +77,17 @@ export default function MessagesScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
-  const { threads, loading, error, retry } = useThreads(user?.uid);
+  const { threads: allThreads, loading, error, retry } = useThreads(user?.uid);
+  // Conversations with people I blocked are left out of the inbox. The rules
+  // already stop either side writing in them.
+  const { blocked } = useBlocked();
+  const threads = useMemo(
+    () =>
+      allThreads && user
+        ? allThreads.filter((t) => !blocked.has(otherParticipant(t, user.uid)))
+        : allThreads,
+    [allThreads, blocked, user],
+  );
   const { messagingEnabled } = useAppAccess();
   const { people, error: peopleError, retry: retryPeople } = useDirectory();
   // Session-scoped, not persisted: a preference this small is not worth a

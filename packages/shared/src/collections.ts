@@ -13,6 +13,8 @@ export const COLLECTIONS = {
   rooms: "rooms",
   threads: "threads",
   communityPosts: "communityPosts",
+  /** User reports of posts, replies, messages, profiles and jobs. Create-only for clients. */
+  reports: "reports",
   announcements: "announcements",
   checkInLists: "checkInLists",
   checkInStations: "checkInStations",
@@ -224,6 +226,8 @@ export const COLLECTIONS = {
 export const SUBCOLLECTIONS = {
   savedSessions: "savedSessions",
   savedContacts: "savedContacts",
+  /** `users/{uid}/blocks/{blockedUid}`: people this user has blocked. Owner-only. */
+  blocks: "blocks",
   notifications: "notifications",
   fcmTokens: "fcmTokens",
   entitlements: "entitlements",

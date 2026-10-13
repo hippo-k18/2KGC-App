@@ -26,6 +26,7 @@ import {
   type Speaker,
   type Sponsor,
 } from '@/lib/data/directory';
+import { useBlocked } from '@/lib/data/safety';
 import { useExhibitors, type ExhibitorListing } from '@/lib/data/exhibitors';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppAccess } from '@/lib/data/app-access';
@@ -181,7 +182,14 @@ export default function PeopleScreen() {
   const [interest, setInterest] = useState<string | null>(null);
   const listRef = useRef<FlatList<Row>>(null);
 
-  const { people, loading, error: peopleError, retry: retryPeople } = useDirectory();
+  const { people: allPeople, loading, error: peopleError, retry: retryPeople } = useDirectory();
+  // People I blocked are left out of the list. Their profile still opens from a
+  // link, which is where Unblock lives.
+  const { blocked } = useBlocked();
+  const people = useMemo(
+    () => (allPeople ? allPeople.filter((p) => !blocked.has(p.uid)) : allPeople),
+    [allPeople, blocked],
+  );
   const { isSaved, toggle: toggleBookmark } = useSavedContacts();
   // Whova's "Bookmarked" chip. Real, because the bookmark itself is real.
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);

@@ -2,6 +2,7 @@ import type { PricePhase } from "./price-phases.js";
 import type { CommunityCategory } from "./community.js";
 import type { SettingsKey, SettingsValues } from "./settings.js";
 import type { StreamProvider, StreamState } from "./stream-core.js";
+import type { ReportReason, ReportTargetType } from "./moderation-core.js";
 
 /**
  * A structural stand-in for `firebase/firestore`'s `Timestamp` (and the
@@ -1090,6 +1091,11 @@ export interface MessageDoc {
   senderId: string;
   body: string;
   sentAt: Timestamp;
+  /**
+   * Set by an organizer from the dashboard's Reports queue (Admin SDK; the
+   * rules let no client edit a message). The app leaves hidden messages out.
+   */
+  hidden?: boolean;
 }
 
 /** `communityPosts/{id}` */
@@ -1141,6 +1147,39 @@ export interface CommunityReplyDoc {
   body: string;
   editedAt?: Timestamp;
   status: 'visible' | 'hidden' | 'removed';
+  createdAt: Timestamp;
+}
+
+/**
+ * `reports/{reporterId}__{targetKey}`: one person's report of one thing.
+ *
+ * Written by the app, read only by the dashboard (Admin SDK). The id makes a
+ * second report of the same thing by the same person a refused create, which
+ * is the de-duplication (`reportTargetKey` in `moderation-core.ts`).
+ */
+export interface ReportDoc {
+  eventId: string;
+  reporterId: string;
+  targetType: ReportTargetType;
+  targetKey: string;
+  /** Where the dashboard finds what was reported, e.g. `communityPosts/abc`. */
+  targetPath: string;
+  /** Who wrote it, when the app knew. The dashboard re-reads the target rather than trusting this. */
+  targetAuthorId?: string;
+  reason: ReportReason;
+  note?: string;
+  status: "open" | "actioned" | "dismissed";
+  createdAt: Timestamp;
+  /** Set by the dashboard. */
+  resolvedBy?: string;
+  resolvedAt?: Timestamp;
+  /** What the organizer did: hid the content, or decided it was fine. */
+  resolution?: "hidden" | "kept";
+}
+
+/** `users/{uid}/blocks/{blockedUid}`: this user no longer sees, or hears from, `blockedUid`. */
+export interface BlockDoc {
+  blockedUid: string;
   createdAt: Timestamp;
 }
 

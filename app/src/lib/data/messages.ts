@@ -90,7 +90,9 @@ export function useMessages(threadId: string | undefined) {
   );
   // An object, not a bare array. "Say hello to Priya" over a conversation the
   // server refused to send is the same lie an empty agenda was telling.
-  return { messages: data ?? [], error, retry };
+  // A message an organizer hid after a report is left out. The query cannot
+  // filter it, because older messages have no `hidden` field at all.
+  return { messages: (data ?? []).filter((m) => m.hidden !== true), error, retry };
 }
 
 /**

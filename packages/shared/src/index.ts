@@ -40,3 +40,4 @@ export * from "./rich-text-core.js";
 export * from "./custom-pages-core.js";
 export * from "./price-phases.js";
 export * from "./ticket-extras.js";
+export * from "./moderation-core.js";

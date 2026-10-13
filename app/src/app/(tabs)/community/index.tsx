@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import type { Timestamp } from '@kgc/shared';
+import { WORD_FILTER_MESSAGE, findBlockedWord, type Timestamp } from '@kgc/shared';
 
 import { DECORATIVE, webSlop } from '@/components/a11y';
 import { CategoryTile, type CategoryTint } from '@/components/category-tile';
@@ -27,6 +27,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppAccess } from '@/lib/data/app-access';
 import { useAnnouncements } from '@/lib/data/announcements';
+import { useBlocked } from '@/lib/data/safety';
 import {
   CATEGORIES,
   categoryLabel,
@@ -155,7 +156,13 @@ export default function CommunityScreen() {
   const [composing, setComposing] = useState(false);
   const listRef = useRef<FlatList<Post>>(null);
 
-  const { posts, loading, error, retry } = useCommunityPosts(category);
+  const { posts: allPosts, loading, error, retry } = useCommunityPosts(category);
+  // Posts by people I blocked are left out before anything counts or sorts them.
+  const { blocked } = useBlocked();
+  const posts = useMemo(
+    () => (allPosts ? allPosts.filter((p) => !blocked.has(p.authorId)) : allPosts),
+    [allPosts, blocked],
+  );
   const replyCounts = useReplyCounts(posts);
   // Two aggregations per post rather than one. That is the price of two frozen
   // counters, and it is bounded by `PAGE_SIZE`; it comes back to a single field
@@ -449,9 +456,12 @@ export default function CommunityScreen() {
         visible={composing}
         onClose={() => setComposing(false)}
         onSubmit={async (title, body, cat) => {
-          if (!user) return;
-          await createPost({ authorId: user.uid, category: cat, title, body });
+          if (!user) return 'Sign in again to post.';
+          if (findBlockedWord(title) || findBlockedWord(body)) return WORD_FILTER_MESSAGE;
+          const result = await createPost({ authorId: user.uid, category: cat, title, body });
+          if (!result.ok) return "That didn't post. Check your connection and try again.";
           setComposing(false);
+          return null;
         }}
       />
     </View>
@@ -633,9 +643,11 @@ function Composer({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (title: string, body: string, category: string) => Promise<void>;
+  /** Resolves to a message to show when the post was not made, or null. */
+  onSubmit: (title: string, body: string, category: string) => Promise<string | null>;
 }) {
   const colors = useTheme();
+  const [problem, setProblem] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<string>(CATEGORIES[0].id);
@@ -671,9 +683,12 @@ function Composer({
             onPress={async () => {
               setBusy(true);
               try {
-                await onSubmit(title.trim(), body.trim(), category);
-                setTitle('');
-                setBody('');
+                const refused = await onSubmit(title.trim(), body.trim(), category);
+                setProblem(refused);
+                if (!refused) {
+                  setTitle('');
+                  setBody('');
+                }
               } finally {
                 setBusy(false);
               }
@@ -733,6 +748,11 @@ function Composer({
           accessibilityLabel="Post body"
           maxLength={2000}
         />
+        {problem ? (
+          <Text variant="subhead" tone="danger" accessibilityLiveRegion="polite">
+            {problem}
+          </Text>
+        ) : null}
       </KeyboardAvoidingView>
     </Modal>
   );

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
+import { WORD_FILTER_MESSAGE, findBlockedWord } from '@kgc/shared';
 
 import { DataErrorBanner } from '@/components/data-error';
 import { Icon } from '@/components/icon';
@@ -51,6 +52,10 @@ export function SessionQA({ sessionId }: { sessionId: string }) {
   async function submit() {
     const body = draft.trim();
     if (!body) return;
+    if (findBlockedWord(body)) {
+      setNotice(WORD_FILTER_MESSAGE);
+      return;
+    }
     setBusy(true);
     const result = await ask(body);
     setBusy(false);

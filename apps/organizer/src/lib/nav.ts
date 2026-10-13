@@ -131,7 +131,8 @@ export const NAV: NavNode[] = [
       { name: "meet_ups", title: "Meet-ups", slug: "meet-ups" },
       { name: "discussion_topics", title: "Discussion Topics", slug: "discussion-topics" },
       { name: "social_groups", title: "Social Groups", slug: "social-groups" },
-      { name: "attendee_matchmaking", title: "Attendee Matchmaking", slug: "attendee-matchmaking" }
+      { name: "attendee_matchmaking", title: "Attendee Matchmaking", slug: "attendee-matchmaking" },
+      { name: "community_reports", title: "Reports", slug: "reports" }
     ] },
     { name: "gamification", title: "Gamification", slug: "gamification", tag: "hot" },
     { name: "meetings", title: "1-1 Meeting Scheduler", slug: "1-1-meeting-scheduler" },
@@ -347,6 +348,7 @@ export const IMPLEMENTED = new Set<string>([
   'engagement/community/discussion-topics',
   'engagement/community/social-groups',
   'engagement/community/attendee-matchmaking',
+  'engagement/community/reports',
   'marketing/event-webpages/agenda-webpage/general-purpose',
   'marketing/event-webpages/speaker-webpage',
   'marketing/event-webpages/sponsor-webpage/sponsor-list',
@@ -495,7 +497,7 @@ export const IMPLEMENTED = new Set<string>([
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
-export const OURS = new Set<string>([]);
+export const OURS = new Set<string>(['engagement/community/reports']);
 
 export interface Resolved {
   node: NavNode;
@@ -564,6 +566,7 @@ export const ROUTES = {
   discountCodes: '/tickets/ticket-setup/discount-codes',
   analyticsExports: '/attendees/manage-attendees/analytics-and-exports',
   moderateBoard: '/tools/moderator-tools/community-board',
+  communityReports: '/engagement/community/reports',
   qaManager: '/content/agenda-center/session-qanda-manager',
   streamingSetup: '/virtual-and-hybrid/online-session-manager/streaming-setup',
 } as const;
