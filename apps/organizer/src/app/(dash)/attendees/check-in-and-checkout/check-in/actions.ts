@@ -13,12 +13,14 @@ import {
 } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit } from '@/lib/audit';
+import { requiredConsentGaps } from '@/lib/consents';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import {
   ensureDayList,
   ensureSessionList,
+  extraTicketNames,
   listRegistrations,
   matchCode,
   touchStation,
@@ -65,6 +67,23 @@ export interface ScanResult {
   ticketType?: string;
   /** Present when `outcome === 'cancelled'` — the registration's actual status. */
   registrationStatus?: string;
+  /**
+   * Required releases this person has not signed at the published wording.
+   *
+   * Reported, never enforced: the scan still checks them in. A door volunteer
+   * holding a queue cannot adjudicate a release, and turning somebody away from
+   * a conference they paid for over an outstanding photo waiver would be a
+   * larger mistake than the one it avoided. This is what tells the desk there is
+   * something to raise.
+   */
+  consentOutstanding?: string[];
+  /**
+   * Set on a Workshops-only badge scanned anywhere but a workshop list: the
+   * extra it holds, e.g. "Workshops". A notice, not a refusal: the person is
+   * checked in as arrived, and the desk sends them to the workshops rather
+   * than the main conference (2026-10-07).
+   */
+  onlyExtra?: string;
   /** ISO. For `ok` this is now; for `duplicate` it is the *first* check-in. */
   checkedInAt?: string;
   stationLabel?: string;
@@ -113,12 +132,36 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
   if (!input.listId) return { ...base, error: 'Pick a check-in list first.' };
 
   try {
-    const [registrations] = await Promise.all([
+    const [registrations, consents, extras, list] = await Promise.all([
       listRegistrations(),
+      requiredConsentGaps(),
+      extraTicketNames(),
+      db().collection(COLLECTIONS.checkInLists).doc(input.listId).get(),
       touchStation(input.deviceId, input.stationLabel),
     ]);
 
     const match = matchCode(registrations, code);
+
+    // Looked up by registration id and by address, because a signature made in
+    // the app carries a uid and one made through a link carries neither.
+    const outstanding = match
+      ? consents.outstanding.get(match.row.id) ??
+        consents.outstanding.get(match.row.email.trim().toLowerCase())
+      : undefined;
+
+    // A Workshops-only badge at any door but a workshop's gets the notice.
+    const listDoc = list.data() as CheckInListDoc | undefined;
+    let workshopDoor = listDoc?.kind === 'workshop';
+    if (!workshopDoor && listDoc?.sessionId) {
+      const session = (await db().collection(COLLECTIONS.sessions).doc(listDoc.sessionId).get()).data() as
+        | { format?: string }
+        | undefined;
+      workshopDoor = session?.format === 'workshop';
+    }
+    const onlyExtra =
+      match && match.row.ticketType && extras.has(match.row.ticketType) && !workshopDoor
+        ? match.row.ticketType
+        : undefined;
 
     let outcome: ScanOutcome;
     let result: ScanResult;
@@ -141,6 +184,7 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
         email: match.row.email,
         ticketType: match.row.ticketType,
         registrationStatus: match.row.status,
+        consentOutstanding: outstanding,
       };
     } else {
       const ref = db()
@@ -187,6 +231,8 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
           ? (existing.checkedInAt as unknown as { toDate(): Date }).toDate().toISOString()
           : at,
         stationLabel,
+        consentOutstanding: outstanding,
+        ...(onlyExtra ? { onlyExtra } : {}),
         checkInPath: `${COLLECTIONS.checkInLists}/${input.listId}/${SUBCOLLECTIONS.checkIns}/${match.row.id}`,
       };
 

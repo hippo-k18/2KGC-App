@@ -1,0 +1,194 @@
+{
+  "uiIssues": [
+    {
+      "path": "/attendees/manage-attendees/attendees",
+      "width": 390,
+      "severity": "high",
+      "type": "broken",
+      "issue": "Tapping the three-dot menu on an attendee card opens the menu half off the left edge of the screen, so only the tails of the labels are readable and Edit attendee, Transfer ticket and Cancel registration cannot be picked (the panel is 174px wide and starts at -90px).",
+      "fix": "When the menu would start left of the screen, pin it to the left edge of the card instead of hanging it off the button.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/states/rowmenu-390.png",
+      "source": "apps/organizer/src/app/(dash)/menu.tsx (RowActions, align=\"end\") with .whova-menu.align-end in apps/organizer/src/app/globals.css:2223"
+    },
+    {
+      "path": "/attendees/check-in-and-checkout/self-check-in",
+      "width": 1280,
+      "severity": "high",
+      "type": "broken",
+      "issue": "Self Check-in and Checkout print arrival times four hours ahead of the door screen, so the same arrival reads 2026-09-21 22:39 on Check-in and 2026-09-22 02:39 on those two, putting it on the wrong day (also /attendees/check-in-and-checkout/checkout).",
+      "fix": "Format those two tables in the venue's time zone, the way the Check-in screen already does.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/attendees_check_in_and_checkout_self_check_in-1280.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/self-check-in/page.tsx:97 and checkout/page.tsx:94"
+    },
+    {
+      "path": "/pay/balance",
+      "width": 390,
+      "severity": "high",
+      "type": "clipped",
+      "issue": "On a phone the wider tables run off the right edge with nothing to show it, so money loses its last digit on /pay/balance ($2,798.0 and $2,715.9), the rehearsal schedule hides Room and Speaker and breaks every talk title over three lines, and the door screen hides Ticket and Station on Recent check-ins and Device and Code on the scan log; also on /virtual-and-hybrid/online-session-manager/rehearsal-sessions, /attendees/check-in-and-checkout/check-in, /attendees/check-in-and-checkout/self-check-in, /attendees/check-in-and-checkout/checkout, /attendees/check-in-and-checkout/session-self-check-in, /attendees/segments, /attendees/ticket-session-mapping, /engagement/announcements, /engagement/community/attendee-matchmaking, /engagement/floormap, /engagement/live-polling, /engagement/photos/photo-collection, /engagement/photos/profile-photo-frames, /virtual-and-hybrid/attendee-activity, /tools/report and /tools/app-adoption/web-app-link.",
+      "fix": "Give these tables the stacked card layout the attendee list already uses below 700px.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/pay_balance-390.png",
+      "source": "apps/organizer/src/app/(dash)/ui.tsx (Table stackSm) — the pages above call Table without it"
+    },
+    {
+      "path": "/attendees/check-in-and-checkout/kiosk-check-in",
+      "width": 1280,
+      "severity": "medium",
+      "type": "broken",
+      "issue": "Stations that have scanned lists the same name nine times in a row, because every browser that has opened the scanner gets its own row and they are all called Console desk 1.",
+      "fix": "Group the rows by name, or add the last scan time so each row says something different.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/attendees_check_in_and_checkout_kiosk_check_in-1280.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/check-in-and-checkout/kiosk-check-in/page.tsx:147"
+    },
+    {
+      "path": "/engagement/session-feedback",
+      "width": 390,
+      "severity": "medium",
+      "type": "broken",
+      "issue": "Unpublish sits next to the blue Results and Edit links as plain dark body text, so it does not read as something you can press; the same happens to Restore on /tools/moderator-tools/community-board and to Publish on /engagement/surveys.",
+      "fix": "Those controls ask for a colour name the stylesheet never defines, so give them the link colour the sheet actually has.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/engagement_session_feedback-390.png",
+      "source": "apps/organizer/src/app/(dash)/engagement/survey-screen.tsx:247 and tools/moderator-tools/community-board/page.tsx:94,178 use var(--link), which is only ever defined with a fallback at globals.css:1701"
+    },
+    {
+      "path": "/attendees/check-in-and-checkout/check-in",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "The Arrivals by hour table prints a row for every hour from Sunday morning to Monday night, 33 of the 38 showing zero, which leaves a column of empty rows beside a seven-row chart and adds about 3,000px to the screen staff scroll at the door.",
+      "fix": "Show only the hours with arrivals, plus the hours between two of them.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/ci1280-arrivals.png",
+      "source": "apps/organizer/src/lib/door-dashboard-core.ts (byHour), rendered at attendees/check-in-and-checkout/check-in/page.tsx:376"
+    },
+    {
+      "path": "/engagement/live-polling",
+      "width": 390,
+      "severity": "medium",
+      "type": "hierarchy",
+      "issue": "In the same list some cards put the status chip on the line above the title and some put it beside the title with Edit dropped underneath, so the rows do not line up; also on /engagement/community/meet-ups, /engagement/community/discussion-topics and /engagement/community/social-groups.",
+      "fix": "Put the chip on its own line above the title on narrow screens so every card has the same shape.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/lp-2.png",
+      "source": "apps/organizer/src/app/(dash)/engagement/community/category-screen.tsx:118 and the wrap rule at globals.css:3409"
+    },
+    {
+      "path": "/attendees/manage-attendees/attendees",
+      "width": 390,
+      "severity": "medium",
+      "type": "tap-target",
+      "issue": "The tick boxes for picking people are 16px squares with no label beside them to press, which is hard to hit on a phone; also on /attendees/categories, /attendees/ticket-session-mapping, /attendees/admin-settings, /engagement/announcements and /virtual-and-hybrid/logistics-management/emergency-manager.",
+      "fix": "Pad the tick box out to a 40px target on narrow screens, keeping the drawn box the same size.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/att-list-0.png",
+      "source": "apps/organizer/src/app/globals.css:2023 and app/(dash)/attendees/categories/assign-bar.tsx:64"
+    },
+    {
+      "path": "/attendees/segments",
+      "width": 1280,
+      "severity": "medium",
+      "type": "overflow",
+      "issue": "On all four segment tables the Attendees and Share column headings run into each other and read as one word, AttendeesShare.",
+      "fix": "Widen the Attendees column so its heading fits.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/seg1280-head.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/segments/page.tsx:301"
+    },
+    {
+      "path": "/attendees/manage-attendees/attendees",
+      "width": 390,
+      "severity": "medium",
+      "type": "empty-state",
+      "issue": "Cards for people who cannot be ticked, such as a transferred ticket or someone added by an organizer, still carry a SELECT heading with an empty gap under it, which reads as a tick box that failed to draw.",
+      "fix": "Leave the cell out altogether for those rows instead of filling it with an empty element.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/att-list-1.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/manage-attendees/attendees/page.tsx:340"
+    },
+    {
+      "path": "/tools/report",
+      "width": 1280,
+      "severity": "medium",
+      "type": "other",
+      "issue": "The audit trail names nothing a person recognises: the Action column reads attendee.reinstate and questionForm.update, and Target reads registrations/reg_01e1621469460b03d253854f and checkInLists/event-door/checkIns/reg_0a3153fdb22e50630e7ab6a2, so an organizer cannot tell who or what was changed.",
+      "fix": "Print the person's name and a plain action such as \"Reinstated Ada Silva\", and keep the identifier out of the table.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/tools_report-1280.png",
+      "source": "apps/organizer/src/app/(dash)/tools/report/page.tsx:313-325"
+    },
+    {
+      "path": "/engagement/announcement-wall",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "The page says \"1 screens under Announcement Wall.\"",
+      "fix": "Use the singular when there is one screen.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/engagement_announcement_wall-390.png",
+      "source": "apps/organizer/src/app/(dash)/[...slug]/page.tsx:98"
+    },
+    {
+      "path": "/tools/admin-control/code-access-control",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "The panel heading says Event code and the field label directly under it says Event code again.",
+      "fix": "Drop one of the two.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/tools_admin_control_code_access_control-390.png",
+      "source": "apps/organizer/src/app/(dash)/tools/admin-control/code-access-control/page.tsx:56 and access-form.tsx"
+    },
+    {
+      "path": "/attendees/manage-attendees/analytics-and-exports",
+      "width": 390,
+      "severity": "low",
+      "type": "ai-voice",
+      "issue": "The registration answers export card carries a long dash in the middle of a sentence, which no other line in the dashboard does.",
+      "fix": "Rewrite it as \"Catering, accessibility and t-shirt sizes, everything the form asked for.\"",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/ae-3.png",
+      "source": "apps/organizer/src/lib/exports.ts:376"
+    },
+    {
+      "path": "/attendees/integrations/mailchimp",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "The first panel is headed \"What Mailchimp is\" and answers \"An email marketing platform.\", which tells an organizer nothing; /attendees/integrations/constant-contact does the same.",
+      "fix": "Drop those two lines and start with what the dashboard can send.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/attendees_integrations_mailchimp-390.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/integrations/mailchimp/page.tsx"
+    },
+    {
+      "path": "/attendees/manage-attendees/analytics-and-exports",
+      "width": 390,
+      "severity": "low",
+      "type": "excess-text",
+      "issue": "Session attendance says \"0 of 72 sessions have had check-in opened\" and then adds \"None yet.\" on the next line, saying the same thing twice.",
+      "fix": "Keep the count and drop the second line.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/ae-1.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/manage-attendees/analytics-and-exports/page.tsx"
+    },
+    {
+      "path": "/attendees/certificates",
+      "width": 390,
+      "severity": "low",
+      "type": "tap-target",
+      "issue": "The Remove link under the certificate logo is 14px tall, about a third of the button beside it.",
+      "fix": "Give it the same 32px box the other row actions get on narrow screens.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/shots-b/attendees_certificates-390.png",
+      "source": "apps/organizer/src/app/globals.css:1698 (.linkish), used by components/image-field.tsx"
+    },
+    {
+      "path": "/attendees/manage-attendees/attendees",
+      "width": 390,
+      "severity": "low",
+      "type": "other",
+      "issue": "Email addresses in the stacked cards break in the middle of a word, so an address ends one line with example.t and starts the next with est.",
+      "fix": "Break those addresses at the @ and the dots rather than anywhere.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/att-list-3.png",
+      "source": "apps/organizer/src/app/globals.css (overflow-wrap: anywhere on table cells)"
+    },
+    {
+      "path": "/attendees/categories",
+      "width": 390,
+      "severity": "low",
+      "type": "clipped",
+      "issue": "The search box hint is cut off mid-word: \"Enter name, email, company, ticket or ca\".",
+      "fix": "Shorten the hint to what fits on a phone.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/slices/cat-1.png",
+      "source": "apps/organizer/src/app/(dash)/attendees/categories/page.tsx"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token, and the wording it shows is what a signature will be pinned to. A cached copy could show wording that is no longer the published one. */
 export const dynamic = 'force-dynamic';
 
 /**

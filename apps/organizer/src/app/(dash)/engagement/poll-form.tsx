@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import type { PollRow } from '@/lib/polls';
 import { CheckboxField, Field, FormActions, FormBanner, Select, SubmitButton, Textarea } from '../form';
@@ -42,7 +43,13 @@ export function PollForm({
           placeholder="Choose a session…"
           defaultValue={defaultSessionId}
           options={sessions.map((s) => ({ value: s.id, label: s.label }))}
-          hint="A poll belongs to one session. Attendees see it on that session's screen."
+          hint={
+            <>
+              Attendees see the poll on that session&rsquo;s screen. Polls must be turned on for
+              the session in{' '}
+              <Link href="/content/agenda-center/session-qanda-manager">Session Q&amp;A Manager</Link>.
+            </>
+          }
         />
       )}
 
@@ -53,7 +60,7 @@ export function PollForm({
         width="xl"
         maxLength={200}
         defaultValue={existing?.question}
-        placeholder="Which of these is the biggest obstacle in your own graph work?"
+        placeholder="What is your biggest obstacle?"
       />
 
       <Textarea
@@ -65,8 +72,8 @@ export function PollForm({
         style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}
         hint={
           locked
-            ? `${existing!.actualVotes} ${existing!.actualVotes === 1 ? 'person has' : 'people have'} voted, so options can be reworded but not added, removed or reordered. A vote names its option by position, and moving one would repoint every answer already given.`
-            : 'One per line, two to ten of them. Keep them short enough to read off a projected slide.'
+            ? `${existing!.actualVotes} ${existing!.actualVotes === 1 ? 'person has' : 'people have'} voted, so options can be reworded but not added, removed or reordered.`
+            : 'One per line, two to ten of them.'
         }
       />
 
@@ -74,7 +81,14 @@ export function PollForm({
         name="open"
         label="Open to votes"
         defaultChecked={existing ? existing.open : false}
-        description="Closing a poll is enforced in firestore.rules on the vote-write path, so it genuinely stops votes rather than hiding the question. A new poll starts closed unless you tick this."
+        description="A closed poll takes no votes. A new poll starts closed unless you tick this."
+      />
+
+      <CheckboxField
+        name="liveResults"
+        label="Live results"
+        defaultChecked={existing ? existing.liveResults : false}
+        description="Keeps the result attendees see up to date while the room view is open, so you do not have to publish the count by hand. Leave it off for a poll you want to reveal at the end."
       />
 
       <FormActions>

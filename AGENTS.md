@@ -14,12 +14,12 @@ version. Ignore it.
 
 ## Stack
 
-Expo SDK **54.0.36** · React Native 0.81.5 · React 19.1.0 · expo-router 6.0.24
+Expo SDK **57.0.28** · React Native 0.86.3 · React 19.2.3 · expo-router 57.0.26
 · TypeScript · Firebase (Firestore, Auth, Storage) · Zod · date-fns
 
 **These versions are probably newer than your training data.** Verify APIs
 against the installed type definitions under `node_modules/`, not from memory
-and not from web tutorials. Tutorials written for SDK 55+ will actively
+and not from web tutorials. Tutorials written for SDK 54 and older will
 mislead you — see gotcha 2.
 
 ## Current state
@@ -171,7 +171,14 @@ the order and not the price.
 
 **Two decisions that are settled, so do not re-open them:**
 
-- **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
+- **Dashboard sign-in is an email and a six-digit code, since 2026-09-26.**
+  The owner replaced the passphrase with the blog editor's scheme: an address
+  not on the list is told "Email not recognised", no code is sent. Owners are
+  `CONSOLE_ALLOWLIST` (the two owner addresses only); team members and blog
+  writers are both managed on Attendees › Admin Settings. Refunds, erasures and
+  mass sends ask for a fresh emailed code (`reauthenticate()` in
+  `apps/organizer/src/lib/auth.ts`). The history below is kept for context.
+  Earlier: **Dashboard sign-in stays email + passphrase.** No SSO, no MFA. Comments and
   docs that promised "Google SSO with enforced MFA (DECISIONS.md #5)" were
   withdrawn on 2026-08-28; what the shared secret costs is written down in
   `apps/organizer/src/lib/auth.ts`. ⚠️ On 2026-08-31 the allowlist was cut to
@@ -242,7 +249,8 @@ app/
     app/
       _layout.tsx            root stack, theme, auth providers, splash
       index.tsx              routes to /login or /home
-      login.tsx              sign-in: a six-digit code, or email + password
+      login.tsx              sign-in: an emailed six-digit code first, email +
+                             password second; no Create account (owner, 2026-10-12)
       +not-found.tsx
       (tabs)/
         _layout.tsx          Home · Agenda · People · Community · Me
@@ -384,44 +392,47 @@ Setup and run instructions for humans are in `README.md`.
 
 ## Gotchas that have already caused real bugs
 
-**1. Expo Go supports exactly one SDK — currently 54.**
-`create-expo-app@latest` scaffolds SDK 57, which Expo Go cannot open at all
-("Project is incompatible with this version of Expo Go"), and it cannot be
-fixed from the Expo Go side. This project was deliberately downgraded to 54.
-**Do not upgrade the SDK** unless the owner has chosen to move to development
-builds. Current Expo Go SDK: <https://expo.dev/go>.
+**1. Expo Go supports exactly one SDK — currently 57.**
+The App Store and Play Store Expo Go (57.0.9 as of 2026-10-12) opens only SDK
+57 projects; anything else gets "Project is incompatible with this version of
+Expo Go", and it cannot be fixed from the Expo Go side. The app moved from 54
+to 57 on 2026-10-12 (T222) so anyone can open it in store Expo Go
+(`app/scripts/expo-go-share.sh`). When Expo Go moves to SDK 58, the shared
+link stops opening until the project follows. Current Expo Go SDK:
+<https://expo.dev/go>, or `expoGoSdkVersion` at
+<https://api.expo.dev/v2/versions/latest>.
+`EXPO_PUBLIC_PREVIEW_DEMO_EMAIL`/`_PASSWORD` (the share script's demo auto sign-in) must **never** be set in `app/.env*`, `eas.json` or EAS environment variables on expo.dev: Expo compiles them into every build made there, and a store build would then sign every user in as the demo login.
 
-**2. Native tabs use the SDK 54 API, which differs from newer docs.**
+**2. Native tabs use the SDK 55+ API, which differs from older docs.**
 
 ```tsx
-// SDK 54 — correct here. Icon and Label are top-level imports.
-import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
+// SDK 55+ — correct here. Icon and Label hang off NativeTabs.Trigger.
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 <NativeTabs.Trigger name="home">
-  <Icon sf="house.fill" />
-  <Label>Home</Label>
+  <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
+  <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
 </NativeTabs.Trigger>
 
-// SDK 55+ — WRONG here, will not compile
-<NativeTabs.Trigger.Icon sf="house.fill" />
+// SDK 54 — WRONG here, will not compile
+import { Icon, Label } from 'expo-router/unstable-native-tabs';
 ```
 
 **3. Every tab icon must be specified twice.**
 `sf` is SF Symbols and is **iOS-only**. Supplying only `sf` leaves Android with
-labels and no icons at all. Always pair it with `androidSrc`:
+labels and no icons at all. Always pair it with `md`, a Material Symbols name:
 
 ```tsx
-<Icon
-  sf={{ default: 'house', selected: 'house.fill' }}
-  androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
-/>
+<NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
 ```
 
-Android icon names: <https://icons.expo.fyi>.
+Android icon names: <https://fonts.google.com/icons>.
 
-**4. `ThemeProvider` is not exported by expo-router 6.**
-Import `ThemeProvider`, `DefaultTheme` and `DarkTheme` from
-`@react-navigation/native`. expo-router 7 re-exports them; version 6 does not.
+**4. React Navigation now ships inside expo-router.**
+There is no `@react-navigation/*` package in this app any more. Import
+`ThemeProvider`, `DefaultTheme` and `DarkTheme` from `expo-router`, and the
+lower-level pieces (`useNavigationState`, `HeaderBackContext`) from
+`expo-router/react-navigation`.
 
 **5. `getReactNativePersistence` is missing from `firebase/auth`'s types.**
 It exists at runtime but not in the declarations, because the umbrella
@@ -494,8 +505,18 @@ string literals.
 
 **Top-level:** `registrations`, `users`, `directory`, `sessions`, `speakers`,
 `sponsors`, `tracks`, `rooms`, `threads`, `communityPosts`, `announcements`,
-`ticketTypes`, `orders`, `emailLog`, plus the modelled-but-unbuilt
-`checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+`ticketTypes`, `orders`, `emailLog`, `sessionSeats`, `pages`, plus the
+modelled-but-unbuilt `checkInStations`, `badgeTemplates`, `badgePrintJobs`.
+
+`pages` is the organizer's own content pages — venue notes, travel, an FAQ.
+Authored on Content › Branding Center › Customize Resources, served by the
+website at `/{slug}` and listed in the app on Home › Documents. The body is
+Markdown in the subset `packages/shared/src/rich-text-core.ts` parses, and that
+parser returns **blocks, never markup**: the website, the phone and the
+dashboard preview each render the same array with their own leaf components, so
+there is no HTML path for a `<script>` typed into the editor to travel down. Do
+not add an `html` block kind, and do not render a span's text with
+`dangerouslySetInnerHTML`.
 
 Added by the August 2026 dashboard build-out, all **server-only** and all
 without a `firestore.rules` match block — every write is Admin-SDK, and they
@@ -526,7 +547,17 @@ An `orders` `list` is the entire buyer database in one query.
 `notifications`, `fcmTokens`, `entitlements`; `sessions/{id}/questions`
 (`/upvotes`), `/polls` (`/votes`), `/qaBoard`, `/materials`;
 `threads/{id}/messages`; `communityPosts/{id}/replies`, `/reactions`;
-`sponsors/{id}/leads`; `checkInLists/{id}/checkIns`.
+`sponsors/{id}/leads`; `checkInLists/{id}/checkIns`;
+`sessionSeats/{sessionId}/seats`.
+
+**`sessionSeats/{sessionId}` is the one client-moved counter in the product.**
+It holds `taken` and the waitlist as an *ordered list of uids*, with one
+`seats/{uid}` document per person. The list is on the counter rather than
+derived from the seat documents because rules cannot run a query, and "is this
+uid first in line" has to be one field read. The arithmetic is in
+`packages/shared/src/session-seats.ts` — plain functions, no Firestore import —
+so the app's transaction, the dashboard's Admin-SDK write and the rules cannot
+disagree about who is next. Do not add a second copy of that planning code.
 
 Decisions worth preserving — do not "simplify" these:
 
@@ -643,7 +674,15 @@ Four things to know before editing it:
   pinned to what was actually published, rather than to whatever the client sent.
   Without it a signature could name wording nobody ever agreed to, which is the
   one property the whole record exists to have.
-  All four are deliberate and documented in place. Adding a fifth is a decision,
+  The fifth, added 2026-09-20, is the seat path: `sessionSeats/{sessionId}` and
+  its `seats/{uid}` documents read the session for the cap and the ticket list,
+  the caller's registration for the ticket type, and each other with `get` and
+  `getAfter`, because a seat and the counter that admits it are written in one
+  transaction and each has to check the other. Its heaviest branch — giving up a
+  seat and promoting the first person waiting — reaches five, and
+  `tests/rules/session-seats.test.ts` runs every branch on the emulator, which
+  does enforce the limit.
+  All five are deliberate and documented in place. Adding a sixth is a decision,
   not a detail: the cap is 10 access calls per single-document request and 20 per
   query, and exceeding it is a hard error, not a slowdown.
 - **The ticket list is no longer closed outright.** `registrations` was

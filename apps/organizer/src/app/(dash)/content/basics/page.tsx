@@ -1,31 +1,36 @@
 import Link from 'next/link';
-import { COLLECTIONS, EVENT, EVENT_ID } from '@kgc/shared';
+import { COLLECTIONS, EVENT } from '@kgc/shared';
+import { eventBasics } from '@/lib/event';
+import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
-import { targetDescription } from '@/lib/firestore';
+import { targetLabel } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
+import { dayOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
+import { BasicsForm } from './basics-form';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Content > Basics.
  *
- * Read-only, and the reason is on the page rather than only in this comment:
- * the event's identity lives in `packages/shared/src/event.ts` as compile-time
- * constants shared by the Expo app, the seed script, the CSV importer and this
- * dashboard, precisely so the four cannot drift.
+ * The event's name, dates, time zone, venue and type are `settings/event`,
+ * edited in the form below. The constants in `packages/shared/src/event.ts` are
+ * the fallback for anything left empty, so the masthead, the website and the
+ * app show what they always did until somebody saves.
  *
- * `TIME_ZONE` in particular is what `day` is derived from on every session.
- * Making it editable from a web form would mean a write that silently
- * invalidates every derived day key and moves sessions onto the wrong tab on a
- * thousand phones. That is a migration, not a text input, and the Save button
- * is present-and-disabled so that the choice reads as one.
+ * The time zone is the one field with consequences beyond a label: session
+ * times are wall clock in it. `actions.ts` explains what a change does and
+ * does not move.
  */
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', padding: '10px 0' }}>
+    <div
+      className="stack-sm"
+      style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', gap: 2, padding: '10px 0' }}
+    >
       <div style={{ color: 'var(--ink)', flex: 'none', fontWeight: 500, width: 180 }}>{label}</div>
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
@@ -35,7 +40,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default async function BasicsPage() {
   await requireOrganizer();
 
-  const [sessions, attendees, speakers, sponsors, tracks, registrations] = await Promise.all([
+  const [saved, basics, sessions, attendees, speakers, sponsors, tracks, registrations] = await Promise.all([
+    readSettings(SETTINGS_KEYS.event),
+    eventBasics(),
     listSessions(),
     countWhereEvent(COLLECTIONS.users),
     countWhereEvent(COLLECTIONS.speakers),
@@ -52,19 +59,12 @@ export default async function BasicsPage() {
         title="Basics"
         info={
           <>
-            <strong>Read-only on purpose</strong>
+            <strong>Event details</strong>
             <p>
-              These are compile-time constants in <code>packages/shared</code>, shared by the app,
-              the seed and the importer so the four cannot drift. Changing the timezone would
-              invalidate the derived <code>day</code> on every session. A migration, not a text
-              input.
+              The name, dates, time zone, venue and event type. The website and the attendee app
+              show what is saved here.
             </p>
           </>
-        }
-        actions={
-          <button type="button" className="whova-btn-main small primary" disabled title="Read-only: see below">
-            Save
-          </button>
         }
         links={[
           <Link key="c" href="/content">
@@ -73,41 +73,55 @@ export default async function BasicsPage() {
           <Link key="w" href="/content/basics/website-copy">
             Website Copy
           </Link>,
-          <span key="t" className="muted">
-            {targetDescription()}
-          </span>,
         ]}
       />
 
       <Panel>
         <p className="body-2" style={{ marginTop: 0 }}>
-          The copy that <em>does</em> change between editions. The code of conduct&rsquo;s
-          reporting route, the call deadlines. Is edited at{' '}
-          <Link href="/content/basics/website-copy">Website Copy</Link>.
+          Leave a box empty to use the value shown in grey. The code of conduct contact and the
+          call deadlines are edited at <Link href="/content/basics/website-copy">Website Copy</Link>.
         </p>
 
-        <Row label="Event Name">{EVENT.name}</Row>
-        <Row label="Short name">{EVENT.shortName}</Row>
-        <Row label="Event ID">
-          <code>{EVENT_ID}</code>{' '}
-          <span className="muted">. Stamped on every top-level document and leading every composite index, so KGC 2028 can
-            exist beside 2027.
-          </span>
+        <BasicsForm
+          saved={{
+            name: saved.name,
+            shortName: saved.shortName,
+            startDate: saved.startDate,
+            endDate: saved.endDate,
+            timeZone: saved.timeZone,
+            venue: saved.venue,
+            eventType: saved.eventType,
+          }}
+          shown={basics}
+          sessionsInZone={sessions.filter((x) => x.timeZone === basics.timeZone).length}
+        />
+        {saved.updatedBy && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+            Last changed by {saved.updatedBy}
+            {saved.updatedAt ? ` on ${dayOfInstant(saved.updatedAt)}` : ''}.
+          </p>
+        )}
+      </Panel>
+
+      <Panel style={{ marginTop: 16 }}>
+        <Row label="Shown as">
+          {basics.name}. {basics.datesLong}. {basics.venue}
         </Row>
-        <Row label="Start Date">
-          {days[0] ?? <span className="muted">no session is scheduled yet</span>}{' '}
-          <span className="muted">(earliest scheduled session)</span>
+        <Row label="Signed in to">
+          {basics.name}. {targetLabel()}.
         </Row>
-        <Row label="End Date">
-          {days[days.length - 1] ?? <span className="muted">no session is scheduled yet</span>}{' '}
-          <span className="muted">(latest scheduled session)</span>
+        <Row label="Scheduled sessions">
+          {days.length === 0 ? (
+            <span className="muted">no session is scheduled yet</span>
+          ) : (
+            <>
+              {days[0]} to {days[days.length - 1]}
+              {days[0] < basics.startDate || days[days.length - 1] > basics.endDate ? (
+                <span className="muted"> Some sessions fall outside the event dates.</span>
+              ) : null}
+            </>
+          )}
         </Row>
-        <Row label="Time zone">
-          <code>{EVENT.timeZone}</code>{' '}
-          <span className="muted">. Sessions are authored in this zone; a 21:00 reception is 01:00 UTC the next day.
-          </span>
-        </Row>
-        <Row label="Location / Venue">{EVENT.venue}</Row>
         <Row label="Website">
           <a href={EVENT.website} target="_blank" rel="noreferrer">
             {EVENT.website}
@@ -115,7 +129,7 @@ export default async function BasicsPage() {
         </Row>
         <Row label="Tagline and hashtag">
           <Link href="/content/branding-center/app-branding">App Branding</Link>{' '}
-          <span className="muted">The two fields on this screen that are editable.</span>
+          <span className="muted">Edited there.</span>
         </Row>
       </Panel>
 
@@ -125,7 +139,7 @@ export default async function BasicsPage() {
           <NotInputted
             what="content"
             action={
-              <Link className="whova-btn-main" href={ROUTES.sessionManager}>
+              <Link className="whova-btn-main primary" href={ROUTES.sessionManager}>
                 Start with the agenda
               </Link>
             }

@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
+import { listSessions } from '@/lib/data';
 import { getDocument, listDocuments } from '@/lib/planning';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
-import { DocumentForm, type EditableDocument } from './document-form';
+import { DocumentForm, type EditableDocument, type SessionOption } from './document-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,11 @@ export default async function DocumentsPage({
   await requireOrganizer();
   const { edit, new: creating } = await searchParams;
 
-  const [docs, ticketTypes] = await Promise.all([listDocuments(), listTicketTypes()]);
+  const [docs, ticketTypes, sessions] = await Promise.all([
+    listDocuments(),
+    listTicketTypes(),
+    listSessions(),
+  ]);
   const editingDoc = edit ? await getDocument(edit) : null;
   const showForm = Boolean(creating) || Boolean(editingDoc);
 
@@ -52,9 +57,18 @@ export default async function DocumentsPage({
         kind: editingDoc.kind ?? 'link',
         status: editingDoc.status ?? 'draft',
         order: editingDoc.order ?? 0,
+        sessionId: editingDoc.sessionId ?? '',
         visibleToTicketTypes: editingDoc.visibleToTicketTypes ?? [],
       }
     : undefined;
+
+  // The day and start time in front of the title, because a programme has three
+  // "Welcome" sessions and the picker is one line each.
+  const sessionOptions: SessionOption[] = sessions.map((s) => ({
+    id: s.id,
+    label: `${s.day} ${s.startsAtLocal.slice(11, 16)} · ${s.title}`,
+  }));
+  const sessionTitles = new Map(sessions.map((s) => [s.id, s.title]));
 
   const published = docs.filter((d) => d.status === 'published');
   const broken = docs.filter((d) => !d.host);
@@ -73,9 +87,7 @@ export default async function DocumentsPage({
               reach the file.
             </p>
             <p>
-              A document restricted to a ticket type is not visible in the app yet: the attendee
-              app has no way to tell tiers apart, because ticket tier is not carried on the
-              sign-in token.
+              A document restricted to a ticket type is not shown in the app yet.
             </p>
           </>
         }
@@ -86,7 +98,7 @@ export default async function DocumentsPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add document
             </Link>
           )
@@ -107,7 +119,7 @@ export default async function DocumentsPage({
             {broken.length} {broken.length === 1 ? 'document has' : 'documents have'} an address the
             app cannot open.
           </strong>{' '}
-          The row is still listed and the tap does nothing. Open it and paste a full{' '}
+          Attendees see the row but it does not open. Edit it and paste a full{' '}
           <code>https://</code> address.
         </Banner>
       ) : null}
@@ -123,7 +135,7 @@ export default async function DocumentsPage({
           {
             label: 'Broken links',
             value: broken.length,
-            sub: broken.length === 0 ? 'all parse' : 'not a valid URL',
+            sub: broken.length === 0 ? 'every link is valid' : 'not a valid address',
           },
         ]}
       />
@@ -133,7 +145,11 @@ export default async function DocumentsPage({
           <h2 style={{ fontSize: 15, marginTop: 0 }}>
             {editing ? `Edit “${editing.title}”` : 'New document'}
           </h2>
-          <DocumentForm existing={editing} ticketTypeNames={ticketTypes.map((t) => t.name)} />
+          <DocumentForm
+            existing={editing}
+            ticketTypeNames={ticketTypes.map((t) => t.name)}
+            sessions={sessionOptions}
+          />
         </Panel>
       ) : (
         <Panel>
@@ -141,7 +157,7 @@ export default async function DocumentsPage({
             <NotInputted
               what="documents"
               action={
-                <Link href="?new=1" className="whova-btn-main">
+                <Link href="?new=1" className="whova-btn-main secondary">
                   Add the first one
                 </Link>
               }
@@ -168,6 +184,16 @@ export default async function DocumentsPage({
                   {d.description && (
                     <div className="muted" style={{ fontSize: 11 }}>
                       {d.description}
+                    </div>
+                  )}
+                  {d.sessionId && (
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      {/*
+                        A session that no longer exists still prints, as the id,
+                        rather than vanishing: the row is the only place an
+                        organizer can see and fix a stale attachment.
+                      */}
+                      On session: {sessionTitles.get(d.sessionId) ?? d.sessionId}
                     </div>
                   )}
                 </span>,

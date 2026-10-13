@@ -1,0 +1,659 @@
+/**
+ * What happens to a purchase after it is paid, or when it never is: refunds,
+ * disputes, expiries, replays and failures, each arriving in the order Stripe
+ * can actually send them.
+ *
+ * Every case here failed against `ba76188` (T135, T136). They run the real
+ * webhook and return-route handlers against the Firestore emulator; Stripe,
+ * email and Auth accounts are faked.
+ *
+ * Run with: npm run test:group-purchase
+ */
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const ORDER_SECRET = 'test-order-secret-test-order-secret-0123';
+
+const mocks = vi.hoisted(() => {
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_lifecycle';
+  process.env.WEB_ORDER_SECRET = 'test-order-secret-test-order-secret-0123';
+  return {
+    sessions: new Map<string, unknown>(),
+    /** payment intent → Checkout session id, as `checkout.sessions.list` answers. */
+    sessionByIntent: new Map<string, string>(),
+    /** payment intent → invoice id, as `invoicePayments.list` answers. */
+    invoiceByIntent: new Map<string, string>(),
+    sent: [] as { to: string; ticketType: string; registrationId?: string; orderId?: string }[],
+    refunds: [] as { to: string; amountCents?: number }[],
+    failNext: new Map<string, 'failed' | 'throw'>(),
+    provisionThrows: false,
+  };
+});
+
+vi.mock('@/lib/stripe', () => ({
+  stripeEnabled: () => true,
+  siteOrigin: () => 'https://www.knowledgegraph.tech',
+  stripe: () => ({
+    webhooks: { constructEventAsync: async (raw: string) => JSON.parse(raw) },
+    checkout: {
+      sessions: {
+        retrieve: async (id: string) => {
+          const s = mocks.sessions.get(id);
+          if (!s) throw Object.assign(new Error('No such session'), { type: 'StripeInvalidRequestError' });
+          return s;
+        },
+        list: async ({ payment_intent }: { payment_intent: string }) => {
+          const id = mocks.sessionByIntent.get(payment_intent);
+          return { data: id ? [mocks.sessions.get(id)] : [] };
+        },
+        listLineItems: async () => ({ data: [] }),
+      },
+    },
+    invoicePayments: {
+      list: async ({ payment }: { payment: { payment_intent: string } }) => {
+        const invoice = mocks.invoiceByIntent.get(payment.payment_intent);
+        return { data: invoice ? [{ invoice }] : [] };
+      },
+    },
+  }),
+}));
+vi.mock('@/lib/email', () => ({
+  sendPurchaseConfirmation: async (input: { to: string; ticketType: string; registrationId?: string; orderId?: string }) => {
+    const fail = mocks.failNext.get(input.to);
+    if (fail) {
+      mocks.failNext.delete(input.to);
+      if (fail === 'throw') throw new Error('send blew up');
+      return fail;
+    }
+    mocks.sent.push({ to: input.to, ticketType: input.ticketType, registrationId: input.registrationId, orderId: input.orderId });
+    return 'sent';
+  },
+  sendRefundConfirmation: async (input: { to: string; amountCents?: number }) => {
+    mocks.refunds.push({ to: input.to, amountCents: input.amountCents });
+    return 'sent';
+  },
+  sendTicketWithdrawn: async () => 'sent',
+}));
+vi.mock('@/lib/app-account', () => ({
+  provisionPurchaserAccount: async () => {
+    if (mocks.provisionThrows) throw new Error('auth unreachable');
+    return { status: 'existing', uid: null, temporaryPassword: null };
+  },
+}));
+vi.mock('@/lib/analytics', () => ({
+  analyticsConfig: () => null,
+  encodePurchase: () => '',
+  decodePurchase: () => null,
+  PURCHASE_COOKIE: 'kgc_purchase',
+}));
+
+import { NextRequest } from '../../apps/web/node_modules/next/server.js';
+import type { Firestore } from 'firebase-admin/firestore';
+import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
+import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { POST as webhook } from '@/app/api/stripe/webhook/route';
+import { GET as checkoutReturn } from '@/app/checkout/return/route';
+import { recordCartOrder, type CartSeat } from '@/app/tickets/cart-order';
+import { db as webDb } from '@/lib/firestore';
+import { getRegistration, invoiceOrderId, orderIdFor, recordInvoiceOrder } from '@/lib/registrations';
+
+let db: Firestore;
+
+beforeAll(() => {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+    throw new Error('FIRESTORE_EMULATOR_HOST is not set. Use: npm run test:group-purchase');
+  }
+  db = webDb() as unknown as Firestore;
+});
+
+const TIERS = { 'main-conference': 'Main Conference', virtual: 'Virtual' } as const;
+type TierId = keyof typeof TIERS;
+
+async function wipe(collection: string) {
+  const snap = await db.collection(collection).get();
+  await Promise.all(snap.docs.map((d) => d.ref.delete()));
+}
+
+beforeEach(async () => {
+  mocks.sessions.clear();
+  mocks.sessionByIntent.clear();
+  mocks.invoiceByIntent.clear();
+  mocks.sent.length = 0;
+  mocks.refunds.length = 0;
+  mocks.failNext.clear();
+  mocks.provisionThrows = false;
+  process.env.WEB_ORDER_SECRET = ORDER_SECRET;
+  await Promise.all(
+    [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, COLLECTIONS.stripeIgnored, COLLECTIONS.emailLog, 'referralCodes'].map(wipe),
+  );
+  for (const [id, name] of Object.entries(TIERS)) {
+    await db.collection(COLLECTIONS.ticketTypes).doc(id).set({
+      eventId: EVENT_ID,
+      name,
+      priceCents: 10_000,
+      currency: 'usd',
+      quantityTotal: 100,
+      quantitySold: 0,
+    });
+  }
+});
+
+type Seat = CartSeat & { ticketTypeId: TierId };
+const seat = (name: string, email: string, tier: TierId): Seat => ({
+  name,
+  email,
+  ticketType: TIERS[tier],
+  ticketTypeId: tier,
+  priceCents: 10_000,
+});
+const ADA = seat('Ada Nakamura', 'ada@example.com', 'main-conference');
+const BEN = seat('Ben Olsen', 'ben@example.com', 'virtual');
+
+/** What `startCheckout` writes, and the session Stripe holds for it. */
+async function checkout(seats: Seat[], sessionId: string, paid = true, metadata?: Record<string, string>) {
+  const [buyer] = seats;
+  if (seats.length > 1) {
+    await recordCartOrder({ sessionId, buyerEmail: buyer.email, buyerName: buyer.name, seats, currency: 'usd' });
+  }
+  const pi = `pi_${sessionId}`;
+  mocks.sessionByIntent.set(pi, sessionId);
+  mocks.sessions.set(sessionId, {
+    id: sessionId,
+    object: 'checkout.session',
+    payment_status: paid ? 'paid' : 'unpaid',
+    status: paid ? 'complete' : 'open',
+    payment_intent: pi,
+    amount_total: 10_000 * seats.length,
+    amount_subtotal: 10_000 * seats.length,
+    currency: 'usd',
+    customer_details: { email: buyer.email, name: buyer.name },
+    customer_email: buyer.email,
+    total_details: { amount_tax: 0, amount_discount: 0 },
+    metadata: metadata ?? {
+      source: 'kgc-web',
+      tier: buyer.ticketTypeId,
+      ticketType: buyer.ticketType,
+      name: buyer.name,
+      seats: String(seats.length),
+    },
+  });
+  return { sessionId, pi, oid: orderIdFor(sessionId) };
+}
+
+async function deliver(type: string, object: unknown, id = `evt_${type}_${Math.random()}`) {
+  return webhook(
+    new NextRequest('https://www.knowledgegraph.tech/api/stripe/webhook', {
+      method: 'POST',
+      headers: { 'stripe-signature': 't=1,v1=x' },
+      body: JSON.stringify({ id, type, data: { object } }),
+    }),
+  );
+}
+
+const completed = (sessionId: string) => deliver('checkout.session.completed', mocks.sessions.get(sessionId));
+const refunded = (pi: string, amount: number) =>
+  deliver('charge.refunded', { id: `ch_${pi}`, object: 'charge', payment_intent: pi, amount_refunded: amount, currency: 'usd' });
+
+async function buyerReturns(sessionId: string) {
+  const res = await checkoutReturn(
+    new NextRequest(`https://www.knowledgegraph.tech/checkout/return?session_id=${sessionId}`),
+  );
+  expect(res.status).toBe(307);
+  return res.headers.get('location') ?? '';
+}
+
+const order = async (oid: string) => (await db.collection(COLLECTIONS.orders).doc(oid).get()).data() as OrderDoc | undefined;
+const reg = async (rid: string) => (await db.collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+const sold = async (tier: TierId) => (await db.collection(COLLECTIONS.ticketTypes).doc(tier).get()).data()?.quantitySold;
+const statuses = async (oid: string) => {
+  const snap = await db.collection(COLLECTIONS.registrations).where('orderId', '==', oid).get();
+  return snap.docs.map((d) => (d.data() as RegistrationDoc).status).sort();
+};
+
+/** A registration that is not backed by a paid order under its own address. */
+async function existingTicket(email: string, how: string) {
+  const rid = registrationId(normaliseEmail(email));
+  await db.collection(COLLECTIONS.registrations).doc(rid).set({
+    eventId: EVENT_ID,
+    email: normaliseEmail(email),
+    name: 'Ada Nakamura',
+    ticketType: how,
+    status: 'active',
+    claimCode: 'ABCD-EFGH',
+    qrSecret: 'q'.repeat(32),
+    altEmails: [],
+  });
+  return rid;
+}
+
+describe('an unpaid checkout that ends (S1, TK-205/206, TK-144/145)', () => {
+  it.each(['checkout.session.expired', 'checkout.session.async_payment_failed'])(
+    '%s on an abandoned group cart leaves the buyer’s existing ticket alone',
+    async (type) => {
+      for (const how of ['Imported', 'Comp', 'Speaker']) {
+        const rid = await existingTicket('ada@example.com', how);
+        const c = await checkout([ADA, BEN], `cs_abandon_${type}_${how}`, false);
+        const res = await deliver(type, mocks.sessions.get(c.sessionId));
+        expect(res.status).toBe(200);
+        expect((await reg(rid))?.status, how).toBe('active');
+        expect((await order(c.oid))?.status).toBe('cancelled');
+      }
+    },
+  );
+
+  it.each(['checkout.session.expired', 'checkout.session.async_payment_failed'])(
+    'a late %s does not cancel a paid order or any of its tickets',
+    async (type) => {
+      const c = await checkout([ADA, BEN], `cs_late_${type}`);
+      expect((await completed(c.sessionId)).status).toBe(200);
+      const res = await deliver(type, mocks.sessions.get(c.sessionId));
+      expect(res.status).toBe(200);
+      expect((await order(c.oid))?.status).toBe('paid');
+      expect(await statuses(c.oid)).toEqual(['active', 'active']);
+      expect(await sold('main-conference')).toBe(1);
+      expect(await sold('virtual')).toBe(1);
+    },
+  );
+
+  it('still records an expired single-seat checkout as cancelled, with nothing issued', async () => {
+    const c = await checkout([ADA], 'cs_single_expired', false);
+    await deliver('checkout.session.expired', mocks.sessions.get(c.sessionId));
+    expect(await order(c.oid)).toMatchObject({ status: 'cancelled', totalCents: 0 });
+    expect((await order(c.oid))?.refundedAt).toBeUndefined();
+    expect((await db.collection(COLLECTIONS.registrations).get()).size).toBe(0);
+  });
+});
+
+describe('a refunded order never comes back (S12/S13, TK-143/146/162/163)', () => {
+  it('a replayed sale after a full refund leaves both tickets cancelled and sends nothing (TK-146)', async () => {
+    const c = await checkout([ADA, BEN], 'cs_replay_after_refund');
+    await completed(c.sessionId);
+    expect(mocks.sent).toHaveLength(2);
+    const before = (await order(c.oid))?.purchasedAt;
+    expect((await refunded(c.pi, 20_000)).status).toBe(200);
+    expect(await statuses(c.oid)).toEqual(['cancelled', 'cancelled']);
+
+    const res = await completed(c.sessionId);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ skipped: 'order refunded' });
+    expect(await statuses(c.oid)).toEqual(['cancelled', 'cancelled']);
+    expect(mocks.sent).toHaveLength(2);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await sold('virtual')).toBe(0);
+    expect(await order(c.oid)).toMatchObject({ status: 'refunded' });
+    expect((await order(c.oid))?.purchasedAt).toEqual(before);
+  });
+
+  it('the buyer reopening the return page after a refund gets the cancelled page, not a ticket (TK-162)', async () => {
+    const c = await checkout([ADA], 'cs_reopen_after_refund');
+    await buyerReturns(c.sessionId);
+    await refunded(c.pi, 10_000);
+    const location = await buyerReturns(c.sessionId);
+    expect(location).toMatch(/\/order\//);
+    const rid = registrationId('ada@example.com');
+    expect((await reg(rid))?.status).toBe('cancelled');
+    expect((await getRegistration(rid))?.status).toBe('cancelled');
+    expect(mocks.sent).toHaveLength(1);
+  });
+
+  it('a redelivery after the refund neither re-activates nor sends the outstanding confirmation (TK-163)', async () => {
+    const c = await checkout([ADA, BEN], 'cs_redeliver_after_refund');
+    mocks.failNext.set('ben@example.com', 'failed');
+    expect((await completed(c.sessionId)).status).toBe(503);
+    await refunded(c.pi, 20_000);
+    const res = await completed(c.sessionId);
+    expect(res.status).toBe(200);
+    expect(await statuses(c.oid)).toEqual(['cancelled', 'cancelled']);
+    expect(mocks.sent.map((m) => m.to)).toEqual(['ada@example.com']);
+  });
+
+  it('a refund that arrives before the sale leaves no active ticket and sends nothing (TK-143)', async () => {
+    const c = await checkout([ADA], 'cs_refund_first');
+    expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect((await completed(c.sessionId)).status).toBe(200);
+    expect((await db.collection(COLLECTIONS.registrations).where('status', '==', 'active').get()).size).toBe(0);
+    expect(mocks.sent).toHaveLength(0);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await buyerReturns(c.sessionId)).toBe('https://www.knowledgegraph.tech/checkout/received?state=refunded');
+  });
+
+  it('a dispute is final in the same way', async () => {
+    const c = await checkout([ADA], 'cs_replay_after_dispute');
+    await completed(c.sessionId);
+    await deliver('charge.dispute.created', { id: 'dp_1', object: 'dispute', payment_intent: c.pi, amount: 10_000 });
+    await completed(c.sessionId);
+    expect(await statuses(c.oid)).toEqual(['cancelled']);
+  });
+});
+
+describe('the order page (S4, TK-322)', () => {
+  it('reads the registration status, so a cancelled ticket is not shown as a pass', async () => {
+    const c = await checkout([ADA], 'cs_order_page');
+    await completed(c.sessionId);
+    const rid = registrationId('ada@example.com');
+    expect((await getRegistration(rid))?.status).toBe('active');
+    await refunded(c.pi, 10_000);
+    expect((await getRegistration(rid))?.status).toBe('cancelled');
+
+    const { default: OrderPage } = await import('@/app/order/[token]/page');
+    const { OrderVoidView, OrderView } = await import('@/app/order/order-view');
+    const { mintOrderToken } = await import('@/lib/order-token');
+    const el = (await OrderPage({ params: Promise.resolve({ token: mintOrderToken({ rid }) }) })) as { type: unknown };
+    expect(el.type).toBe(OrderVoidView);
+    expect(el.type).not.toBe(OrderView);
+  });
+});
+
+describe('the return redirect when fulfilment fails (S5, TK-140, TK-326)', () => {
+  it('sends a paying buyer to "payment received" rather than a 500, and the webhook finishes the job', async () => {
+    const c = await checkout([ADA, BEN], 'cs_return_throws');
+    mocks.provisionThrows = true;
+    expect(await buyerReturns(c.sessionId)).toBe('https://www.knowledgegraph.tech/checkout/received');
+    const logged = await db.collection(COLLECTIONS.auditLog).where('action', '==', 'checkout.return').get();
+    expect(logged.size).toBe(1);
+
+    mocks.provisionThrows = false;
+    expect((await completed(c.sessionId)).status).toBe(200);
+    expect(await statuses(c.oid)).toEqual(['active', 'active']);
+    expect(mocks.sent.map((m) => m.to).sort()).toEqual(['ada@example.com', 'ben@example.com']);
+  });
+
+  it('writes no ticket when the order-link secret is missing, so no ticket goes unannounced (TK-326)', async () => {
+    const c = await checkout([ADA], 'cs_no_secret');
+    delete process.env.WEB_ORDER_SECRET;
+    await expect(completed(c.sessionId)).rejects.toThrow(/WEB_ORDER_SECRET/);
+    expect(await buyerReturns(c.sessionId)).toBe('https://www.knowledgegraph.tech/checkout/received');
+    expect((await db.collection(COLLECTIONS.registrations).get()).size).toBe(0);
+
+    process.env.WEB_ORDER_SECRET = ORDER_SECRET;
+    expect((await completed(c.sessionId)).status).toBe(200);
+    expect(await statuses(c.oid)).toEqual(['active']);
+    expect(mocks.sent).toHaveLength(1);
+  });
+});
+
+describe('refunds and disputes reach the right order', () => {
+  async function paidInvoice(invoiceId: string, pi: string) {
+    await recordInvoiceOrder({
+      invoiceId,
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    mocks.invoiceByIntent.set(pi, invoiceId);
+    const res = await deliver('invoice.paid', { id: invoiceId, object: 'invoice', total: 20_000, currency: 'usd', metadata: {} });
+    expect(res.status).toBe(200);
+    return invoiceOrderId(invoiceId);
+  }
+
+  it('a refunded invoice cancels every seat and gives the seats back (S2, TK-262)', async () => {
+    const oid = await paidInvoice('in_refund', 'pi_invoice');
+    expect(await statuses(oid)).toEqual(['active', 'active']);
+    expect(await sold('main-conference')).toBe(1);
+
+    const res = await refunded('pi_invoice', 20_000);
+    expect(res.status).toBe(200);
+    expect(await statuses(oid)).toEqual(['cancelled', 'cancelled']);
+    expect(await order(oid)).toMatchObject({ status: 'refunded', refundedCents: 20_000 });
+    expect(await sold('main-conference')).toBe(0);
+    expect(await sold('virtual')).toBe(0);
+  });
+
+  it('a dispute gives the seat back and records no refund (S3, TK-265)', async () => {
+    const c = await checkout([ADA], 'cs_dispute');
+    await completed(c.sessionId);
+    expect(await sold('main-conference')).toBe(1);
+    const dispute = { id: 'dp_2', object: 'dispute', payment_intent: c.pi, amount: 10_000 };
+    await deliver('charge.dispute.created', dispute);
+    const first = (await order(c.oid))?.disputedAt;
+    await new Promise((r) => setTimeout(r, 20));
+    await deliver('charge.dispute.created', dispute);
+    // A replay changes nothing, the date included (T138B, TK-258).
+    expect((await order(c.oid))?.disputedAt).toEqual(first);
+    expect(await sold('main-conference')).toBe(0);
+    const o = await order(c.oid);
+    expect(o).toMatchObject({ status: 'cancelled', refundedCents: 0 });
+    expect(o?.disputedAt).toBeDefined();
+  });
+
+  it('a refund of a payment the website did not take writes no order, only a quiet note (S9, TK-251, T142)', async () => {
+    const c = await checkout([ADA], 'cs_payment_link', true, {});
+    const res = await refunded(c.pi, 17_500);
+    expect(res.status).toBe(200);
+    expect(await order(c.oid)).toBeUndefined();
+    expect((await db.collection(COLLECTIONS.auditLog).get()).size).toBe(0);
+    expect((await db.collection(COLLECTIONS.stripeIgnored).get()).size).toBe(1);
+  });
+});
+
+describe('confirmation rows name the order (TK-202)', () => {
+  it('passes the order id with every seat’s confirmation', async () => {
+    const c = await checkout([ADA, BEN], 'cs_email_order_id');
+    await completed(c.sessionId);
+    expect(mocks.sent).toHaveLength(2);
+    for (const m of mocks.sent) expect(m.orderId).toBe(c.oid);
+  });
+});
+
+describe('replays send nothing twice (S10/TK-255, TK-230)', () => {
+  async function invoice(invoiceId: string) {
+    await recordInvoiceOrder({
+      invoiceId,
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    return { id: invoiceId, object: 'invoice', total: 20_000, currency: 'usd', metadata: {} };
+  }
+
+  it('a replayed invoice.paid emails each seat once', async () => {
+    const inv = await invoice('in_replayed');
+    for (let i = 0; i < 3; i += 1) expect((await deliver('invoice.paid', inv)).status).toBe(200);
+    expect(mocks.sent.map((m) => m.to).sort()).toEqual(['ada@example.com', 'ben@example.com']);
+    for (const m of mocks.sent) expect(m.orderId).toBe(invoiceOrderId('in_replayed'));
+  });
+
+  it('a replayed invoice.paid after the invoice was refunded issues and sends nothing', async () => {
+    const inv = await invoice('in_refunded_replay');
+    mocks.invoiceByIntent.set('pi_in_refunded_replay', 'in_refunded_replay');
+    await deliver('invoice.paid', inv);
+    await refunded('pi_in_refunded_replay', 20_000);
+    const res = await deliver('invoice.paid', inv);
+    expect(res.status).toBe(200);
+    expect(await statuses(invoiceOrderId('in_refunded_replay'))).toEqual(['cancelled', 'cancelled']);
+    expect(mocks.sent).toHaveLength(2);
+  });
+
+  it('a redelivered charge.refunded sends the refund receipt once', async () => {
+    const c = await checkout([ADA], 'cs_refund_replayed');
+    await completed(c.sessionId);
+    for (let i = 0; i < 3; i += 1) expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect(mocks.refunds).toEqual([{ to: 'ada@example.com', amountCents: 10_000 }]);
+  });
+
+  it('a second refund that completes a partial one still gets its receipt', async () => {
+    const c = await checkout([ADA], 'cs_refund_partial_then_full');
+    await completed(c.sessionId);
+    await refunded(c.pi, 4_000);
+    await refunded(c.pi, 10_000);
+    await refunded(c.pi, 10_000);
+    expect(mocks.refunds).toEqual([{ to: 'ada@example.com', amountCents: 10_000 }]);
+  });
+});
+
+describe('an invoice seat that names no ticket (S11, TK-256)', () => {
+  it('is not registered as Main Conference; organizers are told', async () => {
+    const res = await deliver('invoice.paid', {
+      id: 'in_untyped',
+      object: 'invoice',
+      total: 20_000,
+      currency: 'usd',
+      // Our marker, so this is a ticketing invoice whose order record was lost.
+      metadata: { source: 'kgc-web', attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Virtual' }, { n: 'Ben Olsen', e: 'ben@example.com' }]) },
+    });
+    expect(res.status).toBe(200);
+    const regs = (await db.collection(COLLECTIONS.registrations).get()).docs.map((d) => d.data() as RegistrationDoc);
+    expect(regs.map((r) => [r.email, r.ticketType])).toEqual([['ada@example.com', 'Virtual']]);
+    const warned = await db.collection(COLLECTIONS.auditLog).where('action', '==', 'invoice.seatWithoutTicket').get();
+    expect(warned.size).toBe(1);
+    expect(warned.docs[0].data().after.seats).toEqual(['ben@example.com']);
+  });
+});
+
+describe('an invoice marked paid on the dashboard, then paid in Stripe (T138B, N2/TK-288)', () => {
+  async function markedPaid(invoiceId: string) {
+    await recordInvoiceOrder({
+      invoiceId,
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    // The dashboard's own code, against the same emulator.
+    const { markInvoicePaidOutOfBand } = await import('../../apps/organizer/src/lib/invoice-admin');
+    const oid = invoiceOrderId(invoiceId);
+    await markInvoicePaidOutOfBand({
+      order: { id: oid, totalCents: 20_000, currency: 'usd', poNumber: 'PO-1' } as Parameters<
+        typeof markInvoicePaidOutOfBand
+      >[0]['order'],
+      actor: 'organizer@example.com',
+      note: 'Wire received',
+    });
+    return oid;
+  }
+  const invoicePaid = (id: string) =>
+    deliver('invoice.paid', { id, object: 'invoice', total: 20_000, currency: 'usd', metadata: {} });
+
+  it('counts each seat once, whichever path ran (N2)', async () => {
+    const oid = await markedPaid('in_marked');
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('virtual')).toBe(1);
+    expect((await invoicePaid('in_marked')).status).toBe(200);
+    expect((await invoicePaid('in_marked')).status).toBe(200);
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('virtual')).toBe(1);
+    expect(await statuses(oid)).toEqual(['active', 'active']);
+  });
+
+  it('emails each seat once between the dashboard and Stripe (TK-288)', async () => {
+    const oid = await markedPaid('in_marked_mail');
+    expect((await db.collection(COLLECTIONS.emailLog).where('orderId', '==', oid).get()).size).toBe(2);
+    expect((await invoicePaid('in_marked_mail')).status).toBe(200);
+    expect((await invoicePaid('in_marked_mail')).status).toBe(200);
+    expect(mocks.sent).toHaveLength(0);
+  });
+
+  it('counts an invoice paid only in Stripe once, however often it is delivered', async () => {
+    await recordInvoiceOrder({
+      invoiceId: 'in_stripe_only',
+      billingEmail: 'ap@acme.example',
+      companyName: 'Acme',
+      seats: [ADA, BEN].map((s) => ({ ...s, priceCents: 10_000 })),
+      currency: 'usd',
+      totalCents: 20_000,
+    });
+    for (let i = 0; i < 3; i += 1) expect((await invoicePaid('in_stripe_only')).status).toBe(200);
+    expect(await sold('main-conference')).toBe(1);
+    expect(await sold('virtual')).toBe(1);
+  });
+});
+
+describe('the KGC Stripe account is shared: non-ticket activity changes nothing (T142)', () => {
+  /** Everything ticketing owns, which must stay empty. */
+  async function untouched() {
+    expect((await db.collection(COLLECTIONS.registrations).get()).size, 'registrations').toBe(0);
+    expect((await db.collection(COLLECTIONS.orders).get()).size, 'orders').toBe(0);
+    expect((await db.collection(COLLECTIONS.auditLog).get()).size, 'auditLog').toBe(0);
+    expect((await db.collection(COLLECTIONS.emailLog).get()).size, 'emailLog').toBe(0);
+    expect(mocks.sent).toHaveLength(0);
+    expect(mocks.refunds).toHaveLength(0);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await sold('virtual')).toBe(0);
+  }
+  const ignored = async () =>
+    (await db.collection(COLLECTIONS.stripeIgnored).get()).docs.map((d) => d.data() as Record<string, unknown>);
+
+  it('a Payment Link sale is noted once, quietly, however often Stripe delivers it', async () => {
+    const c = await checkout([ADA], 'cs_plink_sale', true, {});
+    const s = mocks.sessions.get(c.sessionId) as Record<string, unknown>;
+    s.payment_link = 'plink_sponsor';
+    s.amount_total = 250_000;
+    for (let i = 0; i < 3; i += 1) expect((await completed(c.sessionId)).status).toBe(200);
+    await untouched();
+    const rows = await ignored();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'payment', stripeId: c.sessionId, amountCents: 250_000, email: 'ada@example.com', description: 'plink_sponsor' });
+  });
+
+  it('a session with a tier and ticket name but no marker is not a ticket', async () => {
+    const c = await checkout([ADA], 'cs_unmarked', true, { tier: 'main-conference', ticketType: 'Main Conference' });
+    expect((await completed(c.sessionId)).status).toBe(200);
+    expect(await buyerReturns(c.sessionId)).toMatch(/\/tickets\/checkout$/);
+    await untouched();
+  });
+
+  it('an expired Payment Link session writes no order', async () => {
+    const c = await checkout([ADA], 'cs_plink_expired', false, {});
+    expect((await deliver('checkout.session.expired', mocks.sessions.get(c.sessionId))).status).toBe(200);
+    expect((await deliver('checkout.session.async_payment_failed', mocks.sessions.get(c.sessionId))).status).toBe(200);
+    await untouched();
+    expect(await ignored()).toHaveLength(0);
+  });
+
+  it.each([
+    ['with attendee-like metadata', { attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Main Conference' }]) }],
+    ['without metadata', {}],
+  ])('an invoice raised by hand in Stripe, %s, registers nobody', async (_label, metadata) => {
+    const inv = { id: 'in_by_hand', object: 'invoice', total: 500_000, amount_paid: 500_000, currency: 'usd', customer_email: 'finance@sponsor.example', number: 'KGC-0042', metadata };
+    for (let i = 0; i < 2; i += 1) expect((await deliver('invoice.paid', inv)).status).toBe(200);
+    expect((await deliver('invoice.payment_failed', inv)).status).toBe(200);
+    await untouched();
+    const rows = await ignored();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'invoice', stripeId: 'in_by_hand', amountCents: 500_000, description: 'KGC-0042' });
+  });
+
+  it('a refund and a dispute of a Payment Link charge write no order and move no seat', async () => {
+    const c = await checkout([ADA], 'cs_plink_refund', true, {});
+    await completed(c.sessionId);
+    expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect((await deliver('charge.dispute.created', { id: 'dp_plink', object: 'dispute', payment_intent: c.pi, amount: 10_000, currency: 'usd', reason: 'fraudulent' })).status).toBe(200);
+    await untouched();
+    expect((await ignored()).map((r) => r.kind).sort()).toEqual(['dispute', 'payment', 'refund']);
+  });
+
+  it('a refund of a manual charge, and of an invoice raised by hand, change nothing', async () => {
+    // No session and no invoice behind this payment intent at all.
+    expect((await refunded('pi_manual_charge', 5_000)).status).toBe(200);
+    // An invoice ticketing never raised and holds no order for.
+    mocks.invoiceByIntent.set('pi_hand_invoice', 'in_hand_refunded');
+    expect((await refunded('pi_hand_invoice', 500_000)).status).toBe(200);
+    expect((await deliver('charge.dispute.created', { id: 'dp_hand', object: 'dispute', payment_intent: 'pi_hand_invoice', amount: 500_000, currency: 'usd' })).status).toBe(200);
+    await untouched();
+    expect(await ignored()).toHaveLength(3);
+  });
+
+  it('still refunds a ticket sold before the session marker existed, found by its order', async () => {
+    const c = await checkout([ADA], 'cs_pre_marker');
+    await completed(c.sessionId);
+    // As a session from before 2026-10-03 looked: no `source`.
+    (mocks.sessions.get(c.sessionId) as { metadata: Record<string, string> }).metadata = { tier: 'main-conference', ticketType: 'Main Conference' };
+    expect((await refunded(c.pi, 10_000)).status).toBe(200);
+    expect(await statuses(c.oid)).toEqual(['cancelled']);
+    expect(await sold('main-conference')).toBe(0);
+    expect(await ignored()).toHaveLength(0);
+  });
+
+  it('still registers a marked invoice that has no order record', async () => {
+    const res = await deliver('invoice.paid', {
+      id: 'in_marked_no_order', object: 'invoice', total: 10_000, currency: 'usd',
+      metadata: { kgcKind: 'group-registration', attendees: JSON.stringify([{ n: 'Ada Nakamura', e: 'ada@example.com', t: 'Virtual' }]) },
+    });
+    expect(res.status).toBe(200);
+    expect(await statuses(invoiceOrderId('in_marked_no_order'))).toEqual(['active']);
+  });
+});

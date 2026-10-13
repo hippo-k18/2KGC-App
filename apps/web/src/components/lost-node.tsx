@@ -5,9 +5,10 @@ import { useEffect, useRef } from 'react';
 /**
  * The 404, as a node that has lost its edges.
  *
- * A detached orange node drifts on the canvas. The real navigation links on the
- * page are the nodes it can attach to: hover or focus one and the edge snaps
- * into existence and the lost node drifts toward it. Reconnecting the graph is
+ * A handful of detached orange nodes drift on the canvas, each spawned at a
+ * random spot. The real navigation links on the page are the nodes they can
+ * attach to: hover or focus one and an edge snaps into existence from the
+ * nearest lost node, which drifts toward it while the rest keep wandering. Reconnecting the graph is
  * the thing the page is asking you to do, so the illustration and the task are
  * the same gesture.
  *
@@ -19,7 +20,7 @@ import { useEffect, useRef } from 'react';
  * gets exactly what a mouse user gets, because `focusin` and `pointerover` run
  * the same code path.
  *
- * Under `prefers-reduced-motion` it paints a single frame with the node already
+ * Under `prefers-reduced-motion` it paints a single frame with the nodes already
  * adrift and unattached, which is arguably the better picture anyway.
  */
 export function LostNode({ targetSelector }: { targetSelector: string }) {
@@ -36,8 +37,17 @@ export function LostNode({ targetSelector }: { targetSelector: string }) {
     let w = 0;
     let h = 0;
 
-    // The lost node's own position, in canvas space.
-    const node = { x: 0, y: 0, vx: 0.16, vy: 0.11 };
+    // The lost nodes, in canvas space. Positions are filled in on the first
+    // size() once the canvas has dimensions; each gets a random heading at the
+    // same gentle speed the single node used to have.
+    const COUNT = 5;
+    const SPEED = 0.19;
+    const MARGIN = 24;
+    const nodes = Array.from({ length: COUNT }, () => {
+      const a = Math.random() * Math.PI * 2;
+      return { x: 0, y: 0, vx: Math.cos(a) * SPEED, vy: Math.sin(a) * SPEED };
+    });
+    let placed = false;
     let target: HTMLElement | null = null;
 
     function size() {
@@ -47,9 +57,17 @@ export function LostNode({ targetSelector }: { targetSelector: string }) {
       canvas!.width = Math.round(w * dpr);
       canvas!.height = Math.round(h * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (node.x === 0 && node.y === 0) {
-        node.x = w * 0.5;
-        node.y = h * 0.42;
+      if (!placed && w > MARGIN * 2 && h > MARGIN * 2) {
+        placed = true;
+        for (const n of nodes) {
+          n.x = MARGIN + Math.random() * (w - MARGIN * 2);
+          n.y = MARGIN + Math.random() * (h - MARGIN * 2);
+        }
+      }
+      // Keep everything on the canvas if it shrinks.
+      for (const n of nodes) {
+        n.x = Math.min(Math.max(n.x, MARGIN), Math.max(MARGIN, w - MARGIN));
+        n.y = Math.min(Math.max(n.y, MARGIN), Math.max(MARGIN, h - MARGIN));
       }
     }
 
@@ -65,27 +83,42 @@ export function LostNode({ targetSelector }: { targetSelector: string }) {
       ctx!.clearRect(0, 0, w, h);
       const t = targetPoint();
 
-      if (!reduced) {
-        if (t) {
-          // Drawn toward whatever it might attach to, but never all the way —
-          // it eases in and stops short, still separate.
-          node.x += (t.x - node.x) * 0.045;
-          node.y += (t.y - node.y) * 0.045;
-        } else {
-          node.x += node.vx;
-          node.y += node.vy;
-          if (node.x < 24 || node.x > w - 24) node.vx *= -1;
-          if (node.y < 24 || node.y > h - 24) node.vy *= -1;
+      // Only the lost node closest to the hovered link reaches for it.
+      let near: (typeof nodes)[number] | null = null;
+      if (t) {
+        let best = Infinity;
+        for (const n of nodes) {
+          const d = Math.hypot(t.x - n.x, t.y - n.y);
+          if (d < best) {
+            best = d;
+            near = n;
+          }
         }
       }
 
-      if (t) {
-        const d = Math.hypot(t.x - node.x, t.y - node.y);
+      if (!reduced) {
+        for (const n of nodes) {
+          if (n === near && t) {
+            // Drawn toward whatever it might attach to, but never all the way —
+            // it eases in and stops short, still separate.
+            n.x += (t.x - n.x) * 0.045;
+            n.y += (t.y - n.y) * 0.045;
+          } else {
+            n.x += n.vx;
+            n.y += n.vy;
+            if (n.x < MARGIN || n.x > w - MARGIN) n.vx *= -1;
+            if (n.y < MARGIN || n.y > h - MARGIN) n.vy *= -1;
+          }
+        }
+      }
+
+      if (t && near) {
+        const d = Math.hypot(t.x - near.x, t.y - near.y);
         ctx!.strokeStyle = `rgba(246,134,33,${Math.max(0.25, 1 - d / 420)})`;
         ctx!.lineWidth = 1.5;
         ctx!.setLineDash([5, 5]);
         ctx!.beginPath();
-        ctx!.moveTo(node.x, node.y);
+        ctx!.moveTo(near.x, near.y);
         ctx!.lineTo(t.x, t.y);
         ctx!.stroke();
         ctx!.setLineDash([]);
@@ -96,17 +129,19 @@ export function LostNode({ targetSelector }: { targetSelector: string }) {
         ctx!.fill();
       }
 
-      // The lost node: a filled core inside a hollow ring, so it reads as a node
-      // rather than as a dot.
-      ctx!.fillStyle = '#f68621';
-      ctx!.beginPath();
-      ctx!.arc(node.x, node.y, 6, 0, Math.PI * 2);
-      ctx!.fill();
-      ctx!.strokeStyle = 'rgba(246,134,33,0.35)';
-      ctx!.lineWidth = 1;
-      ctx!.beginPath();
-      ctx!.arc(node.x, node.y, 14, 0, Math.PI * 2);
-      ctx!.stroke();
+      // Each lost node: a filled core inside a hollow ring, so it reads as a
+      // node rather than as a dot.
+      for (const n of nodes) {
+        ctx!.fillStyle = '#f68621';
+        ctx!.beginPath();
+        ctx!.arc(n.x, n.y, 6, 0, Math.PI * 2);
+        ctx!.fill();
+        ctx!.strokeStyle = 'rgba(246,134,33,0.35)';
+        ctx!.lineWidth = 1;
+        ctx!.beginPath();
+        ctx!.arc(n.x, n.y, 14, 0, Math.PI * 2);
+        ctx!.stroke();
+      }
     }
 
     let raf = 0;

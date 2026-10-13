@@ -14,6 +14,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { COLLECTIONS, EVENT_ID, type UserDoc, type WithId } from '@kgc/shared';
 
 import { useDocument } from '@/lib/data/use-document';
+import { RegistrationPointer } from '@/lib/data/registration-pointer';
 import { runWrite } from '@/lib/data/write';
 import { getDb, getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase/client';
 
@@ -113,7 +114,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [auth.user, auth.loading, profile, profileError, createError, retry, configured],
   );
 
-  return <AuthContext value={value}>{children}</AuthContext>;
+  return (
+    <AuthContext value={value}>
+      {/*
+        The pointer the watch rules follow, acquired above every screen rather
+        than on one of them.
+
+        It used to be written only by the badge hook on the Me tab. The app
+        opens on Home, so an attendee who signed in and went straight to a
+        gated session was refused a video their ticket covered, and told by the
+        same screen that it was their ticket. Here it is acquired once for the
+        account, whatever they open first.
+
+        Rendered as a child rather than called in the body above, because the
+        lookup it makes goes through `useCollection`, which reads this very
+        context to decide whether it may open a listener at all — from inside
+        the provider it would read the default and never open one.
+      */}
+      <RegistrationPointer
+        uid={uid}
+        email={auth.user?.email}
+        pointer={profile?.registrationId}
+        settled={Boolean(uid) && !profileLoading && !profileError}
+      />
+      {children}
+    </AuthContext>
+  );
 }
 
 /**

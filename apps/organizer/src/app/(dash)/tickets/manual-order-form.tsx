@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { ManualOrderState } from './manual-order-actions';
 import { recordManualOrderAction } from './manual-order-actions';
@@ -40,18 +40,24 @@ export function ManualOrderForm({
   compHint: string;
 }) {
   const [state, action] = useActionState<ManualOrderState, FormData>(recordManualOrderAction, {});
+  // One id per order being entered: a double-click posts the same one and
+  // records one order, and the next order after a success gets a fresh one.
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  useEffect(() => {
+    if (state.ok) setRequestId(crypto.randomUUID());
+  }, [state]);
 
   if (packages.length === 0) {
     return (
       <p className="muted" style={{ fontSize: 13 }}>
-        No {audienceNoun} package exists to record a payment against. Price one first. An order
-        pointing at no ticket type cannot produce a badge.
+        There is no {audienceNoun} package to record a payment against. Create one first.
       </p>
     );
   }
 
   return (
     <form action={action}>
+      <input type="hidden" name="requestId" value={requestId} />
       {state.error && (
         <p className="error" role="alert">
           {state.error}
@@ -74,6 +80,7 @@ export function ManualOrderForm({
           Package
         </label>
         <select
+          className="whova-text-input"
           id="ticketTypeId"
           name="ticketTypeId"
           required
@@ -100,9 +107,9 @@ export function ManualOrderForm({
         <label className="whova-form-label" htmlFor="name">
           Name
         </label>
-        <input id="name" name="name" required maxLength={80} placeholder="Ada Lovelace" />
+        <input className="whova-text-input" id="name" name="name" required maxLength={80} placeholder="Ada Lovelace" style={{ maxWidth: 340 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Whoever holds the badge, not whoever signed the cheque. This prints at the door.
+          The person who will wear the badge.
         </p>
       </div>
 
@@ -110,10 +117,10 @@ export function ManualOrderForm({
         <label className="whova-form-label" htmlFor="email">
           Email
         </label>
-        <input id="email" name="email" type="email" required placeholder="ada@example.com" />
+        <input className="whova-text-input" id="email" name="email" type="email" required placeholder="ada@example.com" style={{ maxWidth: 340 }} />
         <p className="muted" style={{ fontSize: 12 }}>
-          The join key. The registration id is derived from it, and it is the address they sign in
-          with. Recording the same address twice updates one registration rather than making two.
+          The address they sign in with. Recording the same address twice updates one
+          registration.
         </p>
       </div>
 
@@ -121,7 +128,7 @@ export function ManualOrderForm({
         <label className="whova-form-label" htmlFor="companyName">
           Company
         </label>
-        <input id="companyName" name="companyName" maxLength={120} placeholder="optional" />
+        <input className="whova-text-input" id="companyName" name="companyName" maxLength={120} placeholder="optional" style={{ maxWidth: 340 }} />
       </div>
 
       <div className="whova-form-row">
@@ -129,6 +136,7 @@ export function ManualOrderForm({
           Amount received
         </label>
         <input
+          className="whova-text-input"
           id="amount"
           name="amount"
           required
@@ -137,7 +145,7 @@ export function ManualOrderForm({
           style={{ maxWidth: 180 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          In whole currency units, not cents. {compHint}
+          In whole units, not cents. {compHint}
         </p>
       </div>
 
@@ -145,31 +153,36 @@ export function ManualOrderForm({
         <label className="whova-form-label" htmlFor="poNumber">
           PO number
         </label>
-        <input id="poNumber" name="poNumber" maxLength={60} placeholder="optional" style={{ maxWidth: 240 }} />
+        <input className="whova-text-input" id="poNumber" name="poNumber" maxLength={60} placeholder="optional" style={{ maxWidth: 240 }} />
       </div>
 
       <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="note">
           Why
         </label>
-        <input id="note" name="note" required maxLength={200} placeholder={notePlaceholder} />
+        <input
+          className="whova-text-input"
+          id="note"
+          name="note"
+          required
+          maxLength={200}
+          placeholder={notePlaceholder}
+          style={{ maxWidth: 520 }}
+        />
         <p className="muted" style={{ fontSize: 12 }}>
-          Required. This order is paid on your word, and this is the record of what your word was
-          based on. It is stored on the order itself, not only in the audit log.
+          Required. Saved on the order.
         </p>
       </div>
 
       <div className="whova-form-row">
-        <label className="whova-form-label" htmlFor="silent">
-          Email
-        </label>
-        <label style={{ fontSize: 13 }}>
-          <input id="silent" type="checkbox" name="silent" /> Do not send a confirmation. They have
-          already been told
+        {/* The group heading is a `div`: the tick box already has a label round it. */}
+        <div className="whova-form-label">Email</div>
+        <label className="whova-checkbox-label">
+          <input id="silent" className="whova-checkbox-input" type="checkbox" name="silent" />
+          <span>Do not send a confirmation. They have already been told</span>
         </label>
         <p className="muted" style={{ fontSize: 12 }}>
-          Leave this off for a live recording. The confirmation carries the claim code, which is how
-          they get into the app; skipping it means telling them another way.
+          The confirmation carries the claim code they need to get into the app.
         </p>
       </div>
 

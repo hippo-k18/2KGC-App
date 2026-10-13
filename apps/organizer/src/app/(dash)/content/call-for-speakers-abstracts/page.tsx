@@ -86,9 +86,8 @@ export default async function CallForSpeakersPage({
           <>
             <strong>Reminders are a button, not a schedule</strong>
             <p>
-              The nudge dates on a call are the days the dashboard offers you a send button on.
-              Nothing fires on its own: scheduled work needs Cloud Tasks and <code>functions/</code>{' '}
-              is waiting on one IAM grant.
+              Reminders are not sent on their own. On each reminder date this screen offers you a
+              send button.
             </p>
           </>
         }
@@ -105,7 +104,7 @@ export default async function CallForSpeakersPage({
               Back
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New call
             </Link>
           )
@@ -155,12 +154,12 @@ export default async function CallForSpeakersPage({
               {
                 label: 'Submissions',
                 value: totals.total,
-                sub: totals.total === 0 ? 'not inputted yet' : 'across every call',
+                sub: totals.total === 0 ? 'none yet' : 'across every call',
               },
               {
                 label: 'Incomplete',
                 value: totals.draft,
-                sub: totals.draft === 0 ? 'nobody has started and stopped' : 'started, not submitted',
+                sub: totals.draft === 0 ? 'none' : 'started, not submitted',
               },
               {
                 label: 'Decided',
@@ -175,16 +174,14 @@ export default async function CallForSpeakersPage({
               <NotInputted
                 what="call for abstracts"
                 action={
-                  <Link className="whova-btn-main" href="?new=1">
+                  <Link className="whova-btn-main secondary" href="?new=1">
                     Create one
                   </Link>
                 }
               />
               <p className="body-2" style={{ marginBottom: 0 }}>
-                A call gets its own public page at <code>/submit/&#123;id&#125;</code> on the
-                website. People submitting to it need no account and no ticket. They come back to
-                their own draft through a signed link, and every write goes through a server action
-                that checks the deadline.
+                A call gets its own public page on the website. People submitting need no account
+                and no ticket, and they return to their draft through a link sent to them.
               </p>
             </Panel>
           ) : (

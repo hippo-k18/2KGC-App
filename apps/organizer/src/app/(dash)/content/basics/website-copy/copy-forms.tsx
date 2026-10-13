@@ -60,7 +60,7 @@ export function CodeOfConductForm({
         width="xl"
         defaultValue={reportEmail}
         error={state.fieldErrors?.reportEmail}
-        hint={`Where an incident is reported. Leave it empty and the page prints ${fallbackEmail} instead. It does not print nothing.`}
+        hint={`Where incident reports go. If empty, the page shows ${fallbackEmail}.`}
       />
 
       <Textarea
@@ -71,7 +71,7 @@ export function CodeOfConductForm({
         width="xl"
         defaultValue={committee}
         error={state.fieldErrors?.committee}
-        hint="One “Name, Role” per line, in the order printed. Empty means the page keeps its own list."
+        hint="One “Name, Role” per line, in the order shown. If empty, the page shows its default list."
       />
 
       <FormActions>
@@ -110,7 +110,7 @@ export function CallPageForm({
         width="xl"
         defaultValue={submitUrl}
         error={state.fieldErrors?.submitUrl}
-        hint="An absolute https:// address. A blank one hides the button on the page."
+        hint="A full https:// address. If empty, the button is hidden."
       />
 
       <Field
@@ -120,7 +120,7 @@ export function CallPageForm({
         width="xl"
         defaultValue={submitLabel}
         error={state.fieldErrors?.submitLabel}
-        hint="“Submit on EasyChair” names a third party that can change; that is why it is editable."
+        hint="For example “Submit on EasyChair”."
       />
 
       <Textarea
@@ -131,7 +131,7 @@ export function CallPageForm({
         width="xl"
         defaultValue={dates}
         error={state.fieldErrors?.dates}
-        hint="One per line, “March 25, 2027 | Submissions close”. Empty means the page keeps its own calendar."
+        hint="One per line, “March 25, 2027 | Submissions close”. If empty, the page shows its default dates."
       />
 
       <CheckboxField
@@ -139,7 +139,7 @@ export function CallPageForm({
         name="datesConfirmed"
         label="These dates are confirmed"
         defaultChecked={datesConfirmed}
-        description="Leave this off while the calendar is provisional. It only applies when the box above has dates in it. An author planning their year around a date nobody confirmed is what this flag exists to prevent."
+        description="Leave this off while the dates are provisional. It only applies when the box above has dates in it."
       />
 
       <FormActions>

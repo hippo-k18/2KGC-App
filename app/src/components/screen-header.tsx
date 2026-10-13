@@ -1,17 +1,11 @@
 import type { ReactNode } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 
-import { WEB_TAB_BAR } from '@/components/pushed-header';
 import { Text } from '@/components/text';
 import { Spacing } from '@/constants/theme';
 
 /**
  * Large title with an optional trailing action.
- *
- * The web inset exists because `NativeTabs` draws a real bottom tab bar on iOS
- * and Android, but on web renders as a bar pinned to the top — which would sit
- * on the title. It is purely for the browser preview; on device the value is
- * the normal small gap.
  *
  * The title wraps rather than truncating. It carried `numberOfLines={1}`, which
  * at the larger Dynamic Type sizes rendered the home screen's greeting as
@@ -31,7 +25,7 @@ export function ScreenHeader({
   subtitle?: string;
 }) {
   return (
-    <View style={{ paddingTop: Platform.OS === 'web' ? WEB_TAB_BAR : Spacing.sm }}>
+    <View style={{ paddingTop: Spacing.sm }}>
       <View
         style={{
           flexDirection: 'row',

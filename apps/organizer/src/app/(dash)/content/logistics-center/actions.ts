@@ -85,10 +85,10 @@ export async function saveRoomAction(_prev: RoomState, formData: FormData): Prom
    * document, and `sessions.roomId` points at it, so a rename must not move it.
    */
   const docId = id || mintRoomId(name);
-  if (!docId) return { error: 'That name produces an empty id. Use some letters or numbers.' };
+  if (!docId) return { error: 'That name has no letters or numbers. Use some.' };
   if (!id) {
     const clash = await getRoom(docId);
-    if (clash) return { error: `“${clash.name}” already uses the id “${docId}”.` };
+    if (clash) return { error: `A room called “${clash.name}” is already on the list. Edit that one instead of adding a second.` };
   }
 
   try {
@@ -154,7 +154,7 @@ export async function saveRoomAction(_prev: RoomState, formData: FormData): Prom
 
   return {
     ok: true,
-    message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+    message: existing ? `Saved ${name}.` : `Added ${name}.`,
     fanOut,
     fanOutOk,
   };

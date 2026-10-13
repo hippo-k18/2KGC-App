@@ -268,142 +268,136 @@ export function SpeakerGrid({
 }
 
 /**
- * The live page's shape: five highlighted speakers, then one blue button, and
- * the remaining 132 only exist once it is pressed.
+ * The whole `/speakers` page body: the highlighted speakers under "Our First
+ * Speakers", then one blue button.
  *
- * The widget behind the live page navigates away to `?view_all=true` at this
- * point. Here the rest are already on the same page and already indexed, so the
- * button reveals them in place — and, as in `SpeakerGrid`, they are absent from
- * the DOM until asked for rather than hidden with CSS, so nothing tabs into a
- * card nobody can see.
+ * Pressing it folds the highlighted speakers into one searchable, sortable grid
+ * with everybody else, highlighted first, under "All N Speakers". Leaving them in
+ * a separate block above meant the search box could not find the five people most
+ * likely to be searched for.
+ *
+ * As in `SpeakerGrid`, the rest are absent from the DOM until asked for rather
+ * than hidden with CSS, so nothing tabs into a card nobody can see.
  */
 export function ViewAllSpeakers({
+  featured,
   speakers,
-  /**
-   * How many speakers are in the highlighted block above this one.
-   *
-   * It exists only so the "All N Speakers" heading can state the true total.
-   * This was `speakers.length + 5` — correct for exactly as long as the roster
-   * had exactly five highlights, and silently wrong the moment anyone changed
-   * one. Now that `featured` is a field an organizer edits in Speaker Manager,
-   * "five" is not a fact about the page any more, so the caller counts.
-   */
-  featuredCount = 0,
 }: {
+  /** The editorial highlights, in their own order. */
+  featured: SpeakerTile[];
+  /** Everyone else. */
   speakers: SpeakerTile[];
-  featuredCount?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [sort, setSort] = useState<SpeakerSort>('roster');
   const [query, setQuery] = useState('');
 
+  const everyone = useMemo(() => [...featured, ...speakers], [featured, speakers]);
   /*
    * Both derivations are memoised on the inputs that actually change them. The
    * grid is up to 137 cards and `sortSpeakers` copies the array, so without
    * this every keystroke in the search box would re-sort a list the sort had
    * nothing to do with.
    */
-  const sorted = useMemo(() => sortSpeakers(speakers, sort), [speakers, sort]);
+  const sorted = useMemo(() => sortSpeakers(everyone, sort), [everyone, sort]);
   const visible = useMemo(() => filterSpeakers(sorted, query), [sorted, query]);
 
-  if (!speakers.length) return null;
+  if (!everyone.length) {
+    return (
+      <>
+        <h1 className="speakers-head">Our First Speakers</h1>
+        <p className="notice">The speaker list is not published yet.</p>
+      </>
+    );
+  }
 
-  const total = speakers.length + featuredCount;
   const searching = query.trim().length > 0;
+
+  if (!open) {
+    return (
+      <>
+        <h1 className="speakers-head">Our First Speakers</h1>
+        {featured.length > 0 ? (
+          /* Three across, then the remaining two centred beneath them. */
+          <div className="featured-speakers">
+            {featured.map((s) => (
+              <SpeakerCard key={s.id} eager speaker={s} />
+            ))}
+          </div>
+        ) : null}
+
+        {speakers.length > 0 ? (
+          <div className="speakers-more">
+            <button
+              type="button"
+              className="btn btn-viewall"
+              aria-expanded={false}
+              onClick={() => setOpen(true)}
+            >
+              View All Speakers
+              <span className="sr-only">, {everyone.length} in total</span>
+            </button>
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <>
-      {!open && (
-        <div className="speakers-more">
-          <button
-            type="button"
-            className="btn btn-viewall"
-            aria-expanded={false}
-            onClick={() => setOpen(true)}
-          >
-            View All Speakers
-            <span className="sr-only">, {speakers.length} more</span>
-          </button>
+      <h1 className="speakers-head">All {everyone.length} Speakers</h1>
+
+      <div className="speaker-toolbar">
+        <div className="speaker-tool">
+          <label htmlFor="speaker-search">Search</label>
+          <input
+            id="speaker-search"
+            type="search"
+            value={query}
+            placeholder="Name or company"
+            autoComplete="off"
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
-      )}
 
-      {open && (
-        <>
-          <h2 className="speakers-head" style={{ marginTop: 64 }}>
-            All {total} Speakers
-          </h2>
+        <div className="speaker-tool">
+          <label htmlFor="speaker-sort">Sort by</label>
+          <select
+            id="speaker-sort"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SpeakerSort)}
+          >
+            {SPEAKER_SORTS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-          {/*
-            * The controls sit between the heading and the grid rather than
-            * above the highlighted five, because they only govern this grid —
-            * the "Our First Speakers" block is an editorial selection with its
-            * own order and is not sorted, filtered or counted here.
-            */}
-          <div className="speaker-toolbar">
-            <div className="speaker-tool">
-              <label htmlFor="speaker-search">Search</label>
-              <input
-                id="speaker-search"
-                type="search"
-                value={query}
-                placeholder="Name or company"
-                autoComplete="off"
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+      {/*
+        * The result count is the only feedback a search gives. `polite` so it
+        * waits for a pause in typing. It stays mounted and empties instead of
+        * unmounting: a live region inserted at the moment its text changes is
+        * not reliably announced.
+        */}
+      <p className="speaker-count" role="status" aria-live="polite">
+        {searching
+          ? `${visible.length} of ${everyone.length} ${visible.length === 1 ? 'speaker matches' : 'speakers match'} “${query.trim()}”`
+          : ''}
+      </p>
 
-            <div className="speaker-tool">
-              <label htmlFor="speaker-sort">Sort by</label>
-              <select
-                id="speaker-sort"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SpeakerSort)}
-              >
-                {SPEAKER_SORTS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/*
-            * The result count is the only feedback a search gives, and a
-            * screen-reader user gets no visual diff of the grid to read it
-            * from. `polite` rather than `assertive` so it waits for a pause in
-            * typing instead of interrupting every character.
-            *
-            * ⚠️ It deliberately states a bare count and no total. The obvious
-            * phrasing — "12 of 40 speakers" — puts a 40 directly beneath a
-            * heading reading "All 45 Speakers", because the heading counts the
-            * highlighted five above and this grid does not contain them. Two
-            * different true numbers a line apart read as a bug, and the one a
-            * reader can act on is how many cards are in front of them.
-            *
-            * The element stays mounted and empties instead of unmounting: a
-            * live region that is inserted at the same moment its text changes
-            * is not reliably announced, which would make the count invisible to
-            * exactly the person it exists for.
-            */}
-          <p className="speaker-count" role="status" aria-live="polite">
-            {searching
-              ? `${visible.length} ${visible.length === 1 ? 'speaker matches' : 'speakers match'} “${query.trim()}”`
-              : ''}
-          </p>
-
-          {visible.length ? (
-            <SpeakerGrid speakers={visible} initial={24} />
-          ) : (
-            <p className="notice">
-              No speaker matches “{query.trim()}”.{' '}
-              <button type="button" className="speaker-clear" onClick={() => setQuery('')}>
-                Clear the search
-              </button>{' '}
-              to see all {speakers.length}.
-            </p>
-          )}
-        </>
+      {visible.length ? (
+        <SpeakerGrid speakers={visible} initial={24} />
+      ) : (
+        <p className="notice">
+          No speaker matches “{query.trim()}”.{' '}
+          <button type="button" className="speaker-clear" onClick={() => setQuery('')}>
+            Clear the search
+          </button>{' '}
+          to see all {everyone.length}.
+        </p>
       )}
     </>
   );

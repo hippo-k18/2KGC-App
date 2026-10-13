@@ -176,9 +176,7 @@ export async function GatheringScreen({
             ]}
           />
           <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-            Checked against the agenda as well as against each other. A room double-booked between
-            a session and a table is the clash that actually happens, because the two are planned by
-            different people weeks apart. Back-to-back is not a clash.
+            Checked against the agenda and against each other. Back-to-back is not a clash.
           </p>
         </Panel>
       )}
@@ -186,6 +184,7 @@ export async function GatheringScreen({
       <Panel style={{ marginTop: clashes.length + programmeClashes.length > 0 ? 16 : 0 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>The plan</h2>
         <Table
+          stackSm
           cols={[
             { key: 't', label: formCopy.titleLabel, className: 'cell-fill' },
             { key: 'w', label: 'When', className: 'cell-md' },
@@ -193,7 +192,9 @@ export async function GatheringScreen({
             { key: 'a', label: '', className: 'cell-sm' },
           ]}
           rows={rows.map((g) => [
-            <div key="t">
+            // Capped to the phone's visible table width so the first column wraps
+            // there instead of pushing Add out of view. No effect on a wide screen.
+            <div key="t" style={{ maxWidth: 'calc(100vw - 84px)' }}>
               <div>
                 {g.title}{' '}
                 {g.status === 'cancelled' && (
@@ -278,7 +279,7 @@ export async function GatheringScreen({
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ alignItems: 'center', display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <h2 style={{ fontSize: 15, margin: 0 }}>
             {editing ? `Edit “${editing.title}”` : `Add a ${formCopy.noun.replace(/s$/, '').toLowerCase()}`}
           </h2>

@@ -304,6 +304,64 @@ async function ipLimitExceeded(db: Firestore, ip: string): Promise<boolean> {
 
 type CodeOutcome = 'ok' | 'no-code' | 'expired' | 'exhausted' | 'wrong-code';
 
+export type ConsumeOutcome =
+  | { ok: true; email: string }
+  | { ok: false; reason: 'invalid-argument' | 'resource-exhausted' | Exclude<CodeOutcome, 'ok'> };
+
+/**
+ * Check a code and use it up, and nothing else: no account, no claim, no token.
+ *
+ * `verifySignInCode` is this plus signing in. Deleting an account from the
+ * website (`/account/delete`) needs only the first half, the proof that the
+ * person holds the inbox; running the second half there would create the very
+ * account it is about to delete. Same limits, same single use, so a code that
+ * signs you in and a code that deletes you are equally hard to guess.
+ */
+export async function consumeSignInCode(
+  db: Firestore,
+  rawEmail: string,
+  rawCode: string,
+  ip: string | undefined,
+): Promise<ConsumeOutcome> {
+  const email = normaliseEmail(rawEmail);
+  const code = String(rawCode ?? '');
+  if (!EMAIL_SHAPE.test(email) || !CODE_SHAPE.test(code)) {
+    return { ok: false, reason: 'invalid-argument' };
+  }
+
+  if (ip && (await ipLimitExceeded(db, ip))) {
+    return { ok: false, reason: 'resource-exhausted' };
+  }
+
+  const otpRef = db.collection(COLLECTIONS.otpCodes).doc(otpDocId(email));
+
+  const outcome = await db.runTransaction<CodeOutcome>(async (tx) => {
+    const snap = await tx.get(otpRef);
+    if (!snap.exists) return 'no-code';
+
+    const data = snap.data() as OtpCodeDoc;
+    const now = Date.now();
+
+    if (toMillis(data.expiresAt) <= now) {
+      tx.delete(otpRef);
+      return 'expired';
+    }
+    if (data.attempts >= MAX_ATTEMPTS) {
+      tx.delete(otpRef);
+      return 'exhausted';
+    }
+    if (data.code !== code) {
+      tx.update(otpRef, { attempts: data.attempts + 1 });
+      return 'wrong-code';
+    }
+
+    tx.delete(otpRef);
+    return 'ok';
+  });
+
+  return outcome === 'ok' ? { ok: true, email } : { ok: false, reason: outcome };
+}
+
 /**
  * Redeem a code and mint a custom token.
  *
@@ -342,43 +400,9 @@ export async function verifySignInCode(
   rawCode: string,
   ip: string | undefined,
 ): Promise<VerifyOutcome> {
-  const email = normaliseEmail(rawEmail);
-  const code = String(rawCode ?? '');
-  if (!EMAIL_SHAPE.test(email) || !CODE_SHAPE.test(code)) {
-    return { ok: false, reason: 'invalid-argument' };
-  }
-
-  if (ip && (await ipLimitExceeded(db, ip))) {
-    return { ok: false, reason: 'resource-exhausted' };
-  }
-
-  const otpRef = db.collection(COLLECTIONS.otpCodes).doc(otpDocId(email));
-
-  const outcome = await db.runTransaction<CodeOutcome>(async (tx) => {
-    const snap = await tx.get(otpRef);
-    if (!snap.exists) return 'no-code';
-
-    const data = snap.data() as OtpCodeDoc;
-    const now = Date.now();
-
-    if (toMillis(data.expiresAt) <= now) {
-      tx.delete(otpRef);
-      return 'expired';
-    }
-    if (data.attempts >= MAX_ATTEMPTS) {
-      tx.delete(otpRef);
-      return 'exhausted';
-    }
-    if (data.code !== code) {
-      tx.update(otpRef, { attempts: data.attempts + 1 });
-      return 'wrong-code';
-    }
-
-    tx.delete(otpRef);
-    return 'ok';
-  });
-
-  if (outcome !== 'ok') return { ok: false, reason: outcome };
+  const consumed = await consumeSignInCode(db, rawEmail, rawCode, ip);
+  if (!consumed.ok) return { ok: false, reason: consumed.reason };
+  const email = consumed.email;
 
   const registration = await findActiveRegistration(db, email);
   if (!registration) return { ok: false, reason: 'no-registration' };

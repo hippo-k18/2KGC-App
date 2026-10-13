@@ -2,7 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, TIME_ZONE, type TicketAudience } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  TIME_ZONE,
+  parsePricePhases,
+  pricePhasesToText,
+  type TicketAudience,
+} from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { getTicketType } from '@/lib/commerce';
@@ -133,9 +140,12 @@ export async function saveTicketTypeAction(
     ? (audienceRaw as TicketAudience)
     : 'attendee';
   const includesWorkshops = formData.get('includesWorkshops') === 'on';
+  const extraFor = String(formData.get('extraFor') ?? '').trim();
   const includesVideoLibrary = formData.get('includesVideoLibrary') === 'on';
   const opensRaw = String(formData.get('salesOpenAt') ?? '').trim();
   const closesRaw = String(formData.get('salesCloseAt') ?? '').trim();
+  const phasesRaw = String(formData.get('pricePhases') ?? '');
+  const badge = String(formData.get('badge') ?? '').trim().slice(0, 24);
 
   if (name.length < 2) return { error: 'Give the ticket a name. It prints on the badge.' };
 
@@ -152,6 +162,9 @@ export async function saveTicketTypeAction(
     };
   }
   if (!/^[a-z]{3}$/.test(currency)) return { error: 'Currency must be a three-letter code.' };
+
+  const phases = parsePricePhases(phasesRaw);
+  if (!phases.ok) return { error: `Price phases: ${phases.error}` };
 
   const capacity = capacityRaw === '' ? undefined : Number(capacityRaw);
   if (capacity !== undefined && (!Number.isInteger(capacity) || capacity < 1)) {
@@ -197,9 +210,22 @@ export async function saveTicketTypeAction(
     }
   }
 
+  if (extraFor) {
+    const target = extraFor === docId ? null : await getTicketType(extraFor);
+    if (!target || target.audience !== 'attendee' || target.kind === 'extra' || target.bundleOf?.length) {
+      return { error: 'Choose an attendee ticket for "Sold as", or "A ticket of its own".' };
+    }
+  }
+
   const fields = {
     name,
     priceCents,
+    /**
+     * The ladder the website charges from. An empty array rather than a delete
+     * when the box is cleared, for the same `merge: true` reason as `groups`.
+     */
+    pricePhases: phases.phases,
+    badge,
     currency,
     tagline,
     includes,
@@ -245,6 +271,16 @@ export async function saveTicketTypeAction(
      */
     includesWorkshops,
     includesVideoLibrary,
+    /**
+     * "Sold as": an extra names the ticket it goes on. Turning it back into a
+     * ticket of its own clears both fields; a CEU-style add-on (an `addOnFor`
+     * with no `kind`) is not this field's, so its `addOnFor` is left alone.
+     */
+    ...(extraFor
+      ? { kind: 'extra' as const, addOnFor: extraFor }
+      : existing?.kind === 'extra'
+        ? { kind: FieldValue.delete(), addOnFor: FieldValue.delete() }
+        : {}),
     quantityTotal: capacity,
     salesOpenAt,
     salesCloseAt,
@@ -296,6 +332,8 @@ export async function saveTicketTypeAction(
       ? {
           name: existing.name,
           priceCents: existing.priceCents,
+          pricePhases: pricePhasesToText(existing.pricePhases),
+          badge: existing.badge ?? '',
           visible: existing.visible,
           quantityTotal: existing.quantityTotal,
           tagline: existing.tagline,
@@ -305,6 +343,7 @@ export async function saveTicketTypeAction(
           ),
           includesWorkshops: existing.includesWorkshops === true,
           includesVideoLibrary: existing.includesVideoLibrary === true,
+          soldAs: existing.kind === 'extra' ? `extra on ${existing.addOnFor ?? ''}` : 'own ticket',
           salesOpenAtLocal: existing.salesOpenAtLocal ?? null,
           salesCloseAtLocal: existing.salesCloseAtLocal ?? null,
         }
@@ -313,6 +352,8 @@ export async function saveTicketTypeAction(
     const changed = diff(before as Record<string, unknown>, {
       name,
       priceCents,
+      pricePhases: pricePhasesToText(phases.phases),
+      badge,
       visible,
       quantityTotal: capacity,
       tagline,
@@ -320,6 +361,7 @@ export async function saveTicketTypeAction(
       groups: groupsToText(groups),
       includesWorkshops,
       includesVideoLibrary,
+      soldAs: extraFor ? `extra on ${extraFor}` : 'own ticket',
       salesOpenAtLocal: opensLocal || null,
       salesCloseAtLocal: closesLocal || null,
     });
@@ -340,7 +382,7 @@ export async function saveTicketTypeAction(
       ok: true,
       message: existing
         ? `Saved. The website shows the new details immediately${
-            changed.changed.includes('priceCents')
+            changed.changed.includes('priceCents') || changed.changed.includes('pricePhases')
               ? '. Including the new price, which applies to purchases from now on.'
               : '.'
           }`

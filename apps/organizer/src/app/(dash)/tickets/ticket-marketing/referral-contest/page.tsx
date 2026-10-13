@@ -3,6 +3,8 @@ import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listLinks } from '@/lib/campaigns';
 import { money } from '@/lib/commerce';
+import { attendeeReferralLeaderboard } from '@/lib/referrals';
+import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 import { LinkForm } from '../link-form';
 import { DESTINATIONS, LinkTable } from '../link-table';
@@ -41,7 +43,7 @@ export const dynamic = 'force-dynamic';
 export default async function ReferralContestPage() {
   await requireOrganizer();
 
-  const links = await listLinks();
+  const [links, attendees] = await Promise.all([listLinks(), attendeeReferralLeaderboard()]);
   const publicOrigin = publicSiteOrigin();
 
   const owned = links.filter((l) => l.owner);
@@ -76,12 +78,10 @@ export default async function ReferralContestPage() {
         title="Referral Contest"
         info={
           <>
-            <strong>This measures link-sharing, not referring</strong>
+            <strong>How referrals are counted</strong>
             <p>
-              A friend told about KGC over coffee who then searches for it and buys is
-              unattributed. Attribution is last-click over thirty days, so the ranking rewards the
-              people who posted a link. Narrower than the people who brought somebody. Worth
-              knowing before anybody is told they came second.
+              An order counts for a referrer when the buyer clicked their link in the thirty days
+              before buying. Word of mouth without a click is not counted.
             </p>
           </>
         }
@@ -113,32 +113,74 @@ export default async function ReferralContestPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Leaderboard</h2>
-        <Table
-          cols={[
-            { key: 'p', label: '#', className: 'cell-xs' },
-            { key: 'o', label: 'Referrer', className: 'cell-fill' },
-            { key: 'c', label: 'Clicks', className: 'cell-sm' },
-            { key: 'n', label: 'Orders', className: 'cell-sm' },
-            { key: 'r', label: 'Net', className: 'cell-sm' },
-          ]}
-          rows={leaderboard.map((r, i) => [
-            <strong key="p">{i + 1}</strong>,
-            <div key="o">
-              <div>{r.owner}</div>
-              <div className="muted" style={{ fontSize: 11 }}>
-                {r.links} {r.links === 1 ? 'link' : 'links'}
-              </div>
-            </div>,
-            r.clicks,
-            <strong key="n">{r.orders}</strong>,
-            r.revenueCents > 0 ? money(r.revenueCents, r.currency) : '—',
-          ])}
-          empty={<NotInputted what="referral links" compact />}
-        />
+        {leaderboard.length === 0 ? (
+          <NotInputted what="referral links" compact />
+        ) : (
+          <Table
+            cols={[
+              { key: 'p', label: '#', className: 'cell-xs' },
+              { key: 'o', label: 'Referrer', className: 'cell-fill' },
+              { key: 'c', label: 'Clicks', className: 'cell-sm' },
+              { key: 'n', label: 'Orders', className: 'cell-sm' },
+              { key: 'r', label: 'Net', className: 'cell-sm' },
+            ]}
+            rows={leaderboard.map((r, i) => [
+              <strong key="p">{i + 1}</strong>,
+              <div key="o">
+                <div>{r.owner}</div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {r.links} {r.links === 1 ? 'link' : 'links'}
+                </div>
+              </div>,
+              r.clicks,
+              <strong key="n">{r.orders}</strong>,
+              r.revenueCents > 0 ? money(r.revenueCents, r.currency) : '—',
+            ])}
+          />
+        )}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          One person may hold several links, and the leaderboard sums them. Otherwise the winner is
-          whoever split their audience least. Ties break on net value, then alphabetically, so the
-          order is stable between page loads.
+          A person with several links is ranked on their total. Ties go to the higher net value.
+        </p>
+      </Panel>
+
+      {/*
+        Attendee invites. Every confirmation email carries a personal link with
+        the attendee's code, and fulfilment credits the registrations it brings
+        (`referredBy.code`). Counted separately from the links above: an attendee's
+        code credits a person, a tracked link credits an order.
+      */}
+      <Panel style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Attendee referrals</h2>
+        {attendees.rows.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
+            Nobody has registered through an attendee&rsquo;s invite link yet.
+            {attendees.withCode > 0 ? ` ${attendees.withCode} attendees have a code.` : ''}
+          </p>
+        ) : (
+          <Table
+            cols={[
+              { key: 'p', label: '#', className: 'cell-xs' },
+              { key: 'a', label: 'Attendee', className: 'cell-fill' },
+              { key: 'c', label: 'Code', className: 'cell-sm' },
+              { key: 'n', label: 'Referred', className: 'cell-sm' },
+            ]}
+            rows={attendees.rows.map((r, i) => [
+              <strong key="p">{i + 1}</strong>,
+              <div key="a">
+                <Link href={`${ROUTES.attendees}?edit=${r.registrationId}#referrals`}>{r.name || r.email}</Link>
+                {r.name ? (
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {r.email}
+                  </div>
+                ) : null}
+              </div>,
+              r.code ? <code key="c">{r.code}</code> : '—',
+              <strong key="n">{r.referred}</strong>,
+            ])}
+          />
+        )}
+        <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+          Counts attendees whose ticket is still active.
         </p>
       </Panel>
 
@@ -148,7 +190,7 @@ export default async function ReferralContestPage() {
           links={owned}
           publicOrigin={publicOrigin}
           showOwner
-          emptyMessage="No link has an owner. A link with no name attached belongs on Campaign Link Tracking; this screen is only the ones somebody gets credit for."
+          emptyMessage="No referral links yet. Create one below."
         />
       </Panel>
 
@@ -178,8 +220,9 @@ export default async function ReferralContestPage() {
             organizer screenshots.
           </li>
           <li>
-            <strong>No self-service sign-up.</strong> Each link is created here by hand. That is
-            fine for twenty speakers and wrong for two hundred attendees.
+            <strong>No self-service sign-up for tracked links.</strong> Each one is created here by
+            hand. Attendees do not need one: each gets a personal code in their confirmation email,
+            counted under Attendee referrals.
           </li>
         </ul>
       </GapPanel>

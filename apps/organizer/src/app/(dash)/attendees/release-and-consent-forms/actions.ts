@@ -2,8 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import type { ConsentAudience } from '@kgc/shared';
-import { requireOrganizer } from '@/lib/auth';
-import { getConsentForm, saveConsentForm } from '@/lib/consents';
+import { reauthenticate, requireOrganizer } from '@/lib/auth';
+import {
+  getConsentForm,
+  saveConsentForm,
+  sendSigningLinks,
+  signingSendPlan,
+} from '@/lib/consents';
 import { recordError } from '@/lib/errors';
 
 export interface ConsentFormState {
@@ -31,14 +36,19 @@ const STATUSES = ['draft', 'published', 'cancelled'] as const;
  * a typo and now forty speakers are unsigned" is a surprise worth spending a
  * paragraph to avoid.
  *
- * ── Not in the audit log, and that is a real gap ────────────────────────────
+ * ── Publishing is not the send ──────────────────────────────────────────────
  *
- * ⚠️ `lib/audit.ts` has no `consent.*` action, so publishing a release writes no
- * audit entry — the only record of who changed the wording is `updatedBy` and
- * `updatedAt` on the form itself, which is one name and one date rather than a
- * before-and-after. For the collection in this project that is most likely to be
- * asked about after the fact, that is the wrong way round. It is listed on the
- * screen's gap panel rather than quietly left out.
+ * ⚠️ It used to be. Saving with the status `published` mailed everybody who had
+ * not signed, from inside this action, with no count and no confirmation — so
+ * correcting a sentence in a photo release wrote to a thousand people, and a
+ * request that timed out halfway left nobody able to say who had been reached.
+ *
+ * Publishing now saves, and nothing else. The register screen counts who is
+ * outstanding and offers the send as its own step, behind a typed count and the
+ * passphrase. The message below says how many are waiting and where the button
+ * is, so publication still ends by pointing at the thing that has to happen
+ * next. `saveConsentForm` writes the audit entry that records who published
+ * which wording.
  */
 export async function saveConsentFormAction(
   _prev: ConsentFormState,
@@ -85,9 +95,37 @@ export async function saveConsentFormAction(
     revalidatePath('/attendees/release-and-consent-forms');
     revalidatePath('/content/speaker-center/release-and-consent-forms');
     revalidatePath('/attendees/call-for-volunteers/release-and-consent-forms');
+    revalidatePath('/attendees/name-badges');
+    revalidatePath('/attendees/check-in-and-checkout/check-in');
+
+    /*
+     * Nothing is mailed here. The line below counts who is waiting and says
+     * where to send from, which is the same information the old automatic send
+     * acted on — with a person deciding instead of a save.
+     */
+    const firstPublication = status === 'published' && existing?.status !== 'published';
+    const worthAsking = status === 'published' && (firstPublication || saved.versionBumped);
+    const plan = worthAsking ? await signingSendPlan(saved.id) : null;
+
+    const sendLine = (() => {
+      if (!plan) return '';
+      if (!plan.available) {
+        return ' Signing links cannot be sent yet: the link setup is not finished.';
+      }
+      if (plan.pending === 0 && plan.noAddress === 0) {
+        return ' Everybody has already signed it, so there is nobody to write to.';
+      }
+      return (
+        ` ${plan.pending} ${plan.pending === 1 ? 'person is' : 'people are'} waiting to sign it.` +
+        (plan.noAddress > 0
+          ? ` ${plan.noAddress} ${plan.noAddress === 1 ? 'of them has' : 'of them have'} no address on file.`
+          : '') +
+        ' Open the form to send them their links.'
+      );
+    })();
 
     if (!existing) {
-      return { ok: true, message: `Created “${title}” at version 1.` };
+      return { ok: true, message: `Created “${title}” at version 1.${sendLine}` };
     }
     if (saved.versionBumped) {
       return {
@@ -95,15 +133,107 @@ export async function saveConsentFormAction(
         message:
           `The wording changed, so this is now version ${saved.version}. Everybody who signed ` +
           `version ${saved.version - 1} is outstanding against the new text. Their earlier ` +
-          'agreement still stands for what it said, and it does not cover this.',
+          'agreement still stands for what it said, and it does not cover this.' +
+          sendLine,
       };
     }
     return {
       ok: true,
-      message: `Saved “${title}”. The wording is unchanged, so version ${saved.version} still stands and nobody has to sign again.`,
+      message: `Saved “${title}”. The wording is unchanged, so version ${saved.version} still stands and nobody has to sign again.${sendLine}`,
     };
   } catch (err) {
     recordError('consent.save', err);
     return { error: err instanceof Error ? err.message : 'Could not save the form.' };
+  }
+}
+
+/**
+ * Send the signing links, as a step of its own.
+ *
+ * ── The three guards, and what each one stops ───────────────────────────────
+ *
+ * A **typed count**, which is the number the screen just showed. It catches the
+ * case that matters: an audience that silently resolved to everybody. Mailing a
+ * thousand people a link that signs a legal release in their name is not
+ * recoverable, and finding out afterwards is the wrong way round.
+ *
+ * The **passphrase**, for the same reason a refund asks for it. A session lasts
+ * eight hours and an unattended dashboard is the normal state of a conference.
+ *
+ * And **the log**, which is exactly what its name says and nothing more: a
+ * guard on the NEXT press, not on this one. Every recipient is written to
+ * `emailLog` under one campaign id per form and version, so a press after a
+ * timeout picks up where the last one stopped.
+ *
+ * ⚠️ Two presses in the same second are a different problem, and this comment
+ * used to claim the re-read covered it. It cannot — both presses read the log
+ * before either writes to it. `sendSigningLinks` holds a lock on the campaign
+ * for that, and the press that does not get it mails nobody and says so below.
+ */
+export async function sendSigningLinksAction(
+  _prev: ConsentFormState,
+  formData: FormData,
+): Promise<ConsentFormState> {
+  const actor = await requireOrganizer();
+
+  const formId = String(formData.get('formId') ?? '').trim();
+  const typed = String(formData.get('confirmCount') ?? '').trim();
+  const passphrase = String(formData.get('passphrase') ?? '');
+
+  if (!formId) return { error: 'That form is no longer here.' };
+
+  try {
+    const plan = await signingSendPlan(formId);
+    if (!plan) return { error: 'That form is no longer here.' };
+    if (!plan.available) {
+      return { error: 'Signing links cannot be sent yet. Ask your administrator to finish the website link setup.' };
+    }
+    if (plan.pending === 0) {
+      return {
+        error:
+          plan.reachable === 0
+            ? 'There is nobody to write to. Everybody in this audience has either signed it or has no address on file.'
+            : 'Everybody waiting to sign this version has already been sent their link.',
+      };
+    }
+
+    if (!(await reauthenticate(passphrase))) {
+      return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.' };
+    }
+
+    if (Number(typed) !== plan.pending) {
+      return {
+        error: `Type ${plan.pending} to confirm. That is how many people will be emailed.`,
+      };
+    }
+
+    const result = await sendSigningLinks({ formId, actor });
+
+    if (result.busy) {
+      return {
+        error: 'Somebody else is sending this form right now. Nothing was sent. Wait for it to finish, then check the count again.',
+      };
+    }
+
+    revalidatePath('/attendees/release-and-consent-forms');
+    revalidatePath('/content/speaker-center/release-and-consent-forms');
+    revalidatePath('/attendees/call-for-volunteers/release-and-consent-forms');
+
+    const reached = process.env.RESEND_API_KEY
+      ? `Sent ${result.sent} ${result.sent === 1 ? 'link' : 'links'}.`
+      : `${result.sent} ${result.sent === 1 ? 'link is' : 'links are'} ready. Email is not switched on yet, so nothing went out.`;
+
+    const more = result.remaining > 0
+      ? ` ${result.remaining} still to go. Press Send again to reach them; nobody is written to twice.`
+      : '';
+
+    const unreachable = result.noAddress > 0
+      ? ` ${result.noAddress} ${result.noAddress === 1 ? 'person has' : 'people have'} no address on file and got nothing.`
+      : '';
+
+    return { ok: true, message: reached + more + unreachable };
+  } catch (err) {
+    recordError('consent.sendLinks', err);
+    return { error: 'That did not finish. Nobody is written to twice, so press Send again.' };
   }
 }

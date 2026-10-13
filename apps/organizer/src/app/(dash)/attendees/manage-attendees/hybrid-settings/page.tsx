@@ -15,11 +15,15 @@ export const dynamic = 'force-dynamic';
  * event.
  *
  * This screen exists to say that once, properly, rather than to offer switches
- * that would silently do nothing. The interesting part is *how far* the absence
- * goes: it is not that hybrid is turned off, it is that the schema has no
- * notion of remote at all — `SessionDoc` has no stream URL and no virtual flag,
- * `RegistrationDoc` has no audience field, and the app has no player. Turning
- * hybrid "on" would be a data-model change, not a setting.
+ * that would silently do nothing. What is absent is the *audience* split:
+ * `RegistrationDoc` has no audience field, so nobody is marked remote and no
+ * setting could be applied to them.
+ *
+ * ⚠️ This docblock said "`SessionDoc` has no stream URL" until 2026-09-23. It
+ * has one now — `sessions/{id}/watch/stream`, set up on Session Manager — so
+ * the Streamed count below is read rather than hard-coded to zero. Whether an
+ * *attendee* is remote is still not modelled, and that is what this screen is
+ * about.
  */
 export default async function HybridSettingsPage() {
   await requireOrganizer();
@@ -28,6 +32,10 @@ export default async function HybridSettingsPage() {
   // would need a composite index this repo does not declare, and the emulator
   // does not enforce indexes, so the failure would first appear in production.
   const sessions = await listSessions();
+  // Read rather than assumed zero: a session carries `streamState` once a
+  // stream is attached, and that flag is on the session document precisely so a
+  // count like this needs no second read per row.
+  const streamed = sessions.filter((s) => Boolean(s.streamState)).length;
 
   return (
     <>
@@ -36,11 +44,7 @@ export default async function HybridSettingsPage() {
         info={
           <>
             <strong>KGC 2027 is in-person only</strong>
-            <p>
-              The data model has no remote half: no virtual flag on a session, no stream URL, no
-              audience on a registration. Nothing here is switched off. It is absent, which is why
-              there is no switch.
-            </p>
+            <p>Remote attendance and streaming are not available, so there is nothing to set here.</p>
           </>
         }
         tags={<Tag color="grey">in-person event</Tag>}
@@ -56,42 +60,18 @@ export default async function HybridSettingsPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Sessions', value: sessions.length, sub: 'all in a room' },
-          { label: 'Streamed', value: 0, sub: 'no stream field exists' },
-          { label: 'Remote attendees', value: 0, sub: 'no audience field exists' },
+          { label: 'Sessions', value: sessions.length, sub: 'all in the room' },
+          { label: 'Streamed', value: streamed, sub: 'a link is set up' },
+          { label: 'Remote attendees', value: 0 },
         ]}
       />
 
       <Panel>
-        <h2 className="section-header">What hybrid would actually require</h2>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>An audience on the registration, decided at purchase.</strong> Remote tickets
-            are a ticket type, so the money path is where this starts, and a remote ticket that
-            still mints a <code>qrSecret</code> is a badge for a door somebody will never walk
-            through. The check-in denominator on the desk screen would need to exclude them, or the
-            progress bar reads permanently stalled.
-          </li>
-          <li>
-            <strong>A stream per session, and a decision about who may watch.</strong> A URL on{' '}
-            <code>SessionDoc</code> is the easy half. Gating it is the real one: a link readable by
-            every signed-in attendee is a link that leaves the building, and{' '}
-            <code>firestore.rules</code> filters documents rather than fields, so a gated stream
-            URL means a separate projection in the way the attendee directory already is.
-          </li>
-          <li>
-            <strong>A player in Expo Go.</strong> Video is a native module and Expo Go ships a fixed
-            set. This is the same constraint that made the QR encoder hand-rolled, and video has no
-            equivalent pure-JS escape hatch. Hybrid would need the development build that WP-06
-            already wants for other reasons.
-          </li>
-          <li>
-            <strong>Two rooms, socially.</strong> The hard part of hybrid is not the stream; it is
-            Q&amp;A, polls and the community board being shared between people who are in the room
-            and people who are not. Every one of those exists here in a form that assumes one
-            audience.
-          </li>
-        </ul>
+        <p className="body-2" style={{ margin: 0 }}>
+          Nobody is marked as a remote attendee, so there is no second audience to set rules for.
+          Streams and recordings are set up per session on{' '}
+          <Link href={ROUTES.sessionManager}>Session Manager</Link>.
+        </p>
       </Panel>
 
       <GapPanel>

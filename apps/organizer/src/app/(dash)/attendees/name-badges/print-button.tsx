@@ -16,7 +16,7 @@
  */
 export function PrintButton({ count, label = 'badge' }: { count: number; label?: string }) {
   return (
-    <button type="button" className="whova-btn-main" onClick={() => window.print()}>
+    <button type="button" className="whova-btn-main primary" onClick={() => window.print()}>
       Print {count} {label}
       {count === 1 ? '' : 's'}
     </button>

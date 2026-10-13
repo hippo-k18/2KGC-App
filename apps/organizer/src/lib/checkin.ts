@@ -5,6 +5,7 @@ import {
   COLLECTIONS,
   DOOR_CHECK_IN_LIST_ID,
   EVENT_ID,
+  ticketLabel,
   SUBCOLLECTIONS,
   TIME_ZONE,
   type CheckInDoc,
@@ -77,6 +78,8 @@ export interface RegistrationRow {
   ticketType?: string;
   status: RegistrationDoc['status'];
   claimed: boolean;
+  /** The shared demo login (T223): listed, never counted. */
+  demo?: boolean;
 }
 
 export interface CheckInRow {
@@ -146,7 +149,9 @@ export async function listCheckInLists(): Promise<CheckInListRow[]> {
       const l = d.data() as CheckInListDoc;
       return {
         id: d.id,
-        name: l.name,
+        // Lists made before September 2026 were named "KGC 2027 — Main Door".
+        // Rewritten here, once, so every screen that names a list agrees.
+        name: l.name.replace(' — ', ': '),
         kind: l.kind,
         sessionId: l.sessionId,
         opensAt: iso(l.opensAt) ?? undefined,
@@ -187,14 +192,30 @@ export async function listRegistrations(): Promise<
         id: d.id,
         name: r.name ?? r.email,
         email: r.email,
-        ticketType: r.ticketType,
+        // The whole badge, "Main Conference + Workshops", so the desk and the
+        // scanner say everything the person holds.
+        ticketType: ticketLabel(r) || undefined,
         status: r.status,
         claimed: Boolean(r.claimedByUid),
+        ...(r.demo === true ? { demo: true } : {}),
       },
       qrSecret: r.qrSecret,
       claimCode: r.claimCode,
     };
   });
+}
+
+/**
+ * The names of the tickets that are extras (Workshops). A badge whose ticket
+ * is one of them, with nothing beside it, is a Workshops-only badge
+ * (2026-10-07): the scanner tells the desk so they can send the person to the
+ * workshops rather than the main conference.
+ */
+export async function extraTicketNames(): Promise<Set<string>> {
+  const snap = await db().collection(COLLECTIONS.ticketTypes).where('eventId', '==', EVENT_ID).get();
+  return new Set(
+    snap.docs.map((d) => d.data() as { name?: string; kind?: string }).filter((t) => t.kind === 'extra' && t.name).map((t) => t.name!),
+  );
 }
 
 /**

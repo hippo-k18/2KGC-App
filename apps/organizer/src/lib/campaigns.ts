@@ -89,7 +89,8 @@ function iso(t: { toDate(): Date } | undefined): string | undefined {
 function toContactRow(id: string, c: ContactDoc): ContactRow {
   return {
     id,
-    email: c.email,
+    // Null once the contact has been erased; the row is kept as a suppression.
+    email: c.email ?? '',
     name: c.name ?? '',
     company: c.company ?? '',
     source: c.source ?? '',

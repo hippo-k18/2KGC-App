@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { COLLECTIONS, EVENT } from '@kgc/shared';
-import { currentSession } from '@/lib/auth';
+import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listSessions } from '@/lib/data';
 import { targetDescription } from '@/lib/firestore';
 
@@ -24,7 +23,9 @@ export const dynamic = 'force-dynamic';
  * has no tab strip and no sidebar — only the dark utility bar.
  */
 export default async function EventListPage() {
-  if (!(await currentSession())) redirect('/login');
+  // The guard, like every other screen: a team member with limited roles is
+  // sent to where those roles start rather than shown the event list.
+  await requireOrganizer();
 
   const [sessions, registrations] = await Promise.all([
     listSessions(),
@@ -85,7 +86,6 @@ export default async function EventListPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: 'var(--body)', fontSize: 15, fontWeight: 500 }}>
               {EVENT.name}
-              <span className="event-status-badge badge-alert">Draft</span>
             </div>
             <div style={{ color: 'var(--body)', fontSize: 14, fontWeight: 500 }}>
               {days.length ? `${days[0]} – ${days[days.length - 1]}` : 'no sessions scheduled'}

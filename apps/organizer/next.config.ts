@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
 
   /**
+   * The development tools indicator, off.
+   *
+   * It is the dark circle in the corner of every screen on localhost. It never
+   * ships — it is a development-only overlay and the deployed dashboard has
+   * never carried it — but on a screen that is otherwise a one-to-one rebuild
+   * of somebody else's product it reads as a badge somebody stamped on the
+   * corner, and it was read as one. Nothing about the build changes.
+   */
+  devIndicators: false,
+
+  /**
    * `@kgc/shared` and `@kgc/scripts` are workspace packages published as raw
    * TypeScript (their `main` points straight at `src/`), so Next has to compile
    * them rather than treat them as prebuilt node_modules.

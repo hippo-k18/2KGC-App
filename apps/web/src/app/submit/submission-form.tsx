@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import type { AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import type { OwnSubmission, PublicCall } from '@/lib/submissions';
 import { SubmissionFields } from './submission-fields';
+import { formatDeadline } from '@/lib/site';
 import { submitAction, type SubmitState } from './actions';
 
 /**
@@ -209,9 +210,10 @@ export function SubmissionForm({
       </div>
 
       <p className="hint" style={{ marginTop: 14 }}>
-        A draft is not submitted and is not read by anybody. You can come back to it from the link we
-        email you, until the call closes on {call.closesAtLocal.replace('T', ' ')}. After that the
-        server refuses any change. The deadline is real, not a hidden button.
+        A draft is not submitted and nobody reads it. You can come back to it from the link we
+        email you until the call closes on{' '}
+        {formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal}. After that
+        nothing can be changed.
       </p>
     </form>
   );

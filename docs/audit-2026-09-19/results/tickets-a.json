@@ -1,0 +1,560 @@
+{
+  "features": [
+    {
+      "area": "Tickets",
+      "feature": "Create a ticket type",
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "what": "Add a ticket with name, price, capacity, sales window and what it includes.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.1 Create Tickets.",
+        "Click + Create ticket.",
+        "Enter Ticket name and Price in dollars.",
+        "Set Capacity, Opens and Closes if needed.",
+        "Tick Show on the website. A free ticket cannot be shown.",
+        "Click Create ticket."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/ticket-form.tsx"
+      ],
+      "statusNote": "The ticket saves and shows on the website. Nobody can buy it until a payment account is connected."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Edit a ticket price or details",
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "what": "Change price, tagline, inclusions, capacity or sales dates on an existing ticket. The website picks it up at once.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.1 Create Tickets.",
+        "Click Edit on the ticket row.",
+        "Change the fields.",
+        "Click Save changes."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts"
+      ],
+      "statusNote": "Saves to the live catalogue. Past orders keep the price they paid."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Hide or show a ticket",
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "what": "Take a ticket off the public tickets page, or put it back. Tickets cannot be deleted.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.1 Create Tickets.",
+        "Click Hide or Show on the ticket row."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "Correct a sold count",
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "what": "Reset the sold number on a ticket after refunds, using the figure counted from orders.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.1 Create Tickets.",
+        "Click Edit on the ticket row.",
+        "Under the form, click Correct the sold count.",
+        "Check Sold, which is prefilled from orders, and enter Why.",
+        "Click Correct the count."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/sold-count-form.tsx"
+      ]
+    },
+    {
+      "area": "Tickets",
+      "feature": "See group orders",
+      "path": "/tickets/ticket-setup/create-group-tickets",
+      "what": "List invoiced and multi-seat orders with seats, totals and payment status.",
+      "steps": [
+        "Open Tickets > Ticket Setup > Create Group Tickets.",
+        "Read the Group orders table."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/create-group-tickets/page.tsx"
+      ],
+      "statusNote": "Group orders are placed on the website. There is no group ticket or group discount to set up here, and no order can be placed until a payment account is connected."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Registration questions",
+      "path": "/tickets/ticket-setup/1-2-question-forms",
+      "what": "Build the questions buyers answer at checkout, limit a question to certain tickets or to an earlier answer, reorder, remove, and switch the form on or off.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.2 Question Forms.",
+        "Under Add a question, enter the Question and pick an Answer type.",
+        "Tick Required if needed. Pick tickets under Ask only on, or leave empty for everyone.",
+        "Under Show only when, pick an earlier question and the answer that reveals this one.",
+        "Click Add question.",
+        "Use Edit, Move up or Remove on a row. After Edit, click Save question.",
+        "Click Start asking to turn the form on."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/question-form-actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/question-form-screen.tsx",
+        "apps/web/src/lib/question-forms.ts"
+      ],
+      "statusNote": "Questions save and show at checkout, and a question can depend on the ticket or on an earlier answer. No answers can come in until a payment account is connected."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Confirmation email log",
+      "path": "/tickets/ticket-setup/1-3-confirmation-emails",
+      "what": "See which purchase, invoice and refund emails were sent, failed or skipped, with the provider error.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.3 Confirmation Emails.",
+        "Read Recent sends."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-3-confirmation-emails/page.tsx"
+      ],
+      "statusNote": "Templates cannot be edited and there is no resend button. Sends fail for every address but the account owner until the event has its own sending address."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Ticket add-ons",
+      "path": "/tickets/ticket-setup/ticket-add-ons",
+      "what": "Shows which tickets include workshops and the video library.",
+      "steps": [
+        "Open Tickets > Ticket Setup > Ticket Add-ons."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/ticket-add-ons/page.tsx"
+      ],
+      "statusNote": "Add-ons cannot be created or sold. The two inclusions are edited as checkboxes on 1.1 Create Tickets."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Discount codes",
+      "path": "/tickets/ticket-setup/discount-codes",
+      "what": "Create percent or fixed discount codes with a redemption limit and expiry, and turn codes off.",
+      "steps": [
+        "Open Tickets > Ticket Setup > Discount Codes.",
+        "Enter a code, the type and the amount.",
+        "Set a limit and expiry if needed.",
+        "Click Create code."
+      ],
+      "status": "blocked",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/page.tsx",
+        "apps/organizer/src/lib/stripe.ts"
+      ],
+      "statusNote": "Waiting on a payment account. The form is not shown and the action refuses."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Member and invite-only tickets",
+      "path": "/tickets/ticket-setup/member-and-invite-only-ticketing",
+      "what": "Lists hidden tickets that can be sold by private link.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.1 Create Tickets and click Hide on the ticket.",
+        "Open Tickets > Ticket Setup > Member & Invite-Only Ticketing to see hidden tickets."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/member-and-invite-only-ticketing/page.tsx"
+      ],
+      "statusNote": "No membership check exists. The only options are a hidden ticket or a discount code, and codes are blocked."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Membership system guides (MemberClicks, iMIS, YourMembership, Neon CRM)",
+      "path": "/tickets/ticket-setup/memberclicks-connection-guide",
+      "what": "Explains how to move data to a membership system by CSV export.",
+      "steps": [
+        "Open Tickets > Ticket Setup and pick the guide.",
+        "Follow the link to Analytics & Exports and download the CSV.",
+        "Import the CSV in the other system."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/memberclicks-connection-guide/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/imis-connection-guide/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/yourmembership-connection-guide/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/neon-crm-connection-guide/page.tsx",
+        "apps/organizer/src/app/(dash)/integration-guide.tsx"
+      ],
+      "statusNote": "Text guides only. No connection exists for any of the four systems."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Say who may sign up for a session",
+      "path": "/tickets/ticket-setup/session-rsvp",
+      "what": "Sets which ticket types may take a seat in a session. With a cap on the session, attendees sign up in the app, and when the room is full they join a waitlist and move up automatically when somebody drops out.",
+      "steps": [
+        "Open Content > Agenda Center > Session Manager and set the session capacity.",
+        "Open Tickets > Ticket Setup > Session RSVP.",
+        "Click Manage on the session.",
+        "Tick the ticket types that may sign up.",
+        "Click Save.",
+        "Watch the numbers on Session Manager and on Attendees > Session Cap."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/session-rsvp/page.tsx"
+      ],
+      "statusNote": "Seats, the waitlist and the ticket check all work on the test event. Waiting on the new access settings being published to the live event."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Registration page preview",
+      "path": "/tickets/ticket-setup/1-4-registration-pages",
+      "what": "See every ticket the public page lists, with price, order and sold state.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.4 Registration Pages.",
+        "To change order or listing, click Create Tickets and edit the ticket."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-4-registration-pages/page.tsx"
+      ],
+      "statusNote": "The registration page itself cannot be designed here. Order and visibility are edited on 1.1."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Registration link for partners",
+      "path": "/tickets/ticket-setup/1-5-registration-widgets",
+      "what": "Gives the ticket page link to share and points to tracked links.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.5 Registration Widgets.",
+        "Copy the link.",
+        "For a credited link, open Tickets > Ticket Marketing > Campaign Link Tracking and create a code."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-5-registration-widgets/page.tsx"
+      ],
+      "statusNote": "There is no embeddable widget, only a link."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Abandoned registrations",
+      "path": "/tickets/ticket-setup/1-6-abandoned-registration",
+      "what": "List expired and failed checkouts and unpaid invoices.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.6 Abandoned Registration."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-6-abandoned-registration/page.tsx"
+      ],
+      "statusNote": "No reminder email can be sent from here."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Registration settings",
+      "path": "/tickets/ticket-setup/1-7-registration-settings",
+      "what": "See open date, close date and capacity for every ticket in one table.",
+      "steps": [
+        "Open Tickets > Ticket Setup > 1.7 Registration Settings.",
+        "To change a value, open 1.1 Create Tickets and edit the ticket."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-7-registration-settings/page.tsx"
+      ],
+      "statusNote": "No form here. No event-wide settings such as order limits or a refund policy exist."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor packages",
+      "path": "/tickets/exhibitor-ticket-setup/2-1-exhibitor-tickets",
+      "what": "List exhibitor packages and edit their price, capacity and inclusions.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.1 Exhibitor Tickets.",
+        "Click Edit on a package. The ticket form on 1.1 opens.",
+        "Change the fields and click Save changes.",
+        "To add one, open 1.1 Create Tickets, click + Create ticket, set Catalogue to Exhibitors and click Create ticket."
+      ],
+      "status": "works",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-1-exhibitor-tickets/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/audience-catalogue.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-1-create-tickets/actions.ts"
+      ],
+      "statusNote": "Packages save and list on the public exhibitor page. Nobody can buy one online until a payment account is connected. Use 2.6 Offline Payment meanwhile."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor registration questions",
+      "path": "/tickets/exhibitor-ticket-setup/2-2-question-forms",
+      "what": "Build the questions exhibitors answer at checkout.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.2 Question Forms.",
+        "Under Add a question, enter the Question and pick an Answer type.",
+        "Click Add question.",
+        "Click Start asking."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/question-form-actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-2-question-forms/page.tsx"
+      ],
+      "statusNote": "The live form has no questions yet. Questions save, and a question can depend on an earlier answer. No answers can come in until a payment account is connected. Offline payments skip the questions."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Booth allocation",
+      "path": "/tickets/exhibitor-ticket-setup/2-3-booth-selection",
+      "what": "Add booths to the floor, assign or hold a booth for an exhibitor, release it, or block a space.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.3 Booth Selection.",
+        "Under Allocate a space, pick the Booth and the Exhibitor.",
+        "Tick Hold only if the booth is promised but unpaid.",
+        "Click Allocate.",
+        "Use Release, Block or Unblock on a row.",
+        "Under Add a space, enter Number, size and zone, then click Add booth."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-3-booth-selection/actions.ts",
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-3-booth-selection/booth-forms.tsx"
+      ],
+      "statusNote": "The organizer assigns booths by hand. Exhibitors cannot pick a booth during checkout."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor confirmation email log",
+      "path": "/tickets/exhibitor-ticket-setup/2-4-confirmation-emails",
+      "what": "See receipts sent to exhibitor buyers and any failures.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.4 Confirmation Emails."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-4-confirmation-emails/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/audience-registration.tsx"
+      ],
+      "statusNote": "Read-only log. No template editing or resend."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor add-ons and staff passes",
+      "path": "/tickets/exhibitor-ticket-setup/2-5-ticket-add-ons",
+      "what": "Compare staff passes claimed against the allocation per exhibitor, and list low-priced extras.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.5 Ticket Add-ons.",
+        "Read the staff pass table for over-claims.",
+        "To fix an allocation, click the exhibitor name to open Exhibitor Manager."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-5-ticket-add-ons/page.tsx"
+      ],
+      "statusNote": "No add-on product exists. An extra is sold as another exhibitor ticket made on 1.1."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor discount codes",
+      "path": "/tickets/exhibitor-ticket-setup/discount-codes",
+      "what": "Points to the shared discount code screen.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > Discount Codes.",
+        "Click Discount Codes (all audiences)."
+      ],
+      "status": "blocked",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/discount-codes/page.tsx",
+        "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/actions.ts"
+      ],
+      "statusNote": "Codes wait on a payment account, and a code cannot be limited to exhibitors."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Record an offline payment",
+      "path": "/tickets/exhibitor-ticket-setup/2-6-offline-payment",
+      "what": "Issue a ticket for a wire, cheque or contract payment. It creates the registration, the order and the sold count.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.6 Offline Payment.",
+        "Pick the Package.",
+        "Enter Name, Email, Amount received and Why.",
+        "Tick Do not send a confirmation only if the buyer needs no email.",
+        "Click Record payment.",
+        "Copy the claim code shown and give it to the buyer."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/manual-order-actions.ts",
+        "apps/organizer/src/lib/manual-orders.ts",
+        "apps/organizer/src/app/(dash)/tickets/manual-order-form.tsx"
+      ],
+      "statusNote": "The order and registration are written. The confirmation email fails for any address but the account owner until the event has its own sending address."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Pre-paid and comped exhibitors",
+      "path": "/tickets/exhibitor-ticket-setup/pre-paid-exhibitors",
+      "what": "See which exhibitors have no order on record, and record a pre-paid or free package for them.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > Pre-Paid Exhibitors.",
+        "Check the Reconciliation table for \"no order\".",
+        "Under Record a pre-paid or comped package, pick the Package.",
+        "Enter Name, Email, Amount received (0 for a comp) and Why.",
+        "Click Record payment."
+      ],
+      "status": "partial",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/pre-paid-exhibitors/page.tsx",
+        "apps/organizer/src/lib/manual-orders.ts"
+      ],
+      "statusNote": "Recording works. The confirmation email fails for any address but the account owner until the event has its own sending address."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor registration settings",
+      "path": "/tickets/exhibitor-ticket-setup/registration-settings",
+      "what": "See open date, close date and capacity for each exhibitor package.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > Registration Settings.",
+        "To change a value, open 2.1 Exhibitor Tickets and click Edit."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/registration-settings/page.tsx"
+      ],
+      "statusNote": "No form here."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor registration page preview",
+      "path": "/tickets/exhibitor-ticket-setup/2-7-registration-page",
+      "what": "See the packages listed on the public exhibitor page and open the live page.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.7 Registration Page.",
+        "Click View the live page."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-7-registration-page/page.tsx"
+      ],
+      "statusNote": "The page cannot be designed here."
+    },
+    {
+      "area": "Tickets",
+      "feature": "Exhibitor registration link",
+      "path": "/tickets/exhibitor-ticket-setup/2-8-registration-widget",
+      "what": "Gives the exhibitor registration link to share.",
+      "steps": [
+        "Open Tickets > Exhibitor Ticket Setup > 2.8 Registration Widget.",
+        "Copy the link."
+      ],
+      "status": "view-only",
+      "evidence": [
+        "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-8-registration-widget/page.tsx"
+      ],
+      "statusNote": "No embeddable widget, only a link."
+    }
+  ],
+  "uiIssues": [
+    {
+      "path": "/tickets/exhibitor-ticket-setup/2-5-ticket-add-ons",
+      "width": 1280,
+      "severity": "medium",
+      "type": "empty-state",
+      "issue": "The empty Extras table shows a full sentence in 20px bold grey inside a 400px tall box. The Netlify badge covers part of it. On a phone the text overlaps the table header.",
+      "fix": "Pass a short string such as \"No extras yet\" as the empty prop and move the instruction to a normal paragraph under the table.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_exhibitor_ticket_setup_2_5_ticket_add_ons-1280-p0.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/exhibitor-ticket-setup/2-5-ticket-add-ons/page.tsx line 177; globals.css .whova-empty-table"
+    },
+    {
+      "path": "/tickets/ticket-setup/discount-codes",
+      "width": 1280,
+      "severity": "medium",
+      "type": "empty-state",
+      "issue": "The page says \"No discount codes has been entered\" with no form and no reason. The cause, that no payment account is connected, shows only in a small grey tag.",
+      "fix": "Replace the empty state with one line: \"Discount codes need a payment account.\"",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/tickets_ticket_setup_discount_codes-1280.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/discount-codes/page.tsx"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-1-create-tickets, /tickets/ticket-setup/create-group-tickets, /tickets/ticket-setup/1-6-abandoned-registration, /tickets/ticket-setup/1-7-registration-settings, /tickets/exhibitor-ticket-setup/registration-settings, /tickets/exhibitor-ticket-setup/2-2-question-forms, /tickets/exhibitor-ticket-setup/pre-paid-exhibitors",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "Engineering notes are shown to the organizer: \"apps/web, port 3200\", \"Seats come from items on the order document\", \"The timestamp comes from refundedAt\", \"quantitySold >= quantityTotal ... npm run reconcile:sold\", \"orders reference a ticket type by id\", \"The two collections have no link\".",
+      "fix": "Delete these notes or cut each to one plain line, for example \"Tickets cannot be deleted. Hide them instead.\"",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/sheetA.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-7-registration-settings/page.tsx; create-group-tickets/page.tsx; 1-6-abandoned-registration/page.tsx"
+    },
+    {
+      "path": "/tickets/ticket-setup/ticket-add-ons, /tickets/ticket-setup/member-and-invite-only-ticketing, /tickets/ticket-setup/session-rsvp, /tickets/ticket-setup/memberclicks-connection-guide, /tickets/ticket-setup/imis-connection-guide, /tickets/ticket-setup/yourmembership-connection-guide, /tickets/ticket-setup/neon-crm-connection-guide",
+      "width": 1280,
+      "severity": "medium",
+      "type": "excess-text",
+      "issue": "These screens are essays about what is missing: \"There are exactly two, and they are booleans on the ticket type\", \"The three ways to restrict a ticket, ranked by what we have\", \"Missing. There is no per-session registration document\", field names like SessionDoc.capacity.",
+      "fix": "Reduce each to a two-line statement of what the organizer can do and a link to the screen where they do it, or hide the nav item.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_member_and_invite_only_ticketing-390-p0.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/session-rsvp/page.tsx; ticket-add-ons/page.tsx; member-and-invite-only-ticketing/page.tsx"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-3-confirmation-emails",
+      "width": 1280,
+      "severity": "low",
+      "type": "ai-voice",
+      "issue": "Email subjects use an em dash between \"Your KGC 2027 ticket\" and the ticket name, and a seeded question hint has one after \"Not a booking\". The banner promises \"the send is re-run\" but there is no re-run control. Raw provider JSON is printed in each failed row.",
+      "fix": "Use a colon in the subject and hint, drop the re-run promise or add the button, and show only the provider message text.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_1_3_confirmation_emails-1280-p0.png",
+      "source": "apps/organizer/src/app/(dash)/tickets/ticket-setup/1-3-confirmation-emails/page.tsx; scripts/src/lib (email templates)"
+    },
+    {
+      "path": "/tickets/* (all screens)",
+      "width": 1280,
+      "severity": "low",
+      "type": "other",
+      "issue": "A \"Powered by Netlify\" badge floats over the right side of the content and covers table text.",
+      "fix": "Turn off the Netlify badge in the site settings.",
+      "shot": "/private/tmp/claude-501/-Users-hartigan-Documents-Claude-Projects-KGC/ce473dc2-4864-489c-bc7b-43704d7578c0/scratchpad/audit/out/tickets-a/full/tickets_ticket_setup_1_3_confirmation_emails-1280-p0.png",
+      "source": ""
+    },
+    {
+      "path": "/tickets/exhibitor-ticket-setup/2-6-offline-payment",
+      "width": 390,
+      "severity": "medium",
+      "type": "other",
+      "issue": "Form controls are unstyled browser defaults about 20px tall and hard to tap: the whole Record a payment form, the Allocate a space form on 2.3 Booth Selection, and the check-in staff input on Attendees > Admin Settings. The 1.2 Question Forms required box is a bare 13x13 checkbox where every other dashboard checkbox is 16x16.",
+      "fix": "Use the standard dashboard input, select and checkbox classes on these forms.",
+      "source": "round one review, remaining problem 2; round two verification, 390 pass"
+    },
+    {
+      "path": "/tickets/ticket-setup/create-group-tickets",
+      "width": 390,
+      "severity": "medium",
+      "type": "broken",
+      "issue": "The empty-state box is narrower than the table and sits on the column headers. On Create Group Tickets, 2.6 Offline Payment, 2.2 Question Forms and 1.6 Abandoned Registration.",
+      "fix": "Let the empty state fill the table width, or drop the fixed header row when there are no rows.",
+      "source": "round one review, remaining problem 1"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-3-confirmation-emails",
+      "width": 390,
+      "severity": "low",
+      "type": "spacing",
+      "issue": "Recent sends rows are about 140px tall and mostly empty, because a hidden long column wraps inside the sideways-scrolling area.",
+      "fix": "Clamp the long column or stack the row as a card at phone width.",
+      "source": "round one review, remaining problem 5"
+    },
+    {
+      "path": "/tickets/ticket-setup/1-1-create-tickets",
+      "width": 390,
+      "severity": "medium",
+      "type": "clipped",
+      "issue": "The price is half cut (\"$1,199\") and the row actions start off screen. The only cue that the table scrolls is a fade on the right edge. Same on /tickets/ticket-setup/1-2-question-forms, which also prints each field’s slug in a code font under the question.",
+      "fix": "Add a visible scroll cue or stack the rows, and remove the slug line.",
+      "source": "round one review, remaining problem 4 and 6; round two verification, 390 pass"
+    }
+  ],
+  "verified": true
+}

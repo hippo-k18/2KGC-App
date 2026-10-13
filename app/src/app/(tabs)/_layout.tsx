@@ -1,12 +1,6 @@
 import { Redirect } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Platform } from 'react-native';
-import {
-  Icon,
-  Label,
-  NativeTabs,
-  VectorIcon,
-} from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { Colors } from '@/constants/theme';
 import { useScheme } from '@/hooks/use-theme';
@@ -61,7 +55,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
        * down the whole screen.
        *
        * Second, and worse: **the web build renders no icons at all.** The
-       * "<Icon sf=… androidSrc=… />" children are read by the native tab bars and
+       * "<NativeTabs.Trigger.Icon sf=… md=… />" children are read by the native tab bars and
        * dropped by "NativeTabsView.web", which emits a Radix tab list of bare
        * text labels in a floating pill. That is not a small cosmetic gap; it is a
        * different control. The icons below are the same Material glyphs the
@@ -92,6 +86,20 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         gap: 0;
         padding: 7px 0 calc(7px + env(safe-area-inset-bottom, 0px));
         overflow: visible;
+      }
+
+      /*
+       * Reserve the strip the bar covers. The bar is "position: fixed", so it
+       * takes no space of its own and each tab's panel ran the full height of
+       * the window underneath it: the last row of every list, and the Reply box
+       * on a community topic, sat behind the tabs. The panels are the tab list's
+       * siblings, so one rule covers every screen inside the tabs, pushed ones
+       * included. 55px is the bar: 7 + 25 glyph + 3 + 12 label + 7, and the
+       * hairline. The safe-area term matches the bar's own padding.
+       */
+      [role='tablist'][aria-label='Main'] ~ [role='tabpanel'] {
+        box-sizing: border-box;
+        padding-bottom: calc(55px + env(safe-area-inset-bottom, 0px));
       }
 
       [role='tablist'][aria-label='Main'] > button {
@@ -211,7 +219,7 @@ const TAB_BAR_APPEARANCE =
  * Each icon is given twice because the platforms use different icon systems:
  *   sf         SF Symbols, iOS only. Typed against a union of valid names,
  *              so a typo is a compile error rather than a blank icon.
- *   androidSrc anything renderable; here a Material icon via VectorIcon.
+ *   md         a Material Symbols name, Android only.
  *
  * Supplying only `sf` leaves Android with labels and no icons at all.
  */
@@ -254,46 +262,46 @@ export default function TabLayout() {
      */
     <NativeTabs tintColor={colors.tint} backgroundColor={colors.surface} {...TAB_BAR_APPEARANCE}>
       <NativeTabs.Trigger name="home">
-        <Icon
+        <NativeTabs.Trigger.Icon
           sf={{ default: 'house', selected: 'house.fill' }}
-          androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
+          md="home"
         />
-        <Label>Home</Label>
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="agenda">
-        <Icon
+        <NativeTabs.Trigger.Icon
           sf="calendar"
-          androidSrc={<VectorIcon family={MaterialIcons} name="event" />}
+          md="event"
         />
-        <Label>Agenda</Label>
+        <NativeTabs.Trigger.Label>Agenda</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="people">
-        <Icon
+        <NativeTabs.Trigger.Icon
           sf={{ default: 'person.2', selected: 'person.2.fill' }}
-          androidSrc={<VectorIcon family={MaterialIcons} name="people" />}
+          md="group"
         />
-        <Label>People</Label>
+        <NativeTabs.Trigger.Label>People</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="community">
-        <Icon
+        <NativeTabs.Trigger.Icon
           sf={{
             default: 'bubble.left.and.bubble.right',
             selected: 'bubble.left.and.bubble.right.fill',
           }}
-          androidSrc={<VectorIcon family={MaterialIcons} name="forum" />}
+          md="forum"
         />
-        <Label>Community</Label>
+        <NativeTabs.Trigger.Label>Community</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="me">
-        <Icon
+        <NativeTabs.Trigger.Icon
           sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
-          androidSrc={<VectorIcon family={MaterialIcons} name="account-circle" />}
+          md="account_circle"
         />
-        <Label>Me</Label>
+        <NativeTabs.Trigger.Label>Me</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

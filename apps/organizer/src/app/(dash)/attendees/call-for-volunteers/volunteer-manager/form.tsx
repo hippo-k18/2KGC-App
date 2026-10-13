@@ -32,7 +32,6 @@ export function VolunteerForm({ days }: { days: string[] }) {
           required
           placeholder="Ada Lovelace"
           autoComplete="off"
-          hint="Who you will be looking for at the door."
         />
         <Field
           label="Email"
@@ -41,14 +40,14 @@ export function VolunteerForm({ days }: { days: string[] }) {
           required
           placeholder="ada@example.com"
           autoComplete="off"
-          hint="The join key: a waiver signed at this address shows against this row."
+          hint="A waiver signed with this email shows against this volunteer."
         />
         <Field
           label="Phone"
           name="phone"
           autoComplete="off"
           placeholder="+44 …"
-          hint="Optional. The only number that matters at 07:05 on day one."
+          hint="Optional"
         />
       </FormGrid>
 
@@ -59,7 +58,7 @@ export function VolunteerForm({ days }: { days: string[] }) {
           required
           placeholder="Registration desk"
           autoComplete="off"
-          hint="Free text. It is what goes on the roster, not a permission."
+          hint="Shown on the roster. Gives no extra access."
         />
         <Select
           label="Status"
@@ -70,7 +69,6 @@ export function VolunteerForm({ days }: { days: string[] }) {
             { value: 'confirmed', label: 'Confirmed' },
             { value: 'declined', label: 'Declined' },
           ]}
-          hint="Start at invited. The roster counts confirmed and outstanding separately."
         />
       </FormGrid>
 
@@ -80,11 +78,10 @@ export function VolunteerForm({ days }: { days: string[] }) {
           name="day"
           type="date"
           list={days.length > 0 ? 'volunteer-days' : undefined}
-          hint="The event's own calendar day, YYYY-MM-DD."
           width="sm"
         />
-        <Field label="Starts" name="startsAtLocal" type="time" width="sm" hint="Local wall clock." />
-        <Field label="Ends" name="endsAtLocal" type="time" width="sm" hint="Local wall clock." />
+        <Field label="Starts" name="startsAtLocal" type="time" width="sm" />
+        <Field label="Ends" name="endsAtLocal" type="time" width="sm" />
       </FormGrid>
 
       {days.length > 0 ? (
@@ -100,7 +97,7 @@ export function VolunteerForm({ days }: { days: string[] }) {
         name="notes"
         rows={2}
         placeholder="Has done this before; needs the radio."
-        hint="Optional."
+        hint="Optional"
       />
 
       <FormActions>

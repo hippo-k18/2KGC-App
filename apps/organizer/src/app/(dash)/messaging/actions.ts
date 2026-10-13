@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, type ThreadDoc, type UserDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, isDeletedUser, SUBCOLLECTIONS, type ThreadDoc, type UserDoc } from '@kgc/shared';
 import { sendBulkMessage } from '@kgc/scripts/src/lib/email';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from '@/lib/audit';
@@ -138,8 +138,8 @@ export async function sendBulkMessageAction(
     };
   }
 
-  if (!reauthenticate(passphrase)) {
-    return { error: 'That passphrase is not correct. Nothing has been sent.', keep };
+  if (!(await reauthenticate(passphrase))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.', keep };
   }
 
   if (Number(confirmCount) !== recipients.length) {
@@ -273,6 +273,11 @@ export async function sendDeskMessageAction(
   const body = String(formData.get('body') ?? '').trim();
 
   if (!recipientUid) return { error: 'Choose somebody to message.', keep: body };
+  // A thread whose other side deleted their account carries the marker, not a
+  // person. There is nobody to deliver to, and the app closes its composer too.
+  if (isDeletedUser(recipientUid)) {
+    return { error: 'This person deleted their account. Nothing has been sent.', keep: body };
+  }
   if (!body) return { error: 'The message is empty.', keep: body };
   if (body.length > MAX_BODY) {
     return {

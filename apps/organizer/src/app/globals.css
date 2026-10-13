@@ -56,6 +56,18 @@
   /* Design-system era */
   --interactive: #2069bc;
   --interactive-dark: #184f8d;
+  /*
+   * The colour of anything that reads as a link but is not an `<a>`: a row
+   * action that has to POST, the `.linkish` submit buttons, the bars on the
+   * sales chart. It is the same blue an `<a>` gets, so a "Hide" button beside
+   * an "Edit" link cannot look like dead text next to a live one.
+   *
+   * It has to be declared here. Several call sites write `color: var(--link)`
+   * with no fallback, and an undefined custom property there is not an error —
+   * it silently resolves to the inherited colour, so the control renders as
+   * plain black body text and the chart bars render as nothing at all.
+   */
+  --link: #2069bc;
   --surface: #fff;
   --surface-alt: #f4f6f8;
   --hairline: rgba(0, 0, 0, 0.12);
@@ -712,15 +724,18 @@ a {
   margin-right: 3px;
 }
 
-.sidebar .menu-tag {
+.menu-tag {
   color: #fff;
   line-height: 12px;
-  margin: auto 0 auto 8px;
   padding: 2px 3px;
   font-size: 9px;
   border-radius: 2px;
   text-transform: uppercase;
   font-weight: 700;
+}
+
+.sidebar .menu-tag {
+  margin: auto 0 auto 8px;
   flex: none;
 }
 
@@ -997,9 +1012,10 @@ a {
 /* The newer design-system button, for screens built after the migration. */
 .whova-btn-main {
   align-items: center;
+  background-color: var(--interactive);
   border: 1px solid transparent;
   border-radius: 4px;
-  color: var(--body);
+  color: #fff;
   display: inline-flex;
   font-family: var(--font);
   font-size: 14px;
@@ -1028,6 +1044,7 @@ a {
   background-color: var(--interactive);
   color: #fff;
 }
+.whova-btn-main:hover,
 .whova-btn-main.primary:hover {
   background-color: var(--interactive-dark);
 }
@@ -1070,6 +1087,26 @@ a {
 
 .whova-btn-main.danger:hover {
   filter: brightness(0.92);
+}
+
+/*
+ * The quiet destructive variant, for a row that also carries a Save.
+ *
+ * A solid red Delete beside a solid blue Save gives the two the same weight, so
+ * the card's heaviest pair of buttons is half safe and half irreversible and
+ * the eye has no reason to prefer either. This keeps the red, which is what
+ * says the button destroys something, and drops the fill, which is what says
+ * the button is the thing to press.
+ */
+.whova-btn-main.danger.quiet {
+  background-color: #fff;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.whova-btn-main.danger.quiet:hover {
+  background-color: #fdeceb;
+  filter: none;
 }
 
 .whova-btn-main:disabled {
@@ -1132,6 +1169,14 @@ a {
 .whova-table-header {
   color: var(--muted);
   font-weight: 700;
+  /*
+   * A header never breaks inside a word. The cells above it keep
+   * `overflow-wrap: anywhere` because they hold addresses and ids that have no
+   * break in them, but a header is one or two short words we chose ourselves,
+   * and "Sessio / ns" over a column of counts reads as a rendering fault. If a
+   * header no longer fits, widen its column rather than letting it wrap here.
+   */
+  overflow-wrap: normal;
 }
 
 .whova-table-cell {
@@ -1142,6 +1187,11 @@ a {
 .cell-xs {
   max-width: 68px;
   min-width: 68px;
+}
+/* Wide enough for a one-word header over a narrow column of numbers. */
+.cell-xsm {
+  max-width: 96px;
+  min-width: 96px;
 }
 .cell-sm {
   max-width: 136px;
@@ -1180,16 +1230,24 @@ a {
   text-align: center;
 }
 
+/*
+ * Whova's empty table is a fixed 400px. That is a third of a laptop screen
+ * given over to one sentence saying there is nothing, and on Payout it sits
+ * under column headings with 400px of white between them and the next panel.
+ * A minimum instead: the box keeps its grey and its centred message, and an
+ * `empty` that is a whole illustrated state still grows to fit.
+ */
 .whova-empty-table {
   align-items: center;
   background-color: var(--surface-alt);
   border-bottom: 1px solid var(--hairline);
   display: flex;
-  height: 400px;
+  min-height: 180px;
   justify-content: center;
   color: var(--faint);
   flex-direction: column;
   gap: 8px;
+  padding: 32px 16px;
 }
 
 .whova-empty-table .description {
@@ -1274,6 +1332,11 @@ textarea.whova-text-input {
 
 select.whova-text-input {
   padding: 0 8px;
+}
+
+select[multiple].whova-text-input {
+  height: auto;
+  padding: 4px 8px;
 }
 
 .whova-text-input::placeholder {
@@ -1704,6 +1767,11 @@ select.whova-text-input {
   margin-bottom: 12px;
   padding: 12px;
   width: 100%;
+}
+
+/* The buttons end the form; without this the station label sits against them. */
+.scan-desk form {
+  margin-bottom: 16px;
 }
 
 .scan-desk input:focus {
@@ -2519,6 +2587,11 @@ html:has(dialog[open]) {
   padding: 24px 80px;
 }
 
+/* The action under the text; the 8px column gap alone reads as touching. */
+.whova-empty-state > .whova-btn-main {
+  margin-top: 8px;
+}
+
 .whova-empty-state.default {
   height: 280px;
 }
@@ -2636,11 +2709,26 @@ html:has(dialog[open]) {
   text-align: right;
 }
 
-/* The button Whova puts in a sidebar box header, e.g. "Step-by-step guide ›". */
+/*
+ * The button Whova puts in a sidebar box header, e.g. "Setup guide ›".
+ *
+ * The rail is 200px and the header is `nowrap` with `overflow: hidden`, so
+ * whatever does not fit is simply cut: the button used to read "STEP-BY-STEP
+ * GUID" with its arrow gone, on every Tickets screen at every width. The label
+ * is shorter now, and `flex: none` here with a shrinkable title beside it means
+ * a longer section name takes the ellipsis rather than eating the button.
+ */
 .sidebar-header-btn {
+  flex: none;
   font-size: 12px;
   padding: 2px 8px;
   line-height: 18px;
+}
+
+.sidebar .sidebar-header > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ─────────────────────── the loading skeleton (ours) ───────────────────── */
@@ -2811,4 +2899,1024 @@ html:has(dialog[open]) {
 .infotip__bubble ul {
   margin: 0;
   padding-left: 16px;
+}
+
+/* ═══════════════════════════ the phone shell (ours) ═════════════════════════
+ *
+ * Whova's dashboard has no phone layout at all; theirs is a fixed 1060px box.
+ * Everything below is inside `max-width: 767px`, so 768 and wider is untouched.
+ * The rules outside the query only give names to things that used to be inline
+ * styles or hide the one element that exists for the phone.
+ *
+ * What section screens can lean on:
+ *   - `.whova-table-wrapper` (what `Table` emits) and `.table-scroll` scroll
+ *     sideways inside themselves and fade at the edge that has more to show.
+ *   - `.stack-sm` turns any flex row into a column under 768px.
+ *   - `.hide-sm` hides an element under 768px.
+ */
+
+#main-header .header-signout {
+  background: none;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 50px;
+  padding: 0 15px;
+}
+
+.rail-toggle,
+.stats-toggle,
+.stats-toggle-input {
+  display: none;
+}
+
+/* The second of two side-by-side blocks; on a phone the rule moves above it. */
+.scope-split {
+  border-left: 1px solid var(--hairline);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  width: 100%;
+}
+
+/*
+ * The edge fade on a sideways scroller. Registered so they can animate: the
+ * scroll timeline drives them, which means a table that fits gets no timeline
+ * and therefore no fade, and a browser without scroll timelines gets a plain
+ * scroller.
+ */
+@property --fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-edge-fade {
+  0% {
+    --fade-start: 0px;
+    --fade-end: 32px;
+  }
+  8%,
+  92% {
+    --fade-start: 32px;
+    --fade-end: 32px;
+  }
+  100% {
+    --fade-start: 32px;
+    --fade-end: 0px;
+  }
+}
+
+@media (max-width: 767px) {
+  .hide-sm {
+    display: none !important;
+  }
+
+  .stack-sm {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .scope-split {
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
+  }
+
+  /* ── utility bar: logo and search on one row, the links on the next ── */
+
+  #main-header .main-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 10px 4px;
+  }
+
+  #main-header a.logo {
+    width: auto;
+    margin-right: 12px;
+  }
+
+  .feature-search {
+    flex: 1;
+    margin-left: 0;
+    min-width: 0;
+    order: 2;
+  }
+
+  .feature-search-input {
+    font-size: 16px;
+    height: 40px;
+    width: 100%;
+  }
+
+  .feature-search-key {
+    display: none;
+  }
+
+  .feature-search .whova-menu {
+    max-width: calc(100vw - 20px);
+    min-width: 0 !important;
+    width: calc(100vw - 20px);
+  }
+
+  #main-header .header-links {
+    justify-content: space-between;
+    margin-left: 0;
+    order: 3;
+    width: 100%;
+  }
+
+  #main-header .header-links span.user-name {
+    display: none;
+  }
+
+  #main-header .header-links a,
+  #main-header .header-signout {
+    line-height: 40px;
+    padding: 0 8px;
+  }
+
+  /* ── masthead ── */
+
+  #top-event-name {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  #live-stats {
+    margin: 10px;
+  }
+
+  #top-event-name .event-title .event-name {
+    font-size: 20px;
+  }
+
+  #top-event-name .buttons-cards {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  #top-event-name .buttons {
+    width: 100%;
+  }
+
+  #top-event-name .additional-info {
+    line-height: 22px;
+  }
+
+  #top-event-name .guide-info .btn {
+    height: 40px;
+  }
+
+  #top-event-name .cards {
+    width: 100%;
+  }
+
+  #top-event-name .widget-card {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+
+  /* ── the stat cards and the live stats band: one disclosure, closed until asked for ── */
+
+  .stats-toggle-input {
+    display: block;
+    height: 1px;
+    opacity: 0;
+    position: absolute;
+    width: 1px;
+  }
+
+  .stats-toggle {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--body);
+    cursor: pointer;
+    display: flex;
+    font-size: 12px;
+    font-weight: 600;
+    justify-content: space-between;
+    letter-spacing: 0.4px;
+    margin-bottom: 6px;
+    min-height: 44px;
+    padding: 0 14px 0 12px;
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .stats-toggle-input:focus-visible + .stats-toggle {
+    outline: 2px solid var(--interactive);
+    outline-offset: 2px;
+  }
+
+  .stats-toggle-input:checked + .stats-toggle svg {
+    transform: rotate(90deg) !important;
+  }
+
+  #top-event-name .cards,
+  #live-stats {
+    display: none;
+  }
+
+  body:has(.stats-toggle-input:checked) #top-event-name .cards {
+    display: flex;
+  }
+
+  body:has(.stats-toggle-input:checked) #live-stats {
+    display: block;
+  }
+
+  /* ── tab strip: nine tabs at their natural width, scrolling in place ── */
+
+  #top-nav {
+    border-radius: 0;
+    margin: 0 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  #top-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  #top-nav .nav-menus {
+    width: max-content;
+  }
+
+  #top-nav .menu-item.small,
+  #top-nav .menu-item.medium,
+  #top-nav .menu-item.large {
+    flex: none;
+  }
+
+  #top-nav .menu-item a {
+    overflow: visible;
+    padding: 13px 14px;
+  }
+
+  /* ── live stats: title and link on one row, the numbers under them ── */
+
+  #live-stats .live-stats-title {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 4px 12px 12px;
+    row-gap: 0;
+  }
+
+  #live-stats .live-stats-title > a {
+    line-height: 40px;
+  }
+
+  #live-stats .subtitle-1 {
+    line-height: 40px;
+  }
+
+  #live-stats .stats-list a {
+    min-height: 40px;
+  }
+
+  #live-stats .stats-list {
+    flex: 0 0 100%;
+    justify-content: flex-start;
+    order: 3;
+  }
+
+  /* ── the rail: a disclosure above the content, closed until asked for ── */
+
+  .frame-wrapper {
+    display: block;
+  }
+
+  .frame-left-side {
+    margin: 0 0 10px;
+    width: 100%;
+  }
+
+  .rail-toggle {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--body);
+    cursor: pointer;
+    display: flex;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    justify-content: space-between;
+    letter-spacing: 0.4px;
+    min-height: 44px;
+    padding: 0 14px 0 12px;
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .rail-body {
+    display: none;
+    margin-top: 10px;
+  }
+
+  .frame-left-side.rail-open .rail-body {
+    display: block;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .sidebar .treeview-menu-item,
+  .sidebar .treeview-submenu-item {
+    min-height: 40px;
+  }
+
+  .sidebar .secondlevel-name,
+  .sidebar .thirdlevel-name {
+    font-size: 14px;
+  }
+
+  .sidebar .firstlevel-name {
+    font-size: 14px;
+  }
+
+  .sidebar .firstlevel {
+    align-items: stretch;
+    min-height: 44px;
+    padding-bottom: 0;
+    padding-top: 0;
+  }
+
+  .sidebar .firstlevel-arrow {
+    justify-content: center;
+    min-width: 44px;
+  }
+
+  /* ── page furniture ── */
+
+  .whova-header__container {
+    padding: 14px 16px;
+  }
+
+  .whova-header__top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .whova-header__feature {
+    font-size: 20px;
+    line-height: 26px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .whova-header__tag-group {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .whova-header__action-group {
+    flex-wrap: wrap;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .whova-header__bottom,
+  .whova-header__link-group {
+    flex-wrap: wrap;
+  }
+
+  .whova-header__link-group {
+    column-gap: 16px;
+    row-gap: 0;
+  }
+
+  /* A wrapped row would start its second line with the bar. */
+  .whova-header__vertical-bar {
+    display: none;
+  }
+
+  .whova-header__link-group a {
+    display: inline-block;
+    padding: 12px 0;
+  }
+
+  /* Hide and Restore on the moderation board are small text links on a desk screen. */
+  .mod-action {
+    font-size: 14px !important;
+    margin: 0 !important;
+    min-height: 40px;
+    min-width: 44px;
+    padding: 10px 12px !important;
+  }
+
+  /*
+   * A tick box is 16px square and the label around it is the whole tap target,
+   * so the label carries the finger-sized box rather than the box itself —
+   * scaling the control up would leave the dashboard with two sizes of
+   * checkbox. The padding is vertical only, and `align-items: flex-start`
+   * still holds, so a label that wraps to two lines keeps its box at the top.
+   */
+  .whova-checkbox-label,
+  .whova-radio-label {
+    min-height: 32px;
+    padding: 8px 0;
+  }
+
+  /*
+   * Stacked row actions keep the desktop spacing there and get a finger-sized
+   * box here. `.row-link` is the same thing for a single action link written
+   * into a hand-built row rather than into a table or a stacked column.
+   */
+  .row-actions-col a,
+  .row-actions-col button,
+  .row-link {
+    align-items: center;
+    display: inline-flex;
+    min-height: 32px;
+    /* "Edit" is four characters, which was a 21px-wide target on a 32px row. */
+    min-width: 32px;
+  }
+
+  /*
+   * `.linkish` gets the same box wherever it is written, not only inside a
+   * table cell. The rule below names `.whova-table-cell button`, which is where
+   * most of them are — but the one under the certificate logo sits in a form
+   * field, and it was 14px next to a 34px button, so the pair read as a control
+   * and a caption rather than two things you can press.
+   */
+  .linkish {
+    align-items: center;
+    display: inline-flex;
+    min-height: 32px;
+  }
+
+  /*
+   * A tick box that is a column of its own, with no words beside it.
+   *
+   * The label rule above hands every checkbox a 32px-tall box, which is the
+   * whole target when there is text to press. In the Select column of the
+   * attendee, category and session-mapping lists there is none, so that box was
+   * 24px wide: a 16px square with 8px of margin, and nothing else to aim at.
+   * Widening the label leaves the drawn square exactly where and what it was.
+   */
+  .whova-table-cell > .whova-checkbox-label {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 12px 0;
+  }
+
+  /*
+   * Row actions written as plain text links inside a table — Edit, Manage,
+   * Screen ↗, Move up — get the same box. They were 12 to 17px tall on a
+   * phone, which is a target somebody misses and then hits the row next to it.
+   *
+   * Here rather than on each screen: two dozen tables spell their last column
+   * as a `<Link>` with a font size on it, and a rule per screen is a rule the
+   * next table will not have. `.row-actions-btn` is the ⋮ trigger and already
+   * carries its own 40px below.
+   *
+   * `min-width` is here for the same reason: a count printed as a link is one
+   * or two characters, which was an 8px target on Categories. The text stays
+   * where it was — only the box around it grows — so a column of actions all
+   * still line up on the left.
+   */
+  .whova-table-cell a,
+  .whova-table-cell button:not(.row-actions-btn) {
+    align-items: center;
+    display: inline-flex;
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  /*
+   * A row action is written three ways in this dashboard, not two: a link, a
+   * one-button form, and a `<details>` whose summary is the action. The rule
+   * above missed the third, leaving Edit, Review link, Change roles and New
+   * passphrase link at 16px — and on Reviewers a 16px Edit sat in the same row
+   * as a 32px Move up, so the row read as misaligned as well as being hard to
+   * hit.
+   *
+   * Padding rather than `display: inline-flex`, the way the tick box above
+   * does it: a `<summary>` is a list item, and changing its display takes the
+   * disclosure triangle with it. Most of ours hide the triangle by hand, but
+   * Transaction History's "Details" does not, and it should keep it.
+   */
+  .whova-table-cell summary {
+    min-height: 32px;
+    min-width: 32px;
+    padding: 8px 0;
+  }
+
+  /*
+   * The two controls above a table: the filter chips and the column sort links.
+   *
+   * A chip is a tag with a link round it, so it inherited the tag's fixed 20px
+   * height, and a sort link is a header cell with an anchor in it, which was
+   * 16px. Both sit directly above the 32px row actions, so the whole screen
+   * read as a column of targets that shrink as you go up.
+   *
+   * A tag that is only a label keeps its 20px: the rule names the anchor and
+   * the button, never the `<span>` the `Tag` component renders. `height: auto`
+   * has to go with the minimum, because the fixed height would otherwise win.
+   */
+  a.whova-tag-main,
+  button.whova-tag-main {
+    height: auto;
+    min-height: 32px;
+  }
+
+  /*
+   * The older `.whova-tag` has the same split, and the same answer: a pill that
+   * is only a label keeps its 24px, a pill you can press does not. The check-in
+   * desk's list link is one of these.
+   */
+  a.whova-tag,
+  button.whova-tag {
+    height: auto;
+    min-height: 32px;
+  }
+
+  /*
+   * "Event website", in the line under the event name.
+   *
+   * It is on all 129 screens in three sections and it was 88 by 16, sitting
+   * between a 44px tag and a 44px button. Vertical padding only, and the line
+   * it shares already stands 16px tall for the text around it, so the box grows
+   * without the line moving.
+   */
+  #top-event-name .additional-info .tutorial-video {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+  }
+
+  .whova-table-header.sortable-header a {
+    align-items: center;
+    min-height: 32px;
+  }
+
+  /*
+   * A form opened inside a row is sized by the row, not by its own width class.
+   *
+   * The criterion editor on Reviewers is `<details>` in the actions cell, and
+   * Whova's boxes are 172 / 394 / 680px wide. `max-width: 100%` does not shrink
+   * a box whose parent is itself sized by its contents — a percentage maximum
+   * is ignored while the browser works out that intrinsic width — so the whole
+   * editor laid out 394px wide from x=44 and ran off the right of a 390 screen,
+   * with no scroller to bring it back. Asking for `width: 100%` instead makes
+   * each box contribute its own intrinsic width, and the row can then clamp the
+   * form to the space it has.
+   *
+   * Scoped to a stacked table, because that is the one where the row is as wide
+   * as the screen and nothing scrolls sideways to reach what spills out.
+   */
+  .whova-table.stack-rows-sm .whova-table-cell details {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell details .whova-text-input {
+    width: 100%;
+  }
+
+  .pager-btn,
+  .row-actions-btn {
+    height: 40px;
+    min-width: 40px;
+  }
+
+  /*
+   * Screens lay out their toolbars and filter rows with an inline
+   * `display: flex` and no wrap, which is right at 850px and runs off a phone.
+   * Table rows are flex by class, not inline, so this leaves them alone.
+   */
+  .frame-right-side [style*='display:flex']:not(.whova-table *),
+  .frame-right-side [style*='display: flex']:not(.whova-table *) {
+    flex-wrap: wrap;
+  }
+
+  .frame-right-side {
+    overflow-wrap: break-word;
+  }
+
+  .frame-right-side a {
+    overflow-wrap: anywhere;
+  }
+
+  /*
+   * The head of a card in a list: a status chip, a title, and an action at the
+   * far end.
+   *
+   * Wrapping it is right — the rule above does that to every inline flex row —
+   * but wrapping alone makes the shape depend on the length of the title. A
+   * short question kept chip, title and Edit on one line; the next card's
+   * longer question pushed the chip to the line above and Edit to the line
+   * below, so a list of five read as five different layouts. Each part gets its
+   * own line here, chip first, and every card is the same shape whatever it
+   * says.
+   */
+  .card-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  /*
+   * The chip keeps its own width and is pulled to the front; the title is told
+   * to take a whole line, which is what pushes it under the chip. Asking the
+   * chip for the full line instead would stretch the pill across the card.
+   */
+  .card-head > .whova-tag,
+  .card-head > .whova-tag-main {
+    order: -1;
+  }
+
+  .card-head > h2,
+  .card-head > strong {
+    width: 100%;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .whova-empty-state {
+    padding: 24px 16px;
+  }
+
+  .whova-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .whova-tabs .nav-link {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .gap-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .gap-grid dd {
+    margin-bottom: 10px;
+  }
+
+  .scan-left,
+  .scan-right {
+    min-width: 0;
+  }
+
+  .help-tip .help-tip-body {
+    max-width: min(280px, calc(100vw - 48px));
+  }
+
+  /*
+   * A closed bubble is only hidden, so centred on an "i" near the right edge it
+   * still widened the page. Closed it takes no box at all; open it spans the
+   * header or panel it sits in instead of hanging from the icon.
+   */
+  .infotip {
+    margin: -8px -8px -8px -2px;
+    padding: 8px;
+    position: static;
+  }
+
+  .whova-header__feature,
+  .panel {
+    position: relative;
+  }
+
+  .infotip__bubble,
+  .infotip.right .infotip__bubble {
+    display: none;
+    left: 0;
+    margin-top: 28px;
+    max-width: none;
+    right: 0;
+    top: auto;
+    transform: none;
+    width: auto;
+  }
+
+  .infotip:hover .infotip__bubble,
+  .infotip:focus-within .infotip__bubble,
+  .infotip.right:hover .infotip__bubble,
+  .infotip.right:focus-within .infotip__bubble {
+    display: block;
+    transform: none;
+  }
+
+  .infotip__bubble::before {
+    display: none;
+  }
+
+  /*
+   * Nothing in a panel may be wider than the panel. Several screens size a
+   * control with an inline `width`, which `max-width` beats without touching
+   * them. 16px on the controls is what stops iOS zooming the page on focus.
+   */
+  .frame-right-side input,
+  .frame-right-side select,
+  .frame-right-side textarea,
+  .frame-right-side img,
+  .frame-right-side video,
+  .frame-right-side iframe,
+  .frame-right-side pre,
+  .login-card input {
+    max-width: 100%;
+  }
+
+  .frame-right-side pre {
+    overflow-x: auto;
+  }
+
+  .frame-right-side code {
+    overflow-wrap: anywhere;
+  }
+
+  .whova-text-input,
+  .scan-desk input {
+    font-size: 16px;
+  }
+
+  .whova-input-sm,
+  .whova-input-lg,
+  .whova-input-xl {
+    max-width: 100%;
+  }
+
+  /* A form row is one column here, so a short field has the line to itself. */
+  .form-row .whova-input-sm {
+    width: 100%;
+  }
+
+  /* Tiles straight under the page header sat against its bottom edge. */
+  .whova-header + .stat-tiles {
+    margin-top: 10px;
+  }
+
+  /*
+   * The label over a stat tile, one point larger here and nowhere else.
+   *
+   * Uppercase and letter-spaced at 11px it was the smallest text on a phone,
+   * and it is the word that says what the number underneath means. `!important`
+   * because `StatTiles` sets the size inline, and the desktop size stays there:
+   * that component is on 99 screens and none of them move for this.
+   */
+  .stat-tiles .stat-tile-label {
+    font-size: 12px !important;
+  }
+
+  .form-row > .whova-form-group,
+  .form-row > .whova-form-row {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  /* ── tables: scroll inside their own box, fading where there is more ── */
+
+  .frame-right-side table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .whova-table-wrapper,
+  .table-scroll,
+  .frame-right-side table {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* The table takes the width of its columns, so the row rules run full width. */
+  .whova-table-wrapper > .whova-table {
+    min-width: 100%;
+    width: max-content;
+  }
+
+  /*
+   * The fixed columns keep their desktop widths otherwise, and a 272px label
+   * column fills the phone before the text beside it starts.
+   */
+  .cell-xs {
+    max-width: 80px;
+    min-width: 80px;
+  }
+  .cell-sm {
+    max-width: 104px;
+    min-width: 104px;
+  }
+  .cell-mdsm {
+    max-width: 128px;
+    min-width: 128px;
+  }
+  .cell-md {
+    max-width: 152px;
+    min-width: 152px;
+  }
+  .cell-lg {
+    max-width: 184px;
+    min-width: 184px;
+  }
+
+  /* One long cell must not push every other column off the screen. */
+  .whova-table-wrapper .cell-fill {
+    max-width: max(70vw, 240px);
+  }
+
+  .whova-table-header {
+    overflow-wrap: normal;
+  }
+
+  /* An empty table has nothing to scroll to, so it stays the width of the panel. */
+  .whova-table-wrapper > .whova-table.is-empty {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .whova-table.is-empty .whova-table-head {
+    overflow: hidden;
+  }
+
+  .whova-empty-table {
+    height: auto;
+    min-height: 160px;
+    padding: 0 16px;
+    text-align: center;
+  }
+
+  /*
+   * A screen may pass the icon empty state as the table's `empty`. It is taller
+   * than the 160px row, so it used to spill up over the column headers. Inside
+   * a table it drops its own box and takes the height of its text.
+   */
+  .whova-empty-table .description:has(> .whova-empty-state) {
+    width: 100%;
+  }
+
+  .whova-empty-table .whova-empty-state {
+    background: none;
+    border: 0;
+    height: auto;
+    padding: 20px 0;
+  }
+
+  .whova-empty-table .description {
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  /*
+   * `Table stackSm={false}`: a grid that reads across, kept reading across.
+   *
+   * A ledger of two columns and a poll of four options say everything in one
+   * line per row, and a card per row turns four lines into twenty for no gain.
+   * The columns keep their order and shrink to the frame instead — the minimums
+   * come off, so flex distributes what there is, and text wraps inside a cell
+   * rather than running past the right edge. The fixed widths stay as ceilings,
+   * which is what holds the shape on a wide phone.
+   */
+  .whova-table-wrapper > .whova-table.read-across-sm {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .whova-table.read-across-sm .whova-table-header,
+  .whova-table.read-across-sm .whova-table-cell {
+    min-width: 0;
+  }
+
+  .whova-table.read-across-sm .cell-fill {
+    max-width: none;
+  }
+
+  /*
+   * A tag long enough to be a sentence takes two lines rather than the row.
+   *
+   * `.whova-tag-main` is `white-space: nowrap` and a fixed 20px tall, which is
+   * right for "Active" and wrong for "Recorded a payment on order" in a 143px
+   * column: it was 184px wide and put the audit trail 24px past the frame.
+   * Only inside a table cell, so a tag beside a heading keeps its pill shape.
+   */
+  .whova-table-cell .whova-tag-main {
+    height: auto;
+    min-height: 20px;
+    white-space: normal;
+  }
+
+  /*
+   * `Table stackSm`: each row becomes a card, one cell per line under its
+   * column name, so nothing in the row waits behind a sideways swipe.
+   */
+  .whova-table-wrapper > .whova-table.stack-rows-sm {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* The head goes, unless it sorts: then it stays as a wrapped row of sort links. */
+  .whova-table.stack-rows-sm:not(.is-empty) .whova-table-head:not(:has(.sortable-header)),
+  .whova-table.stack-rows-sm:not(.is-empty) .whova-table-header:not(.sortable-header) {
+    display: none;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-head .whova-table-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0 16px;
+    padding: 4px 16px;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-head .whova-table-header {
+    flex: none;
+    max-width: none;
+    min-width: 0;
+    padding: 12px 0;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-body .whova-table-row {
+    display: grid;
+    gap: 10px 16px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 14px 16px;
+  }
+
+  /* Short cells sit two to a line; the name, any long text and the actions get a full line. */
+  .whova-table.stack-rows-sm .whova-table-cell:first-child,
+  .whova-table.stack-rows-sm .whova-table-cell:last-child,
+  .whova-table.stack-rows-sm .whova-table-cell.cell-fill {
+    grid-column: 1 / -1;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell {
+    align-items: flex-start;
+    flex: none;
+    flex-direction: column;
+    gap: 2px;
+    max-width: none;
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+    width: 100%;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell:empty {
+    display: none;
+  }
+
+  .whova-table.stack-rows-sm .whova-table-cell[data-label]:not([data-label=''])::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+
+  /* `.cell-truncate` is a block, so its label needs a line of its own. */
+  .whova-table.stack-rows-sm .whova-table-cell.cell-truncate::before {
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .whova-table-wrapper,
+    .table-scroll,
+    .frame-right-side table,
+    #live-stats .stats-list,
+    #top-nav {
+      animation: scroll-edge-fade linear both;
+      animation-timeline: scroll(self inline);
+      mask-image: linear-gradient(
+        to right,
+        transparent,
+        #000 var(--fade-start),
+        #000 calc(100% - var(--fade-end)),
+        transparent
+      );
+    }
+  }
+
+  .main-footer {
+    padding: 15px 16px;
+  }
+
+  .login-shell {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .login-card .login-body {
+    padding: 20px 16px;
+  }
 }

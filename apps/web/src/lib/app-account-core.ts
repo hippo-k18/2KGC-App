@@ -349,23 +349,42 @@ export function entitlementKinds(tier: {
  * Grant what a purchase unlocks. Best-effort: a lost entitlement is a support
  * ticket, a failed webhook is a retry storm that eventually disables the
  * endpoint for everyone.
+ *
+ * Each grant lists the orders that pay for it (`orders`), so a refund of one
+ * order takes back only what no other order still pays for: refunding
+ * Workshops bought in December leaves the video library Main Conference paid
+ * for in October. A grant from somewhere other than an order (a comp, a
+ * speaker) is left as it is.
  */
 export async function grantOrderEntitlements(
   db: Firestore,
   uid: string,
   kinds: EntitlementDoc['kind'][],
+  orderId?: string,
 ): Promise<number> {
   if (kinds.length === 0) return 0;
   const now = new Date();
   let written = 0;
   for (const kind of kinds) {
-    await db
+    const ref = db
       .collection(COLLECTIONS.users)
       .doc(uid)
       .collection(SUBCOLLECTIONS.entitlements)
-      .doc(kind)
-      .set({ eventId: EVENT_ID, kind, source: 'order', grantedAt: now });
-    written += 1;
+      .doc(kind);
+    const wrote = await db.runTransaction(async (tx) => {
+      const prev = (await tx.get(ref)).data() as (EntitlementDoc & { orders?: string[] }) | undefined;
+      if (prev && prev.source !== 'order') return false;
+      const orders = [...new Set([...(prev?.orders ?? []), ...(orderId ? [orderId] : [])])];
+      tx.set(ref, {
+        eventId: EVENT_ID,
+        kind,
+        source: 'order',
+        grantedAt: prev?.grantedAt ?? now,
+        ...(orders.length ? { orders } : {}),
+      });
+      return true;
+    });
+    if (wrote) written += 1;
   }
   return written;
 }
@@ -377,11 +396,21 @@ export async function grantOrderEntitlements(
  * never bought and must survive a refund — deleting the subcollection wholesale
  * would revoke a speaker's video access because they refunded a workshop.
  *
+ * With `orderId`, only that order's share: a grant another order also pays
+ * for stays. `kinds` limits it further, for a refund that took off one extra
+ * rather than the whole badge. A grant written before grants listed their
+ * orders is withdrawn as before.
+ *
  * The caller decides *whether* to withdraw: this runs only when the refund
- * actually cancelled the registration, so somebody with a second, still-paid
- * order keeps everything.
+ * actually cancelled the registration or took an extra off it, so somebody
+ * with a second, still-paid order keeps everything.
  */
-export async function withdrawOrderEntitlements(db: Firestore, uid: string): Promise<number> {
+export async function withdrawOrderEntitlements(
+  db: Firestore,
+  uid: string,
+  orderId?: string,
+  kinds?: EntitlementDoc['kind'][],
+): Promise<number> {
   const snap = await db
     .collection(COLLECTIONS.users)
     .doc(uid)
@@ -389,6 +418,17 @@ export async function withdrawOrderEntitlements(db: Firestore, uid: string): Pro
     .where('source', '==', 'order')
     .get();
 
-  await Promise.all(snap.docs.map((d) => d.ref.delete()));
-  return snap.size;
+  let withdrawn = 0;
+  for (const d of snap.docs) {
+    const grant = d.data() as EntitlementDoc & { orders?: string[] };
+    if (kinds && !kinds.includes(grant.kind)) continue;
+    const others = orderId && grant.orders ? grant.orders.filter((o) => o !== orderId) : [];
+    if (others.length > 0) {
+      await d.ref.update({ orders: others });
+      continue;
+    }
+    await d.ref.delete();
+    withdrawn += 1;
+  }
+  return withdrawn;
 }

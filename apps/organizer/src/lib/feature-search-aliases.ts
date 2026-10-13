@@ -89,6 +89,7 @@ export const ALIASES: Record<string, string[]> = {
   'content/speaker-center/message-speakers': ['email speakers', 'contact speakers'],
   'content/call-for-speakers-abstracts': ['cfp', 'call for papers', 'submissions', 'proposals'],
   'content/documents-and-videos/documents': ['handout', 'handouts', 'slides', 'pdf', 'materials', 'upload files'],
+  'content/branding-center/customize-resources': ['custom page', 'pages', 'wifi', 'wi-fi', 'faq', 'venue info', 'write a page'],
   'content/documents-and-videos/video-hosting': ['recording', 'recordings', 'videos'],
   'content/logistics-center': ['logistics', 'shuttle', 'hotel', 'travel', 'parking', 'directions'],
 

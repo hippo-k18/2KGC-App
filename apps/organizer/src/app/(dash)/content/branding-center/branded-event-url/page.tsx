@@ -40,11 +40,10 @@ export default async function BrandedEventUrlPage() {
         title="Branded Event URL"
         info={
           <>
-            <strong>Change the word, break the old address</strong>
+            <strong>Changing the word breaks the old address</strong>
             <p>
-              <code>apps/web</code> reads this document on every request and redirects an exact,
-              case-folded match to the front page. The redirect is a <strong>307</strong> so a
-              browser cannot cache a slug you have since withdrawn.
+              The address sends visitors to the front page of the event website. If you change it,
+              links to the old address stop working.
             </p>
           </>
         }

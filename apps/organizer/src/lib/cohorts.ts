@@ -3,6 +3,7 @@ import 'server-only';
 import {
   COLLECTIONS,
   EVENT_ID,
+  eligibleTypes,
   type RoomDoc,
   type SessionDoc,
   type TicketTypeDoc,
@@ -49,6 +50,8 @@ export interface RoomCapacity {
 export interface CapacityIndex {
   /** Session id → `SessionDoc.capacity`. An uncapped session is simply absent. */
   sessionCapacity: Map<string, number>;
+  /** Session id → the ticket type names that may take a seat. Unrestricted sessions are absent. */
+  sessionTicketTypes: Map<string, string[]>;
   roomCapacity: Map<string, RoomCapacity>;
   /** Sessions read, so a screen can say what it actually looked at. */
   sessionsRead: number;
@@ -69,11 +72,13 @@ export async function capacityIndex(): Promise<CapacityIndex> {
   ]);
 
   const sessionCapacity = new Map<string, number>();
+  const sessionTicketTypes = new Map<string, string[]>();
   for (const d of sessionSnap.docs) {
     const s = d.data() as SessionDoc;
     // 0 would mean "nobody may attend", which no organizer means. Treated as
     // uncapped alongside undefined.
     if (typeof s.capacity === 'number' && s.capacity > 0) sessionCapacity.set(d.id, s.capacity);
+    if (eligibleTypes(s).length > 0) sessionTicketTypes.set(d.id, eligibleTypes(s));
   }
 
   const roomCapacity = new Map<string, RoomCapacity>();
@@ -82,7 +87,7 @@ export async function capacityIndex(): Promise<CapacityIndex> {
     roomCapacity.set(d.id, { name: r.name, capacity: r.capacity });
   }
 
-  return { sessionCapacity, roomCapacity, sessionsRead: sessionSnap.size };
+  return { sessionCapacity, sessionTicketTypes, roomCapacity, sessionsRead: sessionSnap.size };
 }
 
 /**

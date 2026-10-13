@@ -1,6 +1,9 @@
 import 'server-only';
 
+import { COLLECTIONS } from '@kgc/shared';
 import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
+import { registrationId } from '@kgc/scripts/src/lib/ids';
+import { sendAttendeeConfirmation } from './attendee-admin';
 import { appendAudit } from './audit';
 import { db } from './firestore';
 import { buildPreview, parseCsv, ATTENDEE_FIELDS, type Mapping, type RowError } from './csv-import';
@@ -28,11 +31,22 @@ import { buildPreview, parseCsv, ATTENDEE_FIELDS, type Mapping, type RowError } 
  * would put money in the revenue figures that nobody received. They get a
  * registration and appear on the attendee list, and Attendee Orders correctly
  * shows nothing for them.
+ *
+ * ── New people are told, people already on the list are not ─────────────────
+ *
+ * A row that created a registration gets the same confirmation a buyer gets,
+ * with the claim code, unless the organizer unticked it. A row that updated one
+ * is not mailed again, so re-running a file does not re-send four hundred
+ * emails. A row whose registration an organizer cancelled is reported rather
+ * than revived: `ensureRegistration` would set it active again without putting
+ * back the seat or the app access the cancellation took.
  */
 
 export interface ImportOutcome {
   created: number;
   updated: number;
+  /** Confirmations handed to the mailer. Zero when email is not set up. */
+  emailed: number;
   failed: { line: number; email: string; message: string }[];
   errors: RowError[];
   /** Rows the file contained, before validation. */
@@ -66,6 +80,8 @@ export async function commitAttendeeImport(input: {
   actor: string;
   /** When false, rows that failed validation stop the whole import. */
   allowPartial: boolean;
+  /** Send each newly created attendee their confirmation. */
+  sendEmails?: boolean;
 }): Promise<ImportOutcome> {
   const preview = previewAttendeeCsv(input.text, input.mapping);
 
@@ -73,6 +89,7 @@ export async function commitAttendeeImport(input: {
     return {
       created: 0,
       updated: 0,
+      emailed: 0,
       failed: [],
       errors: [
         {
@@ -92,6 +109,7 @@ export async function commitAttendeeImport(input: {
     return {
       created: 0,
       updated: 0,
+      emailed: 0,
       failed: [],
       errors: preview.errors,
       totalRows: preview.totalRows,
@@ -100,10 +118,25 @@ export async function commitAttendeeImport(input: {
 
   let created = 0;
   let updated = 0;
+  let emailed = 0;
   const failed: ImportOutcome['failed'] = [];
 
   for (const [i, row] of preview.valid.entries()) {
     try {
+      const existing = await db()
+        .collection(COLLECTIONS.registrations)
+        .doc(registrationId(row.email))
+        .get();
+      const status = existing.data()?.status;
+      if (status === 'cancelled') {
+        failed.push({
+          line: i + 2,
+          email: row.email,
+          message: 'Already on the list with a cancelled ticket. Reinstate it from the list.',
+        });
+        continue;
+      }
+
       const result = await ensureRegistration(db(), {
         email: row.email,
         name: row.name,
@@ -113,6 +146,17 @@ export async function commitAttendeeImport(input: {
       });
       if (result.created) created++;
       else updated++;
+
+      if (result.created && input.sendEmails) {
+        await sendAttendeeConfirmation({
+          registrationId: result.registrationId,
+          email: result.email,
+          name: row.name,
+          ticketType: result.ticketType ?? 'Imported',
+          claimCode: result.claimCode,
+        });
+        if (process.env.RESEND_API_KEY) emailed++;
+      }
     } catch (err) {
       failed.push({
         line: i + 2,
@@ -138,5 +182,5 @@ export async function commitAttendeeImport(input: {
     },
   });
 
-  return { created, updated, failed, errors: preview.errors, totalRows: preview.totalRows };
+  return { created, updated, emailed, failed, errors: preview.errors, totalRows: preview.totalRows };
 }

@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import type Stripe from 'stripe';
+import { websiteCheckout } from '@/lib/checkout-source';
 import { mintOrderToken } from '@/lib/order-token';
-import { fulfilPurchase } from '@/lib/registrations';
-import { stripe, stripeEnabled } from '@/lib/stripe';
+import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
+import { orderIdFor } from '@/lib/registrations';
+import { recordError } from '@/lib/errors';
+import { analyticsConfig, encodePurchase, PURCHASE_COOKIE, type PurchasePayload } from '@/lib/analytics';
+import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
 
 /**
  * Where Stripe sends the buyer after a successful Checkout.
@@ -16,10 +21,15 @@ import { stripe, stripeEnabled } from '@/lib/stripe';
  *    but not synchronous, and without this the buyer can land on a
  *    confirmation page a moment before their registration exists.
  *
- * Running both is safe precisely because `fulfilPurchase` is idempotent —
- * the registration id is derived from the email and the order id from the
- * Checkout Session, so whichever path arrives second overwrites the same two
- * documents with the same values.
+ * Both run the same fulfilment, `fulfilCheckoutSession`, so whichever arrives
+ * first does the whole job: every seat of a group purchase is registered,
+ * counted and emailed, and the second caller (or a replay) finds it done. This
+ * route used to run a one-seat `fulfilPurchase` instead, and on a group
+ * purchase that write erased the seat list the webhook needed, so seats two and
+ * up got nothing whenever the buyer was back first (T129). Running all of it
+ * here makes the redirect slower by the time a group's accounts and emails
+ * take; the buyer is waiting on a confirmation either way, and this is the
+ * one that names everybody.
  *
  * The payment status is re-read from Stripe here rather than trusted from the
  * URL. A `session_id` in a query string is attacker-supplied; only Stripe's
@@ -27,37 +37,117 @@ import { stripe, stripeEnabled } from '@/lib/stripe';
  */
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('session_id');
+  /**
+   * The public origin, never `req.nextUrl.origin`.
+   *
+   * Behind the droplet's Apache proxy the request this route sees is the one
+   * Apache made to `127.0.0.1:3200`, so `nextUrl.origin` is the internal
+   * address. Every buyer coming back from Stripe was being sent on to
+   * `http://localhost:3200/order/…`, which on their machine is nothing. The
+   * pre-publish gate found it on staging. `siteOrigin()` is what the checkout
+   * action already uses to build `success_url`: `WEB_PUBLIC_ORIGIN` first, then
+   * the forwarded host.
+   */
+  const origin = siteOrigin(req.headers.get('x-forwarded-host') ?? req.headers.get('host'), req.headers.get('x-forwarded-proto'));
   // The checkout page, not `/tickets#buy` — that anchor went away when buying
   // moved to its own route, and a redirect to a missing fragment silently lands
   // the buyer at the top of a price list with no form and no explanation.
-  const back = new URL('/tickets/checkout', req.nextUrl.origin);
+  const back = new URL('/tickets/checkout', origin);
 
   if (!sessionId || !stripeEnabled()) return NextResponse.redirect(back);
 
-  const session = await stripe().checkout.sessions.retrieve(sessionId);
+  // A made-up id, or a test-mode id against the live key, is Stripe saying "no
+  // such session". That is a wrong link, not a server fault: back to checkout.
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe().checkout.sessions.retrieve(sessionId);
+  } catch (err) {
+    if ((err as { type?: string }).type === 'StripeInvalidRequestError') return NextResponse.redirect(back);
+    throw err;
+  }
 
   // `paid` for a card; `no_payment_required` for a 100% discount. Anything
   // else — `unpaid`, a delayed bank debit still processing — is not a ticket
   // yet, and the buyer goes back to the tickets page rather than to a
   // confirmation that would be a lie.
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
-    return NextResponse.redirect(new URL('/tickets/checkout?cancelled=1', req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/tickets/checkout?cancelled=1', origin));
   }
 
   const email = session.customer_details?.email ?? session.customer_email;
   if (!email) return NextResponse.redirect(back);
 
-  const result = await fulfilPurchase({
-    email,
-    name: session.metadata?.name ?? session.customer_details?.name ?? '',
-    ticketType: session.metadata?.ticketType ?? 'Main Conference',
-    externalId: session.id,
-    amountCents: session.amount_total ?? 0,
-    currency: session.currency ?? 'usd',
-    paid: true,
-  });
+  // Only a session the tickets page started is a ticket, the same rule the
+  // webhook applies (see checkout-source.ts). The `session_id` is
+  // attacker-supplied, so without this anybody holding the id of any paid
+  // session in the account, a Payment Link's for one, could mint a ticket by
+  // visiting this URL. The webhook is what tells organizers about such a
+  // payment; this only declines to fulfil it.
+  const ours = websiteCheckout(session.metadata);
+  if (!ours) return NextResponse.redirect(back);
 
-  return NextResponse.redirect(
-    new URL(`/order/${mintOrderToken({ rid: result.registrationId })}`, req.nextUrl.origin),
-  );
+  /**
+   * From here on the buyer has paid, so nothing may end in a 500 page.
+   *
+   * If fulfilment throws (Firestore or Auth unreachable, a missing secret) the
+   * error is recorded and the buyer is told the payment arrived and the ticket
+   * follows by email. That is true: the webhook runs the same fulfilment, and
+   * Stripe redelivers it until it succeeds (T135, S5).
+   */
+  let location: string;
+  let settled = false;
+  try {
+    const result = await fulfilCheckoutSession({ session, ours, email, origin });
+    settled = Boolean(result.settled);
+    location =
+      result.registrationId
+        ? `/order/${mintOrderToken({ rid: result.registrationId })}`
+        : '/checkout/received?state=refunded';
+  } catch (err) {
+    await recordError('checkout.return', err, { path: 'stripe', id: session.id });
+    return NextResponse.redirect(new URL('/checkout/received', origin));
+  }
+
+  const res = NextResponse.redirect(new URL(location, origin));
+  // A refunded order's page says so; no purchase event for it.
+  if (settled) return res;
+  if (analyticsConfig()) {
+    // Carries the GA4 `purchase` event to the confirmation page, which sends it
+    // once. Only this redirect sets it, so the event fires for the buyer who just
+    // paid, not for an attendee opening their own link, and never on the
+    // /ticket/bought preview. Not a secret: it is what the buyer just bought.
+    res.cookies.set(PURCHASE_COOKIE, encodePurchase(await purchaseOf(session)), {
+      path: '/order',
+      maxAge: 15 * 60,
+      sameSite: 'lax',
+      secure: origin.startsWith('https:'),
+      httpOnly: false,
+    });
+  }
+  return res;
+}
+
+/**
+ * The purchase as GA4's ecommerce `purchase` event wants it. Line items come
+ * from Stripe, so a mixed cart, an add-on bundle or a fee line is reported as it
+ * was charged; if that lookup fails, the session's own metadata stands in.
+ */
+async function purchaseOf(session: Stripe.Checkout.Session): Promise<PurchasePayload> {
+  const value = (session.amount_total ?? 0) / 100;
+  const currency = (session.currency ?? 'usd').toUpperCase();
+  let items: PurchasePayload['items'] = [];
+  try {
+    const lines = await stripe().checkout.sessions.listLineItems(session.id, { limit: 20 });
+    items = lines.data.map((li) => ({
+      item_id: typeof li.price?.product === 'string' ? li.price.product : (li.price?.id ?? ''),
+      item_name: li.description ?? '',
+      price: li.quantity ? li.amount_total / li.quantity / 100 : li.amount_total / 100,
+      quantity: li.quantity ?? 1,
+    }));
+  } catch {}
+  if (items.length === 0) {
+    const seats = Math.max(1, Number(session.metadata?.seats) || 1);
+    items = [{ item_id: session.metadata?.tier ?? '', item_name: session.metadata?.ticketType ?? '', price: value / seats, quantity: seats }];
+  }
+  return { transaction_id: orderIdFor(session.id), value, currency, items };
 }

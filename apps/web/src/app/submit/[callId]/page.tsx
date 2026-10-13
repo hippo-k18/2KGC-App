@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { SITE } from '@/lib/site';
+import { formatDeadline, SITE } from '@/lib/site';
 import { loadCall } from '@/lib/submissions';
 import { SubmissionForm } from '../submission-form';
 
+/** Per-request, and it has to be. Whether a call is still open, against a deadline that can pass while somebody is on the page. */
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
@@ -91,9 +92,10 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
         ) : (
           <>
             <p className="notice">
-              Submissions close on <strong>{call.closesAtLocal.replace('T', ' ')}</strong> (
-              {call.timeZone}). You do not need an account: fill this in, and we will email you a
-              link that brings you back to it.
+              Submissions close on{' '}
+              <strong>{formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal}</strong>
+              . You do not need an account: fill this in, and we will email you a link that brings
+              you back to it.
             </p>
             <SubmissionForm call={call} />
           </>

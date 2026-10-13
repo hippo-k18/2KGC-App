@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { googleCalendarUrl, outlookCalendarUrl, sessionCalendarPath } from '@kgc/shared';
-import type { AgendaSession, SpeakerCard } from '@/lib/data';
+import type { AgendaSession, PublicDocument, SpeakerCard } from '@/lib/data';
 import { localTime } from '@/lib/site';
 
 /**
@@ -147,6 +147,7 @@ function SessionPeople({
 export function AgendaList({
   days,
   speakers,
+  documentsBySession,
   origin,
 }: {
   days: AgendaListDay[];
@@ -156,6 +157,16 @@ export function AgendaList({
    * placeholder — so every lookup here is filtered, never defaulted.
    */
   speakers: Record<string, SpeakerCard>;
+  /**
+   * The handouts attached to each session, keyed by session id.
+   *
+   * Grouped on the server from `listPublicDocuments()`, which is the
+   * unrestricted subset and has no parameter that widens it — so there is no
+   * restricted deck to leak here, whatever this component does with the map.
+   * Sessions with nothing attached are absent rather than mapped to an empty
+   * array, so a lookup is `?? []` at the one place that reads it.
+   */
+  documentsBySession: Record<string, PublicDocument[]>;
   /**
    * The canonical site origin, passed down rather than read here.
    *
@@ -171,6 +182,12 @@ export function AgendaList({
 }) {
   const [open, setOpen] = useState<{ session: AgendaSession; heading: string } | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  // One column's width per press, so a mouse without a sideways wheel can
+  // still reach Friday.
+  const scrollBoard = (dir: 1 | -1) =>
+    boardRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
 
   /*
    * `showModal()` is called from an effect rather than at the click, because the
@@ -190,8 +207,25 @@ export function AgendaList({
 
   return (
     <>
+      {days.length > 1 && (
+        <div className="agenda-board-nav">
+          <button type="button" onClick={() => scrollBoard(-1)} aria-label="Earlier days">
+            ‹
+          </button>
+          <button type="button" onClick={() => scrollBoard(1)} aria-label="Later days">
+            ›
+          </button>
+        </div>
+      )}
+
+      {/*
+        Every day side by side, scrolling sideways. A column widens while the
+        pointer is over it, so the day being read gets the room and the rest
+        stay in view as a strip.
+      */}
+      <div className="agenda-board" ref={boardRef}>
       {days.map((d) => (
-        <div key={d.day}>
+        <div key={d.day} className="agenda-col">
           {/*
             The session count that used to sit beside the day heading is gone,
             at the owner's request while reviewing the mockup. The number is
@@ -232,7 +266,21 @@ export function AgendaList({
                     {/* The track, as a rule down the edge rather than a chip. */}
                     <span className="session-edge" aria-hidden="true" />
                     <span className="session-main">
-                      <span className="session-title">{s.title}</span>
+                      <span className="session-title">
+                        {s.title}
+                        {/*
+                          A cue that there is something to watch, from the
+                          denormalised flag on the session — no read per row,
+                          and no URL in this payload. Tapping the row opens the
+                          dialog, which links to the page where the ticket check
+                          actually happens.
+                        */}
+                        {s.streamState === 'live' ? (
+                          <span className="session-live">Live now</span>
+                        ) : s.hasRecording ? (
+                          <span className="session-recorded">Recorded</span>
+                        ) : null}
+                      </span>
                       <span className="session-meta">
                         {s.trackName && <span className="session-track">{s.trackName}</span>}
                         {s.roomName && <span>{s.roomName}</span>}
@@ -248,6 +296,7 @@ export function AgendaList({
           ))}
         </div>
       ))}
+      </div>
 
       {/*
         `onClose` keeps React's state in step with the dialog when the browser
@@ -314,6 +363,33 @@ export function AgendaList({
               </div>
             </div>
 
+            {/*
+              The session's own address.
+
+              Always offered, because a session is the thing people paste into a
+              message and this dialog cannot be pasted anywhere. It leads with
+              watching when there is something to watch: the ticket check runs
+              on the server over there, which is exactly why the video is not in
+              here — a dialog is drawn from data this page already shipped to
+              every visitor.
+            */}
+            <p className="session-dialog-link">
+              <a
+                className={
+                  open.session.streamState || open.session.hasRecording
+                    ? 'btn btn-primary btn-sm'
+                    : undefined
+                }
+                href={`/agenda/${encodeURIComponent(open.session.id)}`}
+              >
+                {open.session.streamState === 'live'
+                  ? 'Watch this session live'
+                  : open.session.hasRecording || open.session.streamState
+                    ? 'Watch this session'
+                    : 'Open the session page'}
+              </a>
+            </p>
+
             {open.session.description && (
               <div className="session-dialog-body">
                 {/*
@@ -334,11 +410,59 @@ export function AgendaList({
 
             <SessionSpeakers session={open.session} speakers={speakers} />
 
+            {/*
+              The deck, when the speaker has sent one through their own profile
+              link and an organizer has approved it. Conditional like every
+              other field in this dialog: most sessions have no slides until the
+              day itself, and a "Slides coming soon" line would be a promise
+              nobody here can keep.
+            */}
+            {open.session.slidesUrl && (
+              <section className="session-dialog-speakers">
+                <h3>Slides</h3>
+                <p>
+                  <a href={open.session.slidesUrl} target="_blank" rel="noreferrer">
+                    Open the slides for this session
+                  </a>
+                </p>
+              </section>
+            )}
+
+            <SessionMaterials documents={documentsBySession[open.session.id] ?? []} />
+
             <CalendarActions session={open.session} origin={origin} />
           </div>
         )}
       </dialog>
     </>
+  );
+}
+
+/**
+ * The handouts an organizer attached to this session.
+ *
+ * Conditional like every other section in this dialog: most sessions have
+ * nothing attached, and a "Materials coming soon" line is a promise somebody
+ * would have to keep. The host is printed under each title for the reason
+ * `/documents` prints it — every one of these is a link to a file somebody else
+ * is hosting, and a reader about to open a 40MB PDF on conference Wi-Fi is
+ * entitled to know whose server they are about to reach.
+ */
+function SessionMaterials({ documents }: { documents: PublicDocument[] }) {
+  if (documents.length === 0) return null;
+
+  return (
+    <section className="session-dialog-speakers">
+      <h3>Materials</h3>
+      {documents.map((d) => (
+        <p key={d.id}>
+          <a href={d.url} target="_blank" rel="noreferrer noopener">
+            {d.title}
+          </a>
+          {d.host && <span className="doc-host"> · {d.host}</span>}
+        </p>
+      ))}
+    </section>
   );
 }
 

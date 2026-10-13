@@ -1,5 +1,12 @@
-import { signingLink, signingLinksAvailable, type ConsentRegister } from '@/lib/consents';
-import { Banner, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
+import { requirePassphrase } from '@/lib/auth';
+import {
+  signingLink,
+  signingLinksAvailable,
+  signingSendPlan,
+  type ConsentRegister,
+} from '@/lib/consents';
+import { Banner, Email, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
+import { SendSigningLinksForm } from './send-links-form';
 
 /**
  * The register: who is expected to sign one form, and who has.
@@ -24,26 +31,31 @@ import { Banner, EmptyState, Panel, StatTiles, Table, Tag } from '../../ui';
  * speakers, who have no account at all, and ticket holders who have not opened
  * it yet. Minted on render rather than stored: the token *is* the
  * authorisation, so there is no row to clean up and nothing to leak from the
- * database. ⚠️ Nothing here **sends** them. `scripts/src/lib/email.ts` composes
- * the transactional mail this project sends and has no consent template, so
- * today an organizer copies a link into a message they write themselves. That is
- * the honest state and the gap panel says so.
+ * database.
+ *
+ * The same link is mailed in bulk by the panel above the table, and one at a
+ * time by `sendRequiredLinksTo` when an attendee is added. This column is the
+ * third round: one person, chased by hand, after both of those.
+ *
+ * ── The send panel ──────────────────────────────────────────────────────────
+ *
+ * It sits here rather than beside the editor because this is the screen that
+ * knows who is outstanding. Publishing a form no longer mails anybody; it saves
+ * the wording and says how many people are waiting, and this is where somebody
+ * decides to write to them.
  */
-export function ConsentRegisterView({ register }: { register: ConsentRegister }) {
+export async function ConsentRegisterView({ register }: { register: ConsentRegister }) {
   const { form, rows, totals, orphans, audienceUnavailable } = register;
   const linksWork = signingLinksAvailable();
+  const plan = linksWork ? await signingSendPlan(form.id) : null;
 
   if (audienceUnavailable) {
     return (
       <Panel>
         <EmptyState icon="◌">
-          <strong>There is nobody to show a register against.</strong>
+          <strong>No list of {form.audience}s to check against.</strong>
           <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-            This form is for <strong>{form.audience}s</strong> and this project keeps no list of
-            them, so there is nobody to mark signed or unsigned. The form itself is real and can be
-            signed by anybody sent a link; what is missing is the roster to measure it against. An
-            empty register and a register showing nobody outstanding look identical and mean
-            opposite things, which is why this says which one it is.
+            The form can still be signed by anyone you send a link to.
           </div>
         </EmptyState>
       </Panel>
@@ -78,9 +90,12 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
             {totals.outdated} {totals.outdated === 1 ? 'person has' : 'people have'} signed an
             earlier version of this wording.
           </strong>{' '}
-          Their agreement stands for the text they actually read, and it does not cover version{' '}
-          {form.version}. Treat them as unsigned for anything the new wording added.
+          They have not agreed to version {form.version}. Ask them to sign again.
         </Banner>
+      )}
+
+      {plan && form.status === 'published' && (
+        <SendSigningLinksForm plan={plan} needsPassphrase={requirePassphrase()} />
       )}
 
       <Table
@@ -100,7 +115,7 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
               </div>
             ) : null}
           </span>,
-          r.email ? <span key="e" style={{ fontSize: 12 }}>{r.email}</span> : <span key="e" className="muted">—</span>,
+          r.email ? <span key="e" style={{ fontSize: 12 }}><Email address={r.email} /></span> : <span key="e" className="muted">—</span>,
           r.status === 'signed' ? (
             <Tag key="s" color="green">signed v{r.signedVersion}</Tag>
           ) : r.status === 'outdated' ? (
@@ -152,10 +167,8 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
 
       {!linksWork && (
         <Banner kind="warning">
-          <strong>Signing links cannot be minted on this deployment.</strong> Neither{' '}
-          <code>WEB_CONSENT_SECRET</code> nor <code>WEB_ORDER_SECRET</code> is set here, and one of
-          them signs the capability token in the URL. Set the same value the website has, or every
-          link this screen produces would 404 on it.
+          <strong>Signing links are not available.</strong> Ask your administrator to finish the
+          website link setup.
         </Banner>
       )}
 
@@ -166,10 +179,8 @@ export function ConsentRegisterView({ register }: { register: ConsentRegister })
             nobody in this audience
           </h2>
           <p className="body-2">
-            Real signatures with no row to sit on, usually somebody removed from the programme
-            after signing, or an address corrected afterwards. They are shown rather than dropped:
-            a register that quietly discarded them would understate what has actually been
-            collected, and nothing in this project can delete one.
+            Usually somebody removed from the programme after signing, or an email corrected
+            afterwards. Their signatures are kept.
           </p>
           <Table
             cols={[
