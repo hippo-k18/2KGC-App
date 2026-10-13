@@ -52,7 +52,15 @@ export function DecisionPanel({
 
   return (
     <form action={action}>
-      <input type="hidden" name="id" value={id} />
+      {/*
+        ⚠️ Never a control named id. React posts the pressed button's name and value by
+        inserting a temporary input with `form={form.id}`, and a control named
+        `id` makes `form.id` return that control instead of a string. The
+        temporary input then belongs to no form, the verdict is dropped, and
+        every press answered "Choose accept, waitlist or reject." (T249).
+        `tests/parity/submitter-field-names.test.ts` holds the line.
+      */}
+      <input type="hidden" name="submissionId" value={id} />
       <FormBanner state={state} />
 
       <Textarea

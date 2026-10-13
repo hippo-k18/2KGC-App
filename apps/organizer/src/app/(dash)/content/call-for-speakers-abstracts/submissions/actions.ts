@@ -31,7 +31,8 @@ function revalidate(id: string): void {
 export async function decideAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const actor = await requireOrganizer();
 
-  const id = String(formData.get('id') ?? '');
+  // `submissionId`, not `id`: see the warning in `decision-panel.tsx`.
+  const id = String(formData.get('submissionId') ?? '');
   const verdict = String(formData.get('verdict') ?? '');
   if (!id) return { error: 'No submission was named.' };
   if (verdict !== 'accept' && verdict !== 'reject' && verdict !== 'waitlist') {
