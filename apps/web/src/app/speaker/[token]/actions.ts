@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import type { DraftInput } from '@kgc/scripts/src/lib/speaker-portal-core';
-import { recordDraft } from '@/lib/speaker-portal';
+import { recordDraft, type DetailsInput } from '@/lib/speaker-portal';
 
 /**
  * Saving a speaker's own profile, as a draft.
@@ -60,7 +60,19 @@ export async function saveSpeakerProfileAction(formData: FormData): Promise<void
     ...(Object.keys(slides).length ? { slides } : {}),
   };
 
-  const { outcome, errors } = await recordDraft(token, input);
+  /*
+   * `detail:{submissionId}:{field}`. Which submissions may be written is
+   * decided by `recordDraft` from the edit document; ids here are only keys.
+   */
+  const details: Record<string, DetailsInput> = {};
+  for (const [key, value] of formData.entries()) {
+    const m = /^detail:([^:]+):(title|description|outline|install)$/.exec(key);
+    if (!m) continue;
+    const entry = (details[m[1]] ??= { title: '', description: '' });
+    entry[m[2] as keyof DetailsInput] = String(value ?? '');
+  }
+
+  const { outcome, errors } = await recordDraft(token, input, details);
 
   /*
    * A forged, expired or revoked token redirects to the same page a valid one

@@ -29,7 +29,21 @@ import {
   type FormFieldDef,
 } from '@kgc/scripts/src/lib/question-forms';
 import { mintSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { sendSubmissionReceipt } from '@kgc/scripts/src/lib/email';
+import {
+  cfpReceivedMessage,
+  sendCfpMessage,
+  sendSubmissionReceipt,
+} from '@kgc/scripts/src/lib/email';
+import {
+  abstractProblem,
+  abstractWordLimits,
+  fieldsForSessionType,
+  fillPlaceholders,
+  formatDay,
+  pageValues,
+  sessionTypeLine,
+  talkMinutesOf,
+} from '@kgc/scripts/src/lib/cfp-core';
 import { db } from './firestore';
 
 /**
@@ -85,6 +99,18 @@ export interface PublicCall {
   timeZone: string;
   /** Null while the call is accepting submissions; the sentence to show otherwise. */
   refusal: string | null;
+  /**
+   * Set on a call run with Min's rolling-review settings (T249). The form then
+   * counts abstract words, asks a talk its length, needs an organisation and
+   * leaves the bio for after acceptance.
+   */
+  cfp?: {
+    abstractMinWords: number;
+    abstractMaxWords: number;
+    talkMinutes: number[];
+    /** "Sunday 31 January 2027", or absent while the close date is unset. */
+    closeDay?: string;
+  };
 }
 
 function windowInput(c: CallDoc): CallWindowInput {
@@ -134,10 +160,17 @@ export async function loadCall(callId: string): Promise<PublicCall | null> {
 
 async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
   const tracks = await trackNames(call.trackIds ?? []);
+  const limits = abstractWordLimits(call.cfp);
   return {
     id,
     title: call.title,
-    instructions: call.instructions ?? '',
+    /*
+     * "[CLOSE DATE]" and "[DECISION DATE]" in Min's copy are filled from the
+     * settings, and a sentence whose date is not set yet is left out. Run on
+     * every call, so a bracket typed into any description never reaches the
+     * public page.
+     */
+    instructions: fillPlaceholders(call.instructions ?? '', pageValues(call.cfp)),
     fields: [...(call.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: call.formVersion ?? 1,
     sessionTypes: call.sessionTypes ?? [],
@@ -145,6 +178,16 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
     closesAtLocal: call.closesAtLocal ?? '',
     timeZone: call.timeZone ?? 'America/New_York',
     refusal: submissionRefusal(windowInput(call), Date.now()),
+    ...(call.cfp
+      ? {
+          cfp: {
+            abstractMinWords: limits.min,
+            abstractMaxWords: limits.max,
+            talkMinutes: talkMinutesOf(call.cfp),
+            closeDay: formatDay(call.cfp.closeDate),
+          },
+        }
+      : {}),
   };
 }
 
@@ -260,6 +303,7 @@ export interface OwnSubmission {
   abstract: string;
   trackId?: string;
   sessionType?: SessionFormat;
+  durationMinutes?: number;
   answers: Record<string, AnswerValue>;
   status: SubmissionStatus;
   /** The questions as they stood when this was answered. */
@@ -276,7 +320,20 @@ export interface OwnSubmission {
   /** Whether an edit would be accepted right now. The window, not a preference. */
   editable: boolean;
   decided?: 'accepted' | 'rejected' | 'waitlisted';
+  /** A call run with Min's settings: an accepted author is pointed at E2. */
+  cfp: boolean;
 }
+
+/**
+ * A rejection the author has not been told about yet (T249).
+ *
+ * Min's plan: "Reject marks the submission and sends nothing. All rejections
+ * go out together after the close." So until E4 has gone, the author's own
+ * page must not say it either, and must not behave differently from an open
+ * submission, or the link would answer what the email deliberately does not.
+ */
+export const rejectionUntold = (call: Pick<CallDoc, 'cfp'>, sub: Pick<SubmissionDoc, 'status' | 'closeDecision'>) =>
+  Boolean(call.cfp) && sub.status === 'rejected' && !sub.closeDecision;
 
 /**
  * The submission a token names, with everything needed to render and edit it.
@@ -323,8 +380,9 @@ export async function loadOwnSubmission(submissionId: string): Promise<OwnSubmis
       abstract: sub.abstract ?? '',
       trackId: sub.trackId,
       sessionType: sub.sessionType,
+      durationMinutes: sub.durationMinutes,
       answers: sub.answers ?? {},
-      status: sub.status,
+      status: rejectionUntold(callDoc, sub) ? 'submitted' : sub.status,
       fields,
       formMoved: (sub.formVersion ?? 1) !== call.formVersion,
       author: {
@@ -340,8 +398,16 @@ export async function loadOwnSubmission(submissionId: string): Promise<OwnSubmis
        * the close in every sense that matters — the reviewers read the current
        * text, not the text as it stood at the deadline.
        */
-      editable: call.refusal === null && sub.status !== 'withdrawn' && !isDecided(sub.status),
-      decided: isDecided(sub.status) ? sub.status : undefined,
+      ...(rejectionUntold(callDoc, sub)
+        ? {
+            editable: call.refusal === null,
+            decided: undefined,
+          }
+        : {
+            editable: call.refusal === null && sub.status !== 'withdrawn' && !isDecided(sub.status),
+            decided: isDecided(sub.status) ? sub.status : undefined,
+          }),
+      cfp: Boolean(callDoc.cfp),
     };
   } catch (err) {
     console.error('[submissions] could not load submission', submissionId, err);
@@ -358,6 +424,8 @@ export interface SubmitInput {
   abstract: string;
   trackId?: string;
   sessionType?: string;
+  /** A talk's length, as posted. Ignored for anything but a talk. */
+  durationMinutes?: string;
   /**
    * Every `q_`-prefixed value the form posted, keyed by field id, with the full
    * array each key carried.
@@ -423,6 +491,15 @@ export async function saveSubmission(
 
   const fieldErrors: Record<string, string> = {};
 
+  /*
+   * A talk's length is one of the call's offered lengths, or nothing. Never
+   * kept for a workshop, so switching a draft from talk to workshop clears it.
+   */
+  const offered = talkMinutesOf(call.cfp);
+  const asNumber = Number(input.durationMinutes);
+  const duration =
+    input.sessionType === 'talk' && offered.includes(asNumber) ? asNumber : undefined;
+
   if (input.finish) {
     if (title.length < 3) fieldErrors.title = 'Give your submission a title.';
     if (abstract.length < 40) {
@@ -438,6 +515,14 @@ export async function saveSubmission(
     }
     if ((call.trackIds ?? []).length > 0 && !input.trackId) {
       fieldErrors.trackId = 'Choose a track.';
+    }
+    if (call.cfp) {
+      const problem = abstractProblem(abstract, abstractWordLimits(call.cfp));
+      if (problem) fieldErrors.abstract = problem;
+      if (!input.affiliation?.trim()) fieldErrors.affiliation = 'Tell us your organisation.';
+      if (input.sessionType === 'talk' && !duration) {
+        fieldErrors.durationMinutes = 'Choose how long your talk runs.';
+      }
     }
   } else if (!authorEmail.includes('@')) {
     /*
@@ -469,14 +554,20 @@ export async function saveSubmission(
    * `appliesToTier` treats a field with no `ticketTypeIds` as asked of
    * everybody, which is every field on a call form.
    */
+  /*
+   * Only the questions this session type is asked. A workshop's required
+   * outline is not required of a talk, and an answer to a question the chosen
+   * type is not asked is dropped rather than kept out of sight (T249).
+   */
+  const asked = fieldsForSessionType(call.form ?? [], input.sessionType);
   const posted: Record<string, AnswerValue | undefined> = {};
-  for (const f of call.form ?? []) {
+  for (const f of asked) {
     const values = input.answers[f.id];
     if (!values || values.length === 0) continue;
     posted[f.id] = f.kind === 'multi-choice' ? values : values[0];
   }
 
-  const checked = validateAnswers([...(call.form ?? [])], '', posted);
+  const checked = validateAnswers([...asked], '', posted);
   if (input.finish) {
     for (const [id, message] of Object.entries(checked.errors)) fieldErrors[id] = message;
   }
@@ -499,7 +590,8 @@ export async function saveSubmission(
     }
     const before = existing?.exists ? (existing.data() as SubmissionDoc) : undefined;
 
-    if (before && isDecided(before.status)) {
+    const masked = before ? rejectionUntold(call, before) : false;
+    if (before && isDecided(before.status) && !masked) {
       return {
         ok: false,
         error: 'A decision has been made on this submission, so it can no longer be edited.',
@@ -539,7 +631,8 @@ export async function saveSubmission(
        * the version exists to rule out.
        */
       formVersion: call.formVersion ?? 1,
-      status,
+      // An untold rejection stays a rejection; the author's edit does not reopen it.
+      status: masked ? 'rejected' : status,
       submitterTokenHash: createHash('sha256').update(token).digest('hex'),
     };
 
@@ -573,6 +666,7 @@ export async function saveSubmission(
        */
       trackId: input.trackId ?? FieldValue.delete(),
       sessionType: (input.sessionType as SessionFormat | undefined) ?? FieldValue.delete(),
+      durationMinutes: duration ?? FieldValue.delete(),
       /*
        * Set the first time the submission leaves `draft` and never restamped.
        * An author fixing a typo after the deadline has not resubmitted, and a
@@ -624,15 +718,40 @@ export async function saveSubmission(
      * logs to `emailLog`, and a submission that saved must not report an error
      * because a receipt did not.
      */
-    await sendSubmissionReceipt(db(), {
-      to: authorEmail,
-      name: authorName,
-      callTitle: call.title,
-      title: title || 'Untitled',
-      link: `${publicSiteOrigin()}/submit/token/${token}`,
-      closesAtLabel: `${(call.closesAtLocal ?? '').replace('T', ' ')} (${call.timeZone ?? ''})`,
-      draft: status === 'draft',
-    });
+    const link = `${publicSiteOrigin()}/submit/token/${token}`;
+    if (call.cfp && status === 'submitted') {
+      /*
+       * E1, Min's acknowledgement, and only the first time the submission is
+       * finished. An author fixing a typo later is not told again that we
+       * have it, and is not told the review process twice.
+       */
+      if (!before?.submittedAt) {
+        await sendCfpMessage(db(), {
+          to: authorEmail,
+          template: 'cfp-received',
+          submissionId: ref.id,
+          message: cfpReceivedMessage({
+            name: authorName,
+            title: title || 'Untitled',
+            typeLine: sessionTypeLine(input.sessionType, duration),
+            decisionDay: formatDay(call.cfp.decisionDate),
+            link,
+          }),
+        });
+      }
+    } else {
+      await sendSubmissionReceipt(db(), {
+        to: authorEmail,
+        name: authorName,
+        callTitle: call.title,
+        title: title || 'Untitled',
+        link,
+        closesAtLabel: call.cfp
+          ? (formatDay(call.cfp.closeDate) ?? 'the call closes')
+          : `${(call.closesAtLocal ?? '').replace('T', ' ')} (${call.timeZone ?? ''})`,
+        draft: status === 'draft',
+      });
+    }
 
     return { ok: true, submissionId: ref.id, token, status };
   } catch (err) {
@@ -656,7 +775,11 @@ export async function withdrawSubmission(submissionId: string): Promise<boolean>
     if (!snap.exists) return false;
 
     const sub = snap.data() as SubmissionDoc;
-    if (sub.status === 'accepted' || sub.status === 'rejected') return false;
+    const call = (await db().collection(COLLECTIONS.calls).doc(sub.callId).get()).data() as
+      | CallDoc
+      | undefined;
+    const masked = call ? rejectionUntold(call, sub) : false;
+    if (sub.status === 'accepted' || (sub.status === 'rejected' && !masked)) return false;
 
     await ref.update({
       status: 'withdrawn',

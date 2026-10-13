@@ -95,7 +95,10 @@ export function useSpeakers() {
     (id, d) => ({ id, ...d }) as Speaker,
     (a, b) => a.name.localeCompare(b.name),
   );
-  return { speakers: data, error, loading, retry };
+  // Accepted through the call for papers and not announced yet (T249). The
+  // website's /speakers drops the same ones.
+  const speakers = useMemo(() => data?.filter((s) => s.unlisted !== true) ?? data, [data]);
+  return { speakers, error, loading, retry };
 }
 
 /**

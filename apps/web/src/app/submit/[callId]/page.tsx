@@ -92,9 +92,25 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
         ) : (
           <>
             <p className="notice">
-              Submissions close on{' '}
-              <strong>{formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal}</strong>
-              . You do not need an account: fill this in, and we will email you a link that brings
+              {call.cfp ? (
+                /*
+                 * Min's settings carry the close date (T249). While it is not
+                 * decided the sentence is left out, rather than showing the
+                 * placeholder deadline the call was created with.
+                 */
+                call.cfp.closeDay ? (
+                  <>
+                    Submissions close on <strong>{call.cfp.closeDay}</strong>.{' '}
+                  </>
+                ) : null
+              ) : (
+                <>
+                  Submissions close on{' '}
+                  <strong>{formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal}</strong>
+                  .{' '}
+                </>
+              )}
+              You do not need an account: fill this in, and we will email you a link that brings
               you back to it.
             </p>
             <SubmissionForm call={call} />

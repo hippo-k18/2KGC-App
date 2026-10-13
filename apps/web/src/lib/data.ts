@@ -388,6 +388,12 @@ export async function listSpeakers(): Promise<SpeakerCard[]> {
   const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
 
   return snap.docs
+    /*
+     * A speaker the call for papers created on acceptance is unlisted until
+     * an organizer lists them in Speaker Manager (T249). `programmeCounts`
+     * counts this same list, so the homepage and /speakers still agree.
+     */
+    .filter((d) => (d.data() as SpeakerDoc).unlisted !== true)
     .map((d) => {
       const s = d.data() as SpeakerDoc;
       return {
@@ -1246,8 +1252,8 @@ export async function listExhibitorsByZone(): Promise<ExhibitorZone[]> {
 /**
  * Headline numbers for the home page, counted from the real collections.
  *
- * ⚠️ The speaker count and `/speakers` must stay the same set. Both are the
- * `speakers` collection filtered by `eventId` and nothing else, so the homepage
+ * ⚠️ The speaker count and `/speakers` must stay the same set. The count is
+ * now `listSpeakers()`'s own length (T249 added the unlisted filter), so the homepage
  * saying "137 Speakers" and the roster listing 137 people is not a coincidence
  * — it is the *only* reason two public pages of one site agree about how many
  * speakers there are. Adding a filter to `listSpeakers()` (published-only, say)
@@ -1257,12 +1263,14 @@ export async function listExhibitorsByZone(): Promise<ExhibitorZone[]> {
 export async function programmeCounts(): Promise<{ speakers: number; sessions: number; sponsors: number }> {
   return shared('programmeCounts', async () => {
   const [speakers, sessions, sponsors] = await Promise.all([
-    db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).count().get(),
+    // `listSpeakers()` itself rather than a count query: unlisted speakers are
+    // filtered there, and a count cannot filter on a field most documents lack.
+    listSpeakers(),
     db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).count().get(),
     db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).count().get(),
   ]);
   return {
-    speakers: speakers.data().count,
+    speakers: speakers.length,
     sessions: sessions.data().count,
     sponsors: sponsors.data().count,
   };

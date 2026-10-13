@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import type { AnswerValue } from '@kgc/scripts/src/lib/question-forms';
+import { fieldsForSessionType, wordCount } from '@kgc/scripts/src/lib/cfp-core';
 import type { OwnSubmission, PublicCall } from '@/lib/submissions';
 import { SubmissionFields } from './submission-fields';
 import { formatDeadline } from '@/lib/site';
@@ -56,6 +57,24 @@ export function SubmissionForm({
 
   const answers: Record<string, AnswerValue> | undefined = existing?.answers;
 
+  /*
+   * The form changes with the session type (T249): a workshop is asked for
+   * its learning objectives, outline and install list, a talk for its length.
+   * Which questions belong to which type is set per question in the
+   * dashboard's form builder, and the server applies the same filter, so a
+   * question hidden here is neither validated nor kept.
+   */
+  const [sessionType, setSessionType] = useState<string>(
+    existing?.sessionType ?? (call.sessionTypes.length === 1 ? call.sessionTypes[0] : ''),
+  );
+  const [words, setWords] = useState(() => wordCount(existing?.abstract ?? ''));
+  const cfp = call.cfp;
+  const fields = fieldsForSessionType(call.fields, sessionType || undefined);
+  const closesLabel = cfp
+    ? cfp.closeDay
+    : (formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal);
+  const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
   return (
     <form action={action} className="checkout">
       <input type="hidden" name="callId" value={call.id} />
@@ -68,6 +87,30 @@ export function SubmissionForm({
       )}
 
       <h2 style={{ marginTop: 0 }}>Your submission</h2>
+
+      {call.sessionTypes.length > 0 && (
+        <div className="field">
+          <label htmlFor="sessionType">{cfp ? 'Talk or workshop? *' : 'What are you offering it as? *'}</label>
+          <select
+            id="sessionType"
+            name="sessionType"
+            value={sessionType}
+            onChange={(e) => setSessionType(e.target.value)}
+          >
+            <option value="">Choose one…</option>
+            {call.sessionTypes.map((t) => (
+              <option key={t} value={t}>
+                {typeLabel(t)}
+              </option>
+            ))}
+          </select>
+          {errors.sessionType && (
+            <p className="hint" style={{ color: '#991b1b' }} role="alert">
+              {errors.sessionType}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="title">Title *</label>
@@ -87,11 +130,24 @@ export function SubmissionForm({
 
       <div className="field">
         <label htmlFor="abstract">Abstract *</label>
-        <textarea id="abstract" name="abstract" rows={10} maxLength={10000} defaultValue={existing?.abstract} />
-        <p className="hint">
-          Plain text. Blank lines separate paragraphs. Up to 10,000 characters, which is about 1,500
-          words.
-        </p>
+        <textarea
+          id="abstract"
+          name="abstract"
+          rows={10}
+          maxLength={10000}
+          defaultValue={existing?.abstract}
+          onChange={(e) => setWords(wordCount(e.target.value))}
+        />
+        {cfp ? (
+          <p className="hint" aria-live="polite">
+            {cfp.abstractMinWords} to {cfp.abstractMaxWords} words. You have {words}.
+          </p>
+        ) : (
+          <p className="hint">
+            Plain text. Blank lines separate paragraphs. Up to 10,000 characters, which is about 1,500
+            words.
+          </p>
+        )}
         {errors.abstract && (
           <p className="hint" style={{ color: '#991b1b' }} role="alert">
             {errors.abstract}
@@ -99,20 +155,20 @@ export function SubmissionForm({
         )}
       </div>
 
-      {call.sessionTypes.length > 0 && (
+      {cfp && sessionType === 'talk' && (
         <div className="field">
-          <label htmlFor="sessionType">What are you offering it as? *</label>
-          <select id="sessionType" name="sessionType" defaultValue={existing?.sessionType ?? ''}>
+          <label htmlFor="durationMinutes">How long is your talk? *</label>
+          <select id="durationMinutes" name="durationMinutes" defaultValue={existing?.durationMinutes ?? ''}>
             <option value="">Choose one…</option>
-            {call.sessionTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {cfp.talkMinutes.map((m) => (
+              <option key={m} value={m}>
+                {m} minutes
               </option>
             ))}
           </select>
-          {errors.sessionType && (
+          {errors.durationMinutes && (
             <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.sessionType}
+              {errors.durationMinutes}
             </p>
           )}
         </div>
@@ -137,7 +193,7 @@ export function SubmissionForm({
         </div>
       )}
 
-      <SubmissionFields fields={call.fields} answers={answers} errors={errors} />
+      <SubmissionFields fields={fields} answers={answers} errors={errors} />
 
       <h2>About you</h2>
 
@@ -173,18 +229,26 @@ export function SubmissionForm({
       </div>
 
       <div className="field">
-        <label htmlFor="affiliation">Affiliation</label>
+        <label htmlFor="affiliation">{cfp ? 'Organisation *' : 'Affiliation'}</label>
         <input id="affiliation" name="affiliation" maxLength={120} defaultValue={a?.affiliation} />
+        {errors.affiliation && (
+          <p className="hint" style={{ color: '#991b1b' }} role="alert">
+            {errors.affiliation}
+          </p>
+        )}
       </div>
 
-      <div className="field">
-        <label htmlFor="bio">A short bio</label>
-        <textarea id="bio" name="bio" rows={4} maxLength={1000} defaultValue={a?.bio} />
-        <p className="hint">
-          Optional. If your work is accepted this becomes your speaker biography, so it is worth the
-          two minutes now.
-        </p>
-      </div>
+      {/* Min's plan asks for the bio after acceptance, through the speaker's own link. */}
+      {!cfp && (
+        <div className="field">
+          <label htmlFor="bio">A short bio</label>
+          <textarea id="bio" name="bio" rows={4} maxLength={1000} defaultValue={a?.bio} />
+          <p className="hint">
+            Optional. If your work is accepted this becomes your speaker biography, so it is worth the
+            two minutes now.
+          </p>
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="coAuthors">Co-authors</label>
@@ -211,9 +275,8 @@ export function SubmissionForm({
 
       <p className="hint" style={{ marginTop: 14 }}>
         A draft is not submitted and nobody reads it. You can come back to it from the link we
-        email you until the call closes on{' '}
-        {formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal}. After that
-        nothing can be changed.
+        email you until the call closes{closesLabel ? ` on ${closesLabel}` : ''}. After that nothing
+        can be changed.
       </p>
     </form>
   );

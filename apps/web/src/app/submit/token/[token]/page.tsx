@@ -61,6 +61,11 @@ export default async function SubmissionTokenPage({
   const own = await loadOwnSubmission(payload.sid);
   if (!own) notFound();
 
+  // Min's settings name the close date; while it is unset, say "the call closes".
+  const closes = own.call.cfp
+    ? (own.call.cfp.closeDay ?? 'the call closes')
+    : (formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal);
+
   return (
     <section>
       <div className="wrap narrow" style={{ paddingBottom: 48 }}>
@@ -77,8 +82,7 @@ export default async function SubmissionTokenPage({
           <p className="notice" role="status">
             <strong>Saved as a draft.</strong> This has <strong>not</strong> been submitted and
             nobody will read it. Come back through the link we have emailed you and press{' '}
-            <em>Submit</em> before{' '}
-            {formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal}.
+            <em>Submit</em> before {closes}.
           </p>
         )}
         {r === 'withdrawn' && (
@@ -111,7 +115,9 @@ export default async function SubmissionTokenPage({
                 : 'This was not accepted this year.'}
             </strong>{' '}
             {own.decided === 'accepted'
-              ? 'The programme committee will be in touch about scheduling. This is not a slot yet.'
+              ? own.cfp
+                ? 'We have emailed you a link to send your bio, headshot and session details.'
+                : 'The programme committee will be in touch about scheduling. This is not a slot yet.'
               : 'We had more good submissions than we have room for. You are very welcome to submit again.'}{' '}
             It can no longer be edited.
           </p>
@@ -127,8 +133,7 @@ export default async function SubmissionTokenPage({
         {own.status === 'draft' && !own.decided && own.editable && (
           <p className="notice warn" role="status">
             <strong>This is still a draft.</strong> It has not been submitted and nobody is reading
-            it. Press <em>Submit</em> at the bottom before{' '}
-            {formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal}.
+            it. Press <em>Submit</em> at the bottom before {closes}.
           </p>
         )}
 

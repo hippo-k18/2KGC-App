@@ -141,6 +141,69 @@ export default async function SpeakerProfilePage({
         <form action={saveSpeakerProfileAction}>
           <input type="hidden" name="token" value={token} />
 
+          {ctx.submissions.map((sub) => (
+            /*
+             * What E2 asks for beyond the profile (T249): the final title and
+             * description, and for a workshop the outline and install list.
+             * Prefilled from what they submitted, or from what they sent last.
+             */
+            <fieldset key={sub.id} style={{ border: 0, margin: '0 0 28px', padding: 0 }}>
+              <h2>Your session</h2>
+              {sub.receivedAtMs ? (
+                <p className="notice" role="status">
+                  We have your session details. Sending again replaces them.
+                </p>
+              ) : null}
+              <div className="field">
+                <label htmlFor={`d-title-${sub.id}`}>Final title *</label>
+                <input
+                  id={`d-title-${sub.id}`}
+                  name={`detail:${sub.id}:title`}
+                  maxLength={200}
+                  defaultValue={sub.details?.title ?? sub.title}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={`d-desc-${sub.id}`}>Session description *</label>
+                <textarea
+                  id={`d-desc-${sub.id}`}
+                  name={`detail:${sub.id}:description`}
+                  rows={8}
+                  maxLength={5000}
+                  defaultValue={sub.details?.description ?? sub.abstract}
+                />
+                <p className="hint">What attendees read on the agenda. Your abstract is here to start from.</p>
+              </div>
+              {sub.workshop && (
+                <>
+                  <div className="field">
+                    <label htmlFor={`d-outline-${sub.id}`}>Workshop outline *</label>
+                    <textarea
+                      id={`d-outline-${sub.id}`}
+                      name={`detail:${sub.id}:outline`}
+                      rows={6}
+                      maxLength={5000}
+                      defaultValue={sub.details?.outline ?? ''}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`d-install-${sub.id}`}>What attendees must install or bring *</label>
+                    <textarea
+                      id={`d-install-${sub.id}`}
+                      name={`detail:${sub.id}:install`}
+                      rows={4}
+                      maxLength={5000}
+                      defaultValue={sub.details?.install ?? ''}
+                    />
+                    <p className="hint">Write &ldquo;nothing&rdquo; if they need nothing.</p>
+                  </div>
+                </>
+              )}
+            </fieldset>
+          ))}
+
+          {ctx.submissions.length > 0 && <h2>About you</h2>}
+
           <div className="field">
             <label htmlFor="title">Job title</label>
             <input id="title" name="title" maxLength={200} defaultValue={ctx.title ?? ''} />

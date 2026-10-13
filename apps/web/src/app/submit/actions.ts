@@ -65,6 +65,7 @@ export async function submitAction(_prev: SubmitState, formData: FormData): Prom
       abstract: String(formData.get('abstract') ?? ''),
       trackId: String(formData.get('trackId') ?? '') || undefined,
       sessionType: String(formData.get('sessionType') ?? '') || undefined,
+      durationMinutes: String(formData.get('durationMinutes') ?? '') || undefined,
       answers: readAnswers(formData),
       authorName: String(formData.get('authorName') ?? ''),
       authorEmail: String(formData.get('authorEmail') ?? ''),

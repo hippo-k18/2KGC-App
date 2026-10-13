@@ -1,10 +1,11 @@
 import 'server-only';
 
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
   EVENT_ID,
   type SessionDoc,
+  type SubmissionDoc,
   type SpeakerDoc,
   type SpeakerProfileEditDoc,
 } from '@kgc/shared';
@@ -61,6 +62,12 @@ export interface PortalContext {
   photoURL?: string;
   social?: { linkedin?: string; x?: string; website?: string };
   sessions: PortalSession[];
+  /**
+   * Accepted call-for-papers submissions still waiting for final details
+   * (T249). Usually one, and present before any session exists, which is why
+   * the page asks about these rather than about `sessions`.
+   */
+  submissions: PortalSubmission[];
   /** Where their last submission stands, so the page can say what happens next. */
   state?: {
     status: SpeakerProfileEditDoc['status'];
@@ -73,6 +80,18 @@ const millis = (t: unknown): number | undefined => {
   const v = t as { toMillis?: () => number } | undefined;
   return typeof v?.toMillis === 'function' ? v.toMillis() : undefined;
 };
+
+/** One accepted submission, as the self-service page asks about it. */
+export interface PortalSubmission {
+  id: string;
+  /** As submitted, shown beside the box for the final title. */
+  title: string;
+  abstract: string;
+  workshop: boolean;
+  details?: { title?: string; description?: string; outline?: string; install?: string };
+  /** "Monday 9 November 2026"-style deadline is in the email; this is for "received" wording. */
+  receivedAtMs?: number;
+}
 
 /** What a link buys, once it has been checked. */
 export interface PortalGrant {
@@ -153,8 +172,11 @@ export async function loadPortal(rawToken: string): Promise<PortalContext | null
     })
     .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal));
 
+  const submissions = await portalSubmissions(edit?.submissionIds ?? []);
+
   return {
     speakerId: grant.speakerId,
+    submissions,
     name: speaker.name,
     title: speaker.title,
     company: speaker.company,
@@ -170,6 +192,69 @@ export async function loadPortal(rawToken: string): Promise<PortalContext | null
         }
       : undefined,
   };
+}
+
+/**
+ * The accepted submissions an edit document names, still accepted and still
+ * in this event. A submission undone or withdrawn since drops off the page.
+ */
+async function portalSubmissions(ids: string[]): Promise<PortalSubmission[]> {
+  if (ids.length === 0) return [];
+  const docs = await db().getAll(
+    ...ids.slice(0, 10).map((id) => db().collection(COLLECTIONS.submissions).doc(id)),
+  );
+  return docs
+    .filter((d) => d.exists)
+    .map((d) => ({ id: d.id, sub: d.data() as SubmissionDoc }))
+    .filter(({ sub }) => sub.eventId === EVENT_ID && sub.status === 'accepted')
+    .map(({ id, sub }) => ({
+      id,
+      title: sub.title,
+      abstract: sub.abstract,
+      workshop: sub.sessionType === 'workshop',
+      details: sub.details
+        ? {
+            title: sub.details.title,
+            description: sub.details.description,
+            outline: sub.details.outline,
+            install: sub.details.install,
+          }
+        : undefined,
+      receivedAtMs: millis(sub.details?.receivedAt),
+    }));
+}
+
+/** What the speaker typed for one submission. */
+export interface DetailsInput {
+  title: string;
+  description: string;
+  outline?: string;
+  install?: string;
+}
+
+const DETAIL_MAX = 5000;
+
+/**
+ * The final title and description, and for a workshop the outline and the
+ * install list. All required: they are what E2 asked for, and a half-filled
+ * set would stop E3 from nudging someone who has not finished.
+ */
+function checkDetails(sub: PortalSubmission, input: DetailsInput | undefined): string[] {
+  const label = `“${sub.title}”`;
+  if (!input) return [`Send the final title and description for ${label}.`];
+  const errors: string[] = [];
+  if (input.title.trim().length < 3) errors.push(`Give ${label} its final title.`);
+  if (input.description.trim().length < 40) errors.push(`Write a session description for ${label}.`);
+  if (sub.workshop) {
+    if (!input.outline?.trim()) errors.push(`Add the workshop outline for ${label}.`);
+    if (!input.install?.trim()) {
+      errors.push(`Say what attendees must install or bring for ${label}, or write "nothing".`);
+    }
+  }
+  for (const v of [input.title, input.description, input.outline ?? '', input.install ?? '']) {
+    if (v.length > DETAIL_MAX) errors.push(`One of the boxes for ${label} is too long.`);
+  }
+  return errors;
 }
 
 /**
@@ -228,6 +313,8 @@ export type SubmitOutcome = 'saved' | 'invalid' | 'error' | 'revoked';
 export async function recordDraft(
   rawToken: string,
   input: DraftInput,
+  /** Submission id → what was typed for it. Only ids on the edit document are read. */
+  details: Record<string, DetailsInput> = {},
 ): Promise<{ outcome: SubmitOutcome; errors: string[] }> {
   try {
     const grant = await openPortal(rawToken);
@@ -241,6 +328,12 @@ export async function recordDraft(
     const { speakerId, speaker, edit: existing } = grant;
 
     const { draft, errors } = normaliseDraft(input, speaker.sessionIds ?? []);
+    /*
+     * The submissions come from the edit document, never from the form: a
+     * field naming another submission id is simply not looked at.
+     */
+    const subs = await portalSubmissions(existing?.submissionIds ?? []);
+    for (const sub of subs) errors.push(...checkDetails(sub, details[sub.id]));
     if (errors.length) return { outcome: 'invalid', errors };
 
     const ref = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerId);
@@ -267,6 +360,29 @@ export async function recordDraft(
       },
       { merge: true },
     );
+
+    /*
+     * Session details land on the submission at once, where the inbox reads
+     * "details received" and E3 stops. They publish nothing: the session is
+     * still written in Session Manager, and the profile half above still
+     * waits for an organizer.
+     */
+    const now = Timestamp.now();
+    for (const sub of subs) {
+      const d = details[sub.id];
+      await db()
+        .collection(COLLECTIONS.submissions)
+        .doc(sub.id)
+        .update({
+          details: {
+            title: d.title.trim(),
+            description: d.description.trim(),
+            ...(sub.workshop ? { outline: d.outline?.trim() ?? '', install: d.install?.trim() ?? '' } : {}),
+            receivedAt: now,
+          },
+          updatedAt: now,
+        });
+    }
 
     return { outcome: 'saved', errors: [] };
   } catch (err) {
