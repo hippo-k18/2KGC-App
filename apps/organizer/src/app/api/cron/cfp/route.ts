@@ -30,8 +30,14 @@ export async function POST(request: NextRequest) {
   if (secret.length < 16 || a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: 'Not allowed.' }, { status: 401 });
   }
+  /*
+   * `?now=<ISO>` moves the clock for a local run, so E3 and the Thursday
+   * reminder can be watched without waiting five days. Ignored in production.
+   */
+  const fake = request.nextUrl.searchParams.get('now');
+  const nowMs = process.env.NODE_ENV !== 'production' && fake ? Date.parse(fake) : Date.now();
   try {
-    const report = await runCfpSchedule();
+    const report = await runCfpSchedule(Number.isFinite(nowMs) ? nowMs : Date.now());
     return NextResponse.json(report);
   } catch (err) {
     recordError('cfp.cron', err);

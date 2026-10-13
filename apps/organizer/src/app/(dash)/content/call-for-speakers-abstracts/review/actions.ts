@@ -27,8 +27,13 @@ export async function reviewDecideAction(_prev: FormState, formData: FormData): 
           ? await rejectCfp({ submissionId, actor })
           : ({ ok: false, error: 'Choose accept or reject.' } as const);
     if (!result.ok) return { error: result.error };
-    revalidatePath(`${CFA_BASE}/review`);
-    revalidatePath(`${CFA_BASE}/submissions`);
+    /*
+     * Nothing is revalidated. Any `revalidatePath` in an action re-renders the
+     * page it was called from, which would drop this row and the confirmation
+     * in it ("the acceptance email went to …"), leaving François to guess
+     * whether the email went. Every CFA screen is `force-dynamic`, so the next
+     * visit to any of them reads the decision fresh.
+     */
     return { ok: true, message: result.message };
   } catch (err) {
     recordError('cfp.reviewDecide', err);
