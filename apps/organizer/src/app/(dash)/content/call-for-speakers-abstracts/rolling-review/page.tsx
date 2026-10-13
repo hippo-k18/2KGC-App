@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
 import {
+  closeDecisionDate,
+  closeDecisionOpen,
   closeDecisionPlan,
   formatDay,
   stillOpenRecipients,
@@ -14,7 +16,6 @@ import { ConfirmedSend, CopyBlock, ReasonForm, SettingsForm } from './forms';
 
 export const dynamic = 'force-dynamic';
 
-const DAY = 24 * 60 * 60 * 1000;
 
 /**
  * The rolling review's settings and its two manual sends (T249).
@@ -50,9 +51,16 @@ export default async function RollingReviewPage({
   const e6Done = rows.filter((r) => r.stillOpenSentAtMs).length;
   const e4Done = rows.filter((r) => r.closeDecisionSent).length;
   const decisionDay = formatDay(call.cfp.decisionDate);
-  const e4Day = call.cfp.closeDate
-    ? formatDay(new Date(Date.parse(`${call.cfp.closeDate}T12:00:00Z`) + 14 * DAY).toISOString().slice(0, 10))
-    : undefined;
+  const e4Day = formatDay(closeDecisionDate(call.cfp));
+  /*
+   * E4 stays disabled until two weeks after the close (T252): one early press
+   * would tell every rejected author months before everyone else hears.
+   */
+  const e4Blocked = closeDecisionOpen(Date.now(), call.cfp, call.timeZone)
+    ? undefined
+    : e4Day
+      ? `This send opens on ${e4Day}, two weeks after the close. Until then it cannot be sent.`
+      : 'Set the close date above first. This send opens two weeks after it.';
 
   return (
     <>
@@ -172,6 +180,7 @@ export default async function RollingReviewPage({
           count={plan.declined.length + plan.accepted.length}
           label={`Send E4 to ${plan.declined.length + plan.accepted.length}`}
           confirmLabel={`Email ${plan.declined.length} “not accepted” and ${plan.accepted.length} “accepted”`}
+          blocked={e4Blocked}
         />
       </Panel>
     </>

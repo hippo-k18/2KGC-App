@@ -37,7 +37,7 @@ export async function reviewDecideAction(_prev: FormState, formData: FormData): 
     return { ok: true, message: result.message };
   } catch (err) {
     recordError('cfp.reviewDecide', err);
-    return { error: err instanceof Error ? err.message : 'Could not record the decision.' };
+    return { error: 'Could not record the decision. Reload the list to see what was saved.' };
   }
 }
 

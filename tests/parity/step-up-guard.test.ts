@@ -77,6 +77,16 @@ const GUARDED: { what: string; file: string; action: string }[] = [
     file: 'apps/organizer/src/app/(dash)/attendees/release-and-consent-forms/actions.ts',
     action: 'sendSigningLinksAction',
   },
+  {
+    what: 'mailing the call-for-papers decision after the close (E4)',
+    file: 'apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/rolling-review/actions.ts',
+    action: 'sendCloseDecisionsAction',
+  },
+  {
+    what: 'mailing the call-for-papers mid-point note (E6)',
+    file: 'apps/organizer/src/app/(dash)/content/call-for-speakers-abstracts/rolling-review/actions.ts',
+    action: 'sendStillOpenAction',
+  },
 ];
 
 describe('irreversible actions ask for the passphrase again', () => {

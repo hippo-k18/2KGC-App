@@ -103,9 +103,12 @@ export function DecisionPanel({
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">
           {decided ? 'Change to accepted' : 'Accept'}
         </SubmitButton>
-        <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
-          {decided ? 'Change to waitlisted' : 'Waitlist'}
-        </SubmitButton>
+        {/* Min's rolling review has no waiting list (T252); a legacy call keeps it. */}
+        {!rolling && (
+          <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
+            {decided ? 'Change to waitlisted' : 'Waitlist'}
+          </SubmitButton>
+        )}
         <SubmitButton name="verdict" value="reject" variant="danger" pendingLabel="Recording…">
           {decided ? 'Change to rejected' : 'Reject'}
         </SubmitButton>

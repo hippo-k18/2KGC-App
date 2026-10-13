@@ -47,7 +47,11 @@ export async function decideAction(_prev: FormState, formData: FormData): Promis
      * mails E2, Reject records and sends nothing. The waiting list keeps the
      * old path, which Min's plan does not use.
      */
-    if (verdict !== 'waitlist' && (await onRollingReview(id))) {
+    const rolling = await onRollingReview(id);
+    if (rolling && verdict === 'waitlist') {
+      return { error: 'This call has no waiting list. Accept it, reject it, or leave it for next week.' };
+    }
+    if (rolling) {
       const r = verdict === 'accept' ? await acceptCfp({ submissionId: id, actor }) : await rejectCfp({ submissionId: id, actor });
       if (!r.ok) return { error: r.error };
       revalidate(id);
@@ -72,7 +76,7 @@ export async function decideAction(_prev: FormState, formData: FormData): Promis
     return { ok: true, message: result.message };
   } catch (err) {
     recordError('submission.decide', err);
-    return { error: err instanceof Error ? err.message : 'Could not record the decision.' };
+    return { error: 'Could not record the decision. Reload the page to see what was saved.' };
   }
 }
 
@@ -129,7 +133,11 @@ export async function bulkDecideAction(_prev: FormState, formData: FormData): Pr
   }
 
   try {
-    if (verdict !== 'waitlist' && ids.length > 0 && (await onRollingReview(ids[0]))) {
+    const rolling = ids.length > 0 && (await onRollingReview(ids[0]));
+    if (rolling && verdict === 'waitlist') {
+      return { error: 'This call has no waiting list. Accept or reject the ticked submissions, or leave them.' };
+    }
+    if (rolling) {
       let done = 0;
       const refused: string[] = [];
       for (const submissionId of [...new Set(ids)].slice(0, 200)) {
@@ -164,7 +172,7 @@ export async function bulkDecideAction(_prev: FormState, formData: FormData): Pr
     return { ok: true, message: result.message };
   } catch (err) {
     recordError('submission.bulkDecide', err);
-    return { error: err instanceof Error ? err.message : 'Could not record the decisions.' };
+    return { error: 'Could not record the decisions. Reload the list to see what was saved.' };
   }
 }
 

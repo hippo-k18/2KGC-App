@@ -211,3 +211,15 @@ describe('the settings warning', () => {
     ).toEqual([]);
   });
 });
+
+describe('when E4 may go (T252)', () => {
+  it('needs a close date and two weeks after it', async () => {
+    const { closeDecisionOpen, closeDecisionDate } = await import('./cfp-core');
+    expect(closeDecisionDate({})).toBeUndefined();
+    expect(closeDecisionOpen(Date.parse('2030-01-01T00:00:00Z'), {}, NY)).toBe(false);
+    const cfp = { closeDate: '2027-01-31' };
+    expect(closeDecisionDate(cfp)).toBe('2027-02-14');
+    expect(closeDecisionOpen(Date.parse('2027-02-14T04:00:00Z'), cfp, NY)).toBe(false); // 23:00 on the 13th in NY
+    expect(closeDecisionOpen(Date.parse('2027-02-14T15:00:00Z'), cfp, NY)).toBe(true);
+  });
+});

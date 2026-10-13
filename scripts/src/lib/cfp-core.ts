@@ -398,3 +398,28 @@ export function missingSettings(cfp: CallCfpSettings | undefined): string[] {
   if (!cfp?.reviewerReminderEmail?.includes('@')) out.push('Weekly reminder address (François)');
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// When E4 may go
+// ---------------------------------------------------------------------------
+
+/** E4 is due this many days after the close (Min's plan: "two weeks after the close"). */
+export const CLOSE_DECISION_AFTER_DAYS = 14;
+
+/** `YYYY-MM-DD` on which E4 becomes sendable, or undefined while no close date is set. */
+export function closeDecisionDate(cfp: CallCfpSettings | undefined): string | undefined {
+  if (!isIsoDate(cfp?.closeDate)) return undefined;
+  const d = new Date(`${cfp.closeDate}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + CLOSE_DECISION_AFTER_DAYS);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Whether E4 may be sent now (T252). Never before the close date is set, and
+ * never before two weeks after it: one early press would tell every rejected
+ * author "not accepted" months before everyone else hears.
+ */
+export function closeDecisionOpen(nowMs: number, cfp: CallCfpSettings | undefined, timeZone: string): boolean {
+  const from = closeDecisionDate(cfp);
+  return Boolean(from) && dateIn(nowMs, timeZone) >= from!;
+}

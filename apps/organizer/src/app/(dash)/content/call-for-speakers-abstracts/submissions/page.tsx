@@ -349,6 +349,7 @@ export default async function SubmissionsPage({
             />
             <BulkDecisionBar
               selectable={rows.filter((s) => s.status !== 'draft' && s.status !== 'withdrawn').length}
+              rolling={Boolean(cfpCall?.enabled)}
             />
           </>
         )}

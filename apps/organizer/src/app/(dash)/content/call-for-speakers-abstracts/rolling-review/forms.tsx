@@ -11,6 +11,7 @@ import {
   SubmitButton,
   type FormState,
 } from '../../../form';
+import { ConfirmCodeField } from '@/components/confirm-code';
 import {
   saveCfpSettingsAction,
   saveDeclineReasonAction,
@@ -116,12 +117,15 @@ export function ConfirmedSend({
   count,
   label,
   confirmLabel,
+  blocked,
 }: {
   kind: 'close' | 'still-open';
   callId: string;
   count: number;
   label: string;
   confirmLabel: string;
+  /** Why this send cannot go yet. The controls are disabled while set. */
+  blocked?: string;
 }) {
   const [state, action] = useActionState<FormState, FormData>(
     kind === 'close' ? sendCloseDecisionsAction : sendStillOpenAction,
@@ -132,16 +136,23 @@ export function ConfirmedSend({
     <form action={action}>
       <input type="hidden" name="callId" value={callId} />
       <FormBanner state={state} />
+      {blocked && (
+        <p className="whova-banner info" role="note">
+          <span>{blocked}</span>
+        </p>
+      )}
       <CheckboxField
         name="confirm"
         label={confirmLabel}
         description="An email cannot be recalled once it is sent."
         checked={ticked}
         onChange={setTicked}
-        disabled={count === 0}
+        disabled={count === 0 || Boolean(blocked)}
       />
+      {/* A fresh emailed code, as for every other mass send (T252). */}
+      {!blocked && count > 0 && <ConfirmCodeField id={`confirm-code-${kind}`} />}
       <FormActions>
-        <SubmitButton disabled={!ticked || count === 0} pendingLabel="Sending…">
+        <SubmitButton disabled={!ticked || count === 0 || Boolean(blocked)} pendingLabel="Sending…">
           {label}
         </SubmitButton>
       </FormActions>

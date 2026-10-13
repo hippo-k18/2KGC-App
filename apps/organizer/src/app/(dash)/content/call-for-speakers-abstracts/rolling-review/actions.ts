@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireOrganizer } from '@/lib/auth';
+import { reauthenticate, requireOrganizer } from '@/lib/auth';
 import {
   saveCfpSettings,
   saveDeclineReason,
@@ -42,7 +42,7 @@ export async function saveCfpSettingsAction(_prev: FormState, fd: FormData): Pro
     return { ok: true, message: r.message };
   } catch (err) {
     recordError('cfp.settings', err);
-    return { error: err instanceof Error ? err.message : 'Could not save.' };
+    return { error: 'Could not save the settings. Reload the page to see what is stored, then try again.' };
   }
 }
 
@@ -61,25 +61,32 @@ export async function saveDeclineReasonAction(_prev: FormState, fd: FormData): P
 export async function sendCloseDecisionsAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const actor = await requireOrganizer();
   if (fd.get('confirm') !== 'on') return { error: 'Tick the box to confirm the send.' };
+  // A fresh emailed code, like every other mass send (AGENTS.md, T252).
+  if (!(await reauthenticate(String(fd.get('passphrase') ?? '')))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.' };
+  }
   try {
     const r = await sendCloseDecisions({ callId: s(fd, 'callId'), actor });
     refresh();
     return r.ok ? { ok: true, message: r.message } : { error: r.error };
   } catch (err) {
     recordError('cfp.closeDecisions', err);
-    return { error: err instanceof Error ? err.message : 'Could not send.' };
+    return { error: 'The send stopped part way. Reload: what went is marked, and pressing Send again sends only the rest.' };
   }
 }
 
 export async function sendStillOpenAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const actor = await requireOrganizer();
   if (fd.get('confirm') !== 'on') return { error: 'Tick the box to confirm the send.' };
+  if (!(await reauthenticate(String(fd.get('passphrase') ?? '')))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.' };
+  }
   try {
     const r = await sendStillOpen({ callId: s(fd, 'callId'), actor });
     refresh();
     return r.ok ? { ok: true, message: r.message } : { error: r.error };
   } catch (err) {
     recordError('cfp.stillOpen', err);
-    return { error: err instanceof Error ? err.message : 'Could not send.' };
+    return { error: 'The send stopped part way. Reload: what went is marked, and pressing Send again sends only the rest.' };
   }
 }

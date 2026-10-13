@@ -166,11 +166,13 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
     title: call.title,
     /*
      * "[CLOSE DATE]" and "[DECISION DATE]" in Min's copy are filled from the
-     * settings, and a sentence whose date is not set yet is left out. Run on
-     * every call, so a bracket typed into any description never reaches the
-     * public page.
+     * settings, and a sentence whose date is not set yet is left out. Only on
+     * a call with those settings (T252): a legacy call's description is shown
+     * exactly as typed.
      */
-    instructions: fillPlaceholders(call.instructions ?? '', pageValues(call.cfp)),
+    instructions: call.cfp
+      ? fillPlaceholders(call.instructions ?? '', pageValues(call.cfp))
+      : (call.instructions ?? ''),
     fields: [...(call.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: call.formVersion ?? 1,
     sessionTypes: call.sessionTypes ?? [],

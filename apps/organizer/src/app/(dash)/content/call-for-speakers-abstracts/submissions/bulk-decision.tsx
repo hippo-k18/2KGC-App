@@ -29,7 +29,7 @@ export const BULK_FORM_ID = 'bulk-decide';
  * cannot be typed into one and lost by pressing another, and the notify box is
  * unticked by default because it is the half that cannot be undone.
  */
-export function BulkDecisionBar({ selectable }: { selectable: number }) {
+export function BulkDecisionBar({ selectable, rolling }: { selectable: number; rolling?: boolean }) {
   const [state, action] = useActionState<FormState, FormData>(bulkDecideAction, {});
 
   return (
@@ -59,9 +59,12 @@ export function BulkDecisionBar({ selectable }: { selectable: number }) {
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">
           Accept ticked
         </SubmitButton>
-        <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
-          Waitlist ticked
-        </SubmitButton>
+        {/* No waiting list on Min's rolling review (T252). */}
+        {!rolling && (
+          <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
+            Waitlist ticked
+          </SubmitButton>
+        )}
         <SubmitButton name="verdict" value="reject" variant="danger" pendingLabel="Recording…">
           Reject ticked
         </SubmitButton>

@@ -55,6 +55,7 @@ async function wipe() {
     COLLECTIONS.emailLog,
     COLLECTIONS.speakers,
     COLLECTIONS.speakerProfileEdits,
+    COLLECTIONS.speakerContacts,
     COLLECTIONS.auditLog,
     COLLECTIONS.teamMembers,
   ]) {
@@ -178,7 +179,10 @@ describe('Accept, in one click', () => {
 
     const speaker = (await db().collection(COLLECTIONS.speakers).doc(sid).get()).data() as SpeakerDoc;
     expect(speaker.unlisted).toBe(true);
-    expect(speaker.contactEmail).toBe('sub_a@authors.test');
+    // The address is server-only since T252, never on the readable record.
+    expect(speaker).not.toHaveProperty('contactEmail');
+    const contact = (await db().collection(COLLECTIONS.speakerContacts).doc(sid).get()).data();
+    expect(contact?.email).toBe('sub_a@authors.test');
     const edit = (await db().collection(COLLECTIONS.speakerProfileEdits).doc(sid).get()).data() as SpeakerProfileEditDoc;
     expect(edit.submissionIds).toEqual(['sub_a']);
     expect(edit.status).toBe('sent');
@@ -283,6 +287,8 @@ describe('the hourly run', () => {
 
 describe('after the close', () => {
   const AFTER = Date.parse('2027-03-02T15:00:00Z');
+  /** Close 28 February + 14 days, in New York. */
+  const E4_OPEN = Date.parse('2027-03-14T16:00:00Z');
 
   it('holds E2 for an acceptance after the close, then E4 sends both versions once', async () => {
     await seedCall({ ...CFP, closeDate: '2027-02-28' });
@@ -297,19 +303,24 @@ describe('after the close', () => {
     await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
     expect((await saveDeclineReason('sub_no', 'The program already covers this ground.', ACTOR)).ok).toBe(true);
 
-    const r = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: AFTER + DAY });
+    // Not before two weeks after the close (T252).
+    const early = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: AFTER + DAY });
+    expect(early.ok).toBe(false);
+    expect(mail()).toHaveLength(1);
+
+    const r = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: E4_OPEN });
     expect(r.ok && r.message).toMatch(/1 “not accepted” and 1 “accepted”.*1 still undecided/);
 
     const sent = mail().slice(1);
     expect(sent.map((m) => m.template)).toEqual(['cfp-decision-declined', 'cfp-decision-accepted', 'cfp-accepted']);
     expect(sent[0].text).toContain('We are not able to fit it into the 2027 program. The program already covers this ground.');
     expect(sent[1].text).toContain('in the message that follows this one');
-    expect((await raw('sub_late')).acceptance?.e2SentAt?.toMillis()).toBe(AFTER + DAY);
+    expect((await raw('sub_late')).acceptance?.e2SentAt?.toMillis()).toBe(E4_OPEN);
     expect((await raw('sub_late')).acceptance?.e2HeldForE4).toBeUndefined();
     expect((await raw('sub_no')).closeDecision?.reason).toBe('The program already covers this ground.');
     expect((await raw('sub_open')).closeDecision).toBeUndefined();
 
-    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: AFTER + 2 * DAY });
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: E4_OPEN + DAY });
     expect(mail()).toHaveLength(4);
     expect((await saveDeclineReason('sub_no', 'Changed', ACTOR)).ok).toBe(false);
   });
@@ -353,5 +364,75 @@ describe('the settings', () => {
 
     const bad = await saveCfpSettings(CALL_ID, { closeDate: '', decisionDate: '', sessionNoticeDate: '', acceptNoticeEmail: 'nope', reviewerReminderEmail: '', abstractMinWords: '', abstractMaxWords: '', talkMinutes: '25' }, ACTOR);
     expect(bad.ok).toBe(false);
+  });
+});
+
+/**
+ * T250 F2: two organizers pressing the same button at once. Each send is
+ * claimed in a transaction before it goes, so N concurrent calls send once.
+ */
+describe('concurrent presses send once (T252)', () => {
+  it('Accept pressed three times at once: one E2, one notice, one speaker, no raw error', async () => {
+    await seedCall();
+    await seed('sub_a');
+    const results = await Promise.all(
+      [1, 2, 3].map(() => acceptCfp({ submissionId: 'sub_a', actor: ACTOR, nowMs: ACCEPT_AT })),
+    );
+    for (const r of results) {
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.message).not.toMatch(/ALREADY_EXISTS|EntityRef|\d+ [A-Z_]+:/);
+    }
+    expect(mail().filter((m) => m.template === 'cfp-accepted')).toHaveLength(1);
+    expect(mail().filter((m) => m.template === 'cfp-accept-notice')).toHaveLength(1);
+    expect((await db().collection(COLLECTIONS.speakers).get()).size).toBe(1);
+  });
+
+  it('two talks by one new author accepted at once share one speaker and both succeed', async () => {
+    await seedCall();
+    await seed('sub_a');
+    await seed('sub_b');
+    const [a, b] = await Promise.all([
+      acceptCfp({ submissionId: 'sub_a', actor: ACTOR, nowMs: ACCEPT_AT }),
+      acceptCfp({ submissionId: 'sub_b', actor: ACTOR, nowMs: ACCEPT_AT }),
+    ]);
+    expect(a.ok && b.ok).toBe(true);
+    expect((await db().collection(COLLECTIONS.speakers).get()).size).toBe(1);
+    expect(mail().filter((m) => m.template === 'cfp-accepted')).toHaveLength(2);
+  });
+
+  it('E6 pressed five times at once sends once per author', async () => {
+    await seedCall();
+    await seed('sub_1');
+    await seed('sub_2', { name: 'Grace Hopper' });
+    await Promise.all([1, 2, 3, 4, 5].map(() => sendStillOpen({ callId: CALL_ID, actor: ACTOR })));
+    expect(mail().map((m) => m.to).sort()).toEqual(['sub_1@authors.test', 'sub_2@authors.test']);
+  });
+
+  it('E4 pressed three times at once sends each version once', async () => {
+    const AFTER = Date.parse('2027-03-02T15:00:00Z');
+    const OPEN = Date.parse('2027-03-14T16:00:00Z');
+    await seedCall({ ...CFP, closeDate: '2027-02-28' });
+    await seed('sub_late');
+    await seed('sub_no', { name: 'Grace Hopper' });
+    await acceptCfp({ submissionId: 'sub_late', actor: ACTOR, nowMs: AFTER });
+    await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
+    await Promise.all([1, 2, 3].map(() => sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: OPEN })));
+    const t = mail().map((m) => m.template);
+    expect(t.filter((x) => x === 'cfp-decision-declined')).toHaveLength(1);
+    expect(t.filter((x) => x === 'cfp-decision-accepted')).toHaveLength(1);
+    expect(t.filter((x) => x === 'cfp-accepted')).toHaveLength(1);
+  });
+
+  it('the hourly run started three times at once sends one E3 and one reminder', async () => {
+    await seedCall();
+    await seed('sub_a');
+    await acceptCfp({ submissionId: 'sub_a', actor: ACTOR, nowMs: ACCEPT_AT });
+    const before = mail().length;
+    // Thursday 19 November 2026, 10:00 in New York: E3 is due and so is the reminder.
+    const when = Date.parse('2026-11-19T15:00:00Z');
+    await Promise.all([1, 2, 3].map(() => runCfpSchedule(when)));
+    const t = mail().slice(before).map((m) => m.template);
+    expect(t.filter((x) => x === 'cfp-nudge')).toHaveLength(1);
+    expect(t.filter((x) => x === 'cfp-weekly-reminder')).toHaveLength(1);
   });
 });
