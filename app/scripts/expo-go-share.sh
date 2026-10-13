@@ -23,8 +23,10 @@
 # checkout's app/.env.local, never committed) and https://www.knowledgegraph.tech
 # for the sign-in endpoints. EXPO_PUBLIC_USE_EMULATOR is forced to 0.
 #
-# What the public can reach: only the manifest, the bundle and the assets, via
-# expo-go-proxy.mjs. Metro's other endpoints act on this Mac (create files, open
+# What the public can reach: only the manifest, the bundle URL the manifest
+# names and the app's images and fonts, via expo-go-proxy.mjs. Metro's file map
+# leaves out everything the app does not bundle (metro.config.js), and the
+# script refuses to start in a checkout holding .secrets/ or an env file. Metro's other endpoints act on this Mac (create files, open
 # an editor, attach a debugger), so they are not tunnelled. Metro runs with
 # --no-dev --minify: a release-style bundle, no dev overlay, no hot reload.
 # --localhost binds Metro to this Mac alone, so the LAN cannot reach it either.
@@ -49,7 +51,21 @@ mkdir -p "$LOG_DIR"
 # node and npx call dies before it starts.
 unset NODE_OPTIONS
 
-[[ -x "$CLOUDFLARED" ]] || { echo "cloudflared not found: brew install cloudflared"; exit 1; }
+# Metro serves from the checkout's root, so nothing secret may sit in it: not a
+# .secrets/ folder (the main checkout keeps the Admin SDK key there) and not an
+# env file other than the committed *.example ones. Run this from a clean
+# worktree (git worktree add ../2KGC-App-share <branch>); it reads the Firebase
+# config from the main checkout's app/.env.local, outside what Metro serves.
+secrets=$(find "$REPO_DIR" \( -name node_modules -o -name .git \) -prune -o \
+  \( \( -name .secrets -type d \) -o \( -name '.env*' ! -name '*.example' \) \) -print)
+if [[ -n "$secrets" ]]; then
+  echo "refusing to start: this checkout holds files that must never be served:"
+  echo "$secrets" | sed "s|^$REPO_DIR/|  |"
+  echo "Metro would serve from $REPO_DIR. Run the script from a worktree without them."
+  exit 1
+fi
+
+[[ -x "$CLOUDFLARED" ]] ||{ echo "cloudflared not found: brew install cloudflared"; exit 1; }
 [[ -f "$ENV_FILE" ]] || { echo "no Firebase config at $ENV_FILE (set ENV_FILE=...)"; exit 1; }
 for port in "$PORT" "$PROXY_PORT"; do
   if lsof -ti "tcp:$port" -sTCP:LISTEN > /dev/null; then
@@ -119,15 +135,16 @@ for _ in $(seq 1 120); do
 done
 curl -sf "http://localhost:$PORT/status" > /dev/null || { echo "Metro did not start; see $LOG_DIR/metro.log"; tail -20 "$LOG_DIR/metro.log"; exit 1; }
 
-# Build both bundles now, so the first person to scan is not the one who waits
-# a minute for Metro to compile.
+# Build both bundles now, through the proxy, so the first person to scan is
+# not the one who waits a minute for Metro to compile, and so a proxy that
+# would refuse the bundle the manifest names stops the script here.
 for platform in ios android; do
   echo "==> warming the $platform bundle"
   bundle=$(curl -sf -H "expo-platform: $platform" -H 'accept: application/expo+json,application/json' \
-    "http://localhost:$PORT/" | python3 -c 'import json,sys; print(json.load(sys.stdin)["launchAsset"]["url"])' || true)
-  if [[ -n "$bundle" ]]; then
-    curl -sf -o /dev/null "http://localhost:$PORT/${bundle#https://$HOST/}" || echo "    $platform bundle failed; see $LOG_DIR/metro.log"
-  fi
+    "http://127.0.0.1:$PROXY_PORT/" | python3 -c 'import json,sys; print(json.load(sys.stdin)["launchAsset"]["url"])' || true)
+  [[ -n "$bundle" ]] || { echo "no $platform manifest through the proxy; see $LOG_DIR/metro.log"; exit 1; }
+  curl -sf -o /dev/null "http://127.0.0.1:$PROXY_PORT/${bundle#https://$HOST/}" \
+    || { echo "the proxy did not serve the $platform bundle; see $LOG_DIR/metro.log"; exit 1; }
 done
 
 cat <<EOF

@@ -9,8 +9,18 @@
  *    iOS 27 SDK on, UIKit refuses an app that does not adopt the UIScene
  *    lifecycle, and SDK 54's AppDelegate still makes its own window in
  *    `didFinishLaunching`. This plugin declares a scene manifest and adds a
- *    SceneDelegate that starts React Native in the scene's window instead, and
- *    forwards links opened while the app runs to `RCTLinkingManager`.
+ *    SceneDelegate, a subclass of Expo's own `ExpoAppSceneDelegate` (new in SDK
+ *    57), that starts React Native in the scene's window instead.
+ *
+ *    Cold-start links (T240/T241): on iOS, expo-router reads the URL the app
+ *    was opened with from expo-linking's `getLinkingURL()`, which is set only
+ *    when the app delegate's `application(_:open:options:)` reaches Expo's
+ *    subscribers. Under scenes UIKit never calls that method, and a
+ *    hand-written SceneDelegate that only passed the URL in `launchOptions`
+ *    (React Native's `getInitialURL`) left `kgc://community/<id>` opening Home.
+ *    `ExpoAppSceneDelegate` forwards the cold-start URL, later links, user
+ *    activities and life-cycle events to the app delegate, so both
+ *    expo-linking and `RCTLinkingManager` hear them.
  *
  * 2. `xcodebuild` fails because the AsyncStorage pod's resource bundle declares
  *    iOS 13.4 and Xcode 27 supports 15.0 and up. A Podfile `post_install` step
@@ -26,37 +36,12 @@ const { withAppDelegate, withInfoPlist, withPodfile } = require('expo/config-plu
 
 const SCENE_DELEGATE = `
 // Added by plugins/with-ios-scene-lifecycle.js: iOS 27 requires the UIScene lifecycle.
-class SceneDelegate: UIResponder, UIWindowSceneDelegate {
-  var window: UIWindow?
+// Expo's scene delegate makes the window, starts React Native in it, and hands
+// links (cold start included) and life-cycle events to the app delegate's
+// subscribers, which is where expo-linking records the URL the app opened with.
+class SceneDelegate: ExpoAppSceneDelegate {}
 
-  func scene(
-    _ scene: UIScene,
-    willConnectTo session: UISceneSession,
-    options connectionOptions: UIScene.ConnectionOptions
-  ) {
-    guard let windowScene = scene as? UIWindowScene,
-          let appDelegate = UIApplication.shared.delegate as? AppDelegate,
-          let factory = appDelegate.reactNativeFactory else { return }
-    let window = UIWindow(windowScene: windowScene)
-    self.window = window
-    appDelegate.window = window
-    var launchOptions: [UIApplication.LaunchOptionsKey: Any] = [:]
-    if let url = connectionOptions.urlContexts.first?.url {
-      launchOptions[.url] = url
-    }
-    factory.startReactNative(withModuleName: "main", in: window, launchOptions: launchOptions)
-  }
-
-  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-    for context in URLContexts {
-      _ = RCTLinkingManager.application(UIApplication.shared, open: context.url, options: [:])
-    }
-  }
-
-  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
-    _ = RCTLinkingManager.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
-  }
-}
+extension AppDelegate: ExpoReactNativeFactoryProvider {}
 `;
 
 const WINDOW_BLOCK = /#if os\(iOS\) \|\| os\(tvOS\)\n\s*window = UIWindow\(frame: UIScreen\.main\.bounds\)\n\s*factory\.startReactNative\(\n\s*withModuleName: "main",\n\s*in: window,\n\s*launchOptions: launchOptions\)\n#endif\n/;

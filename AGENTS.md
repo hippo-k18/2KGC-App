@@ -401,6 +401,7 @@ to 57 on 2026-10-12 (T222) so anyone can open it in store Expo Go
 link stops opening until the project follows. Current Expo Go SDK:
 <https://expo.dev/go>, or `expoGoSdkVersion` at
 <https://api.expo.dev/v2/versions/latest>.
+`EXPO_PUBLIC_PREVIEW_DEMO_EMAIL`/`_PASSWORD` (the share script's demo auto sign-in) must **never** be set in `app/.env*`, `eas.json` or EAS environment variables on expo.dev: Expo compiles them into every build made there, and a store build would then sign every user in as the demo login.
 
 **2. Native tabs use the SDK 55+ API, which differs from older docs.**
 
