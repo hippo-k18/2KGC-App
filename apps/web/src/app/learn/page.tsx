@@ -19,7 +19,7 @@ export const metadata: Metadata = {
  * to `#8dccee` and renders `#e3f5fd`. Reading the CSS would have got that one
  * wrong by a long way.
  *
- *   hero            #e0e5ee + wave-13, wordmark at 1000px
+ *   hero            #e0e5ee, wave-13 behind the 1000px wordmark only
  *   team            #ffffff + wave-3
  *   continuing ed   #e3f5fd + wave-3
  *   programmes      #8dccee
@@ -78,7 +78,12 @@ export default function LearnPage() {
   return (
     <>
       <section className="learn-hero-band">
-        <div className="wrap-kgc">
+        {/*
+          The wave sits behind the wordmark only. The copy goes below it on the
+          plain band colour, because over the mesh it was hard to read (owner,
+          2026-10-13).
+        */}
+        <div className="art">
           {/* The wordmark is the page's title, so it is the h1. */}
           <h1>
             <Image
@@ -89,13 +94,12 @@ export default function LearnPage() {
               priority
             />
           </h1>
-          {/* One box for both lines, so a phone can put a panel behind them. */}
-          <div className="copy">
-            <p className="tagline">
-              Learn how knowledge graphs can shape the future of your business and career.
-            </p>
-            <p className="strap">Where peer-learning drives practice.</p>
-          </div>
+        </div>
+        <div className="wrap-kgc">
+          <p className="tagline">
+            Learn how knowledge graphs can shape the future of your business and career.
+          </p>
+          <p className="strap">Where peer-learning drives practice.</p>
         </div>
       </section>
 

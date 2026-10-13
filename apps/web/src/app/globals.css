@@ -5738,11 +5738,33 @@ section.tint {
  */
 .learn-hero-band {
   background-color: var(--palette-3);
+  padding: 0 0 112px;
+  text-align: center;
+}
+
+/*
+ * The wave is drawn at its own 1920:676 shape across the full width, so none
+ * of it is cropped top or bottom and none of it reaches the copy below. On a
+ * phone that shape is too short for the wordmark, so the box grows and `cover`
+ * trims the sides of the wave instead. The width is set outright because,
+ * left to `aspect-ratio`, the minimum height would widen the box past the
+ * screen.
+ */
+.learn-hero-band .art {
+  width: 100%;
+  aspect-ratio: 1920 / 676;
+  min-height: 190px;
   background-image: url('/kgc/wave-13.png');
   background-size: cover;
   background-position: center;
-  padding: 112px 0 124px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 60px; /* the side margin .wrap-kgc gives the copy */
+}
+
+@media (width < 700px) {
+  .learn-hero-band .art { padding: 0 24px; }
 }
 
 .learn-team-band {
@@ -5772,6 +5794,7 @@ section.tint {
   margin: 0;
   font-size: inherit;
   line-height: inherit;
+  width: 100%;
 }
 
 .learn-hero-band img {
@@ -5779,14 +5802,14 @@ section.tint {
   max-width: 1000px;
   height: auto;
   display: block;
-  margin: 0 auto 46px;
+  margin: 0 auto;
 }
 
 .learn-hero-band .tagline {
   font-size: 22px;
   line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
   color: var(--heading);
-  margin: 0 auto 22px;
+  margin: 40px auto 22px;
   max-width: 1070px;
 }
 
@@ -5987,20 +6010,8 @@ a.li-icon::after {
   .learn-programs > ul > li { font-size: 18px; line-height: 30px; }
   .learn-person img { width: 100%; height: auto; aspect-ratio: 1; }
   .learn-person .row { max-width: none; }
-
-  /*
-   * `cover` on a narrow band scales the wave until its dark mesh runs straight
-   * through the two lines of copy. The band's own colour behind them, nearly
-   * opaque, keeps the artwork and makes the text readable.
-   */
-  .learn-hero-band { padding: 72px 0 80px; }
-  .learn-hero-band img { margin-bottom: 28px; }
-  .learn-hero-band .copy {
-    background: rgb(224 229 238 / 92%);
-    border-radius: var(--radius-sm);
-    padding: 16px 18px;
-  }
-  .learn-hero-band .tagline { margin-bottom: 10px; }
+  .learn-hero-band { padding-bottom: 72px; }
+  .learn-hero-band .tagline { margin: 28px auto 10px; }
 }
 
 /* -------------------------------------------------- team, community, awards -- */
