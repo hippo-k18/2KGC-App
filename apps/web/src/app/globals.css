@@ -5793,7 +5793,24 @@ section.tint {
   align-items: center;
   justify-content: center;
   padding: 0 60px; /* the side margin .wrap-kgc gives the copy */
+  position: relative;
 }
+
+/*
+ * A wash of the band colour over the wave, under the wordmark, so the mesh
+ * reads as a lighter, greyer backdrop and the wordmark stands out (Deb and
+ * the owner, 2026-10-13). The wave stays plainly visible.
+ */
+.learn-hero-band .art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--palette-3);
+  opacity: 0.65; /* 35% and 50% left the mesh competing with "Learn" */
+  pointer-events: none;
+}
+
+.learn-hero-band .art h1 { position: relative; }
 
 @media (width < 700px) {
   .learn-hero-band .art { padding: 0 24px; }
