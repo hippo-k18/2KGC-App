@@ -8,6 +8,7 @@ import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { totalUnread, useThreads } from '@/lib/data/messages';
+import { useBlocked } from '@/lib/data/safety';
 
 const GLYPH = 22;
 const BADGE_HEIGHT = 18;
@@ -35,7 +36,8 @@ export function MessagesButton() {
   const router = useRouter();
   const { user } = useAuth();
   const { threads } = useThreads(user?.uid);
-  const unread = totalUnread(threads, user?.uid);
+  const { blocked } = useBlocked();
+  const unread = totalUnread(threads, user?.uid, blocked);
 
   return (
     <Pressable

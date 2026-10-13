@@ -49,7 +49,7 @@ const THREAD = 'bad_good';
 
 beforeEach(async () => {
   await Promise.all(
-    [COLLECTIONS.reports, COLLECTIONS.communityPosts, COLLECTIONS.threads, COLLECTIONS.users, COLLECTIONS.directory, COLLECTIONS.auditLog].map(wipe),
+    [COLLECTIONS.reports, COLLECTIONS.communityPosts, COLLECTIONS.threads, COLLECTIONS.users, COLLECTIONS.directory, COLLECTIONS.auditLog, COLLECTIONS.sessions, COLLECTIONS.registrations].map(wipe),
   );
   await db.doc('users/good').set({ eventId: EVENT_ID, name: 'Grace Good' });
   await db.doc('users/bad').set({ eventId: EVENT_ID, name: 'Brian Bad' });
@@ -72,7 +72,7 @@ describe('the queue', () => {
     const post = q.find((i) => i.targetKey === 'communityPost:p1')!;
     expect(post.reports).toHaveLength(2);
     expect(post.reasons).toBe('Spam ×2');
-    expect(post.reports.map((r) => r.reporterName).sort()).toEqual(['Grace Good', 'other']);
+    expect(post.reports.map((r) => r.reporterName).sort()).toEqual(['Grace Good', 'Unknown attendee']);
     expect(post.content).toMatchObject({ exists: true, title: 'Buy now', body: 'Cheap watches', authorName: 'Brian Bad', status: 'visible' });
     expect(q[0].targetKey).toBe('communityPost:p1'); // most reported first
   });
@@ -87,9 +87,9 @@ describe('the queue', () => {
     await file('good', { type: 'message', threadId: THREAD }, 'offensive', { targetAuthorId: 'bad' });
     await file('good', { type: 'user', uid: 'bad' });
     const q = await listReportQueue();
-    const convo = q.find((i) => i.targetType === 'message')!;
+    const convo = q.find((i) => i.target?.type === 'message')!;
     expect(convo.content.messages!.map((m) => m.body)).toEqual(['first nasty one', 'second nasty one']);
-    const profile = q.find((i) => i.targetType === 'user')!;
+    const profile = q.find((i) => i.target?.type === 'user')!;
     expect(profile.content).toMatchObject({ exists: true, title: 'Brian Bad', body: 'Sales' });
   });
 });
@@ -162,5 +162,97 @@ describe('decisions', () => {
       ok: false,
       error: 'Those reports are no longer there.',
     });
+  });
+});
+
+/**
+ * T231: the gate's forged report (orchestrator/reports/T230/forged.test.ts),
+ * written straight to the database as the old rules allowed, against the real
+ * dashboard code. The rules now refuse these; the dashboard must be safe on
+ * its own too, because a report filed before the rules ship stays in the queue.
+ */
+describe('a forged targetPath changes nothing but what the key names', () => {
+  async function everything() {
+    const out: Record<string, unknown> = {};
+    for (const c of [COLLECTIONS.communityPosts, COLLECTIONS.sessions, COLLECTIONS.registrations, COLLECTIONS.threads]) {
+      for (const d of (await db.collection(c).get()).docs) {
+        out[d.ref.path] = d.data();
+        for (const sub of await d.ref.listCollections()) {
+          for (const s of (await sub.get()).docs) out[s.ref.path] = s.data();
+        }
+      }
+    }
+    return out;
+  }
+
+  beforeEach(async () => {
+    await db.doc('users/aa-attacker').set({ eventId: EVENT_ID, name: 'Al Attacker' });
+    await db.doc('sessions/keynote').set({ eventId: EVENT_ID, title: 'Opening keynote', status: 'published' });
+    await db.doc('registrations/reg_victim').set({ eventId: EVENT_ID, email: 'v@example.com', status: 'active', qrSecret: 'x' });
+    // The genuine report first, the forged one a minute later from a reporter whose id sorts first.
+    await file('good', POST, 'offensive', { createdAt: new Date(1000) });
+    await file('aa-attacker', POST, 'offensive', { targetPath: 'sessions/keynote', createdAt: new Date(61000) });
+    // A lone forged reply report pointing at someone's badge.
+    await file('aa-attacker', { type: 'reply', postId: 'p1', replyId: 'r9' }, 'offensive', { targetPath: 'registrations/reg_victim' });
+  });
+
+  it('the card shows the post the key names, whatever the reports say', async () => {
+    const q = await listReportQueue();
+    const post = q.find((i) => i.targetKey === 'communityPost:p1')!;
+    expect(post.targetPath).toBe('communityPosts/p1');
+    expect(post.content).toMatchObject({ exists: true, title: 'Buy now' });
+    const reply = q.find((i) => i.targetKey === 'reply:p1:r9')!;
+    expect(reply.targetPath).toBe('communityPosts/p1/replies/r9');
+    expect(reply.content.exists).toBe(false);
+  });
+
+  it('Hide post hides the post and nothing else; Hide reply on a missing reply touches nothing', async () => {
+    const before = await everything();
+    expect(await resolveReports({ targetKey: 'communityPost:p1', decision: 'hide', actor: ORG })).toEqual({ ok: true, changed: 2 });
+    expect(await resolveReports({ targetKey: 'reply:p1:r9', decision: 'hide', actor: ORG })).toEqual({ ok: true, changed: 1 });
+    const after = await everything();
+
+    expect((after['communityPosts/p1'] as { status: string }).status).toBe('hidden');
+    const changed = Object.keys({ ...before, ...after }).filter(
+      (k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]),
+    );
+    expect(changed).toEqual(['communityPosts/p1']);
+    expect(after['sessions/keynote']).toEqual(before['sessions/keynote']);
+    expect(after['registrations/reg_victim']).toEqual(before['registrations/reg_victim']);
+
+    const paths = (await audits()).map((a) => a.targetPath).sort();
+    expect(paths).toEqual(['communityPosts/p1', 'communityPosts/p1', 'communityPosts/p1/replies/r9']);
+  });
+});
+
+describe('a conversation report is about the other person in it', () => {
+  it('a reporter outside the thread shows nobody, and Hide refuses', async () => {
+    await file('stranger', { type: 'message', threadId: THREAD }, 'offensive', { targetAuthorId: 'bad' });
+    const [item] = await listReportQueue();
+    expect(item.content.messages).toEqual([]);
+    const res = await resolveReports({ targetKey: `message:${THREAD}`, decision: 'hide', actor: ORG });
+    expect(res.ok).toBe(false);
+    const hidden = (await db.collection(`threads/${THREAD}/messages`).get()).docs.filter((d) => d.get('hidden') === true);
+    expect(hidden).toHaveLength(0);
+  });
+
+  it('the person hidden is worked out from the thread, not from targetAuthorId', async () => {
+    // 'good' names themselves: the dashboard still hides only 'bad'.
+    await file('good', { type: 'message', threadId: THREAD }, 'offensive', { targetAuthorId: 'good' });
+    const [item] = await listReportQueue();
+    expect(item.content.authorName).toBe('Brian Bad');
+    await resolveReports({ targetKey: `message:${THREAD}`, decision: 'hide', actor: ORG });
+    const msgs = Object.fromEntries((await db.collection(`threads/${THREAD}/messages`).get()).docs.map((d) => [d.id, d.get('hidden') === true]));
+    expect(msgs).toEqual({ m1: true, m2: false, m3: true });
+  });
+});
+
+describe('reporter names', () => {
+  it('the demo login is named as such, and a reporter with no profile is not a raw uid', async () => {
+    await db.doc('users/demoU').set({ eventId: EVENT_ID, name: 'Demo Attendee', demo: true });
+    await file('demoU', POST);
+    await file('xYz123NoProfile', POST);
+    const [item] = await listReportQueue();
+    expect(item.reports.map((r) => r.reporterName).sort()).toEqual(['Demo login', 'Unknown attendee']);
   });
 });

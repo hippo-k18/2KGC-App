@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupReports, hideLabel, type ReportRow } from './reports-core';
+import { conversationAuthors, groupReports, hideLabel, targetLabel, targetOf, type ReportRow } from './reports-core';
 
 const row = (over: Partial<ReportRow>): ReportRow => ({
   id: 'x',
   reporterId: 'u1',
   reporterName: 'U1',
-  targetType: 'communityPost',
   targetKey: 'communityPost:p1',
-  targetPath: 'communityPosts/p1',
   reason: 'spam',
   status: 'open',
   createdAt: '2026-10-12T10:00:00.000Z',
@@ -21,7 +19,7 @@ describe('groupReports', () => {
       row({ id: 'a', reporterId: 'u1', reason: 'offensive' }),
       row({ id: 'b', reporterId: 'u2', reason: 'offensive', createdAt: '2026-10-12T11:00:00.000Z' }),
       row({ id: 'c', reporterId: 'u3', reason: 'spam', createdAt: '2026-10-12T09:00:00.000Z' }),
-      row({ id: 'd', targetKey: 'reply:p1:r1', targetType: 'reply', targetPath: 'communityPosts/p1/replies/r1' }),
+      row({ id: 'd', targetKey: 'reply:p1:r1' }),
     ]);
     expect(groups).toHaveLength(2);
     const post = groups.find((g) => g.targetKey === 'communityPost:p1')!;
@@ -40,28 +38,52 @@ describe('groupReports', () => {
 
   it('puts open first, most reported first, then oldest; closed newest first', () => {
     const groups = groupReports([
-      row({ id: '1', targetKey: 'user:a', targetType: 'user', createdAt: '2026-10-12T08:00:00.000Z' }),
-      row({ id: '2', targetKey: 'user:b', targetType: 'user', createdAt: '2026-10-12T09:00:00.000Z' }),
-      row({ id: '3', targetKey: 'user:b', targetType: 'user', createdAt: '2026-10-12T09:30:00.000Z' }),
-      row({ id: '4', targetKey: 'user:c', targetType: 'user', status: 'dismissed', createdAt: '2026-10-11T00:00:00.000Z' }),
-      row({ id: '5', targetKey: 'user:d', targetType: 'user', status: 'actioned', createdAt: '2026-10-12T00:00:00.000Z' }),
+      row({ id: '1', targetKey: 'user:a', createdAt: '2026-10-12T08:00:00.000Z' }),
+      row({ id: '2', targetKey: 'user:b', createdAt: '2026-10-12T09:00:00.000Z' }),
+      row({ id: '3', targetKey: 'user:b', createdAt: '2026-10-12T09:30:00.000Z' }),
+      row({ id: '4', targetKey: 'user:c', status: 'dismissed', createdAt: '2026-10-11T00:00:00.000Z' }),
+      row({ id: '5', targetKey: 'user:d', status: 'actioned', createdAt: '2026-10-12T00:00:00.000Z' }),
     ]);
     expect(groups.map((g) => g.targetKey)).toEqual(['user:b', 'user:a', 'user:d', 'user:c']);
   });
 
-  it('carries the reported author when any report knew it', () => {
-    const [g] = groupReports([row({ id: 'a' }), row({ id: 'b', targetAuthorId: 'bad' })]);
-    expect(g.targetAuthorId).toBe('bad');
+  it('takes the target and its path from the key alone', () => {
+    const [g] = groupReports([row({ id: 'a', targetKey: 'reply:p1:r1' })]);
+    expect(g.target).toEqual({ type: 'reply', postId: 'p1', replyId: 'r1' });
+    expect(g.targetPath).toBe('communityPosts/p1/replies/r1');
+    const [bad] = groupReports([row({ id: 'b', targetKey: 'communityPost:x/../sessions' })]);
+    expect(bad.target).toBeNull();
+    expect(bad.targetPath).toBeNull();
+  });
+});
+
+describe('targetOf', () => {
+  it('derives the one path the dashboard reads and writes', () => {
+    expect(targetOf('communityPost:p1')?.path).toBe('communityPosts/p1');
+    expect(targetOf('message:a_b:m1')?.path).toBe('threads/a_b/messages/m1');
+    expect(targetOf('user:u1')?.path).toBe('directory/u1');
+    expect(targetOf('communityPost:sessions/keynote')).toBeNull();
+  });
+});
+
+describe('conversationAuthors', () => {
+  it('is the other participant for each reporter in the thread, and nobody for an outsider', () => {
+    expect(conversationAuthors(['bad', 'good'], ['good'])).toEqual(['bad']);
+    expect(conversationAuthors(['bad', 'good'], ['good', 'bad'])).toEqual(['bad', 'good']);
+    expect(conversationAuthors(['bad', 'good'], ['stranger'])).toEqual([]);
+    expect(conversationAuthors(['solo'], ['solo'])).toEqual([]);
   });
 });
 
 describe('hideLabel', () => {
   it('offers Hide only where there is content to hide', () => {
-    expect(hideLabel('communityPost', false)).toBe('Hide post');
-    expect(hideLabel('reply', false)).toBe('Hide reply');
-    expect(hideLabel('message', true)).toBe('Hide message');
-    expect(hideLabel('message', false)).toBe('Hide their messages here');
-    expect(hideLabel('user', false)).toBeNull();
-    expect(hideLabel('job', false)).toBeNull();
+    expect(hideLabel({ type: 'communityPost', postId: 'p' })).toBe('Hide post');
+    expect(hideLabel({ type: 'reply', postId: 'p', replyId: 'r' })).toBe('Hide reply');
+    expect(hideLabel({ type: 'message', threadId: 't', messageId: 'm' })).toBe('Hide message');
+    expect(hideLabel({ type: 'message', threadId: 't' })).toBe('Hide their messages here');
+    expect(hideLabel({ type: 'user', uid: 'u' })).toBeNull();
+    expect(hideLabel({ type: 'job', jobId: 'j' })).toBeNull();
+    expect(hideLabel(null)).toBeNull();
+    expect(targetLabel(null)).toBe('Unreadable report');
   });
 });

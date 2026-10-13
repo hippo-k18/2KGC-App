@@ -19,6 +19,7 @@ import { logout, useAuth } from '@/lib/auth/auth-provider';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { useAppAccess } from '@/lib/data/app-access';
 import { totalUnread, useThreads } from '@/lib/data/messages';
+import { useBlocked } from '@/lib/data/safety';
 import { getDb } from '@/lib/firebase/client';
 import { contactAddress, PRIVACY_URL, TERMS_URL } from '@/lib/legal';
 
@@ -37,7 +38,8 @@ export default function MeScreen() {
   const { user, profile, profileError, retryProfile } = useAuth();
   const { saved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads, error: threadsError, retry: retryThreads } = useThreads(user?.uid);
-  const unread = totalUnread(threads, user?.uid);
+  const { blocked } = useBlocked();
+  const unread = totalUnread(threads, user?.uid, blocked);
   const { messagingEnabled } = useAppAccess();
   // The category an organizer gave this attendee. It lives on their registration.
   const { badge } = useBadge();

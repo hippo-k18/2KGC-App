@@ -152,9 +152,13 @@ export default function ThreadScreen() {
           threadId && other ? (
             <SafetyMenu
               target={{ type: 'message', threadId }}
-              authorId={otherDeleted ? undefined : other}
+              // The rules want the other participant named on a conversation
+              // report as the thread lists them, which for a deleted account is
+              // the marker, not the uid in the thread id. Blocking needs a person.
+              authorId={otherDeleted ? DELETED_USER_ID : other}
               authorName={name || undefined}
               subject="this conversation"
+              canBlock={!otherDeleted}
             />
           ) : null
         }

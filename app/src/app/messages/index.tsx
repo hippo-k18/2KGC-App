@@ -95,7 +95,7 @@ export default function MessagesScreen() {
   // rather than a nag.
   const [noticeDismissed, setNoticeDismissed] = useState(false);
 
-  const unread = totalUnread(threads, user?.uid);
+  const unread = totalUnread(threads, user?.uid, blocked);
   const personFor = (uid: string) => people?.find((p) => p.uid === uid);
   const nameFor = (uid: string) =>
     uid === DELETED_USER_ID ? DELETED_USER_NAME : (personFor(uid)?.name ?? 'Attendee');

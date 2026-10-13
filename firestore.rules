@@ -131,8 +131,16 @@ service cloud.firestore {
       return '(?s).*\\b(fuck|fucking|fucked|fucker|motherfucker|cunt|nigger|nigga|faggot|fag|retard|kike|spic|chink|tranny|whore|slut)\\b.*';
     }
 
-    function cleanText(field) {
-      return !(field is string) || !field.lower().matches(blockedWordsPattern());
+    /**
+     * A piece of attendee text: a string, at most `max` characters, with no
+     * blocked word. The type test is the point as much as the words: a body
+     * sent as a list (['you', ' f… ', 'idiot']) skipped a filter that only
+     * looked at strings, and React Native renders a string array as text (T230).
+     */
+    function cleanText(field, max) {
+      return field is string
+        && field.size() <= max
+        && !field.lower().matches(blockedWordsPattern());
     }
 
     /**
@@ -649,7 +657,7 @@ service cloud.firestore {
           && request.resource.data.upvoteCount == 0
           && request.resource.data.answered == false
           && request.resource.data.state == 'pending'
-          && cleanText(request.resource.data.body);
+          && cleanText(request.resource.data.body, 2000);
 
         // Authors may correct their own wording; organizers may moderate.
         // Both branches are allowlists. Moderating a question is approving it,
@@ -660,7 +668,7 @@ service cloud.firestore {
               && changed().hasOnly(['state', 'answered', 'body', 'editedAt']))
           || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
               && changed().hasOnly(['body', 'editedAt'])
-              && cleanText(request.resource.data.body));
+              && cleanText(request.resource.data.body, 2000));
 
         allow delete: if isOrganizer()
           || (isRegistered() && resource.data.authorId == request.auth.uid);
@@ -1524,18 +1532,70 @@ service cloud.firestore {
           && d.targetType in ['job', 'communityPost', 'reply', 'message', 'user']
           && d.reason in ['spam', 'offensive', 'scam', 'other']
           && d.targetKey is string && d.targetKey.size() <= 400
-          && d.targetKey.matches(d.targetType + ':.+')
-          && d.targetPath is string && d.targetPath.size() <= 400
+          && d.targetKey.matches(d.targetType + '(:[^:/]+){1,2}')
+          && pathMatchesKey(d)
           && (!('targetAuthorId' in d) || (d.targetAuthorId is string && d.targetAuthorId.size() <= 128))
           && (!('note' in d) || (d.note is string && d.note.size() <= 500))
           && d.status == 'open'
           && d.createdAt == request.time;
       }
 
+      /**
+       * `targetPath` is the path `reportTargetPath()` builds from the key, and
+       * nothing else.
+       *
+       * It used to be any string, and the dashboard hid whatever it named: a
+       * "report of a post" carrying `sessions/keynote` hid the keynote when the
+       * organizer clicked Hide post on the real post (T230). The dashboard now
+       * derives the path from the key itself; this keeps the stored field
+       * honest for anything else that reads it. Parts of the key cannot hold a
+       * `/` (the regex above), so a key cannot climb out of its collection.
+       * A job report names `jobs/<id>`, where T209's Job Board will put them.
+       */
+      function pathMatchesKey(d) {
+        let p = d.targetKey.split(':');
+        return (d.targetType == 'communityPost' && p.size() == 2
+                && d.targetPath == 'communityPosts/' + p[1])
+          || (d.targetType == 'reply' && p.size() == 3
+                && d.targetPath == 'communityPosts/' + p[1] + '/replies/' + p[2])
+          || (d.targetType == 'message' && p.size() == 2
+                && d.targetPath == 'threads/' + p[1])
+          || (d.targetType == 'message' && p.size() == 3
+                && d.targetPath == 'threads/' + p[1] + '/messages/' + p[2])
+          || (d.targetType == 'user' && p.size() == 2
+                && d.targetPath == 'directory/' + p[1])
+          || (d.targetType == 'job' && p.size() == 2
+                && d.targetPath == 'jobs/' + p[1]);
+      }
+
+      /**
+       * A conversation, or a message in one, can only be reported by someone
+       * in it, and the person reported is the other participant.
+       *
+       * Without this a report could name any thread id, and the dashboard
+       * would show an organizer two strangers' private messages and offer to
+       * hide them (T230). A single message must also be theirs. One `get()`
+       * for the thread, one more for a single message.
+       */
+      function reportsOwnConversation(d) {
+        let p = d.targetKey.split(':');
+        let t = get(/databases/$(database)/documents/threads/$(p[1]));
+        return t != null
+          && request.auth.uid in t.data.participantIds
+          && 'targetAuthorId' in d
+          && d.targetAuthorId in t.data.participantIds
+          && d.targetAuthorId != request.auth.uid
+          && (p.size() == 2
+              || get(/databases/$(database)/documents/threads/$(p[1])/messages/$(p[2])).data.senderId
+                   == d.targetAuthorId);
+      }
+
       allow create: if isRegistered()
         && request.resource.data.reporterId == request.auth.uid
         && reportId == request.auth.uid + '__' + request.resource.data.targetKey
-        && validReport(request.resource.data);
+        && validReport(request.resource.data)
+        && (request.resource.data.targetType != 'message'
+            || reportsOwnConversation(request.resource.data));
       allow read, update, delete: if false;
     }
 
@@ -1544,12 +1604,19 @@ service cloud.firestore {
       // `appTakesWrites()` on the client branch and not on the organizer one:
       // read-only is a rule about attendees, and moderating a board after the
       // event is exactly when a takedown request arrives.
+      //
+      // The key allowlist is what `createPost` in `app/src/lib/data/community.ts`
+      // writes, the only client writer: anything else on the document is text
+      // the word filter never looked at.
       allow create: if isRegistered() && appTakesWrites()
+        && request.resource.data.keys().hasOnly(['eventId', 'authorId', 'category', 'title', 'body',
+                                                 'status', 'replyCount', 'reactionCount',
+                                                 'createdAt', 'updatedAt'])
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.replyCount == 0
         && request.resource.data.reactionCount == 0
-        && cleanText(request.resource.data.title)
-        && cleanText(request.resource.data.body);
+        && cleanText(request.resource.data.title, 300)
+        && cleanText(request.resource.data.body, 10000);
 
       // Authors may edit their own text — which Whova does not allow, and which
       // is one of the most common complaints about it. Counters are absent from
@@ -1561,8 +1628,8 @@ service cloud.firestore {
             && changed().hasOnly(['status', 'title', 'body', 'editedAt', 'updatedAt']))
         || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
             && changed().hasOnly(['title', 'body', 'editedAt'])
-            && cleanText(request.resource.data.title)
-            && cleanText(request.resource.data.body));
+            && cleanText(request.resource.data.title, 300)
+            && cleanText(request.resource.data.body, 10000));
 
       // Soft delete via `status`, so replies and reactions do not orphan.
       allow delete: if false;
@@ -1634,9 +1701,10 @@ service cloud.firestore {
         // and no moderator action can move it either way for the people
         // reading the board. Requiring the field leaves exactly two states.
         allow create: if isRegistered() && appTakesWrites()
+          && request.resource.data.keys().hasOnly(['authorId', 'body', 'status', 'createdAt'])
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.status == 'visible'
-          && cleanText(request.resource.data.body);
+          && cleanText(request.resource.data.body, 10000);
         // A reply was the one piece of user-generated text on the board that no
         // organizer could touch: not hide, not redact, not remove. An abusive
         // reply under a legitimate post had no answer short of the Admin SDK.
@@ -1650,7 +1718,7 @@ service cloud.firestore {
               && changed().hasOnly(['status', 'body', 'editedAt']))
           || (isRegistered() && appTakesWrites() && resource.data.authorId == request.auth.uid
               && changed().hasOnly(['body', 'editedAt'])
-              && cleanText(request.resource.data.body));
+              && cleanText(request.resource.data.body, 10000));
 
         // Unlike a post, a reply has nothing hanging off it, so there is
         // nothing to orphan and a hard delete is safe. Authors may retract
@@ -1744,6 +1812,16 @@ service cloud.firestore {
        * badge. It may not write `lastMessage`, which is free text shown in the
        * other person's inbox, or move their badge.
        */
+      /**
+       * `lastMessage` is the first 140 characters of the newest message,
+       * shown in the other person's inbox row, so it gets the same word filter
+       * as the message itself (`sendMessage` in `app/src/lib/data/messages.ts`).
+       */
+      function previewIsClean() {
+        return !('lastMessage' in request.resource.data)
+          || cleanText(request.resource.data.lastMessage, 200);
+      }
+
       function onlyClearsOwnBadge() {
         let me = request.auth.uid;
         let other = resource.data.participantIds[0] == me
@@ -1778,7 +1856,8 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.participantIds
         && idMatchesParticipants(request.resource.data.participantIds)
         && !blockedBetween(request.resource.data.participantIds[0],
-                           request.resource.data.participantIds[1]);
+                           request.resource.data.participantIds[1])
+        && previewIsClean();
       // Participants may not rewrite who is in the thread.
       //
       // Deliberately NOT gated on `messagingOn()` or `appTakesWrites()`: the
@@ -1786,10 +1865,19 @@ service cloud.firestore {
       // own unread badge on a conversation you can still read has to keep
       // working — otherwise switching messaging off leaves a badge nobody can
       // clear sitting on every phone in the event.
+      //
+      // A block reaches the inbox row too. Short of zeroing your own badge,
+      // nothing here is allowed between two people when either has blocked
+      // the other: otherwise the blocked person could keep writing
+      // `lastMessage` into the blocker's inbox and adding to their badge
+      // with no message behind it (T230).
       allow update: if isParticipant()
         && changed().hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'unread'])
         && metadataWriteIsSane()
-        && (!isDemo() || onlyClearsOwnBadge());
+        && (!isDemo() || onlyClearsOwnBadge())
+        && (onlyClearsOwnBadge()
+            || !blockedBetween(resource.data.participantIds[0], resource.data.participantIds[1]))
+        && (!changed().hasAny(['lastMessage']) || previewIsClean());
       allow delete: if false;
 
       match /messages/{id} {
@@ -1841,9 +1929,10 @@ service cloud.firestore {
 
         allow read: if inThreadOrUnstarted();
         allow create: if inThread() && appTakesWrites() && messagingOn()
+          && request.resource.data.keys().hasOnly(['senderId', 'body', 'sentAt'])
           && request.resource.data.senderId == request.auth.uid
           && !blockedBetween(thread().data.participantIds[0], thread().data.participantIds[1])
-          && cleanText(request.resource.data.body);
+          && cleanText(request.resource.data.body, 10000);
         // Immutable once sent. Moderation is a function's job.
         allow update, delete: if false;
       }

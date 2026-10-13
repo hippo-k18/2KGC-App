@@ -75,6 +75,7 @@ beforeEach(async () => {
     await setDoc(doc(db, `threads/${THREAD_AB}`), {
       eventId: 'kgc-2027', participantIds: [A, B].sort(), unread: { [A]: 0, [B]: 0 },
     });
+    await setDoc(doc(db, `threads/${THREAD_AB}/messages/m1`), { senderId: B, body: 'rude', sentAt: new Date() });
     await setDoc(doc(db, 'sessions/s1'), { eventId: 'kgc-2027', status: 'published', qaEnabled: true });
   });
 });
@@ -113,7 +114,7 @@ describe('reports', () => {
       { type: 'job', jobId: 'j1' },
     ];
     for (const t of targets) {
-      const r = report(A, t);
+      const r = report(A, t, t.type === 'message' ? { targetAuthorId: B } : {});
       await assertSucceeds(setDoc(doc(as(A), 'reports', r.id), r.data));
     }
   });
@@ -215,7 +216,7 @@ describe('a block stops messages both ways', () => {
   const newThread = (db: ReturnType<typeof as>, id: string, ids: string[]) =>
     setDoc(doc(db, 'threads', id), { eventId: 'kgc-2027', participantIds: ids.sort(), unread: Object.fromEntries(ids.map((u) => [u, 0])) });
   const send = (db: ReturnType<typeof as>, thread: string, from: string, body = 'hello') =>
-    addDoc(collection(db, 'threads', thread, 'messages'), { senderId: from, body, createdAt: serverTimestamp() });
+    addDoc(collection(db, 'threads', thread, 'messages'), { senderId: from, body, sentAt: serverTimestamp() });
 
   it('without a block, both can start a thread and message', async () => {
     await assertSucceeds(newThread(as(C), THREAD_AC, [A, C]));
@@ -289,5 +290,207 @@ describe('the word filter', () => {
 
   it('an organizer can still redact text, which is how a word is removed', async () => {
     await assertSucceeds(updateDoc(doc(asOrg(), 'communityPosts/p1'), { body: '[removed by the organizers]', status: 'hidden' }));
+  });
+});
+
+/**
+ * T231: the gate's findings on T210 (orchestrator/reports/T230.md), one test
+ * per hole, each one failing on 27d2a9f.
+ */
+describe('a report points at what its key names, and nowhere else', () => {
+  const POST: ReportTarget = { type: 'communityPost', postId: 'p1' };
+  const REPLY: ReportTarget = { type: 'reply', postId: 'p1', replyId: 'r9' };
+
+  it('a report of a post carrying another path is refused (T230 forged.test.ts)', async () => {
+    const r = report(A, POST);
+    await assertFails(setDoc(doc(as(A), 'reports', r.id), { ...r.data, targetPath: 'sessions/keynote' }));
+    await assertFails(setDoc(doc(as(A), 'reports', r.id), { ...r.data, targetPath: 'communityPosts/p2' }));
+    await assertFails(setDoc(doc(as(A), 'reports', r.id), { ...r.data, targetPath: 'communityPosts/p1/replies/r1' }));
+    await assertSucceeds(setDoc(doc(as(A), 'reports', r.id), r.data));
+  });
+
+  it('a reply report pointing at a registration is refused, from the demo login too', async () => {
+    const r = report(A, REPLY);
+    await assertFails(setDoc(doc(as(A), 'reports', r.id), { ...r.data, targetPath: 'registrations/reg_victim' }));
+    const d = report(DEMO, REPLY);
+    await assertFails(setDoc(doc(as(DEMO, { demo: true }), 'reports', d.id), { ...d.data, targetPath: 'registrations/reg_victim' }));
+  });
+
+  it('every type is bound to its own collection', async () => {
+    const wrong: [ReportTarget, string][] = [
+      [{ type: 'user', uid: B }, `users/${B}`],
+      [{ type: 'job', jobId: 'j1' }, 'sessions/j1'],
+      [{ type: 'message', threadId: THREAD_AB }, `threads/${THREAD_AB}/messages/m1`],
+      [{ type: 'message', threadId: THREAD_AB, messageId: 'm1' }, `threads/${THREAD_AB}`],
+    ];
+    for (const [t, path] of wrong) {
+      const r = report(A, t, t.type === 'message' ? { targetAuthorId: B } : {});
+      await assertFails(setDoc(doc(as(A), 'reports', r.id), { ...r.data, targetPath: path }));
+    }
+  });
+
+  it('a key cannot carry a slash, an extra part or a missing one', async () => {
+    for (const [type, key, path] of [
+      ['communityPost', 'communityPost:x/../../sessions', 'communityPosts/x/../../sessions'],
+      ['communityPost', 'communityPost:p1:r1', 'communityPosts/p1'],
+      ['reply', 'reply:p1', 'communityPosts/p1/replies/'],
+      ['user', 'user:a:b', 'directory/a'],
+    ]) {
+      await assertFails(
+        setDoc(doc(as(A), 'reports', `${A}__${key.replace(/\//g, '_')}`), {
+          eventId: 'kgc-2027', reporterId: A, targetType: type, targetKey: key, targetPath: path,
+          reason: 'spam', status: 'open', createdAt: serverTimestamp(),
+        }),
+      );
+    }
+  });
+});
+
+describe('a conversation is reported by someone in it, about the other person', () => {
+  const THREAD: ReportTarget = { type: 'message', threadId: THREAD_AB };
+  const MSG: ReportTarget = { type: 'message', threadId: THREAD_AB, messageId: 'm1' };
+
+  it('a participant reports the other participant', async () => {
+    const r = report(A, THREAD, { targetAuthorId: B });
+    await assertSucceeds(setDoc(doc(as(A), 'reports', r.id), r.data));
+  });
+
+  it('someone outside the thread cannot report it, whoever they name', async () => {
+    for (const who of [A, B, C]) {
+      const r = report(C, THREAD, { targetAuthorId: who });
+      await assertFails(setDoc(doc(as(C), 'reports', r.id), r.data));
+    }
+    const m = report(C, MSG, { targetAuthorId: B });
+    await assertFails(setDoc(doc(as(C), 'reports', m.id), m.data));
+  });
+
+  it('the reported person must be the other participant, and must be named', async () => {
+    await assertFails(setDoc(doc(as(A), 'reports', report(A, THREAD).id), report(A, THREAD).data));
+    for (const who of [A, C]) {
+      const r = report(A, THREAD, { targetAuthorId: who });
+      await assertFails(setDoc(doc(as(A), 'reports', r.id), r.data));
+    }
+  });
+
+  it('a single message must be the other person\'s', async () => {
+    await assertSucceeds(setDoc(doc(as(A), 'reports', report(A, MSG).id), report(A, MSG, { targetAuthorId: B }).data));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `threads/${THREAD_AB}/messages/mine`), { senderId: A, body: 'hi', sentAt: new Date() });
+    });
+    const own: ReportTarget = { type: 'message', threadId: THREAD_AB, messageId: 'mine' };
+    await assertFails(setDoc(doc(as(A), 'reports', report(A, own).id), report(A, own, { targetAuthorId: B }).data));
+    const gone: ReportTarget = { type: 'message', threadId: THREAD_AB, messageId: 'nope' };
+    await assertFails(setDoc(doc(as(A), 'reports', report(A, gone).id), report(A, gone, { targetAuthorId: B }).data));
+  });
+
+  it('a thread that does not exist cannot be reported', async () => {
+    const t: ReportTarget = { type: 'message', threadId: THREAD_AC };
+    await assertFails(setDoc(doc(as(A), 'reports', report(A, t).id), report(A, t, { targetAuthorId: C }).data));
+  });
+});
+
+describe('a block reaches the inbox row', () => {
+  const blockAs = async (owner: string, other: string) =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', owner, 'blocks', other), { blockedUid: other, createdAt: new Date() });
+    });
+  const bump = (db: ReturnType<typeof as>, from: string, to: string, text = 'hey') =>
+    updateDoc(doc(db, 'threads', THREAD_AB), {
+      lastMessage: text, lastMessageAt: serverTimestamp(), lastSenderId: from, [`unread.${to}`]: 1,
+    });
+
+  it('without a block, a participant updates the preview and the other badge', async () => {
+    await assertSucceeds(bump(as(B), B, A));
+  });
+
+  it('a blocked person cannot write the preview or add to the blocker\'s badge', async () => {
+    await blockAs(A, B);
+    await assertFails(bump(as(B), B, A));
+    await assertFails(updateDoc(doc(as(B), 'threads', THREAD_AB), { [`unread.${A}`]: 1 }));
+    await assertFails(updateDoc(doc(as(B), 'threads', THREAD_AB), { lastMessage: 'still here' }));
+  });
+
+  it('nor can the blocker write into it', async () => {
+    await blockAs(A, B);
+    await assertFails(bump(as(A), A, B));
+  });
+
+  it('either side can still clear their own badge', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'threads', THREAD_AB), { unread: { [A]: 3, [B]: 2 } });
+    });
+    await blockAs(A, B);
+    await assertSucceeds(updateDoc(doc(as(A), 'threads', THREAD_AB), { [`unread.${A}`]: 0 }));
+    await assertSucceeds(updateDoc(doc(as(B), 'threads', THREAD_AB), { [`unread.${B}`]: 0 }));
+  });
+
+  it('the preview gets the word filter, on update and on a first message', async () => {
+    await assertFails(bump(as(B), B, A, 'you fucking idiot'));
+    await assertFails(bump(as(B), B, A, ['you', ' fucking ', 'idiot'] as unknown as string));
+    await assertFails(
+      setDoc(doc(as(C), 'threads', THREAD_AC), {
+        eventId: 'kgc-2027', participantIds: [A, C].sort(), lastMessage: 'cunt', unread: { [A]: 1, [C]: 0 },
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(as(C), 'threads', THREAD_AC), {
+        eventId: 'kgc-2027', participantIds: [A, C].sort(), lastMessage: 'Coffee?', unread: { [A]: 1, [C]: 0 },
+      }),
+    );
+  });
+});
+
+describe('filtered text is a string, of a sane size, with no extra fields', () => {
+  const words = ['you', ' fucking ', 'idiot'];
+  const post = (over: Record<string, unknown> = {}) => ({
+    eventId: 'kgc-2027', authorId: A, category: 'questions', title: 'Hi', body: 'ok',
+    status: 'visible', replyCount: 0, reactionCount: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    ...over,
+  });
+  const question = (body: unknown) => ({
+    eventId: 'kgc-2027', authorId: A, body, upvoteCount: 0, answered: false, state: 'pending', createdAt: serverTimestamp(),
+  });
+
+  it('the shapes the app writes still go through', async () => {
+    await assertSucceeds(addDoc(collection(as(A), 'communityPosts'), post()));
+    await assertSucceeds(
+      addDoc(collection(as(A), 'communityPosts/p1/replies'), { authorId: A, body: 'ok', status: 'visible', createdAt: serverTimestamp() }),
+    );
+    await assertSucceeds(addDoc(collection(as(A), `threads/${THREAD_AB}/messages`), { senderId: A, body: 'ok', sentAt: serverTimestamp() }));
+    await assertSucceeds(addDoc(collection(as(A), 'sessions/s1/questions'), question('Why?')));
+  });
+
+  it('a list or a map in place of the text is refused (T230 type trick)', async () => {
+    for (const bad of [words, { a: 'fucking' }, 7]) {
+      await assertFails(addDoc(collection(as(A), 'communityPosts'), post({ body: bad })));
+      await assertFails(addDoc(collection(as(A), 'communityPosts'), post({ title: bad })));
+      await assertFails(addDoc(collection(as(A), 'communityPosts/p1/replies'), { authorId: A, body: bad, status: 'visible' }));
+      await assertFails(addDoc(collection(as(A), `threads/${THREAD_AB}/messages`), { senderId: A, body: bad, sentAt: serverTimestamp() }));
+      await assertFails(addDoc(collection(as(A), 'sessions/s1/questions'), question(bad)));
+    }
+  });
+
+  it('an author edit cannot turn the text into a list', async () => {
+    await assertFails(updateDoc(doc(as(B), 'communityPosts/p1'), { body: words, editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as(B), 'communityPosts/p1'), { title: words, editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as(A), 'communityPosts/p1/replies/r1'), { body: words, editedAt: serverTimestamp() }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'sessions/s1/questions/q1'), { eventId: 'kgc-2027', authorId: A, body: 'Why?', upvoteCount: 0, answered: false, state: 'pending' });
+    });
+    await assertFails(updateDoc(doc(as(A), 'sessions/s1/questions/q1'), { body: words, editedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as(A), 'sessions/s1/questions/q1'), { body: 'Why not?', editedAt: serverTimestamp() }));
+  });
+
+  it('text past the size cap is refused', async () => {
+    await assertFails(addDoc(collection(as(A), 'communityPosts'), post({ title: 'x'.repeat(301) })));
+    await assertFails(addDoc(collection(as(A), 'communityPosts'), post({ body: 'x'.repeat(10001) })));
+    await assertFails(addDoc(collection(as(A), `threads/${THREAD_AB}/messages`), { senderId: A, body: 'x'.repeat(10001), sentAt: serverTimestamp() }));
+    await assertFails(addDoc(collection(as(A), 'sessions/s1/questions'), question('x'.repeat(2001))));
+  });
+
+  it('a field the app does not write is refused on a post, a reply and a message', async () => {
+    await assertFails(addDoc(collection(as(A), 'communityPosts'), post({ text: 'fuck' })));
+    await assertFails(addDoc(collection(as(A), 'communityPosts/p1/replies'), { authorId: A, body: 'ok', status: 'visible', text: 'fuck' }));
+    await assertFails(addDoc(collection(as(A), `threads/${THREAD_AB}/messages`), { senderId: A, body: 'ok', sentAt: serverTimestamp(), hidden: false }));
   });
 });

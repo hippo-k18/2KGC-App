@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import {
   REPORT_NOTE_MAX,
@@ -24,12 +24,17 @@ import { contactAddress } from '@/lib/legal';
  * One component for every surface, so the reasons, the wording and what a
  * block does are the same wherever someone meets them. A `Modal` rather than
  * `Alert`: `Alert` does nothing on web and Android shows at most three buttons.
+ *
+ * The backdrop is a sibling behind the sheet, not its parent. Wrapped in an
+ * accessible "Close" button, the whole sheet was one element on iOS, so
+ * VoiceOver could not reach Report, Block, the reasons or Send (T230).
  */
 export function SafetyMenu({
   target,
   authorId,
   authorName,
   subject,
+  canBlock = true,
 }: {
   target: ReportTarget;
   /** Who wrote it. Absent or me: no Block option, and no report of my own words. */
@@ -37,6 +42,8 @@ export function SafetyMenu({
   authorName?: string;
   /** "this post", "this reply", "this conversation", "this profile". */
   subject: string;
+  /** False for a deleted account: it can still be reported, but there is nobody to block. */
+  canBlock?: boolean;
 }) {
   const colors = useTheme();
   const { user } = useAuth();
@@ -61,6 +68,7 @@ export function SafetyMenu({
           authorId={authorId}
           authorName={authorName}
           subject={subject}
+          canBlock={canBlock && Boolean(authorId)}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -76,6 +84,7 @@ function SafetySheet({
   authorId,
   authorName,
   subject,
+  canBlock,
   onClose,
 }: {
   me: string;
@@ -83,6 +92,7 @@ function SafetySheet({
   authorId?: string;
   authorName?: string;
   subject: string;
+  canBlock: boolean;
   onClose: () => void;
 }) {
   const colors = useTheme();
@@ -106,7 +116,7 @@ function SafetySheet({
       res.ok
         ? {
             title: 'Thanks for telling us',
-            body: authorId
+            body: canBlock
               ? 'The organizers will look at it. You can also block this person from the same menu.'
               : 'The organizers will look at it.',
           }
@@ -119,7 +129,7 @@ function SafetySheet({
   }
 
   async function toggleBlock() {
-    if (!authorId) return;
+    if (!authorId || !canBlock) return;
     setBusy(true);
     const res = isBlocked ? await unblockUser(me, authorId) : await blockUser(me, authorId);
     setBusy(false);
@@ -152,14 +162,18 @@ function SafetySheet({
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.scrim }}>
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        {/* Tap outside to close. Not an accessibility element: every step has
+            its own Cancel or Done, and VoiceOver's escape gesture closes too. */}
         <Pressable
-          onPress={() => {}}
+          onPress={onClose}
           accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]}
+        />
+        <View
+          accessibilityViewIsModal
+          onAccessibilityEscape={onClose}
           style={{
             backgroundColor: colors.surface,
             borderTopLeftRadius: Radius.lg,
@@ -171,7 +185,7 @@ function SafetySheet({
           {step === 'menu' ? (
             <>
               {row(`Report ${subject}`, () => setStep('report'), 'danger')}
-              {authorId ? row(isBlocked ? `Unblock ${who}` : `Block ${who}`, () => setStep('block'), 'danger') : null}
+              {canBlock ? row(isBlocked ? `Unblock ${who}` : `Block ${who}`, () => setStep('block'), 'danger') : null}
               {row('Cancel', onClose)}
             </>
           ) : null}
@@ -292,8 +306,8 @@ function SafetySheet({
               </Pressable>
             </View>
           ) : null}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

@@ -76,6 +76,35 @@ export function reportTargetPath(t: ReportTarget): string {
   }
 }
 
+/**
+ * The target a key names, or null when it is not a key `reportTargetKey` could
+ * have produced.
+ *
+ * The dashboard derives every path it reads and writes from the key through
+ * this, never from a report's stored `targetPath`: a report is written by an
+ * attendee, and a path taken on trust once let a report of a post hide a
+ * session (T230). The rules bind `targetPath` to the key the same way, so the
+ * two can only disagree on reports filed before that rule.
+ */
+export function parseReportTargetKey(key: string): ReportTarget | null {
+  if (!/^[A-Za-z]+(:[^:/]+){1,2}$/.test(key)) return null;
+  const [type, a, b] = key.split(":");
+  switch (type) {
+    case "communityPost":
+      return b === undefined ? { type, postId: a } : null;
+    case "reply":
+      return b !== undefined ? { type, postId: a, replyId: b } : null;
+    case "message":
+      return b === undefined ? { type, threadId: a } : { type, threadId: a, messageId: b };
+    case "user":
+      return b === undefined ? { type, uid: a } : null;
+    case "job":
+      return b === undefined ? { type, jobId: a } : null;
+    default:
+      return null;
+  }
+}
+
 export function reportId(reporterId: string, t: ReportTarget): string {
   return `${reporterId}__${reportTargetKey(t)}`;
 }

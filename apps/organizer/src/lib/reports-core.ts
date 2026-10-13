@@ -1,4 +1,10 @@
-import { reportReasonLabel, type ReportTargetType } from '@kgc/shared';
+import {
+  parseReportTargetKey,
+  reportReasonLabel,
+  reportTargetPath,
+  type ReportTarget,
+  type ReportTargetType,
+} from '@kgc/shared';
 
 /**
  * The Reports queue's arithmetic, without Firestore, so it is tested on its own
@@ -6,7 +12,38 @@ import { reportReasonLabel, type ReportTargetType } from '@kgc/shared';
  *
  * Several people reporting the same post is one decision, not five. Reports are
  * grouped by `targetKey`, and the group is open while any report in it is open.
+ *
+ * ── The key is the only thing trusted ───────────────────────────────────────
+ *
+ * A report is a document an attendee wrote. Its stored `targetType` and
+ * `targetPath` are ignored here: a "report of a post" once carried
+ * `sessions/keynote`, the card showed the real post, and Hide hid the keynote
+ * (T230). `targetOf()` reads the target out of the key, and the card, the
+ * content read and every write go through it, so what the organizer sees is
+ * what the button changes.
  */
+
+/** What a report key names, and where it lives. Null for a key no app could have written. */
+export function targetOf(targetKey: string): { target: ReportTarget; path: string } | null {
+  const target = parseReportTargetKey(targetKey);
+  return target ? { target, path: reportTargetPath(target) } : null;
+}
+
+/**
+ * Whose messages a whole-conversation report is about: for each reporter in
+ * the thread, the other person in it. Derived from the thread, not from the
+ * report's `targetAuthorId`, and a reporter who is not in the thread names
+ * nobody. Usually one person; two when both sides reported each other.
+ */
+export function conversationAuthors(participantIds: readonly string[], reporterIds: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const r of reporterIds) {
+    if (participantIds.length !== 2 || !participantIds.includes(r)) continue;
+    const other = participantIds[0] === r ? participantIds[1] : participantIds[0];
+    if (other !== r) out.add(other);
+  }
+  return [...out];
+}
 
 export type ReportStatus = 'open' | 'actioned' | 'dismissed';
 
@@ -14,10 +51,7 @@ export interface ReportRow {
   id: string;
   reporterId: string;
   reporterName: string;
-  targetType: ReportTargetType;
   targetKey: string;
-  targetPath: string;
-  targetAuthorId?: string;
   reason: string;
   note?: string;
   status: ReportStatus;
@@ -29,9 +63,9 @@ export interface ReportRow {
 
 export interface ReportGroup {
   targetKey: string;
-  targetType: ReportTargetType;
-  targetPath: string;
-  targetAuthorId?: string;
+  /** From the key; null when the key is not one the app writes (shown, never acted on). */
+  target: ReportTarget | null;
+  targetPath: string | null;
   status: ReportStatus;
   reports: ReportRow[];
   /** "Offensive or abusive ×2 · Spam" */
@@ -58,11 +92,11 @@ export function groupReports(rows: ReportRow[]): ReportGroup[] {
       .map(([reason, n]) => (n > 1 ? `${reportReasonLabel(reason)} ×${n}` : reportReasonLabel(reason)))
       .join(' · ');
     const first = list[0];
+    const of = targetOf(targetKey);
     groups.push({
       targetKey,
-      targetType: first.targetType,
-      targetPath: first.targetPath,
-      targetAuthorId: list.find((r) => r.targetAuthorId)?.targetAuthorId,
+      target: of?.target ?? null,
+      targetPath: of?.path ?? null,
       status: list.some((r) => r.status === 'open')
         ? 'open'
         : list.some((r) => r.status === 'actioned')
@@ -93,16 +127,20 @@ export const TARGET_LABEL: Record<ReportTargetType, string> = {
   job: 'Job',
 };
 
-/** What "Hide" does for this kind of target, or null when there is nothing to hide. */
-export function hideLabel(type: ReportTargetType, hasMessageId: boolean): string | null {
-  switch (type) {
+/** What "Hide" does for this target, or null when there is nothing to hide. */
+export function hideLabel(target: ReportTarget | null): string | null {
+  switch (target?.type) {
     case 'communityPost':
       return 'Hide post';
     case 'reply':
       return 'Hide reply';
     case 'message':
-      return hasMessageId ? 'Hide message' : 'Hide their messages here';
+      return target.messageId ? 'Hide message' : 'Hide their messages here';
     default:
       return null;
   }
+}
+
+export function targetLabel(target: ReportTarget | null): string {
+  return target ? TARGET_LABEL[target.type] : 'Unreadable report';
 }

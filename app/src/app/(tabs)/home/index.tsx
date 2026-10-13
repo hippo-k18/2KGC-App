@@ -17,6 +17,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useAnnouncements, useNowNext } from '@/lib/data/announcements';
 import { useAppAccess } from '@/lib/data/app-access';
 import { totalUnread, useThreads } from '@/lib/data/messages';
+import { useBlocked } from '@/lib/data/safety';
 import { unreadNotices, useNotifications } from '@/lib/data/notifications';
 import { useSavedSessions } from '@/lib/data/saved-sessions';
 import { useDays, useSessions } from '@/lib/data/sessions';
@@ -162,7 +163,8 @@ export default function HomeScreen() {
   } = useAnnouncements();
   const { isSaved, error: savedError, retry: retrySaved } = useSavedSessions();
   const { threads } = useThreads(user?.uid);
-  const unread = totalUnread(threads, user?.uid);
+  const { blocked } = useBlocked();
+  const unread = totalUnread(threads, user?.uid, blocked);
   // Off event-wide, and the rules refuse the write as well as the app hiding
   // the button — so this is not a curtain over something that still works.
   const { messagingEnabled } = useAppAccess();

@@ -5,6 +5,7 @@ import {
   BLOCKED_WORDS_RULES_PATTERN,
   findBlockedWord,
   isHiddenBy,
+  parseReportTargetKey,
   passesWordFilter,
   REPORT_REASONS,
   REPORT_TARGET_TYPES,
@@ -30,6 +31,30 @@ describe("report keys and paths", () => {
     expect(reportTargetPath({ type: "message", threadId: "a_b", messageId: "m1" })).toBe("threads/a_b/messages/m1");
     expect(reportTargetPath({ type: "message", threadId: "a_b" })).toBe("threads/a_b");
     expect(reportTargetPath({ type: "user", uid: "u1" })).toBe("directory/u1");
+  });
+
+  it("reads a key back into the target it names, and nothing else", () => {
+    const targets = [
+      { type: "communityPost", postId: "p1" },
+      { type: "reply", postId: "p1", replyId: "r1" },
+      { type: "message", threadId: "demo_000_demo_001" },
+      { type: "message", threadId: "a_b", messageId: "m1" },
+      { type: "user", uid: "u1" },
+      { type: "job", jobId: "j1" },
+    ] as const;
+    for (const t of targets) expect(parseReportTargetKey(reportTargetKey(t))).toEqual(t);
+    for (const bad of [
+      "communityPost:p1:extra",
+      "reply:p1",
+      "user:a:b",
+      "communityPost:../sessions/s1",
+      "communityPost:sessions/s1",
+      "communityPost:",
+      "session:s1",
+      "",
+    ]) {
+      expect(parseReportTargetKey(bad)).toBeNull();
+    }
   });
 
   it("makes one id per reporter and target, with no slash", () => {

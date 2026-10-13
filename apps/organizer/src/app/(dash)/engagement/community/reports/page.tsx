@@ -3,7 +3,7 @@ import { reportReasonLabel } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { listReportQueue, reportCounts, type ReportQueueItem } from '@/lib/reports';
-import { TARGET_LABEL, hideLabel } from '@/lib/reports-core';
+import { hideLabel, targetLabel } from '@/lib/reports-core';
 import { dayOfInstant } from '@/lib/time';
 import { EmptyState, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
 import { resolveReportAction } from './actions';
@@ -96,7 +96,7 @@ export default async function ReportsPage({
 function ReportCard({ item }: { item: ReportQueueItem }) {
   const { content } = item;
   const open = item.status === 'open';
-  const hide = hideLabel(item.targetType, item.targetKey.split(':').length > 2);
+  const hide = hideLabel(item.target);
   const alreadyHidden = content.status === 'hidden' || content.status === 'removed';
 
   return (
@@ -112,7 +112,7 @@ function ReportCard({ item }: { item: ReportQueueItem }) {
         }}
       >
         <Tag color="blue" small>
-          {TARGET_LABEL[item.targetType]}
+          {targetLabel(item.target)}
         </Tag>
         <strong style={{ fontSize: 14 }}>
           {item.reports.length} {item.reports.length === 1 ? 'report' : 'reports'}
@@ -134,14 +134,16 @@ function ReportCard({ item }: { item: ReportQueueItem }) {
       <div style={{ fontSize: 13, lineHeight: 1.6, padding: '12px 14px' }}>
         {!content.exists ? (
           <p className="muted" style={{ margin: 0 }}>
-            {item.targetType === 'job'
-              ? 'A job post. The Job Board is not built yet.'
-              : 'This is no longer there. It was deleted after it was reported.'}
+            {item.target === null
+              ? 'This report does not name anything the app shows.'
+              : item.target.type === 'job'
+                ? 'A job post. The Job Board is not built yet.'
+                : 'This is no longer there. It was deleted after it was reported.'}
           </p>
         ) : (
           <>
             <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
-              {item.targetType === 'user' ? 'Profile of' : 'By'} {content.authorName ?? 'unknown'}
+              {item.target?.type === 'user' ? 'Profile of' : 'By'} {content.authorName ?? 'unknown'}
             </div>
             {content.title && <strong style={{ display: 'block' }}>{content.title}</strong>}
             {content.body && <div style={{ whiteSpace: 'pre-wrap' }}>{content.body}</div>}
