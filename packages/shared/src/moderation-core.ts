@@ -122,7 +122,11 @@ export function isHiddenBy(blocked: ReadonlySet<string> | null | undefined, auth
  * Words a post, reply or message may not contain.
  *
  * Deliberately short: slurs and the strongest profanity, matched as whole words
- * so "Scunthorpe" and "spice" pass. It is a floor, not a moderator; reports and
+ * so "Scunthorpe" and "spice" pass. Words with an everyday meaning are left out
+ * on the owner's call (T231): "fag" (a UK cigarette), "retard" (to slow),
+ * "spic" ("spic and span"), "chink" ("a chink in the armour") and "tranny" (a
+ * UK car's transmission) would refuse ordinary sentences, and a report catches
+ * the slur. It is a floor, not a moderator; reports and
  * the dashboard queue do the real work. The same list is compiled into
  * `firestore.rules` (see `BLOCKED_WORDS_RULES_PATTERN`), so a client that skips
  * the app's check is refused by the server, and a test fails if the two drift.
@@ -137,12 +141,7 @@ export const BLOCKED_WORDS = [
   "nigger",
   "nigga",
   "faggot",
-  "fag",
-  "retard",
   "kike",
-  "spic",
-  "chink",
-  "tranny",
   "whore",
   "slut",
 ] as const;

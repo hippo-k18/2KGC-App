@@ -97,6 +97,19 @@ describe("the word filter", () => {
     expect(findBlockedWord(undefined)).toBeNull();
   });
 
+  it("passes words with an everyday meaning (owner, T231)", () => {
+    for (const ok of [
+      "spic and span",
+      "a chink in the armour",
+      "going out for a fag",
+      "they retard the flame",
+      "the tranny on my car",
+    ]) {
+      expect(findBlockedWord(ok), ok).toBeNull();
+    }
+    expect(findBlockedWord("you faggot")).toBe("faggot");
+  });
+
   it("is the same list firestore.rules enforces", () => {
     const rules = readFileSync(new URL("../../../firestore.rules", import.meta.url), "utf8");
     const m = /function blockedWordsPattern\(\) \{\s*return '([^']+)';/.exec(rules);

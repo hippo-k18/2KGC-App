@@ -128,7 +128,7 @@ service cloud.firestore {
      * not filtered, because redacting a post is how they remove the word.
      */
     function blockedWordsPattern() {
-      return '(?s).*\\b(fuck|fucking|fucked|fucker|motherfucker|cunt|nigger|nigga|faggot|fag|retard|kike|spic|chink|tranny|whore|slut)\\b.*';
+      return '(?s).*\\b(fuck|fucking|fucked|fucker|motherfucker|cunt|nigger|nigga|faggot|kike|whore|slut)\\b.*';
     }
 
     /**

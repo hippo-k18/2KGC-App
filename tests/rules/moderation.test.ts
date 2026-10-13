@@ -275,7 +275,7 @@ describe('the word filter', () => {
   it('an author cannot edit a blocked word into their post or reply', async () => {
     await assertFails(updateDoc(doc(as(B), 'communityPosts/p1'), { body: 'cunt', editedAt: serverTimestamp() }));
     await assertSucceeds(updateDoc(doc(as(B), 'communityPosts/p1'), { body: 'Hi everyone', editedAt: serverTimestamp() }));
-    await assertFails(updateDoc(doc(as(A), 'communityPosts/p1/replies/r1'), { body: 'retard', editedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as(A), 'communityPosts/p1/replies/r1'), { body: 'kike', editedAt: serverTimestamp() }));
   });
 
   it('a blocked word is refused in a reply, a message and a session question', async () => {
@@ -286,6 +286,14 @@ describe('the word filter', () => {
         eventId: 'kgc-2027', authorId: A, body: 'Why so fucking slow?', upvoteCount: 0, answered: false, state: 'pending',
       }),
     );
+  });
+
+  it('everyday words the owner took off the list go through (T231)', async () => {
+    for (const ok of ['spic and span', 'a chink in the armour', 'going out for a fag', 'they retard the flame', 'the tranny on my car']) {
+      await assertSucceeds(addDoc(collection(as(A), 'communityPosts'), post(ok, ok)));
+      await assertSucceeds(addDoc(collection(as(A), 'communityPosts/p1/replies'), { authorId: A, body: ok, status: 'visible' }));
+      await assertSucceeds(addDoc(collection(as(A), `threads/${THREAD_AB}/messages`), { senderId: A, body: ok, sentAt: serverTimestamp() }));
+    }
   });
 
   it('an organizer can still redact text, which is how a word is removed', async () => {
