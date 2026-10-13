@@ -24,6 +24,7 @@ import { mintSpeakerToken } from '@kgc/scripts/src/lib/speaker-token';
 import { db } from '@/lib/firestore';
 import { loadCall, loadOwnSubmission, saveSubmission, type SubmitInput } from '@/lib/submissions';
 import { loadPortal, recordDraft } from '@/lib/speaker-portal';
+import { saveSpeakerProfileAction } from '@/app/speaker/[token]/actions';
 
 beforeAll(() => {
   if (!process.env.FIRESTORE_EMULATOR_HOST) {
@@ -222,35 +223,38 @@ describe('a rejection nobody has been told about', () => {
   });
 });
 
+async function accepted(sessionType: 'talk' | 'workshop') {
+  await seedCall({});
+  const r = await saveSubmission(
+    CALL_ID,
+    talk(
+      sessionType === 'workshop'
+        ? { sessionType, durationMinutes: undefined, answers: { 'audience-level': ['Expert'], 'workshop-outline': ['Plan'] } }
+        : {},
+    ),
+  );
+  if (!r.ok) throw new Error(r.error);
+  await db().collection(COLLECTIONS.submissions).doc(r.submissionId).update({ status: 'accepted' });
+  await db().collection(COLLECTIONS.speakers).doc('ada').set({ eventId: EVENT_ID, name: 'Ada Lovelace', sessionIds: [], unlisted: true });
+  await db()
+    .collection(COLLECTIONS.speakerProfileEdits)
+    .doc('ada')
+    .set({ eventId: EVENT_ID, speakerId: 'ada', status: 'sent', submissionIds: [r.submissionId] });
+  return { id: r.submissionId, token: mintSpeakerToken('ada') };
+}
+
 describe('the speaker sends final details', () => {
-  async function accepted(sessionType: 'talk' | 'workshop') {
-    await seedCall({});
-    const r = await saveSubmission(
-      CALL_ID,
-      talk(
-        sessionType === 'workshop'
-          ? { sessionType, durationMinutes: undefined, answers: { 'audience-level': ['Expert'], 'workshop-outline': ['Plan'] } }
-          : {},
-      ),
-    );
-    if (!r.ok) throw new Error(r.error);
-    await db().collection(COLLECTIONS.submissions).doc(r.submissionId).update({ status: 'accepted' });
-    await db().collection(COLLECTIONS.speakers).doc('ada').set({ eventId: EVENT_ID, name: 'Ada Lovelace', sessionIds: [], unlisted: true });
-    await db()
-      .collection(COLLECTIONS.speakerProfileEdits)
-      .doc('ada')
-      .set({ eventId: EVENT_ID, speakerId: 'ada', status: 'sent', submissionIds: [r.submissionId] });
-    return { id: r.submissionId, token: mintSpeakerToken('ada') };
-  }
 
   it('shows the accepted submission and writes the details onto it', async () => {
     const { id, token } = await accepted('talk');
     const ctx = await loadPortal(token);
     expect(ctx?.submissions.map((s) => s.id)).toEqual([id]);
 
-    const out = await recordDraft(token, { bio: 'Ada writes programs.' }, {
-      [id]: { title: 'Lineage at scale, final', description: words(30) },
-    });
+    const out = await recordDraft(
+      token,
+      { bio: 'Ada writes programs.' },
+      new Map([[id, { title: 'Lineage at scale, final', description: words(30) }]]),
+    );
     expect(out.outcome).toBe('saved');
     const doc = await raw(id);
     expect(doc.details?.title).toBe('Lineage at scale, final');
@@ -259,10 +263,59 @@ describe('the speaker sends final details', () => {
 
   it('needs the outline and install list from a workshop', async () => {
     const { id, token } = await accepted('workshop');
-    const out = await recordDraft(token, {}, { [id]: { title: 'Hands on', description: words(30) } });
+    const out = await recordDraft(token, {}, new Map([[id, { title: 'Hands on', description: words(30) }]]));
     expect(out.outcome).toBe('invalid');
     expect(out.errors.join(' ')).toMatch(/outline/);
     expect(out.errors.join(' ')).toMatch(/install/);
     expect((await raw(id)).details).toBeUndefined();
+  });
+});
+
+/**
+ * T250 F1: `detail:__proto__:title` wrote onto `Object.prototype` before the
+ * token was even checked, and every page then answered 500. The posts below
+ * are T250's curl, as FormData.
+ */
+describe('the speaker form cannot pollute Object.prototype', () => {
+  async function post(fd: FormData): Promise<string> {
+    try {
+      await saveSpeakerProfileAction(fd);
+      return 'returned';
+    } catch (err) {
+      const digest = (err as { digest?: string }).digest ?? '';
+      if (!digest.startsWith('NEXT_REDIRECT')) throw err;
+      return digest.split(';')[2];
+    }
+  }
+  const clean = () => {
+    const probe = {} as Record<string, unknown>;
+    expect(probe.title).toBeUndefined();
+    expect(probe.description).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(Object.prototype, 'title')).toBe(false);
+  };
+
+  it('refuses a garbage token before reading a field', async () => {
+    const fd = new FormData();
+    fd.set('token', 'not-a-real-token');
+    fd.set('detail:__proto__:title', 'PWNED');
+    fd.set('detail:__proto__:description', 'PWNED-D');
+    fd.set('detail:constructor:title', 'PWNED');
+    fd.set('slides:__proto__', 'PWNED');
+    expect(await post(fd)).toBe('/speaker/not-a-real-token');
+    clean();
+  });
+
+  it('ignores reserved and foreign ids even with a valid token', async () => {
+    const { id, token } = await accepted('talk');
+    const fd = new FormData();
+    fd.set('token', token);
+    fd.set('detail:__proto__:title', 'PWNED');
+    fd.set('detail:prototype:title', 'PWNED');
+    fd.set('detail:sub_somebody_else:title', 'PWNED');
+    fd.set(`detail:${id}:title`, 'Final title');
+    fd.set(`detail:${id}:description`, words(30));
+    expect(await post(fd)).toMatch(/\?r=saved$/);
+    clean();
+    expect((await raw(id)).details?.title).toBe('Final title');
   });
 });

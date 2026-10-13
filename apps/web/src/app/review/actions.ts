@@ -52,7 +52,8 @@ export async function conflictAction(formData: FormData): Promise<void> {
 
 /** Every value whose field name starts with `prefix`, keyed by the rest of it. */
 function prefixed(formData: FormData, prefix: string): Record<string, string> {
-  const out: Record<string, string> = {};
+  // No prototype: the keys are whatever the browser posted (T252).
+  const out: Record<string, string> = Object.create(null);
   for (const key of new Set(formData.keys())) {
     if (key.startsWith(prefix)) out[key.slice(prefix.length)] = String(formData.get(key) ?? '');
   }

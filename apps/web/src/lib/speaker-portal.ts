@@ -314,7 +314,7 @@ export async function recordDraft(
   rawToken: string,
   input: DraftInput,
   /** Submission id → what was typed for it. Only ids on the edit document are read. */
-  details: Record<string, DetailsInput> = {},
+  details: ReadonlyMap<string, DetailsInput> = new Map(),
 ): Promise<{ outcome: SubmitOutcome; errors: string[] }> {
   try {
     const grant = await openPortal(rawToken);
@@ -333,7 +333,7 @@ export async function recordDraft(
      * field naming another submission id is simply not looked at.
      */
     const subs = await portalSubmissions(existing?.submissionIds ?? []);
-    for (const sub of subs) errors.push(...checkDetails(sub, details[sub.id]));
+    for (const sub of subs) errors.push(...checkDetails(sub, details.get(sub.id)));
     if (errors.length) return { outcome: 'invalid', errors };
 
     const ref = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerId);
@@ -369,7 +369,7 @@ export async function recordDraft(
      */
     const now = Timestamp.now();
     for (const sub of subs) {
-      const d = details[sub.id];
+      const d = details.get(sub.id)!;
       await db()
         .collection(COLLECTIONS.submissions)
         .doc(sub.id)

@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import type { DraftInput } from '@kgc/scripts/src/lib/speaker-portal-core';
-import { recordDraft, type DetailsInput } from '@/lib/speaker-portal';
+import { openPortal, recordDraft, type DetailsInput } from '@/lib/speaker-portal';
 
 /**
  * Saving a speaker's own profile, as a draft.
@@ -40,13 +40,30 @@ import { recordDraft, type DetailsInput } from '@/lib/speaker-portal';
 export async function saveSpeakerProfileAction(formData: FormData): Promise<void> {
   const token = String(formData.get('token') ?? '');
 
+  /*
+   * ⚠️ The link is checked before a single field is read (T252). The action id
+   * is printed in every speaker page, so this endpoint is reachable with any
+   * token at all; parsing first meant an unauthenticated POST could reach the
+   * key handling below, and `detail:__proto__:title` once wrote onto
+   * `Object.prototype` and took the website down until a restart (T250 F1).
+   */
+  const grant = await openPortal(token);
+  if (!grant) redirect(`/speaker/${encodeURIComponent(token)}`);
+
   const field = (name: string): string | undefined =>
     formData.has(name) ? String(formData.get(name) ?? '') : undefined;
 
-  const slides: Record<string, string> = {};
+  /*
+   * Keys typed by the browser are looked up in sets of ids this speaker
+   * actually holds, and collected in `Map`s, never in plain objects indexed
+   * by a posted string. Anything else is ignored.
+   */
+  const sessionIds = new Set(grant.speaker.sessionIds ?? []);
+  const slides = new Map<string, string>();
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith('slides:')) continue;
-    slides[key.slice('slides:'.length)] = String(value ?? '');
+    const id = key.slice('slides:'.length);
+    if (sessionIds.has(id)) slides.set(id, String(value ?? ''));
   }
 
   const input: DraftInput = {
@@ -57,19 +74,21 @@ export async function saveSpeakerProfileAction(formData: FormData): Promise<void
     linkedin: field('linkedin'),
     x: field('x'),
     website: field('website'),
-    ...(Object.keys(slides).length ? { slides } : {}),
+    ...(slides.size ? { slides: Object.fromEntries(slides) } : {}),
   };
 
   /*
-   * `detail:{submissionId}:{field}`. Which submissions may be written is
-   * decided by `recordDraft` from the edit document; ids here are only keys.
+   * `detail:{submissionId}:{field}`, for submissions on this speaker's own
+   * edit document only. `recordDraft` checks the same list again.
    */
-  const details: Record<string, DetailsInput> = {};
+  const ownSubmissions = new Set(grant.edit?.submissionIds ?? []);
+  const details = new Map<string, DetailsInput>();
   for (const [key, value] of formData.entries()) {
-    const m = /^detail:([^:]+):(title|description|outline|install)$/.exec(key);
-    if (!m) continue;
-    const entry = (details[m[1]] ??= { title: '', description: '' });
+    const m = /^detail:([A-Za-z0-9_-]+):(title|description|outline|install)$/.exec(key);
+    if (!m || !ownSubmissions.has(m[1])) continue;
+    const entry = details.get(m[1]) ?? { title: '', description: '' };
     entry[m[2] as keyof DetailsInput] = String(value ?? '');
+    details.set(m[1], entry);
   }
 
   const { outcome, errors } = await recordDraft(token, input, details);

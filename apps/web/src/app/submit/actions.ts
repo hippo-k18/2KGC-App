@@ -119,7 +119,8 @@ export async function withdrawAction(formData: FormData): Promise<void> {
  * just read.
  */
 function readAnswers(formData: FormData): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
+  // No prototype: the keys are whatever the browser posted (T252).
+  const out: Record<string, string[]> = Object.create(null);
   for (const key of new Set(formData.keys())) {
     if (!key.startsWith('q_')) continue;
     out[key.slice(2)] = formData.getAll(key).map(String);
