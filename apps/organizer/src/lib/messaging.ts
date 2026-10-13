@@ -21,6 +21,7 @@ import {
   nameOrId,
 } from '@kgc/shared';
 import { listAttendees } from './data';
+import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
 
 /**
@@ -185,6 +186,7 @@ async function resolveSpeakers(segment: string) {
     userSnap.docs.map((d) => [d.id, (d.data() as UserDoc).email]),
   );
 
+  const contacts = await speakerContacts(speakerSnap.docs.map((d) => ({ id: d.id, data: d.data() as SpeakerDoc })));
   let withoutEmail = 0;
   const recipients: Recipient[] = [];
 
@@ -194,7 +196,7 @@ async function resolveSpeakers(segment: string) {
     if (segment === 'incomplete' && s.bio && s.photoURL) continue;
     if (segment === 'no-session' && (s.sessionIds ?? []).length > 0) continue;
 
-    const email = s.contactEmail ?? (s.userId ? emailByUid.get(s.userId) : undefined);
+    const email = contacts.get(d.id) ?? (s.userId ? emailByUid.get(s.userId) : undefined);
     if (!email) {
       withoutEmail++;
       continue;

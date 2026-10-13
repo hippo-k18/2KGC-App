@@ -32,6 +32,7 @@ import { qaDefaultsFor } from '@/app/(dash)/content/agenda-center/session-manage
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
+import { ensureSpeakerContact } from './speaker-contacts';
 import { deriveTimes } from './time';
 import { getCall } from './calls';
 
@@ -467,7 +468,8 @@ export async function decideSubmission(input: {
     };
   } catch (err) {
     recordError('submissions.decide', err);
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not record the decision.' };
+    // Never the raw Firestore message (T252): it says nothing an organizer can act on.
+    return { ok: false, error: 'Could not record the decision. Reload the page to see what was saved.' };
   }
 }
 
@@ -742,8 +744,8 @@ export async function promoteSubmission(input: {
           name: identity.name,
           company: identity.affiliation,
           bio: identity.bio,
-          contactEmail: identity.email,
           sessionIds: [sessionDocId],
+          unlisted: false,
         };
         tx.create(speakerRef, {
           ...speaker,
@@ -755,6 +757,9 @@ export async function promoteSubmission(input: {
       tx.update(subRef, { sessionId: sessionDocId, updatedAt: FieldValue.serverTimestamp() });
       tx.set(identityRef, { speakerId: speakerDocId, updatedAt: Timestamp.now() }, { merge: true });
     });
+
+    // Server-only (T252): never on the speaker record attendees can read.
+    if (!speakerExisted) await ensureSpeakerContact(speakerDocId, identity.email);
 
     await appendAudit({
       actor: input.actor,

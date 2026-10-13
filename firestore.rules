@@ -1050,8 +1050,28 @@ service cloud.firestore {
       }
     }
 
+    /*
+     * Speakers, minus the ones not announced yet (T252, from T250 F3).
+     *
+     * The call for papers creates a speaker the moment a submission is
+     * accepted, with `unlisted: true` until an organizer announces them. A
+     * ticket holder must not be able to list those, so:
+     *
+     * - `get` checks the document itself, where a missing field is "listed";
+     * - `list` requires the query to say `unlisted == false`. Rules are not
+     *   filters: a `get('unlisted', false)` test on a list is evaluated
+     *   without the field and passes for every document, which was proven on
+     *   the emulator before writing this. Every speaker therefore carries an
+     *   explicit `unlisted` boolean (backfilled by
+     *   scripts/ops/t252-backfill-speaker-unlisted.ts) and the app's query
+     *   filters on it.
+     *
+     * Contact addresses are not on this document at all any more: they live
+     * in the server-only `speakerContacts`, because rules cannot hide a field.
+     */
     match /speakers/{id} {
-      allow read: if isRegistered();
+      allow get: if isRegistered() && resource.data.get('unlisted', false) != true;
+      allow list: if isRegistered() && resource.data.unlisted == false;
       allow write: if isOrganizer();
     }
 

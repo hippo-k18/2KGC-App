@@ -32,6 +32,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  type Firestore,
 } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -147,7 +148,11 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, 'sessions/s1'), { title: 'Keynote', status: 'published' });
     await setDoc(doc(db, 'sessions/draft1'), { title: 'Unannounced keynote', status: 'draft' });
-    await setDoc(doc(db, 'speakers/sp1'), { name: 'A Speaker' });
+    await setDoc(doc(db, 'speakers/sp1'), { eventId: 'kgc-2027', name: 'A Speaker', unlisted: false });
+    // Accepted through the call for papers and not announced yet (T252).
+    await setDoc(doc(db, 'speakers/sp_unlisted'), { eventId: 'kgc-2027', name: 'Not Yet', unlisted: true });
+    // Written before the field existed: listed for a get, absent from a list.
+    await setDoc(doc(db, 'speakers/sp_legacy'), { eventId: 'kgc-2027', name: 'Old Record' });
     await setDoc(doc(db, 'tracks/t1'), { name: 'Graph Data Science' });
     await setDoc(doc(db, 'sponsors/sp'), { name: 'Sponsor', tier: 'gold' });
     await setDoc(doc(db, 'sponsors/sp/leads/' + B), { uid: B, email: 'b@kgc.test' });
@@ -423,6 +428,36 @@ const asImposter = () =>
     email: `${A}@kgc.test`, email_verified: true,
   }).firestore();
 
+/** The app's speaker query (T252): the rules only allow the listed ones. */
+const listedSpeakers = (db: Firestore) =>
+  query(collection(db, 'speakers'), where('eventId', '==', 'kgc-2027'), where('unlisted', '==', false));
+
+describe('unannounced speakers and speaker addresses (T252)', () => {
+  it('lists only the speakers the app query asks for, with no unlisted one among them', async () => {
+    const snap = await getDocs(listedSpeakers(asA()));
+    expect(snap.docs.map((d) => d.id)).toEqual(['sp1']);
+    for (const d of snap.docs) expect(d.data()).not.toHaveProperty('contactEmail');
+  });
+
+  it('refuses the old unfiltered query, which would include unannounced speakers', async () => {
+    await assertFails(getDocs(collection(asA(), 'speakers')));
+    await assertFails(getDocs(query(collection(asA(), 'speakers'), where('eventId', '==', 'kgc-2027'))));
+    await assertFails(
+      getDocs(query(collection(asA(), 'speakers'), where('eventId', '==', 'kgc-2027'), where('unlisted', '==', true))),
+    );
+  });
+
+  it('refuses a get of an unannounced speaker and allows a listed or legacy one', async () => {
+    await assertFails(getDoc(doc(asA(), 'speakers/sp_unlisted')));
+    await assertSucceeds(getDoc(doc(asA(), 'speakers/sp1')));
+    await assertSucceeds(getDoc(doc(asA(), 'speakers/sp_legacy')));
+  });
+
+  it('refuses an attendee marking themselves or anyone listed', async () => {
+    await assertFails(updateDoc(doc(asA(), 'speakers/sp_unlisted'), { unlisted: false }));
+  });
+});
+
 describe('the gate', () => {
   it('refuses an unauthenticated reader', async () => {
     await assertFails(getDoc(doc(unauth(), 'sessions/s1')));
@@ -448,7 +483,7 @@ describe('the gate', () => {
 
   it('admits a ticket holder to event content', async () => {
     await assertSucceeds(getDoc(doc(asA(), 'sessions/s1')));
-    await assertSucceeds(getDocs(collection(asA(), 'speakers')));
+    await assertSucceeds(getDocs(listedSpeakers(asA())));
     await assertSucceeds(getDocs(collection(asA(), 'tracks')));
     await assertSucceeds(getDocs(collection(asA(), 'sponsors')));
     await assertSucceeds(getDocs(collection(asA(), 'announcements')));
@@ -1903,6 +1938,11 @@ describe('the money collections are closed to every client', () => {
      * revocation is enforced against.
      */
     ['speakerProfileEdits', 'ada-okonkwo-7f21'],
+    /*
+     * A speaker's email address (T252). It was `contactEmail` on the speaker
+     * record, which every ticket holder can list.
+     */
+    ['speakerContacts', 'ada-okonkwo-7f21'],
   ] as const;
 
   for (const [collectionName, id] of closed) {

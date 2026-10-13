@@ -122,7 +122,8 @@ async function main() {
 
     push(COLLECTIONS.speakers, speakerIds[i], {
       ...base(), name: s.name, title: s.title, company: s.company, bio: s.bio, sessionIds: [],
-      contactEmail: speakerEmail,
+      // Explicit: the app lists speakers by `unlisted == false` (T252).
+      unlisted: false,
       /*
        * These two are what let the public `/speakers` page render from this
        * collection without changing shape. `displayOrder` holds the roster
@@ -133,6 +134,10 @@ async function main() {
        */
       displayOrder: s.displayOrder,
       ...(s.featured ? { featured: true } : {}),
+    });
+    // The address is server-only since T252, never on the speaker record.
+    push(COLLECTIONS.speakerContacts, speakerIds[i], {
+      eventId: EVENT_ID, speakerId: speakerIds[i], email: speakerEmail, updatedAt: new Date(),
     });
   });
 

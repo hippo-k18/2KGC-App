@@ -504,6 +504,12 @@ export const PLACES: readonly PersonPlace[] = [
      * link was sent to. Deleted rather than kept: nothing here is published,
      * and a draft is a person's own words about themselves waiting to be read.
      */
+    key: 'speakerContact',
+    label: 'The address we write to them at, as a speaker',
+    where: { at: 'doc', collection: C.speakerContacts, id: 'speakerId' },
+    erase: { do: 'delete' },
+  },
+  {
     key: 'speakerDraft',
     label: 'A profile they sent us as a speaker',
     where: { at: 'doc', collection: C.speakerProfileEdits, id: 'speakerId' },

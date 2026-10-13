@@ -90,14 +90,22 @@ export function useInterests(people: DirectoryEntry[] | null): string[] {
 
 export function useSpeakers() {
   const { data, error, loading, retry } = useCollection<Speaker>(
-    () => query(collection(getDb(), COLLECTIONS.speakers), where('eventId', '==', EVENT_ID)),
+    /*
+     * `unlisted == false` is required by the rules (T252): a speaker accepted
+     * through the call for papers and not announced yet is not readable here
+     * at all. Two equality filters, so no composite index is needed.
+     */
+    () =>
+      query(
+        collection(getDb(), COLLECTIONS.speakers),
+        where('eventId', '==', EVENT_ID),
+        where('unlisted', '==', false),
+      ),
     [],
     (id, d) => ({ id, ...d }) as Speaker,
     (a, b) => a.name.localeCompare(b.name),
   );
-  // Accepted through the call for papers and not announced yet (T249). The
-  // website's /speakers drops the same ones.
-  const speakers = useMemo(() => data?.filter((s) => s.unlisted !== true) ?? data, [data]);
+  const speakers = data;
   return { speakers, error, loading, retry };
 }
 

@@ -15,6 +15,7 @@ import {
 } from '@/lib/speaker-portal';
 import { fanOutSpeakerRename, summariseFanOut } from '@/lib/denormalise';
 import { db } from '@/lib/firestore';
+import { setSpeakerContact, speakerContact } from '@/lib/speaker-contacts';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { removeImage, uploadImage, UploadRejected, UploadUnavailable } from '@/lib/uploads';
@@ -229,7 +230,8 @@ export async function saveSpeakerAction(
           title: title || FieldValue.delete(),
           company: company || FieldValue.delete(),
           bio: bio || FieldValue.delete(),
-          contactEmail: contactEmail || FieldValue.delete(),
+          // The address lives in `speakerContacts` (T252); never on this record.
+          contactEmail: FieldValue.delete(),
           social: anySocial ? social : FieldValue.delete(),
           /*
             Both are deletes rather than falsy values, for the reason above.
@@ -238,7 +240,13 @@ export async function saveSpeakerAction(
             be the absence of the key, not a value that happens to be falsy.
           */
           featured: featured ? true : FieldValue.delete(),
-          unlisted: unlisted ? true : FieldValue.delete(),
+          /*
+            Always a boolean, never absent: the app lists speakers with
+            `where('unlisted', '==', false)` and the rules require it, so a
+            speaker without the field would be missing from the People tab
+            (T252).
+          */
+          unlisted,
           displayOrder: displayOrder === null ? FieldValue.delete() : displayOrder,
           ...(photoURL === undefined ? {} : { photoURL }),
           // Never on an update — see the header. `userId` is absent for the
@@ -249,6 +257,7 @@ export async function saveSpeakerAction(
         },
         { merge: true },
       );
+    await setSpeakerContact(docId, contactEmail || undefined);
   } catch (err) {
     recordError('speaker.save', err);
     return { error: err instanceof Error ? err.message : 'Could not save the speaker.' };
@@ -281,7 +290,7 @@ export async function saveSpeakerAction(
           name: existing.name,
           title: existing.title ?? null,
           company: existing.company ?? null,
-          contactEmail: existing.contactEmail ?? null,
+          contactEmail: (await speakerContact(docId, existing.contactEmail)) ?? null,
           hasBio: Boolean(existing.bio),
           photoURL: existing.photoURL ?? null,
         }

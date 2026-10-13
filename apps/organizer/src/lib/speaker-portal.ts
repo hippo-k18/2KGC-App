@@ -22,6 +22,7 @@ import {
   type TrackerCounts,
 } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { appendAudit } from './audit';
+import { speakerContact } from './speaker-contacts';
 import { db } from './firestore';
 import { recordError } from './errors';
 
@@ -187,7 +188,7 @@ export async function sendPortalLink(input: {
     if (!snap.exists) return { ok: false, error: 'That speaker does not exist.' };
 
     const speaker = snap.data() as SpeakerDoc;
-    const to = speaker.contactEmail?.trim();
+    const to = (await speakerContact(input.speakerId, speaker.contactEmail))?.trim();
     if (!to) {
       return {
         ok: false,

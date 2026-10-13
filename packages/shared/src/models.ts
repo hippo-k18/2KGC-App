@@ -944,6 +944,10 @@ export interface SpeakerDoc extends BaseDoc {
    */
   unlisted?: boolean;
   /**
+   * ⚠️ Legacy: nothing writes this any more. Addresses live in
+   * `speakerContacts/{id}` (T252), and readers fall back to this field only so
+   * a record written before the move still has its address.
+   *
    * How to reach them before they hold a ticket.
    *
    * Contact details otherwise live only on `users`, joined by `userId` — which
@@ -958,6 +962,22 @@ export interface SpeakerDoc extends BaseDoc {
    * whichever address they later bought a ticket with.
    */
   contactEmail?: string;
+}
+
+/**
+ * `speakerContacts/{speakerId}` — how to reach one speaker (T252).
+ *
+ * Off the speaker record because `speakers` is readable by every ticket
+ * holder and rules filter documents, not fields: an address on the speaker
+ * was an address anybody with the SDK could list. Server-only, read and
+ * written with the Admin SDK by the dashboard and the website.
+ */
+export interface SpeakerContactDoc {
+  eventId: string;
+  speakerId: string;
+  /** Lower case. */
+  email: string;
+  updatedAt: Timestamp;
 }
 
 /**
@@ -3300,8 +3320,11 @@ export interface SubmissionDoc extends BaseDoc {
  * mails E2 with the self-service link and tells the onboarding inbox.
  */
 export interface SubmissionAcceptance {
-  /** `speakers/{id}`, found or created from the author. */
-  speakerId: string;
+  /**
+   * `speakers/{id}`, found or created from the author. Absent only for the
+   * moment between the accept claim and the speaker being written.
+   */
+  speakerId?: string;
   at: Timestamp;
   by: string;
   /**

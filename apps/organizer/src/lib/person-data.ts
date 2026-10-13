@@ -11,6 +11,7 @@ import { COLLECTIONS, EVENT_ID, type RegistrationDoc, type SpeakerDoc, type User
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from './audit';
 import { markOrdersErased, releaseSeatBeforeErasure } from './attendee-admin';
+import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
 import { recordError } from './errors';
 import {
@@ -186,9 +187,10 @@ async function registrationFor(email: string): Promise<DocumentSnapshot | undefi
 async function speakerIdFor(email: string, uid?: string): Promise<string | undefined> {
   try {
     const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
+    const contacts = await speakerContacts(snap.docs.map((d) => ({ id: d.id, data: d.data() as SpeakerDoc })));
     const hit = snap.docs.find((d) => {
       const s = d.data() as SpeakerDoc;
-      return normaliseEmail(s.contactEmail ?? '') === email || (uid ? s.userId === uid : false);
+      return normaliseEmail(contacts.get(d.id) ?? '') === email || (uid ? s.userId === uid : false);
     });
     return hit?.id;
   } catch (err) {

@@ -36,6 +36,7 @@ import {
   type SignatureRecord,
 } from './consents-core';
 import { appendAudit } from './audit';
+import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
 import { recordError } from './errors';
 
@@ -259,18 +260,19 @@ export async function consentRegister(formId: string): Promise<ConsentRegister |
 
   if (sources.includes('speaker')) {
     const snap = await db().collection(COLLECTIONS.speakers).where('eventId', '==', EVENT_ID).get();
+    const contacts = await speakerContacts(snap.docs.map((d) => ({ id: d.id, data: d.data() as SpeakerDoc })));
     for (const d of snap.docs) {
       const s = d.data() as SpeakerDoc;
       subjects.push({
         key: speakerSignatory(d.id),
         name: s.name,
-        email: s.contactEmail,
+        email: contacts.get(d.id),
         // A speaker who also holds a ticket may have signed in the app under
         // their uid; without this alias the register would show them
         // outstanding while their signature sat in the same subcollection.
         aliases: s.userId ? [s.userId] : undefined,
         kind: 'speaker',
-        note: s.contactEmail ? undefined : 'no contact address on file',
+        note: contacts.get(d.id) ? undefined : 'no contact address on file',
       });
     }
   }

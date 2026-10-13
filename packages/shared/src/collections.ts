@@ -180,6 +180,12 @@ export const COLLECTIONS = {
    */
   speakerProfileEdits: "speakerProfileEdits",
   /**
+   * `speakerContacts/{speakerId}`: the address the programme committee writes
+   * to. Server-only, no rules match block. It used to be `contactEmail` on the
+   * speaker, which every ticket holder can read (T250 F3).
+   */
+  speakerContacts: "speakerContacts",
+  /**
    * Server-only. One document per bulk send that is running right now, so that
    * two organizers pressing the same button at the same moment do not both mail
    * the same people.

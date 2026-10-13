@@ -20,6 +20,7 @@ import { auditPlace, auditSubject, namesARecord } from './audit-subject';
 import { emailKey, mergeAttendees, type AttendeeRow } from './attendees-core';
 import { recordError } from './errors';
 import { sponsorTiers } from './event';
+import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
 
 /**
@@ -456,6 +457,7 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
     }),
   );
 
+  const contacts = await speakerContacts(snap.docs.map((d) => ({ id: d.id, data: d.data() as SpeakerDoc })));
   return snap.docs
     .map((d) => {
       const s = d.data() as SpeakerDoc;
@@ -483,7 +485,7 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
           .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal)),
         userId: s.userId,
         // Null once the speaker has been erased (the talk stays on the programme).
-        contactEmail: s.contactEmail ?? undefined,
+        contactEmail: contacts.get(d.id),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));

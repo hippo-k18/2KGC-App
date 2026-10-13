@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { STATUS_LABEL } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { requireOrganizer } from '@/lib/auth';
 import { getSpeaker, imageSrc, listSpeakers, type SpeakerRow } from '@/lib/data';
+import { speakerContact } from '@/lib/speaker-contacts';
 import { ROUTES } from '@/lib/nav';
 import {
   listPortalRows,
@@ -265,7 +266,7 @@ export default async function SpeakerManagerPage({
         title: doc.title,
         company: doc.company,
         bio: doc.bio,
-        contactEmail: doc.contactEmail,
+        contactEmail: await speakerContact(doc.id, doc.contactEmail),
         /*
          * Resolved, not raw. The form's headshot preview showed a broken image
          * for every imported speaker because `photoURL` is a path on the
