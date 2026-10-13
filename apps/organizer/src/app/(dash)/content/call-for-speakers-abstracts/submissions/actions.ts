@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
-import { decideMany, decideSubmission, undoDecision } from '@/lib/submissions';
+import { decideMany, decideSubmission, getSubmission, undoDecision } from '@/lib/submissions';
+import { acceptCfp, getCfpCall, rejectCfp } from '@/lib/cfp';
 import { excludeReviewer, liftExclusion } from '@/lib/reviewers';
 import { recordError } from '@/lib/errors';
 import type { FormState } from '../../../form';
@@ -40,6 +41,19 @@ export async function decideAction(_prev: FormState, formData: FormData): Promis
   }
 
   try {
+    /*
+     * On a call run with the rolling review (T249) Accept and Reject are the
+     * same as on the weekly review screen: Accept creates the speaker and
+     * mails E2, Reject records and sends nothing. The waiting list keeps the
+     * old path, which Min's plan does not use.
+     */
+    if (verdict !== 'waitlist' && (await onRollingReview(id))) {
+      const r = verdict === 'accept' ? await acceptCfp({ submissionId: id, actor }) : await rejectCfp({ submissionId: id, actor });
+      if (!r.ok) return { error: r.error };
+      revalidate(id);
+      return { ok: true, message: r.message };
+    }
+
     const result = await decideSubmission({
       id,
       accept: verdict === 'accept',
@@ -115,6 +129,26 @@ export async function bulkDecideAction(_prev: FormState, formData: FormData): Pr
   }
 
   try {
+    if (verdict !== 'waitlist' && ids.length > 0 && (await onRollingReview(ids[0]))) {
+      let done = 0;
+      const refused: string[] = [];
+      for (const submissionId of [...new Set(ids)].slice(0, 200)) {
+        const r =
+          verdict === 'accept' ? await acceptCfp({ submissionId, actor }) : await rejectCfp({ submissionId, actor });
+        if (r.ok) done++;
+        else refused.push(r.error);
+      }
+      revalidatePath(`${CFA_BASE}/submissions`);
+      revalidatePath(CFA_BASE);
+      if (done === 0) return { error: `Nothing was changed. ${refused[0] ?? ''}` };
+      return {
+        ok: true,
+        message:
+          `${done} submission${done === 1 ? '' : 's'} ${verdict === 'accept' ? 'accepted; each speaker with an address on file was emailed their link' : 'rejected; nothing was sent'}.` +
+          (refused.length ? ` ${refused.length} left unchanged: ${refused[0]}` : ''),
+      };
+    }
+
     const result = await decideMany({
       ids,
       accept: verdict === 'accept',
@@ -164,4 +198,11 @@ export async function liftExclusionAction(formData: FormData): Promise<void> {
   if (!result.ok) recordError('reviewer.liftExclusion', new Error(result.error));
   revalidate(submissionId);
   revalidatePath(`${CFA_BASE}/reviewers`);
+}
+
+/** Whether a submission's call runs Min's rolling review. */
+async function onRollingReview(submissionId: string): Promise<boolean> {
+  const sub = await getSubmission(submissionId);
+  if (!sub) return false;
+  return Boolean((await getCfpCall(sub.callId))?.enabled);
 }

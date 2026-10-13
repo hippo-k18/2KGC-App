@@ -1,0 +1,14 @@
+# The call for papers' hourly run (T249): E3 nudges and the Thursday reminder.
+# Install on the droplet, NOT installed yet:
+#   cp kgc-cfp-cron.service kgc-cfp-cron.timer /etc/systemd/system/
+#   add CRON_SECRET=<32+ random chars> to /opt/kgc/shared/organizer.env and restart kgc-dashboard
+#   printf 'CRON_SECRET=%s\n' "<same value>" > /etc/kgc-cfp-cron.env && chmod 600 /etc/kgc-cfp-cron.env
+#   systemctl daemon-reload && systemctl enable --now kgc-cfp-cron.timer
+[Unit]
+Description=KGC call for papers scheduled emails
+After=network-online.target kgc-dashboard.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/kgc-cfp-cron.env
+ExecStart=/bin/sh -c 'curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3100/api/cron/cfp'

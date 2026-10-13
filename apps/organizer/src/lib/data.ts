@@ -411,6 +411,8 @@ export interface SpeakerRow {
   company?: string;
   hasBio: boolean;
   hasPhoto: boolean;
+  /** Kept off the website and the app until listed (T249). */
+  unlisted?: boolean;
   /**
    * The portrait itself, resolved by `imageSrc`, and the bio text — not just
    * whether each exists.
@@ -464,6 +466,7 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
         title: s.title,
         company: s.company,
         hasBio: Boolean(s.bio && s.bio.trim()),
+        unlisted: s.unlisted === true,
         hasPhoto: Boolean(s.photoURL),
         photoURL: imageSrc(s.photoURL),
         bio: s.bio,

@@ -23,6 +23,9 @@ import {
 import { rankByTrack, OVERALL_MAX } from '@kgc/scripts/src/lib/review-core';
 import { CFA_BASE } from '../routes';
 import { BulkDecisionBar, RowCheckbox, SelectAllCheckbox } from './bulk-decision';
+import { getCfpCall, listCfpSubmissions } from '@/lib/cfp';
+import { cfpStatus, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
+import { CfpSettingsWarning, CfpStatusTag, TypeFilter } from '../cfp-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,12 +105,28 @@ export default async function SubmissionsPage({
   const q = (one('q') ?? '').trim().toLowerCase();
   const ranking = one('view') === 'ranking';
 
-  const [all, tracks] = await Promise.all([listSubmissions(callId), listTrackOptions()]);
+  const [all, tracks, cfpCall] = await Promise.all([
+    listSubmissions(callId),
+    listTrackOptions(),
+    getCfpCall(callId),
+  ]);
   const counts = countSubmissions(all);
   const trackName = new Map(tracks.map((t) => [t.id, t.name]));
+  const type = one('type') === 'talk' || one('type') === 'workshop' ? one('type') : undefined;
+
+  /*
+   * The status the inbox reads (T249): open, accepted, details received,
+   * rejected. Only on a call run with the rolling-review settings, where
+   * "details received" is something that can happen.
+   */
+  const inbox = new Map<string, CfpStatus>();
+  if (cfpCall?.enabled) {
+    for (const r of await listCfpSubmissions(callId)) inbox.set(r.id, cfpStatus(r));
+  }
 
   const filtered = all
     .filter((s) => status === 'all' || s.status === status)
+    .filter((s) => !type || s.sessionType === type)
     .filter((s) => (q ? matches(s, q) : true));
 
   const rows = paginate(filtered, page, PER_PAGE);
@@ -146,6 +165,12 @@ export default async function SubmissionsPage({
           <Link key="r" href={`${CFA_BASE}/reviewers`}>
             Reviewers
           </Link>,
+          <Link key="w" href={`${CFA_BASE}/review?call=${callId}`}>
+            Weekly review
+          </Link>,
+          <Link key="d" href={`${CFA_BASE}/rolling-review?call=${callId}`}>
+            Dates and emails
+          </Link>,
           ranking ? (
             <Link key="v" href={`?call=${callId}`}>
               List
@@ -157,6 +182,8 @@ export default async function SubmissionsPage({
           ),
         ]}
       />
+
+      {cfpCall?.enabled && <CfpSettingsWarning callId={callId} cfp={cfpCall.cfp} />}
 
       {state === 'open' && (
         <Banner kind="info">
@@ -224,11 +251,20 @@ export default async function SubmissionsPage({
           )}
           {calls.length === 1 && <input type="hidden" name="call" value={callId} />}
           {status !== 'all' && <input type="hidden" name="status" value={status} />}
+          {type && <input type="hidden" name="type" value={type} />}
           <SearchInput defaultValue={q} placeholder="Title, abstract, author, affiliation" />
           <button type="submit" className="whova-btn-main primary">
             Search
           </button>
         </form>
+
+        <div style={{ marginTop: 12 }}>
+          <TypeFilter
+            base={`${CFA_BASE}/submissions`}
+            current={type}
+            params={{ call: callId, status: status === 'all' ? undefined : status, q: q || undefined }}
+          />
+        </div>
 
         <Tabs
           tabs={TABS.map((t) => ({
@@ -295,7 +331,14 @@ export default async function SubmissionsPage({
                     </span>
                   ) : null}
                 </span>,
-                <StatusCell key="s" row={s} />,
+                <span key="s">
+                  <StatusCell row={s} />
+                  {inbox.has(s.id) && (
+                    <span style={{ display: 'block', marginTop: 4 }} title="What the inbox tells the author">
+                      <CfpStatusTag status={inbox.get(s.id)!} />
+                    </span>
+                  )}
+                </span>,
               ])}
             />
             <Pagination

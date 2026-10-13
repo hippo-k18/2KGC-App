@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import type { CallFormFieldDef } from '@kgc/shared';
+import type { CallFormFieldDef, SessionFormat } from '@kgc/shared';
 import {
   CheckboxField,
   Field,
@@ -36,11 +36,14 @@ export function FieldForm({
   callId,
   existing,
   answered,
+  sessionTypes = [],
 }: {
   callId: string;
   existing?: CallFormFieldDef;
   /** How many submissions already answered this question. Zero for a new one. */
   answered: number;
+  /** The call's session types. With two or more, a question can be limited to some. */
+  sessionTypes?: SessionFormat[];
 }) {
   const [state, action] = useActionState<FormState, FormData>(saveFieldAction, {});
   const [kind, setKind] = useState<CallFormFieldDef['kind']>(existing?.kind ?? 'short-text');
@@ -151,6 +154,30 @@ export function FieldForm({
               : 'A submitter cannot finish without answering. Nothing stops them saving a draft.'
           }
         />
+      )}
+
+      {sessionTypes.length > 1 && (
+        /*
+         * T249: one call takes talks and workshops, and a workshop is asked
+         * things a talk is not. None ticked means everyone is asked. A
+         * required question is only required of the types it is asked of.
+         */
+        <fieldset style={{ border: 0, margin: '0 0 16px', padding: 0 }}>
+          <legend className="whova-form-label">Ask only of</legend>
+          {sessionTypes.map((t) => (
+            <CheckboxField
+              key={t}
+              name="sessionTypes"
+              value={t}
+              label={t.charAt(0).toUpperCase() + t.slice(1)}
+              defaultChecked={existing?.sessionTypes?.includes(t) ?? false}
+            />
+          ))}
+          <p className="body-2" style={{ margin: '4px 0 0' }}>
+            Leave all unticked to ask everyone. Changing this does not start a new form version:
+            answers already given are kept.
+          </p>
+        </fieldset>
       )}
 
       <FormActions>

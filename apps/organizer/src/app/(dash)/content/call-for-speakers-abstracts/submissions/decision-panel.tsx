@@ -41,12 +41,19 @@ export function DecisionPanel({
   id,
   decided,
   authorEmail,
+  rolling,
 }: {
   id: string;
   /** True when a decision already stands — the buttons then say "change to". */
   decided: boolean;
   /** Absent when there is no identity document, which disables the mail. */
   authorEmail?: string;
+  /**
+   * The call runs the rolling review (T249). Accept then mails E2 and tells
+   * onboarding by itself, and Reject sends nothing, so there is no note and
+   * no notify box to get wrong.
+   */
+  rolling?: boolean;
 }) {
   const [state, action] = useActionState<FormState, FormData>(decideAction, {});
 
@@ -63,6 +70,14 @@ export function DecisionPanel({
       <input type="hidden" name="submissionId" value={id} />
       <FormBanner state={state} />
 
+      {rolling ? (
+        <p className="body-2">
+          Accept creates the speaker, emails {authorEmail ?? 'the author'} their acceptance with the
+          link for their details, and tells onboarding. Reject records the decision and sends nothing:
+          the author is told with everyone else after the close.
+        </p>
+      ) : (
+        <>
       <Textarea
         label="A note for the author"
         name="note"
@@ -81,6 +96,8 @@ export function DecisionPanel({
         disabled={!authorEmail}
         description="Unticked by default. An email cannot be recalled once it is sent."
       />
+        </>
+      )}
 
       <FormActions>
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">

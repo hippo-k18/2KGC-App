@@ -110,6 +110,12 @@ export default async function CallForSpeakersPage({
           )
         }
         links={[
+          <Link key="w" href={`${CFA_BASE}/review`}>
+            Weekly review
+          </Link>,
+          <Link key="d" href={`${CFA_BASE}/rolling-review`}>
+            Dates and emails
+          </Link>,
           <Link key="s" href={`${CFA_BASE}/submissions`}>
             Submissions
           </Link>,

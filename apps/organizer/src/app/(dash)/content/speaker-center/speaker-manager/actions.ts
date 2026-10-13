@@ -116,6 +116,7 @@ export async function saveSpeakerAction(
   const bio = String(formData.get('bio') ?? '').trim();
   const contactEmail = String(formData.get('contactEmail') ?? '').trim();
   const featured = String(formData.get('featured') ?? '') === '1';
+  const unlisted = String(formData.get('unlisted') ?? '') === '1';
 
   /*
    * Position is optional and an empty box means "no editorial position", not
@@ -237,6 +238,7 @@ export async function saveSpeakerAction(
             be the absence of the key, not a value that happens to be falsy.
           */
           featured: featured ? true : FieldValue.delete(),
+          unlisted: unlisted ? true : FieldValue.delete(),
           displayOrder: displayOrder === null ? FieldValue.delete() : displayOrder,
           ...(photoURL === undefined ? {} : { photoURL }),
           // Never on an update — see the header. `userId` is absent for the

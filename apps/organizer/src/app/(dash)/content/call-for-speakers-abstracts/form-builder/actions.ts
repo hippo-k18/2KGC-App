@@ -64,6 +64,7 @@ export async function saveFieldAction(_prev: FormState, formData: FormData): Pro
       required: formData.get('required') === 'on',
       helpText: String(formData.get('helpText') ?? '') || undefined,
       maxLength,
+      sessionTypes: formData.getAll('sessionTypes').map(String),
       actor,
     });
 

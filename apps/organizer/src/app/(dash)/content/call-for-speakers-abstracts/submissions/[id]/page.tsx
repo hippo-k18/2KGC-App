@@ -18,6 +18,11 @@ import { CFA_BASE } from '../../routes';
 import { DecisionPanel } from '../decision-panel';
 import { liftExclusionAction, undoDecisionAction } from '../actions';
 import { ExcludeReviewerForm } from '../exclude-form';
+import { getCfpCall, getCfpDetail, type CfpDetail } from '@/lib/cfp';
+import { cfpStatus, formatDay, dateIn, sessionTypeLine } from '@kgc/scripts/src/lib/cfp-core';
+import { cfpStatusReplyText } from '@kgc/scripts/src/lib/email';
+import { CfpStatusTag } from '../../cfp-ui';
+import { CopyBlock } from '../../rolling-review/forms';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,12 +59,15 @@ export default async function SubmissionDetailPage({
   const submission = await getSubmission(id);
   if (!submission) notFound();
 
-  const [call, reviews, tracks, committee] = await Promise.all([
+  const [call, reviews, tracks, committee, cfpCall, cfp] = await Promise.all([
     getCall(submission.callId),
     listReviews(id),
     listTrackOptions(),
     listReviewers(),
+    getCfpCall(submission.callId),
+    getCfpDetail(id),
   ]);
+  const rolling = Boolean(cfpCall?.enabled);
 
   const reviewerName = new Map(committee.map((r) => [r.id, r.name]));
   const rubric = call?.rubric ?? [];
@@ -378,6 +386,17 @@ export default async function SubmissionDetailPage({
         </Panel>
       )}
 
+      {rolling && cfp && cfpCall && (
+        <RollingPanel
+          detail={cfp}
+          status={cfpStatus({ status: submission.status, detailsReceivedAtMs: cfp.details?.receivedAtMs })}
+          typeLine={sessionTypeLine(submission.sessionType, cfp.durationMinutes)}
+          authorName={submission.author?.name}
+          decisionDay={formatDay(cfpCall.cfp.decisionDate)}
+          timeZone={cfpCall.timeZone}
+        />
+      )}
+
       <Panel style={{ marginTop: 16 }}>
         <h2 className="section-header" style={{ marginTop: 0 }}>
           Decision
@@ -412,6 +431,7 @@ export default async function SubmissionDetailPage({
             <DecisionPanel
               id={submission.id}
               decided={Boolean(submission.decision)}
+              rolling={rolling}
               authorEmail={submission.author?.email}
             />
             {submission.decision && (
@@ -464,4 +484,114 @@ function formatAnswer(value: string | string[] | boolean | undefined): React.Rea
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.length ? value.join(', ') : <span className="muted">not answered</span>;
   return <span style={{ whiteSpace: 'pre-wrap' }}>{value}</span>;
+}
+
+/**
+ * Where this submission stands in the rolling review (T249): the status the
+ * inbox quotes, what has been sent, and what the speaker sent back.
+ */
+function RollingPanel({
+  detail,
+  status,
+  typeLine,
+  authorName,
+  decisionDay,
+  timeZone,
+}: {
+  detail: CfpDetail;
+  status: ReturnType<typeof cfpStatus>;
+  typeLine: string;
+  authorName?: string;
+  decisionDay?: string;
+  timeZone: string;
+}) {
+  const day = (msValue?: number) => (msValue ? formatDay(dateIn(msValue, timeZone)) : undefined);
+  const a = detail.acceptance;
+  return (
+    <Panel style={{ marginTop: 16 }}>
+      <h2 className="section-header" style={{ marginTop: 0 }}>
+        Rolling review <CfpStatusTag status={status} />
+      </h2>
+      <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 200px) 1fr', gap: '6px 12px', margin: 0 }}>
+        <dt className="muted">Session</dt>
+        <dd style={{ margin: 0 }}>{typeLine}</dd>
+        {a && (
+          <>
+            <dt className="muted">Acceptance email</dt>
+            <dd style={{ margin: 0 }}>
+              {a.e2SentAtMs
+                ? `Sent ${day(a.e2SentAtMs)}. Details due ${day(a.detailsDueAtMs)}.`
+                : a.e2HeldForE4
+                  ? 'Held: accepted after the close, so it goes with the decision send.'
+                  : 'Not sent.'}
+            </dd>
+            <dt className="muted">Nudge</dt>
+            <dd style={{ margin: 0 }}>
+              {a.nudgedAtMs ? `Sent ${day(a.nudgedAtMs)}.` : 'Not sent. Goes five days after the acceptance if nothing has arrived.'}
+            </dd>
+          </>
+        )}
+        {detail.closeDecision && (
+          <>
+            <dt className="muted">Decision email</dt>
+            <dd style={{ margin: 0 }}>
+              {detail.closeDecision.version === 'accepted' ? 'Accepted' : 'Not accepted'} version sent{' '}
+              {day(detail.closeDecision.sentAtMs)}.
+              {detail.closeDecision.reason ? ` Reason: ${detail.closeDecision.reason}` : ''}
+            </dd>
+          </>
+        )}
+        {!detail.closeDecision && status === 'rejected' && (
+          <>
+            <dt className="muted">Not told yet</dt>
+            <dd style={{ margin: 0 }}>
+              The author hears with everyone after the close.
+              {detail.declineReason ? ` Their line: ${detail.declineReason}` : ' No reason line yet.'}
+            </dd>
+          </>
+        )}
+        {detail.stillOpenSentAtMs && (
+          <>
+            <dt className="muted">Mid-point note</dt>
+            <dd style={{ margin: 0 }}>Sent {day(detail.stillOpenSentAtMs)}.</dd>
+          </>
+        )}
+      </dl>
+
+      {detail.details && (
+        <>
+          <h3 style={{ fontSize: 14, marginBottom: 6 }}>
+            Details from the speaker, received {day(detail.details.receivedAtMs)}
+          </h3>
+          <dl style={{ margin: 0 }}>
+            <dt className="muted">Final title</dt>
+            <dd style={{ margin: '0 0 8px' }}>{detail.details.title}</dd>
+            <dt className="muted">Session description</dt>
+            <dd style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{detail.details.description}</dd>
+            {detail.details.outline !== undefined && (
+              <>
+                <dt className="muted">Workshop outline</dt>
+                <dd style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{detail.details.outline}</dd>
+                <dt className="muted">Attendees must install or bring</dt>
+                <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{detail.details.install}</dd>
+              </>
+            )}
+          </dl>
+        </>
+      )}
+
+      {status === 'open' && (
+        <>
+          <h3 style={{ fontSize: 14, marginBottom: 6 }}>S1, if they ask where it stands</h3>
+          <CopyBlock label="S1 reply" text={cfpStatusReplyText({ name: authorName, decisionDay })} />
+        </>
+      )}
+      {status === 'rejected' && !detail.closeDecision && (
+        <p className="body-2" style={{ marginTop: 12 }}>
+          If they ask before the decision email, reply by hand. S1 says a submission has not been
+          turned down, which is not true of this one.
+        </p>
+      )}
+    </Panel>
+  );
 }

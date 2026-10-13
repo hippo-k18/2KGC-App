@@ -431,6 +431,8 @@ export async function saveCallField(input: {
   required: boolean;
   helpText?: string;
   maxLength?: number;
+  /** Ask only of these session types (T249). Empty asks everyone. */
+  sessionTypes?: string[];
   actor: string;
 }): Promise<FieldResult> {
   try {
@@ -465,6 +467,15 @@ export async function saveCallField(input: {
       ...(input.helpText?.trim() ? { helpText: input.helpText.trim() } : {}),
       ...(input.maxLength ? { maxLength: input.maxLength } : {}),
     };
+    /*
+     * Only the call's own types, and none at all when that is everyone. The
+     * key is left off rather than stored empty, so a question written before
+     * this existed and one that asks everyone are the same document.
+     */
+    const only = (input.sessionTypes ?? []).filter((t): t is SessionFormat =>
+      (call.sessionTypes ?? []).includes(t as SessionFormat),
+    );
+    if (only.length > 0 && only.length < (call.sessionTypes ?? []).length) field.sessionTypes = only;
 
     const problem = validateField(field, before);
     if (problem) return { ok: false, error: problem };

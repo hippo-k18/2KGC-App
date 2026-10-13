@@ -654,7 +654,12 @@ export async function promoteSubmission(input: {
 
     const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, TIME_ZONE);
     const sessionDocId = deriveSessionId(sub.title, times.startsAtLocal);
-    const speakerDocId = speakerId(identity.name, identity.affiliation);
+    /*
+     * The speaker the call-for-papers Accept already created, when there is
+     * one (T249). Re-deriving would mint a second speaker the moment the
+     * author's company was corrected on their profile.
+     */
+    const speakerDocId = identity.speakerId ?? speakerId(identity.name, identity.affiliation);
 
     const sessionRef = db().collection(COLLECTIONS.sessions).doc(sessionDocId);
     const speakerRef = db().collection(COLLECTIONS.speakers).doc(speakerDocId);

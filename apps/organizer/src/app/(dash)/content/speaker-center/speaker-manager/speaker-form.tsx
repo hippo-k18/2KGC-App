@@ -38,6 +38,7 @@ export interface EditableSpeaker {
   sessionCount: number;
   featured?: boolean;
   displayOrder?: number;
+  unlisted?: boolean;
 }
 
 /**
@@ -188,6 +189,18 @@ export function SpeakerForm({ existing }: { existing?: EditableSpeaker }) {
           </>
         }
       >
+        <CheckboxField
+          name="unlisted"
+          value="1"
+          defaultChecked={existing?.unlisted}
+          label="Not on the website or in the app yet"
+          description={
+            <>
+              Set on speakers the call for papers accepts. Untick it to announce them.
+            </>
+          }
+        />
+
         <CheckboxField
           name="featured"
           value="1"

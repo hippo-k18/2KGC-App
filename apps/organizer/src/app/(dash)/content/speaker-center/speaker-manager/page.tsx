@@ -281,6 +281,7 @@ export default async function SpeakerManagerPage({
         sessionCount: doc.sessionIds?.length ?? 0,
         featured: doc.featured,
         displayOrder: doc.displayOrder,
+        unlisted: doc.unlisted,
       }
     : undefined;
   const showForm = creating || Boolean(editing);
@@ -619,7 +620,12 @@ export default async function SpeakerManagerPage({
                 />
               </DetailDisclosure>,
               s.company ?? <span className="muted">not set</span>,
-              <span key="p" style={{ display: 'flex', gap: 4 }}>
+              <span key="p" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {s.unlisted && (
+                  <Tag color="orange" small>
+                    not listed
+                  </Tag>
+                )}
                 <Tag color={s.hasBio ? 'green' : 'red'} small>
                   bio
                 </Tag>

@@ -390,6 +390,13 @@ export interface AuditEntry {
      * this entry is the only trace.
      */
     | 'submission.decide'
+    /** The call-for-papers flow (T249). */
+    | 'submission.cfpAccept'
+    | 'submission.declineReason'
+    | 'call.cfpSettings'
+    | 'call.cfpPass'
+    | 'call.cfpCloseDecisions'
+    | 'call.cfpStillOpen'
     | 'submission.undoDecision'
     /**
      * An accepted abstract promoted onto the agenda — one session written, and

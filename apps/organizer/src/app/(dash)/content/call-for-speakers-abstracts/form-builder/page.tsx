@@ -179,6 +179,7 @@ export default async function FormBuilderPage({
             callId={callId}
             existing={editing}
             answered={editing ? (answeredCount.get(editing.id) ?? 0) : 0}
+            sessionTypes={call.sessionTypes}
           />
         </Panel>
       ) : (
@@ -232,6 +233,7 @@ export default async function FormBuilderPage({
                       {f.required ? ' · required' : ''}
                       {f.maxLength ? ` · max ${f.maxLength} characters` : ''}
                       {f.options?.length ? ` · ${f.options.join(' / ')}` : ''}
+                      {f.sessionTypes?.length ? ` · ${f.sessionTypes.join(' and ')} only` : ''}
                     </span>
                   </span>,
                   <span key="t">{f.kind}</span>,
