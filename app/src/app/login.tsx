@@ -76,6 +76,20 @@ import { getFirebaseAuth } from '@/lib/firebase/client';
  * explains a temporary password is printing a hint to whoever is holding the
  * phone, which is the demo-panel mistake in a smaller box.
  */
+/**
+ * The shared Expo Go preview (`scripts/expo-go-share.sh`) signs straight in to
+ * the read-only demo login, so somebody who scans the QR lands on Home. The two
+ * values are compiled in only by that script; every other build leaves them
+ * empty and this screen behaves exactly as described above. The account is
+ * read-only by claim and rules (T224/T227), and its password is already printed
+ * on the handout that carries the QR, so the bundle discloses nothing new.
+ */
+const PREVIEW_DEMO_EMAIL = process.env.EXPO_PUBLIC_PREVIEW_DEMO_EMAIL ?? '';
+const PREVIEW_DEMO_PASSWORD = process.env.EXPO_PUBLIC_PREVIEW_DEMO_PASSWORD ?? '';
+const PREVIEW_DEMO = PREVIEW_DEMO_EMAIL !== '' && PREVIEW_DEMO_PASSWORD !== '';
+/** Once per launch, so signing out of the preview stays signed out. */
+let previewAutoTried = false;
+
 export default function LoginScreen() {
   const colors = useTheme();
   const { event, branding } = useEventSettings();
@@ -116,6 +130,25 @@ export default function LoginScreen() {
   // Pro the logo still left the link under the keyboard; on an SE it left the
   // button there.
   const compact = keyboardHeight > 0;
+
+  useEffect(() => {
+    if (!PREVIEW_DEMO || loading || user || previewAutoTried) return;
+    previewAutoTried = true;
+    void signInPreviewDemo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user]);
+
+  async function signInPreviewDemo() {
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWithEmailAndPassword(getFirebaseAuth(), PREVIEW_DEMO_EMAIL, PREVIEW_DEMO_PASSWORD);
+    } catch {
+      setError('Could not open the demo. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loading) return null;
   if (user) return <Redirect href="/home" />;
@@ -250,6 +283,30 @@ export default function LoginScreen() {
           </Text>
         </View>
       )}
+
+      {PREVIEW_DEMO ? (
+        <Pressable
+          onPress={signInPreviewDemo}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="View the demo"
+          style={({ pressed }) => ({
+            backgroundColor: colors.accent,
+            opacity: busy ? 0.5 : pressed ? 0.85 : 1,
+            borderRadius: Radius.md,
+            alignItems: 'center',
+            height: 50,
+            justifyContent: 'center',
+          })}>
+          {busy ? (
+            <ActivityIndicator color={colors.onAccent} />
+          ) : (
+            <Text variant="heading" tone="onAccent">
+              View the demo
+            </Text>
+          )}
+        </Pressable>
+      ) : null}
 
       {step === 'code' ? (
         <>

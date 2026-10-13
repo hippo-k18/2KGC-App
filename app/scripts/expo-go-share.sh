@@ -65,6 +65,10 @@ done < "$ENV_FILE"
 [[ -n "${EXPO_PUBLIC_FIREBASE_PROJECT_ID:-}" ]] || { echo "$ENV_FILE has no EXPO_PUBLIC_FIREBASE_PROJECT_ID"; exit 1; }
 export EXPO_PUBLIC_USE_EMULATOR=0
 export EXPO_PUBLIC_SITE_ORIGIN="$SITE_ORIGIN"
+# Optional: the read-only demo login, so a viewer who scans lands on Home
+# (login.tsx signs in once per launch). Never set for a store build.
+export EXPO_PUBLIC_PREVIEW_DEMO_EMAIL="${PREVIEW_DEMO_EMAIL:-}"
+export EXPO_PUBLIC_PREVIEW_DEMO_PASSWORD="${PREVIEW_DEMO_PASSWORD:-}"
 
 PIDS=()
 cleanup() {
