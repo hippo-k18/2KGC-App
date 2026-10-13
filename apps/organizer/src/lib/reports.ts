@@ -5,6 +5,7 @@ import {
   DELETED_USER_ID,
   DELETED_USER_NAME,
   EVENT_ID,
+  isPlainId,
   SUBCOLLECTIONS,
   type ReportDoc,
 } from '@kgc/shared';
@@ -15,6 +16,7 @@ import { db } from './firestore';
 import {
   conversationAuthors,
   groupReports,
+  isGoneCard,
   targetOf,
   type ReportGroup,
   type ReportRow,
@@ -84,20 +86,27 @@ const UNKNOWN_NAME = 'Unknown attendee';
  * on its profile (T224) and is named as what it is; anyone with no profile at
  * all is "Unknown attendee", never their uid.
  */
-async function names(extra: Iterable<string> = []): Promise<(uid: string) => string> {
+async function names(extra: Iterable<unknown> = []): Promise<(uid: unknown) => string> {
   const snap = await db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get();
   const map = new Map<string, string>();
   const label = (doc: FirebaseFirestore.DocumentSnapshot) =>
     doc.get('demo') === true ? DEMO_NAME : String(doc.get('name') || '') || UNKNOWN_NAME;
   for (const d of snap.docs) map.set(d.id, label(d));
   map.set(DELETED_USER_ID, DELETED_USER_NAME);
-  // A profile written without `eventId` is still a profile.
-  const missing = [...new Set(extra)].filter((uid) => uid && !map.has(uid));
+  // A profile written without `eventId` is still a profile. Only plain ids are
+  // looked up: a report written with the Admin SDK can carry a reporter id of
+  // `..` or a number, and one such lookup threw the whole queue (T234). The
+  // rules make that impossible from the app; this makes it harmless anyway.
+  const missing = [...new Set(extra)].filter((uid): uid is string => isPlainId(uid) && !map.has(uid));
   if (missing.length) {
-    const docs = await db().getAll(...missing.map((uid) => db().collection(COLLECTIONS.users).doc(uid)));
-    for (const d of docs) if (d.exists) map.set(d.id, label(d));
+    try {
+      const docs = await db().getAll(...missing.map((uid) => db().collection(COLLECTIONS.users).doc(uid)));
+      for (const d of docs) if (d.exists) map.set(d.id, label(d));
+    } catch (err) {
+      recordError('reports.names', err);
+    }
   }
-  return (uid: string) => map.get(uid) ?? UNKNOWN_NAME;
+  return (uid: unknown) => (typeof uid === 'string' ? map.get(uid) : undefined) ?? UNKNOWN_NAME;
 }
 
 type Messages = FirebaseFirestore.CollectionReference;
@@ -175,7 +184,7 @@ export async function listReportQueue(): Promise<ReportQueueItem[]> {
   const name = await names(docs.map((d) => d.r.reporterId));
   const rows: ReportRow[] = docs.map(({ id, r }) => ({
     id,
-    reporterId: r.reporterId,
+    reporterId: typeof r.reporterId === 'string' ? r.reporterId : String(r.reporterId ?? ''),
     reporterName: name(r.reporterId),
     targetKey: r.targetKey,
     reason: r.reason,
@@ -276,6 +285,45 @@ export async function resolveReports(input: {
     after: { decision: input.decision, reports: targets.length },
   });
   return { ok: true, changed: targets.length };
+}
+
+/**
+ * Keep, in one go, every open report whose content is gone. A wave of reports
+ * on deleted posts (or on keys filed before the rules required a target) is
+ * otherwise one click per card (T234). Each report gets its own audit entry,
+ * so the log still says who closed which report and why.
+ */
+export async function keepAllForDeletedContent(actor: string): Promise<{ cards: number; reports: number }> {
+  const gone = (await listReportQueue()).filter(isGoneCard);
+  const now = new Date();
+  let closed = 0;
+  for (const card of gone) {
+    const snap = await db()
+      .collection(COLLECTIONS.reports)
+      .where('eventId', '==', EVENT_ID)
+      .where('targetKey', '==', card.targetKey)
+      .get();
+    const open = snap.docs.filter((d) => d.get('status') === 'open');
+    for (let i = 0; i < open.length; i += 400) {
+      const batch = db().batch();
+      for (const d of open.slice(i, i + 400)) {
+        batch.update(d.ref, { status: 'dismissed', resolvedBy: actor, resolvedAt: now, resolution: 'kept' });
+      }
+      await batch.commit();
+    }
+    for (const d of open) {
+      await appendAudit({
+        actor,
+        action: 'report.resolve',
+        targetPath: d.ref.path,
+        targetId: d.id,
+        before: { status: 'open' },
+        after: { decision: 'keep', targetKey: card.targetKey, bulk: 'content gone' },
+      });
+    }
+    closed += open.length;
+  }
+  return { cards: gone.length, reports: closed };
 }
 
 async function hideTarget(

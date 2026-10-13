@@ -45,7 +45,29 @@ describe('the demo login on the attendee list', () => {
       ],
     );
     // Four registrations, one of them the demo: the page reads "3 of 3".
-    expect(attendeeListStats(rows)).toEqual({ hidden: 1, signedIn: 2, ticketHolders: 3, multiHolders: 0 });
+    expect(attendeeListStats(rows)).toEqual({ people: 3, hidden: 1, signedIn: 2, ticketHolders: 3, multiHolders: 0 });
+  });
+
+  it('divides "Signed into the app" by people only, so the demo is not one who has not (T228)', () => {
+    // T228's seed: 3 active people, 1 cancelled, the demo badge; 2 people and the demo signed in.
+    const rows = mergeAttendees(
+      [user('ada'), user('ben'), user('demo', { demo: true })],
+      [
+        reg('reg_ada', 'ada@example.com'),
+        reg('reg_ben', 'ben@example.com'),
+        reg('reg_cy', 'cy@example.com'),
+        reg('reg_gone', 'gone@example.com', { status: 'cancelled' }),
+        reg('reg_demo', 'demo@example.com', { demo: true }),
+      ],
+    );
+    const { people, signedIn } = attendeeListStats(rows);
+    expect(rows).toHaveLength(5);
+    expect({ people, signedIn, percent: Math.round((signedIn / people) * 100), haveNot: people - signedIn }).toEqual({
+      people: 4,
+      signedIn: 2,
+      percent: 50,
+      haveNot: 2,
+    });
   });
 });
 

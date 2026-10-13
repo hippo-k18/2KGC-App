@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { conversationAuthors, groupReports, hideLabel, targetLabel, targetOf, type ReportRow } from './reports-core';
+import {
+  conversationAuthors,
+  groupReports,
+  hideLabel,
+  isGoneCard,
+  noContentText,
+  targetLabel,
+  targetOf,
+  type ReportRow,
+} from './reports-core';
 
 const row = (over: Partial<ReportRow>): ReportRow => ({
   id: 'x',
@@ -85,5 +94,36 @@ describe('hideLabel', () => {
     expect(hideLabel({ type: 'job', jobId: 'j' })).toBeNull();
     expect(hideLabel(null)).toBeNull();
     expect(targetLabel(null)).toBe('Unreadable report');
+  });
+});
+
+describe('noContentText', () => {
+  it('asks for Keep only while the card is open', () => {
+    expect(noContentText({ status: 'open', target: null, content: {} })).toBe(
+      'This report does not name anything the app shows. Keep it to close it.',
+    );
+    expect(noContentText({ status: 'dismissed', target: null, content: {} })).toBe(
+      'This report does not name anything the app shows.',
+    );
+    const post = { type: 'communityPost' as const, postId: 'p' };
+    expect(noContentText({ status: 'open', target: post, content: { unreadable: true } })).toBe(
+      'This could not be read. Keep it to close it.',
+    );
+    expect(noContentText({ status: 'actioned', target: post, content: { unreadable: true } })).toBe('This could not be read.');
+    expect(noContentText({ status: 'open', target: post, content: {} })).toBe(
+      'This is no longer there. It was deleted after it was reported.',
+    );
+  });
+});
+
+describe('isGoneCard', () => {
+  const post = { type: 'communityPost' as const, postId: 'p' };
+  it('is an open card with nothing there, not a failed read and not a job', () => {
+    expect(isGoneCard({ status: 'open', target: post, content: { exists: false } })).toBe(true);
+    expect(isGoneCard({ status: 'open', target: null, content: { exists: false } })).toBe(true);
+    expect(isGoneCard({ status: 'open', target: post, content: { exists: true } })).toBe(false);
+    expect(isGoneCard({ status: 'open', target: post, content: { exists: false, unreadable: true } })).toBe(false);
+    expect(isGoneCard({ status: 'open', target: { type: 'job', jobId: 'j' }, content: { exists: false } })).toBe(false);
+    expect(isGoneCard({ status: 'dismissed', target: post, content: { exists: false } })).toBe(false);
   });
 });

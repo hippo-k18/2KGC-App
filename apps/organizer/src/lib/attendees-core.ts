@@ -108,6 +108,8 @@ export function cancelledOrTransferred(rows: { status?: string }[]): number {
  * "Holding a ticket: N of M" is read against.
  */
 export function attendeeListStats(all: AttendeeRow[]): {
+  /** Everyone listed except the shared demo login: the base every figure here divides by. */
+  people: number;
   hidden: number;
   signedIn: number;
   ticketHolders: number;
@@ -115,6 +117,7 @@ export function attendeeListStats(all: AttendeeRow[]): {
 } {
   const people = all.filter((a) => !a.demo);
   return {
+    people: people.length,
     hidden: people.filter((a) => a.signedIn && !a.visibleInDirectory).length,
     signedIn: people.filter((a) => a.signedIn).length,
     ticketHolders: people.filter((a) => a.registrationId).length,

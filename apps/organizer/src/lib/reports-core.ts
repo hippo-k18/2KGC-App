@@ -141,6 +141,35 @@ export function hideLabel(target: ReportTarget | null): string | null {
   }
 }
 
+/**
+ * An open card about content that is no longer there, or a key that names
+ * nothing the app shows: what "Keep all for deleted content" closes. Not a
+ * card whose read failed (that content may well exist) and not a job report.
+ */
+export function isGoneCard(item: {
+  status: ReportStatus;
+  target: ReportTarget | null;
+  content: { exists: boolean; unreadable?: boolean };
+}): boolean {
+  return item.status === 'open' && !item.content.exists && !item.content.unreadable && item.target?.type !== 'job';
+}
+
+/**
+ * What a card with no content says. "Keep it to close it" only while the card
+ * is open: on the Kept and Hidden tabs it has already been closed (T234).
+ */
+export function noContentText(item: {
+  status: ReportStatus;
+  target: ReportTarget | null;
+  content: { unreadable?: boolean };
+}): string {
+  const close = item.status === 'open' ? ' Keep it to close it.' : '';
+  if (item.target === null) return `This report does not name anything the app shows.${close}`;
+  if (item.content.unreadable) return `This could not be read.${close}`;
+  if (item.target.type === 'job') return 'A job post. The Job Board is not built yet.';
+  return 'This is no longer there. It was deleted after it was reported.';
+}
+
 export function targetLabel(target: ReportTarget | null): string {
   return target ? TARGET_LABEL[target.type] : 'Unreadable report';
 }

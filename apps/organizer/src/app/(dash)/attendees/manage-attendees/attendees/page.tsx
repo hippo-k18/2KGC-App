@@ -105,7 +105,9 @@ export default async function AttendeesPage({
   // Title and company fall back to the attendee's own profile, so saving a
   // corrected name does not blank what they wrote about themselves.
   const editRow = editing ? all.find((a) => a.registrationId === editing.registrationId) : undefined;
-  const { hidden, signedIn, ticketHolders, multiHolders } = attendeeListStats(all);
+  // Every figure below leaves out the shared demo login (T228): it is listed
+  // like anyone, but counting it made "have not signed in" one too many.
+  const { people, hidden, signedIn, ticketHolders, multiHolders } = attendeeListStats(all);
   const exportQuery = category ? `?category=${encodeURIComponent(category)}` : '';
   const href = (next: { q?: string; role?: string; category?: string }) => {
     const p = new URLSearchParams();
@@ -145,7 +147,7 @@ export default async function AttendeesPage({
         >
           <div className="body-2">
             <div>
-              Total number of attendees: <strong>{all.length}</strong>
+              Total number of attendees: <strong>{people}</strong>
             </div>
             <div>
               Holding a ticket: <strong>{ticketHolders}</strong> of {registrations} registrations
@@ -172,17 +174,17 @@ export default async function AttendeesPage({
             */}
             <div>
               Signed into the app: <strong>{signedIn}</strong>
-              {all.length > 0 && (
+              {people > 0 && (
                 <span className="muted">
                   {' '}
-                  ({Math.round((signedIn / all.length) * 100)}%). {all.length - signedIn} have not
+                  ({Math.round((signedIn / people) * 100)}%). {people - signedIn} have not
                 </span>
               )}
             </div>
           </div>
           <div className="body-2">
             <div style={{ fontWeight: 500 }}>Audience</div>
-            <div>● in-person: {all.length} (100.0%)</div>
+            <div>● in-person: {people} (100.0%)</div>
             <div className="muted">● remote: 0 (0%)</div>
           </div>
         </div>

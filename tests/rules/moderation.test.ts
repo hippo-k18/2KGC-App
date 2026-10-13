@@ -77,6 +77,8 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, `threads/${THREAD_AB}/messages/m1`), { senderId: B, body: 'rude', sentAt: new Date() });
     await setDoc(doc(db, 'sessions/s1'), { eventId: 'kgc-2027', status: 'published', qaEnabled: true });
+    // Report targets must exist (T236).
+    await setDoc(doc(db, `directory/${B}`), { eventId: 'kgc-2027', uid: B, name: 'B' });
   });
 });
 
@@ -111,7 +113,6 @@ describe('reports', () => {
       { type: 'message', threadId: THREAD_AB, messageId: 'm1' },
       { type: 'message', threadId: THREAD_AB },
       { type: 'user', uid: B },
-      { type: 'job', jobId: 'j1' },
     ];
     for (const t of targets) {
       const r = report(A, t, t.type === 'message' ? { targetAuthorId: B } : {});
@@ -544,6 +545,13 @@ describe('a report key is made of the ids the app writes', () => {
 
   it('the ids the app and the seed really use still go through', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      for (const path of [
+        'communityPosts/seed-post-0', 'communityPosts/Xy7Qp0aB3cD4eF5gH6iJ', 'communityPosts/seed-post-0/replies/seed-reply-1',
+        'directory/demo_000', 'directory/NyX55bdvl0h9Zg2BgV0PwFlOAMV9',
+      ]) {
+        await setDoc(doc(db, path), { eventId: 'kgc-2027' });
+      }
       await setDoc(doc(ctx.firestore(), 'threads/deleted-user_attendeeA'), {
         eventId: 'kgc-2027', participantIds: ['deleted-user', A], unread: { [A]: 0, 'deleted-user': 0 },
       });
@@ -554,7 +562,6 @@ describe('a report key is made of the ids the app writes', () => {
       { type: 'reply', postId: 'seed-post-0', replyId: 'seed-reply-1' },
       { type: 'user', uid: 'demo_000' },
       { type: 'user', uid: 'NyX55bdvl0h9Zg2BgV0PwFlOAMV9' },
-      { type: 'job', jobId: 'job-1_a' },
     ] as ReportTarget[]) {
       const r = report(A, t);
       await assertSucceeds(setDoc(doc(as(A), 'reports', r.id), r.data));
@@ -573,5 +580,53 @@ describe('a session question takes only the fields the app writes', () => {
   it('the app shape goes through, an extra field does not', async () => {
     await assertSucceeds(addDoc(collection(as(A), 'sessions/s1/questions'), q()));
     await assertFails(addDoc(collection(as(A), 'sessions/s1/questions'), q({ text: 'fuck' })));
+  });
+});
+
+/**
+ * T236: a report must point at something that is there, so one attendee cannot
+ * bury the queue under reports of `communityPost:does-not-exist-N` (T234).
+ */
+describe('a report needs a target that exists', () => {
+  const tryReport = (reporter: string, t: ReportTarget, extra: Record<string, unknown> = {}) => {
+    const r = report(reporter, t, extra);
+    return setDoc(doc(as(reporter, reporter === DEMO ? { demo: true } : {}), 'reports', r.id), r.data);
+  };
+
+  it('a post, reply or profile that is not there cannot be reported, by anyone', async () => {
+    for (const who of [A, DEMO]) {
+      await assertFails(tryReport(who, { type: 'communityPost', postId: 'does-not-exist-1' }));
+      await assertFails(tryReport(who, { type: 'reply', postId: 'p1', replyId: 'nope' }));
+      await assertFails(tryReport(who, { type: 'reply', postId: 'nope', replyId: 'r1' }));
+      await assertFails(tryReport(who, { type: 'user', uid: C }));
+    }
+  });
+
+  it('a flood of made-up ids is refused one by one', async () => {
+    for (let i = 0; i < 20; i++) {
+      await assertFails(tryReport(A, { type: 'communityPost', postId: `does-not-exist-${i}` }));
+    }
+  });
+
+  it('the same targets once they exist go through', async () => {
+    await assertSucceeds(tryReport(A, { type: 'communityPost', postId: 'p1' }));
+    await assertSucceeds(tryReport(A, { type: 'reply', postId: 'p1', replyId: 'r1' }));
+    await assertSucceeds(tryReport(A, { type: 'user', uid: B }));
+    await assertSucceeds(tryReport(DEMO, { type: 'communityPost', postId: 'p1' }));
+  });
+
+  it('a hidden post can still be reported: it is there, and hiding is reversible', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => updateDoc(doc(ctx.firestore(), 'communityPosts/p1'), { status: 'hidden' }));
+    await assertSucceeds(tryReport(A, { type: 'communityPost', postId: 'p1' }));
+  });
+
+  it('a conversation or message that is not there is refused', async () => {
+    await assertFails(tryReport(A, { type: 'message', threadId: THREAD_AC }, { targetAuthorId: C }));
+    await assertFails(tryReport(A, { type: 'message', threadId: THREAD_AB, messageId: 'nope' }, { targetAuthorId: B }));
+  });
+
+  it('job reports are refused until the Job Board exists (T209)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => setDoc(doc(ctx.firestore(), 'jobs/j1'), { eventId: 'kgc-2027' }));
+    await assertFails(tryReport(A, { type: 'job', jobId: 'j1' }));
   });
 });

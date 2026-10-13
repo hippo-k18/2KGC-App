@@ -8,7 +8,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, reportId, reportTargetKey, reportTargetPath, type ReportTarget } from '@kgc/shared';
 import { db as dashDb } from '@/lib/firestore';
-import { listReportQueue, resolveReports, withContent } from '@/lib/reports';
+import { keepAllForDeletedContent, listReportQueue, resolveReports, withContent } from '@/lib/reports';
 
 let db: Firestore;
 const ORG = 'organizer@example.com';
@@ -320,5 +320,73 @@ describe('one bad report never takes the queue down', () => {
     expect(out).toHaveLength(3);
     expect(out[0].content).toEqual({ exists: false, unreadable: true });
     expect(out.slice(1).every((g) => g.content.exists)).toBe(true);
+  });
+});
+
+/** T236: follow-ups from the T234 gate. */
+describe('reporter ids that are not ids', () => {
+  it('a reporter id that is a number, ".." or "__x__" cannot throw the queue', async () => {
+    await file('good', POST, 'spam');
+    for (const [id, reporterId] of [['bad1', 7], ['bad2', '..'], ['bad3', '__x__'], ['bad4', { a: 1 }]] as const) {
+      await db.collection(COLLECTIONS.reports).doc(id).set({
+        eventId: EVENT_ID, reporterId, targetType: 'communityPost', targetKey: 'communityPost:p1',
+        targetPath: 'communityPosts/p1', reason: 'spam', status: 'open', createdAt: new Date(),
+      });
+    }
+    const [card] = await listReportQueue();
+    expect(card.content).toMatchObject({ exists: true, title: 'Buy now' });
+    expect(card.reports.map((r) => r.reporterName).sort()).toEqual([
+      'Grace Good', 'Unknown attendee', 'Unknown attendee', 'Unknown attendee', 'Unknown attendee',
+    ]);
+  });
+});
+
+describe('Keep all for deleted content', () => {
+  beforeEach(async () => {
+    await file('good', POST);
+    await file('good', { type: 'communityPost', postId: 'gone-1' });
+    await file('other', { type: 'communityPost', postId: 'gone-1' });
+    await file('good', { type: 'reply', postId: 'p1', replyId: 'gone-r' });
+    await file('good', { type: 'user', uid: 'nobody' });
+    // Filed through the Admin SDK: a key that names nothing, and a job report.
+    await db.collection(COLLECTIONS.reports).doc('oddkey').set({
+      eventId: EVENT_ID, reporterId: 'good', targetType: 'communityPost', targetKey: 'communityPost:..',
+      targetPath: 'communityPosts/..', reason: 'spam', status: 'open', createdAt: new Date(),
+    });
+    await file('good', { type: 'job', jobId: 'j1' });
+  });
+
+  it('closes every open card whose content is gone, and nothing else', async () => {
+    const res = await keepAllForDeletedContent(ORG);
+    expect(res).toEqual({ cards: 4, reports: 5 });
+    const q = await listReportQueue();
+    const byKey = Object.fromEntries(q.map((i) => [i.targetKey, i.status]));
+    expect(byKey).toEqual({
+      'communityPost:p1': 'open',
+      'communityPost:gone-1': 'dismissed',
+      'reply:p1:gone-r': 'dismissed',
+      'user:nobody': 'dismissed',
+      'communityPost:..': 'dismissed',
+      'job:j1': 'open',
+    });
+    for (const r of await reportsOn('communityPost:gone-1')) {
+      expect(r).toMatchObject({ status: 'dismissed', resolution: 'kept', resolvedBy: ORG });
+    }
+  });
+
+  it('writes one audit entry per report closed', async () => {
+    await keepAllForDeletedContent(ORG);
+    const a = (await audits()).filter((e) => e.action === 'report.resolve');
+    expect(a).toHaveLength(5);
+    expect(new Set(a.map((e) => e.targetId)).size).toBe(5);
+    for (const e of a) {
+      expect(e).toMatchObject({ actor: ORG, before: { status: 'open' }, after: { decision: 'keep', bulk: 'content gone' } });
+      expect(e.targetPath).toMatch(/^reports\//);
+    }
+  });
+
+  it('a second run finds nothing to do', async () => {
+    await keepAllForDeletedContent(ORG);
+    expect(await keepAllForDeletedContent(ORG)).toEqual({ cards: 0, reports: 0 });
   });
 });

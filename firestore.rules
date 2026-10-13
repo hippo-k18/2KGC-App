@@ -1560,7 +1560,9 @@ service cloud.firestore {
        * test shuts out Firestore's reserved `__…__` ids. Any of those made the
        * dashboard build a document path Firestore rejects, and one such report
        * took the whole Reports screen down (T232).
-       * A job report names `jobs/<id>`, where T209's Job Board will put them.
+       *
+       * A job report names `jobs/<id>`, where T209's Job Board will put them
+       * (refused for now by `targetExists`).
        */
       function pathMatchesKey(d) {
         let p = d.targetKey.split(':');
@@ -1600,10 +1602,36 @@ service cloud.firestore {
                    == d.targetAuthorId);
       }
 
+      /**
+       * A report must point at something that is there. Without it one attendee
+       * (the public demo login included) could file a report on
+       * `communityPost:does-not-exist-1`, `-2` … one write each, and bury the
+       * organizers' queue under cards that each need a Keep (T234).
+       *
+       * One `exists()` for a post, a reply or a profile; a conversation report
+       * already reads the thread (and the message) in `reportsOwnConversation`.
+       * Job reports are refused until T209 builds the Job Board: there is
+       * nothing to point at yet.
+       *
+       * Access calls on create, counting `appAccess` in `isRegistered()`: post,
+       * reply and profile 2; a conversation 2; a single message 3.
+       */
+      function targetExists(d) {
+        let p = d.targetKey.split(':');
+        return d.targetType == 'message'
+          || (d.targetType == 'communityPost'
+              && exists(/databases/$(database)/documents/communityPosts/$(p[1])))
+          || (d.targetType == 'reply'
+              && exists(/databases/$(database)/documents/communityPosts/$(p[1])/replies/$(p[2])))
+          || (d.targetType == 'user'
+              && exists(/databases/$(database)/documents/directory/$(p[1])));
+      }
+
       allow create: if isRegistered()
         && request.resource.data.reporterId == request.auth.uid
         && reportId == request.auth.uid + '__' + request.resource.data.targetKey
         && validReport(request.resource.data)
+        && targetExists(request.resource.data)
         && (request.resource.data.targetType != 'message'
             || reportsOwnConversation(request.resource.data));
       allow read, update, delete: if false;

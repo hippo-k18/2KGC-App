@@ -3,10 +3,10 @@ import { reportReasonLabel } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { listReportQueue, reportCounts, type ReportQueueItem } from '@/lib/reports';
-import { hideLabel, targetLabel } from '@/lib/reports-core';
+import { hideLabel, isGoneCard, noContentText, targetLabel } from '@/lib/reports-core';
 import { dayOfInstant } from '@/lib/time';
 import { EmptyState, PageHeader, Panel, StatTiles, Tabs, Tag } from '../../../ui';
-import { resolveReportAction } from './actions';
+import { keepAllForDeletedContentAction, resolveReportAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +30,7 @@ export default async function ReportsPage({
   const items = await listReportQueue();
   const counts = reportCounts(items);
   const shown = items.filter((i) => i.status === view);
+  const gone = items.filter(isGoneCard);
 
   return (
     <>
@@ -79,6 +80,20 @@ export default async function ReportsPage({
       />
 
       <Panel>
+        {view === 'open' && gone.length > 0 ? (
+          <form
+            action={keepAllForDeletedContentAction}
+            style={{ alignItems: 'center', display: 'flex', gap: 10, marginBottom: 12 }}
+          >
+            <button type="submit" className="whova-btn-main secondary">
+              Keep all for deleted content
+            </button>
+            <span className="muted" style={{ fontSize: 12 }}>
+              Closes {gone.length} {gone.length === 1 ? 'card' : 'cards'} whose post, reply, conversation or profile
+              is no longer there.
+            </span>
+          </form>
+        ) : null}
         {shown.length === 0 ? (
           <EmptyState>
             <p className="empty-title">
@@ -134,13 +149,7 @@ function ReportCard({ item }: { item: ReportQueueItem }) {
       <div style={{ fontSize: 13, lineHeight: 1.6, padding: '12px 14px' }}>
         {!content.exists ? (
           <p className="muted" style={{ margin: 0 }}>
-            {item.target === null
-              ? 'This report does not name anything the app shows. Keep it to close it.'
-              : content.unreadable
-                ? 'This could not be read. Keep it to close it.'
-                : item.target.type === 'job'
-                  ? 'A job post. The Job Board is not built yet.'
-                  : 'This is no longer there. It was deleted after it was reported.'}
+            {noContentText(item)}
           </p>
         ) : (
           <>
