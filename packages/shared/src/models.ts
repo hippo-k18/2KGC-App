@@ -932,6 +932,18 @@ export interface SpeakerDoc extends BaseDoc {
   /** Set when the speaker also holds a ticket, so the two identities join up. */
   userId?: string;
   /**
+   * Kept off the website's speaker page, its speaker count and the app's
+   * People tab, while still being a speaker everywhere in the dashboard.
+   *
+   * Set on a speaker the call for papers creates the moment a submission is
+   * accepted (T249). Accepting is not announcing: Min's plan announces each
+   * week's speakers the week after, once a bio and a headshot are in, and a
+   * name with no photo appearing on the public page the second François
+   * clicks Accept is the opposite of that. Speaker Manager clears it.
+   * Absent means listed, which is every speaker that existed before this.
+   */
+  unlisted?: boolean;
+  /**
    * How to reach them before they hold a ticket.
    *
    * Contact details otherwise live only on `users`, joined by `userId` — which
@@ -1034,6 +1046,13 @@ export interface SpeakerProfileEditDoc extends BaseDoc {
   linksValidFrom?: number;
   /** The last thing they sent. Kept after a decision, as the record of it. */
   draft?: SpeakerProfileDraft;
+  /**
+   * Accepted submissions this speaker is still sending details for, so the
+   * self-service page can ask for the final title and description before any
+   * session exists. Server-only, like the rest of this document: submission
+   * ids must not reach the public `speakers` record.
+   */
+  submissionIds?: string[];
 }
 
 /** `sessions/{sessionId}/materials/{id}` */
@@ -1963,7 +1982,22 @@ export interface EmailLogDoc {
     /** A writer submitted a post: one row per editor told. */
     | "blog-review-request"
     /** An editor published a post or sent it back: the row for its writer. */
-    | "blog-review-decision";
+    | "blog-review-decision"
+    /**
+     * The KGC 2027 call for papers (T249), Min's emails by her own numbers:
+     * E1 on submission, E2 on acceptance, E3 the nudge five days later, the two
+     * E4 versions after the close, E6 the mid-point note, the notice to the
+     * onboarding inbox on every acceptance, and the Thursday reminder to the
+     * reviewer. One template name each, so "did they get E3?" is one query.
+     */
+    | "cfp-received"
+    | "cfp-accepted"
+    | "cfp-nudge"
+    | "cfp-decision-accepted"
+    | "cfp-decision-declined"
+    | "cfp-still-open"
+    | "cfp-accept-notice"
+    | "cfp-weekly-reminder";
   subject: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */
@@ -1976,6 +2010,8 @@ export interface EmailLogDoc {
   registrationId?: string;
   /** Groups every row of one bulk send, so a campaign can be counted. */
   campaignId?: string;
+  /** The submission a call-for-papers email is about. */
+  submissionId?: string;
   /** Who pressed send. Absent on automated transactional mail. */
   actor?: string;
   at: Timestamp;
@@ -2898,7 +2934,20 @@ export type ReviewStatus = "assigned" | "submitted" | "declined";
  * is worse than either identical or different, because it typechecks until the
  * day somebody adds a property to one of them.
  */
-export type CallFormFieldDef = Omit<FormFieldDef, "ticketTypeIds">;
+export type CallFormFieldDef = Omit<FormFieldDef, "ticketTypeIds"> & {
+  /**
+   * Ask this question only of these session types. Empty or absent means
+   * every type, which is what every question written before T249 means.
+   *
+   * The call-for-papers counterpart of `ticketTypeIds`, and the reason the
+   * Omit above is not the whole story: one call takes talks and workshops,
+   * and a workshop has to say what attendees must install while a talk must
+   * not be asked. A question hidden from a type is not validated for it
+   * either, so "required" on a workshop-only question means required of
+   * workshops.
+   */
+  sessionTypes?: SessionFormat[];
+};
 
 /**
  * A superseded version of a call's form, kept so an old submission can still be
@@ -3033,8 +3082,55 @@ export interface CallDoc extends BaseDoc {
   /** Addresses told about each new submission. Empty means nobody is told. */
   notifyEmails: string[];
 
+  /**
+   * The rolling-review settings Min's plan runs on (T249). Absent on a call
+   * made before it, which then behaves exactly as it always did.
+   */
+  cfp?: CallCfpSettings;
+
   /** Allowlisted organizer address, as `auditLog.actor` records it. */
   updatedBy?: string;
+}
+
+/**
+ * Dates and addresses the KGC 2027 call for papers reads, all optional.
+ *
+ * ── An unset date is left out, never printed as a placeholder ──────────────
+ *
+ * Every one of these was still undecided when the flow was built (Min's plan
+ * §7). The page and the emails therefore drop the sentence that would carry
+ * an unset date rather than show "[DECISION DATE]" to a submitter, and the
+ * dashboard warns while any is missing.
+ *
+ * Dates are `YYYY-MM-DD` in the call's own zone, because they are said to
+ * people ("by Friday 15 January 2027") and never compared to the clock, with
+ * one exception: `closeDate` is also written through to `closesAtLocal` as
+ * 23:59 that day, so the date on the page and the deadline the server enforces
+ * cannot disagree.
+ */
+export interface CallCfpSettings {
+  /** The last day submissions are taken. Shown on the page and in E1. */
+  closeDate?: string;
+  /** Everyone has an answer by this day. Page, E1, E6 and S1. */
+  decisionDate?: string;
+  /** E2: "Your session day and time will be shared by …". */
+  sessionNoticeDate?: string;
+  /** Who is told about every acceptance, to start onboarding. Min. */
+  acceptNoticeEmail?: string;
+  /** Who gets the Thursday reminder to review. François. */
+  reviewerReminderEmail?: string;
+  /** Abstract length, in words. 150 and 300 when absent. */
+  abstractMinWords?: number;
+  abstractMaxWords?: number;
+  /** The talk lengths offered, in minutes. 25 and 45 when absent. */
+  talkMinutes?: number[];
+  /**
+   * When the reviewer last finished a pass, epoch ms. The review screen lists
+   * what arrived since first. Set by "Finish this pass" on that screen.
+   */
+  lastPassAtMs?: number;
+  /** The ISO week (`2026-W46`) the last Thursday reminder went out in. */
+  lastReminderWeek?: string;
 }
 
 /**
@@ -3132,6 +3228,31 @@ export interface SubmissionDoc extends BaseDoc {
   decision?: SubmissionDecision;
 
   /**
+   * A talk's length in minutes, one of the call's `cfp.talkMinutes`. Talks
+   * only; a workshop runs its half day and is never asked.
+   */
+  durationMinutes?: number;
+  /** What happened when this was accepted through the call-for-papers flow. */
+  acceptance?: SubmissionAcceptance;
+  /** What the speaker sent through their self-service link after acceptance. */
+  details?: SubmissionDetails;
+  /** E4, the decision after the close. Set once; it is never sent twice. */
+  closeDecision?: {
+    version: "accepted" | "declined";
+    /** The one-line reason in the declined version, as it was sent. */
+    reason?: string;
+    sentAt: Timestamp;
+    by: string;
+  };
+  /**
+   * The one-line reason the declined E4 will carry, typed ahead of the send.
+   * Editable per submission until E4 goes, and copied into `closeDecision`.
+   */
+  declineReason?: string;
+  /** E6, the mid-point note. Set once, by the one manual send. */
+  stillOpenSentAt?: Timestamp;
+
+  /**
    * Lower-case hex sha256 of the nonce inside the submitter's capability link.
    *
    * The token itself is an HMAC and verifies without a lookup, exactly as
@@ -3172,6 +3293,47 @@ export interface SubmissionDoc extends BaseDoc {
    * makes pressing the button twice harmless.
    */
   sessionId?: string;
+}
+
+/**
+ * The accept step of the KGC 2027 call (T249): one click creates the speaker,
+ * mails E2 with the self-service link and tells the onboarding inbox.
+ */
+export interface SubmissionAcceptance {
+  /** `speakers/{id}`, found or created from the author. */
+  speakerId: string;
+  at: Timestamp;
+  by: string;
+  /**
+   * When E2 went out, which starts the week. Absent while E2 is held for E4:
+   * an acceptance made after the close is announced by E4's accepted version,
+   * which promises that E2 follows it.
+   */
+  e2SentAt?: Timestamp;
+  /** E2 sent plus seven days: the date E2 and E3 both name. */
+  detailsDueAt?: Timestamp;
+  /** True while E2 waits for E4. Cleared when E4 sends it. */
+  e2HeldForE4?: boolean;
+  /** E3, the nudge. Sent at most once. */
+  nudgedAt?: Timestamp;
+}
+
+/**
+ * Final session details from the speaker, through `/speaker/{token}`.
+ *
+ * On the submission rather than on the speaker's profile draft because they
+ * describe this session and nothing else, and because "details received" is
+ * a status the inbox reads off the submission. Not published by arriving:
+ * the session is still written by Session Manager.
+ */
+export interface SubmissionDetails {
+  title?: string;
+  description?: string;
+  /** Workshops only. */
+  outline?: string;
+  /** Workshops only: what attendees must install or bring. */
+  install?: string;
+  receivedAt: Timestamp;
 }
 
 /** A co-author, as typed by the submitter. Nothing here is verified. */

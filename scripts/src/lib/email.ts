@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
 import { contactId } from './ids.js';
@@ -104,6 +106,8 @@ interface SendInput {
   orderId?: string;
   registrationId?: string;
   campaignId?: string;
+  /** The submission a call-for-papers email is about. */
+  submissionId?: string;
   actor?: string;
   /**
    * Set only on mail that is governed by the suppression list. Adds the two
@@ -244,8 +248,15 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
     orderId: input.orderId,
     registrationId: input.registrationId,
     campaignId: input.campaignId,
+    submissionId: input.submissionId,
     actor: input.actor,
   };
+
+  const captured = capture(input);
+  if (captured) {
+    await log(store, { ...base, status: 'sent', providerId: `capture:${captured}` });
+    return 'sent';
+  }
 
   if (!emailEnabled()) {
     await log(store, {
@@ -314,6 +325,45 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
   }
 }
 
+/**
+ * `EMAIL_CAPTURE_DIR`: write each message to a JSON file there instead of
+ * sending it, and report it as sent.
+ *
+ * For local and emulator runs only, so a test can read what E1 or E3 actually
+ * said rather than only that a send was skipped. Refused when
+ * `NODE_ENV=production` or when a Resend key is set, so a stray variable on
+ * the droplet cannot turn real mail into files nobody reads.
+ */
+function capture(input: SendInput): string | null {
+  const dir = process.env.EMAIL_CAPTURE_DIR;
+  if (!dir || process.env.NODE_ENV === 'production' || process.env.RESEND_API_KEY) return null;
+  try {
+    mkdirSync(dir, { recursive: true });
+    const name = `${Date.now()}-${input.template}-${Math.random().toString(36).slice(2, 8)}.json`;
+    writeFileSync(
+      path.join(dir, name),
+      JSON.stringify(
+        {
+          from: fromAddress(),
+          replyTo: replyTo(),
+          to: input.to,
+          subject: input.subject,
+          template: input.template,
+          submissionId: input.submissionId,
+          text: input.text,
+          html: input.html,
+        },
+        null,
+        2,
+      ),
+    );
+    return name;
+  } catch (err) {
+    console.error('[email] could not capture', err);
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Templates
 //
@@ -339,6 +389,13 @@ interface ShellImages {
   hero?: { src: string; alt: string };
   /** Play confetti above the heading: an animated GIF, first frame is static. */
   confetti?: boolean;
+  /**
+   * A footer that invites replies instead of refusing them. For mail whose
+   * copy says "just reply to this email": Reply-To is the staffed inbox, so a
+   * reply does arrive, and a footer saying the opposite under that line would
+   * contradict it.
+   */
+  replyOk?: boolean;
 }
 
 function emailImage(file: string): string {
@@ -369,7 +426,11 @@ function shell(heading: string, body: string, images: ShellImages = {}): string 
         </td></tr>
         <tr><td style="padding:18px 28px;background:#fafbfc;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;">
           3–7 May 2027 · Jay Conference Bryant Park, New York<br>
-          Please don't reply to this email. For questions, write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.
+          ${
+            images.replyOk
+              ? `Replies go to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.`
+              : `Please don't reply to this email. For questions, write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.`
+          }
         </td></tr>
       </table>
     </td></tr>
@@ -1916,6 +1977,342 @@ ${input.link}`;
     html,
     text,
     template: 'blog-review-decision',
+    actor: input.actor,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The KGC 2027 call for papers (T249)
+//
+// Min's copy, word for word, with the em dashes taken out and nothing else
+// changed. Two kinds of exception, both decided in one place below:
+//
+// · A date that is not set yet leaves its sentence out. Min's plan has the
+//   close date, the decision date and the session-notice date all open until
+//   the Friday weekly, and an email must never print "[DECISION DATE]".
+// · E2's "[DAY], [DATE] May 2027" line is Min's own replacement, "Your session
+//   day and time will be shared by [date]" (plan §3, E2 note).
+//
+// Every builder is pure and exported, so the dashboard can show S1 and tests
+// can read the words without sending anything.
+// ---------------------------------------------------------------------------
+
+/** One block of a call-for-papers email. Text and HTML are rendered from the same list. */
+type CfpBlock =
+  | { p: string }
+  | { lines: string[] }
+  | { bullets: string[] }
+  | { link: { href: string; label: string } };
+
+export interface CfpMessage {
+  subject: string;
+  text: string;
+  html: string;
+}
+
+function cfpMessage(subject: string, greetingName: string | undefined, blocks: CfpBlock[]): CfpMessage {
+  const first = firstNameOf(greetingName);
+  const greeting = first ? `Hi ${first},` : 'Hi,';
+  const all: CfpBlock[] = [{ p: greeting }, ...blocks, { lines: ['Best,', 'The KGC team'] }];
+
+  const text = all
+    .map((b) => {
+      if ('p' in b) return b.p;
+      if ('lines' in b) return b.lines.join('\n');
+      if ('bullets' in b) return b.bullets.map((x) => `  • ${x}`).join('\n');
+      return `  → ${b.link.href}`;
+    })
+    .join('\n\n');
+
+  const para = (inner: string) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${inner}</p>`;
+  const html = all
+    .map((b) => {
+      if ('p' in b) return para(esc(b.p));
+      if ('lines' in b) {
+        // The title block is indented in Min's copy; the sign-off is not.
+        const indented = b.lines[0] !== 'Best,';
+        return indented
+          ? `<div style="margin:0 0 14px;padding:10px 16px;border-left:3px solid ${BRAND};background:#fafbfc;font-size:15px;line-height:1.6;">${b.lines
+              .map((l, i) => (i === 0 ? `<strong>${esc(l)}</strong>` : esc(l)))
+              .join('<br>')}</div>`
+          : para(b.lines.map(esc).join('<br>'));
+      }
+      if ('bullets' in b) {
+        return `<ul style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.6;">${b.bullets
+          .map((x) => `<li>${esc(x)}</li>`)
+          .join('')}</ul>`;
+      }
+      return button(b.link.href, b.link.label);
+    })
+    .join('\n');
+
+  return { subject, text, html: shell(esc(subject), html, { replyOk: true }) };
+}
+
+/** Drops blocks whose sentence needed a date that is not set. */
+const when = <T>(value: T | undefined | null | false, block: (v: T) => CfpBlock): CfpBlock[] =>
+  value ? [block(value)] : [];
+
+export interface CfpSubmissionRef {
+  name?: string;
+  title: string;
+  /** "Talk, 25 minutes" or "Workshop", from `sessionTypeLine`. */
+  typeLine: string;
+}
+
+/** E1. On submission. Replaces the old acknowledgement for this call. */
+export function cfpReceivedMessage(
+  input: CfpSubmissionRef & {
+    /** "Sunday 14 February 2027", or absent while the date is unset. */
+    decisionDay?: string;
+    /** The author's own link back to the submission. */
+    link?: string;
+  },
+): CfpMessage {
+  const msg = cfpMessage('We have your KGC 2027 submission', input.name, [
+    { p: 'Thank you, we have your submission:' },
+    { lines: [input.title, input.typeLine] },
+    { p: 'Here is how it goes from here, so you are not left wondering.' },
+    {
+      p:
+        'We read submissions every week rather than waiting for a deadline, and we accept as we go. ' +
+        'That means two things. If your session is a fit, you may hear from us quite soon. And if you ' +
+        'do not hear from us, that is not a no: it means your submission is still open and still being read.',
+    },
+    ...when(input.decisionDay, (d) => ({
+      p: `Either way, you will have an answer by ${d} at the latest.`,
+    })),
+    {
+      p:
+        `If you would rather just ask, write to ${CONTACT} and we will tell you where things stand.`,
+    },
+  ]);
+  if (!input.link) return msg;
+  /*
+   * Not Min's copy: the author's only way back to their submission is this
+   * link, and the acknowledgement it replaces carried it. Kept below the
+   * sign-off so her message reads exactly as written.
+   */
+  return {
+    ...msg,
+    text: `${msg.text}\n\nView or edit your submission until the call closes:\n${input.link}`,
+    html: msg.html.replace(
+      '</td></tr>\n        <tr><td style="padding:18px 28px;background:#fafbfc;',
+      `<p style="margin:18px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">View or edit your submission until the call closes: <a href="${input.link}" style="color:#6b7280;">your submission</a>. Please do not forward this link.</p></td></tr>\n        <tr><td style="padding:18px 28px;background:#fafbfc;`,
+    ),
+  };
+}
+
+export interface CfpAcceptedInput extends CfpSubmissionRef {
+  workshop: boolean;
+  /** `/speaker/{token}`. */
+  link: string;
+  /** E2 plus seven days, "Monday 9 November 2026". */
+  dueDay: string;
+  /** "Your session day and time will be shared by …", absent while unset. */
+  sessionNoticeDay?: string;
+}
+
+/** E2. On accept. */
+export function cfpAcceptedMessage(input: CfpAcceptedInput): CfpMessage {
+  return cfpMessage('Your session is in: KGC 2027', input.name, [
+    { p: 'Good news. We would like you to present at KGC 2027:' },
+    { lines: [input.title, input.typeLine, 'May 2027, Jay Conference Bryant Park, New York'] },
+    ...when(input.sessionNoticeDay, (d) => ({
+      p: `Your session day and time will be shared by ${d}.`,
+    })),
+    { p: 'We need a few things from you to put you in the program and start promoting you:' },
+    {
+      bullets: [
+        'A short bio, around 100 words',
+        'A headshot',
+        'Your final title and session description',
+        ...(input.workshop ? ['For workshops: your outline and anything attendees must install'] : []),
+      ],
+    },
+    { link: { href: input.link, label: 'Send your details' } },
+    {
+      p:
+        `Please send them within one week, by ${input.dueDay}. We are announcing speakers as they ` +
+        'are confirmed, so this is what gets you into the next announcement. If we have not heard ' +
+        'from you after a week, we may give the slot to someone else.',
+    },
+    { p: 'Anything you are unsure about, just reply to this email.' },
+    { p: 'Welcome aboard.' },
+  ]);
+}
+
+/** E3. Five days after E2, if nothing has arrived. */
+export function cfpNudgeMessage(
+  input: Pick<CfpAcceptedInput, 'name' | 'title' | 'link' | 'dueDay' | 'workshop'>,
+): CfpMessage {
+  return cfpMessage('Still need a few details for your KGC 2027 session', input.name, [
+    { p: 'A quick nudge. We are still missing the details for:' },
+    { lines: [input.title] },
+    {
+      bullets: [
+        'A short bio, around 100 words',
+        'A headshot',
+        'Your final title and session description',
+        ...(input.workshop ? ['For workshops: your outline and anything attendees must install'] : []),
+      ],
+    },
+    { link: { href: input.link, label: 'Send your details' } },
+    {
+      p:
+        `The week is up on ${input.dueDay}. If something is holding you up, reply and tell us; ` +
+        'we would rather know than guess.',
+    },
+  ]);
+}
+
+/** E4, accepted at the close. E2 follows it. */
+export function cfpCloseAcceptedMessage(input: Pick<CfpSubmissionRef, 'name' | 'title'>): CfpMessage {
+  return cfpMessage('Your KGC 2027 submission', input.name, [
+    { p: 'We are through the submissions and we would like you to present at KGC 2027:' },
+    { lines: [input.title] },
+    { p: 'The details we need, and the one week to send them, are in the message that follows this one.' },
+  ]);
+}
+
+/** E4, not accepted. `reason` is the one editable line; absent leaves it out. */
+export function cfpCloseDeclinedMessage(
+  input: Pick<CfpSubmissionRef, 'name' | 'title'> & { reason?: string },
+): CfpMessage {
+  const reason = input.reason?.trim().replace(/\s+/g, ' ');
+  return cfpMessage('Your KGC 2027 submission', input.name, [
+    { p: 'Thank you for proposing:' },
+    { lines: [input.title] },
+    { p: `We are not able to fit it into the 2027 program.${reason ? ` ${reason}` : ''}` },
+    {
+      p:
+        'This is not a comment on the work. We had far more good submissions than rooms, and the ' +
+        'ones we could not take were in many cases a scheduling problem rather than a quality one.',
+    },
+    {
+      p:
+        'Two things, if they are useful. The poster track and the startup pitch run their own calls ' +
+        'and are still open. And if you are coming anyway, speakers who were not placed this year are ' +
+        'the first people we read next year.',
+    },
+    { p: 'Thank you for putting it in front of us.' },
+  ]);
+}
+
+/** E6. The one manual send in January to everyone still in the queue. */
+export function cfpStillOpenMessage(
+  input: Pick<CfpSubmissionRef, 'name' | 'title'> & { decisionDay?: string },
+): CfpMessage {
+  return cfpMessage('Your KGC 2027 submission is still with us', input.name, [
+    { p: 'A short note because it has been a while and silence is not much use to anyone.' },
+    { p: 'Your submission is still open and still in the queue:' },
+    { lines: [input.title] },
+    {
+      p:
+        'We are reading every week and accepting as we go, and we have not got to a decision on yours ' +
+        `yet. That is all it means.${
+          input.decisionDay ? ` You will have an answer by ${input.decisionDay} at the latest, and most likely before.` : ''
+        }`,
+    },
+    { p: 'If you would like to know more than that, reply and ask.' },
+  ]);
+}
+
+/**
+ * S1. Not sent by anything: the inbox copies it. Plain text only, because it
+ * goes into a reply in Gmail.
+ */
+export function cfpStatusReplyText(input: { name?: string; decisionDay?: string }): string {
+  const first = firstNameOf(input.name);
+  return [
+    first ? `Hi ${first},` : 'Hi,',
+    'Thanks for checking in.',
+    'Your submission is still open. We read every week and accept as we go, so a submission that has not been answered is one we have not reached a decision on yet, not one we have turned down.',
+    ...(input.decisionDay ? [`You will have an answer by ${input.decisionDay} at the latest.`] : []),
+    'Sorry we cannot be more precise than that. If anything changes on your side, a new title, a co-presenter, a date you cannot make, tell us and we will put it on the submission.',
+    'Best,\nThe KGC team',
+  ].join('\n\n');
+}
+
+export interface CfpAcceptNoticeInput {
+  speakerName: string;
+  organisation?: string;
+  title: string;
+  track?: string;
+  typeLine: string;
+  /** "Tuesday 10 November 2026". */
+  acceptedDay: string;
+  /** The submission on the dashboard. */
+  link: string;
+  /** Whether E2 went to the speaker, so onboarding knows where things stand. */
+  e2: 'sent' | 'held' | 'not sent';
+}
+
+/** The internal notice to Min on every acceptance. Plain, because it is a notification. */
+export function cfpAcceptNoticeMessage(input: CfpAcceptNoticeInput): CfpMessage {
+  const rows: [string, string][] = [
+    ['Speaker', input.speakerName],
+    ['Organisation', input.organisation || 'Not given'],
+    ['Title', input.title],
+    ['Track', input.track || 'Not given'],
+    ['Type', input.typeLine],
+    ['Accepted', input.acceptedDay],
+  ];
+  const e2 =
+    input.e2 === 'sent'
+      ? 'The acceptance email with their self-service link has gone to the speaker.'
+      : input.e2 === 'held'
+        ? 'The call has closed, so their acceptance email waits for the decision send after the close.'
+        : 'The acceptance email did not go out. Check the submission and send the link from Speaker Manager.';
+  const subject = `Accepted: ${input.speakerName}, ${input.title}`;
+  const text = `${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${e2}\n\nThe submission:\n${input.link}`;
+  const html = shell(
+    'A submission was accepted',
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 14px;">${rows
+      .map(([k, v]) => row(esc(k), esc(v)))
+      .join('')}</table>
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(e2)}</p>
+     ${button(input.link, 'Open the submission')}`,
+  );
+  return { subject, text, html };
+}
+
+/** The Thursday reminder to the reviewer. */
+export function cfpWeeklyReminderMessage(input: {
+  name?: string;
+  fresh: number;
+  open: number;
+  link: string;
+}): CfpMessage {
+  const fresh =
+    input.fresh === 0
+      ? 'Nothing new has arrived since your last pass.'
+      : `${input.fresh} new submission${input.fresh === 1 ? ' has' : 's have'} arrived since your last pass.`;
+  return cfpMessage(
+    `KGC 2027 submissions: ${input.open} open`,
+    input.name,
+    [
+      { p: `It is Thursday, time for this week's pass. ${fresh} ${input.open} in all are waiting for a decision.` },
+      { p: 'For each one: accept, reject, or leave it for next week. Accept emails the speaker for you.' },
+      { link: { href: input.link, label: 'Open the review list' } },
+    ],
+  );
+}
+
+type CfpTemplate = Extract<EmailLogDoc['template'], `cfp-${string}`>;
+
+/** Send one built call-for-papers message. Never throws, like every sender here. */
+export async function sendCfpMessage(
+  store: Firestore,
+  input: { to: string; message: CfpMessage; template: CfpTemplate; submissionId?: string; actor?: string },
+): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    subject: input.message.subject,
+    html: input.message.html,
+    text: input.message.text,
+    template: input.template,
+    submissionId: input.submissionId,
     actor: input.actor,
   });
 }
