@@ -95,7 +95,7 @@ export default async function SearchPage({
         meta: [p.title, p.company].filter(Boolean).join(', '),
       }));
 
-    const menu = [...NAV, ...NAV_MORE, ...ABOUT_MENU.filter((m) => !m.external), ...EXTRA_PAGES];
+    const menu = [...NAV.filter((m) => !m.external), ...NAV_MORE, ...ABOUT_MENU.filter((m) => !m.external), ...EXTRA_PAGES];
     const seen = new Set<string>();
     pages = [
       ...menu.map((m) => ({ href: m.href, label: m.label })),

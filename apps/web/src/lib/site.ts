@@ -198,7 +198,9 @@ export const APP_URL: string | null = process.env.APP_PUBLIC_URL || null;
 /**
  * The conference's video and resource site. `hub.knowledgegraph.tech`, the
  * old Resource Hub, times out; the team moved the menu entry and the
- * /community video link here on 2026-09-28.
+ * /community video link here on 2026-09-28. Since 2026-10-13 it is "Watch" on
+ * the top row, where the old WordPress site had "Video Library", because
+ * people could not find it inside About KGC.
  */
 export const RESOURCE_HUB = 'https://watch.knowledgegraph.tech';
 
@@ -223,7 +225,14 @@ export const NEWSLETTER_SIGNUP = 'https://info.knowledgegraph.tech/kgc-newslette
  * and the 2019–2025 archives are one `/previous-events` index that links out to
  * them rather than seven rebuilt pages.
  */
-export const NAV = [
+export interface NavChild {
+  href: string;
+  label: string;
+  /** Opens in a new tab and gets the external affordance. */
+  external?: boolean;
+}
+
+export const NAV: readonly NavChild[] = [
   { href: '/speakers', label: `${2027} Speakers` },
   /*
    * Agenda is here and not behind the dropdown, which is the one deliberate
@@ -235,14 +244,13 @@ export const NAV = [
   { href: '/sponsor', label: 'Sponsor KGC' },
   { href: '/blog', label: 'Blog' },
   { href: '/learn', label: 'Learn' },
-] as const;
-
-export interface NavChild {
-  href: string;
-  label: string;
-  /** Opens in a new tab and gets the external affordance. */
-  external?: boolean;
-}
+  /*
+   * The video library, a separate site. It was "Resource Hub" inside About KGC
+   * until the owner asked for it back on the top row (2026-10-13). It is not in
+   * the dropdown as well, because the phone menu lists both in one column.
+   */
+  { href: RESOURCE_HUB, label: 'Watch', external: true },
+];
 
 /**
  * The "About KGC" dropdown, transcribed from the live site's own menu on
@@ -262,7 +270,6 @@ export interface NavChild {
 export const ABOUT_MENU: readonly NavChild[] = [
   { href: '/about', label: 'About KGC' },
   { href: '/community', label: 'Community' },
-  { href: RESOURCE_HUB, label: 'Resource Hub', external: true },
   { href: '/hcls', label: 'Healthcare & Life Sciences Symposium' },
   { href: '/team', label: 'Meet the Team' },
   /*

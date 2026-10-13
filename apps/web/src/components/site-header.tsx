@@ -193,18 +193,24 @@ export function SiteHeader({
               (item) =>
                 (showAgenda || item.href !== '/agenda') &&
                 (showSpeakers || item.href !== '/speakers'),
-            ).map((item) => (
-              <Link
-                key={item.href}
-                href={to(item.href)}
-                // A section's own pages count too: a speaker's page is under
-                // Past Speakers.
-                aria-current={path === item.href || path.startsWith(`${item.href}/`) ? 'page' : undefined}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
+            ).map((item) =>
+              item.external ? (
+                <a key={item.href} href={item.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={to(item.href)}
+                  // A section's own pages count too: a speaker's page is under
+                  // Past Speakers.
+                  aria-current={path === item.href || path.startsWith(`${item.href}/`) ? 'page' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
             {/*
               About KGC, as a dropdown — the live site's own arrangement, and the
               reason it works: everything that used to be hidden at desktop

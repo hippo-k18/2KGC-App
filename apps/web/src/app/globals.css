@@ -488,6 +488,38 @@ section.tint {
   box-shadow: inset 0 -2px 0 var(--palette-4);
 }
 
+/*
+ * Narrow desktops, just above the hamburger. With Speakers and Agenda switched
+ * on, the row plus Watch (T248) is wider than the bar here and "Register now"
+ * wrapped onto a second line (at 901px it did even before Watch). Tighter
+ * padding keeps it on one row; wider screens keep the live site's measured
+ * 12px.
+ */
+@media (900px < width <= 1180px) {
+  .site-header nav {
+    gap: 0;
+  }
+
+  .site-header nav a {
+    padding-inline: 8px;
+  }
+
+  .site-header nav a.btn-primary {
+    padding-inline: 12px;
+  }
+}
+
+/* The last 100px above the hamburger, where even that is 33px short. */
+@media (900px < width <= 1000px) {
+  .site-header nav a {
+    padding-inline: 4px;
+  }
+
+  .site-header nav a.btn-primary {
+    padding-inline: 8px;
+  }
+}
+
 /* Hover gets the same rule in white, which is what the live site does. */
 .site-header nav a:hover:not(.btn) {
   box-shadow: inset 0 -2px 0 rgb(255 255 255 / 85%);

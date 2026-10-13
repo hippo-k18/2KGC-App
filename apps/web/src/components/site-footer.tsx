@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { SiteLink } from './site-link';
-import { SITE, homeVenue } from '@/lib/site';
+import { RESOURCE_HUB, SITE, homeVenue } from '@/lib/site';
 import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 
 /**
@@ -76,6 +76,8 @@ export function SiteFooter({
             <SiteLink href="/announcements" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Announcements</SiteLink>
             <SiteLink href="/documents" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Documents</SiteLink>
             <SiteLink href="/past-speakers" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Past speakers</SiteLink>
+            {/* The video library, which is "Watch" in the header too. */}
+            <a href={RESOURCE_HUB} target="_blank" rel="noreferrer">Watch</a>
           </div>
 
           <div>
