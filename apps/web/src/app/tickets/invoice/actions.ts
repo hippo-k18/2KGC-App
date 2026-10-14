@@ -2,8 +2,13 @@
 
 import { orderSeatsForExtras } from '@kgc/shared';
 import { checkExtraSeats } from '@/lib/extras-check';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { Firestore } from 'firebase-admin/firestore';
+import { limitId, perHourAndDay, takeAllowance } from '@kgc/scripts/src/lib/rate-limit';
 import { tierById } from '@/lib/catalogue';
+import { checkoutCallerIp, checkoutStartAllowed } from '@/lib/checkout-limit';
+import { db } from '@/lib/firestore';
 import { sendInvoiceRaised } from '@/lib/email';
 import { addressProblemMessage, validateBillingAddress } from '@/lib/invoice-core';
 import { InvoiceError, raiseInvoice } from '@/lib/invoicing';
@@ -34,6 +39,9 @@ import { EMAIL, MAX_EMAIL, MAX_NAME, MAX_SEATS, cleanText, collectSeats, priceSe
  * webhook writes the order when it clears anyway. Failing the whole request at
  * that point would tell the buyer nothing happened when something did.
  */
+
+/** Invoices per billing email: a company correcting a mistake, not a loop. */
+const INVOICES_PER_BILLING_EMAIL = perHourAndDay(3, 10);
 
 export interface InvoiceState {
   error?: string;
@@ -186,6 +194,26 @@ export async function requestInvoice(
   }
 
   const invoiceCurrency = currency ?? 'usd';
+
+  /**
+   * Limits, after every check a person can fix by editing the form (T264).
+   * Each submit used to make a live Stripe customer, a finalised invoice that
+   * Stripe emails, a pending order and a KGC email, with no limit at all
+   * (T257 #1, T263). The IP slots are the card checkout's, so the two forms
+   * share one budget per connection; the billing address has its own cap.
+   */
+  if (!(await checkoutStartAllowed(checkoutCallerIp(await headers())))) {
+    return { error: 'Too many requests from this connection. Wait ten minutes and try again.' };
+  }
+  const perEmail = await takeAllowance(db() as unknown as Firestore, [
+    { id: limitId('invoice', 'email', billingEmail), kind: 'invoice-email', caps: INVOICES_PER_BILLING_EMAIL },
+  ]);
+  if (!perEmail) {
+    return {
+      error: `Several invoices have already been raised for that billing email today. Email ${SITE.contactEmail} and we will help.`,
+      contact: true,
+    };
+  }
 
   let invoice;
   try {

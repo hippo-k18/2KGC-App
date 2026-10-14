@@ -29,6 +29,7 @@ import {
   type FormFieldDef,
 } from '@kgc/scripts/src/lib/question-forms';
 import { mintSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
+import { HOUR_MS, limitId, takeAllowance } from '@kgc/scripts/src/lib/rate-limit';
 import {
   cfpReceivedMessage,
   sendCfpMessage,
@@ -716,6 +717,11 @@ export async function saveSubmission(
      * on every save rather than only on the first, because the draft mail is
      * also the reminder that a draft exists.
      *
+     * At most one draft receipt an hour per address, and three "received"
+     * mails (T264): every save used to mail whatever address was typed, which
+     * made the form a relay for mail to strangers (T261 #1). The author lands
+     * on the token page either way, so the link is not lost.
+     *
      * Never awaited into a failure: `send()` already swallows everything and
      * logs to `emailLog`, and a submission that saved must not report an error
      * because a receipt did not.
@@ -727,7 +733,7 @@ export async function saveSubmission(
        * finished. An author fixing a typo later is not told again that we
        * have it, and is not told the review process twice.
        */
-      if (!before?.submittedAt) {
+      if (!before?.submittedAt && (await receiptAllowed('cfp-received', authorEmail, 3))) {
         await sendCfpMessage(db(), {
           to: authorEmail,
           template: 'cfp-received',
@@ -741,7 +747,7 @@ export async function saveSubmission(
           }),
         });
       }
-    } else {
+    } else if (await receiptAllowed('cfp-receipt', authorEmail, 1)) {
       await sendSubmissionReceipt(db(), {
         to: authorEmail,
         name: authorName,
@@ -831,3 +837,10 @@ function answersWrite(
  * portal hangs off one.
  */
 const newSubmissionId = () => `sub_${randomBytes(12).toString('hex')}`;
+
+/** Count one receipt to this address this hour; false means skip the mail. */
+function receiptAllowed(scope: string, email: string, perHour: number): Promise<boolean> {
+  return takeAllowance(db() as unknown as Parameters<typeof takeAllowance>[0], [
+    { id: limitId(scope, 'email', email), kind: `${scope}-email`, caps: [{ max: perHour, windowMs: HOUR_MS }] },
+  ]);
+}

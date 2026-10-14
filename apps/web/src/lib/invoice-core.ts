@@ -268,15 +268,22 @@ export async function raiseInvoiceWith(
   // invoice fragments a company's history across dozens of records and makes
   // "what has Acme bought" unanswerable in the dashboard.
   //
+  // ⚠️ Reused only if this code made it (`metadata.kgcRole`). The Stripe
+  // account is shared with money that is not ticketing, and this form is
+  // anonymous: matching any customer by email let anyone rewrite the billing
+  // address of a sponsor's AP contact by typing their address (T257 #1, T263).
+  // A customer we did not make is never touched; a new one is created beside it.
+  //
   // The address goes on with `validate_location: 'immediately'`, so a location
   // Stripe Tax cannot place is refused here, before any invoice exists, rather
   // than at finalization. A refused update leaves an existing customer as it was.
   let customer: Stripe.Customer;
   let createdCustomer = false;
   try {
-    const existing = await s.customers.list({ email: req.billingEmail, limit: 1 });
-    if (existing.data[0]) {
-      customer = await s.customers.update(existing.data[0].id, {
+    const existing = await s.customers.list({ email: req.billingEmail, limit: 100 });
+    const ours = existing.data.find((c) => Boolean(c.metadata?.kgcRole));
+    if (ours) {
+      customer = await s.customers.update(ours.id, {
         address,
         tax: { validate_location: 'immediately' },
       });

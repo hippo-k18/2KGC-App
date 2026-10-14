@@ -1,9 +1,31 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { Firestore } from 'firebase-admin/firestore';
 import type { SubmissionCoAuthor } from '@kgc/shared';
 import { readSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
+import { callerIpFromHeaders, limitId, perHourAndDay, takeAllowance } from '@kgc/scripts/src/lib/rate-limit';
+import { db } from '@/lib/firestore';
 import { loadOwnSubmission, saveSubmission } from '@/lib/submissions';
+
+/**
+ * Saves per IP and per author address (T264). An author editing a draft saves
+ * a handful of times; a script looping the form with strangers' addresses was
+ * the problem (T261 #1). The receipt has its own once-an-hour cap in
+ * `saveSubmission`.
+ */
+const SAVES_PER_IP = perHourAndDay(30, 100);
+const SAVES_PER_AUTHOR = perHourAndDay(10, 30);
+
+/** The caller's IP, or undefined outside a request (a test calling the action). */
+async function callerIp(): Promise<string | undefined> {
+  try {
+    return callerIpFromHeaders(await headers());
+  } catch {
+    return undefined;
+  }
+}
 
 export interface SubmitState {
   error?: string;
@@ -57,6 +79,14 @@ export async function submitAction(_prev: SubmitState, formData: FormData): Prom
   }
 
   if (!callId) return { error: 'No call was named.' };
+
+  const ip = await callerIp();
+  const authorEmail = String(formData.get('authorEmail') ?? '').trim().toLowerCase();
+  const allowed = await takeAllowance(db() as unknown as Firestore, [
+    { id: ip ? limitId('cfp-save', 'ip', ip) : undefined, kind: 'cfp-save-ip', caps: SAVES_PER_IP },
+    { id: authorEmail ? limitId('cfp-save', 'email', authorEmail) : undefined, kind: 'cfp-save-email', caps: SAVES_PER_AUTHOR },
+  ]);
+  if (!allowed) return { error: 'Too many saves in a short time. Wait a while, then try again.' };
 
   const result = await saveSubmission(
     callId,

@@ -2824,7 +2824,9 @@ export interface ConsentResponseDoc {
    */
   channel: "app" | "link";
   /**
-   * The first hop of `x-forwarded-for`, recorded for the `link` channel only.
+   * The last hop of `x-forwarded-for` (the address the droplet's Apache saw),
+   * recorded for the `link` channel only. Before T264 it was the first hop,
+   * which the client can set to anything.
    *
    * ⚠️ It is corroboration, not identification. It is the address of whatever
    * proxy or phone network the browser came through, it is trivially not the
