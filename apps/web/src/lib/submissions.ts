@@ -100,6 +100,11 @@ export interface PublicCall {
   /** Null while the call is accepting submissions; the sentence to show otherwise. */
   refusal: string | null;
   /**
+   * "1 November 2026" while the call has not opened yet, else absent. The
+   * page then says when it opens instead of showing a refusal (T261 #3).
+   */
+  opensOn?: string;
+  /**
    * Set on a call run with Min's rolling-review settings (T249). The form then
    * counts abstract words, asks a talk its length, needs an organisation and
    * leaves the bio for after acceptance.
@@ -111,6 +116,18 @@ export interface PublicCall {
     /** "Sunday 31 January 2027", or absent while the close date is unset. */
     closeDay?: string;
   };
+}
+
+/** `2026-11-01T00:00` → "1 November 2026". A calendar date, so no zone moves it. */
+function dayMonthYear(local: string | undefined): string | undefined {
+  const day = (local ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return undefined;
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 function windowInput(c: CallDoc): CallWindowInput {
@@ -180,6 +197,7 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
     closesAtLocal: call.closesAtLocal ?? '',
     timeZone: call.timeZone ?? 'America/New_York',
     refusal: submissionRefusal(windowInput(call), Date.now()),
+    ...(callWindow(windowInput(call), Date.now()) === 'not-open' ? { opensOn: dayMonthYear(call.opensAtLocal) } : {}),
     ...(call.cfp
       ? {
           cfp: {
@@ -486,6 +504,20 @@ export async function saveSubmission(
   const refusal = submissionRefusal(windowInput(call), Date.now());
   if (refusal) return { ok: false, error: refusal };
 
+  /*
+   * Once submitted, always submitted (T258 #7). "Save as a draft" on a
+   * submitted abstract used to write `status: 'draft'`, which took it out of
+   * the review queue and out of every decision send, so an author who did not
+   * press Submit again never heard back. Any save of a submitted one is now a
+   * finished save, held to the finished rules, and keeps its status.
+   */
+  if (existingId && !input.finish) {
+    const current = (await db().collection(COLLECTIONS.submissions).doc(existingId).get()).data() as
+      | SubmissionDoc
+      | undefined;
+    if (current && current.status !== 'draft') input = { ...input, finish: true };
+  }
+
   const title = input.title.trim();
   const abstract = input.abstract.trim();
   const authorName = input.authorName.trim();
@@ -727,8 +759,8 @@ export async function saveSubmission(
        * finished. An author fixing a typo later is not told again that we
        * have it, and is not told the review process twice.
        */
-      if (!before?.submittedAt) {
-        await sendCfpMessage(db(), {
+      if (!before?.submittedAt && (await claimE1(ref))) {
+        const outcome = await sendCfpMessage(db(), {
           to: authorEmail,
           template: 'cfp-received',
           submissionId: ref.id,
@@ -740,6 +772,8 @@ export async function saveSubmission(
             link,
           }),
         });
+        // Given back when it did not go, so the next save can send it.
+        if (outcome !== 'sent') await ref.update({ e1SentAt: FieldValue.delete() }).catch(() => undefined);
       }
     } else {
       await sendSubmissionReceipt(db(), {
@@ -760,6 +794,20 @@ export async function saveSubmission(
     console.error('[submissions] could not save', err);
     return { ok: false, error: 'Something went wrong and nothing was saved. Please try again.' };
   }
+}
+
+/**
+ * Claim E1 for one submission: true for exactly one caller, however many
+ * Submit presses arrive at once. The plain `before.submittedAt` read cannot
+ * do that on its own, because two presses both read the draft (T258 #17).
+ */
+async function claimE1(ref: FirebaseFirestore.DocumentReference): Promise<boolean> {
+  return db().runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).data() as SubmissionDoc | undefined;
+    if (!d || d.e1SentAt) return false;
+    tx.update(ref, { e1SentAt: Timestamp.now() });
+    return true;
+  });
 }
 
 /**

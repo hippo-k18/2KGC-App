@@ -42,6 +42,8 @@ export function DecisionPanel({
   decided,
   authorEmail,
   rolling,
+  accepted,
+  told,
 }: {
   id: string;
   /** True when a decision already stands — the buttons then say "change to". */
@@ -54,6 +56,13 @@ export function DecisionPanel({
    * no notify box to get wrong.
    */
   rolling?: boolean;
+  /**
+   * Rolling review, and this stands accepted (T262). Rejecting it then
+   * needs the withdraw box: the speaker exists and may have been told.
+   */
+  accepted?: boolean;
+  /** The author was emailed the acceptance. */
+  told?: boolean;
 }) {
   const [state, action] = useActionState<FormState, FormData>(decideAction, {});
 
@@ -98,6 +107,18 @@ export function DecisionPanel({
       />
         </>
       )}
+
+      {rolling && accepted ? (
+        <CheckboxField
+          name="withdraw"
+          label="Withdraw the acceptance"
+          description={
+            told
+              ? 'Needed to change this to rejected. The author was emailed that they are accepted. They will not get the “not accepted” email after the close, so tell them yourself. The speaker goes back to unlisted.'
+              : 'Needed to change this to rejected. Their acceptance email has not gone and will not. The speaker goes back to unlisted.'
+          }
+        />
+      ) : null}
 
       <FormActions>
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">

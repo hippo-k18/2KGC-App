@@ -10,7 +10,7 @@ import { appendAudit, diff } from '@/lib/audit';
 import { db } from '@/lib/firestore';
 import { listRooms, listSpeakerOptions, listTrackOptions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { eventTimeZone } from '@/lib/event';
+import { eventBasics, eventTimeZone } from '@/lib/event';
 import { deriveTimes } from '@/lib/time';
 import { readCsvUpload, type ProgrammeImportState } from '@/lib/csv-import';
 import { commitSessionImport, previewSessionCsv, type SessionImportOutcome } from './import';
@@ -230,7 +230,7 @@ export async function createSessionAction(
 ): Promise<SessionState> {
   const actor = await requireOrganizer();
 
-  const parsed = parseSessionForm(formData);
+  const parsed = parseSessionForm(formData, await eventBasics());
   if (!parsed.ok) return { error: parsed.error, fieldErrors: parsed.fieldErrors };
   const input = parsed.value;
 
@@ -357,7 +357,7 @@ export async function saveSessionAction(
 ): Promise<SessionState> {
   const actor = await requireOrganizer();
 
-  const parsed = parseSessionForm(formData);
+  const parsed = parseSessionForm(formData, await eventBasics());
   if (!parsed.ok) return { error: parsed.error, fieldErrors: parsed.fieldErrors };
   const input = parsed.value;
 

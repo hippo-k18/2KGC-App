@@ -24,7 +24,7 @@ import { rankByTrack, OVERALL_MAX } from '@kgc/scripts/src/lib/review-core';
 import { CFA_BASE } from '../routes';
 import { BulkDecisionBar, RowCheckbox, SelectAllCheckbox } from './bulk-decision';
 import { getCfpCall, listCfpSubmissions } from '@/lib/cfp';
-import { cfpStatus, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
+import { cfpStatus, holdE2ForClose, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
 import { CfpSettingsWarning, CfpStatusTag, TypeFilter } from '../cfp-ui';
 
 export const dynamic = 'force-dynamic';
@@ -111,6 +111,8 @@ export default async function SubmissionsPage({
     getCfpCall(callId),
   ]);
   const counts = countSubmissions(all);
+  // Past the close an Accept holds its email for E4, and the bulk confirm says so.
+  const bulkHoldsE2 = cfpCall?.enabled ? holdE2ForClose(Date.now(), cfpCall.cfp, cfpCall.timeZone) : false;
   const trackName = new Map(tracks.map((t) => [t.id, t.name]));
   const type = one('type') === 'talk' || one('type') === 'workshop' ? one('type') : undefined;
 
@@ -231,6 +233,8 @@ export default async function SubmissionsPage({
           trackOrder={call.trackIds}
           trackName={trackName}
           hasCriteria={call.rubric.length > 0}
+          rolling={Boolean(cfpCall?.enabled)}
+          holdsE2={bulkHoldsE2}
         />
       ) : (
       <Panel>
@@ -350,6 +354,7 @@ export default async function SubmissionsPage({
             <BulkDecisionBar
               selectable={rows.filter((s) => s.status !== 'draft' && s.status !== 'withdrawn').length}
               rolling={Boolean(cfpCall?.enabled)}
+              holdsE2={bulkHoldsE2}
             />
           </>
         )}
@@ -376,11 +381,15 @@ function RankingPanels({
   trackOrder,
   trackName,
   hasCriteria,
+  rolling,
+  holdsE2,
 }: {
   all: SubmissionRow[];
   trackOrder: string[];
   trackName: Map<string, string>;
   hasCriteria: boolean;
+  rolling?: boolean;
+  holdsE2?: boolean;
 }) {
   const groups = rankByTrack(all, trackOrder);
 
@@ -450,7 +459,11 @@ function RankingPanels({
         </Panel>
       ))}
       <Panel>
-        <BulkDecisionBar selectable={groups.reduce((n, g) => n + g.rows.length, 0)} />
+        <BulkDecisionBar
+          selectable={groups.reduce((n, g) => n + g.rows.length, 0)}
+          rolling={rolling}
+          holdsE2={holdsE2}
+        />
       </Panel>
     </>
   );

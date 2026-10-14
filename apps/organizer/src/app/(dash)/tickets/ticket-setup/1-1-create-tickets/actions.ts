@@ -7,12 +7,14 @@ import {
   EVENT_ID,
   TIME_ZONE,
   parsePricePhases,
+  priceNow,
   pricePhasesToText,
+  type PricePhase,
   type TicketAudience,
 } from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
-import { getTicketType } from '@/lib/commerce';
+import { getTicketType, money } from '@/lib/commerce';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
@@ -281,7 +283,12 @@ export async function saveTicketTypeAction(
       : existing?.kind === 'extra'
         ? { kind: FieldValue.delete(), addOnFor: FieldValue.delete() }
         : {}),
-    quantityTotal: capacity,
+    /*
+     * ⚠️ A delete, never `undefined`, when the box is cleared (T262). The
+     * merge write ignores `undefined`, so "blank for unlimited" used to keep
+     * the old cap and leave the tier showing Sold out (AGENTS.md gotcha 9).
+     */
+    quantityTotal: capacity ?? FieldValue.delete(),
     salesOpenAt,
     salesCloseAt,
     /**
@@ -381,17 +388,46 @@ export async function saveTicketTypeAction(
     return {
       ok: true,
       message: existing
-        ? `Saved. The website shows the new details immediately${
-            changed.changed.includes('priceCents') || changed.changed.includes('pricePhases')
-              ? '. Including the new price, which applies to purchases from now on.'
-              : '.'
-          }`
+        ? `Saved. The website shows the new details immediately.${priceSentence(
+            changed.changed.includes('priceCents'),
+            changed.changed.includes('pricePhases'),
+            priceCents,
+            phases.phases,
+            currency,
+          )}`
         : `Created "${name}" as ${docId}. It is ${visible ? 'live on the website now' : 'hidden. Tick "Show on the website" when you are ready'}.`,
     };
   } catch (err) {
     recordError('ticketType.save', err);
     return { error: err instanceof Error ? err.message : 'Could not save the ticket type.' };
   }
+}
+
+/**
+ * What a price edit actually did to what buyers pay (T262).
+ *
+ * With price phases the current phase sets the price, and the Price box is
+ * only the fallback. "The new price applies from now on" was said of a Price
+ * box edit that changed nothing a buyer paid, which is the likely trap behind
+ * a hand edit of the Workshops price. Now the sentence names what is charged.
+ */
+function priceSentence(
+  flatChanged: boolean,
+  phasesChanged: boolean,
+  flatCents: number,
+  pricePhases: PricePhase[],
+  currency: string,
+): string {
+  if (!flatChanged && !phasesChanged) return '';
+  const now = priceNow({ priceCents: flatCents, pricePhases }, new Date(), TIME_ZONE);
+  if (pricePhases.length === 0) return ` Buyers pay ${money(flatCents, currency)} from now on.`;
+  if (!now.phase) {
+    return ` No price phase is running today, so nothing is on sale. The next phase sets the price.`;
+  }
+  const charged = ` Buyers pay ${money(now.priceCents, currency)} now, the ${now.phase} price.`;
+  return flatChanged && !phasesChanged && now.priceCents !== flatCents
+    ? `${charged} The Price box is only used when there are no phases. To change what buyers pay, edit the ${now.phase} line under Price phases.`
+    : charged;
 }
 
 /**

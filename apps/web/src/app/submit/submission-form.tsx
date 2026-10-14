@@ -266,11 +266,14 @@ export function SubmissionForm({
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <button type="submit" className="btn btn-primary" name="finish" value="1">
-          {existing?.status === 'submitted' ? 'Save changes' : 'Submit'}
+          {existing && existing.status !== 'draft' ? 'Save changes' : 'Submit'}
         </button>
-        <button type="submit" className="btn btn-outline" name="finish" value="">
-          Save as a draft
-        </button>
+        {/* Once submitted there is no going back to a draft (T258 #7). */}
+        {!existing || existing.status === 'draft' ? (
+          <button type="submit" className="btn btn-outline" name="finish" value="">
+            Save as a draft
+          </button>
+        ) : null}
       </div>
 
       <p className="hint" style={{ marginTop: 14 }}>

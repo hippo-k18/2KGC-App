@@ -28,7 +28,8 @@ import { sessionId as deriveSessionId, speakerId, stableGuid } from '@kgc/script
  * from a route directory; the alternative was a second copy of two booleans
  * that have to agree with `seed-demo.ts` as well.
  */
-import { qaDefaultsFor } from '@/app/(dash)/content/agenda-center/session-manager/session-core';
+import { outsideEventDays, qaDefaultsFor } from '@/app/(dash)/content/agenda-center/session-manager/session-core';
+import { eventBasics } from './event';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -162,7 +163,15 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
  * directly — the identity document sits at a fixed id under a known parent — so
  * there is no query, no index and one round trip.
  */
-export async function listSubmissions(callId: string): Promise<SubmissionRow[]> {
+export async function listSubmissions(
+  callId: string,
+  /**
+   * `strict` rethrows instead of answering []. For senders (the CFP
+   * scheduler, E4), where "could not read" and "nobody there" must differ:
+   * an empty list read as real tells the reviewer "0 open" (T258 #17).
+   */
+  opts: { strict?: boolean } = {},
+): Promise<SubmissionRow[]> {
   try {
     const snap = await db()
       .collection(COLLECTIONS.submissions)
@@ -178,6 +187,7 @@ export async function listSubmissions(callId: string): Promise<SubmissionRow[]> 
       .sort((a, b) => b.updatedAtMs - a.updatedAtMs || a.title.localeCompare(b.title));
   } catch (err) {
     recordError(`submissions.list:${callId}`, err);
+    if (opts.strict) throw err;
     return [];
   }
 }
@@ -654,6 +664,8 @@ export async function promoteSubmission(input: {
       };
     }
 
+    const outside = outsideEventDays(input.startsAtLocal, input.endsAtLocal, await eventBasics());
+    if (outside) return { ok: false, error: outside };
     const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, TIME_ZONE);
     const sessionDocId = deriveSessionId(sub.title, times.startsAtLocal);
     /*
@@ -682,10 +694,24 @@ export async function promoteSubmission(input: {
     let speakerExisted = false;
 
     await db().runTransaction(async (tx) => {
-      const [existingSession, existingSpeaker] = await Promise.all([
+      const [existingSession, existingSpeaker, current] = await Promise.all([
         tx.get(sessionRef),
         tx.get(speakerRef),
+        tx.get(subRef),
       ]);
+
+      /*
+       * Re-checked here, inside the transaction (T262). The checks above ran
+       * on a plain read, so two tabs pressing "Schedule it" with different
+       * times (two different session ids) both passed them and both created
+       * a session. The transaction reads the submission, so the second one
+       * retries, sees the first one's `sessionId` and stops.
+       */
+      const now = current.data() as SubmissionDoc | undefined;
+      if (now?.sessionId) {
+        throw new Error(`This is already on the agenda as “${now.sessionId}”. Edit that session instead.`);
+      }
+      if (now?.status !== 'accepted') throw new Error('Only an accepted submission can go onto the agenda.');
 
       if (existingSession.exists) {
         throw new Error(

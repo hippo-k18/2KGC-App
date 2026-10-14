@@ -226,6 +226,8 @@ export interface CfpRow {
     e2SentAtMs?: number;
     nudgedAtMs?: number;
     e2HeldForE4?: boolean;
+    e2Owed?: boolean;
+    withdrawnAtMs?: number;
   };
   detailsReceivedAtMs?: number;
   closeDecisionSent?: boolean;
@@ -332,7 +334,27 @@ export function isoWeek(ms: number, timeZone: string): string {
 export const REMINDER_WEEKDAY = 'Thursday';
 export const REMINDER_HOUR = 9;
 
-export function reminderDue(nowMs: number, timeZone: string, lastWeek: string | undefined): boolean {
+/**
+ * The Thursday reminder, at most once an ISO week.
+ *
+ * ⚠️ Only while there is something the reviewer could be reviewing (T258
+ * #17): never before the call opens, and after the close only while
+ * submissions are still undecided and E4 has not come due. Without `window`
+ * it is the bare weekday rule, which is what the tests of that rule read.
+ */
+export function reminderDue(
+  nowMs: number,
+  timeZone: string,
+  lastWeek: string | undefined,
+  window?: { opensAtMs?: number; closesAtMs?: number; cfp?: CallCfpSettings; openCount: number },
+): boolean {
+  if (window) {
+    if (window.opensAtMs !== undefined && nowMs < window.opensAtMs) return false;
+    if (window.closesAtMs !== undefined && nowMs > window.closesAtMs) {
+      if (window.openCount === 0) return false;
+      if (closeDecisionOpen(nowMs, window.cfp, timeZone)) return false;
+    }
+  }
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     weekday: 'long',
@@ -364,9 +386,29 @@ export function closeDecisionPlan<R extends CfpRow>(rows: R[]): {
     accepted: rows.filter(
       (r) => r.status === 'accepted' && r.acceptance?.e2HeldForE4 === true && !r.closeDecisionSent,
     ),
-    declined: rows.filter((r) => r.status === 'rejected' && !r.closeDecisionSent),
+    declined: rows.filter((r) => r.status === 'rejected' && !r.closeDecisionSent && !toldAccepted(r)),
     undecided: rows.filter(isOpen),
   };
+}
+
+/**
+ * Whether the author was already told they are accepted. Such a submission,
+ * if it is later rejected, never gets E4's "not accepted" version (T262): a
+ * yes in November and a form no in February is the one sequence an author
+ * cannot be left to read without a person explaining it.
+ */
+export function toldAccepted(r: Pick<CfpRow, 'acceptance'>): boolean {
+  return r.acceptance?.e2SentAtMs !== undefined || r.acceptance?.withdrawnAtMs !== undefined;
+}
+
+/**
+ * E2 owed: due and not delivered (T258 #5). Accepted, flagged owed and not
+ * yet sent. The hourly run and the E4 button both retry these.
+ */
+export function e2RetriesDue<R extends CfpRow>(rows: R[]): R[] {
+  return rows.filter(
+    (r) => r.status === 'accepted' && r.acceptance?.e2Owed === true && r.acceptance.e2SentAtMs === undefined,
+  );
 }
 
 /** E6: everyone still in the queue who has not had it. */
