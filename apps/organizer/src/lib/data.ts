@@ -17,7 +17,13 @@ import {
   tierRank,
 } from '@kgc/shared';
 import { auditPlace, auditSubject, namesARecord } from './audit-subject';
-import { emailKey, mergeAttendees, type AttendeeRow } from './attendees-core';
+import {
+  cancelledOrTransferred,
+  countsAsAttendee,
+  emailKey,
+  mergeAttendees,
+  type AttendeeRow,
+} from './attendees-core';
 import { recordError } from './errors';
 import { sponsorTiers } from './event';
 import { speakerContacts } from './speaker-contacts';
@@ -663,7 +669,10 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
  * masthead that throws takes every screen with it. That store is gone.
  */
 export async function adoptionCounts(): Promise<{
+  /** Active tickets, not counting the demo login (T262): what catering and the venue read. */
   registrations: number;
+  /** Refunded, cancelled or transferred away, shown beside the total and never in it. */
+  cancelled: number;
   users: number;
   signedIn: number;
 }> {
@@ -672,19 +681,21 @@ export async function adoptionCounts(): Promise<{
     db()
       .collection(COLLECTIONS.registrations)
       .where('eventId', '==', EVENT_ID)
-      .select('email')
+      .select('email', 'status', 'demo')
       .get(),
   ]);
+  const regs = regSnap.docs.map((d) => d.data() as RegistrationDoc);
+  const active = regs.filter(countsAsAttendee);
 
   const profiles = new Set(
     userSnap.docs.map((d) => emailKey((d.data() as UserDoc).email)).filter(Boolean),
   );
 
   return {
-    registrations: regSnap.size,
+    registrations: active.length,
+    cancelled: cancelledOrTransferred(regs),
     users: userSnap.size,
-    signedIn: regSnap.docs.filter((d) => profiles.has(emailKey((d.data() as RegistrationDoc).email)))
-      .length,
+    signedIn: active.filter((r) => profiles.has(emailKey(r.email))).length,
   };
 }
 

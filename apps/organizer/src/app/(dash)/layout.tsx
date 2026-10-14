@@ -102,7 +102,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
     countWhereEvent(COLLECTIONS.speakers),
     countWhereEvent(COLLECTIONS.sponsors),
   ]);
-  const { registrations, users, signedIn } = adoption;
+  const { registrations, cancelled, users, signedIn } = adoption;
 
   const days = [...new Set(sessions.map((s) => s.day))].sort();
   /* The dates saved on Content > Basics lead; with none saved, the agenda's own span. */
@@ -219,6 +219,8 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               <div className="widget-sub">
                 {signedIn} have signed in (
                 {registrations === 0 ? 0 : Math.round((signedIn / registrations) * 100)}%)
+                {/* Active tickets only (T262); refunds and transfers are counted here, apart. */}
+                {cancelled ? `. ${cancelled} cancelled` : ''}
               </div>
             </div>
             <div className="widget-card">
