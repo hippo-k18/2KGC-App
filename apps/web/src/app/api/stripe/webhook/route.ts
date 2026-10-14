@@ -8,7 +8,7 @@ import { cartLines } from '@/app/tickets/cart-order';
 import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
 import { noteIgnoredStripe } from '@/lib/stripe-ignored';
 import { splitByWeight } from '@/app/tickets/seats-core';
-import { provisionPurchaserAccount } from '@/lib/app-account';
+import { endAppAccessAfterWithdrawal, provisionPurchaserAccount } from '@/lib/app-account';
 import {
   grantOrderEntitlements,
   uidForEmail,
@@ -154,7 +154,10 @@ export async function POST(req: NextRequest) {
       if (!websiteCheckout(session.metadata)) {
         return NextResponse.json({ received: true, ignored: 'not a ticketing session' });
       }
-      const outcome = await cancelUnpaidOrder(session.id);
+      const outcome = await cancelUnpaidOrder(session.id, {
+        email: session.customer_details?.email ?? session.customer_email,
+        name: session.customer_details?.name ?? session.metadata?.name,
+      });
       return NextResponse.json({
         received: true,
         eventId: event.id,
@@ -275,6 +278,8 @@ export async function POST(req: NextRequest) {
       const seatsCancelled = outcome.newlyRefunded
         ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
+      if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
+      const appAccessEnded = await endAccessFor([outcome.registrationId, ...seatsCancelled]);
 
       /**
        * Workshops refunded on its own: it came off the badge, which stays
@@ -382,6 +387,8 @@ export async function POST(req: NextRequest) {
         seatsReturned,
         seatsCancelled,
         entitlementsWithdrawn,
+        ...(appAccessEnded.length ? { appAccessEnded: appAccessEnded.length } : {}),
+        ...(outcome.unfulfilled ? { unfulfilled: true } : {}),
         ...(outcome.extrasRemoved?.length ? { extrasRemoved: outcome.extrasRemoved } : {}),
         ...(outcome.keptAs ? { keptAs: outcome.keptAs } : {}),
       });
@@ -427,6 +434,32 @@ export async function POST(req: NextRequest) {
           seatsReturned.push(line.ticketTypeId);
         }
       }
+      if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
+      const appAccessEnded = await endAccessFor([outcome.registrationId, ...seatsCancelled]);
+
+      /**
+       * A person has to answer a dispute in Stripe, with evidence, by its
+       * deadline; the webhook can only withdraw the tickets. Said in
+       * `auditLog`, once, so it shows on the dashboard rather than only in
+       * Stripe's own inbox (T257 #7).
+       */
+      if (outcome.newlyRefunded || outcome.unfulfilled) {
+        const due = dispute.evidence_details?.due_by;
+        await recordWarning(
+          'dispute.opened',
+          {
+            disputeId: dispute.id,
+            amountCents: dispute.amount,
+            currency: dispute.currency,
+            reason: dispute.reason,
+            buyer: outcome.email ?? '',
+            ticketsWithdrawn: [outcome.registrationId, ...seatsCancelled].filter(Boolean).length,
+            ...(due ? { evidenceDueBy: new Date(due * 1000).toISOString() } : {}),
+            note: 'A chargeback was opened and its tickets were withdrawn. Answer it in Stripe before the evidence deadline.',
+          },
+          { path: 'orders', id: outcome.orderId },
+        );
+      }
       return NextResponse.json({
         received: true,
         eventId: event.id,
@@ -434,8 +467,47 @@ export async function POST(req: NextRequest) {
         registrationId: outcome.registrationId,
         seatsCancelled,
         seatsReturned,
+        ...(appAccessEnded.length ? { appAccessEnded: appAccessEnded.length } : {}),
+        ...(outcome.unfulfilled ? { unfulfilled: true } : {}),
         ...(outcome.keptAs ? { keptAs: outcome.keptAs } : {}),
       });
+    }
+
+    case 'charge.dispute.closed': {
+      /**
+       * A dispute settled in our favour leaves the order `cancelled` and the
+       * attendee without a badge, because `dispute.created` withdrew them and
+       * nothing put them back (T257 #7). Putting them back is a decision for a
+       * person: the buyer may have been refunded meanwhile, or the seat sold
+       * on. So this raises it in `auditLog` and changes nothing itself.
+       *
+       * `warning_closed` is an inquiry that closed without becoming a
+       * chargeback, which is the same outcome for the tickets. A lost dispute
+       * needs nothing: the tickets are already withdrawn.
+       */
+      const dispute = event.data.object;
+      if (dispute.status !== 'won' && dispute.status !== 'warning_closed') {
+        return NextResponse.json({ received: true, noted: `dispute ${dispute.status}` });
+      }
+      const target = await paymentTarget(dispute.payment_intent);
+      if (!target?.ours) return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
+      const oid = orderIdFor(target.externalId);
+      const order = (await db().collection(COLLECTIONS.orders).doc(oid).get()).data() as OrderDoc | undefined;
+      await recordWarning(
+        'dispute.won',
+        {
+          disputeId: dispute.id,
+          amountCents: dispute.amount,
+          currency: dispute.currency,
+          buyer: order?.email ?? '',
+          orderStatus: order?.status ?? 'missing',
+          note:
+            'A chargeback was settled in our favour, so the money stays. Its tickets were withdrawn when it was opened: ' +
+            'reinstate them on the dashboard, and mark the order paid, unless the buyer was refunded since.',
+        },
+        { path: 'orders', id: oid },
+      );
+      return NextResponse.json({ received: true, eventId: event.id, orderId: oid, reinstate: 'raised in auditLog' });
     }
 
     case 'invoice.paid': {
@@ -772,6 +844,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    case 'invoice.voided':
+    case 'invoice.marked_uncollectible': {
+      /**
+       * An invoice that will never be paid. Its order stayed `pending` for
+       * ever, in the dashboard's outstanding count and total and in the
+       * reconcile's outstanding seats (T257 #9). Only a pending order moves:
+       * nothing was issued for it, so there is nothing to withdraw. An invoice
+       * we hold no order for is not ticketing's, and no stub is written.
+       */
+      const invoice = event.data.object;
+      if (!invoice.id) return NextResponse.json({ received: true, ignored: 'no invoice id' });
+      const outcome = await cancelUnpaidOrder(invoice.id, {}, { onlyIfExists: true });
+      return NextResponse.json({
+        received: true,
+        eventId: event.id,
+        orderId: outcome.orderId,
+        outcome: outcome.outcome,
+      });
+    }
+
     case 'invoice.payment_failed':
       // Net-30 came and went, or the bank transfer bounced. Nothing was
       // fulfilled, so there is nothing to withdraw — this exists so the event
@@ -1074,6 +1166,43 @@ async function cancelExtraSeats(
   }
 
   return cancelled;
+}
+
+/**
+ * A refund or dispute on an order that was never fulfilled. It touched no
+ * ticket and no seat count (see `decideRefund`), but fulfilment may have
+ * issued some seats before it failed, so a person checks them by hand.
+ */
+async function warnUnfulfilled(eventType: string, orderId: string, externalId: string, email: string | null) {
+  await recordWarning(
+    'refund.unfulfilledOrder',
+    {
+      eventType,
+      externalId,
+      buyer: email ?? '',
+      note:
+        'Money went back on an order that was never fulfilled, so no ticket was cancelled and no seat returned. ' +
+        'Check whether any ticket was issued for it and cancel it by hand.',
+    },
+    { path: 'orders', id: orderId },
+  );
+}
+
+/**
+ * The app access the withdrawn tickets gave, for each holder left with no
+ * active ticket (T259 #6). Best effort; see `endAppAccessAfterWithdrawal`.
+ */
+async function endAccessFor(rids: (string | null | undefined)[]): Promise<string[]> {
+  const emails: string[] = [];
+  for (const rid of new Set(rids.filter((r): r is string => Boolean(r)))) {
+    try {
+      const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+      if (reg?.status === 'cancelled' && reg.email) emails.push(reg.email);
+    } catch (err) {
+      await recordError('account.revoke', err, { path: 'registrations', id: rid });
+    }
+  }
+  return emails.length ? endAppAccessAfterWithdrawal(emails) : [];
 }
 
 /**

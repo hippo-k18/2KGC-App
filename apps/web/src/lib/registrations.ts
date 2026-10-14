@@ -424,6 +424,12 @@ export interface RefundOutcome {
    * there is no counter to correct.
    */
   lines: { ticketTypeId: string; quantity: number }[];
+  /**
+   * The order was still `pending` when the refund or dispute arrived, so no
+   * ticket was withdrawn and no seat given back (T257 #4). The caller asks a
+   * person to check it.
+   */
+  unfulfilled?: boolean;
 }
 
 export async function cancelRegistrationByOrder(input: {
@@ -499,7 +505,7 @@ export async function cancelRegistrationByOrder(input: {
     // Stamped by the delivery that cancelled the order, not by Stripe's replays
     // of it (T138B, TK-258).
     ...(input.reason === 'disputed'
-      ? decision.newlyRefunded
+      ? decision.newlyRefunded || decision.unfulfilled
         ? { disputedAt: Timestamp.now() }
         : {}
       : { refundedCents: refunded }),
@@ -520,6 +526,9 @@ export async function cancelRegistrationByOrder(input: {
   };
 
   if (!order.email) return { ...details, registrationId: null };
+
+  // Never fulfilled: no ticket of this order's to withdraw. See `decideRefund`.
+  if (decision.unfulfilled) return { ...details, registrationId: null, unfulfilled: true };
 
   // Partial refund: money moved, the ticket did not. Nothing further to do.
   if (!decision.fullyRefunded) return { ...details, registrationId: null };
@@ -627,22 +636,38 @@ export async function cancelRegistrationByOrder(input: {
  * `cancelled` record is written, as before, so the attempt shows on the
  * dashboard's abandoned list.
  */
-export async function cancelUnpaidOrder(externalId: string): Promise<{
+export async function cancelUnpaidOrder(
+  externalId: string,
+  /**
+   * Who started the checkout, from the session's `customer_email`. Written on
+   * the stub, which used to say `email: ''`, so Abandoned Registration had
+   * nobody to follow up (T257).
+   */
+  buyer: { email?: string | null; name?: string | null } = {},
+  /**
+   * `true` for an invoice voided or written off: an order that does not exist
+   * is not ours, and no stub is written for it (T257 #9).
+   */
+  opts: { onlyIfExists?: boolean } = {},
+): Promise<{
   orderId: string;
   /** What happened: `cancelled`, or why nothing did. */
-  outcome: 'cancelled' | 'recorded' | `left ${OrderDoc['status']}`;
+  outcome: 'cancelled' | 'recorded' | 'no order' | `left ${OrderDoc['status']}`;
 }> {
   const oid = orderIdFor(externalId);
   const ref = db().collection(COLLECTIONS.orders).doc(oid);
+  const email = buyer.email ? normaliseEmail(buyer.email) : '';
 
   const outcome = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) {
+      if (opts.onlyIfExists) return 'no order' as const;
       tx.set(ref, {
         eventId: EVENT_ID,
         externalId,
         provider: 'stripe',
-        email: '',
+        email,
+        ...(buyer.name ? { buyerName: buyer.name } : {}),
         status: 'cancelled',
         totalCents: 0,
         refundedCents: 0,

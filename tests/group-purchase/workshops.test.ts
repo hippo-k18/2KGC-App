@@ -111,6 +111,7 @@ vi.mock('@/lib/app-account', async () => {
       uid: uidForEmail(email),
       temporaryPassword: null,
     }),
+    endAppAccessAfterWithdrawal: async () => [],
   };
 });
 vi.mock('@/lib/analytics', () => ({

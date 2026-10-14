@@ -67,10 +67,20 @@ export async function GET(req: NextRequest) {
   }
 
   // `paid` for a card; `no_payment_required` for a 100% discount. Anything
-  // else — `unpaid`, a delayed bank debit still processing — is not a ticket
-  // yet, and the buyer goes back to the tickets page rather than to a
-  // confirmation that would be a lie.
+  // else is not a ticket yet, and the buyer is not sent to a confirmation that
+  // would be a lie.
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
+    /**
+     * A completed session that is still `unpaid` is a delayed method (a bank
+     * debit) whose money is in flight. The ticket follows on
+     * `async_payment_succeeded`, days later. Sending this buyer to "Checkout
+     * was cancelled. Nothing was charged." told them to pay again, or to
+     * dispute a charge that was about to land (T257 #3). Only an ours session
+     * gets the processing page; anything else goes back as before.
+     */
+    if (session.status === 'complete' && websiteCheckout(session.metadata)) {
+      return NextResponse.redirect(new URL('/checkout/received?state=processing', origin));
+    }
     return NextResponse.redirect(new URL('/tickets/checkout?cancelled=1', origin));
   }
 

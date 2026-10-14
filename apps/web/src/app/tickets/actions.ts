@@ -9,7 +9,8 @@ import { buyerFeeCents } from '@kgc/shared';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
-import { tierById, tierFulfilment } from '@/lib/catalogue';
+import { nextSaleChange, tierById, tierFulfilment } from '@/lib/catalogue';
+import { checkoutExpiresAt } from '@/lib/checkout-expiry';
 import { checkExtraSeats } from '@/lib/extras-check';
 import { orderSeatsForExtras } from '@kgc/shared';
 import { ATTRIBUTION_COOKIE, validCode } from '@/lib/campaign-links';
@@ -277,7 +278,18 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
    * there the money has arrived and refusing to register somebody who has paid
    * would be the worse failure.
    */
+  /**
+   * A bundle takes a seat from each of its parts as well as its own, so a cart
+   * of one "Main Conference + Continuing education units" and one Main
+   * Conference asks Main Conference for two (T257 #8).
+   */
+  const demand = new Map<string, number>();
+  const want = (id: string, n: number) => demand.set(id, (demand.get(id) ?? 0) + n);
   for (const [seatTierId, wanted] of seatsPerTier(seats)) {
+    want(seatTierId, wanted);
+    for (const part of (await tierFulfilment(seatTierId))?.bundleOf ?? []) want(part, wanted);
+  }
+  for (const [seatTierId, wanted] of demand) {
     const fulfilment = await tierFulfilment(seatTierId);
     if (fulfilment?.remaining !== undefined && fulfilment.remaining < wanted) {
       const left = fulfilment.remaining;
@@ -372,6 +384,19 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   const feeCents = (await brandingSettings()).chargeBuyerFee ? buyerFeeCents(subtotalCents) : 0;
 
   return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing };
+}
+
+/**
+ * Stripe's refusal of `payment_method_types: ['link']`, which it gives when Link
+ * is not switched on for the account. Matched on the parameter it names, so any
+ * other refusal still reaches the buyer as one.
+ */
+function isLinkRefusal(err: unknown): boolean {
+  const e = err as { type?: string; param?: string; message?: string };
+  return (
+    e?.type === 'StripeInvalidRequestError' &&
+    (e.param?.startsWith('payment_method_types') === true || /\blink\b/i.test(e.message ?? ''))
+  );
 }
 
 /** The buyer fee as its own Stripe line, so the receipt shows it apart from the tickets. */
@@ -475,10 +500,30 @@ export async function startCheckout(
    * product per session and a restricted code has nothing to match.
    */
   let useProducts = true;
+  /**
+   * Card, and Link (Stripe's saved-card wallet), and nothing slower (T257 #3).
+   *
+   * With no list the methods came from the shared account's dashboard settings,
+   * so a bank debit switched on for another part of the business would appear
+   * here too, and its buyer is told nothing was charged while the money is in
+   * flight. If Stripe refuses Link (not switched on for the account), the
+   * session is made again with card alone rather than not at all.
+   */
+  let paymentMethods: ('card' | 'link')[] = ['card', 'link'];
+  /**
+   * The session ends within the hour, or when the price or the sales window
+   * next changes if that is sooner, so nobody pays yesterday's price for a
+   * ticket that has since gone up or closed (T257 #6). Stripe allows 30 minutes
+   * at the shortest; see `checkout-expiry.ts`.
+   */
+  const now = new Date();
+  const expiresAt = checkoutExpiresAt(now, await nextSaleChange([...new Set(seats.map((s) => s.tierId))], now));
   try {
     const create = () => stripe().checkout.sessions.create({
       mode: 'payment',
       customer_email: email,
+      payment_method_types: paymentMethods,
+      expires_at: expiresAt,
       line_items: [
         ...lines.map((line) => {
           // Non-null: every tier id in `lines` came from `seats`, and the loop
@@ -486,11 +531,11 @@ export async function startCheckout(
           const tier = tiers.get(line.tierId)!;
           /**
            * The group rate goes into the unit price, not into a Stripe
-           * discount. Stripe refuses `discounts` together with
-           * `allow_promotion_codes`, and the owner wants a promotion code to
-           * apply on top. The line keeps its tier's product, so a code limited
-           * to that product still matches it; the Stripe page says why the
-           * price is lower in `custom_text` below.
+           * discount, and the Stripe page says why the price is lower in
+           * `custom_text` below. A group cart takes no promotion code since
+           * T266 (see `allow_promotion_codes`), so the rate is the discount.
+           * The line keeps its tier's product, so a code limited to that
+           * product still matches it on a one-seat purchase.
            */
           const rated = pricing.applies && countsForGroupRate(tier);
           const unit = rated ? groupRatePrice(tier.priceCents).priceCents : tier.priceCents;
@@ -524,8 +569,16 @@ export async function startCheckout(
        * sponsors' allocations, early-bird, academic rates. Stripe owns the
        * codes and their limits, so there is no coupon table here to keep in
        * step with theirs.
+       *
+       * ⚠️ **One seat only** (T257 #2). Stripe redeems a code once per
+       * session and applies a percent-off coupon to every unit on it, so one
+       * 100% speaker code on a ten-seat cart was ten free tickets while the
+       * code still showed a single use. A group buys at the group rate; a
+       * code holder buys their own ticket. Fulfilment also flags any
+       * multi-seat order that comes out free, in case a code reaches one
+       * some other way.
        */
-      allow_promotion_codes: true,
+      allow_promotion_codes: seats.length === 1,
 
       // Said on Stripe's own page, under the pay button, because a line
       // carrying its tier's product keeps the product's name.
@@ -535,7 +588,7 @@ export async function startCheckout(
               submit: {
                 message:
                   `Group rate: ${GROUP_RATE_PERCENT}% off each in-person ticket is already in these prices ` +
-                  `(${GROUP_RATE_MIN_SEATS} or more in-person tickets). A promotion code comes off on top.`,
+                  `(${GROUP_RATE_MIN_SEATS} or more in-person tickets).`,
               },
             },
           }
@@ -588,7 +641,13 @@ export async function startCheckout(
 
     let session;
     try {
-      session = await create();
+      session = await create().catch((err) => {
+        // Link not switched on for the account: card alone, as before T257.
+        if (!isLinkRefusal(err)) throw err;
+        console.error('[checkout] Stripe refused Link; retrying with card only', err);
+        paymentMethods = ['card'];
+        return create();
+      });
     } catch (err) {
       /*
        * A product archived or deleted in Stripe's own dashboard would otherwise

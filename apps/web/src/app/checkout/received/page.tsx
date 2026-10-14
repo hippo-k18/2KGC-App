@@ -15,7 +15,9 @@ export const metadata: Metadata = {
  * the buyer has paid, and a 500 page is the worst thing to show them, so this
  * says the payment arrived and the ticket follows by email, which the webhook
  * makes true when Stripe redelivers (T135, S5). Less often the order was
- * refunded or cancelled before they came back (`?state=refunded`).
+ * refunded or cancelled before they came back (`?state=refunded`), or the
+ * buyer paid by a delayed method whose money has not cleared
+ * (`?state=processing`, T257 #3).
  */
 export default async function CheckoutReceived({
   searchParams,
@@ -24,22 +26,33 @@ export default async function CheckoutReceived({
 }) {
   const { state } = await searchParams;
   const refunded = state === 'refunded';
+  const processing = state === 'processing';
 
   return (
     <section className="order-page">
       <ScrollToTop />
       <div className="wrap narrow order-wrap">
-        <p className="eyebrow">{refunded ? 'Refunded' : 'Payment received'}</p>
+        <p className="eyebrow">{refunded ? 'Refunded' : processing ? 'Payment processing' : 'Payment received'}</p>
         <h1 className="order-headline">
-          {refunded ? 'This purchase was refunded.' : 'Your payment went through.'}
+          {refunded
+            ? 'This purchase was refunded.'
+            : processing
+              ? 'Your payment is processing.'
+              : 'Your payment went through.'}
         </h1>
         <p className="notice">
           {refunded
             ? 'No ticket was issued for it. The money goes back to the card you paid with.'
-            : 'Your ticket is on its way. We will email it to you within a few minutes, with a link to the ticket and how to get into the app.'}
+            : processing
+              ? 'Your bank is still sending the payment, which can take a few working days. Your ticket follows by email as soon as it clears. There is no need to pay again.'
+              : 'Your ticket is on its way. We will email it to you within a few minutes, with a link to the ticket and how to get into the app.'}
         </p>
         <p className="muted order-fine">
-          {refunded ? 'Questions: ' : 'If nothing arrives within the hour, email '}
+          {refunded
+            ? 'Questions: '
+            : processing
+              ? 'If no ticket arrives within a week, email '
+              : 'If nothing arrives within the hour, email '}
           <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
         </p>
       </div>

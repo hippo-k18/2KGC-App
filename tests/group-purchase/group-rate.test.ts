@@ -82,6 +82,7 @@ vi.mock('@/lib/email', () => ({
 }));
 vi.mock('@/lib/app-account', () => ({
   provisionPurchaserAccount: async () => ({ status: 'existing', uid: null, temporaryPassword: null }),
+  endAppAccessAfterWithdrawal: async () => [],
 }));
 
 import { NextRequest } from '../../apps/web/node_modules/next/server.js';
@@ -200,12 +201,17 @@ describe('which carts earn the group rate', () => {
     });
   });
 
-  it('keeps the tier product on a discounted line, which is what a product-restricted promotion code matches', async () => {
+  it('keeps the tier product on a discounted line, and takes no promotion code on a group cart (T257 #2)', async () => {
     const p = await checkout(Array(5).fill(MAIN));
     expect(p.line_items[0].price_data.product).toBe('prod_main');
-    // Promotion codes stay available, so a code applies on top of the rate.
-    expect(p.allow_promotion_codes).toBe(true);
+    // Stripe would apply one code to all five seats, so a group cart takes none.
+    expect(p.allow_promotion_codes).toBe(false);
     expect(p.discounts).toBeUndefined();
+  });
+
+  it('still takes a promotion code on a single seat', async () => {
+    const p = await checkout([MAIN]);
+    expect(p.allow_promotion_codes).toBe(true);
   });
 
   it('ignores anything the form posts about price or the rate', async () => {

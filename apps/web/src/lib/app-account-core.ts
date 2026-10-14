@@ -432,3 +432,49 @@ export async function withdrawOrderEntitlements(
   }
   return withdrawn;
 }
+
+/**
+ * End the app access a ticket gave, once the address holds no active ticket
+ * (T259 #6).
+ *
+ * A Stripe refund or dispute cancelled the registration and left the Auth
+ * claim alone, so an attendee already signed in kept the directory and
+ * messaging, and one who had set a password could sign in again. This is the
+ * dashboard's `setAppAccess(email, false)` for the webhook: clear `registered`
+ * and revoke refresh tokens, which shuts the app at the next token refresh.
+ *
+ * Only when nothing else stands behind the claim. Any other active ticket on
+ * the address (its own, or one listing it in `altEmails`) keeps it, as does
+ * any role beyond `attendee`: a speaker or staff member who refunded a ticket
+ * they also bought is still a speaker.
+ *
+ * Read in memory rather than with a two-field query, so it needs no composite
+ * index. One address holds a handful of registrations at most.
+ */
+export async function endAppAccessIfNoTicket(
+  auth: Auth,
+  db: Firestore,
+  email: string,
+): Promise<'revoked' | 'kept' | 'none'> {
+  const address = normaliseEmail(email);
+  if (!address) return 'none';
+  const regs = db.collection(COLLECTIONS.registrations);
+  const [own, alt] = await Promise.all([
+    regs.where('email', '==', address).get(),
+    regs.where('altEmails', 'array-contains', address).get(),
+  ]);
+  const active = [...own.docs, ...alt.docs].some((d) => {
+    const r = d.data() as { status?: string; eventId?: string };
+    return r.status === 'active' && (r.eventId === undefined || r.eventId === EVENT_ID);
+  });
+  if (active) return 'kept';
+
+  const user = await auth.getUserByEmail(address).catch(() => null);
+  if (!user) return 'none';
+  const claims = (user.customClaims ?? {}) as { registered?: boolean; roles?: string[] };
+  if (!claims.registered) return 'none';
+  if (!(claims.roles ?? []).every((r) => r === 'attendee')) return 'kept';
+  await auth.setCustomUserClaims(user.uid, { ...claims, registered: false });
+  await auth.revokeRefreshTokens(user.uid);
+  return 'revoked';
+}
