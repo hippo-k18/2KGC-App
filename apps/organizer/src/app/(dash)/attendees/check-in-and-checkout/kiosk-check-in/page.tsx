@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { DEFAULT_LIST_ID, listCheckInLists, listStations } from '@/lib/checkin';
+import { DEFAULT_LIST_ID, listCheckInLists, listStations, todaysDayList } from '@/lib/checkin';
+import { listSessions } from '@/lib/data';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { PageHeader, Panel, Table, Tag } from '../../../ui';
@@ -45,7 +46,15 @@ export default async function KioskCheckInPage({
   await requireOrganizer();
 
   const { list: listParam, station } = await searchParams;
-  const [lists, stations] = await Promise.all([listCheckInLists(), listStations()]);
+  const [lists, stations, sessions] = await Promise.all([listCheckInLists(), listStations(), listSessions()]);
+
+  // Today's Day list during the event, as on the staffed screen (T259 #12).
+  const today = listParam
+    ? null
+    : await todaysDayList([...new Set(sessions.filter((s) => s.status !== 'cancelled').map((s) => s.day))]);
+  if (today && !lists.some((l) => l.id === today.id)) {
+    lists.push({ id: today.id, name: today.name, kind: 'event' });
+  }
 
   /*
     The door is pinned by id rather than taken as `lists[0]`, the same rule the
@@ -55,6 +64,7 @@ export default async function KioskCheckInPage({
   */
   const selected =
     lists.find((l) => l.id === listParam) ??
+    (today ? lists.find((l) => l.id === today.id) : undefined) ??
     lists.find((l) => l.id === DEFAULT_LIST_ID) ??
     lists.find((l) => l.kind === 'event') ??
     lists[0];

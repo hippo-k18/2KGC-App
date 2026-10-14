@@ -10,7 +10,9 @@ import {
   listStations,
   recentCheckIns,
   recentScanEvents,
+  todaysDayList,
 } from '@/lib/checkin';
+import { isDayListId } from '@/lib/checkin-core';
 import { doorDashboard, type DoorBar } from '@/lib/door-dashboard-core';
 import { capacityIndex } from '@/lib/cohorts';
 import { listSessions } from '@/lib/data';
@@ -84,12 +86,6 @@ export default async function CheckInPage({
    * day one that reads as "the tool has lost everyone", and the recovery is to
    * notice a filter chip. The door is pinned instead.
    */
-  const selected =
-    lists.find((l) => l.id === listParam) ??
-    lists.find((l) => l.id === DEFAULT_LIST_ID) ??
-    lists.find((l) => l.kind === 'event') ??
-    lists[0];
-
   const [registrations, stations, sessions, caps] = await Promise.all([
     listRegistrations(),
     listStations(),
@@ -97,6 +93,26 @@ export default async function CheckInPage({
     capacityIndex(),
   ]);
   const rows = registrations.map((r) => r.row);
+
+  /*
+   * During the event the screen opens on today's Day list (New York time), so
+   * day two does not greet every returning attendee with ALREADY CHECKED IN
+   * (T259 #12). A check-in there also lands on the Main Door. Outside the
+   * event days nothing changes.
+   */
+  const today = listParam
+    ? null
+    : await todaysDayList([...new Set(sessions.filter((s) => s.status !== 'cancelled').map((s) => s.day))]);
+  if (today && !lists.some((l) => l.id === today.id)) {
+    lists.push({ id: today.id, name: today.name, kind: 'event' });
+  }
+
+  const selected =
+    lists.find((l) => l.id === listParam) ??
+    (today ? lists.find((l) => l.id === today.id) : undefined) ??
+    lists.find((l) => l.id === DEFAULT_LIST_ID) ??
+    lists.find((l) => l.kind === 'event') ??
+    lists[0];
 
   /*
    * `everyCheckIn` is a second pass over the same subcollection, and it is the
@@ -164,7 +180,9 @@ export default async function CheckInPage({
     : undefined;
   const scopeCapacity = scopeSession ? caps.sessionCapacity.get(scopeSession.id) : undefined;
 
-  const checkedInById = new Map(checkIns.map((c) => [c.registrationId, c.checkedInAt]));
+  // Every check-in on the list, not the twenty in the recent strip: the desk
+  // list marked only those twenty as checked in (T259 #3).
+  const checkedInById = new Map(everyCheckIn.map((c) => [c.registrationId, c.checkedInAt]));
   const deskRows: DeskRow[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -332,6 +350,12 @@ export default async function CheckInPage({
             {scopeSession.endsAtLocal.slice(11, 16)}
             {scopeSession.roomName ? ` in ${scopeSession.roomName}` : ''}. Scans here do not count
             toward the main door. Switch back with the <em>KGC 2027: Main Door</em> chip above.
+          </Banner>
+        ) : isDayListId(selected.id) ? (
+          <Banner kind="info">
+            <strong>You are scanning into {selected.name}.</strong> Each day starts from zero, so
+            somebody who came yesterday checks in again today. Every check-in here also counts on
+            the Main Door.
           </Banner>
         ) : inactive > 0 ? (
           <Banner kind="warning">

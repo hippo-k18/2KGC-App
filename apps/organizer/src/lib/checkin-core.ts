@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, type CheckInListDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, TIME_ZONE, type CheckInListDoc } from '@kgc/shared';
 
 /**
  * The scoping rules behind per-session attendance, with no Firestore handle of
@@ -48,6 +48,25 @@ export function dayListId(day: string): string {
 }
 
 export const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `YYYY-MM-DD` of an instant on the event's own clock (New York), not the server's. */
+export function eventDayOf(at: Date): string {
+  return at.toLocaleDateString('sv-SE', { timeZone: TIME_ZONE });
+}
+
+/** Whether a badge (its ticket and any extras on it) gets the holder into a workshop. */
+export function badgeIncludesWorkshops(
+  doc: { ticketType?: string; extraNames?: string[] },
+  workshops: Set<string>,
+): boolean {
+  if (doc.ticketType && workshops.has(doc.ticketType)) return true;
+  return (doc.extraNames ?? []).some((n) => workshops.has(n));
+}
+
+/** True for a Day list's id. A check-in there is mirrored onto the Main Door. */
+export function isDayListId(listId: string): boolean {
+  return listId.startsWith('day-') && DAY_PATTERN.test(listId.slice(4));
+}
 
 /**
  * People arrive late, and a door that stops counting on the hour under-reports

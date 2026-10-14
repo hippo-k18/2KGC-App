@@ -117,12 +117,66 @@ async function setAppAccess(email: string, allowed: boolean): Promise<'changed' 
     }
 
     if (!claims.registered || !losesAppAccess(claims.roles)) return 'kept';
+    // Somebody with a second ticket on this address keeps the app (T259 #7).
+    if (await holdsActiveTicket(email)) return 'kept';
     await auth.setCustomUserClaims(user.uid, { ...claims, registered: false });
     await auth.revokeRefreshTokens(user.uid);
     return 'changed';
   } catch (err) {
     recordError('attendee.appAccess', err);
     return 'none';
+  }
+}
+
+/**
+ * Whether any active registration for the event still answers to this address,
+ * as its own address or as an alternate. Called after the cancel or transfer
+ * has been written, so the ticket just ended is no longer active.
+ */
+async function holdsActiveTicket(email: string): Promise<boolean> {
+  const regs = db().collection(COLLECTIONS.registrations);
+  const address = email.trim().toLowerCase();
+  const [own, alt] = await Promise.all([
+    regs.where('email', '==', address).where('status', '==', 'active').limit(5).get(),
+    regs.where('altEmails', 'array-contains', address).limit(10).get(),
+  ]);
+  const live = (d: { data(): unknown }) => {
+    const r = d.data() as RegistrationDoc;
+    return r.eventId === EVENT_ID && r.status === 'active';
+  };
+  return own.docs.some(live) || alt.docs.some(live);
+}
+
+/**
+ * Move the app account to the corrected address, for a correction rather than
+ * a transfer (T259 #14).
+ *
+ * Revoking the old account and letting the new address sign up fresh gave the
+ * same person a second uid, stranding their profile, messages and saved
+ * sessions. So the existing Auth user keeps its uid and takes the new address.
+ *
+ * Falls back to the old behaviour (returns false) when the move is not safe:
+ * the new address already has its own account, or the old address still holds
+ * another ticket and needs its account.
+ */
+async function moveAppAccount(fromEmail: string, toEmail: string): Promise<boolean> {
+  try {
+    const auth = getAuth();
+    const user = await auth.getUserByEmail(fromEmail).catch(() => null);
+    if (!user) return false;
+    const taken = await auth.getUserByEmail(toEmail).catch(() => null);
+    if (taken) return false;
+    if (await holdsActiveTicket(fromEmail)) return false;
+
+    await auth.updateUser(user.uid, { email: toEmail, emailVerified: true });
+    const profile = db().collection(COLLECTIONS.users).doc(user.uid);
+    if ((await profile.get()).exists) {
+      await profile.update({ email: toEmail, updatedAt: FieldValue.serverTimestamp() });
+    }
+    return true;
+  } catch (err) {
+    recordError('attendee.moveAppAccount', err);
+    return false;
   }
 }
 
@@ -195,6 +249,38 @@ export async function resendConfirmation(rid: string, actor: string): Promise<At
     message: process.env.RESEND_API_KEY
       ? `Confirmation sent to ${reg.email}.`
       : 'Email is not set up yet, so nothing was sent.',
+  };
+}
+
+/**
+ * Give a badge a new QR code (T259 #11).
+ *
+ * For the attendee whose code somebody else used, or who shared a photo of
+ * it. The old code stops scanning at once; the app shows the new one the next
+ * time it loads the badge, and a printed badge has to be printed again. Same
+ * holder, same ticket, same check-ins. The secret itself never goes in the
+ * audit log.
+ */
+export async function reissueBadgeQr(rid: string, actor: string): Promise<AttendeeActionResult> {
+  const reg = await readRegistration(rid);
+  if (!reg) return { ok: false, error: 'That attendee is no longer on the list.' };
+  if (reg.status !== 'active') return { ok: false, error: 'Only an active ticket has a badge to reissue.' };
+
+  await regRef(rid).update({ qrSecret: qrSecret(), updatedAt: FieldValue.serverTimestamp() });
+  await appendAudit({
+    actor,
+    action: 'attendee.reissueQr',
+    targetPath: `${COLLECTIONS.registrations}/${rid}`,
+    targetId: rid,
+    subject: reg.name ?? reg.email,
+    before: { badgeQr: 'old' },
+    after: { badgeQr: 'new' },
+  });
+
+  return {
+    ok: true,
+    registrationId: rid,
+    message: `New badge QR issued for ${reg.name ?? reg.email}. The old one no longer scans. They see the new one when they next open their badge in the app.`,
   };
 }
 
@@ -396,7 +482,8 @@ async function moveRegistration(
     });
   }
 
-  await setAppAccess(from.email, false);
+  const accountMoved = kind === 'correct' && (await moveAppAccount(from.email, details.email));
+  if (!accountMoved) await setAppAccess(from.email, false);
   await setAppAccess(details.email, true);
 
   await sendAttendeeConfirmation({

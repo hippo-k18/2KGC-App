@@ -77,6 +77,22 @@ export function registrationByEmail(db: Firestore, address: string): Query {
 }
 
 /**
+ * Every active ticket bought under this address, for the badge screen.
+ *
+ * `registrationByEmail` takes one row and ignores status, so somebody holding
+ * two tickets on one address saw one badge, possibly the cancelled one
+ * (T259 #7). Two equality filters, which Firestore serves by merging the
+ * automatic single-field indexes, so there is still no composite to declare.
+ */
+export function activeRegistrationsByEmail(db: Firestore, address: string): Query {
+  return query(
+    collection(db, COLLECTIONS.registrations),
+    where('email', '==', address),
+    where('status', '==', 'active'),
+  );
+}
+
+/**
  * A registration that lists this address as an alternate. Asked only when the
  * primary lookup came back empty, so the common path is still one read.
  *

@@ -220,4 +220,28 @@ describe('the badge finding its registration', () => {
     expect(badge.current().badge).toBeNull();
     expect(badge.current().source).toBe('none');
   });
+
+  it('shows every active ticket on one address and leaves the cancelled one out (T259 #7)', async () => {
+    await admin(async (db) => {
+      await setDoc(
+        doc(db, 'registrations/reg_ada_first'),
+        registration({ email: 'ada@kgc.test', name: 'Ada', status: 'cancelled', qrSecret: 'old' }),
+      );
+      await setDoc(
+        doc(db, 'registrations/reg_ada_second'),
+        registration({ email: 'ada@kgc.test', name: 'Ada', qrSecret: 'second' }),
+      );
+      await setDoc(
+        doc(db, 'registrations/reg_ada_third'),
+        registration({ email: 'ada@kgc.test', name: 'Ada', qrSecret: 'third' }),
+      );
+    });
+    signedInAs('ada', 'ada@kgc.test');
+
+    const badge = render(() => useBadge());
+    await settle(() => !badge.current().loading, 'the badge to settle');
+
+    expect(badge.current().error).toBeNull();
+    expect(badge.current().badges.map((b) => b.qrSecret).sort()).toEqual(['second', 'third']);
+  });
 });

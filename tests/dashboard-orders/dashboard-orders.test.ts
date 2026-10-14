@@ -280,6 +280,25 @@ describe('Workshops recorded from the dashboard (T169, T186)', () => {
     expect(conf.onlyExtra).toBeUndefined();
   });
 
+  it('warns at a workshop door when the badge has no Workshops (T259 #10)', async () => {
+    const { resetScanCaches } = await import('@/lib/checkin');
+    resetScanCaches();
+    const main = await manual({ email: 'nows@example.com', requestId: 'req-t267-ws-01' });
+    const ws = await workshops({ email: 'hasws@example.com', requestId: 'req-t267-ws-02' });
+    await db.collection(COLLECTIONS.checkInLists).doc('ws-t267').set({ eventId: EVENT_ID, name: 'Lab', kind: 'workshop' });
+    const { submitScanAction } = await import('@/app/(dash)/attendees/check-in-and-checkout/check-in/actions');
+    const code = async (rid: string) =>
+      ((await db.collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc).qrSecret!;
+    const scan = async (rid: string, n: string) =>
+      submitScanAction({ listId: 'ws-t267', code: await code(rid), deviceId: 'dev-t267', clientScanId: n, stationLabel: 'Lab', source: 'camera' });
+
+    const mainOnly = await scan(main.registrationId!, 'ws-1');
+    expect(mainOnly).toMatchObject({ outcome: 'ok', noWorkshops: true });
+    const holder = await scan(ws.registrationId!, 'ws-2');
+    expect(holder.outcome).toBe('ok');
+    expect(holder.noWorkshops).toBeUndefined();
+  });
+
   it('the edit panel lists the extras beside the ticket type (T183 gap)', async () => {
     const main = await manual({ requestId: 'req-ws-edit-01' });
     await workshops({ requestId: 'req-ws-edit-02' });
@@ -370,3 +389,122 @@ describe('cancelling a Main Conference + Workshops badge on the dashboard (T170)
     expect(r.extraSeatReleases).toBeUndefined();
   });
 });
+
+describe('the door (T259 #3, #5, #11, #12)', () => {
+  const scanIn = async (listId: string, code: string, n: string) => {
+    const { submitScanAction } = await import('@/app/(dash)/attendees/check-in-and-checkout/check-in/actions');
+    return submitScanAction({ listId, code, deviceId: 'dev-door', clientScanId: n, stationLabel: 'Desk', source: 'typed' });
+  };
+  const qr = async (rid: string) =>
+    ((await db.collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc).qrSecret!;
+  const runId = Date.now().toString(36);
+
+  beforeEach(async () => {
+    const { resetScanCaches } = await import('@/lib/checkin');
+    resetScanCaches();
+  });
+
+  it('finds the badge by its QR and by a typed claim code, and nothing for a wrong code', async () => {
+    const ada = await manual({ email: `door-${runId}@example.com`, requestId: `req-door-${runId}-1` });
+    const reg = (await db.collection(COLLECTIONS.registrations).doc(ada.registrationId!).get()).data() as RegistrationDoc;
+    const list = `door-lookup-${runId}`;
+    expect(await scanIn(list, reg.qrSecret!, `${runId}-a`)).toMatchObject({ outcome: 'ok', matchedOn: 'qrSecret' });
+    expect(await scanIn(list, reg.claimCode!.toLowerCase(), `${runId}-b`)).toMatchObject({ outcome: 'duplicate', matchedOn: 'claimCode' });
+    expect((await scanIn(list, 'not-a-real-code-at-all-0000000000', `${runId}-c`)).outcome).toBe('unknown');
+  });
+
+  it('a resend of the same scan is a replay, never a second check-in', async () => {
+    const bo = await manual({ email: `replay-${runId}@example.com`, requestId: `req-door-${runId}-2` });
+    const list = `door-replay-${runId}`;
+    const code = await qr(bo.registrationId!);
+    const first = await scanIn(list, code, `${runId}-same`);
+    const again = await scanIn(list, code, `${runId}-same`);
+    expect(first.outcome).toBe('ok');
+    expect(again).toMatchObject({ outcome: 'duplicate', scanEventReplayed: true });
+  });
+
+  it('a Day list starts each day from zero, mirrors onto the Main Door, and its undo takes the mirror back', async () => {
+    const { DEFAULT_LIST_ID } = await import('@/lib/checkin');
+    const { undoCheckInAction } = await import('@/app/(dash)/attendees/check-in-and-checkout/check-in/actions');
+    const cy = await manual({ email: `days-${runId}@example.com`, requestId: `req-door-${runId}-3` });
+    const rid = cy.registrationId!;
+    const code = await qr(rid);
+    const door = db.collection(COLLECTIONS.checkInLists).doc(DEFAULT_LIST_ID).collection('checkIns').doc(rid);
+
+    expect((await scanIn('day-2027-05-04', code, `${runId}-d1`)).outcome).toBe('ok');
+    expect((await door.get()).data()?.mirroredFrom).toBe('day-2027-05-04');
+    // Day two: a fresh list, so not ALREADY CHECKED IN.
+    expect((await scanIn('day-2027-05-05', code, `${runId}-d2`)).outcome).toBe('ok');
+    expect((await door.get()).data()?.mirroredFrom).toBe('day-2027-05-04');
+
+    await undoCheckInAction('day-2027-05-05', rid);
+    expect((await door.get()).exists).toBe(true);
+    await undoCheckInAction('day-2027-05-04', rid);
+    expect((await door.get()).exists).toBe(false);
+  });
+
+  it('reissuing a badge QR stops the old code and the new one scans', async () => {
+    const { reissueBadgeQr } = await import('@/lib/attendee-admin');
+    const di = await manual({ email: `reissue-${runId}@example.com`, requestId: `req-door-${runId}-4` });
+    const old = await qr(di.registrationId!);
+    const res = await reissueBadgeQr(di.registrationId!, 'organizer@example.com');
+    expect(res.ok).toBe(true);
+    const fresh = await qr(di.registrationId!);
+    expect(fresh).not.toBe(old);
+    expect(fresh).toHaveLength(old.length);
+
+    const list = `door-reissue-${runId}`;
+    expect((await scanIn(list, old, `${runId}-r1`)).outcome).toBe('unknown');
+    expect((await scanIn(list, fresh, `${runId}-r2`)).outcome).toBe('ok');
+    const audit = await db.collection(COLLECTIONS.auditLog).where('action', '==', 'attendee.reissueQr').get();
+    expect(audit.size).toBe(1);
+    expect(JSON.stringify(audit.docs[0].data())).not.toContain(fresh);
+  });
+});
+
+describe('app access with several tickets on one address (T259 #7, #14)', () => {
+  const hasAuth = Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST);
+  const runId = Date.now().toString(36);
+
+  it.skipIf(!hasAuth)('cancelling one of two tickets keeps the app; cancelling the last one ends it', async () => {
+    const { getAuth } = await import('../../apps/organizer/node_modules/firebase-admin/lib/auth/index.js');
+    const { cancelAttendee } = await import('@/lib/attendee-admin');
+    const email = `two-${runId}@example.com`;
+    const first = await manual({ email, requestId: `req-acc-${runId}-1` });
+    const second = await manual({ email, requestId: `req-acc-${runId}-2` });
+    expect(second.registrationId).not.toBe(first.registrationId);
+
+    const auth = getAuth();
+    const user = await auth.createUser({ email });
+    await auth.setCustomUserClaims(user.uid, { registered: true, roles: ['attendee'], eventId: EVENT_ID });
+
+    expect((await cancelAttendee(first.registrationId!, 'organizer@example.com')).ok).toBe(true);
+    expect((await auth.getUser(user.uid)).customClaims?.registered).toBe(true);
+
+    expect((await cancelAttendee(second.registrationId!, 'organizer@example.com')).ok).toBe(true);
+    expect((await auth.getUser(user.uid)).customClaims?.registered).toBe(false);
+  });
+
+  it.skipIf(!hasAuth)('correcting an address moves the same app account to it', async () => {
+    const { getAuth } = await import('../../apps/organizer/node_modules/firebase-admin/lib/auth/index.js');
+    const { updateAttendee } = await import('@/lib/attendee-admin');
+    const from = `typo-${runId}@exmaple.com`;
+    const to = `fixed-${runId}@example.com`;
+    const ticket = await manual({ email: from, requestId: `req-acc-${runId}-3` });
+
+    const auth = getAuth();
+    const user = await auth.createUser({ email: from });
+    await auth.setCustomUserClaims(user.uid, { registered: true, roles: ['attendee'], eventId: EVENT_ID });
+    await db.collection(COLLECTIONS.users).doc(user.uid).set({ eventId: EVENT_ID, email: from, name: 'Ada' });
+
+    const res = await updateAttendee(ticket.registrationId!, { name: 'Ada Nakamura', email: to, title: '', company: '' }, 'organizer@example.com');
+    expect(res.ok).toBe(true);
+
+    const moved = await auth.getUser(user.uid);
+    expect(moved.email).toBe(to);
+    expect(moved.customClaims?.registered).toBe(true);
+    expect((await db.collection(COLLECTIONS.users).doc(user.uid).get()).data()?.email).toBe(to);
+    await expect(auth.getUserByEmail(from)).rejects.toThrow();
+  });
+});
+

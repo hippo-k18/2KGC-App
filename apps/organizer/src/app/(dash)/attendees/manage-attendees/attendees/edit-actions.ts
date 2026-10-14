@@ -6,6 +6,7 @@ import {
   cancelAttendee,
   changeTicketType,
   reinstateAttendee,
+  reissueBadgeQr,
   resendConfirmation,
   transferAttendee,
   updateAttendee,
@@ -113,4 +114,12 @@ export async function resendConfirmationAction(
 ): Promise<AttendeeEditState> {
   const actor = await requireOrganizer();
   return run('attendee.confirmation', () => resendConfirmation(idOf(formData), actor));
+}
+
+export async function reissueBadgeQrAction(
+  _prev: AttendeeEditState,
+  formData: FormData,
+): Promise<AttendeeEditState> {
+  const actor = await requireOrganizer();
+  return run('attendee.reissueQr', () => reissueBadgeQr(idOf(formData), actor));
 }

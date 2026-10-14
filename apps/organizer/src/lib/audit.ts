@@ -312,6 +312,7 @@ export interface AuditEntry {
     | 'attendee.transfer'
     | 'attendee.ticketType'
     | 'attendee.confirmation'
+    | 'attendee.reissueQr'
     /**
      * Everything held about one person, destroyed on request.
      *

@@ -14,8 +14,8 @@ import {
 import { useAuth } from '@/lib/auth/auth-provider';
 import { type Badge, orderBadges, stripLegacy } from '@/lib/data/badge-core';
 import {
+  activeRegistrationsByEmail,
   myAddress,
-  registrationByEmail,
   registrationsByAltEmail,
 } from '@/lib/data/registrations';
 import { useCollection } from '@/lib/data/use-collection';
@@ -303,7 +303,8 @@ export function useBadge(): BadgeResult {
     // `null` rather than a query built around an empty address: an account with
     // no address at all cannot be looked up, and `where('email', '==', '')` is
     // a real query that really returns nothing.
-    () => (email ? registrationByEmail(getDb(), email) : null),
+    // Every active ticket on the address, not just one (T259 #7).
+    () => (email ? activeRegistrationsByEmail(getDb(), email) : null),
     // `attempt` is here so `retry()` resubscribes. See the note above on why
     // this module leans on the deps array rather than a hook-provided retry.
     [email, attempt],
@@ -320,7 +321,13 @@ export function useBadge(): BadgeResult {
     toBadge,
   );
 
-  const liveBadges = orderBadges(primary.data ?? [], alternate.data ?? []);
+  // Cancelled and transferred tickets are not badges. The alternate query
+  // cannot filter on status as well as `array-contains` without a composite
+  // index, so it is filtered here.
+  const liveBadges = orderBadges(
+    primary.data ?? [],
+    (alternate.data ?? []).filter((b) => b.status === 'active'),
+  );
   const liveBadge = liveBadges[0] ?? null;
   const liveError = primary.error ?? alternate.error;
   /**
