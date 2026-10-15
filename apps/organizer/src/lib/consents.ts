@@ -428,20 +428,19 @@ export interface SigningSendPlan {
   available: boolean;
 }
 
-/** Sent in rounds, so a form with a thousand outstanding rows is not one burst. */
-const SEND_BATCH = 20;
-
 /**
  * How long one press may spend sending before it stops and says so.
  *
- * A serverless function is killed at 26 seconds with no chance to report
- * anything, and a send that was killed halfway looks exactly like a send that
- * failed at the start — so the organizer presses again and the first few
- * hundred people get a second copy of a legal release. This budget makes the
- * stop deliberate: the work is done in rounds, the clock is checked between
- * them, and what is left is reported as a number with a way to continue.
+ * Apache gives a request five minutes, and a send that was cut off halfway
+ * looks exactly like a send that failed at the start. This budget makes the
+ * stop deliberate, well inside that: the clock is checked between sends and
+ * what is left is reported as a number with a way to continue. At the paced
+ * rate in `email.ts` (2 a second by default) that is about 240 people a press.
+ *
+ * It has to stay below `SEND_LOCK_STALE_MS`, or a second press could take the
+ * lock while this one is still sending.
  */
-const SEND_BUDGET_MS = 18_000;
+const SEND_BUDGET_MS = 120_000;
 
 /**
  * Who would be written to if the signing links were sent right now.
@@ -471,14 +470,24 @@ export async function signingSendPlan(formId: string): Promise<SigningSendPlan |
   };
 }
 
-/** Every address this run has already written to, folded for comparison. */
+/**
+ * Every address this campaign has actually been sent to, folded.
+ *
+ * ⚠️ `sent` rows only. Counting any row used to mark everybody Resend refused
+ * (a 429 in a burst of 20) as mailed, so a second press never retried them and
+ * the screen said everybody had been sent the link (T258 #2).
+ */
 async function alreadyMailed(campaignId: string): Promise<Set<string>> {
   try {
     const snap = await db()
       .collection(COLLECTIONS.emailLog)
       .where('campaignId', '==', campaignId)
       .get();
-    return new Set(snap.docs.map((d) => emailKey(d.get('to') as string | undefined)));
+    return new Set(
+      snap.docs
+        .filter((d) => d.get('status') === 'sent')
+        .map((d) => emailKey(d.get('to') as string | undefined)),
+    );
   } catch (err) {
     /*
       ⚠️ Rethrown, unlike almost everything else in this file. An empty set here
@@ -548,7 +557,10 @@ async function withSendLock<T>(
 }
 
 export interface SendLinksResult {
+  /** The provider accepted these. */
   sent: number;
+  /** Tried and refused, or not sent. They stay outstanding for the next press. */
+  failed: number;
   /** Still to write to after this press. Zero means the run finished. */
   remaining: number;
   /** People already written to for this version before this press. */
@@ -612,6 +624,7 @@ export async function sendSigningLinks(input: {
 }): Promise<SendLinksResult> {
   const empty: SendLinksResult = {
     sent: 0,
+    failed: 0,
     remaining: 0,
     alreadySent: 0,
     noAddress: 0,
@@ -637,34 +650,39 @@ export async function sendSigningLinks(input: {
     const clock = input.now ?? (() => Date.now());
     const startedAt = clock();
     let sent = 0;
+    let failed = 0;
+    let tried = 0;
 
-    for (let i = 0; i < todo.length; i += SEND_BATCH) {
+    /*
+     * One at a time. `send()` paces every request under the provider's limit
+     * and retries a 429; twenty at once used to have most of each round
+     * refused and counted as sent anyway (T258 #2).
+     */
+    for (const r of todo) {
       if (clock() - startedAt > SEND_BUDGET_MS) break;
-      const round = todo.slice(i, i + SEND_BATCH);
-      await Promise.all(
-        round.map((r) =>
-          sendConsentRequest(db(), {
-            to: r.email!,
-            name: r.name,
-            formTitle: register.form.title,
-            version: register.form.version,
-            link: signingLink(register.form.id, r.key),
-            resigning: r.status === 'outdated',
-            actor: input.actor,
-            campaignId,
-          }),
-        ),
-      );
-      sent += round.length;
+      const outcome = await sendConsentRequest(db(), {
+        to: r.email!,
+        name: r.name,
+        formTitle: register.form.title,
+        version: register.form.version,
+        link: signingLink(register.form.id, r.key),
+        resigning: r.status === 'outdated',
+        actor: input.actor,
+        campaignId,
+      });
+      tried++;
+      if (outcome === 'sent') sent++;
+      else failed++;
     }
 
     return {
       sent,
+      failed,
       remaining: todo.length - sent,
       alreadySent,
       noAddress,
       available: true,
-      stoppedEarly: sent < todo.length,
+      stoppedEarly: tried < todo.length,
       busy: false,
     };
   });

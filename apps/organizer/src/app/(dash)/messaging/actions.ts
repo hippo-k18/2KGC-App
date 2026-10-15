@@ -4,8 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, isDeletedUser, SUBCOLLECTIONS, type ThreadDoc, type UserDoc } from '@kgc/shared';
-import { sendBulkMessage } from '@kgc/scripts/src/lib/email';
-import { emailEnabled } from '@kgc/scripts/src/lib/email';
+import { emailEnabled, sendBulkMessage, sendOutcomeMessage } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from '@/lib/audit';
 import { reauthenticate, requireOrganizer } from '@/lib/auth';
 import { db } from '@/lib/firestore';
@@ -19,6 +18,8 @@ import {
   type AudienceId,
 } from '@/lib/messaging';
 import { ROUTES } from '@/lib/nav';
+import { startBulkSend } from '@/lib/send-jobs';
+import { bulkCampaignId } from '@/lib/send-jobs-core';
 
 /**
  * Sending a bulk message.
@@ -36,17 +37,19 @@ import { ROUTES } from '@/lib/nav';
  *      number of people who will receive it, which forces them to read it —
  *      and reading it is what catches "I meant to pick the incomplete-profiles
  *      segment and this says 45".
- *   2. **A cooldown**, checked against the newest campaign in Firestore rather
- *      than anything in this process, so it survives a reload and a second tab.
+ *   2. **A cooldown** between two different messages, checked against the
+ *      newest campaign in Firestore rather than anything in this process, so
+ *      it survives a reload and a second tab.
  *   3. **A test send to yourself**, which is a different code path from the real
  *      one only in its recipient list.
  *   4. **An audit entry** naming who sent what to how many.
  *
- * ── Sends are sequential, not parallel ──────────────────────────────────────
+ * ── The send runs in the background ─────────────────────────────────────────
  *
- * `Promise.all` over 45 recipients would be faster and would also be the fastest
- * way to hit Resend's rate limit and have half the send rejected. At these
- * volumes the loop takes a few seconds and cannot fail that way.
+ * The press starts a job (`lib/send-jobs.ts`) and returns; the screen shows its
+ * progress. The campaign id comes from the audience and the message, so a
+ * second press of the same message resumes it and nobody reached gets a second
+ * copy. Every send is paced under the provider's rate limit in `email.ts`.
  */
 
 export interface MessageState {
@@ -55,6 +58,8 @@ export interface MessageState {
   error?: string;
   /** Echoed back so a failed send does not blank what the organizer typed. */
   keep?: { subject: string; body: string };
+  /** The background send this press started or found, for the progress line. */
+  campaignId?: string;
 }
 
 /** Two minutes. Long enough that a double-submit cannot be an accident. */
@@ -105,24 +110,22 @@ export async function sendBulkMessageAction(
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(testAddress)) {
       return { error: 'Enter a valid address to send the test to.', keep };
     }
-    try {
-      await sendBulkMessage(db(), {
-        to: testAddress,
-        name: 'there',
-        subject: `[TEST] ${subject}`,
-        body,
-        campaignId: `test_${randomUUID()}`,
-        actor,
-      });
-    } catch (err) {
-      recordError('message.test', err);
-      return { error: 'The test send failed. Check the transaction log.', keep };
-    }
-    return {
-      ok: true,
-      message: `Test sent to ${testAddress}. Nothing went to any ${audience.noun}.`,
-      keep,
-    };
+    // Never throws; the outcome is what the screen reports (T258 #4).
+    const outcome = await sendBulkMessage(db(), {
+      to: testAddress,
+      name: 'there',
+      subject: `[TEST] ${subject}`,
+      body,
+      campaignId: `test_${randomUUID()}`,
+      actor,
+    });
+    const message = sendOutcomeMessage({
+      outcome,
+      to: testAddress,
+      sent: `Test sent to ${testAddress}. Nothing went to any ${audience.noun}.`,
+      fallback: `Check the transaction log for the reason. Nothing went to any ${audience.noun}.`,
+    });
+    return outcome === 'sent' ? { ok: true, message, keep } : { error: message, keep };
   }
 
   // ── The real send ────────────────────────────────────────────────────────
@@ -149,41 +152,84 @@ export async function sendBulkMessageAction(
     };
   }
 
-  const recent = await lastCampaignAt();
+  /*
+   * Derived from the audience and the message, so a second press of the same
+   * message resumes this campaign instead of mailing everybody again (T258
+   * #16). The send runs in the background; see `lib/send-jobs.ts`.
+   */
+  const campaignId = bulkCampaignId({
+    kind: 'message',
+    audience: `${audienceId}/${segment}`,
+    subject,
+    body,
+  });
+
+  const recent = await lastCampaignAt(campaignId);
   if (recent && Date.now() - recent < COOLDOWN_MS) {
     const wait = Math.ceil((COOLDOWN_MS - (Date.now() - recent)) / 1000);
     return {
-      error: `A message went out ${Math.round((Date.now() - recent) / 1000)}s ago. Wait ${wait}s. A duplicate is indistinguishable from a mistake in someone's inbox.`,
+      error: `A different message went out ${Math.round((Date.now() - recent) / 1000)}s ago. Wait ${wait}s. A duplicate is indistinguishable from a mistake in someone's inbox.`,
       keep,
     };
   }
 
-  const campaignId = `camp_${randomUUID()}`;
+  let started;
+  try {
+    started = await startBulkSend({
+      store: db(),
+      campaignId,
+      kind: 'message',
+      audience: audienceId,
+      label: audience.noun,
+      subject,
+      actor,
+      recipients,
+      send: (r, ctx) =>
+        sendBulkMessage(db(), {
+          to: r.email,
+          name: r.name,
+          subject,
+          body,
+          campaignId: ctx.campaignId,
+          issuedAt: ctx.issuedAt,
+          actor,
+        }),
+      onError: (err) => recordError('message.send', err),
+    });
+  } catch (err) {
+    recordError('message.start', err);
+    return {
+      error: 'The send could not start, because who has already been mailed could not be read. Nothing was sent. Try again in a minute.',
+      keep,
+    };
+  }
+
+  if (!started.started) {
+    return started.reason === 'busy'
+      ? { ok: true, message: 'This message is already sending. Its progress is below. Nobody gets it twice.', campaignId }
+      : {
+          error: `Every one of these ${audience.noun} already has this message (${started.alreadySent} sent). Nothing was sent again. Change the subject or the message to send a new one.`,
+          keep,
+        };
+  }
+  void started.done;
 
   await appendAudit({
     actor,
     action: 'message.send',
-    targetPath: `emailLog/${campaignId}`,
+    targetPath: `${COLLECTIONS.sendJobs}/${campaignId}`,
     targetId: campaignId,
     before: {},
-    after: { audience: audienceId, segment, subject, recipients: recipients.length },
-  });
-
-  /**
-   * Sequential, and each send swallows its own errors inside `sendBulkMessage`.
-   * One bad address must not stop the other forty-four getting their call for
-   * slides — and every outcome, good or bad, lands in `emailLog`.
-   */
-  for (const r of recipients) {
-    await sendBulkMessage(db(), {
-      to: r.email,
-      name: r.name,
+    after: {
+      audience: audienceId,
+      segment,
       subject,
-      body,
-      campaignId,
-      actor,
-    });
-  }
+      recipients: started.total,
+      alreadySent: started.alreadySent,
+      sending: started.todo,
+      resumed: started.resumed,
+    },
+  });
 
   revalidatePath(ROUTES.messageSpeakers);
   revalidatePath(ROUTES.messageSponsors);
@@ -191,17 +237,24 @@ export async function sendBulkMessageAction(
 
   return {
     ok: true,
+    campaignId,
     message:
-      `Sent to ${recipients.length} ${audience.noun}.` +
+      (started.resumed
+        ? `Resuming: ${started.alreadySent} already have it, sending to the other ${started.todo} ${audience.noun}.`
+        : `Sending to ${started.todo} ${audience.noun}.`) +
       (withoutEmail > 0
-        ? ` ${withoutEmail} had no email address on file and got nothing. They are listed below.`
-        : '') +
-      ' Delivery outcomes are in the recipient list; anything that bounced shows as failed.',
+        ? ` ${withoutEmail} had no email address on file and get nothing. They are listed below.`
+        : ''),
   };
 }
 
-/** Newest bulk send, epoch ms, or null. Read from Firestore so it survives a reload. */
-async function lastCampaignAt(): Promise<number | null> {
+/**
+ * Newest bulk send of a different message, epoch ms, or null. Read from
+ * Firestore so it survives a reload. The campaign being resumed and test
+ * sends do not count: pressing Send again on an interrupted message is the
+ * fix, not a second blast.
+ */
+async function lastCampaignAt(except: string): Promise<number | null> {
   try {
     // `COLLECTIONS` and `EVENT_ID` used to be pulled in with a dynamic import
     // here because this file imported neither at the top. It does now, and a
@@ -214,6 +267,8 @@ async function lastCampaignAt(): Promise<number | null> {
 
     let newest = 0;
     for (const d of snap.docs) {
+      const campaign = String(d.get('campaignId') ?? '');
+      if (campaign === except || campaign.startsWith('test_')) continue;
       const at = d.data().at;
       const ms = at?.toDate?.().getTime?.() ?? 0;
       if (ms > newest) newest = ms;

@@ -156,20 +156,21 @@ describe('two organizers pressing Send at the same moment', () => {
   });
 
   /**
-   * A send is killed at 26 seconds, so a lock older than the ceiling belongs to
-   * a process that is not running. Holding it for ever would mean one crash
+   * A send stops itself at two minutes, so a lock older than the ceiling
+   * belongs to a process that is not running. Holding it for ever would mean one crash
    * takes a campaign down permanently — nobody could ever be sent their link.
    */
   it('lets a later press take over a lock the crash of an earlier one left behind', () => {
     const took = 1_000_000;
     expect(sendLockIsFree(took, took + SEND_LOCK_STALE_MS)).toBe(true);
-    expect(sendLockIsFree(took, took + 60_000)).toBe(true);
+    expect(sendLockIsFree(took, took + SEND_LOCK_STALE_MS + 60_000)).toBe(true);
   });
 
   it('is a ceiling above the budget the send stops itself on', () => {
-    // 18s of sending inside a 26s request: a lock that went stale sooner would
-    // hand the campaign to a second press while the first was still mailing.
-    expect(SEND_LOCK_STALE_MS).toBeGreaterThan(18_000);
+    // Two minutes of sending, plus a minute for one send's retries: a lock that
+    // went stale sooner would hand the campaign to a second press while the
+    // first was still mailing.
+    expect(SEND_LOCK_STALE_MS).toBeGreaterThan(120_000 + 60_000);
   });
 });
 
@@ -215,5 +216,32 @@ describe('the send holds the campaign while it reads and writes', () => {
     const guard = source.slice(start, source.indexOf('\nexport ', start + 1));
     expect(guard).toMatch(/finally \{/);
     expect(guard).toContain('runTransaction');
+  });
+});
+
+/**
+ * T258 #2: the send fired twenty at once against a two-a-second provider,
+ * counted every attempt as sent, and treated a failed row as mailed, so nobody
+ * Resend refused was ever retried.
+ */
+describe('the consent send counts what the provider said', () => {
+  const source = () =>
+    readFileSync(fileURLToPath(new URL('../../apps/organizer/src/lib/consents.ts', import.meta.url)), 'utf8');
+  const fn = (name: string) => {
+    const s = source();
+    const start = s.indexOf(`async function ${name}`);
+    const end = s.indexOf('\nexport ', start + 1);
+    return s.slice(start, end === -1 ? s.length : end);
+  };
+
+  it('treats only a sent row as already mailed', () => {
+    expect(fn('alreadyMailed')).toMatch(/get\('status'\) === 'sent'/);
+  });
+
+  it('sends one at a time and adds up the returned outcomes', () => {
+    const body = fn('sendSigningLinks');
+    expect(body).not.toContain('Promise.all');
+    expect(body).toMatch(/const outcome = await sendConsentRequest/);
+    expect(body).toMatch(/if \(outcome === 'sent'\) sent\+\+/);
   });
 });

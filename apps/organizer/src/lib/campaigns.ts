@@ -74,6 +74,7 @@ export interface ContactRow {
   lists: string[];
   unsubscribedAt?: string;
   bouncedAt?: string;
+  complainedAt?: string;
   converted: boolean;
   createdAt: string;
 }
@@ -97,6 +98,7 @@ function toContactRow(id: string, c: ContactDoc): ContactRow {
     lists: c.lists ?? [],
     unsubscribedAt: iso(c.unsubscribedAt),
     bouncedAt: iso(c.bouncedAt),
+    complainedAt: iso(c.complainedAt),
     converted: c.converted === true,
     createdAt: iso(c.createdAt) ?? new Date(0).toISOString(),
   };

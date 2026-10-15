@@ -11,7 +11,7 @@ import {
   type SpeakerProfileEditDoc,
   type SpeakerProfileEditStatus,
 } from '@kgc/shared';
-import { emailEnabled, sendSpeakerProfileRequest } from '@kgc/scripts/src/lib/email';
+import { emailEnabled, sendOutcomeMessage, sendSpeakerProfileRequest, type SendOutcome } from '@kgc/scripts/src/lib/email';
 import { mintSpeakerToken } from '@kgc/scripts/src/lib/speaker-token';
 import {
   approvalPlan,
@@ -150,7 +150,21 @@ export interface PortalResult {
   ok: boolean;
   message?: string;
   error?: string;
+  /**
+   * What happened to the mail. `recent` when a group send skipped somebody
+   * already sent a link inside the guard window. Absent when nothing was tried.
+   */
+  outcome?: SendOutcome | 'recent';
 }
+
+/**
+ * A group send skips anybody sent a link this recently (T258 #14).
+ *
+ * The "__all" press had no confirmation and no guard, so a second press after a
+ * slow response mailed every speaker again. One link a day per speaker from a
+ * group send; sending to one named speaker is never blocked.
+ */
+export const GROUP_RESEND_GUARD_MS = 24 * 60 * 60 * 1000;
 
 /**
  * What the request mail says is missing, in the words a speaker would use.
@@ -181,6 +195,8 @@ export async function sendPortalLink(input: {
   speakerId: string;
   note?: string;
   actor: string;
+  /** Group sends: skip, and say so, when a link went out more recently than this. */
+  skipIfSentWithinMs?: number;
 }): Promise<PortalResult> {
   try {
     const ref = db().collection(COLLECTIONS.speakers).doc(input.speakerId);
@@ -199,9 +215,16 @@ export async function sendPortalLink(input: {
     const editRef = db().collection(COLLECTIONS.speakerProfileEdits).doc(input.speakerId);
     const existing = (await editRef.get()).data() as SpeakerProfileEditDoc | undefined;
 
+    if (input.skipIfSentWithinMs) {
+      const last = (existing?.linkSentAt as { toMillis?: () => number } | undefined)?.toMillis?.();
+      if (last && Date.now() - last < input.skipIfSentWithinMs) {
+        return { ok: true, outcome: 'recent', message: `${speaker.name} was sent a link recently.` };
+      }
+    }
+
     const sessionTitles = await titlesFor(speaker.sessionIds ?? []);
 
-    await sendSpeakerProfileRequest(db(), {
+    const outcome = await sendSpeakerProfileRequest(db(), {
       to,
       name: speaker.name,
       link: speakerPortalLink(input.speakerId),
@@ -212,11 +235,11 @@ export async function sendPortalLink(input: {
     });
 
     /*
-     * Stamped only when a mail actually left. "Link sent" on the tracker must
-     * not be true of somebody who was never written to — that is the difference
-     * between a chase list and a list that says the chase is done.
+     * Stamped only when the provider accepted the mail. "Link sent" on the
+     * tracker must not be true of somebody who was never written to, and an
+     * API key being configured is not the same as a mail leaving (T258 #14).
      */
-    if (emailEnabled()) {
+    if (outcome === 'sent') {
       const held: SpeakerProfileEditStatus | undefined = existing?.status;
       const status: SpeakerProfileEditStatus =
         held === 'submitted' || held === 'approved' ? held : 'sent';
@@ -241,15 +264,16 @@ export async function sendPortalLink(input: {
       targetPath: `${COLLECTIONS.speakers}/${input.speakerId}`,
       targetId: input.speakerId,
       before: {},
-      after: { to, emailed: emailEnabled() },
+      after: { to, outcome },
     });
 
-    return {
-      ok: true,
-      message: emailEnabled()
-        ? `Link sent to ${to}.`
-        : `Email is not switched on yet, so nothing was sent to ${to}. Copy the link and send it yourself.`,
-    };
+    const message = sendOutcomeMessage({
+      outcome,
+      to,
+      sent: `Link sent to ${to}.`,
+      fallback: 'Copy the link from the list and send it yourself.',
+    });
+    return outcome === 'sent' ? { ok: true, outcome, message } : { ok: false, outcome, error: message };
   } catch (err) {
     recordError('speaker-portal.send', err);
     return { ok: false, error: err instanceof Error ? err.message : 'Could not send the link.' };

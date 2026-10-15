@@ -60,10 +60,10 @@ export default async function UnsubscribePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ done?: string }>;
+  searchParams: Promise<{ done?: string; error?: string }>;
 }) {
   const { token } = await params;
-  const { done } = await searchParams;
+  const { done, error } = await searchParams;
 
   const payload = readUnsubscribeToken(decodeURIComponent(token));
   if (!payload) notFound();
@@ -85,6 +85,14 @@ export default async function UnsubscribePage({
     <section>
       <div className="wrap narrow">
         <p className="eyebrow">Email preferences</p>
+
+        {state === 'on' && error === '1' && (
+          <p className="notice bad" role="alert">
+            That did not work: your unsubscribe could not be saved, so you are still on the list.
+            Please press the button again in a minute, or email{' '}
+            <a href={`mailto:${SITE.contactEmail}?subject=Unsubscribe`}>{SITE.contactEmail}</a>.
+          </p>
+        )}
 
         {state === 'on' && (
           <>

@@ -264,12 +264,12 @@ export function signingCampaignId(formId: string, version: number): string {
 /**
  * How long a send may hold its campaign before another press may take it over.
  *
- * A server action is killed at 26 seconds and the send stops itself at 18, so a
- * lock older than this belongs to a process that is not running any more. It is
- * a ceiling on how long one crash can block a campaign, not a timeout on the
- * work.
+ * The send stops itself at two minutes (`SEND_BUDGET_MS` in `consents.ts`), so
+ * a lock older than this belongs to a process that is not running any more. It
+ * is a ceiling on how long one crash can block a campaign, not a timeout on
+ * the work. One send can spend most of a minute in retries, hence the margin.
  */
-export const SEND_LOCK_STALE_MS = 30_000;
+export const SEND_LOCK_STALE_MS = 210_000;
 
 /**
  * Whether a send may take the campaign, given when the last one took it.

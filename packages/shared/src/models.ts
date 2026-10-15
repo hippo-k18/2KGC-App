@@ -395,6 +395,13 @@ export interface RegistrationDoc extends BaseDoc {
    * not orphan every answer already given to it.
    */
   answers?: Record<string, string | string[] | boolean>;
+  /**
+   * Set by the Resend webhook when mail to this address bounced, or the reader
+   * marked it as spam. Shown beside the attendee on the dashboard, so the desk
+   * can answer "I never got my ticket" with "it bounced".
+   */
+  bouncedAt?: Timestamp;
+  complainedAt?: Timestamp;
 }
 
 /**
@@ -2026,6 +2033,15 @@ export interface EmailLogDoc {
   error?: string;
   /** Why a send was skipped — usually "no RESEND_API_KEY configured". */
   reason?: string;
+  /** How many requests one send took, when it needed more than one (429, 5xx, timeout). */
+  attempts?: number;
+  /**
+   * Set by the Resend webhook (`/api/resend/webhook`) when the provider later
+   * reports this message bounced or was marked as spam. `status` stays `sent`:
+   * the provider did accept it, and this says what happened next.
+   */
+  bouncedAt?: Timestamp;
+  complainedAt?: Timestamp;
   orderId?: string;
   registrationId?: string;
   /** Groups every row of one bulk send, so a campaign can be counted. */
@@ -2050,6 +2066,48 @@ export interface SendLockDoc {
   /** The organizer who took it, so the next press can be told who is sending. */
   actor: string;
   heldAt: Timestamp;
+}
+
+/**
+ * `sendJobs/{campaignId}` — one bulk send run in the background (T265).
+ *
+ * Email Campaign and Message Speakers / Sponsors / Exhibitors used to send
+ * inside the browser's request. A list of 2,000 outlasted Apache's five-minute
+ * timeout, the organizer saw an error and pressed again, and the whole list was
+ * mailed twice. Now the press starts this job and returns; the screen polls it.
+ *
+ * Written by the dashboard with the Admin SDK; no client path. The id is the
+ * campaign id, which is derived from the audience and the message, so pressing
+ * Send again with the same message finds this job and resumes it. Who has been
+ * reached is read from `emailLog` (`status: 'sent'` only), never from these
+ * counters, which are progress for the screen.
+ */
+export interface SendJobDoc {
+  eventId: string;
+  campaignId: string;
+  kind: "campaign" | "message";
+  /** The contact list, or `speakers` / `sponsors` / `exhibitors`: which screen shows it. */
+  audience: string;
+  /** "Contact list KGC 2026 attendees", "Speakers (all)": for the progress line. */
+  label: string;
+  subject: string;
+  actor: string;
+  status: "running" | "done" | "stopped";
+  /** Distinct addresses in the audience, after folding case. */
+  total: number;
+  /** Already sent before this run started, from `emailLog`. */
+  alreadySent: number;
+  /** Sent and failed in this run so far. */
+  sent: number;
+  failed: number;
+  /** Fixed for the life of the campaign, so a resumed send builds identical mail. */
+  issuedAt: number;
+  startedAt: Timestamp;
+  /** Bumped while the runner is alive. A running job with an old heartbeat was interrupted. */
+  heartbeatAt: Timestamp;
+  finishedAt?: Timestamp;
+  /** Why it stopped, when it did not finish. */
+  error?: string;
 }
 
 /**
@@ -2485,8 +2543,17 @@ export interface ContactDoc extends BaseDoc {
    * A hard bounce. Kept separate from an unsubscribe because they mean
    * different things: one is a person's decision, the other is a dead mailbox,
    * and only the first is permanent from the recipient's side.
+   *
+   * Written by the Resend webhook (`/api/resend/webhook` on www) when a send
+   * bounces, so a dead address is suppressed from the next campaign.
    */
   bouncedAt?: Timestamp;
+  /**
+   * The reader marked a mail from us as spam. Suppressed like an unsubscribe,
+   * because mailing a complainer again is what costs a domain its reputation.
+   * Written by the Resend webhook.
+   */
+  complainedAt?: Timestamp;
   /** True once this address appears in `registrations` — computed at import. */
   converted?: boolean;
 }

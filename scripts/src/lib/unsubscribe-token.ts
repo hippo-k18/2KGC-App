@@ -67,8 +67,10 @@ function sign(body: string): string {
   return createHmac('sha256', secret()).update(body).digest('base64url');
 }
 
-export function mintUnsubscribeToken(contactId: string): string {
-  const body = b64url(JSON.stringify({ cid: contactId, iat: Date.now() }));
+export function mintUnsubscribeToken(contactId: string, issuedAt: number = Date.now()): string {
+  // `issuedAt` is passed by a bulk send so a resumed campaign builds the same
+  // link, and so the same mail, for each recipient. See `sendBulkMessage`.
+  const body = b64url(JSON.stringify({ cid: contactId, iat: issuedAt }));
   return `${body}.${sign(body)}`;
 }
 

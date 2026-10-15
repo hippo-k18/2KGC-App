@@ -116,8 +116,9 @@ export async function addAttendeeAction(
     }
 
     let consentForms = 0;
+    let outcome: Awaited<ReturnType<typeof sendAttendeeConfirmation>> | undefined;
     if (result.created || status === 'transferred') {
-      await sendAttendeeConfirmation({
+      outcome = await sendAttendeeConfirmation({
         registrationId: result.registrationId,
         email: result.email,
         name,
@@ -147,7 +148,11 @@ export async function addAttendeeAction(
       ok: true,
       message: result.created || status === 'transferred'
         ? `Added ${name}. They can be checked in at the door now.` +
-          (emailNote() || ` Their confirmation and claim code went to ${result.email}.${consentLine}`)
+          (outcome === 'sent'
+            ? ` Their confirmation went to ${result.email}.${consentLine}`
+            : outcome === 'skipped'
+              ? emailNote() || ' Email is not set up yet, so nothing was sent.'
+              : ` Their confirmation to ${result.email} was refused, so nothing arrived. Resend it from the list.`)
         : `${email} was already on the list. The name and ticket type were updated rather than duplicated.`,
     };
   } catch (err) {

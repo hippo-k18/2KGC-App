@@ -12,7 +12,7 @@ import {
   type RegistrationDoc,
   type TicketTypeDoc,
 } from '@kgc/shared';
-import { sendPurchaseConfirmation } from '@kgc/scripts/src/lib/email';
+import { sendOutcomeMessage, sendPurchaseConfirmation, type SendOutcome } from '@kgc/scripts/src/lib/email';
 import { ensureRegistration } from '@kgc/scripts/src/lib/fulfilment';
 import { claimCode, qrSecret, registrationId } from '@kgc/scripts/src/lib/ids';
 import { mintOrderToken } from '@kgc/scripts/src/lib/order-token';
@@ -135,6 +135,10 @@ async function setAppAccess(email: string, allowed: boolean): Promise<'changed' 
  * sends it: the claim code is the only way the holder reaches the app.
  * `sendPurchaseConfirmation` never throws and logs every attempt, including the
  * skipped ones, so Emails shows what happened to it.
+ *
+ * Returns what happened, so a screen can say so: `failed` also covers a link
+ * that could not be minted. Screens used to report "sent" whenever an API key
+ * was configured, whatever Resend answered (T258 #15).
  */
 export async function sendAttendeeConfirmation(input: {
   registrationId: string;
@@ -142,9 +146,9 @@ export async function sendAttendeeConfirmation(input: {
   name: string;
   ticketType: string;
   claimCode: string;
-}): Promise<void> {
+}): Promise<SendOutcome> {
   try {
-    await sendPurchaseConfirmation(db(), {
+    return await sendPurchaseConfirmation(db(), {
       to: input.email,
       name: input.name,
       ticketType: input.ticketType,
@@ -158,6 +162,7 @@ export async function sendAttendeeConfirmation(input: {
     // Minting the link throws when the signing secret is missing. The
     // registration is already correct; the email is the courtesy.
     recordError('attendee.confirmation', err);
+    return 'failed';
   }
 }
 
@@ -172,7 +177,7 @@ export async function resendConfirmation(rid: string, actor: string): Promise<At
     await regRef(rid).update({ claimCode: code, updatedAt: FieldValue.serverTimestamp() });
   }
 
-  await sendAttendeeConfirmation({
+  const outcome = await sendAttendeeConfirmation({
     registrationId: rid,
     email: reg.email,
     name: reg.name ?? '',
@@ -186,16 +191,18 @@ export async function resendConfirmation(rid: string, actor: string): Promise<At
     targetId: rid,
     subject: reg.name ?? reg.email,
     before: {},
-    after: { email: reg.email },
+    after: { email: reg.email, outcome },
   });
 
-  return {
-    ok: true,
-    registrationId: rid,
-    message: process.env.RESEND_API_KEY
-      ? `Confirmation sent to ${reg.email}.`
-      : 'Email is not set up yet, so nothing was sent.',
-  };
+  const message = sendOutcomeMessage({
+    outcome,
+    to: reg.email,
+    sent: `Confirmation sent to ${reg.email}.`,
+    fallback: 'Check the address, or give them their ticket link by hand.',
+  });
+  return outcome === 'sent'
+    ? { ok: true, registrationId: rid, message }
+    : { ok: false, error: message };
 }
 
 // ---------------------------------------------------------------------------

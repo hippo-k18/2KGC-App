@@ -58,6 +58,19 @@ export interface AttendeeRow {
    * `demo: true`. Listed like anyone, left out of every count.
    */
   demo?: boolean;
+  /**
+   * Mail to this address bounced, or the reader marked it as spam, as the
+   * Resend webhook reported. Shown beside the attendee so the desk can answer
+   * "I never got my ticket" (T258 #9).
+   */
+  emailProblem?: 'bounced' | 'spam';
+}
+
+/** What the attendee list says about delivery to this registration, if anything. */
+export function emailProblemOf(r: Partial<RegistrationDoc>): AttendeeRow['emailProblem'] {
+  if (r.complainedAt) return 'spam';
+  if (r.bouncedAt) return 'bounced';
+  return undefined;
 }
 
 /**
@@ -180,6 +193,7 @@ export function mergeAttendees(
       existing.extraNames = r.extraNames;
       existing.ticketLabel = ticketLabel(r) || undefined;
       existing.registrationStatus = r.status;
+      existing.emailProblem = emailProblemOf(r);
       existing.categoryId = r.categoryId;
       existing.category = r.category;
       if (r.demo === true) existing.demo = true;
@@ -213,6 +227,7 @@ export function mergeAttendees(
       extraNames: r.extraNames,
       ticketLabel: ticketLabel(r) || undefined,
       registrationStatus: r.status,
+      emailProblem: emailProblemOf(r),
       categoryId: r.categoryId,
       category: r.category,
       ...(r.demo === true ? { demo: true } : {}),

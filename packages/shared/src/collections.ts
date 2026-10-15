@@ -206,6 +206,8 @@ export const COLLECTIONS = {
    * No `match` block in `firestore.rules`, and it must not get one.
    */
   sendLocks: "sendLocks",
+  /** One background bulk send and its progress. Admin SDK only. See `SendJobDoc`. */
+  sendJobs: "sendJobs",
   /**
    * The blog at blog.knowledgegraph.tech: new posts, and edits of the archive
    * in `apps/web/src/content/blog`. Server-only, like `pageContent`: the website
