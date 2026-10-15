@@ -55,6 +55,31 @@ const nextConfig: NextConfig = {
     return config;
   },
 
+  /** No `x-powered-by: Next.js` on every response (T263). */
+  poweredByHeader: false,
+
+  /**
+   * The same security headers as www (T263). www's HSTS `includeSubDomains`
+   * does not cover this host until a browser has visited the apex, so a first
+   * `http://` visit on conference Wi-Fi could be downgraded; this host now
+   * sends its own. Framing is same-origin only: nothing outside should ever
+   * show the dashboard in a frame, under its own buttons.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
+  },
+
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true }, // `npm run lint` runs it separately
 };

@@ -168,6 +168,12 @@ export const COLLECTIONS = {
    */
   teamMembers: "teamMembers",
   /**
+   * One doc per dashboard owner (id: sha256 of the address), holding the
+   * session epoch. Signing out rotates it, so a copied owner cookie dies with
+   * the sign-out (T263). Server-only: no rules block, so clients are denied.
+   */
+  ownerSessions: "ownerSessions",
+  /**
    * What a speaker sent back through their own profile link, waiting for an
    * organizer to approve it. One document per speaker, at the speaker's own id.
    *

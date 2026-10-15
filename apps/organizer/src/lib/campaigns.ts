@@ -5,6 +5,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
   EVENT_ID,
+  isSitePath,
   type CampaignLinkDoc,
   type ContactDoc,
   type EmailLogDoc,
@@ -522,7 +523,8 @@ export async function saveLink(input: {
   }
 
   const destination = input.destination.trim() || '/tickets';
-  if (!destination.startsWith('/') || destination.startsWith('//')) {
+  // `isSitePath` also refuses `/\evil.com`, which browsers read as `//evil.com` (T263).
+  if (!isSitePath(destination)) {
     return {
       ok: false,
       error:
