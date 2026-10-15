@@ -82,6 +82,7 @@ vi.mock('@/lib/email', () => ({
 }));
 vi.mock('@/lib/app-account', () => ({
   provisionPurchaserAccount: async () => ({ status: 'existing', uid: null, temporaryPassword: null }),
+  endAppAccessAfterWithdrawal: async () => [],
 }));
 vi.mock('@/lib/analytics', () => ({
   analyticsConfig: () => null,

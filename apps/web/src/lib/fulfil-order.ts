@@ -13,7 +13,7 @@ import { attachSeatRegistrations, cartLines } from '@/app/tickets/cart-order';
 import { seatsToCount, splitAcrossSeats, splitByWeight } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
 import { grantOrderEntitlements } from '@/lib/app-account-core';
-import { incrementSold, tierFulfilment } from '@/lib/catalogue';
+import { incrementSold, overCapacity, tierFulfilment } from '@/lib/catalogue';
 import { sendPurchaseConfirmation, type SendOutcome } from '@/lib/email';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
@@ -389,6 +389,62 @@ async function warnIfExtraRefused(
   );
 }
 
+/**
+ * Two things a person should hear about straight after a sale, written to
+ * `auditLog` for the dashboard. Never throws: the tickets are already issued.
+ *
+ * **Oversold** (T257 #5). Capacity is a counter, not a reservation, so two card
+ * buyers can both pay for the last seat. The invoice path has always flagged
+ * that as `invoice.oversold`; the card path said nothing and the tier sat at
+ * 2 of 1.
+ *
+ * **A whole group cart free** (T257 #2). Checkout no longer offers promotion
+ * codes on a cart of more than one seat, because Stripe applies one code to
+ * every seat. This is the backstop for a session made before that, or a code
+ * that reaches one some other way: a multi-seat order whose discount covers
+ * its subtotal is somebody to talk to.
+ */
+async function warnAfterSale(
+  orderId: string,
+  tierIds: string[],
+  input: Pick<FulfilOrderInput, 'email' | 'externalId' | 'discountCents' | 'subtotalCents' | 'promotionCode'>,
+  seats: number,
+): Promise<void> {
+  try {
+    const over = await overCapacity(tierIds);
+    if (over.length > 0) {
+      await recordWarning(
+        'checkout.oversold',
+        {
+          externalId: input.externalId,
+          tickets: over.map((t) => `${t.name}: ${t.sold} sold of ${t.total}`),
+          note: 'More seats were paid for than the cap allows. Raise the cap, or refund a seat.',
+        },
+        { path: 'orders', id: orderId },
+      );
+    }
+  } catch (err) {
+    await recordError('checkout.oversoldCheck', err, { path: 'orders', id: orderId });
+  }
+
+  const discount = input.discountCents ?? 0;
+  if (seats > 1 && discount > 0 && input.subtotalCents !== undefined && discount >= input.subtotalCents) {
+    await recordWarning(
+      'checkout.discountCoveredCart',
+      {
+        externalId: input.externalId,
+        buyer: input.email,
+        seats,
+        discountCents: discount,
+        subtotalCents: input.subtotalCents,
+        ...(input.promotionCode ? { promotionCode: input.promotionCode } : {}),
+        note: `One discount code paid for all ${seats} tickets on this order. Check it was meant to.`,
+      },
+      { path: 'orders', id: orderId },
+    );
+  }
+}
+
 export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderResult> {
   const { externalId, tierId, origin } = input;
   const oid = orderIdFor(externalId);
@@ -627,6 +683,9 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
   // twice against a tier's capacity.
   const soldPerTier = seatsToCount(seatOutcomes);
   for (const [id, count] of soldPerTier) await incrementSold(id, count);
+  const seatsCounted = [...soldPerTier.values()].reduce((a, b) => a + b, 0);
+  // Only on the run that counted the seats, so a replay does not warn again.
+  if (seatsCounted > 0) await warnAfterSale(oid, [...soldPerTier.keys()], input, cart.length || 1);
 
   /**
    * Attach every registration the payment bought to the order.
@@ -724,7 +783,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
     account: account.status,
     seats: cart.length || 1,
     seatsRegistered,
-    seatsCounted: [...soldPerTier.values()].reduce((a, b) => a + b, 0),
+    seatsCounted,
     seatAccountsCreated,
     seatAccountsFailed,
     confirmationsOutstanding: await confirmationsOutstanding(oid, registrationIds),

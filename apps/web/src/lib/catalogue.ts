@@ -4,7 +4,9 @@ import {
   COLLECTIONS,
   EVENT_ID,
   TIME_ZONE,
+  dayInZone,
   isExtraTier,
+  localWallClockToIso,
   priceNow,
   type EntitlementDoc,
   type TicketAudience,
@@ -50,11 +52,54 @@ function optional<T>(value: T | undefined): T | undefined {
  * the clock and a stored boolean is a boolean that needs a cron job to stay
  * true.
  */
-function availability(t: TicketTypeDoc, now: Date): Pick<Tier, 'onSale' | 'unavailableReason'> {
+function availability(t: TicketTypeDoc, now: Date, taken: number): Pick<Tier, 'onSale' | 'unavailableReason'> {
   // An add-on is only ever bought inside its bundle. An extra (Workshops) is
   // sold on its own, with or without a conference ticket (2026-10-07).
   if (t.addOnFor && !isExtraTier(t)) return { onSale: false, unavailableReason: 'Sold only as an add-on' };
-  return windowAndCapacity(t, now);
+  return windowAndCapacity(t, now, taken);
+}
+
+/**
+ * The seats a tier has given up: its own sales, plus every bundle sold with it
+ * inside (T257 #8).
+ *
+ * A bundle sale ("Main Conference + Continuing education units") moves only
+ * the bundle's own `quantitySold`, and that stays so: the dashboard's cancel,
+ * reinstate and reconcile all count a bundle seat under the bundle, and a
+ * second counter moved only by the website would drift from all three. So the
+ * bundle's seats are added to each part here, where capacity is decided, and a
+ * cap on Main Conference counts the bundle buyers who are in the room.
+ */
+function seatsTaken(id: string, t: TicketTypeDoc, all: Map<string, TicketTypeDoc>): number {
+  let taken = t.quantitySold ?? 0;
+  for (const [otherId, other] of all) {
+    if (otherId !== id && other.bundleOf?.includes(id)) taken += other.quantitySold ?? 0;
+  }
+  return taken;
+}
+
+/** Seats left under one tier's own cap, or undefined when it has none. */
+function capLeft(id: string, t: TicketTypeDoc, all: Map<string, TicketTypeDoc>): number | undefined {
+  return typeof t.quantityTotal === 'number' ? Math.max(0, t.quantityTotal - seatsTaken(id, t, all)) : undefined;
+}
+
+/**
+ * A hidden tier is not for sale on the website (T262).
+ *
+ * `visible: false` used to hide a tier from the page and nothing else, so
+ * anybody who posted its id (a slug of its name, `speaker-comp`) could buy it.
+ * The dashboard tells organizers to untick "Show on the website" for a comp
+ * rate, which made that a discounted rate open to anyone who guessed it. A
+ * comp rate is a comp pass or a discount code now.
+ *
+ * The one hidden tier that does sell is a bundle whose base ticket is on the
+ * page: "Main Conference + Continuing education units" is what a buyer gets by
+ * ticking the add-on, and it has never had a card of its own.
+ */
+function hiddenFromSale(t: TicketTypeDoc, all: Map<string, TicketTypeDoc>): boolean {
+  if (t.visible !== false) return false;
+  const base = t.bundleOf?.[0];
+  return !(base && all.get(base) && all.get(base)!.visible !== false);
 }
 
 /** The price phase in force on `now`, read in the tier's own sales zone. */
@@ -69,6 +114,8 @@ function phaseNow(t: TicketTypeDoc, now: Date) {
 function windowAndCapacity(
   t: TicketTypeDoc,
   now: Date,
+  /** `seatsTaken`, which counts bundles sold with this tier inside. */
+  taken: number,
 ): Pick<Tier, 'onSale' | 'unavailableReason'> {
   if (t.salesOpenAt && t.salesOpenAt.toDate() > now) {
     return { onSale: false, unavailableReason: 'Not on sale yet' };
@@ -76,7 +123,7 @@ function windowAndCapacity(
   if (t.salesCloseAt && t.salesCloseAt.toDate() < now) {
     return { onSale: false, unavailableReason: 'Sales closed' };
   }
-  if (typeof t.quantityTotal === 'number' && (t.quantitySold ?? 0) >= t.quantityTotal) {
+  if (typeof t.quantityTotal === 'number' && taken >= t.quantityTotal) {
     return { onSale: false, unavailableReason: 'Sold out' };
   }
   // A phase with no agreed price, or one marked off sale, sells nothing.
@@ -96,6 +143,7 @@ function windowAndCapacity(
  * is a price nobody set.
  */
 function bundlePricing(
+  id: string,
   t: TicketTypeDoc,
   parts: Map<string, TicketTypeDoc>,
   now: Date,
@@ -109,7 +157,11 @@ function bundlePricing(
   // "Main Conference + Workshops" retired when Workshops became its own ticket
   // (2026-10-06). The document stays for past orders; it sells nothing.
   if (docs.some((d) => isExtraTier(d))) return { priceCents, onSale: false, unavailableReason: 'No longer sold' };
-  for (const state of [windowAndCapacity(t, now), ...docs.map((d) => windowAndCapacity(d!, now))]) {
+  const states = [
+    windowAndCapacity(t, now, seatsTaken(id, t, parts)),
+    ...ids.map((partId, i) => windowAndCapacity(docs[i]!, now, seatsTaken(partId, docs[i]!, parts))),
+  ];
+  for (const state of states) {
     if (!state.onSale) return { priceCents, ...state };
   }
   return { priceCents, onSale: true };
@@ -119,6 +171,7 @@ function toTier(
   id: string,
   t: TicketTypeDoc,
   now: Date,
+  /** The whole catalogue: a bundle's parts, and the bundles that count against this tier. */
   parts: Map<string, TicketTypeDoc> = new Map(),
 ): Tier {
   const phase = phaseNow(t, now);
@@ -144,8 +197,9 @@ function toTier(
     badge: t.badge?.trim() || undefined,
     includesWorkshops: Boolean(t.includesWorkshops),
     ...(extra ? { kind: 'extra' as const } : {}),
-    ...availability(t, now),
-    ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(t, parts, now) } : {}),
+    ...availability(t, now, seatsTaken(id, t, parts)),
+    ...(t.bundleOf?.length ? { baseTierId: t.bundleOf[0], ...bundlePricing(id, t, parts, now) } : {}),
+    ...(hiddenFromSale(t, parts) ? { onSale: false, unavailableReason: 'Not on public sale' } : {}),
   };
 }
 
@@ -238,9 +292,8 @@ export async function tiersOrNull(audience: TicketAudience = 'attendee'): Promis
 /**
  * Every tier one audience may see, in catalogue order.
  *
- * Hidden tiers (`visible: false`) are excluded — that is how a comp rate or a
- * late speaker price exists without appearing on the public page — but they are
- * still purchasable by direct id through `tierById`, which is the point.
+ * Hidden tiers (`visible: false`) are excluded, and since T262 `tierById`
+ * refuses to sell them too, bar a bundle; see `hiddenFromSale`.
  *
  * ── Why the audience is a parameter rather than a constant ──────────────────
  *
@@ -293,22 +346,21 @@ export async function listTiers(audience: TicketAudience = 'attendee'): Promise<
  */
 const TIER_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
+/**
+ * The whole catalogue by id. One query: whether a tier has seats left depends
+ * on the bundles that contain it, and whether a bundle sells on its parts, so
+ * reading one document was never enough (T257 #8).
+ */
+async function catalogueById(): Promise<Map<string, TicketTypeDoc>> {
+  return new Map((await loadAll()).map(({ id, doc }) => [id, doc]));
+}
+
 export async function tierById(id: string): Promise<Tier | undefined> {
   if (!id || !TIER_ID.test(id)) return undefined;
-  const doc = await db().collection(COLLECTIONS.ticketTypes).doc(id).get();
-  if (!doc.exists) return undefined;
-  const data = doc.data() as TicketTypeDoc;
-  if (data.eventId !== EVENT_ID) return undefined;
-  const parts = new Map<string, TicketTypeDoc>();
-  const partIds = data.bundleOf?.length ? data.bundleOf : [];
-  if (partIds.length) {
-    const refs = partIds.map((part) => db().collection(COLLECTIONS.ticketTypes).doc(part));
-    for (const snap of await db().getAll(...refs)) {
-      const part = snap.data() as TicketTypeDoc | undefined;
-      if (part && part.eventId === EVENT_ID) parts.set(snap.id, part);
-    }
-  }
-  return toTier(doc.id, data, new Date(), parts);
+  const all = await catalogueById();
+  const data = all.get(id);
+  if (!data) return undefined;
+  return toTier(id, data, new Date(), all);
 }
 
 /**
@@ -328,8 +380,14 @@ export async function tierById(id: string): Promise<Tier | undefined> {
 export interface TierFulfilment {
   id: string;
   name: string;
-  /** Undefined means unlimited capacity, which is the honest reading of an absent cap. */
+  /**
+   * Undefined means unlimited capacity, which is the honest reading of an absent
+   * cap. Counts bundles sold with this tier inside, and for a bundle it is the
+   * tightest of its own cap and its parts' (T257 #8).
+   */
   remaining?: number;
+  /** A bundle's parts, base ticket first. Each needs a seat for every bundle sold. */
+  bundleOf: string[];
   onSale: boolean;
   unavailableReason?: string;
   entitlements: EntitlementDoc['kind'][];
@@ -339,19 +397,19 @@ export interface TierFulfilment {
 
 export async function tierFulfilment(tierId: string): Promise<TierFulfilment | null> {
   if (!tierId || !TIER_ID.test(tierId)) return null;
-  const doc = await db().collection(COLLECTIONS.ticketTypes).doc(tierId).get();
-  if (!doc.exists) return null;
-  const t = doc.data() as TicketTypeDoc;
-  if (t.eventId !== EVENT_ID) return null;
+  const all = await catalogueById();
+  const t = all.get(tierId);
+  if (!t) return null;
 
-  const state = availability(t, new Date());
+  const state = availability(t, new Date(), seatsTaken(tierId, t, all));
+  const caps = [tierId, ...(t.bundleOf ?? [])]
+    .map((id) => (all.get(id) ? capLeft(id, all.get(id)!, all) : undefined))
+    .filter((n): n is number => n !== undefined);
   return {
-    id: doc.id,
+    id: tierId,
     name: t.name,
-    remaining:
-      typeof t.quantityTotal === 'number'
-        ? Math.max(0, t.quantityTotal - (t.quantitySold ?? 0))
-        : undefined,
+    remaining: caps.length ? Math.min(...caps) : undefined,
+    bundleOf: t.bundleOf ?? [],
     entitlements: entitlementKinds(t),
     extra: isExtraTier(t),
     ...state,
@@ -388,4 +446,68 @@ export async function incrementSold(tierId: string, by = 1): Promise<void> {
     // registration is written; losing the counter must not fail fulfilment.
     console.error('[catalogue] could not increment quantitySold for', tierId, err);
   }
+}
+
+/**
+ * The tiers now sold past their cap, among `tierIds` and the parts of any
+ * bundle among them.
+ *
+ * Read after fulfilment has counted a sale. The cap is a counter, not a
+ * reservation, so two card buyers can both pay for the last seat; the invoice
+ * path has always told organizers when that happened and the card path said
+ * nothing (T257 #5). This is what lets it say so.
+ */
+export async function overCapacity(
+  tierIds: string[],
+): Promise<{ id: string; name: string; sold: number; total: number }[]> {
+  const all = await catalogueById();
+  const ids = new Set<string>();
+  for (const id of tierIds) {
+    ids.add(id);
+    for (const part of all.get(id)?.bundleOf ?? []) ids.add(part);
+  }
+  const over: { id: string; name: string; sold: number; total: number }[] = [];
+  for (const id of ids) {
+    const t = all.get(id);
+    if (!t || typeof t.quantityTotal !== 'number') continue;
+    const sold = seatsTaken(id, t, all);
+    if (sold > t.quantityTotal) over.push({ id, name: t.name, sold, total: t.quantityTotal });
+  }
+  return over;
+}
+
+/**
+ * The next moment any of `tierIds` (or a bundle's parts) stops selling at the
+ * price checkout is about to charge: its sales window closes, or its next price
+ * phase starts. Undefined when nothing is scheduled.
+ *
+ * A Checkout session keeps the price and availability fixed when it was made,
+ * so without this a session opened on 30 November could pay Early Bird until
+ * the next evening (T257 #6). `startCheckout` ends the session at this moment
+ * when it comes sooner than its usual hour.
+ */
+export async function nextSaleChange(tierIds: string[], now: Date): Promise<Date | undefined> {
+  const all = await catalogueById();
+  const ids = new Set<string>();
+  for (const id of tierIds) {
+    ids.add(id);
+    for (const part of all.get(id)?.bundleOf ?? []) ids.add(part);
+  }
+  let soonest: number | undefined;
+  const consider = (ms: number) => {
+    if (Number.isFinite(ms) && ms > now.getTime() && (soonest === undefined || ms < soonest)) soonest = ms;
+  };
+  for (const id of ids) {
+    const t = all.get(id);
+    if (!t) continue;
+    if (t.salesCloseAt) consider(t.salesCloseAt.toDate().getTime());
+    const zone = t.salesTimeZone ?? TIME_ZONE;
+    const today = dayInZone(now, zone);
+    for (const phase of t.pricePhases ?? []) {
+      if (phase.startsOn && phase.startsOn > today) {
+        consider(Date.parse(localWallClockToIso(`${phase.startsOn}T00:00`, zone)));
+      }
+    }
+  }
+  return soonest === undefined ? undefined : new Date(soonest);
 }

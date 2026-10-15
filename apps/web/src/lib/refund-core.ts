@@ -37,6 +37,12 @@ export interface RefundDecision {
   fullyRefunded: boolean;
   /** True only on the delivery that actually voided the ticket. The replay guard. */
   newlyRefunded: boolean;
+  /**
+   * The order was still `pending`: never fulfilled, or fulfilment failed part
+   * way. Nothing it lists was counted or issued by it, so the refund touches no
+   * ticket and no seat count, and `lines` is empty (T257 #4).
+   */
+  unfulfilled: boolean;
   status: OrderDoc['status'];
   /** A date only when money actually went back. See below. */
   stampRefundedAt: boolean;
@@ -76,9 +82,23 @@ export function decideRefund(
    */
   const wasVoid = order.status === 'refunded' || order.status === 'cancelled';
 
+  /**
+   * A refund or dispute on an order still `pending`.
+   *
+   * A group cart is written `pending` before payment with no `registrationIds`,
+   * and stays so if fulfilment fails. Treated as fulfilled, its refund fell
+   * back to the buyer's address and the cart's addresses and cancelled tickets
+   * this order never issued (a Speaker ticket, a colleague's import), then
+   * handed back seats it never counted (`quantitySold` went to -3). The money
+   * still goes back and the order still closes; nothing else moves, and the
+   * caller tells a person to check the seats by hand.
+   */
+  const unfulfilled = order.status === 'pending';
+
   return {
     fullyRefunded,
-    newlyRefunded: fullyRefunded && !wasVoid,
+    newlyRefunded: fullyRefunded && !wasVoid && !unfulfilled,
+    unfulfilled,
     status,
     /**
      * `refundedAt` marks a refund and nothing else.
@@ -90,7 +110,7 @@ export function decideRefund(
      * chargeback is money *held*, not money returned, and it may yet come back.
      */
     stampRefundedAt: input.reason === 'refunded',
-    lines: heldLines(order),
+    lines: unfulfilled ? [] : heldLines(order),
   };
 }
 

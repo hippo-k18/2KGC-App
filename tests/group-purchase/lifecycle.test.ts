@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => {
     refunds: [] as { to: string; amountCents?: number }[],
     failNext: new Map<string, 'failed' | 'throw'>(),
     provisionThrows: false,
+    /** Addresses the webhook asked to lose app access (T259 #6). */
+    accessEnded: [] as string[],
   };
 });
 
@@ -78,6 +80,10 @@ vi.mock('@/lib/app-account', () => ({
     if (mocks.provisionThrows) throw new Error('auth unreachable');
     return { status: 'existing', uid: null, temporaryPassword: null };
   },
+  endAppAccessAfterWithdrawal: async (emails: string[]) => {
+    mocks.accessEnded.push(...emails);
+    return emails;
+  },
 }));
 vi.mock('@/lib/analytics', () => ({
   analyticsConfig: () => null,
@@ -121,6 +127,7 @@ beforeEach(async () => {
   mocks.refunds.length = 0;
   mocks.failNext.clear();
   mocks.provisionThrows = false;
+  mocks.accessEnded.length = 0;
   process.env.WEB_ORDER_SECRET = ORDER_SECRET;
   await Promise.all(
     [COLLECTIONS.registrations, COLLECTIONS.orders, COLLECTIONS.ticketTypes, COLLECTIONS.auditLog, COLLECTIONS.stripeIgnored, COLLECTIONS.emailLog, 'referralCodes'].map(wipe),
