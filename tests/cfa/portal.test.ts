@@ -83,7 +83,9 @@ async function wipe() {
   // plain delete of the parent would leave the author behind — which is
   // precisely the orphan `withdrawSubmission` exists to avoid creating.
   await db().recursiveDelete(db().collection(COLLECTIONS.submissions));
-  for (const name of [COLLECTIONS.calls, COLLECTIONS.tracks, COLLECTIONS.emailLog]) {
+  // `rateLimits` too: every case posts as the same author, and the save cap
+  // (T264) would otherwise carry over from one case into the next.
+  for (const name of [COLLECTIONS.calls, COLLECTIONS.tracks, COLLECTIONS.emailLog, COLLECTIONS.rateLimits]) {
     const snap = await db().collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
