@@ -233,7 +233,77 @@ describe('Reject', () => {
   });
 });
 
+describe('changing an acceptance (T262)', () => {
+  it('refuses Reject on an accepted submission until the acceptance is withdrawn, then keeps it out of E4', async () => {
+    await seedCall({ ...CFP, closeDate: '2027-02-28' });
+    await seed('sub_yes');
+    await acceptCfp({ submissionId: 'sub_yes', actor: ACTOR, nowMs: ACCEPT_AT });
+    expect((await raw('sub_yes')).acceptance?.e2SentAt).toBeTruthy();
+    const sid = (await raw('sub_yes')).acceptance!.speakerId!;
+
+    const refused = await rejectCfp({ submissionId: 'sub_yes', actor: ACTOR });
+    expect(refused.ok).toBe(false);
+    expect((await raw('sub_yes')).status).toBe('accepted');
+
+    const done = await rejectCfp({ submissionId: 'sub_yes', actor: ACTOR, withdrawAccepted: true });
+    expect(done.ok && done.message).toMatch(/will not get the “not accepted” email/);
+    const after = await raw('sub_yes');
+    expect(after.status).toBe('rejected');
+    expect(after.acceptance?.withdrawnAt).toBeTruthy();
+    expect(((await db().collection(COLLECTIONS.speakers).doc(sid).get()).data() as SpeakerDoc).unlisted).toBe(true);
+    const edit = (await db().collection(COLLECTIONS.speakerProfileEdits).doc(sid).get()).data() as SpeakerProfileEditDoc;
+    expect(edit.submissionIds ?? []).not.toContain('sub_yes');
+
+    const before = mail().length;
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: Date.parse('2027-03-14T16:00:00Z') });
+    expect(mail().slice(before).filter((m) => m.template === 'cfp-decision-declined')).toHaveLength(0);
+  });
+
+  it('sends E2 straight away to someone accepted after E4 already told them no (T258 #8)', async () => {
+    await seedCall({ ...CFP, closeDate: '2027-02-28' });
+    await seed('sub_turn');
+    await rejectCfp({ submissionId: 'sub_turn', actor: ACTOR });
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: Date.parse('2027-03-14T16:00:00Z') });
+    expect((await raw('sub_turn')).closeDecision?.version).toBe('declined');
+
+    const r = await acceptCfp({ submissionId: 'sub_turn', actor: ACTOR, nowMs: Date.parse('2027-03-16T15:00:00Z') });
+    expect(r.ok && r.e2).toBe('sent');
+    expect((await raw('sub_turn')).acceptance?.e2HeldForE4).toBeUndefined();
+    expect(mail().filter((m) => m.template === 'cfp-accepted')).toHaveLength(1);
+  });
+});
+
 describe('the hourly run', () => {
+  it('retries an owed E2 once, and then E3 can count from it (T258 #5)', async () => {
+    await seedCall();
+    await seed('sub_owed');
+    await acceptCfp({ submissionId: 'sub_owed', actor: ACTOR, nowMs: ACCEPT_AT });
+    // As if the send had failed: owed, never sent. The map is rewritten rather than
+    // using a delete sentinel, which would come from another firebase-admin copy (gotcha 8).
+    const { e2SentAt: _s, detailsDueAt: _d, ...rest } = (await raw('sub_owed')).acceptance!;
+    void _s;
+    void _d;
+    await db()
+      .collection(COLLECTIONS.submissions)
+      .doc('sub_owed')
+      .update({ acceptance: { ...rest, e2Owed: true } });
+    const before = mail().filter((m) => m.template === 'cfp-accepted').length;
+
+    const run = await runCfpSchedule(ACCEPT_AT + DAY);
+    expect(run.e2Retried).toEqual(['sub_owed']);
+    const after = await raw('sub_owed');
+    expect(after.acceptance?.e2Owed).toBeUndefined();
+    expect(after.acceptance?.e2SentAt?.toMillis()).toBe(ACCEPT_AT + DAY);
+    expect(mail().filter((m) => m.template === 'cfp-accepted')).toHaveLength(before + 1);
+    expect((await runCfpSchedule(ACCEPT_AT + 2 * DAY)).e2Retried).toEqual([]);
+  });
+
+  it('sends no Thursday reminder before the call opens (T258 #17)', async () => {
+    await seedCall();
+    await seed('sub_early', { submittedAt: new Date('2026-10-28T15:00:00Z') });
+    expect((await runCfpSchedule(Date.parse('2026-10-29T14:00:00Z'))).reminded).toEqual([]);
+  });
+
   it('nudges five days after E2, once, and not someone who sent their details', async () => {
     await seedCall();
     await seed('sub_a');
