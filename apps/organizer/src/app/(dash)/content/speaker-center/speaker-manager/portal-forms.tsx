@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import {
+  Field,
   FieldIdScope,
   FormActions,
   FormBanner,
@@ -93,6 +94,14 @@ export function SendLinkForm({
           rows={3}
           maxLength={2000}
           placeholder="Optional. Shown above the link, for example when you need the bio by."
+        />
+        <Field
+          label="To send to a group, type its size to confirm"
+          name="confirmCount"
+          inputMode="numeric"
+          autoComplete="off"
+          width="sm"
+          hint="Only needed for the two group options. Anyone sent a link in the last day is skipped."
         />
         <FormActions>
           <SubmitButton pendingLabel="Sending…">Send link</SubmitButton>

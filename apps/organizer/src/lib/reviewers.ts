@@ -13,7 +13,7 @@ import {
   type SubmissionDoc,
 } from '@kgc/shared';
 import { mintReviewerToken } from '@kgc/scripts/src/lib/reviewer-token';
-import { emailEnabled, sendReviewerInvitation } from '@kgc/scripts/src/lib/email';
+import { emailEnabled, sendOutcomeMessage, sendReviewerInvitation } from '@kgc/scripts/src/lib/email';
 import { withdrawReviewer } from '@kgc/scripts/src/lib/reviews';
 import { normaliseEmail, reviewerId } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from './audit';
@@ -577,7 +577,7 @@ export async function sendInvitation(input: {
       return { ok: false, error: `${reviewer.name} is not on the committee, so their link would not open.` };
     }
 
-    await sendReviewerInvitation(db(), {
+    const outcome = await sendReviewerInvitation(db(), {
       to: reviewer.email,
       name: reviewer.name,
       callTitle: call.title,
@@ -587,9 +587,10 @@ export async function sendInvitation(input: {
       actor: input.actor,
     });
 
-    // Stamped only when a mail actually left: "invited before" on the screen
-    // must not be true of somebody who was never written to.
-    if (emailEnabled()) {
+    // Stamped only when the provider accepted the mail: "invited before" on the
+    // screen must not be true of somebody who was never written to. An API key
+    // being set is not the same thing (T262).
+    if (outcome === 'sent') {
       await ref.update({
         lastInvitationAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -602,15 +603,16 @@ export async function sendInvitation(input: {
       targetPath: `${COLLECTIONS.reviewers}/${input.reviewerId}`,
       targetId: input.reviewerId,
       before: {},
-      after: { callId: input.callId, emailed: emailEnabled() },
+      after: { callId: input.callId, outcome },
     });
 
-    return {
-      ok: true,
-      message: emailEnabled()
-        ? `Invitation sent to ${reviewer.email}.`
-        : `Email is not switched on yet, so nothing was sent to ${reviewer.email}. Copy their link and send it yourself.`,
-    };
+    const message = sendOutcomeMessage({
+      outcome,
+      to: reviewer.email,
+      sent: `Invitation sent to ${reviewer.email}.`,
+      fallback: 'Copy their link and send it yourself.',
+    });
+    return outcome === 'sent' ? { ok: true, message } : { ok: false, error: message };
   } catch (err) {
     recordError('reviewers.sendInvitation', err);
     return { ok: false, error: err instanceof Error ? err.message : 'Could not send the invitation.' };

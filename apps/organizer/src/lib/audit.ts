@@ -84,6 +84,8 @@ export interface AuditEntry {
      * thousand inboxes cannot be recalled.
      */
     | 'message.send'
+    | 'campaign.send'
+    | 'speaker.portalSendGroup'
     /** Discount codes live in Stripe, so this records a write we made there. */
     | 'discountCode.create'
     | 'discountCode.update'

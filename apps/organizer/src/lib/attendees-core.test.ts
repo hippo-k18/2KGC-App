@@ -83,3 +83,13 @@ describe('cancelledOrTransferred', () => {
     ).toBe(2);
   });
 });
+
+describe('delivery problems on the attendee list (T258 #9)', () => {
+  it('names a bounce and a spam complaint, and nothing otherwise', async () => {
+    const { emailProblemOf } = await import('./attendees-core');
+    const at = { toDate: () => new Date() } as never;
+    expect(emailProblemOf({ bouncedAt: at })).toBe('bounced');
+    expect(emailProblemOf({ bouncedAt: at, complainedAt: at })).toBe('spam');
+    expect(emailProblemOf({})).toBeUndefined();
+  });
+});

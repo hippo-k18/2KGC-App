@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { readUnsubscribeToken } from '@/lib/unsubscribe-token';
 import { unsubscribeContact } from '@/lib/unsubscribe';
+import { pageAfter } from '@/lib/unsubscribe-outcome';
 
 /**
  * The unsubscribe itself.
@@ -31,17 +32,18 @@ export async function unsubscribeAction(formData: FormData): Promise<void> {
    */
   if (!payload) redirect(`/u/${encodeURIComponent(token)}`);
 
+  /*
+   * A deleted contact comes back as `gone`: the reader is on no list, so
+   * "done" is true. A write that failed lands on the error state instead
+   * (T258 #11); it used to redirect to "You're unsubscribed" regardless.
+   */
+  let result: Awaited<ReturnType<typeof unsubscribeContact>> | 'error';
   try {
-    await unsubscribeContact(payload.cid);
+    result = await unsubscribeContact(payload.cid);
   } catch (err) {
-    /*
-     * The contact was deleted between the mail going out and this click. The
-     * reader is on no list, so the outcome they asked for is already true and
-     * telling them it failed would be both alarming and wrong. Logged, because
-     * it is worth knowing it happened.
-     */
     console.error('[unsubscribe] could not record the unsubscribe', err);
+    result = 'error';
   }
 
-  redirect(`/u/${encodeURIComponent(token)}?done=1`);
+  redirect(pageAfter(token, result));
 }

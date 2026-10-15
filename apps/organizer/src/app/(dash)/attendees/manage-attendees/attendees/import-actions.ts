@@ -117,6 +117,9 @@ export async function commitImportAction(
       (outcome.failed.length ? `, and ${outcome.failed.length} rows failed to write` : '') +
       '.' +
       (outcome.emailed ? ` ${outcome.emailed} confirmation ${outcome.emailed === 1 ? 'email' : 'emails'} sent.` : '') +
-      (outcome.created > 0 && formData.get('sendEmails') === 'on' && !outcome.emailed ? emailNote() : ''),
+      (outcome.emailFailed && process.env.RESEND_API_KEY
+        ? ` ${outcome.emailFailed} could not be sent. Run the same file again to retry them; nobody who got one is mailed twice.`
+        : '') +
+      (outcome.emailFailed && !process.env.RESEND_API_KEY ? emailNote() : ''),
   };
 }

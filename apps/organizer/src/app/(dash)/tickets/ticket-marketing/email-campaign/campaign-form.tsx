@@ -1,6 +1,8 @@
 'use client';
 
 import { ConfirmCodeField } from '@/components/confirm-code';
+import { SendProgress } from '@/components/send-progress';
+import type { SendJobView } from '@/lib/send-jobs';
 
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
@@ -29,6 +31,7 @@ export function CampaignForm({
   suppressed,
   needsPassphrase,
   emailReady,
+  lastJob,
 }: {
   lists: { name: string; mailable: number; count: number }[];
   selected: string;
@@ -36,6 +39,8 @@ export function CampaignForm({
   suppressed: number;
   needsPassphrase: boolean;
   emailReady: boolean;
+  /** The newest campaign send, so its progress survives a reload. */
+  lastJob?: SendJobView | null;
 }) {
   const [state, action] = useActionState<CampaignState, FormData>(sendCampaignAction, {});
   const [subject, setSubject] = useState(state.keep?.subject ?? '');
@@ -62,6 +67,11 @@ export function CampaignForm({
         </p>
       )}
       {state.ok && <p className="ok">{state.message}</p>}
+      {state.campaignId ? (
+        <SendProgress key={state.campaignId} campaignId={state.campaignId} />
+      ) : lastJob && lastJob.view !== 'done' ? (
+        <SendProgress key={lastJob.campaignId} campaignId={lastJob.campaignId} initial={lastJob} />
+      ) : null}
 
       {!emailReady && (
         <p className="error">
@@ -185,10 +195,9 @@ export function CampaignForm({
 }
 
 /**
- * Split out because `useFormStatus` only reports the form it sits inside. A
- * send of a thousand is sequential and takes minutes; an unchanged button is a
- * button somebody presses again, and the second press is a second email to
- * everybody.
+ * Split out because `useFormStatus` only reports the form it sits inside. The
+ * press only starts the send now, so this is brief; the progress line above
+ * takes over. A second press of the same message resumes rather than repeats.
  */
 function SendButton({ testOnly, count }: { testOnly: boolean; count: number }) {
   const { pending } = useFormStatus();

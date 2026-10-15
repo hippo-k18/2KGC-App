@@ -377,7 +377,10 @@ describe('the reviewer’s link', () => {
     await createCall();
     const r1 = await reviewer('Rex Review', 'rex@uni.test');
     const result = await sendInvitation({ reviewerId: r1, callId: CALL_ID, actor: ACTOR });
-    expect(result.ok).toBe(true);
+    // No mail key here, so the send is skipped, and the screen says so rather
+    // than "Invitation sent" (T262: report what happened, not that a key exists).
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('nothing was sent to rex@uni.test');
 
     const log = await db().collection(COLLECTIONS.emailLog).get();
     expect(log.docs.map((d) => [d.data().template, d.data().to])).toEqual([['reviewer-invitation', 'rex@uni.test']]);

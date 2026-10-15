@@ -1,6 +1,8 @@
 'use client';
 
 import { ConfirmCodeField } from '@/components/confirm-code';
+import { SendProgress } from '@/components/send-progress';
+import type { SendJobView } from '@/lib/send-jobs';
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
@@ -27,6 +29,7 @@ export function MessageForm({
   withoutEmail,
   needsPassphrase,
   emailReady,
+  lastJob,
 }: {
   audience: Audience;
   segment: string;
@@ -34,6 +37,8 @@ export function MessageForm({
   withoutEmail: number;
   needsPassphrase: boolean;
   emailReady: boolean;
+  /** The newest send to this audience, so its progress survives a reload. */
+  lastJob?: SendJobView | null;
 }) {
   const [state, action] = useActionState<MessageState, FormData>(sendBulkMessageAction, {});
   const [subject, setSubject] = useState(state.keep?.subject ?? '');
@@ -51,6 +56,11 @@ export function MessageForm({
         </p>
       )}
       {state.ok && <p className="ok">{state.message}</p>}
+      {state.campaignId ? (
+        <SendProgress key={state.campaignId} campaignId={state.campaignId} />
+      ) : lastJob && lastJob.view !== 'done' ? (
+        <SendProgress key={lastJob.campaignId} campaignId={lastJob.campaignId} initial={lastJob} />
+      ) : null}
 
       {!emailReady && (
         <p className="error">

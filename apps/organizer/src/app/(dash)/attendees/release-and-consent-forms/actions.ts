@@ -219,12 +219,18 @@ export async function sendSigningLinksAction(
     revalidatePath('/content/speaker-center/release-and-consent-forms');
     revalidatePath('/attendees/call-for-volunteers/release-and-consent-forms');
 
+    // Counted from what the provider said about each one (T258 #2), never from
+    // how many were attempted.
     const reached = process.env.RESEND_API_KEY
-      ? `Sent ${result.sent} ${result.sent === 1 ? 'link' : 'links'}.`
-      : `${result.sent} ${result.sent === 1 ? 'link is' : 'links are'} ready. Email is not switched on yet, so nothing went out.`;
+      ? `Sent ${result.sent} ${result.sent === 1 ? 'link' : 'links'}.` +
+        (result.failed > 0
+          ? ` ${result.failed} could not be sent. They are still outstanding; press Send again to retry them.`
+          : '')
+      : `Email is not switched on yet, so nothing went out.`;
 
-    const more = result.remaining > 0
-      ? ` ${result.remaining} still to go. Press Send again to reach them; nobody is written to twice.`
+    const notTried = result.remaining - result.failed;
+    const more = result.stoppedEarly && notTried > 0
+      ? ` ${notTried} not tried yet. Press Send again to reach them; nobody already sent is written to twice.`
       : '';
 
     const unreachable = result.noAddress > 0

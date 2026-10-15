@@ -23,6 +23,7 @@ import {
 import { listAttendees } from './data';
 import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
+import { dedupeByEmail, foldCampaignRows } from './send-jobs-core';
 
 /**
  * Bulk email to a named audience — Message Speakers, Message Sponsors, Message
@@ -162,9 +163,14 @@ export async function resolveAudience(
   audience: AudienceId,
   segment: string,
 ): Promise<{ recipients: Recipient[]; withoutEmail: number }> {
-  if (audience === 'speakers') return resolveSpeakers(segment);
-  if (audience === 'exhibitors') return resolveExhibitors(segment);
-  return resolveSponsors(segment);
+  const resolved =
+    audience === 'speakers'
+      ? await resolveSpeakers(segment)
+      : audience === 'exhibitors'
+        ? await resolveExhibitors(segment)
+        : await resolveSponsors(segment);
+  // Two records sharing one contact got two copies (T258 #16). One per address.
+  return { ...resolved, recipients: dedupeByEmail(resolved.recipients) };
 }
 
 async function resolveSpeakers(segment: string) {
@@ -313,9 +319,20 @@ export async function listCampaigns(limit = 25): Promise<CampaignRow[]> {
 
   const byCampaign = new Map<string, CampaignRow>();
 
+  /*
+   * One row per person per campaign. A resumed send writes a second row for
+   * everybody the first run failed, and a `sent` anywhere means they got it.
+   */
+  const perCampaign = new Map<string, EmailLogDoc[]>();
   for (const d of snap.docs) {
     const e = d.data() as EmailLogDoc;
     if (e.template !== 'bulk-message' || !e.campaignId) continue;
+    perCampaign.set(e.campaignId, [...(perCampaign.get(e.campaignId) ?? []), e]);
+  }
+  const folded = [...perCampaign.values()].flatMap((rows) => foldCampaignRows(rows));
+
+  for (const e of folded) {
+    if (!e.campaignId) continue;
 
     let at: string;
     try {
@@ -352,7 +369,7 @@ export async function listCampaigns(limit = 25): Promise<CampaignRow[]> {
 
 /** Every recipient of one campaign, for the "did Ada get it?" question. */
 export async function campaignRecipients(campaignId: string): Promise<
-  { to: string; status: EmailLogDoc['status']; error?: string; reason?: string }[]
+  { to: string; status: EmailLogDoc['status']; error?: string; reason?: string; bounced?: boolean }[]
 > {
   const snap = await db()
     .collection(COLLECTIONS.emailLog)
@@ -360,12 +377,17 @@ export async function campaignRecipients(campaignId: string): Promise<
     .where('campaignId', '==', campaignId)
     .get();
 
-  return snap.docs
-    .map((d) => {
-      const e = d.data() as EmailLogDoc;
+  // One row per person: a resumed send logs a retried address twice.
+  return foldCampaignRows(snap.docs.map((d) => d.data() as EmailLogDoc))
+    .map((e) => ({
       // `to` is null once the recipient has been erased.
-      return { to: e.to ?? '', status: e.status, error: e.error, reason: e.reason };
-    })
+      to: e.to ?? '',
+      status: e.status,
+      error: e.error,
+      reason: e.reason,
+      // Set by the Resend webhook after the provider accepted it.
+      bounced: Boolean(e.bouncedAt || e.complainedAt),
+    }))
     .sort((a, b) => a.to.localeCompare(b.to));
 }
 

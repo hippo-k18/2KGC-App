@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -116,6 +117,21 @@ interface SendInput {
    * because the mail client POSTs on the reader's behalf and no page is opened.
    */
   unsubscribeUrl?: string;
+  /**
+   * What makes two sends "the same mail", for Resend's `Idempotency-Key`.
+   *
+   * The header is built from (template, this key, recipient), so a bulk send
+   * passes its campaign id and a re-press of the same campaign cannot mail
+   * anybody twice inside Resend's 24-hour window, even when the first answer
+   * was lost to a timeout. Left out, each call gets a random key: its own
+   * retries are covered, and a deliberate re-send (Resend confirmation) still
+   * goes out.
+   *
+   * ⚠️ A key only dedupes when the payload is byte-identical. A different
+   * payload under the same key is refused with a 409, so a caller passing one
+   * must build the same message every time (see `issuedAt` on bulk mail).
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -267,62 +283,195 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
     return 'skipped';
   }
 
-  try {
-    const res = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      // An abort throws, and the catch below records it as `failed`.
-      signal: AbortSignal.timeout(sendTimeoutMs()),
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: fromAddress(),
-        to: [input.to],
-        reply_to: replyTo(),
-        subject: input.subject,
-        html: input.html,
-        // A plain-text part is not decoration: some corporate mail gateways
-        // score HTML-only mail as spam, and a conference receipt landing in a
-        // spam folder is the failure this whole file exists to avoid.
-        text: input.text,
-        ...(input.unsubscribeUrl
-          ? {
-              headers: {
-                /*
-                 * RFC 8058 one-click. `List-Unsubscribe-Post` is what promotes
-                 * the header from "open this link" to a button the client
-                 * presses itself, and both Gmail and Yahoo have required it
-                 * since 2024 for anyone sending bulk mail at volume.
-                 *
-                 * The `mailto:` is the fallback for clients that honour the
-                 * header but not the POST. It is second because a client that
-                 * understands both must prefer the https one.
-                 */
-                'List-Unsubscribe': `<${input.unsubscribeUrl}>, <mailto:${replyTo()}?subject=unsubscribe>`,
-                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-              },
-            }
-          : {}),
-      }),
+  const body = JSON.stringify({
+    from: fromAddress(),
+    to: [input.to],
+    reply_to: replyTo(),
+    subject: input.subject,
+    html: input.html,
+    // A plain-text part is not decoration: some corporate mail gateways
+    // score HTML-only mail as spam, and a conference receipt landing in a
+    // spam folder is the failure this whole file exists to avoid.
+    text: input.text,
+    ...(input.unsubscribeUrl
+      ? {
+          headers: {
+            /*
+             * RFC 8058 one-click. `List-Unsubscribe-Post` is what promotes
+             * the header from "open this link" to a button the client
+             * presses itself, and both Gmail and Yahoo have required it
+             * since 2024 for anyone sending bulk mail at volume.
+             *
+             * The `mailto:` is the fallback for clients that honour the
+             * header but not the POST. It is second because a client that
+             * understands both must prefer the https one.
+             */
+            'List-Unsubscribe': `<${input.unsubscribeUrl}>, <mailto:${replyTo()}?subject=unsubscribe>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
+        }
+      : {}),
+  });
+  const key = idempotencyKeyFor(input.template, input.idempotencyKey ?? randomUUID(), input.to);
+
+  const result = await deliver(body, key);
+  if (result.ok) {
+    await log(store, {
+      ...base,
+      status: 'sent',
+      providerId: result.id,
+      ...(result.attempts > 1 ? { attempts: result.attempts } : {}),
     });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      await log(store, { ...base, status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
-      console.error('[email] Resend rejected', input.template, res.status, body);
-      return 'failed';
-    }
-
-    const json = (await res.json().catch(() => ({}))) as { id?: string };
-    await log(store, { ...base, status: 'sent', providerId: json.id });
     return 'sent';
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await log(store, { ...base, status: 'failed', error: message.slice(0, 500) });
-    console.error('[email] send threw', input.template, err);
-    return 'failed';
   }
+  await log(store, {
+    ...base,
+    status: 'failed',
+    error: result.error.slice(0, 500),
+    ...(result.attempts > 1 ? { attempts: result.attempts } : {}),
+  });
+  console.error('[email] not sent', input.template, result.error.slice(0, 200));
+  return 'failed';
+}
+
+// ---------------------------------------------------------------------------
+// Pacing, retries and idempotency (T258 #1-3)
+//
+// Every sender in this process shares one Resend key and one rate limit, so a
+// campaign of 2,000 and a buyer's receipt queue for the same slots. Before
+// this, nothing paced the sends: the consent send fired 20 at once against a
+// 2/s limit, every 429 was logged `failed` and never retried, and a receipt
+// that went out while a campaign ran could be refused the same way.
+// ---------------------------------------------------------------------------
+
+/**
+ * Requests per second this process may make to Resend. `RESEND_MAX_PER_SECOND`
+ * overrides the default of 2, which is Resend's default team limit. Two
+ * processes (website and dashboard) share the key, so a 429 is still possible
+ * and is retried below.
+ */
+export function sendRatePerSecond(): number {
+  const n = Number(process.env.RESEND_MAX_PER_SECOND);
+  return Number.isFinite(n) && n > 0 ? n : 2;
+}
+
+/** How many times one mail is tried, first attempt included. */
+export function sendMaxAttempts(): number {
+  const n = Number(process.env.RESEND_MAX_ATTEMPTS);
+  return Number.isInteger(n) && n >= 1 ? Math.min(n, 8) : 4;
+}
+
+/** The first backoff, doubled on each retry. `RESEND_RETRY_BASE_MS` overrides it, for tests. */
+function retryBaseMs(): number {
+  const n = Number(process.env.RESEND_RETRY_BASE_MS);
+  return Number.isFinite(n) && n >= 0 ? n : 1_000;
+}
+
+/** The longest any single wait may be, whatever `Retry-After` asks for. */
+const MAX_BACKOFF_MS = 20_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The next free slot under the rate limit, shared by every send in this
+ * process. First come, first served: a receipt waits behind at most the one
+ * campaign mail already queued, because the bulk senders await each send.
+ */
+let nextSlotAt = 0;
+async function takeSlot(): Promise<void> {
+  const gap = 1_000 / sendRatePerSecond();
+  const now = Date.now();
+  const at = Math.max(now, nextSlotAt);
+  nextSlotAt = at + gap;
+  if (at > now) await sleep(at - now);
+}
+
+/**
+ * The `Idempotency-Key` header for one mail: (template, key, recipient),
+ * hashed so the address does not travel in a header and the length stays well
+ * inside Resend's 256 characters.
+ */
+export function idempotencyKeyFor(template: string, key: string, to: string): string {
+  const digest = createHash('sha256')
+    .update(`${template}\u0000${key}\u0000${to.trim().toLowerCase()}`)
+    .digest('hex');
+  return `kgc-${digest.slice(0, 48)}`;
+}
+
+/**
+ * Whether a refused request is worth trying again.
+ *
+ * 429 and 5xx are the provider saying "not now". A 409 whose code is
+ * `concurrent_idempotent_requests` means an earlier attempt with the same key
+ * is still being processed, which is also "not now". Every other 4xx (a bad
+ * address, an unverified domain, the same key with a different payload) will
+ * fail the same way every time.
+ */
+export function retryableStatus(status: number, body: string): boolean {
+  if (status === 429 || status >= 500) return true;
+  return status === 409 && body.includes('concurrent_idempotent_requests');
+}
+
+/** `Retry-After` in seconds or as a date, in ms, or null. */
+function retryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1_000);
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+/** Exponential backoff with a little jitter, so two processes do not retry in step. */
+export function backoffMs(attempt: number, retryAfter: number | null, base = retryBaseMs()): number {
+  const wait = retryAfter ?? base * 2 ** (attempt - 1) * (0.75 + Math.random() * 0.5);
+  return Math.min(MAX_BACKOFF_MS, Math.round(wait));
+}
+
+type Delivery = { ok: true; id?: string; attempts: number } | { ok: false; error: string; attempts: number };
+
+/**
+ * POST one mail, paced, retried on 429, 5xx and timeouts, under one
+ * idempotency key for every attempt.
+ *
+ * ⚠️ The key is what makes the timeout retry safe. A Resend that accepted the
+ * mail and answered after our timeout used to be logged `failed`, and the next
+ * attempt sent it again. With the same key and the same body, Resend answers
+ * the retry with the first result and sends nothing new.
+ */
+async function deliver(body: string, key: string): Promise<Delivery> {
+  const attempts = sendMaxAttempts();
+  let lastError = '';
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    await takeSlot();
+    let retryAfter: number | null = null;
+    try {
+      const res = await fetch(RESEND_ENDPOINT, {
+        method: 'POST',
+        // An abort throws, and the catch below treats it as worth retrying.
+        signal: AbortSignal.timeout(sendTimeoutMs()),
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        },
+        body,
+      });
+
+      if (res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { id?: string };
+        return { ok: true, id: json.id, attempts: attempt };
+      }
+
+      const text = await res.text().catch(() => '');
+      lastError = `${res.status} ${text}`;
+      if (!retryableStatus(res.status, text)) return { ok: false, error: lastError, attempts: attempt };
+      retryAfter = retryAfterMs(res.headers.get('retry-after'));
+    } catch (err) {
+      lastError = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    }
+    if (attempt < attempts) await sleep(backoffMs(attempt, retryAfter));
+  }
+  return { ok: false, error: `${lastError} (after ${attempts} attempts)`, attempts };
 }
 
 /**
@@ -550,7 +699,7 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
        ${row('Paid', price)}
      </table>
      ${button(input.orderUrl, 'View your ticket')}
-     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Keep this link. It shows your badge QR code, which is what gets scanned at the door. Don't forward it: anyone with the link can see your ticket.</p>${
+     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Your badge QR code is in the KGC app. If you don't have the app, give your name at the registration desk. Keep this link private: anyone with it can see your ticket.</p>${
        invite
          ? `
      <h2 style="margin:28px 0 8px;padding-top:22px;border-top:1px solid #e3e5e8;font-size:17px;line-height:1.3;color:${BRAND};">Bring your team</h2>
@@ -575,7 +724,9 @@ Paid:          ${price}
 
 View your ticket: ${input.orderUrl}
 
-Keep that link private. It shows the badge QR that gets scanned at the door.
+Your badge QR code is in the KGC app. If you don't have the app, give your
+name at the registration desk. Keep the link private: anyone with it can see
+your ticket.
 ${
   invite
     ? `
@@ -683,7 +834,7 @@ export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInp
        ${input.dueDate ? row('Due', esc(input.dueDate)) : ''}
      </table>
      ${button(input.hostedInvoiceUrl, 'View and pay the invoice')}
-     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;"><strong>What happens next.</strong> Tickets are issued when the invoice is paid, not when it is raised — so nobody is registered yet. As soon as payment clears, every attendee on the invoice gets their own confirmation email with their ticket.</p>
+     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;"><strong>What happens next.</strong> Tickets are issued when the invoice is paid, not when it is raised, so nobody is registered yet. As soon as payment clears, every attendee on the invoice gets their own confirmation email with their ticket.</p>
      <p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">The link above lets finance pay by card or bank transfer and download a PDF for your records.</p>`,
   );
 
@@ -907,7 +1058,7 @@ export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInp
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:.22em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:16px;text-align:center;">${esc(input.code)}</p>
      <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask for a new one from the same screen.</p>
-     <p style="margin:14px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">If you didn't ask to sign in, you can ignore this email — nobody can use the code without it, and no one has been given access to your account.</p>`,
+     <p style="margin:14px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">If you didn't ask to sign in, you can ignore this email. Nobody can use the code without it, and no one has been given access to your account.</p>`,
   );
 
   const text = `Enter this code in the KGC app to sign in.
@@ -917,7 +1068,7 @@ export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInp
 It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask
 for a new one from the same screen.
 
-If you didn't ask to sign in, you can ignore this email — nobody can use the
+If you didn't ask to sign in, you can ignore this email. Nobody can use the
 code without it, and no one has been given access to your account.
 
 3-7 May 2027, Jay Conference Bryant Park, New York.
@@ -952,6 +1103,30 @@ export interface BulkMessageInput {
   campaignId: string;
   /** The organizer who pressed send, recorded per recipient. */
   actor: string;
+  /**
+   * Campaign mail: refuse to send at all when no working unsubscribe link can
+   * be built (T258 #11). Message Speakers leaves it off, because speakers are
+   * not on the suppression list and get no link (see `unsubscribeUrlFor`).
+   */
+  requireUnsubscribe?: boolean;
+  /**
+   * The issued-at written into the unsubscribe token. A bulk send passes one
+   * fixed value per campaign, so a resumed campaign builds byte-identical mail
+   * and Resend's idempotency key can recognise a repeat. Defaults to now.
+   */
+  issuedAt?: number;
+}
+
+/**
+ * The sender's postal address for the foot of bulk mail, from
+ * `EMAIL_POSTAL_ADDRESS`, or null while the owner has not supplied one.
+ *
+ * CAN-SPAM asks commercial mail for a valid physical postal address of the
+ * sender. The venue line in the footer is not one (T258 #10).
+ */
+export function postalAddress(): string | null {
+  const raw = headerText(process.env.EMAIL_POSTAL_ADDRESS ?? '');
+  return raw || null;
 }
 
 /**
@@ -1010,19 +1185,20 @@ interface UnsubscribeLinks {
 async function unsubscribeUrlFor(
   store: Firestore,
   email: string,
-): Promise<UnsubscribeLinks | null> {
+  issuedAt?: number,
+): Promise<UnsubscribeLinks | 'no-contact' | 'error'> {
   try {
     const id = contactId(email);
     const snap = await store.collection(COLLECTIONS.contacts).doc(id).get();
-    if (!snap.exists) return null;
+    if (!snap.exists) return 'no-contact';
 
     // One token, two routes. Both verify it the same way.
-    const token = mintUnsubscribeToken(id);
+    const token = mintUnsubscribeToken(id, issuedAt);
     const origin = publicSiteOrigin();
     return { page: `${origin}/u/${token}`, oneClick: `${origin}/api/unsubscribe/${token}` };
   } catch (err) {
-    console.warn('[email] could not build an unsubscribe link; sending without one', err);
-    return null;
+    console.warn('[email] could not build an unsubscribe link', err);
+    return 'error';
   }
 }
 
@@ -1057,7 +1233,30 @@ async function unsubscribeUrlFor(
  */
 export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<SendOutcome> {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
-  const unsubscribe = await unsubscribeUrlFor(store, input.to);
+  const links = await unsubscribeUrlFor(store, input.to, input.issuedAt);
+  const unsubscribe = typeof links === 'object' ? links : null;
+
+  /*
+   * Campaign mail without a working unsubscribe link is not sent at all
+   * (T258 #11). It used to go out bare with only a console warning when the
+   * token could not be minted, which is a legal problem on every copy.
+   */
+  if (input.requireUnsubscribe && !unsubscribe) {
+    await log(store, {
+      to: input.to,
+      subject: headerText(input.subject),
+      template: 'bulk-message',
+      campaignId: input.campaignId,
+      actor: input.actor,
+      status: 'failed',
+      error:
+        links === 'no-contact'
+          ? 'Not sent: this address is not on the contact list, so it has no unsubscribe link.'
+          : 'Not sent: the unsubscribe link could not be built. Check WEB_UNSUBSCRIBE_SECRET or WEB_ORDER_SECRET.',
+    });
+    return 'failed';
+  }
+  const postal = postalAddress();
 
   const paragraphs = input.body
     .split(/\n\s*\n/)
@@ -1080,21 +1279,24 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
   const unsubscribeHtml = unsubscribe
     ? `<p style="margin:26px 0 0;padding-top:16px;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;line-height:1.6;">
          You are receiving this because your address is on a Knowledge Graph Conference mailing
-         list. <a href="${unsubscribe.page}" style="color:#6b7280;">Unsubscribe</a> — one click, no
-         sign-in. It stops campaign email; anything about a ticket you hold still reaches you.
+         list. <a href="${unsubscribe.page}" style="color:#6b7280;">Unsubscribe</a> with one click,
+         no sign-in. It stops campaign email. Anything about a ticket you hold still reaches you.
        </p>`
+    : '';
+  const postalHtml = postal
+    ? `<p style="margin:${unsubscribe ? '8px' : '26px'} 0 0;font-size:12px;color:#6b7280;line-height:1.6;">${esc(postal)}</p>`
     : '';
 
   const html = shell(
     esc(input.subject),
-    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting}</p>${paragraphs}${unsubscribeHtml}`,
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting}</p>${paragraphs}${unsubscribeHtml}${postalHtml}`,
   );
 
   const unsubscribeText = unsubscribe
     ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
     : '';
 
-  const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}`;
+  const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}${postal ? `\n${postal}` : ''}`;
 
   return send(store, {
     to: input.to,
@@ -1104,6 +1306,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     template: 'bulk-message',
     campaignId: input.campaignId,
     actor: input.actor,
+    idempotencyKey: input.campaignId,
     // The header gets the POST route, the body got the page. See UnsubscribeLinks.
     ...(unsubscribe ? { unsubscribeUrl: unsubscribe.oneClick } : {}),
   });
@@ -1149,6 +1352,19 @@ export interface SubmissionReceiptInput {
 }
 
 /**
+ * The close date to print, or null when the caller has none.
+ *
+ * A call with no close date used to arrive as the words "the call closes",
+ * which printed "Closes: the call closes" (T258 #18). A label with no digit in
+ * it is not a date, and neither is the " ()" left by an empty wall clock and
+ * zone, so the row is dropped and the sentence says "before the call closes".
+ */
+export function closesLabel(raw: string | undefined | null): string | null {
+  const label = (raw ?? '').replace(/\(\s*\)/g, '').trim();
+  return /\d/.test(label) ? label : null;
+}
+
+/**
  * The acknowledgement, and — more importantly — the link back.
  *
  * The link is the whole point of the mail. There is no account here, so this
@@ -1166,10 +1382,12 @@ export async function sendSubmissionReceipt(
   const heading = input.draft
     ? 'Your abstract has been saved as a draft'
     : 'We have your abstract';
+  const closes = closesLabel(input.closesAtLabel);
+  const before = closes ?? 'the call closes';
 
   const opening = input.draft
-    ? `we have saved your draft for <strong>${esc(input.callTitle)}</strong>. It has <strong>not</strong> been submitted yet — use the link below to finish it before ${esc(input.closesAtLabel)}.`
-    : `thank you — your abstract has been submitted to <strong>${esc(input.callTitle)}</strong>. There is nothing else to do for now.`;
+    ? `we have saved your draft for <strong>${esc(input.callTitle)}</strong>. It has <strong>not</strong> been submitted yet. Use the link below to finish it before ${esc(before)}.`
+    : `thank you, your abstract has been submitted to <strong>${esc(input.callTitle)}</strong>. There is nothing else to do for now.`;
 
   const html = shell(
     heading,
@@ -1177,11 +1395,11 @@ export async function sendSubmissionReceipt(
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:6px 0 0;">
        ${row('Title', esc(input.title))}
        ${row('Call', esc(input.callTitle))}
-       ${row('Closes', esc(input.closesAtLabel))}
+       ${closes ? row('Closes', esc(closes)) : ''}
      </table>
      ${button(input.link, input.draft ? 'Finish your submission' : 'View or edit your submission')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       That link opens your submission and nothing else — no other submission, no reviews, no
+       That link opens your submission and nothing else: no other submission, no reviews, no
        scores. Please do not forward it: anybody who has it can read and, while the call is open,
        edit your abstract. It stops working after twelve months.
      </p>`,
@@ -1189,29 +1407,28 @@ export async function sendSubmissionReceipt(
 
   const text = `${greeting} ${
     input.draft
-      ? `we have saved your draft for ${input.callTitle}. It has NOT been submitted yet — use the link below to finish it before ${input.closesAtLabel}.`
-      : `thank you — your abstract has been submitted to ${input.callTitle}.`
+      ? `we have saved your draft for ${input.callTitle}. It has NOT been submitted yet. Use the link below to finish it before ${before}.`
+      : `thank you, your abstract has been submitted to ${input.callTitle}.`
   }
 
 Title:  ${input.title}
-Call:   ${input.callTitle}
-Closes: ${input.closesAtLabel}
+Call:   ${input.callTitle}${closes ? `\nCloses: ${closes}` : ''}
 
 ${input.draft ? 'Finish your submission' : 'View or edit your submission'}:
 ${input.link}
 
-That link opens your submission and nothing else. Please do not forward it —
+That link opens your submission and nothing else. Please do not forward it:
 anybody who has it can read, and while the call is open edit, your abstract.
 It stops working after twelve months.
 
-—
+--
 Knowledge Graph Conference 2027`;
 
   return send(store, {
     to: input.to,
     subject: input.draft
       ? `Your draft for ${input.callTitle}`
-      : `We have your abstract — ${input.title}`,
+      : `We have your abstract: ${input.title}`,
     html,
     text,
     template: 'submission-receipt',
@@ -1277,7 +1494,7 @@ export async function sendSubmissionDecision(
     : `thank you for submitting <strong>“${esc(input.title)}”</strong> to ${esc(input.callTitle)}. After review, we are not able to include it in the programme this year.`;
 
   const next = input.accepted
-    ? `We will be in touch separately about scheduling — the date, time and room are decided as the programme is assembled, so this is not a slot yet.`
+    ? `We will be in touch separately about scheduling. The date, time and room are decided as the programme is assembled, so this is not a slot yet.`
     : `We had more good submissions than we have room for, and a decision not to include one is not a judgement that it was weak. We would be glad to see you submit again.`;
 
   const noteHtml = input.note?.trim()
@@ -1311,20 +1528,20 @@ export async function sendSubmissionDecision(
 
 ${
   input.accepted
-    ? 'We will be in touch separately about scheduling — the date, time and room are decided as the programme is assembled, so this is not a slot yet.'
+    ? 'We will be in touch separately about scheduling. The date, time and room are decided as the programme is assembled, so this is not a slot yet.'
     : 'We had more good submissions than we have room for, and a decision not to include one is not a judgement that it was weak. We would be glad to see you submit again.'
 }
 ${input.note?.trim() ? `\nFrom the committee:\n${input.note.trim()}\n` : ''}
 Read your submission:
 ${input.link}
 
-—
+--
 Knowledge Graph Conference 2027`;
 
   return send(store, {
     to: input.to,
     subject: input.accepted
-      ? `Accepted — ${input.title}`
+      ? `Accepted: ${input.title}`
       : `Your submission to ${input.callTitle}`,
     html,
     text,
@@ -1697,7 +1914,9 @@ Knowledge Graph Conference 2027`;
     text,
     template: 'consent-request',
     actor: input.actor,
-    ...(input.campaignId ? { campaignId: input.campaignId } : {}),
+    // A consent campaign is one form at one version, so a second press that
+    // reaches somebody the first press already reached is the same mail.
+    ...(input.campaignId ? { campaignId: input.campaignId, idempotencyKey: input.campaignId } : {}),
   });
 }
 

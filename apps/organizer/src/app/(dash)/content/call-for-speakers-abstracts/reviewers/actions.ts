@@ -7,6 +7,7 @@ import {
   assignByTrack,
   assignReviewer,
   inviteReviewer,
+  invitationEmailAvailable,
   listReviewers,
   sendInvitation,
   setReviewerStatus,
@@ -166,22 +167,24 @@ export async function sendInvitationAction(_prev: FormState, formData: FormData)
     );
     if (committee.length === 0) return { error: 'There is nobody on the committee to invite.' };
 
-    let last = '';
+    if (!invitationEmailAvailable()) {
+      return { error: 'Email is not switched on yet, so nothing was sent. Copy each link and send it yourself.' };
+    }
+
+    // Counted from what the provider said about each one (T262), not from
+    // whether an API key is configured.
+    let sent = 0;
     let failed = 0;
     for (const r of committee) {
       const result = await sendInvitation({ reviewerId: r.id, callId, note, actor });
-      if (result.ok) last = result.message;
+      if (result.ok) sent++;
       else failed++;
     }
     revalidate();
-    return {
-      ok: true,
-      message:
-        last.startsWith('Email is not switched on')
-          ? 'Email is not switched on yet, so nothing was sent. Copy each link and send it yourself.'
-          : `Invitation sent to ${committee.length - failed} reviewer${committee.length - failed === 1 ? '' : 's'}.` +
-            (failed ? ` ${failed} could not be sent.` : ''),
-    };
+    const message =
+      `Invitation sent to ${sent} reviewer${sent === 1 ? '' : 's'}.` +
+      (failed ? ` ${failed} could not be sent. See the email log.` : '');
+    return sent > 0 ? { ok: true, message } : { error: message };
   } catch (err) {
     recordError('reviewer.sendInvitation', err);
     return { error: err instanceof Error ? err.message : 'Could not send the invitation.' };

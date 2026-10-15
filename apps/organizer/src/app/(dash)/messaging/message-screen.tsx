@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
+import { db } from '@/lib/firestore';
 import { AUDIENCES, listCampaigns, resolveAudience, type AudienceId } from '@/lib/messaging';
+import { recentSendJobs } from '@/lib/send-jobs';
 import { Banner, Email, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
 import { MessageForm } from './message-form';
 
@@ -31,9 +33,10 @@ export async function MessageScreen({
   const { segment: raw } = await searchParams;
 
   const segment = audience.segments.some((s) => s.id === raw) ? raw! : 'all';
-  const [{ recipients, withoutEmail }, campaigns] = await Promise.all([
+  const [{ recipients, withoutEmail }, campaigns, jobs] = await Promise.all([
     resolveAudience(audienceId, segment),
     listCampaigns(10),
+    recentSendJobs(db(), 'message', 1, audienceId).catch(() => []),
   ]);
 
   const active = audience.segments.find((s) => s.id === segment)!;
@@ -110,6 +113,7 @@ export async function MessageScreen({
           withoutEmail={withoutEmail}
           needsPassphrase={requirePassphrase()}
           emailReady={emailEnabled()}
+          lastJob={jobs[0] ?? null}
         />
       </Panel>
 

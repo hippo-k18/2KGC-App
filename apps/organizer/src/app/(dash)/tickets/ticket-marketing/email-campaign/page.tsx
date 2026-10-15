@@ -1,8 +1,10 @@
 import Link from 'next/link';
-import { emailEnabled } from '@kgc/scripts/src/lib/email';
+import { emailEnabled, sendRatePerSecond } from '@kgc/scripts/src/lib/email';
 import { requireOrganizer, requirePassphrase } from '@/lib/auth';
 import { audienceFor, listContacts, summariseContacts } from '@/lib/campaigns';
+import { db } from '@/lib/firestore';
 import { listCampaigns } from '@/lib/messaging';
+import { recentSendJobs } from '@/lib/send-jobs';
 import { stampOfInstant } from '@/lib/time';
 import {
   Banner,
@@ -74,7 +76,11 @@ export default async function EmailCampaignPage({
   await requireOrganizer();
   const { list: raw } = await searchParams;
 
-  const [contacts, campaigns] = await Promise.all([listContacts(), listCampaigns(15)]);
+  const [contacts, campaigns, jobs] = await Promise.all([
+    listContacts(),
+    listCampaigns(15),
+    recentSendJobs(db(), 'campaign', 1).catch(() => []),
+  ]);
   const summary = summariseContacts(contacts);
 
   const selected =
@@ -122,9 +128,11 @@ export default async function EmailCampaignPage({
 
       {recipients.length > 0 && (
         <Banner kind="warning">
-          <strong>A campaign cannot be recalled.</strong> Pressing send delivers to all{' '}
+          <strong>A campaign cannot be recalled.</strong> Pressing send starts delivery to all{' '}
           {recipients.length} {recipients.length === 1 ? 'address' : 'addresses'} listed below
-          immediately. Read the list before you send.
+          right away. It runs in the background and takes about{' '}
+          {Math.max(1, Math.ceil(recipients.length / sendRatePerSecond() / 60))} min. Read the list
+          before you send.
         </Banner>
       )}
 
@@ -156,6 +164,7 @@ export default async function EmailCampaignPage({
           suppressed={suppressed}
           needsPassphrase={requirePassphrase()}
           emailReady={emailEnabled()}
+          lastJob={jobs[0] ?? null}
         />
       </Panel>
 

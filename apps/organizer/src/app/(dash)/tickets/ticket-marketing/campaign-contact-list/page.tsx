@@ -204,7 +204,11 @@ export default async function CampaignContactListPage({
               {c.lists.join(', ') || <span className="muted">none</span>}
             </span>,
 
-            c.bouncedAt ? (
+            c.complainedAt ? (
+              <Tag key="s" color="red" small>
+                marked as spam
+              </Tag>
+            ) : c.bouncedAt ? (
               <Tag key="s" color="red" small>
                 bounced
               </Tag>

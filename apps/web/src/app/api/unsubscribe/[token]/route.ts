@@ -1,5 +1,6 @@
 import { readUnsubscribeToken } from '@/lib/unsubscribe-token';
 import { unsubscribeContact } from '@/lib/unsubscribe';
+import { oneClickStatus } from '@/lib/unsubscribe-outcome';
 
 /**
  * `POST /api/unsubscribe/{token}` — RFC 8058 one-click unsubscribe.
@@ -46,18 +47,20 @@ export async function POST(
    */
   if (!payload) return new Response(null, { status: 404 });
 
+  /*
+   * A contact that no longer exists comes back as `gone` and answers 204: it is
+   * on no audience. A write that failed answers 503 (T258 #11). It used to
+   * answer 204 too, and the reader's mail client told them they were
+   * unsubscribed while they stayed on every list.
+   */
+  let result: Awaited<ReturnType<typeof unsubscribeContact>> | 'error';
   try {
-    await unsubscribeContact(payload.cid);
+    result = await unsubscribeContact(payload.cid);
   } catch (err) {
-    /*
-     * The contact is gone, so it is on no audience and the reader's intent is
-     * already satisfied. Answering 200 is correct and also practical: a non-2xx
-     * makes some clients re-offer the button, and a reader who presses
-     * unsubscribe twice with no effect reaches for the spam button instead.
-     */
     console.error('[unsubscribe] one-click POST could not record the unsubscribe', err);
+    result = 'error';
   }
 
   // RFC 8058 asks for a 2xx and defines no body.
-  return new Response(null, { status: 204 });
+  return new Response(null, { status: oneClickStatus(result) });
 }

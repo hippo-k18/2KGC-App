@@ -11,6 +11,7 @@ import {
   approveSubmission,
   rejectSubmission,
   revokePortalLinks,
+  GROUP_RESEND_GUARD_MS,
   sendPortalLink,
 } from '@/lib/speaker-portal';
 import { fanOutSpeakerRename, summariseFanOut } from '@/lib/denormalise';
@@ -377,22 +378,50 @@ export async function sendSpeakerLinkAction(
       };
     }
 
+    /*
+     * A group send mails tens of people, so it is confirmed with the group's
+     * size typed in, like every other bulk send (T258 #14).
+     */
+    const confirm = String(formData.get('confirmCount') ?? '').trim();
+    if (Number(confirm) !== audience.length) {
+      return {
+        error: `Type ${audience.length} in the confirm box to send to this group. That is how many speakers will be emailed.`,
+      };
+    }
+
     let sent = 0;
     let failed = 0;
+    let recent = 0;
     for (const s of audience) {
-      const result = await sendPortalLink({ speakerId: s.id, note, actor });
-      if (result.ok) sent += 1;
+      const result = await sendPortalLink({
+        speakerId: s.id,
+        note,
+        actor,
+        skipIfSentWithinMs: GROUP_RESEND_GUARD_MS,
+      });
+      if (result.outcome === 'sent') sent += 1;
+      else if (result.outcome === 'recent') recent += 1;
       else failed += 1;
     }
 
+    await appendAudit({
+      actor,
+      action: 'speaker.portalSendGroup',
+      targetPath: COLLECTIONS.speakers,
+      targetId: target,
+      before: {},
+      after: { group: target, size: audience.length, sent, failed, recent },
+    });
+
     revalidatePath(ROUTES.speakerManager);
-    return {
-      ok: true,
-      message:
-        `Sent to ${sent} ${sent === 1 ? 'speaker' : 'speakers'}.` +
-        (noAddress ? ` ${noAddress} skipped with no address on file.` : '') +
-        (failed ? ` ${failed} failed.` : ''),
-    };
+    const summary =
+      `Sent to ${sent} ${sent === 1 ? 'speaker' : 'speakers'}.` +
+      (recent
+        ? ` ${recent} skipped: they were sent a link in the last day. Send to them one at a time if you need to.`
+        : '') +
+      (noAddress ? ` ${noAddress} skipped with no address on file.` : '') +
+      (failed ? ` ${failed} could not be sent. See the email log.` : '');
+    return sent > 0 || failed === 0 ? { ok: true, message: summary } : { error: summary };
   } catch (err) {
     recordError('speaker.portalSend', err);
     return { error: err instanceof Error ? err.message : 'Could not send the link.' };

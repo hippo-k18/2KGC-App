@@ -379,6 +379,13 @@ export default async function AttendeesPage({
                     </Tag>
                   </div>
                 )}
+                {a.emailProblem && (
+                  <div>
+                    <Tag color="red" small>
+                      {a.emailProblem === 'spam' ? 'marked email as spam' : 'email bounced'}
+                    </Tag>
+                  </div>
+                )}
                 {a.registrationStatus && a.registrationStatus !== 'active' && (
                   <div>
                     <Tag color="red" small>
