@@ -14,6 +14,7 @@ import { leadLinkState } from '@kgc/shared';
 import { Banner, Email, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, ProgressBar, SearchInput, StatTiles, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { setExhibitorStatusAction } from './actions';
 import { ExhibitorForm } from './exhibitor-form';
+import { ConfirmButton } from '../../../form';
 import { RevokeLeadLinkForm, SendLeadLinkForm, type LeadLinkTarget } from './lead-forms';
 
 export const dynamic = 'force-dynamic';
@@ -287,27 +288,28 @@ export default async function ExhibitorManagerPage({
                       a GET that changes state is one prefetch away from taking a
                       paying company off the floor plan.
                     */}
-                    <form action={setExhibitorStatusAction}>
-                      <input type="hidden" name="id" value={e.id} />
-                      <input
-                        type="hidden"
-                        name="status"
-                        value={e.status === 'cancelled' ? 'provisional' : 'cancelled'}
-                      />
-                      <button
-                        type="submit"
-                        style={{
-                          background: 'none',
-                          border: 0,
-                          color: e.status === 'cancelled' ? 'var(--link)' : 'var(--danger, #b3352c)',
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          padding: 0,
-                        }}
+                    {e.status === 'cancelled' ? (
+                      <form action={setExhibitorStatusAction}>
+                        <input type="hidden" name="id" value={e.id} />
+                        <input type="hidden" name="status" value="provisional" />
+                        <button
+                          type="submit"
+                          style={{ background: 'none', border: 0, color: 'var(--link)', cursor: 'pointer', fontSize: 12, padding: 0 }}
+                        >
+                          Reinstate
+                        </button>
+                      </form>
+                    ) : (
+                      /* Takes a paying company off the floor plan, so it asks first (T262). */
+                      <ConfirmButton
+                        action={setExhibitorStatusAction}
+                        label="Cancel"
+                        confirmLabel="Cancel exhibitor"
+                        hidden={{ id: e.id, status: 'cancelled' }}
                       >
-                        {e.status === 'cancelled' ? 'Reinstate' : 'Cancel'}
-                      </button>
-                    </form>
+                        {e.name} is marked cancelled. Reinstate brings them back as {e.status}.
+                      </ConfirmButton>
+                    )}
                   </div>,
                 ])}
               />

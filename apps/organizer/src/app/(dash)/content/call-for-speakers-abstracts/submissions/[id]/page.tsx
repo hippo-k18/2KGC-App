@@ -433,6 +433,13 @@ export default async function SubmissionDetailPage({
               decided={Boolean(submission.decision)}
               rolling={rolling}
               authorEmail={submission.author?.email}
+              accepted={
+                rolling &&
+                (submission.status === 'accepted' ||
+                  ((Boolean(cfp?.acceptance?.e2SentAtMs) || cfp?.closeDecision?.version === 'accepted') &&
+                    !cfp?.acceptance?.withdrawnAtMs))
+              }
+              told={Boolean(cfp?.acceptance?.e2SentAtMs) || cfp?.closeDecision?.version === 'accepted'}
             />
             {submission.decision && (
               <div style={{ marginTop: 16 }}>
@@ -521,9 +528,14 @@ function RollingPanel({
             <dd style={{ margin: 0 }}>
               {a.e2SentAtMs
                 ? `Sent ${day(a.e2SentAtMs)}. Details due ${day(a.detailsDueAtMs)}.`
-                : a.e2HeldForE4
-                  ? 'Held: accepted after the close, so it goes with the decision send.'
-                  : 'Not sent.'}
+                : a.e2Owed
+                  ? 'Did not go. It is retried every hour until it does.'
+                  : a.e2HeldForE4
+                    ? 'Held: accepted after the close, so it goes with the decision send.'
+                    : 'Not sent.'}
+              {a.withdrawnAtMs
+                ? ` Acceptance withdrawn ${day(a.withdrawnAtMs)}. They do not get the “not accepted” email.`
+                : ''}
             </dd>
             <dt className="muted">Nudge</dt>
             <dd style={{ margin: 0 }}>

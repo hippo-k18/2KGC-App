@@ -121,7 +121,32 @@ function orderedIds(form: FormDataLike, name: string): string[] {
  * makes the organizer guess, which is exactly what `form.tsx` added
  * `fieldErrors` to stop.
  */
-export function parseSessionForm(form: FormDataLike): ParsedSession {
+/**
+ * The sentence for a session dated outside the event, or null (T262).
+ *
+ * `days` is the event's first and last day as `YYYY-MM-DD` in its own zone
+ * (Content > Basics, 3 to 7 May 2027 by default). Wall-clock strings compare
+ * as text, so the day is the first ten characters and no zone is involved.
+ */
+export function outsideEventDays(
+  startsAtLocal: string,
+  endsAtLocal: string,
+  days: { startDate: string; endDate: string } | undefined,
+): string | null {
+  if (!days?.startDate || !days.endDate) return null;
+  const first = startsAtLocal.slice(0, 10);
+  const last = endsAtLocal.slice(0, 10);
+  if (first < days.startDate || last > days.endDate) {
+    return `Sessions run between ${days.startDate} and ${days.endDate}. Check the date.`;
+  }
+  return null;
+}
+
+export function parseSessionForm(
+  form: FormDataLike,
+  /** The event's days, when known. A time outside them is refused. */
+  days?: { startDate: string; endDate: string },
+): ParsedSession {
   const fieldErrors: Record<string, string> = {};
 
   const title = text(form, 'title');
@@ -140,6 +165,10 @@ export function parseSessionForm(form: FormDataLike): ParsedSession {
   // mean deriving it here, which is the one thing this file must not do.
   if (!fieldErrors.startsAtLocal && !fieldErrors.endsAtLocal && endsAtLocal <= startsAtLocal) {
     fieldErrors.endsAtLocal = 'A session has to end after it starts.';
+  }
+  if (!fieldErrors.startsAtLocal && !fieldErrors.endsAtLocal) {
+    const outside = outsideEventDays(startsAtLocal, endsAtLocal, days);
+    if (outside) fieldErrors.startsAtLocal = outside;
   }
 
   const status = text(form, 'status') as PublishStatus;

@@ -25,7 +25,7 @@ import {
 } from './attendance';
 import { listOrders, money, type OrderRow } from './commerce';
 import { inCategory } from './attendee-categories-core';
-import { listAttendees, listSessions, listSpeakers, listSponsors } from './data';
+import { listAttendeeTickets, listAttendees, listSessions, listSpeakers, listSponsors } from './data';
 import type { AttendeeRow, SessionRow, SpeakerRow, SponsorRow } from './data';
 
 /**
@@ -118,7 +118,8 @@ export const EXPORTS: ExportDef[] = [
     'Attendee list',
     'The everyday one: badge printing, catering numbers, a delegate list.',
     'Name, email, title, company, ticket type, category, and whether they have the app.',
-    async ({ category }) => (await listAttendees()).filter((a) => inCategory(a, category)),
+    // One row per ticket (T262): two tickets on one address are two badges.
+    async ({ category }) => (await listAttendeeTickets()).filter((a) => inCategory(a, category)),
     [
       { header: 'Name', value: (a) => a.name },
       { header: 'Email', value: (a) => a.email },
@@ -139,7 +140,8 @@ export const EXPORTS: ExportDef[] = [
     'The one you send to a supplier. Deliberately the narrowest export here.',
     'Name, company, ticket and badge category. No email, no ticket price, nothing personal.',
     async ({ category }) => {
-      const all = await listAttendees();
+      // One row per ticket (T262): two tickets on one address are two lunches.
+      const all = await listAttendeeTickets();
       // Refunded tickets are excluded: this list becomes a headcount somebody
       // is invoiced for, and a cancelled registration is not a lunch.
       return all.filter((a) => a.registrationStatus !== 'cancelled' && inCategory(a, category));

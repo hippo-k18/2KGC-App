@@ -23,6 +23,7 @@ import {
   closeDecisionPlan,
   dateIn,
   dayAfter,
+  e2RetriesDue,
   formatDay,
   holdE2ForClose,
   isIsoDate,
@@ -32,6 +33,7 @@ import {
   reviewQueue,
   sessionTypeLine,
   stillOpenRecipients,
+  isOpen,
   type CfpRow,
 } from '@kgc/scripts/src/lib/cfp-core';
 import {
@@ -109,8 +111,11 @@ async function trackNames(): Promise<Map<string, string>> {
  * are the ones every other CFA screen uses, then the fields this flow adds
  * are read off the raw documents in one more `getAll`.
  */
-export async function listCfpSubmissions(callId: string): Promise<CfpSubmission[]> {
-  const [rows, tracks] = await Promise.all([listSubmissions(callId), trackNames()]);
+export async function listCfpSubmissions(
+  callId: string,
+  opts: { strict?: boolean } = {},
+): Promise<CfpSubmission[]> {
+  const [rows, tracks] = await Promise.all([listSubmissions(callId, opts), trackNames()]);
   if (rows.length === 0) return [];
   const docs = await db().getAll(
     ...rows.map((r) => db().collection(COLLECTIONS.submissions).doc(r.id)),
@@ -137,6 +142,8 @@ function toCfp(r: SubmissionRow, s: SubmissionDoc | undefined, tracks: Map<strin
           e2SentAtMs: ms(s.acceptance.e2SentAt),
           nudgedAtMs: ms(s.acceptance.nudgedAt),
           e2HeldForE4: s.acceptance.e2HeldForE4,
+          e2Owed: s.acceptance.e2Owed,
+          withdrawnAtMs: ms(s.acceptance.withdrawnAt),
         }
       : undefined,
     detailsDueAtMs: ms(s?.acceptance?.detailsDueAt),
@@ -199,6 +206,13 @@ export const reviewDashboardUrl = () => `${dashboardOrigin()}${CFA}/review`;
 // ---------------------------------------------------------------------------
 
 export type CfpResult = { ok: true; message: string } | { ok: false; error: string };
+
+/**
+ * What happened to one acceptance's E2, so a bulk Accept can count real
+ * outcomes rather than assume every author was mailed (T258 #6).
+ */
+export type AcceptE2 = SendOutcome | 'held' | 'no-author' | 'already';
+export type AcceptResult = ({ ok: true; message: string } | { ok: false; error: string }) & { e2?: AcceptE2 };
 
 export interface CfpSettingsInput {
   closeDate: string;
@@ -334,7 +348,7 @@ export async function acceptCfp(input: {
   submissionId: string;
   actor: string;
   nowMs?: number;
-}): Promise<CfpResult> {
+}): Promise<AcceptResult> {
   const now = input.nowMs ?? Date.now();
   try {
     const subRef = db().collection(COLLECTIONS.submissions).doc(input.submissionId);
@@ -377,6 +391,7 @@ export async function acceptCfp(input: {
       const a = claim.s.acceptance!;
       return {
         ok: true,
+        e2: 'already',
         message: a.e2SentAt
           ? 'Already accepted, and the speaker already has their email.'
           : a.e2HeldForE4
@@ -402,6 +417,7 @@ export async function acceptCfp(input: {
     if (!identity?.email) {
       return {
         ok: true,
+        e2: 'no-author',
         message:
           'Accepted, but there is no author on file for this submission, so no speaker was created ' +
           'and nobody was emailed.',
@@ -439,7 +455,13 @@ export async function acceptCfp(input: {
 
     const cfp = call?.cfp ?? {};
     const tz = call?.timeZone ?? TIME_ZONE;
-    const hold = holdE2ForClose(now, cfp, tz);
+    /*
+     * Held for E4 only while E4 is still to come for this submission. One
+     * that already had its E4 (rejected and told "not accepted", then
+     * accepted after all) would never be selected again, so its E2 goes now
+     * (T258 #8).
+     */
+    const hold = holdE2ForClose(now, cfp, tz) && !before.closeDecision;
     const typeLine = sessionTypeLine(before.sessionType, before.durationMinutes);
 
     let e2: SendOutcome | 'held' = 'held';
@@ -484,6 +506,8 @@ export async function acceptCfp(input: {
           }
         : {}),
       ...(hold ? { 'acceptance.e2HeldForE4': true } : {}),
+      // A refused send is owed, and the hourly run retries it (T258 #5).
+      ...(e2 === 'failed' ? { 'acceptance.e2Owed': true } : {}),
       updatedAt: at,
     });
 
@@ -521,10 +545,13 @@ export async function acceptCfp(input: {
     if (e2 === 'sent') parts.push(`The acceptance email went to ${identity.email}.`);
     else if (e2 === 'held') parts.push('The call has closed, so their acceptance email waits for the decision send.');
     else if (e2 === 'skipped') parts.push(`Email is not switched on, so ${identity.email} was not told.`);
-    else parts.push(`The acceptance email to ${identity.email} failed. Send the link from Speaker Manager.`);
+    else parts.push(`The acceptance email to ${identity.email} did not go. It is retried every hour until it does.`);
+    if (before.closeDecision?.version === 'declined' && e2 === 'sent') {
+      parts.push('They had already been told this was not accepted, so explain the change to them.');
+    }
     if (notice === 'unset') parts.push('No onboarding address is set, so nobody else was told.');
     else if (notice !== 'sent') parts.push('The notice to onboarding did not go.');
-    return { ok: true, message: parts.join(' ') };
+    return { ok: true, e2, message: parts.join(' ') };
   } catch (err) {
     // Recorded for us, and never shown raw: a Firestore status line tells an
     // organizer nothing they can act on (T250).
@@ -568,11 +595,185 @@ async function sendE2(input: {
   });
 }
 
-/** Reject: the decision is recorded and nothing is sent. E4 tells them after the close. */
-export async function rejectCfp(input: { submissionId: string; actor: string }): Promise<CfpResult> {
+/**
+ * Send one owed E2, at most once however many runs reach it at the same time.
+ *
+ * Claimed in a transaction that moves the flag to `e2SentAt` (and the week's
+ * due date) before the send, and given back if the send does not go, the same
+ * claim-then-release every other CFP send uses. 'not-owed' means another run
+ * got there first or nothing was owed.
+ */
+async function sendOwedE2(
+  ref: FirebaseFirestore.DocumentReference,
+  r: Pick<CfpSubmission, 'id' | 'email' | 'name' | 'title' | 'sessionType' | 'durationMinutes'>,
+  call: Pick<CfpCall, 'cfp' | 'timeZone'>,
+  nowMs: number,
+  actor?: string,
+): Promise<SendOutcome | 'not-owed'> {
+  if (!r.email) return 'not-owed';
+  const at = Timestamp.fromMillis(nowMs);
+  let speakerDocId: string | undefined;
+  const mine = await db().runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).data() as SubmissionDoc | undefined;
+    const a = d?.acceptance;
+    if (d?.status !== 'accepted' || a?.e2Owed !== true || a.e2SentAt || !a.speakerId) return false;
+    speakerDocId = a.speakerId;
+    tx.update(ref, {
+      'acceptance.e2Owed': FieldValue.delete(),
+      'acceptance.e2SentAt': at,
+      'acceptance.detailsDueAt': Timestamp.fromMillis(nowMs + DETAILS_DUE_DAYS * 86_400_000),
+      updatedAt: at,
+    });
+    return true;
+  });
+  if (!mine || !speakerDocId) return 'not-owed';
+
+  const outcome = await sendE2({
+    submissionId: r.id,
+    to: r.email,
+    name: r.name ?? '',
+    title: r.title,
+    typeLine: sessionTypeLine(r.sessionType, r.durationMinutes),
+    workshop: r.sessionType === 'workshop',
+    speakerId: speakerDocId,
+    cfp: call.cfp,
+    tz: call.timeZone,
+    nowMs,
+    actor,
+  });
+  if (outcome !== 'sent') {
+    await releaseSend(ref, {
+      'acceptance.e2Owed': true,
+      'acceptance.e2SentAt': FieldValue.delete(),
+      'acceptance.detailsDueAt': FieldValue.delete(),
+    });
+    return outcome;
+  }
+  try {
+    const editRef = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerDocId);
+    const existing = (await editRef.get()).data() as SpeakerProfileEditDoc | undefined;
+    const keep = existing?.status === 'submitted' || existing?.status === 'approved';
+    await editRef.set(
+      {
+        eventId: EVENT_ID,
+        speakerId: speakerDocId,
+        status: keep ? existing!.status : 'sent',
+        linkSentAt: at,
+        linkSentTo: r.email,
+        updatedAt: at,
+        ...(existing ? {} : { createdAt: at }),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    // The mail went; the tracker line is cosmetic and must not turn it into a failure.
+    recordError('cfp.e2.tracker', err);
+  }
+  return outcome;
+}
+
+/**
+ * Reject: the decision is recorded and nothing is sent. E4 tells them after the close.
+ *
+ * ── Rejecting an acceptance is a separate, confirmed act (T262) ─────────────
+ *
+ * On the rolling review an acceptance is announced the moment it is made, and
+ * the speaker exists. A one-click "Change to rejected" used to leave the
+ * speaker in place and then mail E4's "not accepted" after the close, so an
+ * author could hear yes in November and no in February. Now it is refused
+ * unless `withdrawAccepted` is set (a tick box on the submission page; bulk
+ * Reject never sets it). When it is: the speaker goes back to unlisted unless
+ * another accepted talk holds them, the submission drops out of their
+ * self-service page, any owed or held E2 is cancelled, and, if the author had
+ * been told yes, the submission is stamped so E4 leaves it out.
+ */
+export async function rejectCfp(input: {
+  submissionId: string;
+  actor: string;
+  withdrawAccepted?: boolean;
+  nowMs?: number;
+}): Promise<CfpResult> {
+  const ref = db().collection(COLLECTIONS.submissions).doc(input.submissionId);
+  const sub = (await ref.get()).data() as SubmissionDoc | undefined;
+  if (!sub || sub.eventId !== EVENT_ID) return { ok: false, error: 'That submission does not exist.' };
+  const a = sub.acceptance;
+  const told = Boolean(a?.e2SentAt) || sub.closeDecision?.version === 'accepted';
+  // Undone and re-decided still counts: the author holds the yes (unless already withdrawn).
+  const wasAccepted = sub.status === 'accepted' || (told && !a?.withdrawnAt);
+
+  if (wasAccepted && !input.withdrawAccepted) {
+    return {
+      ok: false,
+      error: told
+        ? `“${sub.title || 'Untitled'}” was accepted and its author was emailed. To change it, open the submission and tick “Withdraw the acceptance”.`
+        : `“${sub.title || 'Untitled'}” was accepted. To change it, open the submission and tick “Withdraw the acceptance”.`,
+    };
+  }
+
   const r = await decideSubmission({ id: input.submissionId, accept: false, notify: false, actor: input.actor });
   if (!r.ok) return r;
-  return { ok: true, message: 'Rejected. Nothing was sent; the author hears with everyone else after the close.' };
+  if (!wasAccepted || !a) {
+    return { ok: true, message: 'Rejected. Nothing was sent; the author hears with everyone else after the close.' };
+  }
+
+  const at = Timestamp.fromMillis(input.nowMs ?? Date.now());
+  await ref.update({
+    'acceptance.e2HeldForE4': FieldValue.delete(),
+    'acceptance.e2Owed': FieldValue.delete(),
+    ...(told ? { 'acceptance.withdrawnAt': at, 'acceptance.withdrawnBy': input.actor } : {}),
+    updatedAt: at,
+  });
+  const unlisted = a.speakerId ? await withdrawSpeaker(a.speakerId, input.submissionId, at) : false;
+
+  await appendAudit({
+    actor: input.actor,
+    action: 'submission.cfpWithdraw',
+    targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+    targetId: input.submissionId,
+    before: { status: sub.status, told, speakerId: a.speakerId ?? null },
+    after: { status: 'rejected', speakerUnlisted: unlisted },
+  });
+
+  const parts = ['Changed to rejected.'];
+  parts.push(
+    told
+      ? 'The author was already told they were accepted, so they will not get the “not accepted” email after the close. Tell them yourself.'
+      : 'Their acceptance email had not gone, and now will not.',
+  );
+  if (a.speakerId) {
+    parts.push(
+      unlisted
+        ? 'The speaker is unlisted again.'
+        : 'The speaker stays listed, because another accepted talk or a session holds them.',
+    );
+  }
+  return { ok: true, message: parts.join(' ') };
+}
+
+/**
+ * Take a withdrawn acceptance off its speaker: out of the self-service page's
+ * list, and unlisted unless something else still puts them on the bill.
+ * Returns whether the speaker is now unlisted.
+ */
+async function withdrawSpeaker(speakerDocId: string, submissionId: string, at: Timestamp): Promise<boolean> {
+  const editRef = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerDocId);
+  const speakerRef = db().collection(COLLECTIONS.speakers).doc(speakerDocId);
+  const [edit, speaker] = await Promise.all([editRef.get(), speakerRef.get()]);
+  const others = ((edit.data() as SpeakerProfileEditDoc | undefined)?.submissionIds ?? []).filter(
+    (id) => id !== submissionId,
+  );
+  if (edit.exists) {
+    await editRef.update({ submissionIds: FieldValue.arrayRemove(submissionId), updatedAt: at });
+  }
+  if (!speaker.exists) return false;
+  const s = speaker.data() as SpeakerDoc;
+  if ((s.sessionIds ?? []).length > 0) return false;
+  if (others.length > 0) {
+    const docs = await db().getAll(...others.map((id) => db().collection(COLLECTIONS.submissions).doc(id)));
+    if (docs.some((d) => (d.data() as SubmissionDoc | undefined)?.status === 'accepted')) return false;
+  }
+  if (!s.unlisted) await speakerRef.update({ unlisted: true, updatedAt: at });
+  return true;
 }
 
 /** "Finish this pass": what arrives after now is new on the next visit. */
@@ -636,7 +837,8 @@ export async function sendCloseDecisions(input: { callId: string; actor: string;
         : 'Set the close date first. The decision email goes two weeks after it. Nothing was sent.',
     };
   }
-  const rows = await listCfpSubmissions(input.callId);
+  // Strict: a failed read must not look like "nobody to tell".
+  const rows = await listCfpSubmissions(input.callId, { strict: true });
   const plan = closeDecisionPlan(rows);
   const at = Timestamp.fromMillis(now);
   let declined = 0;
@@ -650,7 +852,8 @@ export async function sendCloseDecisions(input: { callId: string; actor: string;
     // Claimed before it is sent, so a second press or a second tab skips it.
     const mine = await claimSend(
       ref,
-      (d) => d?.status === 'rejected' && !d?.closeDecision,
+      // Never to an author already told yes (T262), re-checked at the claim.
+      (d) => d?.status === 'rejected' && !d?.closeDecision && !d?.acceptance?.e2SentAt && !d?.acceptance?.withdrawnAt,
       {
         closeDecision: { version: 'declined', ...(r.declineReason ? { reason: r.declineReason } : {}), sentAt: at, by: input.actor },
         updatedAt: at,
@@ -693,36 +896,25 @@ export async function sendCloseDecisions(input: { callId: string; actor: string;
       failed++;
       continue;
     }
-    const sub = (await db().collection(COLLECTIONS.submissions).doc(r.id).get()).data() as SubmissionDoc;
-    const speakerDocId = sub.acceptance?.speakerId;
-    // E2 follows, as E4's accepted version promises, and the week starts now.
-    const e2 = speakerDocId
-      ? await sendE2({
-          submissionId: r.id,
-          to: r.email,
-          name: r.name ?? '',
-          title: r.title,
-          typeLine: sessionTypeLine(r.sessionType, r.durationMinutes),
-          workshop: r.sessionType === 'workshop',
-          speakerId: speakerDocId,
-          cfp: call.cfp,
-          tz: call.timeZone,
-          nowMs: now,
-          actor: input.actor,
-        })
-      : 'failed';
-    await ref.update({
-      ...(e2 === 'sent'
-        ? {
-            'acceptance.e2SentAt': at,
-            'acceptance.detailsDueAt': Timestamp.fromMillis(now + DETAILS_DUE_DAYS * 86_400_000),
-            'acceptance.e2HeldForE4': FieldValue.delete(),
-          }
-        : {}),
-      updatedAt: at,
-    });
+    /*
+     * E2 follows, as E4's accepted version promises, and the week starts now.
+     * It becomes *owed* first, in its own state, so that if it does not go it
+     * is retried by the hourly run and by the next press, rather than being
+     * stranded behind an E4 stamp nothing selects again (T258 #5).
+     */
+    await ref.update({ 'acceptance.e2HeldForE4': FieldValue.delete(), 'acceptance.e2Owed': true, updatedAt: at });
+    const e2 = await sendOwedE2(ref, r, call, now, input.actor);
     if (e2 !== 'sent') e2Failed++;
     accepted++;
+  }
+
+  // Anything owed from an earlier press, or from an accept whose E2 failed.
+  let e2Retried = 0;
+  for (const r of e2RetriesDue(rows)) {
+    if (!r.email || plan.accepted.some((p) => p.id === r.id)) continue;
+    const e2 = await sendOwedE2(db().collection(COLLECTIONS.submissions).doc(r.id), r, call, now, input.actor);
+    if (e2 === 'sent') e2Retried++;
+    else if (e2 !== 'not-owed') e2Failed++;
   }
 
   await appendAudit({
@@ -731,7 +923,7 @@ export async function sendCloseDecisions(input: { callId: string; actor: string;
     targetPath: `${COLLECTIONS.calls}/${input.callId}`,
     targetId: input.callId,
     before: {},
-    after: { declined, accepted, failed, undecided: plan.undecided.length },
+    after: { declined, accepted, failed, e2Failed, e2Retried, undecided: plan.undecided.length },
   });
 
   return {
@@ -739,8 +931,9 @@ export async function sendCloseDecisions(input: { callId: string; actor: string;
     message:
       `Sent ${declined} “not accepted” and ${accepted} “accepted” email${declined + accepted === 1 ? '' : 's'}.` +
       (failed ? ` ${failed} did not go; they stay on the list and pressing Send again retries only those.` : '') +
+      (e2Retried ? ` ${e2Retried} acceptance email${e2Retried === 1 ? '' : 's'} that had failed before went this time.` : '') +
       (e2Failed
-        ? ` ${e2Failed} acceptance email${e2Failed === 1 ? '' : 's'} with the details link did not follow. Send ${e2Failed === 1 ? 'that link' : 'those links'} from Speaker Manager.`
+        ? ` ${e2Failed} acceptance email${e2Failed === 1 ? '' : 's'} with the details link did not go. ${e2Failed === 1 ? 'It is' : 'They are'} retried every hour until ${e2Failed === 1 ? 'it goes' : 'they go'}.`
         : '') +
       (plan.undecided.length ? ` ${plan.undecided.length} still undecided were left alone.` : ''),
   };
@@ -798,6 +991,8 @@ export async function sendStillOpen(input: { callId: string; actor: string; nowM
 export interface ScheduleReport {
   calls: number;
   nudged: string[];
+  /** Owed E2s that went on this run (T258 #5). */
+  e2Retried: string[];
   reminded: string[];
   failures: string[];
 }
@@ -808,7 +1003,7 @@ export interface ScheduleReport {
  * `nowMs` is a parameter so tests can move the clock.
  */
 export async function runCfpSchedule(nowMs: number = Date.now()): Promise<ScheduleReport> {
-  const report: ScheduleReport = { calls: 0, nudged: [], reminded: [], failures: [] };
+  const report: ScheduleReport = { calls: 0, nudged: [], e2Retried: [], reminded: [], failures: [] };
   const snap = await db().collection(COLLECTIONS.calls).where('eventId', '==', EVENT_ID).get();
 
   for (const doc of snap.docs) {
@@ -816,7 +1011,25 @@ export async function runCfpSchedule(nowMs: number = Date.now()): Promise<Schedu
     if (!call.cfp || call.status !== 'published') continue;
     report.calls++;
     const tz = call.timeZone ?? TIME_ZONE;
-    const rows = await listCfpSubmissions(doc.id);
+    /*
+     * Strict: a failed read is a failure in the report, never "0 open" in
+     * François's inbox (T258 #17). The other calls still run.
+     */
+    let rows: CfpSubmission[];
+    try {
+      rows = await listCfpSubmissions(doc.id, { strict: true });
+    } catch (err) {
+      recordError('cfp.schedule.list', err);
+      report.failures.push(`list ${doc.id}: could not read the submissions`);
+      continue;
+    }
+
+    for (const r of e2RetriesDue(rows)) {
+      const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
+      const outcome = await sendOwedE2(ref, r, { cfp: call.cfp, timeZone: tz }, nowMs);
+      if (outcome === 'sent') report.e2Retried.push(r.id);
+      else if (outcome !== 'not-owed') report.failures.push(`E2 ${r.id}: ${outcome}`);
+    }
 
     for (const r of nudgesDue(rows, nowMs)) {
       if (!r.email || r.acceptance?.e2SentAtMs === undefined) continue;
@@ -851,12 +1064,19 @@ export async function runCfpSchedule(nowMs: number = Date.now()): Promise<Schedu
 
     const to = call.cfp.reviewerReminderEmail;
     const week = isoWeek(nowMs, tz);
+    // Only while the call is open, or closed with work still waiting (T258 #17).
+    const reminderWindow = {
+      opensAtMs: ms(call.opensAt),
+      closesAtMs: ms(call.closesAt),
+      cfp: call.cfp,
+      openCount: rows.filter(isOpen).length,
+    };
     if (
       to &&
-      reminderDue(nowMs, tz, call.cfp.lastReminderWeek) &&
+      reminderDue(nowMs, tz, call.cfp.lastReminderWeek, reminderWindow) &&
       (await claimSend(
         doc.ref,
-        (d) => reminderDue(nowMs, tz, (d as CallDoc | undefined)?.cfp?.lastReminderWeek),
+        (d) => reminderDue(nowMs, tz, (d as CallDoc | undefined)?.cfp?.lastReminderWeek, reminderWindow),
         { 'cfp.lastReminderWeek': week },
       ))
     ) {
@@ -906,6 +1126,8 @@ export interface CfpDetail {
     detailsDueAtMs?: number;
     nudgedAtMs?: number;
     e2HeldForE4?: boolean;
+    e2Owed?: boolean;
+    withdrawnAtMs?: number;
   };
   details?: { title?: string; description?: string; outline?: string; install?: string; receivedAtMs?: number };
   closeDecision?: { version: 'accepted' | 'declined'; reason?: string; sentAtMs?: number };
@@ -927,6 +1149,8 @@ export async function getCfpDetail(submissionId: string): Promise<CfpDetail | nu
           detailsDueAtMs: ms(s.acceptance.detailsDueAt),
           nudgedAtMs: ms(s.acceptance.nudgedAt),
           e2HeldForE4: s.acceptance.e2HeldForE4,
+          e2Owed: s.acceptance.e2Owed,
+          withdrawnAtMs: ms(s.acceptance.withdrawnAt),
         }
       : undefined,
     details: s.details

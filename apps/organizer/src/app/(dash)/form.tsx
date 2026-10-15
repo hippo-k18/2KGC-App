@@ -430,6 +430,12 @@ export interface MoneyFieldProps extends ControlExtras {
   currencyName?: string;
   currencyDefault?: string;
   currencies?: string[];
+  /**
+   * The words before the echoed figure. "Buyers are charged" unless the
+   * figure is not what buyers pay: a tier whose price phases set the price
+   * (T262) passes its own.
+   */
+  previewLabel?: string;
 }
 
 /**
@@ -464,6 +470,7 @@ export function MoneyField({
   currencyName,
   currencyDefault = 'usd',
   currencies = ['usd', 'eur', 'gbp'],
+  previewLabel = 'Buyers are charged',
 }: MoneyFieldProps) {
   const fieldId = useFieldId(id, name);
   const [amount, setAmount] = useState(defaultValue);
@@ -533,7 +540,7 @@ export function MoneyField({
         <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
           {valid ? (
             <>
-              Buyers are charged{' '}
+              {previewLabel}{' '}
               <strong>
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',

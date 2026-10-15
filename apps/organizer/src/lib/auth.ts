@@ -1,11 +1,12 @@
 import 'server-only';
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { checkCode, issueCode, lookupAllowed } from './access-code';
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { TeamRole } from '@kgc/shared';
+import { COLLECTIONS, type TeamRole } from '@kgc/shared';
+import { db } from './firestore';
 import { findMember, stampSignIn } from './team';
 import { SESSION_TTL_MS, canExport, canOpen, canRunAction, homeFor, sessionTtlMs } from './team-core';
 
@@ -46,7 +47,10 @@ const COOKIE = 'kgc_console_session';
 export interface ConsoleSession {
   email: string;
   expiresAt: number;
-  /** Team members only: `TeamMemberDoc.sessionEpoch` as it stood at sign-in. */
+  /**
+   * `TeamMemberDoc.sessionEpoch` for a member, or the owner's `ownerSessions`
+   * epoch for an owner, as it stood at sign-in.
+   */
   epoch?: string;
 }
 
@@ -127,7 +131,11 @@ function decode(token: string | undefined): ConsoleSession | null {
 const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess | null> => {
   const session = decode(token);
   if (!session) return null;
-  if (isAllowed(session.email)) return { email: session.email, roles: ['owner'] };
+  if (isAllowed(session.email)) {
+    // Owners carry an epoch too (T263): signing out rotates it and ends every copy of the cookie.
+    if (!session.epoch || session.epoch !== (await ownerEpoch(session.email))) return null;
+    return { email: session.email, roles: ['owner'] };
+  }
 
   const member = await findMember(session.email);
   if (!member || member.status !== 'active' || member.roles.length === 0) return null;
@@ -135,6 +143,21 @@ const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess
   if (!session.epoch || session.epoch !== member.sessionEpoch) return null;
   return { email: member.email, roles: member.roles };
 });
+
+const ownerRef = (email: string) =>
+  db()
+    .collection(COLLECTIONS.ownerSessions)
+    .doc(createHash('sha256').update(email.trim().toLowerCase()).digest('hex'));
+
+/** The owner's current session epoch, made on first use. */
+async function ownerEpoch(email: string, mint = false): Promise<string | undefined> {
+  const ref = ownerRef(email);
+  const current = (await ref.get()).data()?.epoch as string | undefined;
+  if (current || !mint) return current;
+  const epoch = randomBytes(16).toString('hex');
+  await ref.set({ epoch, updatedAt: new Date() }, { merge: true });
+  return epoch;
+}
 
 const NOT_RECOGNISED = 'Email not recognised. Ask a KGC organizer to add you.';
 const TOO_MANY = 'Too many codes asked for. Wait a while, then try again.';
@@ -197,7 +220,7 @@ export async function signInWithCode(
     return { ok: false, error: 'That code is not right, or it has expired.' };
   }
   if (isAllowed(email)) {
-    await startSession({ email, expiresAt: Date.now() + SESSION_TTL_MS });
+    await startSession({ email, expiresAt: Date.now() + SESSION_TTL_MS, epoch: await ownerEpoch(email, true) });
     return { ok: true, home: homeFor(['owner']) };
   }
   const member = (await findMember(email))!;
@@ -221,6 +244,19 @@ export function requirePassphrase(): boolean {
 
 export async function signOut(): Promise<void> {
   const jar = await cookies();
+  const session = decode(jar.get(COOKIE)?.value);
+  /*
+   * An owner's sign-out rotates their epoch, so a copy of this cookie (a
+   * shared laptop, a synced browser) stops working too (T263). It signs the
+   * owner out everywhere, which is the point for a lost laptop.
+   */
+  if (session && isAllowed(session.email)) {
+    try {
+      await ownerRef(session.email).set({ epoch: randomBytes(16).toString('hex'), updatedAt: new Date() }, { merge: true });
+    } catch (err) {
+      console.error('[auth] could not rotate the owner epoch', err);
+    }
+  }
   jar.delete(COOKIE);
 }
 

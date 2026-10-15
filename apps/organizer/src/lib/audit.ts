@@ -395,6 +395,7 @@ export interface AuditEntry {
     | 'submission.decide'
     /** The call-for-papers flow (T249). */
     | 'submission.cfpAccept'
+    | 'submission.cfpWithdraw'
     | 'submission.declineReason'
     | 'call.cfpSettings'
     | 'call.cfpPass'

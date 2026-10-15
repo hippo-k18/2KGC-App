@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { decideMany, decideSubmission, getSubmission, undoDecision } from '@/lib/submissions';
-import { acceptCfp, getCfpCall, rejectCfp } from '@/lib/cfp';
+import { acceptCfp, getCfpCall, rejectCfp, type AcceptE2, type AcceptResult } from '@/lib/cfp';
 import { excludeReviewer, liftExclusion } from '@/lib/reviewers';
 import { recordError } from '@/lib/errors';
 import type { FormState } from '../../../form';
@@ -52,7 +52,11 @@ export async function decideAction(_prev: FormState, formData: FormData): Promis
       return { error: 'This call has no waiting list. Accept it, reject it, or leave it for next week.' };
     }
     if (rolling) {
-      const r = verdict === 'accept' ? await acceptCfp({ submissionId: id, actor }) : await rejectCfp({ submissionId: id, actor });
+      const r =
+        verdict === 'accept'
+          ? await acceptCfp({ submissionId: id, actor })
+          : // Changing an acceptance needs the tick box on the page (T262).
+            await rejectCfp({ submissionId: id, actor, withdrawAccepted: formData.get('withdraw') === 'on' });
       if (!r.ok) return { error: r.error };
       revalidate(id);
       return { ok: true, message: r.message };
@@ -138,21 +142,37 @@ export async function bulkDecideAction(_prev: FormState, formData: FormData): Pr
       return { error: 'This call has no waiting list. Accept or reject the ticked submissions, or leave them.' };
     }
     if (rolling) {
+      const unique = [...new Set(ids)].slice(0, 200);
+      /*
+       * On the rolling review Accept emails every author at once, whatever
+       * any box says (T262). The bar asks first, "N authors will be
+       * emailed", and posts the N it showed; a different count means the
+       * ticks changed since, and nothing is sent.
+       */
+      if (verdict === 'accept' && Number(formData.get('confirmCount')) !== unique.length) {
+        return {
+          error: `Confirm first: accepting ${unique.length} submission${unique.length === 1 ? '' : 's'} emails ${unique.length === 1 ? 'its author' : 'each author'}. Nothing was changed.`,
+        };
+      }
       let done = 0;
       const refused: string[] = [];
-      for (const submissionId of [...new Set(ids)].slice(0, 200)) {
+      const e2: Partial<Record<AcceptE2, number>> = {};
+      for (const submissionId of unique) {
         const r =
           verdict === 'accept' ? await acceptCfp({ submissionId, actor }) : await rejectCfp({ submissionId, actor });
         if (r.ok) done++;
         else refused.push(r.error);
+        const kind = (r as AcceptResult).e2;
+        if (kind) e2[kind] = (e2[kind] ?? 0) + 1;
       }
       revalidatePath(`${CFA_BASE}/submissions`);
       revalidatePath(CFA_BASE);
       if (done === 0) return { error: `Nothing was changed. ${refused[0] ?? ''}` };
+      const head = `${done} submission${done === 1 ? '' : 's'} ${verdict === 'accept' ? 'accepted.' : 'rejected; nothing was sent.'}`;
       return {
         ok: true,
         message:
-          `${done} submission${done === 1 ? '' : 's'} ${verdict === 'accept' ? 'accepted; each speaker with an address on file was emailed their link' : 'rejected; nothing was sent'}.` +
+          [head, ...(verdict === 'accept' ? acceptOutcomes(e2) : [])].join(' ') +
           (refused.length ? ` ${refused.length} left unchanged: ${refused[0]}` : ''),
       };
     }
@@ -206,6 +226,19 @@ export async function liftExclusionAction(formData: FormData): Promise<void> {
   if (!result.ok) recordError('reviewer.liftExclusion', new Error(result.error));
   revalidate(submissionId);
   revalidatePath(`${CFA_BASE}/reviewers`);
+}
+
+/** The bulk Accept's real outcomes, one sentence per kind that happened (T258 #6). */
+function acceptOutcomes(n: Partial<Record<AcceptE2, number>>): string[] {
+  const k = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
+  const out: string[] = [];
+  if (n.sent) out.push(`${k(n.sent, 'author was', 'authors were')} emailed their acceptance.`);
+  if (n.held) out.push(`${k(n.held, 'acceptance email waits', 'acceptance emails wait')} for the decision send after the close.`);
+  if (n.failed) out.push(`${k(n.failed, 'acceptance email', 'acceptance emails')} did not go and ${n.failed === 1 ? 'is' : 'are'} retried every hour.`);
+  if (n.skipped) out.push(`Email is not switched on, so ${k(n.skipped, 'author was', 'authors were')} not told.`);
+  if (n['no-author']) out.push(`${k(n['no-author'], 'has', 'have')} no author on file, so nobody was emailed.`);
+  if (n.already) out.push(`${k(n.already, 'was', 'were')} already accepted and not emailed again.`);
+  return out;
 }
 
 /** Whether a submission's call runs Min's rolling review. */

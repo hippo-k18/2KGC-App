@@ -103,8 +103,8 @@ export default async function DiscountCodesPage() {
           <>
             <strong>Codes are kept in Stripe</strong>
             <p>
-              A code created here works at checkout right away. The list shows every code on the
-              Stripe account.
+              A code created here works at checkout right away. The list shows the codes made here
+              for this event.
             </p>
           </>
         }
@@ -203,8 +203,7 @@ export default async function DiscountCodesPage() {
           empty={<NotInputted what="discount codes" compact />}
         />
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          This lists every code on the Stripe account, not only this event&rsquo;s. Codes can be
-          turned off but not deleted.
+          Only codes made here for this event are listed. Codes can be turned off but not deleted.
         </p>
       </Panel>
     </>

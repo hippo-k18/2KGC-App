@@ -2240,6 +2240,8 @@ export interface ExhibitorDoc extends BaseDoc {
   passesAllocated?: number;
   passesUsed?: number;
   status: "confirmed" | "provisional" | "cancelled";
+  /** Set while cancelled: what Reinstate puts back (T262). */
+  statusBeforeCancel?: "confirmed" | "provisional";
 
   /**
    * Lead capture: the state of the capability link this exhibitor's booth staff
@@ -3345,6 +3347,11 @@ export interface SubmissionDoc extends BaseDoc {
   declineReason?: string;
   /** E6, the mid-point note. Set once, by the one manual send. */
   stillOpenSentAt?: Timestamp;
+  /**
+   * E1, the acknowledgement. Claimed in a transaction before it is sent, so a
+   * double press of Submit mails it once (T258 #17).
+   */
+  e1SentAt?: Timestamp;
 
   /**
    * Lower-case hex sha256 of the nonce inside the submitter's capability link.
@@ -3411,8 +3418,22 @@ export interface SubmissionAcceptance {
   detailsDueAt?: Timestamp;
   /** True while E2 waits for E4. Cleared when E4 sends it. */
   e2HeldForE4?: boolean;
+  /**
+   * True while E2 is owed: it was due (on accept, or right after E4's accepted
+   * version) and the send failed. Its own state rather than a missing
+   * `e2SentAt`, because E4 is already stamped by then and nothing else would
+   * ever select it again (T258 #5). The hourly run and the E4 button retry it.
+   */
+  e2Owed?: boolean;
   /** E3, the nudge. Sent at most once. */
   nudgedAt?: Timestamp;
+  /**
+   * Set when an acceptance the author was already told about is changed to a
+   * rejection (T262). Such a submission is kept out of E4's "not accepted"
+   * send: the author was told yes, and the change is for a person to explain.
+   */
+  withdrawnAt?: Timestamp;
+  withdrawnBy?: string;
 }
 
 /**

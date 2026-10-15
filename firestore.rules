@@ -679,7 +679,9 @@ service cloud.firestore {
         // or remove their own vote. A trigger derives the count.
         match /upvotes/{uid} {
           allow read: if isRegistered();
+          // Only these keys (T263): an upvote is read by everyone who opens the question.
           allow create: if isSelf(uid) && isRegistered() && appTakesWrites()
+            && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
             && request.resource.data.uid == request.auth.uid;
           allow delete: if isSelf(uid);
           allow update: if false;
@@ -1086,7 +1088,9 @@ service cloud.firestore {
 
       // An attendee may submit their own lead but must never read another's.
       match /leads/{uid} {
-        allow create: if isSelf(uid) && isRegistered() && !isDemo();
+        // `SponsorLeadDoc`'s keys only (T263), so a lead cannot carry a megabyte of junk.
+        allow create: if isSelf(uid) && isRegistered() && !isDemo()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'message', 'createdAt']);
         allow read: if isOrganizer();
         allow update, delete: if false;
       }
@@ -1788,7 +1792,9 @@ service cloud.firestore {
       // One document per reacting user, keyed by uid.
       match /reactions/{uid} {
         allow read: if isRegistered();
+        // Only these keys (T263): a reaction is read by everyone who opens the post.
         allow create, update: if isSelf(uid) && isRegistered() && appTakesWrites()
+          && request.resource.data.keys().hasOnly(['uid', 'emoji', 'createdAt'])
           && request.resource.data.uid == request.auth.uid;
         allow delete: if isSelf(uid);
       }

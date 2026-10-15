@@ -4,6 +4,7 @@ import {
   cfpStatus,
   closeDecisionPlan,
   dayAfter,
+  e2RetriesDue,
   fieldsForSessionType,
   fillPlaceholders,
   formatDay,
@@ -166,6 +167,25 @@ describe('the Thursday reminder', () => {
     expect(reminderDue(thu9, NY, isoWeek(thu9, NY))).toBe(false);
     expect(isoWeek(thu9, NY)).toBe('2026-W46');
   });
+
+  it('stays quiet before the call opens and after the close once nothing is left (T258 #17)', () => {
+    const thu9 = Date.parse('2026-11-12T14:00:00Z');
+    const opensAtMs = Date.parse('2026-11-01T04:00:00Z');
+    const closesAtMs = Date.parse('2027-02-01T04:59:00Z');
+    const cfp = { closeDate: '2027-01-31' };
+    // Before 1 November: no reminder, even on a Thursday morning.
+    const earlyThu = Date.parse('2026-10-29T13:00:00Z');
+    expect(reminderDue(earlyThu, NY, undefined)).toBe(true);
+    expect(reminderDue(earlyThu, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 3 })).toBe(false);
+    // Open: yes, whatever the count.
+    expect(reminderDue(thu9, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 0 })).toBe(true);
+    // After the close: only while something is undecided, and never once E4 is due.
+    const after = Date.parse('2027-02-04T14:00:00Z');
+    expect(reminderDue(after, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 0 })).toBe(false);
+    expect(reminderDue(after, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 2 })).toBe(true);
+    const e4Week = Date.parse('2027-02-18T14:00:00Z');
+    expect(reminderDue(e4Week, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 2 })).toBe(false);
+  });
 });
 
 describe('E4 and E6', () => {
@@ -176,13 +196,24 @@ describe('E4 and E6', () => {
     row({ id: 'early', status: 'accepted', acceptance: { e2SentAtMs: 1 } }),
     row({ id: 'no', status: 'rejected' }),
     row({ id: 'no-told', status: 'rejected', closeDecisionSent: true }),
+    // Accepted and told in November, then changed to rejected (T262).
+    row({ id: 'yes-then-no', status: 'rejected', acceptance: { e2SentAtMs: 1, withdrawnAtMs: 2 } }),
+    // Accepted after the close, E2 held, then rejected before anyone was told: E4 is right.
+    row({ id: 'held-then-no', status: 'rejected', acceptance: { e2HeldForE4: true } }),
+    row({ id: 'owed', status: 'accepted', closeDecisionSent: true, acceptance: { e2Owed: true } }),
   ];
 
   it('sends the accepted version only to acceptances held for it, the declined one to untold rejections', () => {
     const plan = closeDecisionPlan(rows);
     expect(plan.accepted.map((r) => r.id)).toEqual(['held']);
-    expect(plan.declined.map((r) => r.id)).toEqual(['no']);
+    expect(plan.declined.map((r) => r.id)).toEqual(['no', 'held-then-no']);
     expect(plan.undecided.map((r) => r.id)).toEqual(['open', 'told']);
+  });
+
+  it('retries an owed E2 until it goes (T258 #5)', () => {
+    expect(e2RetriesDue(rows).map((r) => r.id)).toEqual(['owed']);
+    const sent = row({ id: 'sent', status: 'accepted', acceptance: { e2Owed: true, e2SentAtMs: 5 } });
+    expect(e2RetriesDue([sent])).toEqual([]);
   });
 
   it('sends E6 once, to the queue', () => {

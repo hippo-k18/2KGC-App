@@ -29,6 +29,7 @@ import {
   limitToLast,
   orderBy,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -1291,6 +1292,15 @@ describe('the community board', () => {
     await assertFails(deleteDoc(doc(asB(), `communityPosts/p1/reactions/${A}`)));
   });
 
+  it('takes the app’s reaction and refuses extra keys (T263)', async () => {
+    await assertSucceeds(
+      setDoc(doc(asA(), `communityPosts/p1/reactions/${A}`), { uid: A, emoji: '👍', createdAt: serverTimestamp() }),
+    );
+    await assertFails(
+      setDoc(doc(asA(), `communityPosts/p1/reactions/${A}`), { uid: A, emoji: '👍', blob: 'x'.repeat(1000) }),
+    );
+  });
+
   it('lets an organizer hide a post but not re-sign it', async () => {
     await assertSucceeds(
       updateDoc(doc(asOrg(), 'communityPosts/p1'), { status: 'hidden' }),
@@ -1747,6 +1757,15 @@ describe('polls and Q&A', () => {
     );
   });
 
+  it('takes the app’s upvote and refuses extra keys (T263)', async () => {
+    await assertFails(
+      setDoc(doc(asB(), `sessions/s1/questions/q1/upvotes/${B}`), { uid: B, blob: 'x'.repeat(1000) }),
+    );
+    await assertSucceeds(
+      setDoc(doc(asB(), `sessions/s1/questions/q1/upvotes/${B}`), { uid: B, createdAt: serverTimestamp() }),
+    );
+  });
+
   it('refuses a question that arrives pre-approved', async () => {
     // Moderation state is not the author's to set. `approved` puts the question
     // straight onto the keynote screen with no moderator in the loop.
@@ -1868,6 +1887,21 @@ describe('sponsor leads', () => {
 
   it('lets the organizer read them', async () => {
     await assertSucceeds(getDoc(doc(asOrg(), `sponsors/sp/leads/${B}`)));
+  });
+
+  it('refuses keys a lead does not have (T263)', async () => {
+    await assertFails(
+      setDoc(doc(asA(), `sponsors/sp/leads/${A}`), { uid: A, email: `${A}@kgc.test`, junk: 'x'.repeat(1000) }),
+    );
+    await assertSucceeds(
+      setDoc(doc(asA(), `sponsors/sp/leads/${A}`), {
+        uid: A,
+        name: 'A',
+        email: `${A}@kgc.test`,
+        message: 'Hello',
+        createdAt: serverTimestamp(),
+      }),
+    );
   });
 });
 

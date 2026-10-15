@@ -18,6 +18,7 @@ import {
 } from '../ui';
 import { deleteQuestionAction, moveQuestionAction, toggleFormAction } from './question-form-actions';
 import { QuestionEditor } from './question-form-editor';
+import { ConfirmButton } from '../form';
 
 /**
  * Question Forms, for one audience.
@@ -298,13 +299,15 @@ export async function QuestionFormScreen({
                     </button>
                   </form>
                 )}
-                <form action={deleteQuestionAction}>
-                  <input type="hidden" name="audience" value={audience} />
-                  <input type="hidden" name="id" value={f.id} />
-                  <button type="submit" className="linkish">
-                    Remove
-                  </button>
-                </form>
+                {/* Buyers stop being asked on the next checkout, so it asks first (T262). */}
+                <ConfirmButton
+                  action={deleteQuestionAction}
+                  label="Remove"
+                  confirmLabel="Remove question"
+                  hidden={{ audience, id: f.id }}
+                >
+                  “{f.prompt}” is no longer asked at checkout. Answers already given are kept.
+                </ConfirmButton>
               </div>,
             ];
           })}

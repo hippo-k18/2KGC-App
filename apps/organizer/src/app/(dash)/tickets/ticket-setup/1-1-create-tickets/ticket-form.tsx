@@ -100,13 +100,24 @@ export function TicketForm({
         defaultValue={existing ? wholeUnits(existing.flatPriceCents) : ''}
         currencyName="currency"
         currencyDefault={existing?.currency ?? 'usd'}
+        previewLabel={existing?.pricePhases?.length ? 'Without phases this would be' : undefined}
         hint={
           existing?.pricePhases?.length ? (
-            <>
-              Only used while the price phases below are empty. Today the website charges{' '}
-              {existing.phase ? `the ${existing.phase} price, ` : ''}
-              {wholeUnits(existing.priceCents)}.
-            </>
+            /* T262: an edit here used to be read as changing what buyers pay. */
+            existing.phase ? (
+              <>
+                <strong>
+                  Buyers pay the {existing.phase} price today, {charged(existing.priceCents, existing.currency)}, not this box.
+                </strong>{' '}
+                To change it, edit the {existing.phase} line under Price phases. This box is used only when
+                there are no phases.
+              </>
+            ) : (
+              <>
+                <strong>The price phases below set the price, not this box.</strong> No phase is running
+                today. This box is used only when there are no phases.
+              </>
+            )
           ) : undefined
         }
       />
@@ -384,4 +395,9 @@ export function TicketForm({
       </FormActions>
     </form>
   );
+}
+
+/** `59900` → `$599.00`, for the sentence that says what buyers pay. */
+function charged(cents: number, currency = 'usd'): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
 }

@@ -157,14 +157,28 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
   const orderId = `manual_${request}`;
   const orderRef = db().collection(COLLECTIONS.orders).doc(orderId);
   const already = { ok: true, orderId, message: `That order was already recorded for ${email}. Nothing was changed.` };
-  if ((await orderRef.get()).exists) return already;
+  /*
+   * An order with no ticket on it is a retry to finish, not a duplicate
+   * (T262). The order is written before the registration, so a registration
+   * that threw left a paid order with no badge, and the retry used to answer
+   * "already recorded, nothing changed". `ensureRegistration` finds its own
+   * earlier work by order id and seat, so finishing is safe to repeat.
+   */
+  const unfinished = (d: FirebaseFirestore.DocumentData | undefined) =>
+    d?.status === 'paid' && ((d?.registrationIds as unknown[] | undefined) ?? []).length === 0;
+  const prior = await orderRef.get();
+  let resume = false;
+  if (prior.exists) {
+    if (!unfinished(prior.data())) return already;
+    resume = true;
+  }
 
   /**
    * Capacity, as the website checks it. This path used to issue a ticket
    * against a sold-out package without a word (T135, S8). An organizer who
    * means to go over raises the capacity first, which leaves a record of it.
    */
-  if (typeof tier.quantityTotal === 'number' && (tier.quantitySold ?? 0) >= tier.quantityTotal) {
+  if (!resume && typeof tier.quantityTotal === 'number' && (tier.quantitySold ?? 0) >= tier.quantityTotal) {
     return {
       ok: false,
       error: `${tier.name} is sold out (${tier.quantitySold ?? 0} of ${tier.quantityTotal}). Raise its capacity first if this order should go ahead.`,
@@ -177,7 +191,7 @@ export async function recordManualOrder(input: ManualOrderInput): Promise<Manual
      * is the double-submit guard: two posts of the same form race here, one
      * wins, and only the winner registers, counts and emails.
      */
-    try {
+    if (!resume) try {
       await orderRef.create({
         eventId: EVENT_ID,
         externalId: orderId,

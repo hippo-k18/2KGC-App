@@ -50,6 +50,43 @@ export async function generateMetadata({
  * answer "is KGC running a call this year?" to anybody who guessed a URL, which
  * is a question the committee may not have announced the answer to yet.
  */
+type Block = { kind: 'text'; text: string } | { kind: 'list'; items: string[] };
+
+/**
+ * The call's text as paragraphs and lists. Paragraphs are separated by a blank
+ * line, and a run of lines starting "- " (or "• ", "* ") is a bulleted list
+ * rather than literal hyphens (T261 #3). Plain text only, never markup.
+ */
+function instructionBlocks(text: string): Block[] {
+  const out: Block[] = [];
+  for (const para of text.split(/\n\s*\n/)) {
+    let lines: string[] = [];
+    let items: string[] = [];
+    const flushText = () => {
+      const t = lines.join('\n').trim();
+      if (t) out.push({ kind: 'text', text: t });
+      lines = [];
+    };
+    const flushList = () => {
+      if (items.length) out.push({ kind: 'list', items });
+      items = [];
+    };
+    for (const line of para.split('\n')) {
+      const bullet = /^\s*[-•*]\s+(.*\S)\s*$/.exec(line);
+      if (bullet) {
+        flushText();
+        items.push(bullet[1]);
+      } else {
+        flushList();
+        lines.push(line);
+      }
+    }
+    flushText();
+    flushList();
+  }
+  return out;
+}
+
 export default async function SubmitPage({ params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const call = await loadCall(callId);
@@ -63,17 +100,29 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
         </p>
         <h1>{call.title}</h1>
 
-        {call.instructions
-          .split(/\n\s*\n/)
-          .map((para) => para.trim())
-          .filter(Boolean)
-          .map((para, i) => (
+        {instructionBlocks(call.instructions).map((block, i) =>
+          block.kind === 'list' ? (
+            <ul key={i}>
+              {block.items.map((item, j) => (
+                <li key={j}>{item}</li>
+              ))}
+            </ul>
+          ) : (
             <p key={i} className={i === 0 ? 'lede' : undefined} style={{ whiteSpace: 'pre-wrap' }}>
-              {para}
+              {block.text}
             </p>
-          ))}
+          ),
+        )}
 
-        {call.refusal ? (
+        {call.opensOn ? (
+          /*
+           * Early is not an error (T261 #3). Someone arriving before the call
+           * opens gets the date, not a red refusal and an address to complain to.
+           */
+          <p className="notice" role="status">
+            <strong>Opens {call.opensOn}.</strong>
+          </p>
+        ) : call.refusal ? (
           <>
             <p className="notice warn" role="status">
               <strong>{call.refusal}</strong>

@@ -641,7 +641,8 @@ describe('a field an author clears is actually cleared', () => {
 
   it('does not leave an author in a track they removed', async () => {
     await seedCall();
-    const first = await existing({ trackId: 'graph-ml' });
+    // Drafts on both sides: a submitted abstract can no longer go back to a draft (T258 #7).
+    const first = await existing({ trackId: 'graph-ml', finish: false });
     if (!first.ok) return;
 
     // A draft, because a finished submission to a call that offers tracks has
@@ -659,7 +660,7 @@ describe('a field an author clears is actually cleared', () => {
 
   it('does not leave an author offering a session type they removed', async () => {
     await seedCall();
-    const first = await existing({ sessionType: 'talk' });
+    const first = await existing({ sessionType: 'talk', finish: false });
     if (!first.ok) return;
 
     const out = await saveSubmission(
@@ -670,6 +671,20 @@ describe('a field an author clears is actually cleared', () => {
     expect(out.ok).toBe(true);
 
     expect('sessionType' in (await raw(first.submissionId))).toBe(false);
+  });
+
+  it('keeps a submitted abstract submitted when it is saved as a draft (T258 #7)', async () => {
+    await seedCall();
+    const first = await existing();
+    expect(first.status).toBe('submitted');
+
+    // Held to the finished rules: clearing the track is refused, not saved as a draft.
+    const cleared = await saveSubmission(CALL_ID, good({ trackId: undefined, finish: false }), first.submissionId);
+    expect(cleared.ok).toBe(false);
+
+    const kept = await saveSubmission(CALL_ID, good({ title: 'A better title', finish: false }), first.submissionId);
+    expect(kept.ok && kept.status).toBe('submitted');
+    expect((await raw(first.submissionId)).status).toBe('submitted');
   });
 
   it('does not keep an answer the author emptied', async () => {
