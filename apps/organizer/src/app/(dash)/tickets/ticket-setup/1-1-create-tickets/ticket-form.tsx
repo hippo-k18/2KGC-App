@@ -100,6 +100,7 @@ export function TicketForm({
         defaultValue={existing ? wholeUnits(existing.flatPriceCents) : ''}
         currencyName="currency"
         currencyDefault={existing?.currency ?? 'usd'}
+        previewLabel={existing?.pricePhases?.length ? 'Without phases this would be' : undefined}
         hint={
           existing?.pricePhases?.length ? (
             /* T262: an edit here used to be read as changing what buyers pay. */
