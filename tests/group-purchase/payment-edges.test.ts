@@ -109,7 +109,10 @@ vi.mock('@/lib/analytics', () => ({
 }));
 
 import { NextRequest } from '../../apps/web/node_modules/next/server.js';
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+// The website's own copy: a Timestamp from the root install fails its store's
+// instanceof check (AGENTS.md gotcha 8).
+import { Timestamp } from '../../apps/web/node_modules/firebase-admin/lib/firestore/index.js';
 import { COLLECTIONS, EVENT_ID, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { startCheckout } from '@/app/tickets/actions';

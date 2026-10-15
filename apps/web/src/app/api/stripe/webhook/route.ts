@@ -279,7 +279,8 @@ export async function POST(req: NextRequest) {
         ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
       if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
-      const appAccessEnded = await endAccessFor([outcome.registrationId, ...seatsCancelled]);
+      // Once, on the delivery that withdrew the tickets, not on Stripe's replays.
+      const appAccessEnded = outcome.newlyRefunded ? await endAccessFor([outcome.registrationId, ...seatsCancelled]) : [];
 
       /**
        * Workshops refunded on its own: it came off the badge, which stays
@@ -435,7 +436,8 @@ export async function POST(req: NextRequest) {
         }
       }
       if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
-      const appAccessEnded = await endAccessFor([outcome.registrationId, ...seatsCancelled]);
+      // Once, on the delivery that withdrew the tickets, not on Stripe's replays.
+      const appAccessEnded = outcome.newlyRefunded ? await endAccessFor([outcome.registrationId, ...seatsCancelled]) : [];
 
       /**
        * A person has to answer a dispute in Stripe, with evidence, by its
