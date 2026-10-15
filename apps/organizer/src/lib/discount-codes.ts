@@ -74,25 +74,32 @@ function describeCoupon(coupon: {
   return 'no discount';
 }
 
+/** Whether a promotion code is this event's: marked `kgcEvent` by `createDiscountCode`. */
+export function isKgcCode(p: { metadata?: Record<string, string> | null }): boolean {
+  return p.metadata?.kgcEvent === EVENT_ID;
+}
+
 /**
- * Every promotion code on the account, newest first.
+ * This event's promotion codes, newest first.
  *
- * ⚠️ **This lists codes for the whole Stripe account, not just this event.**
- * There is nothing on a Stripe promotion code that scopes it to KGC 2027 unless
- * somebody sets metadata, and codes created in Stripe's own dashboard will not
- * have it. Showing everything and saying so beats filtering on a field that is
- * usually absent and silently hiding half the codes.
+ * ⚠️ The Stripe account is shared with money that is not ticketing (T126), so
+ * only codes this dashboard created, marked `kgcEvent`, are listed (T262).
+ * Listing the whole account let staff switch off the other business's codes.
+ * Every page is read, not just the first 100.
  */
 export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
-  const [res, products] = await Promise.all([
-    stripe().promotionCodes.list({
-      limit: 100,
-      expand: ['data.promotion.coupon.applies_to'],
-    }),
+  const [all, products] = await Promise.all([
+    stripe()
+      .promotionCodes.list({
+        limit: 100,
+        expand: ['data.promotion.coupon.applies_to'],
+      })
+      .autoPagingToArray({ limit: 5000 }),
     productNames(),
   ]);
 
-  return res.data
+  return all
+    .filter(isKgcCode)
     /*
      * A coupon deleted in Stripe's own dashboard leaves its promotion code
      * behind: Stripe never deletes a promotion code, and keeps listing it with
@@ -246,7 +253,7 @@ export async function createDiscountCode(input: CreateDiscountInput): Promise<st
     code: input.code.toUpperCase(),
     max_redemptions: input.maxRedemptions,
     expires_at: input.expiresAt ? Math.floor(input.expiresAt.getTime() / 1000) : undefined,
-    metadata: { kgcEvent: 'kgc-2027' },
+    metadata: { kgcEvent: EVENT_ID },
   });
 
   return promo.code;
@@ -260,5 +267,8 @@ export async function createDiscountCode(input: CreateDiscountInput): Promise<st
  * longer exists is an order nobody can explain a year later.
  */
 export async function setDiscountCodeActive(id: string, active: boolean): Promise<void> {
+  // Never another business's code on the shared account (T262).
+  const promo = await stripe().promotionCodes.retrieve(id);
+  if (!isKgcCode(promo)) throw new Error('That code was not made for this event, so it was left alone.');
   await stripe().promotionCodes.update(id, { active });
 }

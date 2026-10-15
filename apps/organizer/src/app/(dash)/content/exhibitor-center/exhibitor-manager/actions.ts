@@ -10,6 +10,7 @@ import { revokeLeadLinks, sendLeadLink } from '@/lib/exhibitor-leads';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { removeImage, uploadImage, UploadRejected, UploadUnavailable } from '@/lib/uploads';
+import { normaliseWebsite } from '../../sponsor-center/sponsor-manager/sponsor-fields';
 
 export interface ExhibitorState {
   ok?: boolean;
@@ -52,7 +53,8 @@ export async function saveExhibitorAction(
   const boothNumber = String(formData.get('boothNumber') ?? '').trim();
   const contactName = String(formData.get('contactName') ?? '').trim();
   const contactEmail = String(formData.get('contactEmail') ?? '').trim();
-  const website = String(formData.get('website') ?? '').trim();
+  // Same check as sponsors (T263): it becomes an href on www /exhibitors, so only http and https.
+  const website = normaliseWebsite(String(formData.get('website') ?? ''));
   const description = String(formData.get('description') ?? '').trim();
   const status = String(formData.get('status') ?? 'provisional');
   const passesRaw = String(formData.get('passesAllocated') ?? '').trim();
@@ -64,6 +66,7 @@ export async function saveExhibitorAction(
   if (!['confirmed', 'provisional', 'cancelled'].includes(status)) {
     return { error: 'Choose a status.' };
   }
+  if (website === null) return { error: 'That is not a web address. Use something like https://example.com.' };
 
   const passesAllocated = passesRaw === '' ? undefined : Number(passesRaw);
   if (passesAllocated !== undefined && (!Number.isInteger(passesAllocated) || passesAllocated < 0)) {
@@ -197,17 +200,29 @@ export async function setExhibitorStatusAction(formData: FormData): Promise<void
   try {
     const existing = await getExhibitor(id);
     if (!existing) return;
+    /*
+     * Reinstate puts back what it was (T262). It used to come back as
+     * provisional, so cancelling a confirmed, paying exhibitor by mistake and
+     * undoing it quietly downgraded them.
+     */
+    const prior = (existing as { statusBeforeCancel?: string }).statusBeforeCancel;
+    const next =
+      existing.status === 'cancelled' && status !== 'cancelled' && prior && prior !== 'cancelled' ? prior : status;
     await db()
       .collection(COLLECTIONS.exhibitors)
       .doc(id)
-      .update({ status, updatedAt: new Date() });
+      .update({
+        status: next,
+        statusBeforeCancel: next === 'cancelled' ? existing.status : FieldValue.delete(),
+        updatedAt: new Date(),
+      });
     await appendAudit({
       actor,
       action: 'exhibitor.update',
       targetPath: `${COLLECTIONS.exhibitors}/${id}`,
       targetId: id,
       before: { status: existing.status },
-      after: { status },
+      after: { status: next },
     });
   } catch (err) {
     recordError('exhibitor.setStatus', err);

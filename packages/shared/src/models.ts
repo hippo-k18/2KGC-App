@@ -2177,6 +2177,8 @@ export interface ExhibitorDoc extends BaseDoc {
   passesAllocated?: number;
   passesUsed?: number;
   status: "confirmed" | "provisional" | "cancelled";
+  /** Set while cancelled: what Reinstate puts back (T262). */
+  statusBeforeCancel?: "confirmed" | "provisional";
 
   /**
    * Lead capture: the state of the capability link this exhibitor's booth staff

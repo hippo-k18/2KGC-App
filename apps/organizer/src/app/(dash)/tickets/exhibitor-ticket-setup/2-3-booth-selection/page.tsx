@@ -16,6 +16,7 @@ import {
 } from '../../../ui';
 import { releaseBoothAction, toggleBoothBlockedAction } from './actions';
 import { AddBoothForm, AssignBoothForm } from './booth-forms';
+import { ConfirmButton } from '../../../form';
 
 export const dynamic = 'force-dynamic';
 
@@ -195,12 +196,11 @@ export default async function BoothSelectionPage() {
 
             <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {b.exhibitorId ? (
-                <form action={releaseBoothAction}>
-                  <input type="hidden" name="boothId" value={b.id} />
-                  <button type="submit" className="linkish" style={ROW_ACTION}>
-                    Release
-                  </button>
-                </form>
+                /* A paying exhibitor loses the booth on this press, so it asks first (T262). */
+                <ConfirmButton action={releaseBoothAction} label="Release" hidden={{ boothId: b.id }}>
+                  Booth {b.id} goes back on sale and its exhibitor no longer has it. Assigning it
+                  again is the only way back.
+                </ConfirmButton>
               ) : (
                 <form action={toggleBoothBlockedAction}>
                   <input type="hidden" name="boothId" value={b.id} />
