@@ -2,9 +2,17 @@ import 'server-only';
 
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import { cache } from 'react';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, heldTicketNames, type RegistrationDoc } from '@kgc/shared';
 import { sendBlogSignInCode } from '@kgc/scripts/src/lib/email';
+import {
+  callerIpFromHeaders,
+  codeRequestAllowed,
+  codeVerifyGate,
+  guessesLocked,
+  recordFailedGuess,
+} from '@kgc/scripts/src/lib/rate-limit';
 import { db } from '@/lib/firestore';
 import {
   codesMatch,
@@ -55,6 +63,23 @@ function secret(): string {
 }
 
 const codes = () => db().collection(COLLECTIONS.ticketSignInCodes);
+
+/**
+ * Limits (T264): requests per address and per IP, and wrong codes per address
+ * across codes, in `rateLimits` documents that outlive the code. See
+ * `@kgc/scripts` rate-limit.ts. Before this a spent code was deleted and a new
+ * one could be asked for at once, which was unlimited guessing (T263 P1).
+ */
+const SCOPE = 'ticket-pass';
+const store = () => db() as unknown as Firestore;
+
+async function callerIp(): Promise<string | undefined> {
+  try {
+    return callerIpFromHeaders(await headers());
+  } catch {
+    return undefined;
+  }
+}
 
 export interface TicketPass {
   email: string;
@@ -124,12 +149,18 @@ export async function requestTicketCode(
 ): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
   const email = normaliseEmail(rawEmail);
   if (!email) return { ok: false, error: 'Enter a valid email address.' };
-  if (!(await activeTickets(email))) return { ok: true, email };
 
+  // Counted before the ticket is looked up, so the limit answers the same for
+  // every address and says nothing about who is attending.
   const ref = codes().doc(email);
   const prior = await ref.get();
   const sentAt = (prior.data()?.sentAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
   if (Date.now() - sentAt < CODE_RESEND_MS) return { ok: true, email };
+  if (!(await codeRequestAllowed(store(), SCOPE, email, await callerIp()))) {
+    return { ok: false, error: 'Too many codes asked for. Wait a while, then try again.' };
+  }
+  if (await guessesLocked(store(), SCOPE, email)) return { ok: true, email };
+  if (!(await activeTickets(email))) return { ok: true, email };
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   await ref.set({
@@ -157,15 +188,21 @@ export async function verifyTicketCode(
   const wrong = { ok: false as const, error: 'That code is not right, or it has expired.' };
   if (!email || code.length !== 6) return wrong;
 
+  const gate = await codeVerifyGate(store(), SCOPE, email, await callerIp());
+  if (gate === 'locked') return { ok: false, error: 'Too many wrong codes. Wait 15 minutes, then ask for a new code.' };
+  if (gate === 'limited') return { ok: false, error: 'Too many tries. Wait a while, then try again.' };
+
   const ref = codes().doc(email);
   const matched = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const data = snap.data() as { hash: string; expiresAt: { toMillis(): number }; tries: number } | undefined;
     if (!data) return false;
-    if (data.expiresAt.toMillis() < Date.now() || data.tries >= MAX_TRIES) {
+    if (data.expiresAt.toMillis() < Date.now()) {
       tx.delete(ref);
       return false;
     }
+    // Spent, but kept until it expires so the resend floor still holds.
+    if (data.tries >= MAX_TRIES) return false;
     if (!codesMatch(data.hash, hashCode(secret(), email, code))) {
       tx.update(ref, { tries: data.tries + 1 });
       return false;
@@ -173,6 +210,9 @@ export async function verifyTicketCode(
     tx.delete(ref);
     return true;
   });
+  // Every wrong code counts, even with no code on file: counting only live
+  // codes would let the lock message tell a stranger who holds a ticket.
+  if (!matched) await recordFailedGuess(store(), SCOPE, email);
   if (!matched || !(await activeTickets(email))) return wrong;
 
   (await cookies()).set(

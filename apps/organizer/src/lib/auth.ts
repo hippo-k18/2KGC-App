@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { checkCode, issueCode } from './access-code';
+import { checkCode, issueCode, lookupAllowed } from './access-code';
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -138,6 +138,8 @@ const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess
 });
 
 const NOT_RECOGNISED = 'Email not recognised. Ask a KGC organizer to add you.';
+const TOO_MANY = 'Too many codes asked for. Wait a while, then try again.';
+const LOCKED = 'Too many wrong codes. Wait 15 minutes, then ask for a new code.';
 
 /** May this address sign in? An owner in the allowlist, or a team member not removed. */
 async function mayEnter(email: string): Promise<boolean> {
@@ -173,8 +175,11 @@ async function startSession(session: ConsoleSession): Promise<void> {
 export async function requestSignInCode(raw: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
   const email = raw.trim().toLowerCase();
   if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(email)) return { ok: false, error: 'Enter your email address.' };
+  if (!(await lookupAllowed())) return { ok: false, error: TOO_MANY };
   if (!(await mayEnter(email))) return { ok: false, error: NOT_RECOGNISED };
-  if ((await issueCode(email, 'signin')) === 'failed') {
+  const issued = await issueCode(email, 'signin');
+  if (issued === 'limited') return { ok: false, error: TOO_MANY };
+  if (issued === 'failed') {
     return { ok: false, error: 'The email with your code could not be sent. Try again in a minute.' };
   }
   return { ok: true, email };
@@ -186,7 +191,10 @@ export async function signInWithCode(
   code: string,
 ): Promise<{ ok: true; home: string } | { ok: false; error: string }> {
   const email = raw.trim().toLowerCase();
-  if (!(await checkCode(email, 'signin', code)) || !(await mayEnter(email))) {
+  const checked = await checkCode(email, 'signin', code);
+  if (checked === 'locked') return { ok: false, error: LOCKED };
+  if (checked === 'limited') return { ok: false, error: TOO_MANY };
+  if (checked !== 'ok' || !(await mayEnter(email))) {
     return { ok: false, error: 'That code is not right, or it has expired.' };
   }
   if (isAllowed(email)) {
@@ -328,14 +336,16 @@ export async function exportAccess(kind: string): Promise<'ok' | 'signed-out' | 
 export async function reauthenticate(supplied: string): Promise<boolean> {
   const access = await currentAccess();
   if (!access) return false;
-  return checkCode(access.email, 'confirm', supplied);
+  return (await checkCode(access.email, 'confirm', supplied)) === 'ok';
 }
 
 /** Mail the signed-in organizer a confirmation code. */
 export async function sendConfirmCode(): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
   const access = await currentAccess();
   if (!access) return { ok: false, error: 'You have been signed out. Sign in again.' };
-  if ((await issueCode(access.email, 'confirm')) === 'failed') {
+  const issued = await issueCode(access.email, 'confirm');
+  if (issued === 'limited') return { ok: false, error: TOO_MANY };
+  if (issued === 'failed') {
     return { ok: false, error: 'The email with your code could not be sent. Try again in a minute.' };
   }
   return { ok: true, email: access.email };

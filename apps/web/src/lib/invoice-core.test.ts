@@ -103,10 +103,24 @@ function taxError() {
   });
 }
 
-function fakeStripe(opts: { existing?: boolean; finalize?: () => never; create?: () => never; update?: () => never } = {}) {
+function fakeStripe(
+  opts: {
+    existing?: boolean;
+    /** Customers on the shared account that ticketing did not make (no `kgcRole`). */
+    foreign?: boolean;
+    finalize?: () => never;
+    create?: () => never;
+    update?: () => never;
+  } = {},
+) {
   const s = {
     customers: {
-      list: vi.fn(async () => ({ data: opts.existing ? [{ id: 'cus_old' }] : [] })),
+      list: vi.fn(async () => ({
+        data: [
+          ...(opts.foreign ? [{ id: 'cus_sponsor', metadata: {} }] : []),
+          ...(opts.existing ? [{ id: 'cus_old', metadata: { kgcRole: 'invoice-billing-contact' } }] : []),
+        ],
+      })),
       create: vi.fn(async () => {
         if (opts.create) opts.create();
         return { id: 'cus_new' };
@@ -156,6 +170,24 @@ describe('raiseInvoiceWith', () => {
     expect(s.invoices.finalizeInvoice).toHaveBeenCalledWith('in_1');
     expect(r).toMatchObject({ invoiceId: 'in_1', totalCents: 119800, hostedInvoiceUrl: 'https://invoice.stripe.com/i/x' });
     expect(s.invoices.del).not.toHaveBeenCalled();
+  });
+
+  it('never touches a customer ticketing did not create, and makes its own beside it (T264)', async () => {
+    const s = fakeStripe({ foreign: true });
+    await raiseInvoiceWith(s, REQ);
+    expect(s.customers.update).not.toHaveBeenCalled();
+    expect(s.customers.create).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { kgcRole: 'invoice-billing-contact' } }),
+    );
+    expect(s.invoices.create).toHaveBeenCalledWith(expect.objectContaining({ customer: 'cus_new' }));
+  });
+
+  it('picks our own customer when a foreign one shares the email', async () => {
+    const s = fakeStripe({ foreign: true, existing: true });
+    await raiseInvoiceWith(s, REQ);
+    expect(s.customers.update).toHaveBeenCalledTimes(1);
+    expect(s.customers.update).toHaveBeenCalledWith('cus_old', expect.anything());
+    expect(s.customers.create).not.toHaveBeenCalled();
   });
 
   it('updates the address on an existing customer instead of creating one', async () => {

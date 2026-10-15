@@ -80,6 +80,13 @@ const IP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const IP_REQUEST_MAX = 120;
 const IP_VERIFY_MAX = 120;
 
+/**
+ * Codes per address per day, on top of the five an hour (T263 P2, T264). Five
+ * an hour with five tries each is 600 guesses a day, about a 20% chance a year
+ * of guessing a code that can delete somebody's account. Fifteen a day is 75.
+ */
+const DAILY_MAX_REQUESTS = 15;
+
 const MAX_ATTEMPTS = 5;
 const ALT_EMAIL_QUERY_LIMIT = 5;
 
@@ -170,11 +177,13 @@ export async function requestSignInCode(
     const ipRef = ip
       ? db.collection(COLLECTIONS.rateLimits).doc(ipCounterId('requestOtp', ip))
       : undefined;
+    const dayRef = db.collection(COLLECTIONS.rateLimits).doc(`day_${id}`);
 
     // Every read first, then every write — Firestore rejects a transaction
     // that reads after it has queued a write.
     const rateSnap = await tx.get(rateLimitRef);
     const ipSnap = ipRef ? await tx.get(ipRef) : undefined;
+    const daySnap = await tx.get(dayRef);
 
     const rateData = rateSnap.data() as RateLimitDoc | undefined;
     const windowMs = RATE_LIMIT_WINDOW_MINUTES * 60_000;
@@ -182,6 +191,18 @@ export async function requestSignInCode(
       Boolean(rateData) && now.getTime() - toMillis(rateData!.windowStart) < windowMs;
 
     if (withinWindow && rateData!.count >= RATE_LIMIT_MAX_REQUESTS) {
+      limited = true;
+      return;
+    }
+
+    const nextDay = tickWindow(
+      daySnap.data() as WindowCounterDoc | undefined,
+      'requestOtp-day',
+      now,
+      24 * 60 * 60_000,
+      DAILY_MAX_REQUESTS,
+    );
+    if (!nextDay) {
       limited = true;
       return;
     }
@@ -203,6 +224,7 @@ export async function requestSignInCode(
       }
       tx.set(ipRef, nextIpWindow);
     }
+    tx.set(dayRef, nextDay);
 
     /*
      * No `satisfies RateLimitDoc` / `satisfies OtpCodeDoc` on these two, and

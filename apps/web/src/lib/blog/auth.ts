@@ -2,11 +2,21 @@ import 'server-only';
 
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import { cache } from 'react';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS } from '@kgc/shared';
 import { sendBlogSignInCode } from '@kgc/scripts/src/lib/email';
+import {
+  callerIpFromHeaders,
+  codeRequestAllowed,
+  codeVerifyGate,
+  guessesLocked,
+  limitId,
+  perHourAndDay,
+  recordFailedGuess,
+  takeAllowance,
+} from '@kgc/scripts/src/lib/rate-limit';
 import { db } from '@/lib/firestore';
 import type { Viewer } from './access';
 import { blogPath } from './paths';
@@ -61,6 +71,24 @@ export function envEditors(): string[] {
 const members = () => db().collection(COLLECTIONS.blogMembers);
 const codes = () => db().collection(COLLECTIONS.blogSignInCodes);
 
+/**
+ * Limits (T264): requests per address and per IP, and wrong codes per address
+ * across codes, in `rateLimits` documents that outlive the code. See
+ * `@kgc/scripts` rate-limit.ts. Before this a spent code was deleted and a new
+ * one could be asked for at once, which was unlimited guessing (T263 P1).
+ */
+const SCOPE = 'blog';
+const TOO_MANY = 'Too many codes asked for. Wait a while, then try again.';
+const store = () => db() as unknown as Firestore;
+
+async function callerIp(): Promise<string | undefined> {
+  try {
+    return callerIpFromHeaders(await headers());
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getMember(email: string): Promise<BlogMemberDoc | null> {
   const snap = await members().doc(email).get();
   return snap.exists ? (snap.data() as BlogMemberDoc) : null;
@@ -104,12 +132,23 @@ async function mayEnter(email: string): Promise<boolean> {
 export async function requestCode(rawEmail: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
   const email = normaliseEmail(rawEmail);
   if (!email) return { ok: false, error: 'Enter a valid email address.' };
+  const ip = await callerIp();
+  // "Email not recognised" stays (owner, 2026-09-26); this caps how fast one IP
+  // can use it to test addresses.
+  const lookup = await takeAllowance(store(), [
+    { id: ip ? limitId('blog-lookup', 'ip', ip) : undefined, kind: 'blog-lookup-ip', caps: perHourAndDay(30, 100) },
+  ]);
+  if (!lookup) return { ok: false, error: TOO_MANY };
   if (!(await mayEnter(email))) return { ok: false, error: NOT_RECOGNISED };
 
   const ref = codes().doc(email);
   const prior = await ref.get();
   const sentAt = (prior.data()?.sentAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
   if (Date.now() - sentAt < CODE_RESEND_MS) return { ok: true, email };
+  if (await guessesLocked(store(), SCOPE, email)) {
+    return { ok: false, error: 'Too many wrong codes. Wait 15 minutes, then ask for a new code.' };
+  }
+  if (!(await codeRequestAllowed(store(), SCOPE, email, ip))) return { ok: false, error: TOO_MANY };
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   await ref.set({
@@ -135,23 +174,32 @@ export async function verifyCode(rawEmail: string, rawCode: string): Promise<{ o
   const wrong = { ok: false as const, error: 'That code is not right, or it has expired.' };
   if (!email || code.length !== 6) return wrong;
 
+  const gate = await codeVerifyGate(store(), SCOPE, email, await callerIp());
+  if (gate === 'locked') return { ok: false, error: 'Too many wrong codes. Wait 15 minutes, then ask for a new code.' };
+  if (gate === 'limited') return { ok: false, error: 'Too many tries. Wait a while, then try again.' };
+
   const ref = codes().doc(email);
   const result = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const data = snap.data() as { hash: string; expiresAt: { toMillis(): number }; tries: number } | undefined;
-    if (!data) return false;
-    if (data.expiresAt.toMillis() < Date.now() || data.tries >= MAX_TRIES) {
+    if (!data) return 'none' as const;
+    if (data.expiresAt.toMillis() < Date.now()) {
       tx.delete(ref);
-      return false;
+      return 'none' as const;
     }
+    // Spent, but kept until it expires so the resend floor still holds.
+    if (data.tries >= MAX_TRIES) return 'none' as const;
     if (!codesMatch(data.hash, hashCode(secret(), email, code))) {
       tx.update(ref, { tries: data.tries + 1 });
-      return false;
+      return 'wrong' as const;
     }
     tx.delete(ref);
-    return true;
+    return 'ok' as const;
   });
-  if (!result || !(await mayEnter(email))) return wrong;
+  // Only a guess against a live code counts, so locking a writer out takes
+  // asking for a code, which mails them.
+  if (result === 'wrong') await recordFailedGuess(store(), SCOPE, email);
+  if (result !== 'ok' || !(await mayEnter(email))) return wrong;
 
   // First sign-in of an editor named in BLOG_EDITORS creates their profile.
   const memberRef = members().doc(email);
