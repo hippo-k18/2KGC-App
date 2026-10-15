@@ -471,13 +471,15 @@ export function Scanner({
         {cameraError ? <p className="error">Camera: {cameraError}</p> : null}
 
         {queue.length > 0 ? (
-          <p className="error" role="status" style={{ fontWeight: 600 }}>
-            {queue.length} {queue.length === 1 ? 'scan' : 'scans'} not sent yet. Saved on this device
-            and sent again when the connection is back.{' '}
+          <div className="error" role="status" style={{ fontWeight: 600, margin: '12px 0' }}>
+            <p style={{ margin: '0 0 8px' }}>
+              {queue.length} {queue.length === 1 ? 'scan' : 'scans'} not sent yet. Saved on this
+              device and sent again when the connection is back.
+            </p>
             <button type="button" onClick={() => void flush()}>
               Send now
             </button>
-          </p>
+          </div>
         ) : null}
         {lastSent && !kiosk ? (
           <p className="muted" role="status">
